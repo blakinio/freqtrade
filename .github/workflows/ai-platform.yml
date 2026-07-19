@@ -53,18 +53,8 @@ jobs:
           python -m pytest -q -o addopts=''
           --confcutdir=tests/ai_platform tests/ai_platform
 
-      - name: Ruff validation runner
-        run: ruff check ai_platform/scripts/run_validation.py
-
-      - name: Ruff validation tests
-        run: ruff check tests/ai_platform/test_run_validation.py
-
-      - name: Ruff inherited AI platform
-        run: >-
-          ruff check ai_platform/scripts/run_experiment.py
-          tests/ai_platform/test_run_experiment.py
-          ai_platform/strategies/AiBaselineStrategy.py
-          tests/ai_platform/test_baseline_assets.py
+      - name: Ruff
+        run: ruff check ai_platform tests/ai_platform
 
       - name: Ruff format
         run: ruff format --check ai_platform tests/ai_platform

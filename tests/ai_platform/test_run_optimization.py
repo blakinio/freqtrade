@@ -100,7 +100,10 @@ def test_plan_rejects_tuning_overlap_with_final_holdout(tmp_path: Path) -> None:
     plan_path = tmp_path / "optimization.json"
     plan_path.write_text(json.dumps(plan), encoding="utf-8")
 
-    with pytest.raises(OptimizationError, match="Tuning and final holdout windows must not overlap"):
+    with pytest.raises(
+        OptimizationError,
+        match="Tuning and final holdout windows must not overlap",
+    ):
         load_optimization_plan(plan_path)
 
 

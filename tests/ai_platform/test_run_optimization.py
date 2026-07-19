@@ -80,7 +80,7 @@ def test_plan_rejects_final_holdout_drift(tmp_path: Path) -> None:
     plan = json.loads(PLAN_PATH.read_text(encoding="utf-8"))
     plan["final_holdout"] = {
         "name": "holdout-incorrect",
-        "timerange": "20260401-20260531",
+        "timerange": "20260501-20260630",
     }
     plan_path = tmp_path / "optimization.json"
     plan_path.write_text(json.dumps(plan), encoding="utf-8")
@@ -130,6 +130,18 @@ def test_selection_identity_is_deterministic_and_parameter_sensitive() -> None:
     assert first == second
     assert first.startswith("opt-")
     assert first != changed
+
+
+def test_selection_identity_rejects_unknown_git_commit() -> None:
+    plan = load_optimization_plan(PLAN_PATH)
+
+    with pytest.raises(OptimizationError, match="40-character lowercase Git commit SHA"):
+        selection_identity(
+            plan,
+            git_commit="unknown",
+            parameter="entry_prediction_threshold",
+            value=0.005,
+        )
 
 
 def test_local_perturbations_are_symmetric_inside_declared_bounds() -> None:

@@ -1,0 +1,81 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ai-platform-discovery-search-space-v1",
+    "title": "AI Platform Discovery Search Space v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "search_id",
+        "base_config",
+        "base_experiment_manifest",
+        "base_validation_plan",
+        "base_registry_definition",
+        "model_type",
+        "target_id",
+        "target_description",
+        "feature_group_sets",
+        "entry_prediction_thresholds",
+        "exit_prediction_thresholds",
+        "stoplosses",
+        "max_candidates"
+    ],
+    "properties": {
+        "schema_version": {"const": 1},
+        "search_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "base_config": {"type": "string", "minLength": 1},
+        "base_experiment_manifest": {"type": "string", "minLength": 1},
+        "base_validation_plan": {"type": "string", "minLength": 1},
+        "base_registry_definition": {"type": "string", "minLength": 1},
+        "model_type": {"const": "LightGBMRegressor"},
+        "target_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "target_description": {"type": "string", "minLength": 1},
+        "feature_group_sets": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                    "enum": [
+                        "price_action",
+                        "momentum",
+                        "trend",
+                        "volatility_volume",
+                        "time_context"
+                    ]
+                }
+            }
+        },
+        "entry_prediction_thresholds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "number", "minimum": 0.001, "maximum": 0.05}
+        },
+        "exit_prediction_thresholds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "number", "minimum": -0.05, "maximum": 0.01}
+        },
+        "stoplosses": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {"type": "number", "minimum": -0.25, "maximum": -0.005}
+        },
+        "max_candidates": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+        }
+    }
+}

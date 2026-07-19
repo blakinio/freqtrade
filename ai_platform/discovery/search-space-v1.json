@@ -1,0 +1,20 @@
+{
+    "schema_version": 1,
+    "search_id": "bounded-freqai-discovery-v1",
+    "base_config": "ai_platform/configs/freqai-baseline.example.json",
+    "base_experiment_manifest": "ai_platform/experiments/baseline-v1.json",
+    "base_validation_plan": "ai_platform/validation/baseline-validation-v1.json",
+    "base_registry_definition": "ai_platform/registry/baseline-v1.json",
+    "model_type": "LightGBMRegressor",
+    "target_id": "future-average-return-v1",
+    "target_description": "Average forward close return over the configured FreqAI label_period_candles horizon.",
+    "feature_group_sets": [
+        ["price_action", "momentum", "trend"],
+        ["price_action", "trend", "volatility_volume"],
+        ["price_action", "momentum", "trend", "volatility_volume", "time_context"]
+    ],
+    "entry_prediction_thresholds": [0.003, 0.005, 0.008],
+    "exit_prediction_thresholds": [0.0],
+    "stoplosses": [-0.03, -0.05],
+    "max_candidates": 18
+}

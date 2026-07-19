@@ -202,9 +202,7 @@ def run_logged(command: list[str], *, log_path: Path) -> None:
             raise ExperimentError(f"Unable to execute {command[0]}: {exc}") from exc
 
     if result.returncode != 0:
-        raise ExperimentError(
-            f"Command failed with exit code {result.returncode}. See {log_path}"
-        )
+        raise ExperimentError(f"Command failed with exit code {result.returncode}. See {log_path}")
 
 
 def find_backtest_archive(run_dir: Path) -> Path:

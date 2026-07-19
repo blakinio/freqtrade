@@ -2,6 +2,8 @@ import csv
 import json
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 from ai_platform.scripts.run_experiment import load_manifest
 from ai_platform.scripts.run_validation import (
     build_lookahead_command,
@@ -12,7 +14,6 @@ from ai_platform.scripts.run_validation import (
     parse_recursive_max_abs_variance,
     summarize_backtest_metrics,
 )
-from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[2]

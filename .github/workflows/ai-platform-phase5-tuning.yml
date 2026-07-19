@@ -44,11 +44,39 @@ jobs:
       - name: Prepare research user directory
         run: freqtrade create-userdir --userdir user_data
 
-      - name: Download declared historical data
+      - name: Download declared Kraken historical data
         run: |
-          python ai_platform/scripts/run_experiment.py \
-            ai_platform/experiments/baseline-v1.json \
-            --stage download
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("ai_platform/experiments/baseline-v1.json").read_text(encoding="utf-8")
+          )
+          config_path = Path(manifest["config"])
+          config = json.loads(config_path.read_text(encoding="utf-8"))
+          exchange = str(config.get("exchange", {}).get("name", "")).lower()
+          if exchange != "kraken":
+              raise SystemExit(f"Phase 5 tuning workflow expects Kraken baseline, got {exchange!r}")
+
+          command = [
+              "freqtrade",
+              "download-data",
+              "--config",
+              str(config_path),
+              "--pairs",
+              *manifest["pairs"],
+              "--timeframes",
+              *manifest["timeframes"],
+              "--timerange",
+              manifest["download_timerange"],
+              "--dl-trades",
+              "--convert",
+          ]
+          print("Executing Kraken trade-history download for manifest-declared inputs")
+          subprocess.run(command, check=True)
+          PY
 
       - name: Run Phase 5.1 tuning only
         id: optimize

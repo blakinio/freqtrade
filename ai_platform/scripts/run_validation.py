@@ -44,6 +44,10 @@ REQUIRED_PLAN_FIELDS = {
 }
 
 
+class ExperimentError(RuntimeError):
+    """Raised when an experiment cannot be executed safely or reproducibly."""
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -178,9 +182,7 @@ def parse_lookahead_csv(path: Path, strategy: str) -> dict[str, Any]:
         raise ExperimentError(f"Lookahead result for {strategy} was not exported")
 
     indicators = [
-        value.strip()
-        for value in (row.get("biased_indicators") or "").split(",")
-        if value.strip()
+        value.strip() for value in (row.get("biased_indicators") or "").split(",") if value.strip()
     ]
     effective_indicators = [value for value in indicators if not value.startswith("&")]
     biased_entries = int(row.get("biased_entry_signals") or 0)

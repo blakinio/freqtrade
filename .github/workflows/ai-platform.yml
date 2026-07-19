@@ -11,7 +11,6 @@ on:
   push:
     branches:
       - develop
-      - "feat/ai-*"
     paths:
       - "AGENTS.md"
       - "ai_platform/**"

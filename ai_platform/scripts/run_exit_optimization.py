@@ -14,6 +14,7 @@ from typing import Any
 import ai_platform.scripts.run_optimization as base
 from ai_platform.scripts.run_experiment import REPO_ROOT, ExperimentError, write_json
 
+
 EXPECTED_TRAINING = "20251201-20260228"
 EXPECTED_TUNING = "20260301-20260430"
 CONSUMED_HOLDOUT = "20260501-20260630"

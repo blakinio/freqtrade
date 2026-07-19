@@ -122,9 +122,16 @@ Acceptance criteria:
 
 ## Phase 5 — Hyperparameter optimization
 
-Status: `planned`
+Status: `active`
 
 Goal: tune strategy thresholds and risk parameters without contaminating final evaluation.
+
+Current work package:
+
+- Phase 5.1 — signal-threshold Hyperopt foundation;
+- entry threshold only;
+- frozen final holdout enforced by the optimization contract;
+- local parameter perturbation required before final validation eligibility.
 
 Deliverables:
 

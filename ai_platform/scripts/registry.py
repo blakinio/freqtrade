@@ -184,7 +184,8 @@ def resolve_freqtrade_version(freqtrade_bin: str) -> str:
             stderr=subprocess.STDOUT,
         ).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
-        raise RegistryError(f"Unable to resolve Freqtrade version using {freqtrade_bin}: {exc}") from exc
+        message = f"Unable to resolve Freqtrade version using {freqtrade_bin}: {exc}"
+        raise RegistryError(message) from exc
 
     if not output:
         raise RegistryError("Freqtrade version command returned empty output")
@@ -437,6 +438,93 @@ def _metric(metrics: dict[str, Any], key: str) -> int | float | None:
     return value if isinstance(value, (int, float)) else None
 
 
+def _validate_run_summary_identity(
+    definition: dict[str, Any],
+    run_summary: dict[str, Any],
+) -> tuple[str, str, dict[str, Any]]:
+    if run_summary.get("experiment_id") != definition["experiment_id"]:
+        raise RegistryError("Run summary experiment_id does not match registry definition")
+
+    hash_fields = (
+        ("manifest_sha256", "manifest hash"),
+        ("config_sha256", "config hash"),
+        ("strategy_sha256", "strategy hash"),
+    )
+    for field, label in hash_fields:
+        if run_summary.get(field) != definition[field]:
+            raise RegistryError(f"Run summary {label} does not match current definition")
+
+    run_id = run_summary.get("run_id")
+    if not isinstance(run_id, str) or not run_id:
+        raise RegistryError("Run summary must contain a non-empty run_id")
+
+    git_commit = run_summary.get("git_commit")
+    if not isinstance(git_commit, str) or not git_commit:
+        raise RegistryError("Run summary must contain a git_commit")
+
+    metrics = run_summary.get("metrics")
+    if not isinstance(metrics, dict):
+        metrics = {}
+
+    return run_id, git_commit, metrics
+
+
+def _analysis_status(validation_report: dict[str, Any], key: str) -> str:
+    payload = validation_report.get(key)
+    if not isinstance(payload, dict):
+        return "not_run"
+    return "passed" if payload.get("passed") is True else "failed"
+
+
+def _validate_promotable_identity(
+    definition: dict[str, Any],
+    git_commit: str,
+    freqtrade_version: str,
+) -> None:
+    if not GIT_SHA_PATTERN.fullmatch(git_commit):
+        raise RegistryError(
+            "Validated candidates require a full 40-character Git commit SHA"
+        )
+    if not definition["freqai_identifier"]:
+        raise RegistryError("Validated candidates require a FreqAI identifier")
+    if not freqtrade_version or freqtrade_version == "unknown":
+        raise RegistryError("Validated candidates require a resolved Freqtrade version")
+
+
+def _validation_evidence(
+    validation_report: dict[str, Any] | None,
+    *,
+    run_status: str,
+    definition: dict[str, Any],
+    git_commit: str,
+    freqtrade_version: str,
+) -> dict[str, Any]:
+    if validation_report is None:
+        return {
+            "validation_status": "unvalidated",
+            "promotion_status": "candidate" if run_status == "success" else "experiment",
+            "holdout": {},
+            "lookahead_status": "not_run",
+            "recursive_status": "not_run",
+        }
+
+    holdout = validation_report.get("holdout")
+    if not isinstance(holdout, dict):
+        holdout = {}
+
+    promotion_allowed = validation_report.get("promotion_allowed") is True
+    if promotion_allowed:
+        _validate_promotable_identity(definition, git_commit, freqtrade_version)
+
+    return {
+        "validation_status": str(validation_report.get("status", "unknown")),
+        "promotion_status": "validated" if promotion_allowed else "candidate",
+        "holdout": holdout,
+        "lookahead_status": _analysis_status(validation_report, "lookahead"),
+        "recursive_status": _analysis_status(validation_report, "recursive"),
+    }
+
+
 def build_run_record(
     definition: dict[str, Any],
     run_summary_path: Path,
@@ -452,82 +540,38 @@ def build_run_record(
         else None
     )
 
-    if run_summary.get("experiment_id") != definition["experiment_id"]:
-        raise RegistryError("Run summary experiment_id does not match registry definition")
-    if run_summary.get("manifest_sha256") != definition["manifest_sha256"]:
-        raise RegistryError("Run summary manifest hash does not match current definition")
-    if run_summary.get("config_sha256") != definition["config_sha256"]:
-        raise RegistryError("Run summary config hash does not match current definition")
-    if run_summary.get("strategy_sha256") != definition["strategy_sha256"]:
-        raise RegistryError("Run summary strategy hash does not match current definition")
-
-    run_id = run_summary.get("run_id")
-    if not isinstance(run_id, str) or not run_id:
-        raise RegistryError("Run summary must contain a non-empty run_id")
-
-    git_commit = run_summary.get("git_commit")
-    if not isinstance(git_commit, str) or not git_commit:
-        raise RegistryError("Run summary must contain a git_commit")
-
-    metrics = run_summary.get("metrics")
-    if not isinstance(metrics, dict):
-        metrics = {}
-
-    validation_status = "unvalidated"
-    promotion_status = "experiment"
-    holdout: dict[str, Any] = {}
-    lookahead_status = "not_run"
-    recursive_status = "not_run"
-
-    if run_summary.get("status") == "success":
-        promotion_status = "candidate"
-
-    if validation_report is not None:
-        validation_status = str(validation_report.get("status", "unknown"))
-        holdout_payload = validation_report.get("holdout")
-        if isinstance(holdout_payload, dict):
-            holdout = holdout_payload
-
-        lookahead = validation_report.get("lookahead")
-        if isinstance(lookahead, dict):
-            lookahead_status = "passed" if lookahead.get("passed") is True else "failed"
-
-        recursive = validation_report.get("recursive")
-        if isinstance(recursive, dict):
-            recursive_status = "passed" if recursive.get("passed") is True else "failed"
-
-        if validation_report.get("promotion_allowed") is True:
-            if not GIT_SHA_PATTERN.fullmatch(git_commit):
-                raise RegistryError("Validated candidates require a full 40-character Git commit SHA")
-            if not definition["freqai_identifier"]:
-                raise RegistryError("Validated candidates require a FreqAI identifier")
-            if not freqtrade_version or freqtrade_version == "unknown":
-                raise RegistryError("Validated candidates require a resolved Freqtrade version")
-            promotion_status = "validated"
-        else:
-            promotion_status = "candidate"
+    run_id, git_commit, metrics = _validate_run_summary_identity(definition, run_summary)
+    run_status = str(run_summary.get("status", "unknown"))
+    evidence = _validation_evidence(
+        validation_report,
+        run_status=run_status,
+        definition=definition,
+        git_commit=git_commit,
+        freqtrade_version=freqtrade_version,
+    )
 
     trade_count = metrics.get("total_trades", metrics.get("trade_count"))
     if not isinstance(trade_count, int):
         trade_count = None
 
+    holdout = evidence["holdout"]
     return {
         "fingerprint": definition["fingerprint"],
         "run_id": run_id,
         "registered_at": _utc_now(),
         "git_commit": git_commit,
         "freqtrade_version": freqtrade_version,
-        "run_status": str(run_summary.get("status", "unknown")),
-        "validation_status": validation_status,
-        "promotion_status": promotion_status,
+        "run_status": run_status,
+        "validation_status": evidence["validation_status"],
+        "promotion_status": evidence["promotion_status"],
         "trade_count": trade_count,
         "profit": _metric(metrics, "profit_total"),
         "max_drawdown": _metric(metrics, "max_drawdown_account"),
         "holdout_trade_count": _metric(holdout, "trades"),
         "holdout_profit": _metric(holdout, "profit"),
         "holdout_drawdown": _metric(holdout, "drawdown"),
-        "lookahead_status": lookahead_status,
-        "recursive_status": recursive_status,
+        "lookahead_status": evidence["lookahead_status"],
+        "recursive_status": evidence["recursive_status"],
         "run_summary_path": _relative_repo_path(run_summary_path),
         "validation_report_path": _relative_repo_path(validation_report_path.resolve())
         if validation_report_path is not None
@@ -605,7 +649,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "init":
             with RegistryStore(args.db):
                 pass
-            print(_canonical_json({"status": "initialized", "db": _relative_repo_path(_resolve_repo_path(args.db))}))
+            initialized = {
+                "status": "initialized",
+                "db": _relative_repo_path(_resolve_repo_path(args.db)),
+            }
+            print(_canonical_json(initialized))
             return 0
 
         if args.command == "check-definition":

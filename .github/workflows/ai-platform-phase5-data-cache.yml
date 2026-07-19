@@ -1,0 +1,97 @@
+name: AI Platform Phase 5 Kraken Data Cache
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - ".github/workflows/ai-platform-phase5-data-cache.yml"
+      - ".github/workflows/ai-platform-phase5-tuning.yml"
+      - "ai_platform/experiments/baseline-v1.json"
+      - "ai_platform/configs/freqai-baseline.example.json"
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1,4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-platform-phase5-kraken-data-cache
+  cancel-in-progress: false
+
+jobs:
+  refresh-kraken-history:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout develop cache definition
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: true # zizmor: ignore[cache-poisoning] - trusted develop cache maintenance
+          python-version: "3.12"
+          cache-dependency-glob: "requirements**.txt"
+          cache-suffix: "phase5-data-cache-3.12"
+
+      - name: Install Freqtrade
+        run: uv pip install -e .
+
+      - name: Prepare cache user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Restore shared Kraken historical data cache
+        id: kraken-data-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: phase5-kraken-trades-v1-${{ runner.os }}-${{ hashFiles('ai_platform/experiments/baseline-v1.json', 'ai_platform/configs/freqai-baseline.example.json') }}
+          restore-keys: |
+            phase5-kraken-trades-v1-${{ runner.os }}-
+
+      - name: Download or incrementally update shared Kraken history
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("ai_platform/experiments/baseline-v1.json").read_text(encoding="utf-8")
+          )
+          config_path = Path(manifest["config"])
+          config = json.loads(config_path.read_text(encoding="utf-8"))
+          exchange = str(config.get("exchange", {}).get("name", "")).lower()
+          if exchange != "kraken":
+              raise SystemExit(f"Phase 5 cache workflow expects Kraken baseline, got {exchange!r}")
+
+          command = [
+              "freqtrade",
+              "download-data",
+              "--config",
+              str(config_path),
+              "--pairs",
+              *manifest["pairs"],
+              "--timeframes",
+              *manifest["timeframes"],
+              "--timerange",
+              manifest["download_timerange"],
+              "--dl-trades",
+              "--convert",
+          ]
+          print("Refreshing shared Kraken trade history; existing cached data is reused incrementally")
+          subprocess.run(command, check=True)
+          PY
+
+      - name: Save shared Kraken historical data cache
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: ${{ steps.kraken-data-cache.outputs.cache-primary-key }}

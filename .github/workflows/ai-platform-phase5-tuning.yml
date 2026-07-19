@@ -44,7 +44,17 @@ jobs:
       - name: Prepare research user directory
         run: freqtrade create-userdir --userdir user_data
 
-      - name: Download declared Kraken historical data
+      - name: Restore Kraken historical data cache
+        id: kraken-data-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: phase5-kraken-trades-v1-${{ runner.os }}-${{ hashFiles('ai_platform/experiments/baseline-v1.json', 'ai_platform/configs/freqai-baseline.example.json') }}
+          restore-keys: |
+            phase5-kraken-trades-v1-${{ runner.os }}-
+
+      - name: Download or incrementally update declared Kraken historical data
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
         run: |
           python - <<'PY'
           import json
@@ -74,9 +84,16 @@ jobs:
               "--dl-trades",
               "--convert",
           ]
-          print("Executing Kraken trade-history download for manifest-declared inputs")
+          print("Restored cache was incomplete or missing; updating Kraken trade history incrementally")
           subprocess.run(command, check=True)
           PY
+
+      - name: Save PR-local Kraken historical data cache
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: ${{ steps.kraken-data-cache.outputs.cache-primary-key }}
 
       - name: Run Phase 5.1 tuning only
         id: optimize

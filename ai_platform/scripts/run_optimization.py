@@ -197,6 +197,13 @@ def load_optimization_plan(path: Path) -> dict[str, Any]:
     return plan
 
 
+def _default_data_dir(config: dict[str, Any]) -> Path:
+    exchange_name = config.get("exchange", {}).get("name")
+    if not isinstance(exchange_name, str) or not exchange_name.strip():
+        raise OptimizationError("Research config must declare a non-empty exchange.name")
+    return _resolve_repo_path(Path("user_data") / "data" / exchange_name.lower())
+
+
 def validate_plan_against_repository(
     plan: dict[str, Any],
     manifest: dict[str, Any],
@@ -247,6 +254,7 @@ def build_hyperopt_command(
     strategy_path: Path,
     user_dir: Path,
 ) -> list[str]:
+    data_dir = _default_data_dir(validate_research_config(config_path))
     return [
         freqtrade_bin,
         "hyperopt",
@@ -276,6 +284,8 @@ def build_hyperopt_command(
         plan["hyperopt"]["loss"],
         "--job-workers",
         str(plan["hyperopt"]["job_workers"]),
+        "--datadir",
+        str(data_dir),
         "--userdir",
         str(user_dir),
         "--disable-param-export",
@@ -547,6 +557,7 @@ def _build_provenance(
     validation_path: Path,
     config_path: Path,
     strategy_file: Path,
+    data_dir: Path,
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -558,6 +569,7 @@ def _build_provenance(
         "validation_plan_sha256": _sha256_file(validation_path),
         "config_sha256": _sha256_file(config_path),
         "strategy_sha256": _sha256_file(strategy_file),
+        "data_dir": _relative_repo_path(data_dir),
         "training": plan["training"],
         "tuning": plan["tuning"],
         "final_holdout": plan["final_holdout"],
@@ -584,6 +596,12 @@ def run_optimization(
     base_config = validate_research_config(config_path)
     validate_plan_against_repository(plan, manifest, validation_plan, base_config)
     git_commit = _require_git_commit(_git_commit())
+    data_dir = _default_data_dir(base_config)
+    if not data_dir.is_dir():
+        raise OptimizationError(
+            f"Historical data directory does not exist: {data_dir}. "
+            "Run the baseline experiment download stage before optimization."
+        )
 
     output_root = _resolve_repo_path(plan["output_root"])
     run_id = f"{_utc_now().strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
@@ -600,6 +618,7 @@ def run_optimization(
         validation_path=validation_path,
         config_path=config_path,
         strategy_file=strategy_file,
+        data_dir=data_dir,
     )
     write_json(run_dir / "provenance.json", provenance)
 

@@ -506,6 +506,19 @@ def _write_candidate_result(artifacts: CandidateArtifacts, payload: dict[str, An
     )
 
 
+def _write_failure_result(candidate_id: str, payload: dict[str, Any]) -> None:
+    directory = (DISCOVERY_ROOT / candidate_id).resolve()
+    try:
+        directory.relative_to(REPO_ROOT)
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "candidate-result.json").write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except (OSError, ValueError):
+        return
+
+
 def run_candidate(
     candidate: dict[str, Any],
     search: dict[str, Any],
@@ -583,14 +596,13 @@ def discover_candidates(
                 )
             )
         except Exception as exc:
-            artifacts = materialize_candidate(candidate, search)
             failure = {
                 "candidate_id": candidate["candidate_id"],
                 "status": "failed",
                 "executed": False,
                 "error": str(exc),
             }
-            _write_candidate_result(artifacts, failure)
+            _write_failure_result(candidate["candidate_id"], failure)
             results.append(failure)
     return results
 

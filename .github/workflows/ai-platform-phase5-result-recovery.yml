@@ -1,0 +1,60 @@
+name: AI Platform Phase 5 Result Recovery
+
+on:
+  push:
+    branches:
+      - ci/phase5-result-recovery
+    paths:
+      - ".github/workflows/ai-platform-phase5-result-recovery.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  recover-result:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Extract machine-readable result from completed Phase 5 run
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import os
+          import urllib.request
+          from pathlib import Path
+
+          url = "https://api.github.com/repos/blakinio/freqtrade/actions/jobs/88226990900/logs"
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "Authorization": f"Bearer {os.environ['GITHUB_TOKEN']}",
+                  "Accept": "application/vnd.github+json",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=60) as response:
+              text = response.read().decode("utf-8-sig", errors="replace")
+
+          needles = (
+              "PHASE5_TUNING_RESULT",
+              "selected_stable",
+              "rejected_unstable",
+              "final_holdout_used",
+              "optimizer_status",
+          )
+          lines = [line for line in text.splitlines() if any(item in line for item in needles)]
+          output = "\n".join(lines) + ("\n" if lines else "")
+          Path("phase5-result-recovery.txt").write_text(output, encoding="utf-8")
+          print(output)
+          if not any("PHASE5_TUNING_RESULT" in line for line in lines):
+              raise SystemExit("PHASE5_TUNING_RESULT not found in completed job log")
+          PY
+
+      - name: Upload recovered Phase 5 result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phase5-result-recovery
+          path: phase5-result-recovery.txt
+          retention-days: 7

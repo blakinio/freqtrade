@@ -1,0 +1,10 @@
+{
+    "schema_version": 1,
+    "definition_id": "freqai-baseline-v1",
+    "experiment_manifest": "ai_platform/experiments/baseline-v1.json",
+    "strategy_version": "1",
+    "feature_set_id": "baseline-price-trend-momentum-volume-v1",
+    "feature_set_description": "Returns, volume change, high-low range, RSI, MFI, ADX, EMA, normalized ATR, relative volume, day-of-week, and hour-of-day context expanded by the baseline FreqAI configuration.",
+    "target_id": "future-average-return-v1",
+    "target_description": "Average forward close return over the configured FreqAI label_period_candles horizon."
+}

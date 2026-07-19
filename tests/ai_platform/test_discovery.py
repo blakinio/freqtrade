@@ -5,11 +5,13 @@ from pathlib import Path
 import pytest
 from jsonschema import Draft202012Validator
 
+import ai_platform.scripts.discovery as discovery_module
 from ai_platform.scripts.discovery import (
     CandidateArtifacts,
     DiscoveryError,
     build_candidate_payloads,
     build_import_validation_command,
+    discover_candidates,
     generate_candidate_specs,
     load_base_documents,
     load_search_space,
@@ -123,6 +125,33 @@ def test_import_validation_command_uses_generated_directory(tmp_path: Path) -> N
         str(tmp_path),
         "--one-column",
     ]
+
+
+def test_discovery_preserves_failure_without_rematerializing(tmp_path: Path, monkeypatch) -> None:
+    search = load_search_space(SEARCH_PATH)
+
+    def fail_candidate(*args, **kwargs):
+        raise DiscoveryError("materialization failed")
+
+    monkeypatch.setattr(discovery_module, "DISCOVERY_ROOT", tmp_path)
+    monkeypatch.setattr(discovery_module, "run_candidate", fail_candidate)
+
+    results = discover_candidates(
+        search,
+        limit=1,
+        freqtrade_bin="freqtrade",
+        experiment_stage="backtest",
+        registry_db=tmp_path / "registry.sqlite3",
+    )
+
+    assert len(results) == 1
+    assert results[0]["status"] == "failed"
+    assert results[0]["executed"] is False
+    assert results[0]["error"] == "materialization failed"
+
+    result_path = tmp_path / results[0]["candidate_id"] / "candidate-result.json"
+    persisted = json.loads(result_path.read_text(encoding="utf-8"))
+    assert persisted == results[0]
 
 
 def test_robustness_score_requires_promotion_and_rewards_consistency() -> None:

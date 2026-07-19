@@ -2,9 +2,6 @@ import json
 from pathlib import Path
 
 import pytest
-from jsonschema import Draft202012Validator
-
-from ai_platform.scripts.run_experiment import load_manifest, validate_research_config
 from ai_platform.scripts.run_exit_optimization import (
     CONSUMED_HOLDOUT,
     EXPECTED_TRAINING,
@@ -16,8 +13,10 @@ from ai_platform.scripts.run_exit_optimization import (
     validate_exit_repository,
     write_sell_parameter_file,
 )
+from ai_platform.scripts.run_experiment import load_manifest, validate_research_config
 from ai_platform.scripts.run_optimization import build_hyperopt_command
 from ai_platform.scripts.run_validation import load_validation_plan
+from jsonschema import Draft202012Validator
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -86,7 +85,7 @@ def test_exit_plan_rejects_entry_threshold_drift(tmp_path: Path) -> None:
     path = tmp_path / "exit-plan.json"
     path.write_text(json.dumps(plan), encoding="utf-8")
 
-    with pytest.raises(ExitOptimizationError, match="frozen at 0.006"):
+    with pytest.raises(ExitOptimizationError, match=r"frozen at 0\.006"):
         load_exit_plan(path)
 
 

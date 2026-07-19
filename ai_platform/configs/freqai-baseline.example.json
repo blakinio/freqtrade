@@ -48,6 +48,7 @@
     ],
     "freqai": {
         "enabled": true,
+        "override_exchange_checks": true,
         "purge_old_models": 2,
         "train_period_days": 90,
         "backtest_period_days": 7,

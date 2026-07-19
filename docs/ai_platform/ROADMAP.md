@@ -13,7 +13,7 @@ Status values:
 
 ## Phase 0 — Repository foundation
 
-Status: `active`
+Status: `done`
 
 Goal: establish project boundaries and a safe baseline without modifying Freqtrade core.
 
@@ -36,7 +36,7 @@ Acceptance criteria:
 
 ## Phase 1 — Reproducible baseline backtest
 
-Status: `planned`
+Status: `done`
 
 Goal: make the initial LightGBM baseline reproducible end-to-end.
 
@@ -58,7 +58,7 @@ Acceptance criteria:
 
 ## Phase 2 — Validation pipeline
 
-Status: `planned`
+Status: `done`
 
 Goal: prevent promotion based on a single backtest.
 
@@ -81,7 +81,7 @@ Acceptance criteria:
 
 ## Phase 3 — Experiment registry
 
-Status: `planned`
+Status: `done`
 
 Goal: create durable memory of what has been tried.
 
@@ -101,7 +101,7 @@ Acceptance criteria:
 
 ## Phase 4 — Strategy discovery engine
 
-Status: `planned`
+Status: `done`
 
 Goal: automate generation and rejection of strategy hypotheses.
 

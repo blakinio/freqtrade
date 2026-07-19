@@ -138,6 +138,33 @@ Exit codes:
 - `2` — optimization completed but the selection failed stability checks;
 - `1` — the optimization contract or execution failed.
 
+## One-shot CI tuning execution
+
+The repository workflow `.github/workflows/ai-platform-phase5-tuning.yml` is an execution harness for
+running the same Phase 5.1 contract on GitHub-hosted research compute when local market data or
+FreqAI dependencies are unavailable.
+
+The workflow is intentionally narrow:
+
+- it triggers only when a pull request is **opened** with a change to
+  `ai_platform/optimization/run-requests/signal-thresholds-v1.json`;
+- it checks out the exact pull-request head SHA, so the selection identity points to a real research
+  commit rather than the synthetic pull-request merge commit;
+- it uses only read-only repository permissions and no exchange credentials;
+- it downloads the manifest-declared public historical data;
+- it runs `baseline-signal-thresholds-v1.json`, which passes only `20260301-20260430` to Hyperopt;
+- it treats exit code `2` as a valid rejected research outcome rather than an infrastructure failure;
+- it emits one `PHASE5_TUNING_RESULT=<json>` line containing the selection, tuning metrics, local
+  stability evidence, Git SHA, and `final_holdout_used: false`.
+
+The `opened` trigger is deliberate. Updating the request pull request with the recorded result does
+not rerun tuning. A later tuning attempt requires opening a new request pull request and therefore
+produces an explicit new research decision.
+
+This workflow never runs final validation. A stable result must be frozen first, then evaluated
+through a separate final-validation work package. That boundary prevents a tuning retry from
+silently evaluating the final holdout again.
+
 ## Final evaluation boundary
 
 Optimization never sets `promotion_allowed: true`.

@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "validation_id": "freqai-baseline-validation-v1",
+  "experiment_manifest": "ai_platform/experiments/baseline-v1.json",
+  "output_root": "ai_platform/artifacts/validation",
+  "walk_forward_folds": [
+    {
+      "name": "wf-2026-01-02",
+      "timerange": "20260101-20260228"
+    },
+    {
+      "name": "wf-2026-03-04",
+      "timerange": "20260301-20260430"
+    }
+  ],
+  "holdout": {
+    "name": "holdout-2026-05-06",
+    "timerange": "20260501-20260630"
+  },
+  "gates": {
+    "minimum_total_trades": 30,
+    "minimum_profitable_folds": 1,
+    "maximum_fold_drawdown": 0.25,
+    "minimum_mean_fold_profit": 0.0,
+    "minimum_holdout_trades": 10,
+    "minimum_holdout_profit": 0.0,
+    "maximum_holdout_drawdown": 0.25
+  },
+  "lookahead": {
+    "enabled": true,
+    "minimum_trade_amount": 20,
+    "targeted_trade_amount": 50
+  },
+  "recursive": {
+    "enabled": true,
+    "pair": "BTC/USDT",
+    "timerange": "20260101-20260630",
+    "startup_candles": [199, 499, 999, 1999],
+    "maximum_abs_variance_ratio": 0.01
+  }
+}

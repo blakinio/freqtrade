@@ -135,13 +135,9 @@ def _validate_hyperopt_options(options: Any) -> None:
     if not isinstance(options, dict):
         raise OptimizationError("hyperopt must be an object")
     if options.get("spaces") != ["buy"]:
-        raise OptimizationError(
-            "Signal-threshold stage is restricted to the buy Hyperopt space"
-        )
+        raise OptimizationError("Signal-threshold stage is restricted to the buy Hyperopt space")
     if options.get("loss") != "MultiMetricHyperOptLoss":
-        raise OptimizationError(
-            "Signal-threshold stage must use MultiMetricHyperOptLoss"
-        )
+        raise OptimizationError("Signal-threshold stage must use MultiMetricHyperOptLoss")
     for field in ("epochs", "random_state", "min_trades"):
         if not isinstance(options.get(field), int) or options[field] < 1:
             raise OptimizationError(f"hyperopt.{field} must be a positive integer")
@@ -162,10 +158,7 @@ def _validate_stability_options(options: Any) -> None:
     if options["maximum_profit_drop"] < 0:
         raise OptimizationError("maximum_profit_drop cannot be negative")
     drawdown_increase = options.get("maximum_drawdown_increase")
-    if (
-        not isinstance(drawdown_increase, (int, float))
-        or not 0 <= drawdown_increase <= 1
-    ):
+    if not isinstance(drawdown_increase, (int, float)) or not 0 <= drawdown_increase <= 1:
         raise OptimizationError("maximum_drawdown_increase must be between 0 and 1")
     trade_ratio = options.get("minimum_trade_count_ratio")
     if not isinstance(trade_ratio, (int, float)) or not 0 < trade_ratio <= 1:
@@ -176,23 +169,17 @@ def load_optimization_plan(path: Path) -> dict[str, Any]:
     try:
         plan = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise OptimizationError(
-            f"Unable to read optimization plan {path}: {exc}"
-        ) from exc
+        raise OptimizationError(f"Unable to read optimization plan {path}: {exc}") from exc
 
     if not isinstance(plan, dict):
         raise OptimizationError("Optimization plan must contain a JSON object")
     missing = sorted(REQUIRED_PLAN_FIELDS - plan.keys())
     if missing:
-        raise OptimizationError(
-            f"Optimization plan is missing fields: {', '.join(missing)}"
-        )
+        raise OptimizationError(f"Optimization plan is missing fields: {', '.join(missing)}")
     if plan["schema_version"] != 1:
         raise OptimizationError("Only optimization schema_version 1 is supported")
     optimization_id = plan["optimization_id"]
-    if not isinstance(optimization_id, str) or not ID_PATTERN.fullmatch(
-        optimization_id
-    ):
+    if not isinstance(optimization_id, str) or not ID_PATTERN.fullmatch(optimization_id):
         raise OptimizationError("optimization_id contains unsupported characters")
     if plan["stage"] != "signal_thresholds":
         raise OptimizationError("This runner only supports the signal_thresholds stage")
@@ -221,9 +208,7 @@ def validate_plan_against_repository(
             "Optimization and validation plans must reference the same manifest"
         )
     if plan["final_holdout"] != validation_plan["holdout"]:
-        raise OptimizationError(
-            "Final holdout must exactly match the frozen validation holdout"
-        )
+        raise OptimizationError("Final holdout must exactly match the frozen validation holdout")
 
     download_start, download_end = _parse_timerange(
         manifest["download_timerange"], "download_timerange"
@@ -231,16 +216,10 @@ def validate_plan_against_repository(
     training_start, training_end = _parse_timerange(
         plan["training"]["timerange"], "training.timerange"
     )
-    tuning_start, tuning_end = _parse_timerange(
-        plan["tuning"]["timerange"], "tuning.timerange"
-    )
-    _, holdout_end = _parse_timerange(
-        plan["final_holdout"]["timerange"], "final_holdout.timerange"
-    )
+    tuning_start, tuning_end = _parse_timerange(plan["tuning"]["timerange"], "tuning.timerange")
+    _, holdout_end = _parse_timerange(plan["final_holdout"]["timerange"], "final_holdout.timerange")
     if training_start < download_start or holdout_end > download_end:
-        raise OptimizationError(
-            "Optimization windows exceed the manifest download coverage"
-        )
+        raise OptimizationError("Optimization windows exceed the manifest download coverage")
 
     train_period_days = config.get("freqai", {}).get("train_period_days")
     if not isinstance(train_period_days, int) or train_period_days < 1:
@@ -252,9 +231,7 @@ def validate_plan_against_repository(
             f"({training_days} < {train_period_days})"
         )
 
-    manifest_start, manifest_end = _parse_timerange(
-        manifest["timerange"], "manifest.timerange"
-    )
+    manifest_start, manifest_end = _parse_timerange(manifest["timerange"], "manifest.timerange")
     if tuning_start < manifest_start or tuning_end > manifest_end:
         raise OptimizationError(
             "Tuning window must remain inside the experiment evaluation timerange"
@@ -325,9 +302,7 @@ def select_best_epoch(path: Path, *, parameter: str, min_trades: int) -> dict[st
                     if isinstance(payload, dict):
                         epochs.append(payload)
     except (OSError, json.JSONDecodeError) as exc:
-        raise OptimizationError(
-            f"Unable to read Hyperopt result {path}: {exc}"
-        ) from exc
+        raise OptimizationError(f"Unable to read Hyperopt result {path}: {exc}") from exc
 
     eligible: list[dict[str, Any]] = []
     for epoch in epochs:
@@ -343,9 +318,7 @@ def select_best_epoch(path: Path, *, parameter: str, min_trades: int) -> dict[st
         eligible.append(epoch)
 
     if not eligible:
-        raise OptimizationError(
-            "Hyperopt produced no eligible epoch with the required trade count"
-        )
+        raise OptimizationError("Hyperopt produced no eligible epoch with the required trade count")
     return min(eligible, key=lambda item: float(item["loss"]))
 
 
@@ -371,9 +344,7 @@ def selection_identity(
     return f"opt-{digest[:12]}"
 
 
-def generate_local_perturbations(
-    selected: float, stability: dict[str, Any]
-) -> list[float]:
+def generate_local_perturbations(selected: float, stability: dict[str, Any]) -> list[float]:
     minimum = float(stability["minimum"])
     maximum = float(stability["maximum"])
     step = float(stability["step"])
@@ -381,9 +352,7 @@ def generate_local_perturbations(
         round(selected - step, 12),
         round(selected + step, 12),
     }
-    return sorted(
-        value for value in values if minimum <= value <= maximum and value != selected
-    )
+    return sorted(value for value in values if minimum <= value <= maximum and value != selected)
 
 
 def evaluate_parameter_stability(
@@ -392,12 +361,8 @@ def evaluate_parameter_stability(
     stability: dict[str, Any],
 ) -> dict[str, Any]:
     profit_floor = float(baseline["profit"]) - float(stability["maximum_profit_drop"])
-    drawdown_ceiling = float(baseline["drawdown"]) + float(
-        stability["maximum_drawdown_increase"]
-    )
-    trade_floor = float(baseline["trades"]) * float(
-        stability["minimum_trade_count_ratio"]
-    )
+    drawdown_ceiling = float(baseline["drawdown"]) + float(stability["maximum_drawdown_increase"])
+    trade_floor = float(baseline["trades"]) * float(stability["minimum_trade_count_ratio"])
 
     checks: list[dict[str, Any]] = []
     for item in perturbations:
@@ -491,9 +456,7 @@ def _run_perturbation(
     )
     run_logged(command, log_path=perturbation_dir / "backtest.log")
     archive = find_backtest_archive(perturbation_dir)
-    metrics = summarize_backtest_metrics(
-        extract_backtest_metrics(archive, manifest["strategy"])
-    )
+    metrics = summarize_backtest_metrics(extract_backtest_metrics(archive, manifest["strategy"]))
     return {
         "parameter": parameter,
         "value": value,
@@ -651,9 +614,7 @@ def run_optimization(
         user_dir=user_dir,
     )
     if plan["final_holdout"]["timerange"] in command:
-        raise OptimizationError(
-            "Final holdout timerange must never be passed to Hyperopt"
-        )
+        raise OptimizationError("Final holdout timerange must never be passed to Hyperopt")
     run_logged(command, log_path=run_dir / "hyperopt.log")
 
     hyperopt_result = find_hyperopt_result(user_dir)
@@ -666,9 +627,7 @@ def run_optimization(
     )
     selected_value = float(best_epoch["params_dict"][parameter])
     if not stability_config["minimum"] <= selected_value <= stability_config["maximum"]:
-        raise OptimizationError(
-            "Selected parameter lies outside the declared stability bounds"
-        )
+        raise OptimizationError("Selected parameter lies outside the declared stability bounds")
 
     selection_id = selection_identity(
         plan,
@@ -729,9 +688,7 @@ def run_optimization(
         "optimization_id": plan["optimization_id"],
         "run_id": run_id,
         "selection_id": selection_id,
-        "status": "selected_stable"
-        if stability_report["passed"]
-        else "rejected_unstable",
+        "status": "selected_stable" if stability_report["passed"] else "rejected_unstable",
         "final_holdout_used": False,
         "promotion_allowed": False,
         "eligible_for_final_validation": stability_report["passed"],

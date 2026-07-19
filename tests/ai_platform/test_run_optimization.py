@@ -138,9 +138,7 @@ def test_selection_identity_is_deterministic_and_parameter_sensitive() -> None:
 def test_selection_identity_rejects_unknown_git_commit() -> None:
     plan = load_optimization_plan(PLAN_PATH)
 
-    with pytest.raises(
-        OptimizationError, match="40-character lowercase Git commit SHA"
-    ):
+    with pytest.raises(OptimizationError, match="40-character lowercase Git commit SHA"):
         selection_identity(
             plan,
             git_commit="unknown",
@@ -179,14 +177,8 @@ def test_parameter_stability_requires_all_local_neighbors_to_pass() -> None:
         },
     ]
 
-    assert (
-        evaluate_parameter_stability(baseline, stable_neighbors, stability)["passed"]
-        is True
-    )
-    assert (
-        evaluate_parameter_stability(baseline, unstable_neighbors, stability)["passed"]
-        is False
-    )
+    assert evaluate_parameter_stability(baseline, stable_neighbors, stability)["passed"] is True
+    assert evaluate_parameter_stability(baseline, unstable_neighbors, stability)["passed"] is False
 
 
 def test_best_epoch_selection_uses_loss_and_minimum_trade_gate(tmp_path: Path) -> None:

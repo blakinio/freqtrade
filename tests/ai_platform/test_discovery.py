@@ -133,6 +133,7 @@ def test_discovery_preserves_failure_without_rematerializing(tmp_path: Path, mon
     def fail_candidate(*args, **kwargs):
         raise DiscoveryError("materialization failed")
 
+    monkeypatch.setattr(discovery_module, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(discovery_module, "DISCOVERY_ROOT", tmp_path)
     monkeypatch.setattr(discovery_module, "run_candidate", fail_candidate)
 

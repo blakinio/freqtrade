@@ -44,10 +44,6 @@ REQUIRED_PLAN_FIELDS = {
 }
 
 
-class ExperimentError(RuntimeError):
-    """Raised when an experiment cannot be executed safely or reproducibly."""
-
-
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 

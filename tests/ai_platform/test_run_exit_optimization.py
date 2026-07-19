@@ -2,9 +2,6 @@ import json
 from pathlib import Path
 
 import pytest
-from ai_platform.scripts.run_experiment import load_manifest, validate_research_config
-from ai_platform.scripts.run_optimization import build_hyperopt_command
-from ai_platform.scripts.run_validation import load_validation_plan
 from jsonschema import Draft202012Validator
 
 from ai_platform.scripts.run_exit_optimization import (
@@ -18,6 +15,10 @@ from ai_platform.scripts.run_exit_optimization import (
     validate_exit_repository,
     write_sell_parameter_file,
 )
+from ai_platform.scripts.run_experiment import load_manifest, validate_research_config
+from ai_platform.scripts.run_optimization import build_hyperopt_command
+from ai_platform.scripts.run_validation import load_validation_plan
+
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAN_PATH = ROOT / "ai_platform/optimization/phase5-exit-thresholds-v1.json"

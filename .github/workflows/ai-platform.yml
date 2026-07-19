@@ -53,26 +53,8 @@ jobs:
           python -m pytest -q -o addopts=''
           --confcutdir=tests/ai_platform tests/ai_platform
 
-      - name: Capture Ruff diagnostics
-        shell: bash
-        run: |
-          set +e
-          ruff check ai_platform tests/ai_platform > ruff-output.txt 2>&1
-          printf '%s\n' "$?" > ruff-exit-code.txt
-          exit 0
-
-      - name: Upload Ruff diagnostics
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ruff-diagnostics
-          path: |
-            ruff-output.txt
-            ruff-exit-code.txt
-          if-no-files-found: error
-
-      - name: Enforce Ruff result
-        shell: bash
-        run: test "$(cat ruff-exit-code.txt)" = "0"
+      - name: Ruff
+        run: ruff check ai_platform tests/ai_platform
 
       - name: Ruff format
         run: ruff format --check ai_platform tests/ai_platform

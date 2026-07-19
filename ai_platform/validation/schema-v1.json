@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/ai-platform/validation/schema-v1.json",
+  "title": "AI Platform Validation Plan v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "validation_id",
+    "experiment_manifest",
+    "walk_forward_folds",
+    "holdout",
+    "gates",
+    "lookahead",
+    "recursive",
+    "output_root"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "validation_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "experiment_manifest": {"type": "string", "minLength": 1},
+    "output_root": {"type": "string", "minLength": 1},
+    "walk_forward_folds": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/window"}
+    },
+    "holdout": {"$ref": "#/$defs/window"},
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_total_trades",
+        "minimum_profitable_folds",
+        "maximum_fold_drawdown",
+        "minimum_mean_fold_profit",
+        "minimum_holdout_trades",
+        "minimum_holdout_profit",
+        "maximum_holdout_drawdown"
+      ],
+      "properties": {
+        "minimum_total_trades": {"type": "integer", "minimum": 1},
+        "minimum_profitable_folds": {"type": "integer", "minimum": 1},
+        "maximum_fold_drawdown": {"type": "number", "minimum": 0, "maximum": 1},
+        "minimum_mean_fold_profit": {"type": "number"},
+        "minimum_holdout_trades": {"type": "integer", "minimum": 1},
+        "minimum_holdout_profit": {"type": "number"},
+        "maximum_holdout_drawdown": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "lookahead": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "minimum_trade_amount", "targeted_trade_amount"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "minimum_trade_amount": {"type": "integer", "minimum": 1},
+        "targeted_trade_amount": {"type": "integer", "minimum": 1}
+      }
+    },
+    "recursive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "pair",
+        "timerange",
+        "startup_candles",
+        "maximum_abs_variance_ratio"
+      ],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "pair": {"type": "string", "minLength": 1},
+        "timerange": {
+          "type": "string",
+          "pattern": "^[0-9]{8}-[0-9]{8}$"
+        },
+        "startup_candles": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"type": "integer", "minimum": 1},
+          "uniqueItems": true
+        },
+        "maximum_abs_variance_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  },
+  "$defs": {
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "timerange"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "timerange": {
+          "type": "string",
+          "pattern": "^[0-9]{8}-[0-9]{8}$"
+        }
+      }
+    }
+  }
+}

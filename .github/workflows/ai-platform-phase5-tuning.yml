@@ -117,13 +117,16 @@ jobs:
       - name: Collect Phase 5 failure diagnostics
         if: always() && steps.optimize.outcome == 'failure'
         shell: bash
+        env:
+          OPTIMIZER_STATUS: ${{ steps.optimize.outputs.status }}
+          RESEARCH_COMMIT: ${{ github.event.pull_request.head.sha }}
         run: |
           mkdir -p phase5-diagnostics
           cp phase5-run-error.txt phase5-diagnostics/optimizer-stderr.txt 2>/dev/null || true
           cp phase5-run-path.txt phase5-diagnostics/optimizer-stdout.txt 2>/dev/null || true
           printf 'optimizer_status=%s\nresearch_commit=%s\n' \
-            '${{ steps.optimize.outputs.status }}' \
-            '${{ github.event.pull_request.head.sha }}' \
+            "$OPTIMIZER_STATUS" \
+            "$RESEARCH_COMMIT" \
             > phase5-diagnostics/run-metadata.txt
 
           if [[ -d ai_platform/artifacts/optimization ]]; then

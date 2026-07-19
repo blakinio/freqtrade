@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ai_platform.scripts import run_optimization as base
+import ai_platform.scripts.run_optimization as base
 from ai_platform.scripts.run_experiment import REPO_ROOT, ExperimentError, write_json
 
 EXPECTED_TRAINING = "20251201-20260228"

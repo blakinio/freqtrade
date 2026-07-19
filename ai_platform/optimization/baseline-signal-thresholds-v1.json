@@ -22,7 +22,7 @@
         "random_state": 42,
         "min_trades": 20,
         "loss": "MultiMetricHyperOptLoss",
-        "job_workers": -2
+        "job_workers": 1
     },
     "parameter_stability": {
         "parameter": "entry_prediction_threshold",

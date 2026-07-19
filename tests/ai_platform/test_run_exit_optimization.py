@@ -18,7 +18,6 @@ from ai_platform.scripts.run_optimization import build_hyperopt_command
 from ai_platform.scripts.run_validation import load_validation_plan
 from jsonschema import Draft202012Validator
 
-
 ROOT = Path(__file__).resolve().parents[2]
 PLAN_PATH = ROOT / "ai_platform/optimization/phase5-exit-thresholds-v1.json"
 SCHEMA_PATH = ROOT / "ai_platform/optimization/exit-schema-v1.json"
@@ -108,9 +107,7 @@ def test_sell_parameter_file_uses_only_sell_group(tmp_path: Path) -> None:
         "exit_prediction_threshold",
         -0.003,
     )
-    payload = json.loads(
-        (strategy_dir / "AiPhase52ExitStrategy.json").read_text(encoding="utf-8")
-    )
+    payload = json.loads((strategy_dir / "AiPhase52ExitStrategy.json").read_text(encoding="utf-8"))
 
     assert payload["params"] == {"sell": {"exit_prediction_threshold": -0.003}}
     assert "buy" not in payload["params"]

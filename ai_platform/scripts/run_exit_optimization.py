@@ -24,12 +24,45 @@ EXPECTED_TRAINING = "20251201-20260228"
 EXPECTED_TUNING = "20260301-20260430"
 CONSUMED_HOLDOUT = "20260501-20260630"
 FROZEN_ENTRY = 0.006
-FINAL_EVIDENCE = REPO_ROOT / "ai_platform/validation/evidence/freqai-baseline-final-holdout-v1.json"
+FINAL_EVIDENCE = (
+    REPO_ROOT / "ai_platform/validation/evidence/freqai-baseline-final-holdout-v1.json"
+)
 BASE_VALIDATION = "ai_platform/validation/baseline-validation-v1.json"
 
 
 class ExitOptimizationError(RuntimeError):
     """Raised when the Phase 5.2 contract is violated."""
+
+
+def _validate_hyperopt(options: Any) -> None:
+    if not isinstance(options, dict):
+        raise ExitOptimizationError("hyperopt must be an object")
+    if options.get("spaces") != ["sell"]:
+        raise ExitOptimizationError("Phase 5.2 may use only the sell Hyperopt space")
+    if options.get("loss") != "MultiMetricHyperOptLoss":
+        raise ExitOptimizationError("Phase 5.2 must use MultiMetricHyperOptLoss")
+    for field in ("epochs", "random_state", "min_trades"):
+        if not isinstance(options.get(field), int) or options[field] < 1:
+            raise ExitOptimizationError(f"hyperopt.{field} must be a positive integer")
+    if not isinstance(options.get("job_workers"), int) or options["job_workers"] < -2:
+        raise ExitOptimizationError("hyperopt.job_workers must be an integer >= -2")
+
+
+def _validate_stability(options: Any) -> None:
+    if not isinstance(options, dict):
+        raise ExitOptimizationError("parameter_stability must be an object")
+    if options.get("parameter") != "exit_prediction_threshold":
+        raise ExitOptimizationError("Phase 5.2 may tune only exit_prediction_threshold")
+    if options.get("minimum") != -0.02 or options.get("maximum") != 0.01:
+        raise ExitOptimizationError("Phase 5.2 exit threshold bounds must remain [-0.02, 0.01]")
+    if not isinstance(options.get("step"), (int, float)) or options["step"] <= 0:
+        raise ExitOptimizationError("parameter_stability.step must be positive")
+    if not isinstance(options.get("maximum_profit_drop"), (int, float)):
+        raise ExitOptimizationError("parameter_stability.maximum_profit_drop must be numeric")
+    if not isinstance(options.get("maximum_drawdown_increase"), (int, float)):
+        raise ExitOptimizationError("parameter_stability.maximum_drawdown_increase must be numeric")
+    if not isinstance(options.get("minimum_trade_count_ratio"), (int, float)):
+        raise ExitOptimizationError("parameter_stability.minimum_trade_count_ratio must be numeric")
 
 
 def load_exit_plan(path: Path) -> dict[str, Any]:
@@ -54,7 +87,9 @@ def load_exit_plan(path: Path) -> dict[str, Any]:
     }
     missing = sorted(required - plan.keys())
     if missing:
-        raise ExitOptimizationError(f"Exit optimization plan is missing fields: {', '.join(missing)}")
+        raise ExitOptimizationError(
+            f"Exit optimization plan is missing fields: {', '.join(missing)}"
+        )
     if plan["schema_version"] != 1 or plan["stage"] != "exit_thresholds":
         raise ExitOptimizationError("Unsupported Phase 5.2 plan")
     if plan["training"]["timerange"] != EXPECTED_TRAINING:
@@ -70,11 +105,9 @@ def load_exit_plan(path: Path) -> dict[str, Any]:
         raise ExitOptimizationError("A new unseen final holdout is not yet authorized")
     if plan["fixed_parameters"] != {"entry_prediction_threshold": FROZEN_ENTRY}:
         raise ExitOptimizationError("entry_prediction_threshold must remain frozen at 0.006")
-    if plan["hyperopt"].get("spaces") != ["sell"]:
-        raise ExitOptimizationError("Phase 5.2 may use only the sell Hyperopt space")
-    if plan["parameter_stability"].get("parameter") != "exit_prediction_threshold":
-        raise ExitOptimizationError("Phase 5.2 may tune only exit_prediction_threshold")
 
+    _validate_hyperopt(plan["hyperopt"])
+    _validate_stability(plan["parameter_stability"])
     return {
         **plan,
         "validation_plan": BASE_VALIDATION,
@@ -88,7 +121,7 @@ def validate_exit_repository(
     validation_plan: dict[str, Any],
     config: dict[str, Any],
 ) -> None:
-    del validation_plan
+    del plan, validation_plan
     if manifest.get("strategy") != "AiPhase52ExitStrategy":
         raise ExitOptimizationError("Phase 5.2 must use AiPhase52ExitStrategy")
     if manifest.get("timerange") != "20260101-20260430":
@@ -166,7 +199,13 @@ def materialize_exit_candidate(
     selected_dir = run_dir / "selected"
     selected_dir.mkdir(parents=True, exist_ok=False)
     strategy_dir = selected_dir / "strategy"
-    write_sell_parameter_file(strategy_dir, strategy_file, manifest["strategy"], parameter, value)
+    write_sell_parameter_file(
+        strategy_dir,
+        strategy_file,
+        manifest["strategy"],
+        parameter,
+        value,
+    )
 
     config = base._derived_config(base_config, selection_id)
     config_path = selected_dir / "config.json"
@@ -232,13 +271,16 @@ def run_exit_optimization(plan_path: Path, *, freqtrade_bin: str) -> tuple[Path,
     raw_plan = json.loads(plan_path.read_text(encoding="utf-8"))
     transformed = load_exit_plan(plan_path)
 
+    def load_transformed(_: Path) -> dict[str, Any]:
+        return transformed
+
     original_load = base.load_optimization_plan
     original_validate = base.validate_plan_against_repository
     original_write = base._write_strategy_parameter_file
     original_identity = base.selection_identity
     original_materialize = base._materialize_selected_candidate
     try:
-        base.load_optimization_plan = lambda _: transformed
+        base.load_optimization_plan = load_transformed
         base.validate_plan_against_repository = validate_exit_repository
         base._write_strategy_parameter_file = write_sell_parameter_file
         base.selection_identity = exit_selection_identity
@@ -266,7 +308,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(sys.argv[1:] if argv is None else argv)
     try:
         run_dir, stable = run_exit_optimization(args.plan, freqtrade_bin=args.freqtrade_bin)
-    except (ExitOptimizationError, base.OptimizationError, ExperimentError, OSError, json.JSONDecodeError) as exc:
+    except (
+        ExitOptimizationError,
+        base.OptimizationError,
+        ExperimentError,
+        OSError,
+        json.JSONDecodeError,
+    ) as exc:
         print(f"Exit optimization failed: {exc}", file=sys.stderr)
         return 1
     print(run_dir)

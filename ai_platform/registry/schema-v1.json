@@ -1,0 +1,50 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ai-platform-registry-definition-schema-v1",
+    "title": "AI Platform Registry Definition v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "definition_id",
+        "experiment_manifest",
+        "strategy_version",
+        "feature_set_id",
+        "feature_set_description",
+        "target_id",
+        "target_description"
+    ],
+    "properties": {
+        "schema_version": {
+            "const": 1
+        },
+        "definition_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "experiment_manifest": {
+            "type": "string",
+            "minLength": 1
+        },
+        "strategy_version": {
+            "type": "string",
+            "minLength": 1
+        },
+        "feature_set_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "feature_set_description": {
+            "type": "string",
+            "minLength": 1
+        },
+        "target_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "target_description": {
+            "type": "string",
+            "minLength": 1
+        }
+    }
+}

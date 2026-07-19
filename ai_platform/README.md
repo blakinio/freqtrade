@@ -1,6 +1,7 @@
 # AI Platform
 
-This directory contains project-specific research and strategy code layered on top of upstream Freqtrade.
+This directory contains project-specific research and strategy code layered on top of upstream
+Freqtrade.
 
 It is intentionally separated from `freqtrade/` core to keep upstream synchronization manageable.
 
@@ -15,6 +16,7 @@ The current baseline is research-only:
 - FreqAI with `LightGBMRegressor`;
 - long-only strategy;
 - dry-run configuration;
+- reproducible experiment manifests and provenance;
 - no live-capital automation.
 
 Files:
@@ -24,6 +26,12 @@ ai_platform/
 ├── README.md
 ├── configs/
 │   └── freqai-baseline.example.json
+├── experiments/
+│   ├── README.md
+│   ├── baseline-v1.json
+│   └── schema-v1.json
+├── scripts/
+│   └── run_experiment.py
 └── strategies/
     └── AiBaselineStrategy.py
 ```
@@ -34,9 +42,38 @@ Install Freqtrade with FreqAI dependencies using the repository-supported instal
 
 For a local editable Python environment, the relevant optional dependency group is `freqai`.
 
-## Prepare a local configuration
+## Preferred reproducible workflow
 
-Copy the tracked example into an ignored local config path:
+The pinned baseline experiment is `ai_platform/experiments/baseline-v1.json`.
+
+Download the declared historical data and run the backtest:
+
+```bash
+python ai_platform/scripts/run_experiment.py \
+  ai_platform/experiments/baseline-v1.json \
+  --stage all
+```
+
+Run only the backtest when the required data already exists:
+
+```bash
+python ai_platform/scripts/run_experiment.py \
+  ai_platform/experiments/baseline-v1.json \
+  --stage backtest
+```
+
+The runner records the Git commit, hashes of the manifest/config/strategy, exact commands, logs,
+backtest archive, and a machine-readable scalar metric summary below `ai_platform/artifacts/`.
+Generated artifacts are ignored by Git.
+
+The baseline manifest uses a fixed `0.002` fee ratio, which Freqtrade applies on entry and exit.
+This is a research assumption, not a statement of the current fee schedule of any exchange.
+
+See `ai_platform/experiments/README.md` for the manifest and artifact contract.
+
+## Prepare a local dry-run configuration
+
+For interactive dry-run trading, copy the tracked example into an ignored local config path:
 
 ```bash
 cp ai_platform/configs/freqai-baseline.example.json user_data/config_ai_baseline.json
@@ -44,7 +81,7 @@ cp ai_platform/configs/freqai-baseline.example.json user_data/config_ai_baseline
 
 Do not commit real API credentials.
 
-The example is already configured with:
+The example is configured with:
 
 ```json
 "dry_run": true
@@ -52,23 +89,21 @@ The example is already configured with:
 
 Keep it that way for the baseline phases.
 
-## Download baseline data
+## Manual data download and backtest
 
-Example:
+Manual commands are useful for debugging, but a promoted experiment should use a pinned manifest.
+
+Example data download:
 
 ```bash
 freqtrade download-data \
   --config user_data/config_ai_baseline.json \
   --pairs BTC/USDT ETH/USDT \
   --timeframes 15m 1h 4h \
-  --days 240
+  --timerange 20250801-20260630
 ```
 
-The exact historical period used for an experiment must be recorded with the result.
-
-## Run a baseline backtest
-
-Provide an explicit timerange appropriate to the downloaded data:
+Example backtest:
 
 ```bash
 freqtrade backtesting \
@@ -76,10 +111,12 @@ freqtrade backtesting \
   --strategy AiBaselineStrategy \
   --strategy-path ai_platform/strategies \
   --freqaimodel LightGBMRegressor \
-  --timerange <YYYYMMDD-YYYYMMDD>
+  --timerange 20260101-20260630 \
+  --fee 0.002
 ```
 
-A profitable backtest is not sufficient for promotion. Follow the validation roadmap before interpreting a candidate as robust.
+A profitable backtest is not sufficient for promotion. Follow the validation roadmap before
+interpreting a candidate as robust.
 
 ## Run dry-run trading
 
@@ -95,15 +132,15 @@ freqtrade trade \
 
 Before this baseline can be considered validated, implement and run:
 
-1. reproducible experiment manifest;
-2. out-of-sample evaluation;
-3. walk-forward evaluation;
-4. `lookahead-analysis`;
-5. `recursive-analysis`;
-6. drawdown and minimum-trade-count gates.
+1. out-of-sample evaluation policy;
+2. walk-forward evaluation;
+3. `lookahead-analysis`;
+4. `recursive-analysis`;
+5. drawdown and minimum-trade-count gates.
 
 See `docs/ai_platform/ROADMAP.md`.
 
 ## Design intent
 
-The baseline strategy is deliberately simple. Its purpose is to prove the research pipeline and establish a benchmark. Complexity should be added only when it improves out-of-sample robustness.
+The baseline strategy is deliberately simple. Its purpose is to prove the research pipeline and
+establish a benchmark. Complexity should be added only when it improves out-of-sample robustness.

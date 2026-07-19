@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "work_package": "Phase 5.2 exit-threshold optimization",
+  "status": "selected_stable",
+  "research_commit": "e626b16277966dfec000bcb1a0ce53cb49c86024",
+  "workflow": {
+    "name": "AI Platform Phase 5.2 Exit Tuning",
+    "run_id": 29705546377,
+    "job_id": 88241787227,
+    "conclusion": "success"
+  },
+  "artifact": {
+    "name": "phase5-exit-tuning-evidence-31",
+    "artifact_id": 8447828733,
+    "digest": "sha256:6debb33696d498cfeb634658f2f406d1b39c65174cd41f599c62a374b0c7aaee"
+  },
+  "optimization": {
+    "optimization_id": "freqai-phase5-exit-thresholds-v1",
+    "run_id": "20260719T220635Z-36287791",
+    "selection_id": "opt-12663b0795e6",
+    "hyperopt_loss": -0.30875011158528226,
+    "fixed_parameters": {
+      "entry_prediction_threshold": 0.006
+    },
+    "selected_parameters": {
+      "exit_prediction_threshold": -0.009000000000000001
+    },
+    "training": {
+      "timerange": "20251201-20260228"
+    },
+    "tuning": {
+      "timerange": "20260301-20260430"
+    },
+    "tuning_metrics": {
+      "drawdown": 0.00032536090200561296,
+      "profit": 0.00017675707799999997,
+      "trades": 20
+    }
+  },
+  "stability": {
+    "passed": true,
+    "perturbations": [
+      {
+        "parameter": "exit_prediction_threshold",
+        "value": -0.01,
+        "passed": true,
+        "metrics": {
+          "drawdown": 0.0006818279953039147,
+          "profit": -0.000172700357,
+          "trades": 20
+        }
+      },
+      {
+        "parameter": "exit_prediction_threshold",
+        "value": -0.008,
+        "passed": true,
+        "metrics": {
+          "drawdown": 0.0004072641606548823,
+          "profit": 0.00009481689199999998,
+          "trades": 20
+        }
+      }
+    ]
+  },
+  "holdout_policy": {
+    "consumed_holdout_reference": {
+      "name": "holdout-2026-05-06",
+      "timerange": "20260501-20260630"
+    },
+    "consumed_holdout_used_in_phase52": false,
+    "final_holdout_used": false,
+    "future_final_holdout": {
+      "status": "pending_new_unseen_window",
+      "final_validation_authorized": false
+    },
+    "eligible_for_final_validation": false,
+    "promotion_allowed": false
+  },
+  "next_step": "Preserve this stable selection as research evidence only. Await a newly declared unseen final holdout in a separate future work package. Do not reuse 20260501-20260630 and do not run final validation yet."
+}

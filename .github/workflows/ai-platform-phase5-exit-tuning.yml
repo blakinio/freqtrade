@@ -1,0 +1,200 @@
+name: AI Platform Phase 5.2 Exit Tuning
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - "ai_platform/optimization/run-requests/exit-thresholds-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-platform-phase5-exit-tuning
+  cancel-in-progress: false
+
+jobs:
+  exit-threshold-tuning:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout exact research commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: true # zizmor: ignore[cache-poisoning] - research-only workflow
+          python-version: "3.12"
+          cache-dependency-glob: "requirements**.txt"
+          cache-suffix: "phase5-exit-tuning-3.12"
+
+      - name: Install FreqAI and Hyperopt dependencies
+        run: |
+          uv pip install -r requirements-freqai.txt
+          uv pip install -r requirements-hyperopt.txt
+          uv pip install -e .
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Restore Kraken historical data cache
+        id: kraken-data-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: phase5-kraken-trades-v1-${{ runner.os }}-${{ hashFiles('ai_platform/experiments/baseline-v1.json', 'ai_platform/configs/freqai-baseline.example.json') }}
+          restore-keys: |
+            phase5-kraken-trades-v1-${{ runner.os }}-
+
+      - name: Download or incrementally update declared Kraken history
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        run: |
+          python - <<'PY'
+          import json
+          import subprocess
+          from pathlib import Path
+
+          manifest = json.loads(
+              Path("ai_platform/experiments/phase5-exit-v1.json").read_text(encoding="utf-8")
+          )
+          config_path = Path(manifest["config"])
+          config = json.loads(config_path.read_text(encoding="utf-8"))
+          exchange = str(config.get("exchange", {}).get("name", "")).lower()
+          if exchange != "kraken":
+              raise SystemExit(f"Phase 5.2 workflow expects Kraken, got {exchange!r}")
+
+          command = [
+              "freqtrade",
+              "download-data",
+              "--config",
+              str(config_path),
+              "--pairs",
+              *manifest["pairs"],
+              "--timeframes",
+              *manifest["timeframes"],
+              "--timerange",
+              manifest["download_timerange"],
+              "--dl-trades",
+              "--convert",
+          ]
+          subprocess.run(command, check=True)
+          PY
+
+      - name: Save PR-local Kraken historical data cache
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: ${{ steps.kraken-data-cache.outputs.cache-primary-key }}
+
+      - name: Run Phase 5.2 exit tuning only
+        id: optimize
+        shell: bash
+        run: |
+          set +e
+          python -m ai_platform.scripts.run_exit_optimization \
+            ai_platform/optimization/phase5-exit-thresholds-v1.json \
+            > phase52-run-path.txt \
+            2> phase52-run-error.txt
+          status=$?
+          set -e
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+
+          if [[ "$status" -ne 0 && "$status" -ne 2 ]]; then
+            cat phase52-run-error.txt || true
+            find ai_platform/artifacts/optimization/freqai-phase5-exit-thresholds-v1 \
+              -type f -name 'hyperopt.log' -print -exec cat {} \; 2>/dev/null || true
+            exit "$status"
+          fi
+
+      - name: Collect Phase 5.2 failure diagnostics
+        if: always() && steps.optimize.outcome == 'failure'
+        env:
+          OPTIMIZER_STATUS: ${{ steps.optimize.outputs.status }}
+          RESEARCH_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p phase52-diagnostics
+          cp phase52-run-error.txt phase52-diagnostics/optimizer-stderr.txt 2>/dev/null || true
+          cp phase52-run-path.txt phase52-diagnostics/optimizer-stdout.txt 2>/dev/null || true
+          printf 'optimizer_status=%s\nresearch_commit=%s\n' \
+            "$OPTIMIZER_STATUS" "$RESEARCH_COMMIT" \
+            > phase52-diagnostics/run-metadata.txt
+          find ai_platform/artifacts/optimization/freqai-phase5-exit-thresholds-v1 -type f \
+            \( -name 'hyperopt.log' -o -name 'provenance.json' -o -name 'optimization-report.json' \
+               -o -name 'selection.json' -o -name 'stability-report.json' -o -name '*.fthypt' \) \
+            -exec cp --parents {} phase52-diagnostics/ \; 2>/dev/null || true
+
+      - name: Upload Phase 5.2 failure diagnostics
+        if: always() && steps.optimize.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phase5-exit-tuning-diagnostics-${{ github.event.pull_request.number }}
+          path: phase52-diagnostics/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Emit machine-readable Phase 5.2 result
+        id: result
+        if: steps.optimize.outputs.status == '0' || steps.optimize.outputs.status == '2'
+        run: |
+          run_dir="$(tail -n 1 phase52-run-path.txt)"
+          test -n "$run_dir"
+          echo "run_dir=${run_dir}" >> "$GITHUB_OUTPUT"
+          python - "$run_dir" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          run_dir = Path(sys.argv[1])
+          report = json.loads((run_dir / "optimization-report.json").read_text(encoding="utf-8"))
+          selection = json.loads((run_dir / "selection.json").read_text(encoding="utf-8"))
+          stability = json.loads((run_dir / "stability-report.json").read_text(encoding="utf-8"))
+          result = {
+              "run_dir": str(run_dir),
+              "research_commit": selection["git_commit"],
+              "selection_id": selection["selection_id"],
+              "status": report["status"],
+              "fixed_parameters": selection["fixed_parameters"],
+              "selected_parameters": selection["selected_parameters"],
+              "tuning_metrics": selection["tuning_metrics"],
+              "stability_passed": selection["stability_passed"],
+              "eligible_for_final_validation": selection["eligible_for_final_validation"],
+              "promotion_allowed": selection["promotion_allowed"],
+              "consumed_holdout_used_in_phase52": report["consumed_holdout_used_in_phase52"],
+              "consumed_holdout_reference": selection["consumed_holdout_reference"],
+              "future_final_holdout": selection["future_final_holdout"],
+              "training": selection["training"],
+              "tuning": selection["tuning"],
+              "stability": stability,
+          }
+          print("PHASE5_EXIT_TUNING_RESULT=" + json.dumps(result, sort_keys=True, separators=(",", ":")))
+          PY
+
+      - name: Collect durable Phase 5.2 tuning evidence
+        if: steps.optimize.outputs.status == '0' || steps.optimize.outputs.status == '2'
+        env:
+          RUN_DIR: ${{ steps.result.outputs.run_dir }}
+        run: |
+          mkdir -p phase52-evidence
+          cp "$RUN_DIR/provenance.json" phase52-evidence/
+          cp "$RUN_DIR/optimization-report.json" phase52-evidence/
+          cp "$RUN_DIR/selection.json" phase52-evidence/
+          cp "$RUN_DIR/stability-report.json" phase52-evidence/
+          cp "$RUN_DIR/hyperopt.log" phase52-evidence/
+          find "$RUN_DIR" -type f -name '*.fthypt' -exec cp {} phase52-evidence/ \;
+
+      - name: Upload durable Phase 5.2 tuning evidence
+        if: steps.optimize.outputs.status == '0' || steps.optimize.outputs.status == '2'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phase5-exit-tuning-evidence-${{ github.event.pull_request.number }}
+          path: phase52-evidence/
+          if-no-files-found: error
+          retention-days: 30

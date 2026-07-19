@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "experiment_id": "freqai-phase5-exit-v1",
+  "description": "Phase 5.2 research candidate with Phase 5.1 entry threshold frozen at 0.006 and exit threshold optimization only.",
+  "config": "ai_platform/configs/freqai-baseline.example.json",
+  "strategy": "AiPhase52ExitStrategy",
+  "strategy_path": "ai_platform/strategies",
+  "freqai_model": "LightGBMRegressor",
+  "timerange": "20260101-20260430",
+  "download_timerange": "20250801-20260630",
+  "pairs": [
+    "BTC/USDT",
+    "ETH/USDT"
+  ],
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "fee": 0.002,
+  "output_root": "ai_platform/artifacts"
+}

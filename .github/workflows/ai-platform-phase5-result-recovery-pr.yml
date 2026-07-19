@@ -20,20 +20,36 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python - <<'PY'
-          import json
           import os
+          import urllib.error
           import urllib.request
 
-          url = "https://api.github.com/repos/blakinio/freqtrade/actions/jobs/88226990900/logs"
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+
+          api_url = "https://api.github.com/repos/blakinio/freqtrade/actions/jobs/88226990900/logs"
           request = urllib.request.Request(
-              url,
+              api_url,
               headers={
                   "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
                   "Accept": "application/vnd.github+json",
                   "X-GitHub-Api-Version": "2022-11-28",
               },
           )
-          with urllib.request.urlopen(request, timeout=60) as response:
+          opener = urllib.request.build_opener(NoRedirect)
+          try:
+              opener.open(request, timeout=60)
+              raise SystemExit("Expected GitHub Actions log redirect was not returned")
+          except urllib.error.HTTPError as exc:
+              if exc.code not in (301, 302, 303, 307, 308):
+                  raise
+              signed_url = exc.headers.get("Location")
+              if not signed_url:
+                  raise SystemExit("GitHub Actions log redirect did not include Location")
+
+          # Signed Azure Blob URL already carries its own credentials. Do not forward GITHUB_TOKEN.
+          with urllib.request.urlopen(signed_url, timeout=60) as response:
               text = response.read().decode("utf-8-sig", errors="replace")
 
           matches = [

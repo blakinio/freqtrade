@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "evidence_type": "phase5_signal_threshold_selection",
+  "optimization_id": "freqai-baseline-signal-thresholds-v1",
+  "research_request": {
+    "pull_request": 23,
+    "workflow_run": 29699870650,
+    "job": 88226990900,
+    "research_commit": "d611ec213ea1271606c2f88226c49ff5b9a7e0a8"
+  },
+  "status": "selected_stable",
+  "selected_parameters": {
+    "entry_prediction_threshold": 0.006
+  },
+  "training": {
+    "name": "train-context-2025-12-2026-02",
+    "timerange": "20251201-20260228"
+  },
+  "tuning": {
+    "name": "tune-2026-03-04",
+    "timerange": "20260301-20260430"
+  },
+  "tuning_metrics": {
+    "drawdown": 0.0007061230684125572,
+    "profit": -0.00045235022199999994,
+    "trades": 22
+  },
+  "stability": {
+    "passed": true,
+    "baseline": {
+      "drawdown": 0.0007061230684125572,
+      "profit": -0.00045235022199999994,
+      "trades": 22
+    },
+    "perturbations": [
+      {
+        "parameter": "entry_prediction_threshold",
+        "value": 0.005,
+        "passed": true,
+        "metrics": {
+          "drawdown": 0.0014374408820868254,
+          "profit": -0.000887914842,
+          "trades": 45
+        }
+      },
+      {
+        "parameter": "entry_prediction_threshold",
+        "value": 0.007,
+        "passed": true,
+        "metrics": {
+          "drawdown": 0.0007011565285789958,
+          "profit": -0.0005166292,
+          "trades": 17
+        }
+      }
+    ]
+  },
+  "final_holdout": {
+    "name": "holdout-2026-05-06",
+    "timerange": "20260501-20260630",
+    "used_for_selection": false,
+    "used_for_retuning": false
+  },
+  "eligible_for_final_validation": true,
+  "promotion_allowed": false,
+  "notes": "Selection evidence only. The frozen final holdout was not used during Hyperopt, parameter selection, stability checks, or retuning. No profitability claim is made."
+}

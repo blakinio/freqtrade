@@ -12,7 +12,7 @@ import shutil
 import subprocess
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
@@ -20,9 +20,11 @@ from zipfile import ZipFile
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")
 REQUIRED_FIELDS = {
     "schema_version",
     "experiment_id",
+    "description",
     "config",
     "strategy",
     "strategy_path",
@@ -41,7 +43,7 @@ class ExperimentError(RuntimeError):
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _iso_utc(value: datetime) -> str:
@@ -94,14 +96,23 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(experiment_id, str) or not EXPERIMENT_ID_PATTERN.fullmatch(experiment_id):
         raise ExperimentError("experiment_id may contain only letters, digits, '.', '_' and '-'")
 
+    for field in ("config", "strategy", "strategy_path", "freqai_model", "output_root"):
+        if not isinstance(manifest[field], str) or not manifest[field]:
+            raise ExperimentError(f"{field} must be a non-empty string")
+
+    for field in ("timerange", "download_timerange"):
+        value = manifest[field]
+        if not isinstance(value, str) or not TIMERANGE_PATTERN.fullmatch(value):
+            raise ExperimentError(f"{field} must use YYYYMMDD-YYYYMMDD format")
+
     for field in ("pairs", "timeframes"):
         value = manifest[field]
         if not isinstance(value, list) or not value or not all(isinstance(x, str) for x in value):
             raise ExperimentError(f"{field} must be a non-empty list of strings")
 
     fee = manifest["fee"]
-    if not isinstance(fee, (int, float)) or fee < 0:
-        raise ExperimentError("fee must be a non-negative numeric ratio")
+    if not isinstance(fee, (int, float)) or not 0 <= fee <= 0.05:
+        raise ExperimentError("fee must be a numeric ratio between 0 and 0.05")
 
     return manifest
 
@@ -206,17 +217,11 @@ def find_backtest_archive(run_dir: Path) -> Path:
 
 
 def extract_backtest_metrics(archive: Path, strategy: str) -> dict[str, Any]:
+    expected_result_name = f"{archive.stem}.json"
     with ZipFile(archive) as zip_file:
-        result_names = [
-            name
-            for name in zip_file.namelist()
-            if name.endswith(".json") and not name.endswith("_config.json")
-        ]
-        if len(result_names) != 1:
-            raise ExperimentError(
-                f"Expected one result JSON in {archive}, found {len(result_names)}"
-            )
-        payload = json.loads(zip_file.read(result_names[0]))
+        if expected_result_name not in zip_file.namelist():
+            raise ExperimentError(f"Result JSON {expected_result_name} not found in {archive}")
+        payload = json.loads(zip_file.read(expected_result_name))
 
     strategy_metrics = payload.get("strategy", {}).get(strategy)
     if not isinstance(strategy_metrics, dict):

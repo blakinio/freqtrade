@@ -68,6 +68,8 @@ def test_hyperopt_command_uses_tuning_window_and_buy_space_only(tmp_path: Path) 
     assert plan["tuning"]["timerange"] in command
     assert plan["final_holdout"]["timerange"] not in command
     assert command[command.index("--spaces") + 1] == "buy"
+    assert command[command.index("--datadir") + 1] == str(ROOT / "user_data" / "data" / "kraken")
+    assert command.index("--datadir") < command.index("--userdir")
     assert "sell" not in command
     assert "roi" not in command
     assert "stoploss" not in command

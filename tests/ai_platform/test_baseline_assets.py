@@ -23,7 +23,9 @@ def test_baseline_strategy_is_valid_python_and_long_only() -> None:
     tree = ast.parse(source)
 
     strategy_classes = [
-        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "AiBaselineStrategy"
+        node
+        for node in tree.body
+        if isinstance(node, ast.ClassDef) and node.name == "AiBaselineStrategy"
     ]
     assert len(strategy_classes) == 1
 

@@ -56,8 +56,17 @@ jobs:
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform
 
-      - name: Ruff format
-        run: ruff format --check ai_platform tests/ai_platform
+      - name: Ruff format experiment runner
+        run: ruff format --check ai_platform/scripts/run_experiment.py
+
+      - name: Ruff format experiment tests
+        run: ruff format --check tests/ai_platform/test_run_experiment.py
+
+      - name: Ruff format baseline files
+        run: >-
+          ruff format --check
+          ai_platform/strategies/AiBaselineStrategy.py
+          tests/ai_platform/test_baseline_assets.py
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform

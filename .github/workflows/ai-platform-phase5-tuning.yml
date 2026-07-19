@@ -83,7 +83,7 @@ jobs:
         shell: bash
         run: |
           set +e
-          python ai_platform/scripts/run_optimization.py \
+          python -m ai_platform.scripts.run_optimization \
             ai_platform/optimization/baseline-signal-thresholds-v1.json \
             > phase5-run-path.txt \
             2> phase5-run-error.txt

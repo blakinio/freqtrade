@@ -31,6 +31,7 @@ from ai_platform.scripts.run_validation import load_validation_plan, summarize_b
 
 
 ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+GIT_SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")
 REQUIRED_PLAN_FIELDS = {
     "schema_version",
@@ -99,7 +100,15 @@ def _git_commit() -> str:
         return "unknown"
 
 
-def _parse_timerange(value: str, label: str) -> tuple[datetime, datetime]:
+def _require_git_commit(value: str) -> str:
+    if not GIT_SHA_PATTERN.fullmatch(value):
+        raise OptimizationError(
+            "Optimization selection requires a full 40-character lowercase Git commit SHA"
+        )
+    return value
+
+
+def _parse_timerange(value: Any, label: str) -> tuple[datetime, datetime]:
     if not isinstance(value, str) or not TIMERANGE_PATTERN.fullmatch(value):
         raise OptimizationError(f"{label} must use YYYYMMDD-YYYYMMDD format")
     start_raw, end_raw = value.split("-", maxsplit=1)
@@ -108,6 +117,49 @@ def _parse_timerange(value: str, label: str) -> tuple[datetime, datetime]:
     if start > end:
         raise OptimizationError(f"{label} starts after it ends")
     return start, end
+
+
+def _validate_window(name: str, window: Any) -> tuple[datetime, datetime]:
+    if not isinstance(window, dict):
+        raise OptimizationError(f"{name} must be an object")
+    window_name = window.get("name")
+    if not isinstance(window_name, str) or not ID_PATTERN.fullmatch(window_name):
+        raise OptimizationError(f"{name}.name contains unsupported characters")
+    return _parse_timerange(window.get("timerange"), f"{name}.timerange")
+
+
+def _validate_hyperopt_options(options: Any) -> None:
+    if not isinstance(options, dict):
+        raise OptimizationError("hyperopt must be an object")
+    if options.get("spaces") != ["buy"]:
+        raise OptimizationError("Signal-threshold stage is restricted to the buy Hyperopt space")
+    if options.get("loss") != "MultiMetricHyperOptLoss":
+        raise OptimizationError("Signal-threshold stage must use MultiMetricHyperOptLoss")
+    for field in ("epochs", "random_state", "min_trades"):
+        if not isinstance(options.get(field), int) or options[field] < 1:
+            raise OptimizationError(f"hyperopt.{field} must be a positive integer")
+    if not isinstance(options.get("job_workers"), int) or options["job_workers"] < -2:
+        raise OptimizationError("hyperopt.job_workers must be an integer >= -2")
+
+
+def _validate_stability_options(options: Any) -> None:
+    if not isinstance(options, dict):
+        raise OptimizationError("parameter_stability must be an object")
+    if options.get("parameter") != "entry_prediction_threshold":
+        raise OptimizationError("Phase 5.1 may only tune entry_prediction_threshold")
+    for field in ("step", "minimum", "maximum", "maximum_profit_drop"):
+        if not isinstance(options.get(field), (int, float)):
+            raise OptimizationError(f"parameter_stability.{field} must be numeric")
+    if options["step"] <= 0 or options["minimum"] >= options["maximum"]:
+        raise OptimizationError("Invalid parameter stability range")
+    if options["maximum_profit_drop"] < 0:
+        raise OptimizationError("maximum_profit_drop cannot be negative")
+    drawdown_increase = options.get("maximum_drawdown_increase")
+    if not isinstance(drawdown_increase, (int, float)) or not 0 <= drawdown_increase <= 1:
+        raise OptimizationError("maximum_drawdown_increase must be between 0 and 1")
+    trade_ratio = options.get("minimum_trade_count_ratio")
+    if not isinstance(trade_ratio, (int, float)) or not 0 < trade_ratio <= 1:
+        raise OptimizationError("minimum_trade_count_ratio must be in (0, 1]")
 
 
 def load_optimization_plan(path: Path) -> dict[str, Any]:
@@ -123,65 +175,22 @@ def load_optimization_plan(path: Path) -> dict[str, Any]:
         raise OptimizationError(f"Optimization plan is missing fields: {', '.join(missing)}")
     if plan["schema_version"] != 1:
         raise OptimizationError("Only optimization schema_version 1 is supported")
-    if not isinstance(plan["optimization_id"], str) or not ID_PATTERN.fullmatch(
-        plan["optimization_id"]
-    ):
+    optimization_id = plan["optimization_id"]
+    if not isinstance(optimization_id, str) or not ID_PATTERN.fullmatch(optimization_id):
         raise OptimizationError("optimization_id contains unsupported characters")
     if plan["stage"] != "signal_thresholds":
         raise OptimizationError("This runner only supports the signal_thresholds stage")
 
-    for name in ("training", "tuning", "final_holdout"):
-        window = plan[name]
-        if not isinstance(window, dict):
-            raise OptimizationError(f"{name} must be an object")
-        if not isinstance(window.get("name"), str) or not ID_PATTERN.fullmatch(window["name"]):
-            raise OptimizationError(f"{name}.name contains unsupported characters")
-        _parse_timerange(window.get("timerange"), f"{name}.timerange")
-
-    training_start, training_end = _parse_timerange(
-        plan["training"]["timerange"], "training.timerange"
-    )
-    tuning_start, tuning_end = _parse_timerange(plan["tuning"]["timerange"], "tuning.timerange")
-    holdout_start, _ = _parse_timerange(
-        plan["final_holdout"]["timerange"], "final_holdout.timerange"
-    )
+    _, training_end = _validate_window("training", plan["training"])
+    tuning_start, tuning_end = _validate_window("tuning", plan["tuning"])
+    holdout_start, _ = _validate_window("final_holdout", plan["final_holdout"])
     if training_end >= tuning_start:
         raise OptimizationError("Training and tuning windows must not overlap")
     if tuning_end >= holdout_start:
         raise OptimizationError("Tuning and final holdout windows must not overlap")
 
-    hyperopt = plan["hyperopt"]
-    if not isinstance(hyperopt, dict):
-        raise OptimizationError("hyperopt must be an object")
-    if hyperopt.get("spaces") != ["buy"]:
-        raise OptimizationError("Signal-threshold stage is restricted to the buy Hyperopt space")
-    if hyperopt.get("loss") != "MultiMetricHyperOptLoss":
-        raise OptimizationError("Signal-threshold stage must use MultiMetricHyperOptLoss")
-    for field in ("epochs", "random_state", "min_trades"):
-        if not isinstance(hyperopt.get(field), int) or hyperopt[field] < 1:
-            raise OptimizationError(f"hyperopt.{field} must be a positive integer")
-    if not isinstance(hyperopt.get("job_workers"), int) or hyperopt["job_workers"] < -2:
-        raise OptimizationError("hyperopt.job_workers must be an integer >= -2")
-
-    stability = plan["parameter_stability"]
-    if not isinstance(stability, dict):
-        raise OptimizationError("parameter_stability must be an object")
-    if stability.get("parameter") != "entry_prediction_threshold":
-        raise OptimizationError("Phase 5.1 may only tune entry_prediction_threshold")
-    for field in ("step", "minimum", "maximum", "maximum_profit_drop"):
-        if not isinstance(stability.get(field), (int, float)):
-            raise OptimizationError(f"parameter_stability.{field} must be numeric")
-    if stability["step"] <= 0 or stability["minimum"] >= stability["maximum"]:
-        raise OptimizationError("Invalid parameter stability range")
-    if stability["maximum_profit_drop"] < 0:
-        raise OptimizationError("maximum_profit_drop cannot be negative")
-    drawdown_increase = stability.get("maximum_drawdown_increase")
-    if not isinstance(drawdown_increase, (int, float)) or not 0 <= drawdown_increase <= 1:
-        raise OptimizationError("maximum_drawdown_increase must be between 0 and 1")
-    trade_ratio = stability.get("minimum_trade_count_ratio")
-    if not isinstance(trade_ratio, (int, float)) or not 0 < trade_ratio <= 1:
-        raise OptimizationError("minimum_trade_count_ratio must be in (0, 1]")
-
+    _validate_hyperopt_options(plan["hyperopt"])
+    _validate_stability_options(plan["parameter_stability"])
     return plan
 
 
@@ -196,12 +205,18 @@ def validate_plan_against_repository(
     if plan["final_holdout"] != validation_plan["holdout"]:
         raise OptimizationError("Final holdout must exactly match the frozen validation holdout")
 
-    download_start, download_end = _parse_timerange(manifest["download_timerange"], "download_timerange")
+    download_start, download_end = _parse_timerange(
+        manifest["download_timerange"], "download_timerange"
+    )
     training_start, training_end = _parse_timerange(
         plan["training"]["timerange"], "training.timerange"
     )
-    tuning_start, tuning_end = _parse_timerange(plan["tuning"]["timerange"], "tuning.timerange")
-    _, holdout_end = _parse_timerange(plan["final_holdout"]["timerange"], "final_holdout.timerange")
+    tuning_start, tuning_end = _parse_timerange(
+        plan["tuning"]["timerange"], "tuning.timerange"
+    )
+    _, holdout_end = _parse_timerange(
+        plan["final_holdout"]["timerange"], "final_holdout.timerange"
+    )
     if training_start < download_start or holdout_end > download_end:
         raise OptimizationError("Optimization windows exceed the manifest download coverage")
 
@@ -311,6 +326,7 @@ def selection_identity(
     parameter: str,
     value: float,
 ) -> str:
+    git_commit = _require_git_commit(git_commit)
     semantic = {
         "optimization_id": plan["optimization_id"],
         "git_commit": git_commit,
@@ -503,7 +519,8 @@ def _materialize_selected_candidate(
             ),
             "target_id": "future-average-return-v1",
             "target_description": (
-                "Average forward close return over the configured FreqAI label_period_candles horizon."
+                "Average forward close return over the configured FreqAI "
+                "label_period_candles horizon."
             ),
         },
     )
@@ -514,6 +531,34 @@ def _materialize_selected_candidate(
         "experiment_manifest": _relative_repo_path(manifest_path),
         "validation_plan": _relative_repo_path(validation_path),
         "registry_definition": _relative_repo_path(registry_path),
+    }
+
+
+def _build_provenance(
+    plan: dict[str, Any],
+    *,
+    run_id: str,
+    git_commit: str,
+    plan_path: Path,
+    manifest_path: Path,
+    validation_path: Path,
+    config_path: Path,
+    strategy_file: Path,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "optimization_id": plan["optimization_id"],
+        "run_id": run_id,
+        "git_commit": git_commit,
+        "plan_sha256": _sha256_file(plan_path),
+        "manifest_sha256": _sha256_file(manifest_path),
+        "validation_plan_sha256": _sha256_file(validation_path),
+        "config_sha256": _sha256_file(config_path),
+        "strategy_sha256": _sha256_file(strategy_file),
+        "training": plan["training"],
+        "tuning": plan["tuning"],
+        "final_holdout": plan["final_holdout"],
+        "final_holdout_used": False,
     }
 
 
@@ -535,6 +580,7 @@ def run_optimization(
         raise OptimizationError(f"Strategy file does not exist: {strategy_file}")
     base_config = validate_research_config(config_path)
     validate_plan_against_repository(plan, manifest, validation_plan, base_config)
+    git_commit = _require_git_commit(_git_commit())
 
     output_root = _resolve_repo_path(plan["output_root"])
     run_id = f"{_utc_now().strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:8]}"
@@ -542,22 +588,16 @@ def run_optimization(
     run_dir.mkdir(parents=True, exist_ok=False)
     shutil.copy2(plan_path, run_dir / "optimization-plan.json")
 
-    git_commit = _git_commit()
-    provenance = {
-        "schema_version": 1,
-        "optimization_id": plan["optimization_id"],
-        "run_id": run_id,
-        "git_commit": git_commit,
-        "plan_sha256": _sha256_file(plan_path),
-        "manifest_sha256": _sha256_file(manifest_path),
-        "validation_plan_sha256": _sha256_file(validation_path),
-        "config_sha256": _sha256_file(config_path),
-        "strategy_sha256": _sha256_file(strategy_file),
-        "training": plan["training"],
-        "tuning": plan["tuning"],
-        "final_holdout": plan["final_holdout"],
-        "final_holdout_used": False,
-    }
+    provenance = _build_provenance(
+        plan,
+        run_id=run_id,
+        git_commit=git_commit,
+        plan_path=plan_path,
+        manifest_path=manifest_path,
+        validation_path=validation_path,
+        config_path=config_path,
+        strategy_file=strategy_file,
+    )
     write_json(run_dir / "provenance.json", provenance)
 
     user_dir = run_dir / "hyperopt-userdata"
@@ -653,7 +693,8 @@ def run_optimization(
         "stability_report_path": _relative_repo_path(run_dir / "stability-report.json"),
         "next_step": (
             "Run the materialized selected validation plan exactly once for final evaluation, then "
-            "register the resulting experiment and validation evidence. Do not retune on holdout results."
+            "register the resulting experiment and validation evidence. Do not retune on holdout "
+            "results."
         ),
         "finished_at": _iso_utc(_utc_now()),
     }

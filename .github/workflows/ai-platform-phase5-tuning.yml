@@ -1,0 +1,104 @@
+name: AI Platform Phase 5 Tuning
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - "ai_platform/optimization/run-requests/signal-thresholds-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-platform-phase5-tuning-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  signal-threshold-tuning:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout exact research commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: true # zizmor: ignore[cache-poisoning] - research-only, no release artifacts
+          python-version: "3.12"
+          cache-dependency-glob: "requirements**.txt"
+          cache-suffix: "phase5-tuning-3.12"
+
+      - name: Install FreqAI and Hyperopt dependencies
+        run: |
+          uv pip install -r requirements-freqai.txt
+          uv pip install -r requirements-hyperopt.txt
+          uv pip install -e .
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Download declared historical data
+        run: |
+          python ai_platform/scripts/run_experiment.py \
+            ai_platform/experiments/baseline-v1.json \
+            --stage download
+
+      - name: Run Phase 5.1 tuning only
+        id: optimize
+        shell: bash
+        run: |
+          set +e
+          python ai_platform/scripts/run_optimization.py \
+            ai_platform/optimization/baseline-signal-thresholds-v1.json \
+            > phase5-run-path.txt
+          status=$?
+          set -e
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          if [[ "$status" -ne 0 && "$status" -ne 2 ]]; then
+            exit "$status"
+          fi
+
+      - name: Emit machine-readable tuning result
+        if: steps.optimize.outputs.status == '0' || steps.optimize.outputs.status == '2'
+        shell: bash
+        run: |
+          run_dir="$(tail -n 1 phase5-run-path.txt)"
+          test -n "$run_dir"
+          test -f "$run_dir/optimization-report.json"
+          test -f "$run_dir/selection.json"
+          test -f "$run_dir/stability-report.json"
+          python - "$run_dir" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          run_dir = Path(sys.argv[1])
+          report = json.loads((run_dir / "optimization-report.json").read_text(encoding="utf-8"))
+          selection = json.loads((run_dir / "selection.json").read_text(encoding="utf-8"))
+          stability = json.loads((run_dir / "stability-report.json").read_text(encoding="utf-8"))
+
+          result = {
+              "run_dir": str(run_dir),
+              "research_commit": selection["git_commit"],
+              "selection_id": selection["selection_id"],
+              "status": report["status"],
+              "selected_parameters": selection["selected_parameters"],
+              "tuning_metrics": selection["tuning_metrics"],
+              "stability_passed": selection["stability_passed"],
+              "eligible_for_final_validation": selection["eligible_for_final_validation"],
+              "promotion_allowed": selection["promotion_allowed"],
+              "final_holdout_used": report["final_holdout_used"],
+              "training": selection["training"],
+              "tuning": selection["tuning"],
+              "final_holdout": selection["final_holdout"],
+              "stability": stability,
+          }
+          print("PHASE5_TUNING_RESULT=" + json.dumps(result, sort_keys=True, separators=(",", ":")))
+          PY

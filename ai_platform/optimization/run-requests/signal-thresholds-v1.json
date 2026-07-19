@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "request_id": "phase5-signal-thresholds-20260719-v1",
+  "optimization_plan": "ai_platform/optimization/baseline-signal-thresholds-v1.json",
+  "purpose": "Execute Phase 5.1 entry_prediction_threshold tuning on the declared tuning window only.",
+  "expected_training_timerange": "20251201-20260228",
+  "expected_tuning_timerange": "20260301-20260430",
+  "frozen_final_holdout_timerange": "20260501-20260630",
+  "final_holdout_allowed": false,
+  "requested_result": "selection and local stability evidence only"
+}

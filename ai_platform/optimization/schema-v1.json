@@ -1,0 +1,95 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "ai-platform-optimization-plan-v1",
+    "title": "AI Platform Optimization Plan v1",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "optimization_id",
+        "stage",
+        "experiment_manifest",
+        "validation_plan",
+        "training",
+        "tuning",
+        "final_holdout",
+        "hyperopt",
+        "parameter_stability",
+        "output_root"
+    ],
+    "properties": {
+        "schema_version": {"const": 1},
+        "optimization_id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "stage": {"const": "signal_thresholds"},
+        "experiment_manifest": {"type": "string", "minLength": 1},
+        "validation_plan": {"type": "string", "minLength": 1},
+        "training": {"$ref": "#/$defs/window"},
+        "tuning": {"$ref": "#/$defs/window"},
+        "final_holdout": {"$ref": "#/$defs/window"},
+        "hyperopt": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "spaces",
+                "epochs",
+                "random_state",
+                "min_trades",
+                "loss",
+                "job_workers"
+            ],
+            "properties": {
+                "spaces": {
+                    "const": ["buy"]
+                },
+                "epochs": {"type": "integer", "minimum": 1},
+                "random_state": {"type": "integer", "minimum": 1},
+                "min_trades": {"type": "integer", "minimum": 1},
+                "loss": {"const": "MultiMetricHyperOptLoss"},
+                "job_workers": {"type": "integer", "minimum": -2}
+            }
+        },
+        "parameter_stability": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "parameter",
+                "step",
+                "minimum",
+                "maximum",
+                "maximum_profit_drop",
+                "maximum_drawdown_increase",
+                "minimum_trade_count_ratio"
+            ],
+            "properties": {
+                "parameter": {"const": "entry_prediction_threshold"},
+                "step": {"type": "number", "exclusiveMinimum": 0},
+                "minimum": {"type": "number"},
+                "maximum": {"type": "number"},
+                "maximum_profit_drop": {"type": "number", "minimum": 0},
+                "maximum_drawdown_increase": {"type": "number", "minimum": 0, "maximum": 1},
+                "minimum_trade_count_ratio": {"type": "number", "exclusiveMinimum": 0, "maximum": 1}
+            }
+        },
+        "output_root": {"type": "string", "minLength": 1}
+    },
+    "$defs": {
+        "window": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "timerange"],
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9._-]+$"
+                },
+                "timerange": {
+                    "type": "string",
+                    "pattern": "^[0-9]{8}-[0-9]{8}$"
+                }
+            }
+        }
+    }
+}

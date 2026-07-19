@@ -482,9 +482,7 @@ def _validate_promotable_identity(
     freqtrade_version: str,
 ) -> None:
     if not GIT_SHA_PATTERN.fullmatch(git_commit):
-        raise RegistryError(
-            "Validated candidates require a full 40-character Git commit SHA"
-        )
+        raise RegistryError("Validated candidates require a full 40-character Git commit SHA")
     if not definition["freqai_identifier"]:
         raise RegistryError("Validated candidates require a FreqAI identifier")
     if not freqtrade_version or freqtrade_version == "unknown":

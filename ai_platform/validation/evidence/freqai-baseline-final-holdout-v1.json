@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "evidence_type": "phase5_final_holdout_validation",
+  "status": "holdout_failed",
+  "selection": {
+    "status": "selected_stable",
+    "research_commit": "d611ec213ea1271606c2f88226c49ff5b9a7e0a8",
+    "selected_parameters": {
+      "entry_prediction_threshold": 0.006
+    }
+  },
+  "final_validation": {
+    "pull_request": 28,
+    "workflow_run": 29703500261,
+    "job": 88236479943,
+    "commit": "02f6884140ece1aa399979d3b2fcc28a1c6e7dea",
+    "artifact": {
+      "id": 8447180811,
+      "name": "phase5-final-holdout-evidence-28",
+      "digest": "sha256:26269e5ac0e40b770367ae2612d0fb043b389575c1075a10ad87666fa37bc341"
+    }
+  },
+  "final_holdout": {
+    "name": "holdout-2026-05-06",
+    "timerange": "20260501-20260630",
+    "used": true
+  },
+  "metrics": {
+    "trades": 26,
+    "profit": -0.003522885091,
+    "drawdown": 0.003522885090999989
+  },
+  "gates": {
+    "thresholds": {
+      "minimum_holdout_trades": 10,
+      "minimum_holdout_profit": 0.0,
+      "maximum_holdout_drawdown": 0.25
+    },
+    "checks": {
+      "minimum_holdout_trades": true,
+      "minimum_holdout_profit": false,
+      "maximum_holdout_drawdown": true
+    },
+    "passed": false
+  },
+  "retuning_allowed": false,
+  "promotion_allowed": false,
+  "promotion_decision": "not_performed",
+  "conclusion": "The frozen Phase 5 final holdout did not pass all existing validation gates. The result is final evidence only and must not be used for parameter, feature, or model retuning.",
+  "notes": "One-shot frozen final holdout evidence. No second holdout run is authorized and no profitability claim is made."
+}

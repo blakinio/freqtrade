@@ -56,8 +56,26 @@ jobs:
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform
 
-      - name: Ruff format
-        run: ruff format --check ai_platform tests/ai_platform
+      - name: Capture Ruff format diagnostics
+        shell: bash
+        run: |
+          set +e
+          ruff format --check --diff ai_platform tests/ai_platform > ruff-format-output.txt 2>&1
+          printf '%s\n' "$?" > ruff-format-exit-code.txt
+          exit 0
+
+      - name: Upload Ruff format diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ruff-format-diagnostics
+          path: |
+            ruff-format-output.txt
+            ruff-format-exit-code.txt
+          if-no-files-found: error
+
+      - name: Enforce Ruff format result
+        shell: bash
+        run: test "$(cat ruff-format-exit-code.txt)" = "0"
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform

@@ -18,9 +18,7 @@ EXPECTED_TRAINING = "20251201-20260228"
 EXPECTED_TUNING = "20260301-20260430"
 CONSUMED_HOLDOUT = "20260501-20260630"
 FROZEN_ENTRY = 0.006
-FINAL_EVIDENCE = (
-    REPO_ROOT / "ai_platform/validation/evidence/freqai-baseline-final-holdout-v1.json"
-)
+FINAL_EVIDENCE = REPO_ROOT / "ai_platform/validation/evidence/freqai-baseline-final-holdout-v1.json"
 BASE_VALIDATION = "ai_platform/validation/baseline-validation-v1.json"
 
 
@@ -128,8 +126,10 @@ def validate_exit_repository(
         raise ExitOptimizationError("Phase 5.1 holdout evidence is incomplete")
     if evidence.get("final_holdout", {}).get("timerange") != CONSUMED_HOLDOUT:
         raise ExitOptimizationError("Consumed holdout does not match Phase 5.1 evidence")
-    entry = evidence.get("selection", {}).get("selected_parameters", {}).get(
-        "entry_prediction_threshold"
+    entry = (
+        evidence.get("selection", {})
+        .get("selected_parameters", {})
+        .get("entry_prediction_threshold")
     )
     if entry != FROZEN_ENTRY:
         raise ExitOptimizationError("Frozen entry threshold does not match Phase 5.1 evidence")

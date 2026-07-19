@@ -10,7 +10,7 @@ import re
 import shutil
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import mean
 from typing import Any
@@ -45,7 +45,7 @@ REQUIRED_PLAN_FIELDS = {
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _iso_utc(value: datetime) -> str:

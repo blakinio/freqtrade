@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "optimization_id": "freqai-phase5-exit-thresholds-v1",
+  "stage": "exit_thresholds",
+  "experiment_manifest": "ai_platform/experiments/phase5-exit-v1.json",
+  "training": {
+    "name": "train-context-2025-12-2026-02",
+    "timerange": "20251201-20260228"
+  },
+  "tuning": {
+    "name": "tune-2026-03-04",
+    "timerange": "20260301-20260430"
+  },
+  "consumed_holdout_reference": {
+    "name": "holdout-2026-05-06",
+    "timerange": "20260501-20260630"
+  },
+  "future_final_holdout": {
+    "status": "pending_new_unseen_window",
+    "final_validation_authorized": false
+  },
+  "fixed_parameters": {
+    "entry_prediction_threshold": 0.006
+  },
+  "hyperopt": {
+    "spaces": ["sell"],
+    "epochs": 100,
+    "random_state": 42,
+    "min_trades": 20,
+    "loss": "MultiMetricHyperOptLoss",
+    "job_workers": 1
+  },
+  "parameter_stability": {
+    "parameter": "exit_prediction_threshold",
+    "step": 0.001,
+    "minimum": -0.02,
+    "maximum": 0.01,
+    "maximum_profit_drop": 0.05,
+    "maximum_drawdown_increase": 0.1,
+    "minimum_trade_count_ratio": 0.5
+  },
+  "output_root": "ai_platform/artifacts/optimization"
+}

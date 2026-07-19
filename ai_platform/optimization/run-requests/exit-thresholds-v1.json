@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "request": "phase5-exit-thresholds-v1",
+  "optimization_plan": "ai_platform/optimization/phase5-exit-thresholds-v1.json",
+  "stage": "exit_thresholds",
+  "final_validation_authorized": false
+}

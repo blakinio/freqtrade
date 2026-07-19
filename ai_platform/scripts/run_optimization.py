@@ -27,7 +27,10 @@ from ai_platform.scripts.run_experiment import (
     validate_research_config,
     write_json,
 )
-from ai_platform.scripts.run_validation import load_validation_plan, summarize_backtest_metrics
+from ai_platform.scripts.run_validation import (
+    load_validation_plan,
+    summarize_backtest_metrics,
+)
 
 
 ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -201,7 +204,9 @@ def validate_plan_against_repository(
     config: dict[str, Any],
 ) -> None:
     if validation_plan["experiment_manifest"] != plan["experiment_manifest"]:
-        raise OptimizationError("Optimization and validation plans must reference the same manifest")
+        raise OptimizationError(
+            "Optimization and validation plans must reference the same manifest"
+        )
     if plan["final_holdout"] != validation_plan["holdout"]:
         raise OptimizationError("Final holdout must exactly match the frozen validation holdout")
 
@@ -232,7 +237,9 @@ def validate_plan_against_repository(
 
     manifest_start, manifest_end = _parse_timerange(manifest["timerange"], "manifest.timerange")
     if tuning_start < manifest_start or tuning_end > manifest_end:
-        raise OptimizationError("Tuning window must remain inside the experiment evaluation timerange")
+        raise OptimizationError(
+            "Tuning window must remain inside the experiment evaluation timerange"
+        )
 
 
 def build_hyperopt_command(

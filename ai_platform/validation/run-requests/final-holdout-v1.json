@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "request_id": "phase5-final-holdout-20260719-v1",
+  "selection_evidence": "ai_platform/optimization/evidence/freqai-baseline-signal-thresholds-v1-selected.json",
+  "experiment_manifest": "ai_platform/experiments/final-holdout-v1.json",
+  "expected_selected_parameters": {
+    "entry_prediction_threshold": 0.006
+  },
+  "expected_training_timerange": "20251201-20260228",
+  "expected_tuning_timerange": "20260301-20260430",
+  "final_holdout_timerange": "20260501-20260630",
+  "final_holdout_allowed": true,
+  "retuning_allowed": false,
+  "promotion_allowed": false,
+  "requested_result": "frozen final holdout evidence only"
+}

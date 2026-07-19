@@ -1,0 +1,1 @@
+CI routing smoke marker. This temporary file validates representative core CI routing and must not be merged.

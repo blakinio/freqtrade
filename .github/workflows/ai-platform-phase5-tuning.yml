@@ -85,11 +85,32 @@ jobs:
           set +e
           python ai_platform/scripts/run_optimization.py \
             ai_platform/optimization/baseline-signal-thresholds-v1.json \
-            > phase5-run-path.txt
+            > phase5-run-path.txt \
+            2> phase5-run-error.txt
           status=$?
           set -e
           echo "status=${status}" >> "$GITHUB_OUTPUT"
+
           if [[ "$status" -ne 0 && "$status" -ne 2 ]]; then
+            echo "::group::Phase 5 optimizer stderr"
+            cat phase5-run-error.txt || true
+            echo "::endgroup::"
+
+            echo "::group::Phase 5 Hyperopt logs"
+            find ai_platform/artifacts/optimization -type f -name 'hyperopt.log' -print -exec sh -c '
+              echo "===== $1 ====="
+              cat "$1"
+            ' _ {} \; 2>/dev/null || true
+            echo "::endgroup::"
+
+            echo "::group::Phase 5 generated reports"
+            find ai_platform/artifacts/optimization -type f \
+              \( -name 'provenance.json' -o -name 'optimization-report.json' -o -name 'selection.json' \) \
+              -print -exec sh -c '
+                echo "===== $1 ====="
+                cat "$1"
+              ' _ {} \; 2>/dev/null || true
+            echo "::endgroup::"
             exit "$status"
           fi
 

@@ -11,7 +11,6 @@ on:
   push:
     branches:
       - develop
-      - "feat/ai-*"
     paths:
       - "AGENTS.md"
       - "ai_platform/**"
@@ -57,14 +56,17 @@ jobs:
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform
 
-      - name: Ruff format strategy
-        run: ruff format --check ai_platform/strategies/AiBaselineStrategy.py
-
-      - name: Ruff format baseline tests
-        run: ruff format --check tests/ai_platform/test_baseline_assets.py
+      - name: Ruff format
+        run: ruff format --check ai_platform tests/ai_platform
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform
 
       - name: Validate baseline JSON
         run: python -m json.tool ai_platform/configs/freqai-baseline.example.json > /dev/null
+
+      - name: Validate experiment manifest JSON
+        run: python -m json.tool ai_platform/experiments/baseline-v1.json > /dev/null
+
+      - name: Validate experiment schema JSON
+        run: python -m json.tool ai_platform/experiments/schema-v1.json > /dev/null

@@ -3,7 +3,7 @@ from functools import reduce
 import talib.abstract as ta
 from pandas import DataFrame
 
-from freqtrade.strategy import IStrategy
+from freqtrade.strategy import DecimalParameter, IStrategy
 
 
 class AiBaselineStrategy(IStrategy):
@@ -28,8 +28,15 @@ class AiBaselineStrategy(IStrategy):
     stoploss = -0.05
     use_exit_signal = True
 
-    # Conservative research thresholds. These are hypotheses, not optimized values.
-    entry_prediction_threshold = 0.005
+    # Phase 5.1 exposes only the entry signal threshold. The default preserves
+    # the pre-optimization baseline behavior outside Hyperopt.
+    entry_prediction_threshold = DecimalParameter(
+        0.001,
+        0.02,
+        decimals=3,
+        default=0.005,
+        space="buy",
+    )
     exit_prediction_threshold = 0.0
 
     def feature_engineering_expand_all(
@@ -99,7 +106,7 @@ class AiBaselineStrategy(IStrategy):
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         conditions = [
             dataframe["do_predict"] == 1,
-            dataframe["&-future_return"] > self.entry_prediction_threshold,
+            dataframe["&-future_return"] > self.entry_prediction_threshold.value,
             dataframe["volume"] > 0,
         ]
 

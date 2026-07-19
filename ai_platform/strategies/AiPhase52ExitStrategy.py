@@ -1,8 +1,9 @@
 from functools import reduce
 
 import talib.abstract as ta
-from freqtrade.strategy import DecimalParameter, IStrategy
 from pandas import DataFrame
+
+from freqtrade.strategy import DecimalParameter, IStrategy
 
 
 class AiPhase52ExitStrategy(IStrategy):

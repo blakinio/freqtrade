@@ -71,9 +71,7 @@ class AiBaselineStrategy(IStrategy):
 
         dataframe["%-pct-change"] = dataframe["close"].pct_change()
         dataframe["%-volume-change"] = dataframe["volume"].pct_change()
-        dataframe["%-high-low-range"] = (
-            dataframe["high"] - dataframe["low"]
-        ) / dataframe["close"]
+        dataframe["%-high-low-range"] = (dataframe["high"] - dataframe["low"]) / dataframe["close"]
 
         return dataframe
 
@@ -98,9 +96,7 @@ class AiBaselineStrategy(IStrategy):
         """Predict the average forward return over the configured label horizon."""
 
         horizon = self.freqai_info["feature_parameters"]["label_period_candles"]
-        future_average_close = (
-            dataframe["close"].shift(-horizon).rolling(horizon).mean()
-        )
+        future_average_close = dataframe["close"].shift(-horizon).rolling(horizon).mean()
         dataframe["&-future_return"] = future_average_close / dataframe["close"] - 1
         return dataframe
 

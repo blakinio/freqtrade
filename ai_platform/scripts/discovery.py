@@ -345,8 +345,7 @@ def load_base_documents(search: dict[str, Any]) -> dict[str, dict[str, Any]]:
         "registry": "base_registry_definition",
     }
     return {
-        name: _read_json(_resolve_repo_path(search[field]), name)
-        for name, field in fields.items()
+        name: _read_json(_resolve_repo_path(search[field]), name) for name, field in fields.items()
     }
 
 
@@ -390,8 +389,8 @@ def build_candidate_payloads(
     registry["experiment_manifest"] = manifest_path
     registry["strategy_version"] = "1"
     registry["feature_set_id"] = f"discovery-{feature_hash}"
-    registry["feature_set_description"] = (
-        "Bounded discovery feature groups: " + ", ".join(candidate["feature_groups"])
+    registry["feature_set_description"] = "Bounded discovery feature groups: " + ", ".join(
+        candidate["feature_groups"]
     )
     registry["target_id"] = search["target_id"]
     registry["target_description"] = search["target_description"]
@@ -615,12 +614,7 @@ def robustness_score(validation_report: dict[str, Any]) -> float | None:
     mean_profit = mean(fold_profits)
     worst_profit = min(fold_profits)
     worst_drawdown = max([*fold_drawdowns, holdout_drawdown])
-    return (
-        0.5 * holdout_profit
-        + 0.3 * mean_profit
-        + 0.2 * worst_profit
-        - 0.5 * worst_drawdown
-    )
+    return 0.5 * holdout_profit + 0.3 * mean_profit + 0.2 * worst_profit - 0.5 * worst_drawdown
 
 
 def rank_candidate_results(root: Path = DISCOVERY_ROOT) -> list[dict[str, Any]]:

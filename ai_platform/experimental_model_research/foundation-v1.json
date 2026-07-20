@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "foundation_id": "experimental-model-research-foundation-v1",
+  "status": "foundation_only",
+  "phase6_isolation": {
+    "comparison_contract": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+    "membership": false,
+    "may_change_candidates": false,
+    "may_change_selection_policy": false,
+    "may_consume_research_results": false
+  },
+  "protected_final_holdout": {
+    "declaration": "ai_platform/validation/final-holdout-v2-declaration.json",
+    "timerange": "20260801-20260930",
+    "used": false,
+    "usage": "forbidden"
+  },
+  "shared_temporal_geometry": {
+    "training_window": "20251201-20260228",
+    "tuning_window": "20260301-20260430",
+    "historical_oos_window": "20260501-20260630",
+    "historical_oos_status": "consumed_historical_oos",
+    "prediction_window": "20260301-20260630",
+    "download_timerange": "20250801-20260630",
+    "train_period_days": 90,
+    "backtest_period_days": 122,
+    "training_mode": "single_frozen_training_window",
+    "backtest_retraining_allowed": false
+  },
+  "shared_trading_assumptions": {
+    "fee": 0.002,
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "trading_mode": "spot",
+    "dry_run": true,
+    "frozen_candidate_reference": {
+      "entry_prediction_threshold": 0.006,
+      "exit_prediction_threshold": -0.009
+    }
+  },
+  "evaluation_contract": {
+    "scoring_window": "20260501-20260630",
+    "metrics": [
+      "profit",
+      "drawdown",
+      "trades",
+      "stability"
+    ],
+    "strict_oos_trade_filter_required": true,
+    "training_loss_is_selection_evidence": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false
+  },
+  "tracks": [
+    {
+      "track_id": "pytorch-research-v1",
+      "name": "PyTorch Research",
+      "status": "feasible",
+      "scope": "reproducible_baseline_pipeline_foundation",
+      "manifest": "ai_platform/experiments/pytorch-research-v1.json",
+      "config": "ai_platform/configs/freqai-pytorch-research.example.json",
+      "strategy": "AiFrozenCandidateStrategy",
+      "freqai_model": "SeededPyTorchMLPRegressor",
+      "freqai_identifier": "ai-platform-pytorch-research-v1",
+      "freqaimodel_path": "ai_platform/freqaimodels",
+      "artifact_root": "ai_platform/artifacts/experimental-model-research/pytorch",
+      "dependency_profile": "freqtrade[freqai_rl]",
+      "seed": 42,
+      "phase6_member": false,
+      "final_holdout_used": false,
+      "execution_performed": false,
+      "promotion_allowed": false,
+      "profitability_claim_allowed": false,
+      "provenance": {
+        "runner": "ai_platform.scripts.run_experiment",
+        "run_artifacts": [
+          "manifest.json",
+          "provenance.json",
+          "run-summary.json",
+          "backtest-result-*.zip"
+        ],
+        "identity_fields": [
+          "experiment_id",
+          "freqai_identifier",
+          "freqai_model",
+          "config_sha256",
+          "strategy_sha256",
+          "git_commit"
+        ]
+      }
+    },
+    {
+      "track_id": "rl-research-v1",
+      "name": "Reinforcement Learning Research",
+      "status": "feasible",
+      "scope": "proof_of_integration_foundation",
+      "manifest": "ai_platform/experiments/rl-research-v1.json",
+      "config": "ai_platform/configs/freqai-rl-research.example.json",
+      "strategy": "AiLongOnlyRLResearchStrategy",
+      "freqai_model": "LongOnlyReinforcementLearner",
+      "freqai_identifier": "ai-platform-rl-research-v1",
+      "freqaimodel_path": "ai_platform/freqaimodels",
+      "artifact_root": "ai_platform/artifacts/experimental-model-research/rl",
+      "dependency_profile": "freqtrade[freqai_rl]",
+      "backend": "stable_baselines3",
+      "algorithm": "PPO",
+      "seed": 42,
+      "observation_contract": {
+        "source": "FreqAI normalized feature window",
+        "window_size": 1,
+        "raw_ohlc_used_for_environment_prices_only": true,
+        "raw_ohlc_dropped_from_agent_features": true,
+        "add_state_info_in_backtesting": false
+      },
+      "action_contract": {
+        "space": "Discrete(3)",
+        "actions": {
+          "0": "neutral",
+          "1": "long_enter",
+          "2": "long_exit"
+        },
+        "short_actions_available": false
+      },
+      "reward_contract": {
+        "timing": "pre_transition_decision_tick",
+        "future_market_information_used": false,
+        "invalid_action_penalty": -1.0,
+        "long_exit_reward": "current_unrealized_profit_pct_x100",
+        "holding_penalty": "bounded_trade_duration_ratio_x_-0.01",
+        "entry_reward": 0.0
+      },
+      "episode_contract": {
+        "training_data": "training split inside 20251201-20260228",
+        "evaluation_data": "non-shuffled internal test split inside 20251201-20260228",
+        "historical_oos_backtest": "20260501-20260630 only after frozen single training",
+        "continual_learning": false,
+        "randomize_starting_position": false
+      },
+      "phase6_member": false,
+      "final_holdout_used": false,
+      "execution_performed": false,
+      "promotion_allowed": false,
+      "profitability_claim_allowed": false,
+      "broad_agent_search_justified": false,
+      "reward_sweep_justified": false,
+      "hyperparameter_sweep_justified": false,
+      "provenance": {
+        "runner": "ai_platform.scripts.run_experiment",
+        "run_artifacts": [
+          "manifest.json",
+          "provenance.json",
+          "run-summary.json",
+          "backtest-result-*.zip"
+        ],
+        "identity_fields": [
+          "experiment_id",
+          "freqai_identifier",
+          "freqai_model",
+          "config_sha256",
+          "strategy_sha256",
+          "git_commit"
+        ]
+      }
+    }
+  ]
+}

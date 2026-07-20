@@ -261,9 +261,14 @@ def _validate_compactness(data: dict[str, object], contract: Contract, path: Pat
     return errors
 
 
+def _list_items(data: dict[str, object], key: str) -> list[object]:
+    value = data.get(key, [])
+    return value if isinstance(value, list) else []
+
+
 def _validate_evidence(data: dict[str, object], contract: Contract, path: Path) -> list[str]:
     evidence_sets = {
-        key: {normalized_fact(str(item)) for item in data.get(key, []) if str(item).strip()}
+        key: {normalized_fact(str(item)) for item in _list_items(data, key) if str(item).strip()}
         for key in contract.evidence_fields
     }
     errors: list[str] = []

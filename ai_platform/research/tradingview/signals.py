@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 from pandas import DataFrame, Series
 
+
 _REQUIRED_OHLCV = {"open", "high", "low", "close", "volume"}
 
 

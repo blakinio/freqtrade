@@ -53,7 +53,7 @@ def _evidence() -> dict[str, Any]:
         "comparison_id": basis["comparison_id"],
         "materialization_plan_sha256": basis["materialization_plan_sha256"],
         "execution_git_commit": execution_commit,
-        "selection_policy_sha256": "5" * 64,
+        "selection_policy_sha256": basis["selection_policy_sha256"],
         "selection_decision_sha256": "6" * 64,
         "model_sources": sources,
     }
@@ -69,7 +69,10 @@ def test_result_provenance_contract_and_evidence_are_valid() -> None:
     assert contract["execution"]["result_field_semantics"] == (
         "shared_model_execution_commit"
     )
+    assert contract["execution"]["run_provenance_digest_scope"] == "exact_file_bytes"
     assert contract["materialization"]["result_field"] == "plan_sha256"
+    assert contract["extraction"]["backtest_archive_digest_scope"] == "exact_file_bytes"
+    assert contract["selection"]["selection_decision_digest_scope"] == "exact_file_bytes"
     assert validate_model_comparison_result_provenance(evidence) == evidence
 
 
@@ -87,6 +90,14 @@ def test_result_provenance_rejects_materialization_plan_hash_drift() -> None:
     evidence["materialization_plan_sha256"] = "0" * 64
 
     with pytest.raises(ModelComparisonResultProvenanceError, match="Materialization plan hash"):
+        validate_model_comparison_result_provenance(evidence)
+
+
+def test_result_provenance_rejects_selection_policy_hash_drift() -> None:
+    evidence = _evidence()
+    evidence["selection_policy_sha256"] = "0" * 64
+
+    with pytest.raises(ModelComparisonResultProvenanceError, match="Selection policy hash"):
         validate_model_comparison_result_provenance(evidence)
 
 

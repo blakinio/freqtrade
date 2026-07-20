@@ -124,9 +124,7 @@ def _validate_shared_baseline(shared: dict[str, Any]) -> dict[str, Any]:
     return baseline_config
 
 
-def _validate_model_identities(
-    plan: dict[str, Any], baseline_config: dict[str, Any]
-) -> None:
+def _validate_model_identities(plan: dict[str, Any], baseline_config: dict[str, Any]) -> None:
     identities = plan.get("model_identities")
     if not isinstance(identities, dict) or set(identities) != set(EXPECTED_MODELS):
         raise ModelComparisonContractError(
@@ -138,25 +136,17 @@ def _validate_model_identities(
         raise ModelComparisonContractError("Baseline config is missing freqai settings")
     baseline_parameters = freqai.get("model_training_parameters")
     if not isinstance(baseline_parameters, dict):
-        raise ModelComparisonContractError(
-            "Baseline config is missing model_training_parameters"
-        )
+        raise ModelComparisonContractError("Baseline config is missing model_training_parameters")
 
     lightgbm_identity = identities.get("LightGBMRegressor")
     xgboost_identity = identities.get("XGBoostRegressor")
-    if not isinstance(lightgbm_identity, dict) or not isinstance(
-        xgboost_identity, dict
-    ):
+    if not isinstance(lightgbm_identity, dict) or not isinstance(xgboost_identity, dict):
         raise ModelComparisonContractError("Each model identity must be an object")
 
     lightgbm_parameters = lightgbm_identity.get("model_training_parameters")
     xgboost_parameters = xgboost_identity.get("model_training_parameters")
-    if not isinstance(lightgbm_parameters, dict) or not isinstance(
-        xgboost_parameters, dict
-    ):
-        raise ModelComparisonContractError(
-            "Each model identity must pin model_training_parameters"
-        )
+    if not isinstance(lightgbm_parameters, dict) or not isinstance(xgboost_parameters, dict):
+        raise ModelComparisonContractError("Each model identity must pin model_training_parameters")
     if lightgbm_parameters != baseline_parameters:
         raise ModelComparisonContractError(
             "LightGBMRegressor identity must match the current baseline model parameters"

@@ -77,7 +77,10 @@ def _parse_timerange(value: str, label: str) -> tuple[datetime, datetime]:
     return start, end
 
 
-def _temporal_geometry(shared: dict[str, Any], download_timerange: str) -> dict[str, Any]:
+def _temporal_geometry(
+    shared: dict[str, Any],
+    download_timerange: str,
+) -> dict[str, Any]:
     historical_windows = shared["historical_oos_windows"]
     if len(historical_windows) != 1:
         raise ModelComparisonHarnessError(
@@ -94,14 +97,20 @@ def _temporal_geometry(shared: dict[str, Any], download_timerange: str) -> dict[
         shared["tuning_window"], "shared_experiment.tuning_window"
     )
     oos_start, oos_end = _parse_timerange(
-        historical_window["timerange"], "shared_experiment.historical_oos_windows[0].timerange"
+        historical_window["timerange"],
+        "shared_experiment.historical_oos_windows[0].timerange",
     )
-    download_start, download_end = _parse_timerange(download_timerange, "download_timerange")
+    download_start, download_end = _parse_timerange(
+        download_timerange,
+        "download_timerange",
+    )
 
     if training_end + timedelta(days=1) != tuning_start:
         raise ModelComparisonHarnessError("Training and tuning windows must be contiguous")
     if tuning_end + timedelta(days=1) != oos_start:
-        raise ModelComparisonHarnessError("Tuning and consumed historical OOS windows must be contiguous")
+        raise ModelComparisonHarnessError(
+            "Tuning and consumed historical OOS windows must be contiguous"
+        )
     if download_start > training_start or download_end < oos_end:
         raise ModelComparisonHarnessError(
             "Download coverage must contain the full frozen training and prediction windows"
@@ -264,7 +273,7 @@ def materialize_model_comparison(
     *,
     output_dir: Path = DEFAULT_OUTPUT_DIR,
 ) -> Path:
-    """Write deterministic materialized inputs inside the repo and validate their holdout isolation."""
+    """Write deterministic inputs and validate their protected-holdout isolation."""
     output_dir = output_dir.resolve()
     output_root = _repo_relative(output_dir)
     materialization = build_materialization(contract_path, output_root=output_root)

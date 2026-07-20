@@ -26,12 +26,10 @@ class LongOnlyEnvironment(BaseEnvironment):
         self.action_space = spaces.Discrete(len(LongOnlyActions))
 
     def step(self, action: int):
+        """Apply reward and trade effects at the decision tick before advancing market state."""
         self._done = False
-        self._current_tick += 1
-        if self._current_tick >= self._end_tick:
-            self._done = True
-
         self._update_unrealized_total_profit()
+
         step_reward = self.calculate_reward(action)
         self.total_reward += step_reward
         self.tensorboard_log(LongOnlyActions(action).name, category="actions")
@@ -59,6 +57,11 @@ class LongOnlyEnvironment(BaseEnvironment):
                 }
             )
 
+        self._current_tick += 1
+        if self._current_tick >= self._end_tick:
+            self._done = True
+
+        self._update_unrealized_total_profit()
         if (
             self._total_profit < self.max_drawdown
             or self._total_unrealized_profit < self.max_drawdown
@@ -93,7 +96,7 @@ class LongOnlyEnvironment(BaseEnvironment):
         return action == LongOnlyActions.Neutral.value
 
     def calculate_reward(self, action: int) -> float:
-        """Reward only valid long-only actions using realized state at the environment step."""
+        """Reward valid actions using only state available at the decision tick."""
         if not self._is_valid(action):
             return -1.0
         if action == LongOnlyActions.Long_exit.value:

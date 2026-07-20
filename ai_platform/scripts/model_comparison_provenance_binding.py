@@ -137,7 +137,8 @@ def bind_model_comparison_provenance(
             )
         if extraction.get("source", {}).get("archive_sha256") != backtest_archive_sha256:
             raise ModelComparisonProvenanceBindingError(
-                f"OOS extraction archive hash does not match bound backtest archive for {model_type}"
+                "OOS extraction archive hash does not match bound backtest archive "
+                f"for {model_type}"
             )
 
         model_sources.append(

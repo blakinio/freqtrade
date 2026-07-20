@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "experiment_id": "freqai-baseline-final-holdout-v2",
+  "description": "One-shot frozen final holdout validation for the Phase 5.2 stable entry and exit threshold selection.",
+  "config": "ai_platform/configs/freqai-baseline.example.json",
+  "strategy": "AiPhase52ExitStrategy",
+  "strategy_path": "ai_platform/strategies",
+  "freqai_model": "LightGBMRegressor",
+  "timerange": "20260801-20260930",
+  "download_timerange": "20250801-20260930",
+  "pairs": [
+    "BTC/USDT",
+    "ETH/USDT"
+  ],
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "fee": 0.002,
+  "output_root": "ai_platform/artifacts/validation-v2"
+}

@@ -314,6 +314,7 @@ def _freqtrade_drawdown(
         return 0.0
     try:
         import pandas as pd
+
         from freqtrade.data.metrics import calculate_max_drawdown
     except ImportError as exc:
         raise ModelComparisonOosExtractorError(

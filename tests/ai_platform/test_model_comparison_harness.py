@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -111,6 +112,21 @@ def test_harness_materialization_is_deterministic() -> None:
 
     assert first == second
     assert first["models"][0]["experiment_identity"] != first["models"][1]["experiment_identity"]
+
+
+def test_harness_hashes_exact_written_config_and_manifest_bytes(tmp_path: Path) -> None:
+    materialization = _materialization()
+
+    for index, model in enumerate(materialization["models"]):
+        config_path = tmp_path / f"config-{index}.json"
+        manifest_path = tmp_path / f"manifest-{index}.json"
+        harness._write_json(config_path, model["config"])
+        harness._write_json(manifest_path, model["manifest"])
+
+        config_sha256 = hashlib.sha256(config_path.read_bytes()).hexdigest()
+        manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+        assert model["config_sha256"] == config_sha256
+        assert model["manifest_sha256"] == manifest_sha256
 
 
 def test_materialized_manifests_pass_central_holdout_guard(tmp_path: Path) -> None:

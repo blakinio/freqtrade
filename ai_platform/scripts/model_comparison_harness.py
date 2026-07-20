@@ -48,9 +48,17 @@ def _sha256_payload(payload: Any) -> str:
     return hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()
 
 
+def _json_file_bytes(payload: dict[str, Any]) -> bytes:
+    return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _sha256_json_file(payload: dict[str, Any]) -> str:
+    return hashlib.sha256(_json_file_bytes(payload)).hexdigest()
+
+
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_bytes(_json_file_bytes(payload))
 
 
 def _repo_relative(path: Path) -> str:
@@ -241,8 +249,8 @@ def build_materialization(
                 "identity_sha256": identity_sha256,
                 "config_path": config_path,
                 "manifest_path": manifest_path,
-                "config_sha256": _sha256_payload(config),
-                "manifest_sha256": _sha256_payload(manifest),
+                "config_sha256": _sha256_json_file(config),
+                "manifest_sha256": _sha256_json_file(manifest),
                 "config": config,
                 "manifest": manifest,
             }

@@ -138,9 +138,7 @@ def test_extractor_applies_strict_oos_boundary_and_metric_evidence(
         "fold_profits": {"2026-05": 0.03, "2026-06": -0.005},
     }
     assert result["included_trade_evidence"][0]["open_date"] == "2026-05-02T00:00:00Z"
-    assert result["excluded_trade_evidence"][0]["exclusion_reasons"] == [
-        "pre_window_open"
-    ]
+    assert result["excluded_trade_evidence"][0]["exclusion_reasons"] == ["pre_window_open"]
     assert result["excluded_trade_evidence"][2]["exclusion_reasons"] == [
         "pre_window_open",
         "post_window_close",

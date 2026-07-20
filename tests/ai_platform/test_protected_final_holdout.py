@@ -2,13 +2,13 @@ import json
 from pathlib import Path
 
 import pytest
-
-from ai_platform.scripts import run_optimization, run_validation
 from ai_platform.scripts.protected_final_holdout import (
     FINAL_HOLDOUT_WORKFLOW,
     protected_timerange,
 )
 from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
+
+from ai_platform.scripts import run_optimization, run_validation
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -65,7 +65,10 @@ def test_exact_final_holdout_manifest_is_allowed_only_in_dedicated_workflow(monk
     assert manifest["timerange"] == "20260801-20260930"
 
 
-def test_workflow_environment_cannot_authorize_a_different_manifest(tmp_path: Path, monkeypatch) -> None:
+def test_workflow_environment_cannot_authorize_a_different_manifest(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_WORKFLOW", FINAL_HOLDOUT_WORKFLOW)
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")

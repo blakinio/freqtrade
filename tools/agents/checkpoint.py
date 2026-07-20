@@ -8,6 +8,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+
 CHECKPOINT_HEADING = "## Context checkpoint"
 LIST_KEYS = {
     "context_routes",

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "experiment_id": "pytorch-research-v1",
+  "description": "Isolated seeded PyTorch MLP research baseline using the frozen Phase 5.2 candidate and single-training historical OOS geometry.",
+  "config": "ai_platform/configs/freqai-pytorch-research.example.json",
+  "strategy": "AiFrozenCandidateStrategy",
+  "strategy_path": "ai_platform/strategies",
+  "freqai_model": "SeededPyTorchMLPRegressor",
+  "timerange": "20260301-20260630",
+  "download_timerange": "20250801-20260630",
+  "pairs": [
+    "BTC/USDT",
+    "ETH/USDT"
+  ],
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "fee": 0.002,
+  "output_root": "ai_platform/artifacts/experimental-model-research/pytorch"
+}

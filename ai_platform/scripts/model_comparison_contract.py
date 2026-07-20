@@ -11,7 +11,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")
@@ -76,9 +75,7 @@ def _validate_selection_window(label: str, timerange: Any, protected_timerange: 
         )
 
 
-def load_model_comparison_contract(path: Path) -> dict[str, Any]:
-    plan = _read_json(path.resolve(), "model comparison contract")
-
+def _validate_header(plan: dict[str, Any]) -> None:
     if plan.get("schema_version") != 1:
         raise ModelComparisonContractError("Only model comparison schema_version 1 is supported")
     comparison_id = plan.get("comparison_id")
@@ -91,16 +88,22 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
             "The first model comparison must be LightGBMRegressor vs XGBoostRegressor"
         )
     if plan.get("variable_under_test") != "freqai_model":
-        raise ModelComparisonContractError("freqai_model must be the only primary variable under test")
+        raise ModelComparisonContractError(
+            "freqai_model must be the only primary variable under test"
+        )
 
+
+def _load_shared_experiment(plan: dict[str, Any]) -> dict[str, Any]:
     shared = plan.get("shared_experiment")
     if not isinstance(shared, dict):
         raise ModelComparisonContractError("shared_experiment must be an object")
+    return shared
 
+
+def _validate_shared_baseline(shared: dict[str, Any]) -> dict[str, Any]:
     baseline_manifest = _read_json(BASELINE_MANIFEST, "baseline experiment manifest")
     baseline_registry = _read_json(BASELINE_REGISTRY, "baseline registry definition")
     baseline_config = _read_json(BASELINE_CONFIG, "baseline research config")
-
     expected_shared = {
         "config": baseline_manifest["config"],
         "feature_set_id": baseline_registry["feature_set_id"],
@@ -109,12 +112,19 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
         "timeframes": baseline_manifest["timeframes"],
         "fee": baseline_manifest["fee"],
     }
-    for field, expected in expected_shared.items():
-        if shared.get(field) != expected:
-            raise ModelComparisonContractError(
-                f"shared_experiment.{field} drifted from the current baseline contract"
-            )
+    drifted = [
+        field for field, expected in expected_shared.items() if shared.get(field) != expected
+    ]
+    if drifted:
+        raise ModelComparisonContractError(
+            f"shared_experiment.{drifted[0]} drifted from the current baseline contract"
+        )
+    return baseline_config
 
+
+def _validate_risk_baseline(
+    shared: dict[str, Any], baseline_config: dict[str, Any]
+) -> dict[str, Any]:
     risk = shared.get("risk_assumptions")
     if not isinstance(risk, dict):
         raise ModelComparisonContractError("shared_experiment.risk_assumptions must be an object")
@@ -126,12 +136,17 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
         raise ModelComparisonContractError("Model comparison max_open_trades drifted from baseline")
     if risk.get("can_short") is not False:
         raise ModelComparisonContractError("The comparison must remain long-only")
+    return risk
 
+
+def _validate_protected_holdout(plan: dict[str, Any], risk: dict[str, Any]) -> str:
     protected = plan.get("protected_final_holdout")
     if not isinstance(protected, dict):
         raise ModelComparisonContractError("protected_final_holdout must be an object")
     if protected.get("usage") != EXPECTED_PROTECTED_USAGE:
-        raise ModelComparisonContractError("Protected final holdout usage policy is not strict enough")
+        raise ModelComparisonContractError(
+            "Protected final holdout usage policy is not strict enough"
+        )
 
     declaration_path_value = protected.get("declaration")
     if not isinstance(declaration_path_value, str):
@@ -140,9 +155,8 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
         _resolve_repo_path(declaration_path_value),
         "prospective final holdout declaration",
     )
-    declared_holdout = declaration.get("final_holdout", {}).get("timerange")
     protected_timerange = protected.get("timerange")
-    if protected_timerange != declared_holdout:
+    if protected_timerange != declaration.get("final_holdout", {}).get("timerange"):
         raise ModelComparisonContractError(
             "Protected final holdout must exactly match the prospective declaration"
         )
@@ -152,25 +166,28 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
         raise ModelComparisonContractError("Prospective final holdout declaration permits retuning")
 
     frozen = declaration.get("frozen_parameters", {})
-    for parameter in ("entry_prediction_threshold", "exit_prediction_threshold"):
-        if risk.get(parameter) != frozen.get(parameter):
-            raise ModelComparisonContractError(
-                f"shared_experiment.risk_assumptions.{parameter} drifted from the frozen candidate"
-            )
-
+    drifted = [
+        parameter
+        for parameter in ("entry_prediction_threshold", "exit_prediction_threshold")
+        if risk.get(parameter) != frozen.get(parameter)
+    ]
+    if drifted:
+        raise ModelComparisonContractError(
+            f"shared_experiment.risk_assumptions.{drifted[0]} drifted from the frozen candidate"
+        )
     if not isinstance(protected_timerange, str):
         raise ModelComparisonContractError("protected_final_holdout.timerange must be a string")
     _parse_timerange(protected_timerange, "protected_final_holdout.timerange")
-    _validate_selection_window(
-        "shared_experiment.training_window",
-        shared.get("training_window"),
-        protected_timerange,
-    )
-    _validate_selection_window(
-        "shared_experiment.tuning_window",
-        shared.get("tuning_window"),
-        protected_timerange,
-    )
+    return protected_timerange
+
+
+def _validate_selection_windows(shared: dict[str, Any], protected_timerange: str) -> None:
+    for field in ("training_window", "tuning_window"):
+        _validate_selection_window(
+            f"shared_experiment.{field}",
+            shared.get(field),
+            protected_timerange,
+        )
 
     historical_windows = shared.get("historical_oos_windows")
     if not isinstance(historical_windows, list) or not historical_windows:
@@ -188,12 +205,14 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
             protected_timerange,
         )
 
-    parameter_policy = plan.get("model_parameter_policy")
-    if parameter_policy != {
+
+def _validate_policies(plan: dict[str, Any]) -> None:
+    expected_parameter_policy = {
         "policy": "fixed_before_execution_model_specific_identity",
         "joint_tuning_allowed": False,
         "feature_changes_allowed": False,
-    }:
+    }
+    if plan.get("model_parameter_policy") != expected_parameter_policy:
         raise ModelComparisonContractError(
             "Model parameters must be fixed before execution and feature changes are forbidden"
         )
@@ -203,18 +222,32 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
         raise ModelComparisonContractError("selection_policy must be an object")
     if selection.get("primary_metrics") != EXPECTED_PRIMARY_METRICS:
         raise ModelComparisonContractError("Primary model-selection metrics drifted")
-    for field in (
+    forbidden_true_fields = (
         "final_holdout_metrics_allowed",
         "promotion_allowed",
         "profitability_claim_allowed",
-    ):
-        if selection.get(field) is not False:
-            raise ModelComparisonContractError(f"selection_policy.{field} must remain false")
+    )
+    if any(selection.get(field) is not False for field in forbidden_true_fields):
+        raise ModelComparisonContractError(
+            "Final holdout metrics, promotion, and profitability claims must remain forbidden"
+        )
 
     result_schema = plan.get("result_schema")
     if not isinstance(result_schema, str) or not _resolve_repo_path(result_schema).is_file():
-        raise ModelComparisonContractError("result_schema must reference an existing repository file")
+        raise ModelComparisonContractError(
+            "result_schema must reference an existing repository file"
+        )
 
+
+def load_model_comparison_contract(path: Path) -> dict[str, Any]:
+    plan = _read_json(path.resolve(), "model comparison contract")
+    _validate_header(plan)
+    shared = _load_shared_experiment(plan)
+    baseline_config = _validate_shared_baseline(shared)
+    risk = _validate_risk_baseline(shared, baseline_config)
+    protected_timerange = _validate_protected_holdout(plan, risk)
+    _validate_selection_windows(shared, protected_timerange)
+    _validate_policies(plan)
     return plan
 
 

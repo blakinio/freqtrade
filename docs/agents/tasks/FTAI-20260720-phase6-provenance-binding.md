@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260720-phase6-provenance-binding
-status: implementing
+status: done
 branch: feat/phase6-provenance-binding-v1
 base_branch: develop
 created: 2026-07-20
 updated: 2026-07-20
-related_pr: ""
+related_pr: "#49"
 owned_paths:
   - ai_platform/scripts/model_comparison_provenance_binding.py
   - tests/ai_platform/test_model_comparison_provenance_binding.py
@@ -36,11 +36,11 @@ Bind actual existing Phase 6 comparison artifact files by exact-byte SHA-256 and
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-20T21:10:30Z
-head: dd23679d8b920552e11fc64f4548e00a9798974d
-branch: feat/phase6-provenance-binding-v1
-pr: none
-status: implementing
+updated_at: 2026-07-20T21:32:21Z
+head: 4fdea2e1d0a3ab5f0b154fe5c46dc64837a2f0a7
+branch: develop
+pr: "#49 merged"
+status: done
 context_routes:
   - ai_platform/model_comparison/result-provenance-v1.json
   - docs/ai_platform/PHASE6_PROVENANCE_BINDING.md
@@ -50,18 +50,19 @@ owned_paths:
   - docs/ai_platform/PHASE6_PROVENANCE_BINDING.md
   - docs/agents/tasks/FTAI-20260720-phase6-provenance-binding.md
 proven:
-  - develop was verified at 03e2865ba1bfda14ad88578413aa552b045afaaf before branch creation.
-  - No open user PR and no provenance-binding branch existed before this task branch was created.
+  - Provenance Binding Implementation v1 was squash-merged by PR #49 into develop as 4fdea2e1d0a3ab5f0b154fe5c46dc64837a2f0a7.
   - The binder consumes existing materialization, run provenance, backtest archive, extraction, and selection-decision files only.
+  - Exact-byte SHA-256 bindings are verified for materialization, run provenance, backtest archives, OOS extractions, and selection decision before existing result-provenance semantic validation.
+  - The supplied selection decision must equal the deterministic decision recomputed from the two bound OOS extraction payloads under the tracked predeclared policy.
   - Protected final holdout 20260801-20260930 is not an input; frozen thresholds remain entry_prediction_threshold=0.006 and exit_prediction_threshold=-0.009.
+  - AI Platform CI run 29779531783 (#209), zizmor run 29779531843 (#193), and Freqtrade CI run 29779531784 (#214) completed successfully on PR head 369442a5cab919b909fccf54ffcdc9f1aea68b31.
 derived:
-  - Selection-decision binding is enforced by recomputing the deterministic predeclared decision from the exact bound extraction payloads and requiring semantic equality before hashing the supplied decision bytes.
-unknown:
-  - CI outcome for the implementation branch.
+  - The next missing dependency is deterministic final comparison-result assembly that consumes successfully bound provenance evidence rather than executing or re-evaluating models.
+unknown: []
 conflicts: []
 first_failure:
-  marker: local-clone-dns
-  evidence: Sandbox git clone could not resolve github.com, so executable validation must use GitHub Actions CI.
+  marker: ai-platform-ci-208-ruff
+  evidence: Initial PR head passed compilation and tests but failed Ruff; a formatting-only line split was applied and AI Platform CI #209 then passed all steps.
 rejected_hypotheses:
   - Provenance Binding Implementation v1 already existed on another branch or PR.
 changed_paths:
@@ -70,9 +71,18 @@ changed_paths:
   - docs/ai_platform/PHASE6_PROVENANCE_BINDING.md
   - docs/agents/tasks/FTAI-20260720-phase6-provenance-binding.md
 validation:
+  - command: GitHub Actions AI Platform CI #209
+    result: PASS
+    evidence: compile, AI platform tests, Ruff, Ruff format, Codespell, and JSON validation all succeeded.
+  - command: GitHub Actions Security Analysis with zizmor #193
+    result: PASS
+    evidence: workflow completed with conclusion success.
+  - command: GitHub Actions Freqtrade CI #214
+    result: PASS
+    evidence: workflow completed with conclusion success.
   - command: local clone/test
     result: BLOCKED
-    evidence: Sandbox DNS could not resolve github.com.
+    evidence: Sandbox DNS could not resolve github.com; executable validation used GitHub Actions instead.
 blockers: []
-next_action: Open a pull request against develop and use required GitHub Actions checks to validate the implementation, fixing any code or test failures before merge.
+next_action: Create the next bounded Phase 6 task and implement the smallest deterministic final comparison-result assembler that consumes only successfully bound provenance evidence and existing extraction/selection artifacts, without executing models or backtests and without accessing the protected final holdout.
 ```

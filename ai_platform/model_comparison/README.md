@@ -182,6 +182,49 @@ python -m ai_platform.scripts.model_comparison_oos_result_extractor \
 The extraction output is evidence, not a completed model-selection decision and not a profitability
 claim.
 
+## Predeclared model-selection policy
+
+`selection-policy-v1.json` defines the selection rule before real LightGBM-versus-XGBoost historical
+outputs are observed. The policy deliberately avoids weighted scores and does not treat a larger trade
+count as automatically better.
+
+Eligibility gates are inherited from already-declared baseline validation evidence for the same
+`20260501-20260630` historical window:
+
+- `trades >= 10`, from `minimum_holdout_trades`;
+- `profit >= 0.0`, from `minimum_holdout_profit`;
+- `drawdown <= 0.25`, from `maximum_holdout_drawdown`;
+- `stability >= 0.5`, derived from at least one profitable fold across the two fixed May/June folds.
+
+Trade count is evidence sufficiency only. For two eligible models, selection uses strict Pareto
+dominance across:
+
+- higher or equal `profit`, with at least one strict improvement across all Pareto metrics;
+- lower or equal `drawdown`;
+- higher or equal `stability`.
+
+A model strictly dominates only when it is no worse on all three metrics and strictly better on at
+least one. The decision behavior is fail-closed:
+
+- exactly one eligible model: select that model for historical comparison evidence;
+- neither eligible: `selected_model=null`;
+- both eligible and exactly one strictly dominates: select the dominant model;
+- conflicting eligible metrics: `selected_model=null`;
+- exact metric tie: `selected_model=null`.
+
+There is no incumbent fallback for an inconclusive comparison. `LightGBMRegressor` is recorded as the
+incumbent and `XGBoostRegressor` as the challenger for identity purposes, but neither wins merely by
+role. A selection is not promotion and does not authorize live trading or a profitability claim.
+
+`ai_platform.scripts.model_comparison_selection_policy` validates policy provenance and evaluates two
+strict-OOS extraction artifacts. It requires exactly one canonical extraction per model, identical
+starting-balance and scoring-window bases, matching metric/boundary contracts, and internally
+consistent extraction counts and fold evidence. `selection-decision-schema-v1.json` makes the gate and
+dominance evidence machine-readable.
+
+This slice remains safe to test with synthetic extraction artifacts; it does not execute either model
+or read the protected final holdout.
+
 ## Final holdout isolation
 
 The prospectively declared final holdout v2 remains:
@@ -216,16 +259,18 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 
 ## Next dependency
 
-Before any historical LightGBM-versus-XGBoost outputs are used to select a model, the next smallest
-work package should pin a model-comparison selection policy and result assembler. It must:
+The current `result-schema-v1.json` requires both `git_commit` and `plan_sha256`, but the existing
+contracts do not yet define which lifecycle commit `git_commit` represents or how the final assembler
+must bind those provenance fields to the two source extraction artifacts. The next smallest work
+package should therefore pin comparison-result provenance before implementing the final assembler.
+It must:
 
-1. consume exactly one canonical strict-OOS extraction artifact per pinned model identity;
-2. require matching metric-semantics, trade-boundary, scoring-window, and starting-balance basis;
-3. define the multi-metric selection rule before observing real comparison outputs;
-4. define tie, dominated-result, empty/insufficient-evidence, and identity-mismatch behavior;
-5. assemble `result-schema-v1.json` without changing any model parameter or feature;
-6. keep `final_holdout_used: false` and never use `20260801-20260930` as comparison evidence;
-7. keep promotion and profitability claims forbidden.
+1. define whether `git_commit` identifies materialization, model execution, extraction, or assembly;
+2. bind the result to the exact materialization plan hash and both source extraction artifact hashes;
+3. prevent a result from combining artifacts produced from different comparison plans or commits;
+4. preserve the predeclared selection decision without recomputing or changing model parameters;
+5. assemble `result-schema-v1.json` only after provenance is unambiguous and verifiable;
+6. keep `final_holdout_used: false`, promotion forbidden, and profitability claims forbidden.
 
 Actual historical LightGBM-versus-XGBoost execution remains a later separate work package after the
-selection semantics are reviewable and merged.
+selection policy and result-provenance contract are reviewable and merged.

@@ -246,6 +246,11 @@ def _validate_extraction_consistency(extraction: dict[str, Any]) -> None:
         raise ModelComparisonSelectionPolicyError(
             "Stability fold trade counts do not cover all included trades"
         )
+    profitable_from_folds = sum(value > 0 for value in stability["fold_profits"].values())
+    if profitable_from_folds != stability["profitable_folds"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Profitable-fold count does not match fold-profit evidence"
+        )
     expected_stability = stability["profitable_folds"] / stability["evaluated_folds"]
     if metrics["stability"] != expected_stability:
         raise ModelComparisonSelectionPolicyError(

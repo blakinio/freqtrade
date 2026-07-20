@@ -36,7 +36,12 @@ def _write_manifest(tmp_path: Path, manifest: dict) -> Path:
     return path
 
 
-def _strategy_result(manifest: dict, trades: list[dict], *, starting_balance: float = 1000.0) -> dict:
+def _strategy_result(
+    manifest: dict,
+    trades: list[dict],
+    *,
+    starting_balance: float = 1000.0,
+) -> dict:
     return {
         "strategy_name": manifest["strategy"],
         "freqaimodel": manifest["freqai_model"],
@@ -63,13 +68,21 @@ def _write_archive(
     }
     with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
         archive.writestr("backtest-result-synthetic.json", json.dumps(stats))
-        archive.writestr("backtest-result-synthetic_config.json", json.dumps({"dry_run": True}))
+        archive.writestr(
+            "backtest-result-synthetic_config.json",
+            json.dumps({"dry_run": True}),
+        )
         if extra_stats_member:
             archive.writestr("backtest-result-duplicate.json", json.dumps(stats))
     return archive_path
 
 
-def _trade(open_date: str, close_date: str, profit_abs: float, exit_reason: str = "roi") -> dict:
+def _trade(
+    open_date: str,
+    close_date: str,
+    profit_abs: float,
+    exit_reason: str = "roi",
+) -> dict:
     return {
         "open_date": open_date,
         "close_date": close_date,
@@ -78,13 +91,20 @@ def _trade(open_date: str, close_date: str, profit_abs: float, exit_reason: str 
     }
 
 
-def test_extractor_applies_strict_oos_boundary_and_metric_evidence(tmp_path: Path) -> None:
+def test_extractor_applies_strict_oos_boundary_and_metric_evidence(
+    tmp_path: Path,
+) -> None:
     manifest = _canonical_manifest()
     manifest_path = _write_manifest(tmp_path, manifest)
     trades = [
         _trade("2026-04-30T23:00:00Z", "2026-05-02T00:00:00Z", 10.0),
         _trade("2026-05-02T00:00:00Z", "2026-05-03T00:00:00Z", 20.0),
-        _trade("2026-05-15T00:00:00Z", "2026-05-16T00:00:00Z", 10.0, "force_exit"),
+        _trade(
+            "2026-05-15T00:00:00Z",
+            "2026-05-16T00:00:00Z",
+            10.0,
+            "force_exit",
+        ),
         _trade("2026-06-02T00:00:00Z", "2026-06-03T00:00:00Z", -5.0),
         _trade("2026-06-30T23:00:00Z", "2026-07-01T00:00:00Z", 40.0),
         _trade("2026-04-30T00:00:00Z", "2026-07-02T00:00:00Z", 50.0),
@@ -118,7 +138,9 @@ def test_extractor_applies_strict_oos_boundary_and_metric_evidence(tmp_path: Pat
         "fold_profits": {"2026-05": 0.03, "2026-06": -0.005},
     }
     assert result["included_trade_evidence"][0]["open_date"] == "2026-05-02T00:00:00Z"
-    assert result["excluded_trade_evidence"][0]["exclusion_reasons"] == ["pre_window_open"]
+    assert result["excluded_trade_evidence"][0]["exclusion_reasons"] == [
+        "pre_window_open"
+    ]
     assert result["excluded_trade_evidence"][2]["exclusion_reasons"] == [
         "pre_window_open",
         "post_window_close",
@@ -162,7 +184,11 @@ def test_extractor_rejects_noncanonical_manifest_identity_even_if_archive_matche
     archive_path = _write_archive(tmp_path, manifest, [])
 
     with pytest.raises(ModelComparisonOosExtractorError, match="experiment_id"):
-        extract_oos_result(archive_path, manifest_path, drawdown_calculator=lambda trades, balance: 0.0)
+        extract_oos_result(
+            archive_path,
+            manifest_path,
+            drawdown_calculator=lambda trades, balance: 0.0,
+        )
 
 
 def test_extractor_rejects_archive_model_identity_drift(tmp_path: Path) -> None:
@@ -178,7 +204,11 @@ def test_extractor_rejects_archive_model_identity_drift(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ModelComparisonOosExtractorError, match="freqaimodel"):
-        extract_oos_result(archive_path, manifest_path, drawdown_calculator=lambda trades, balance: 0.0)
+        extract_oos_result(
+            archive_path,
+            manifest_path,
+            drawdown_calculator=lambda trades, balance: 0.0,
+        )
 
 
 def test_extractor_rejects_ambiguous_stats_members(tmp_path: Path) -> None:
@@ -186,8 +216,15 @@ def test_extractor_rejects_ambiguous_stats_members(tmp_path: Path) -> None:
     manifest_path = _write_manifest(tmp_path, manifest)
     archive_path = _write_archive(tmp_path, manifest, [], extra_stats_member=True)
 
-    with pytest.raises(ModelComparisonOosExtractorError, match="exactly one JSON stats member"):
-        extract_oos_result(archive_path, manifest_path, drawdown_calculator=lambda trades, balance: 0.0)
+    with pytest.raises(
+        ModelComparisonOosExtractorError,
+        match="exactly one JSON stats member",
+    ):
+        extract_oos_result(
+            archive_path,
+            manifest_path,
+            drawdown_calculator=lambda trades, balance: 0.0,
+        )
 
 
 def test_extractor_fails_closed_on_naive_trade_timestamp(tmp_path: Path) -> None:
@@ -197,10 +234,16 @@ def test_extractor_fails_closed_on_naive_trade_timestamp(tmp_path: Path) -> None
     archive_path = _write_archive(tmp_path, manifest, trades)
 
     with pytest.raises(ModelComparisonOosExtractorError, match="explicit timezone"):
-        extract_oos_result(archive_path, manifest_path, drawdown_calculator=lambda trades, balance: 0.0)
+        extract_oos_result(
+            archive_path,
+            manifest_path,
+            drawdown_calculator=lambda trades, balance: 0.0,
+        )
 
 
-def test_extractor_empty_oos_emits_zero_metrics_without_selection_claim(tmp_path: Path) -> None:
+def test_extractor_empty_oos_emits_zero_metrics_without_selection_claim(
+    tmp_path: Path,
+) -> None:
     manifest = _canonical_manifest("XGBoostRegressor")
     manifest_path = _write_manifest(tmp_path, manifest)
     archive_path = _write_archive(tmp_path, manifest, [])

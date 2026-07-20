@@ -129,6 +129,7 @@
         "short_actions_available": false
       },
       "reward_contract": {
+        "timing": "pre_transition_decision_tick",
         "future_market_information_used": false,
         "invalid_action_penalty": -1.0,
         "long_exit_reward": "current_unrealized_profit_pct_x100",

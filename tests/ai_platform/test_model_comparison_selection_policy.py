@@ -1,4 +1,3 @@
-import copy
 import json
 from pathlib import Path
 
@@ -27,8 +26,7 @@ def _canonical_identities() -> dict[str, str]:
         output_root=CANONICAL_MATERIALIZATION_ROOT,
     )
     return {
-        model["model_type"]: model["experiment_identity"]
-        for model in materialization["models"]
+        model["model_type"]: model["experiment_identity"] for model in materialization["models"]
     }
 
 

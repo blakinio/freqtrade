@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "experiment_id": "rl-research-v1",
+  "description": "Isolated long-only PPO reinforcement-learning feasibility track with single-training historical OOS geometry and no protected-final-holdout access.",
+  "config": "ai_platform/configs/freqai-rl-research.example.json",
+  "strategy": "AiLongOnlyRLResearchStrategy",
+  "strategy_path": "ai_platform/strategies",
+  "freqai_model": "LongOnlyReinforcementLearner",
+  "timerange": "20260301-20260630",
+  "download_timerange": "20250801-20260630",
+  "pairs": [
+    "BTC/USDT",
+    "ETH/USDT"
+  ],
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "fee": 0.002,
+  "output_root": "ai_platform/artifacts/experimental-model-research/rl"
+}

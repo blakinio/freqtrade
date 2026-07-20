@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+
 pd = pytest.importorskip("pandas")
 
 from ai_platform.research.tradingview.signals import (  # noqa: E402

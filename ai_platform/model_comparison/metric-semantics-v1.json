@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "metric_semantics_id": "freqai-model-comparison-metrics-v1",
+  "comparison_contract": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+  "oos_trade_boundary": "ai_platform/model_comparison/oos-trade-boundary-v1.json",
+  "starting_balance": {
+    "source_field": "starting_balance",
+    "requirement": "positive_finite_number"
+  },
+  "required_trade_fields": [
+    "open_date",
+    "close_date",
+    "profit_abs",
+    "exit_reason"
+  ],
+  "metrics": {
+    "profit": {
+      "result_field": "profit",
+      "freqtrade_equivalent": "profit_total",
+      "formula": "sum(included_trades.profit_abs) / starting_balance",
+      "empty_trade_value": 0.0
+    },
+    "drawdown": {
+      "result_field": "drawdown",
+      "freqtrade_equivalent": "max_drawdown_account",
+      "implementation": "freqtrade.data.metrics.calculate_max_drawdown",
+      "date_col": "close_date",
+      "value_col": "profit_abs",
+      "starting_balance_source": "starting_balance",
+      "result_attribute": "relative_account_drawdown",
+      "relative_selection": false,
+      "empty_trade_value": 0.0
+    },
+    "trades": {
+      "result_field": "trades",
+      "formula": "count(included_trades)",
+      "empty_trade_value": 0
+    },
+    "stability": {
+      "result_field": "stability",
+      "policy": "calendar_month_profitable_fold_ratio",
+      "fold_assignment_field": "close_date",
+      "fold_timezone": "UTC",
+      "fold_profit_formula": "sum(fold_included_trades.profit_abs) / starting_balance",
+      "profitable_fold_condition": "> 0",
+      "empty_fold_profit": 0.0,
+      "formula": "profitable_folds / evaluated_folds",
+      "evaluated_folds": 2,
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "folds": [
+        {
+          "name": "2026-05",
+          "timerange": "20260501-20260531",
+          "start_inclusive": "2026-05-01T00:00:00Z",
+          "end_exclusive": "2026-06-01T00:00:00Z"
+        },
+        {
+          "name": "2026-06",
+          "timerange": "20260601-20260630",
+          "start_inclusive": "2026-06-01T00:00:00Z",
+          "end_exclusive": "2026-07-01T00:00:00Z"
+        }
+      ],
+      "required_evidence": [
+        "evaluated_folds",
+        "profitable_folds",
+        "fold_trade_counts",
+        "fold_profits"
+      ]
+    }
+  },
+  "empty_oos_policy": {
+    "profit": 0.0,
+    "drawdown": 0.0,
+    "trades": 0,
+    "stability": 0.0,
+    "selection_evidence_sufficient": false
+  },
+  "selection_constraints": {
+    "metric_scope": "strict_oos_included_trades_only",
+    "same_starting_balance_required": true,
+    "same_scoring_window_required": true,
+    "same_stability_folds_required": true,
+    "final_holdout_metrics_allowed": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false
+  }
+}

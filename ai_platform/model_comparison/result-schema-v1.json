@@ -7,6 +7,8 @@
   "required": [
     "schema_version",
     "comparison_id",
+    "metric_semantics_id",
+    "oos_trade_boundary_id",
     "status",
     "git_commit",
     "plan_sha256",
@@ -16,6 +18,8 @@
   "properties": {
     "schema_version": {"const": 1},
     "comparison_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "metric_semantics_id": {"const": "freqai-model-comparison-metrics-v1"},
+    "oos_trade_boundary_id": {"const": "freqai-model-comparison-oos-trade-boundary-v1"},
     "status": {"enum": ["completed", "failed"]},
     "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
@@ -36,9 +40,9 @@
             "required": ["profit", "drawdown", "trades", "stability"],
             "properties": {
               "profit": {"type": "number"},
-              "drawdown": {"type": "number"},
+              "drawdown": {"type": "number", "minimum": 0},
               "trades": {"type": "integer", "minimum": 0},
-              "stability": {"type": "number"}
+              "stability": {"type": "number", "minimum": 0, "maximum": 1}
             }
           },
           "artifact_paths": {

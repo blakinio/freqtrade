@@ -96,6 +96,39 @@ python -m ai_platform.scripts.oos_trade_boundary_contract \
   ai_platform/model_comparison/oos-trade-boundary-v1.json
 ```
 
+## Metric semantics
+
+`metric-semantics-v1.json` fixes the four Phase 6 comparison metrics before any historical model output
+is scored:
+
+- `profit` matches Freqtrade `profit_total`: sum strict-OOS included `profit_abs`, divided by the
+  strategy-result `starting_balance`;
+- `drawdown` matches Freqtrade `max_drawdown_account`: use
+  `freqtrade.data.metrics.calculate_max_drawdown` on strict-OOS included trades ordered by
+  `close_date`, with `value_col=profit_abs` and the same positive starting balance, then read
+  `relative_account_drawdown`;
+- `trades` is exactly the number of strict-OOS included trades;
+- `stability` is the normalized profitable-fold concept already used by AI Platform validation:
+  split the fixed OOS window into the May and June 2026 UTC calendar folds, realize fold profit by
+  `close_date`, mark a fold profitable only when its profit is strictly greater than zero, and compute
+  `profitable_folds / 2`.
+
+The stability score is therefore constrained to `0.0`, `0.5`, or `1.0` for this two-month OOS window.
+An empty month has zero profit and is not profitable. Empty OOS produces zero-valued metrics but is
+explicitly insufficient selection evidence. Both models must use the same starting balance, scoring
+window, stability folds, trade boundary, and formulas.
+
+The metric contract keeps the existing result field names `profit`, `drawdown`, `trades`, and
+`stability`, but `result-schema-v1.json` now also requires the canonical metric-semantics and OOS
+boundary identifiers. Drawdown cannot be negative and stability must remain in `[0, 1]`.
+
+Validate metric semantics without reading model output:
+
+```bash
+python -m ai_platform.scripts.model_comparison_metric_semantics \
+  ai_platform/model_comparison/metric-semantics-v1.json
+```
+
 ## Final holdout isolation
 
 The prospectively declared final holdout v2 remains:
@@ -131,16 +164,17 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 ## Next dependency
 
 The next smallest work package is an OOS result extractor that reads an already-produced backtest
-archive and applies `oos-trade-boundary-v1.json` before calculating model-comparison metrics. It must:
+archive, applies `oos-trade-boundary-v1.json`, and computes `metric-semantics-v1.json` exactly. It must:
 
 1. validate the source archive and expected strategy/model identity;
 2. apply the fully-contained closed-trade rule exactly;
 3. emit counts for excluded pre-window opens, excluded post-window closes, and included force exits;
 4. preserve original trade timestamps as audit evidence;
-5. compute metrics only from included trades;
-6. define the currently underspecified `stability` metric before selection logic consumes it;
-7. keep `final_holdout_used: false` and refuse any final-holdout overlap;
-8. make no promotion or profitability claim.
+5. require the same positive `starting_balance` basis for both models;
+6. compute profit, drawdown, trades, and May/June profitable-fold stability exactly as declared;
+7. emit metric evidence sufficient to reproduce the stability score;
+8. keep `final_holdout_used: false` and refuse any final-holdout overlap;
+9. make no promotion or profitability claim.
 
-Actual LightGBM-versus-XGBoost execution remains a later separate work package. The extractor and its
-metric semantics must be reviewable before historical model outputs are used for selection.
+Actual LightGBM-versus-XGBoost execution remains a later separate work package. The extractor must be
+reviewed and merged before historical model outputs are used for selection.

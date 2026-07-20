@@ -11,9 +11,18 @@ The first planned comparison is pinned in `lightgbm-vs-xgboost-v1.json`:
 - `freqai_model` is the only primary variable under test;
 - strategy, feature set, target, training window, tuning window, historical OOS inputs, pairs,
   timeframes, fee, and risk assumptions are shared;
-- model parameters must be fixed before execution and become part of each model's experiment
-  identity; joint model-parameter tuning is not part of this comparison slice;
+- model parameters are fixed before execution and are part of each model's experiment identity;
+- `LightGBMRegressor` keeps the current baseline parameters `n_estimators=400`,
+  `learning_rate=0.03`, `num_leaves=31`, and `n_jobs=-1`;
+- `XGBoostRegressor` uses the predeclared shared compatible subset `n_estimators=400`,
+  `learning_rate=0.03`, and `n_jobs=-1`; the LightGBM-only `num_leaves` parameter is forbidden;
+- joint model-parameter tuning is not part of this comparison slice;
 - feature changes are forbidden during the comparison.
+
+The explicit model identities prevent the future harness from passing the LightGBM-specific
+`num_leaves` setting into `XGBoostRegressor`. The contract validator ties the LightGBM identity to
+the current baseline config and derives the allowed XGBoost parameter identity from the predeclared
+shared parameter keys.
 
 The contract is intentionally `contract_only`. A later, separate work package may implement the
 reproducible harness and execute only historical comparisons covered by this contract.
@@ -55,8 +64,9 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 The next smallest work package is a model-comparison harness that:
 
 1. materializes two experiment identities from this contract;
-2. varies only `freqai_model` plus predeclared model-specific identity parameters;
-3. executes the same historical windows for both models;
-4. emits `result-schema-v1.json` output;
-5. refuses any protected final-holdout overlap;
-6. does not run `20260801-20260930` and does not make a profitability or promotion claim.
+2. writes per-model configs using the pinned `model_identities` parameters;
+3. varies only `freqai_model` plus the predeclared model-specific parameter identity;
+4. executes the same historical windows for both models;
+5. emits `result-schema-v1.json` output;
+6. refuses any protected final-holdout overlap;
+7. does not run `20260801-20260930` and does not make a profitability or promotion claim.

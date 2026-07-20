@@ -1,6 +1,7 @@
 import copy
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -85,7 +86,7 @@ def test_model_comparison_rejects_frozen_threshold_drift(tmp_path: Path) -> None
 
 def test_result_contract_forbids_final_holdout_promotion_and_profitability_claims() -> None:
     schema = json.loads(RESULT_SCHEMA_PATH.read_text(encoding="utf-8"))
-    result = {
+    result: dict[str, Any] = {
         "schema_version": 1,
         "comparison_id": "freqai-lightgbm-vs-xgboost-v1",
         "status": "completed",

@@ -128,6 +128,8 @@ def test_result_contract_forbids_final_holdout_promotion_and_profitability_claim
     result: dict[str, Any] = {
         "schema_version": 1,
         "comparison_id": "freqai-lightgbm-vs-xgboost-v1",
+        "metric_semantics_id": "freqai-model-comparison-metrics-v1",
+        "oos_trade_boundary_id": "freqai-model-comparison-oos-trade-boundary-v1",
         "status": "completed",
         "git_commit": "a" * 40,
         "plan_sha256": "b" * 64,
@@ -150,7 +152,7 @@ def test_result_contract_forbids_final_holdout_promotion_and_profitability_claim
                     "profit": 0.02,
                     "drawdown": 0.11,
                     "trades": 21,
-                    "stability": 0.6,
+                    "stability": 1.0,
                 },
                 "artifact_paths": ["ai_platform/artifacts/model-comparison/xgboost.json"],
             },
@@ -170,3 +172,8 @@ def test_result_contract_forbids_final_holdout_promotion_and_profitability_claim
     contaminated["selection"]["final_holdout_used"] = True
     with pytest.raises(ValidationError):
         Draft202012Validator(schema).validate(contaminated)
+
+    invalid_stability = copy.deepcopy(result)
+    invalid_stability["model_results"][0]["metrics"]["stability"] = 1.5
+    with pytest.raises(ValidationError):
+        Draft202012Validator(schema).validate(invalid_stability)

@@ -105,9 +105,7 @@ def test_model_comparison_rejects_lightgbm_parameter_drift(tmp_path: Path) -> No
 
 def test_model_comparison_rejects_lightgbm_only_parameter_in_xgboost(tmp_path: Path) -> None:
     contract = _contract()
-    contract["model_identities"]["XGBoostRegressor"]["model_training_parameters"][
-        "num_leaves"
-    ] = 31
+    contract["model_identities"]["XGBoostRegressor"]["model_training_parameters"]["num_leaves"] = 31
 
     with pytest.raises(ModelComparisonContractError, match="XGBoostRegressor identity"):
         load_model_comparison_contract(_write_contract(tmp_path, contract))

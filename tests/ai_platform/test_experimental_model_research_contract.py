@@ -63,7 +63,7 @@ def test_foundation_rejects_shared_freqai_identifier(tmp_path: Path) -> None:
 
     with pytest.raises(
         ExperimentalModelResearchContractError,
-        match="RL seed drifted|identifier drifted",
+        match=r"RL seed drifted|identifier drifted",
     ):
         validate_experimental_model_research_foundation(_write_foundation(tmp_path, foundation))
 
@@ -78,7 +78,9 @@ def test_foundation_rejects_rl_future_information_reward(tmp_path: Path) -> None
 
 def test_rl_reward_timing_is_pinned_to_decision_tick() -> None:
     foundation = validate_experimental_model_research_foundation()
-    rl_track = next(track for track in foundation["tracks"] if track["track_id"] == "rl-research-v1")
+    rl_track = next(
+        track for track in foundation["tracks"] if track["track_id"] == "rl-research-v1"
+    )
 
     assert rl_track["reward_contract"]["timing"] == "pre_transition_decision_tick"
     assert rl_track["reward_contract"]["future_market_information_used"] is False

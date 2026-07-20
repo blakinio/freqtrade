@@ -5,8 +5,8 @@ from typing import Any
 
 from gymnasium import spaces
 
-from freqtrade.freqai.RL.BaseEnvironment import BaseEnvironment, Positions
 from freqtrade.freqai.prediction_models.ReinforcementLearner import ReinforcementLearner
+from freqtrade.freqai.RL.BaseEnvironment import BaseEnvironment, Positions
 
 
 class LongOnlyActions(IntEnum):

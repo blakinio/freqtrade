@@ -297,7 +297,9 @@ def validate_model_comparison_result_provenance(
 
     basis = canonical_provenance_basis()
     if evidence["comparison_id"] != basis["comparison_id"]:
-        raise ModelComparisonResultProvenanceError("Comparison id drifted from materialization plan")
+        raise ModelComparisonResultProvenanceError(
+            "Comparison id drifted from materialization plan"
+        )
     if evidence["materialization_plan_sha256"] != basis["materialization_plan_sha256"]:
         raise ModelComparisonResultProvenanceError(
             "Materialization plan hash does not match canonical exact-file bytes"

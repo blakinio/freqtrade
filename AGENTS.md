@@ -18,6 +18,13 @@ The repository, current Git state, active pull requests, CI results, and files i
 - Treat chat history as disposable. Keep durable task/handoff state compact and leave exactly one concrete next action when handing work off.
 - When the next action is safe and autonomous, continue without waiting for acknowledgement.
 
+## Durable continuation
+
+- For substantial work, use `docs/agents/CONTEXT_HANDOFF.md` and maintain one compact `## Context checkpoint` in the task record.
+- Validate it with `python tools/agents/checkpoint.py <task-path> --require-checkpoint`.
+- Generate the next-agent prompt with `python tools/agents/resume.py --task <task-path>`.
+- Resume from Git, the checkpoint and live PR/CI state; never require the previous chat transcript.
+
 ## Upstream boundary
 
 - Treat `freqtrade/`, upstream tests, and upstream documentation as vendor/core code.

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "selection_policy_id": "freqai-model-comparison-selection-v1",
+  "comparison_contract": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+  "metric_semantics": "ai_platform/model_comparison/metric-semantics-v1.json",
+  "oos_trade_boundary": "ai_platform/model_comparison/oos-trade-boundary-v1.json",
+  "extraction_schema": "ai_platform/model_comparison/oos-extraction-schema-v1.json",
+  "baseline_validation_plan": "ai_platform/validation/baseline-validation-v1.json",
+  "models": {
+    "incumbent": "LightGBMRegressor",
+    "challenger": "XGBoostRegressor"
+  },
+  "eligibility_gates": {
+    "minimum_trades": 10,
+    "minimum_profit": 0.0,
+    "maximum_drawdown": 0.25,
+    "minimum_stability": 0.5,
+    "provenance": {
+      "minimum_trades": "gates.minimum_holdout_trades",
+      "minimum_profit": "gates.minimum_holdout_profit",
+      "maximum_drawdown": "gates.maximum_holdout_drawdown",
+      "minimum_stability": "gates.minimum_profitable_folds / metric_semantics.metrics.stability.evaluated_folds"
+    }
+  },
+  "objectives": {
+    "profit": "maximize",
+    "drawdown": "minimize",
+    "stability": "maximize",
+    "trades": "eligibility_only"
+  },
+  "decision_rule": {
+    "policy": "eligibility_then_strict_pareto",
+    "strict_pareto_metrics": [
+      "profit",
+      "drawdown",
+      "stability"
+    ],
+    "one_eligible": "select_eligible",
+    "both_ineligible": "select_null",
+    "both_eligible_and_one_strictly_dominates": "select_dominant",
+    "both_eligible_no_strict_dominance": "select_null",
+    "exact_tie": "select_null"
+  },
+  "shared_evidence_requirements": {
+    "exact_models_required": true,
+    "canonical_experiment_identity_required": true,
+    "same_starting_balance_required": true,
+    "same_scoring_window_required": true,
+    "same_metric_semantics_required": true,
+    "same_oos_trade_boundary_required": true
+  },
+  "authorization": {
+    "final_holdout_used": false,
+    "retuning_allowed": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false
+  }
+}

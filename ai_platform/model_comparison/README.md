@@ -33,14 +33,29 @@ reviewable inputs, but it does not execute either model.
 
 - one model-specific config for LightGBM;
 - one model-specific config for XGBoost;
-- one historical-only experiment manifest per model;
+- one single-training historical prediction manifest per model;
 - a `materialization.json` plan recording hashes and explicit `execution_performed: false`.
 
-The current v1 harness uses only the consumed historical OOS window `20260501-20260630` for the
-planned evaluation timerange. Both models receive the same historical timerange, download coverage,
-pairs, timeframes, fee, strategy, features, target, and risk assumptions. Generated manifests are
-validated through the central `run_experiment.load_manifest` path, so protected-final-holdout overlap
-fails closed before any later execution path can consume them.
+The temporal geometry is derived from the frozen contract:
+
+- training: `20251201-20260228`;
+- tuning prediction coverage: `20260301-20260430`;
+- consumed historical OOS scoring window: `20260501-20260630`;
+- combined prediction manifest timerange: `20260301-20260630`.
+
+FreqAI backtesting normally uses sliding retraining: after each `backtest_period_days` window, the
+training window moves forward and includes previously backtested data. That behavior is not allowed
+for this comparison because it would allow later May-June models to train on the consumed historical
+OOS itself. The harness therefore derives `train_period_days=90` from the declared Dec-Feb training
+window and sets `backtest_period_days=122`, covering the complete Mar-June prediction period in one
+backtest window. This keeps a single model trained before tuning and OOS for each model type. OOS
+scoring remains explicitly restricted to `20260501-20260630`; the earlier Mar-Apr predictions are
+coverage from the same frozen model and are not final evidence.
+
+Both models receive the same temporal geometry, download coverage, pairs, timeframes, fee, strategy,
+features, target, and risk assumptions. Generated manifests are validated through the central
+`run_experiment.load_manifest` path, so protected-final-holdout overlap fails closed before any later
+execution path can consume them.
 
 Materialize inputs without training, downloading market data, backtesting, or comparing models:
 
@@ -86,14 +101,15 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 
 ## Next dependency
 
-The next separate work package may execute the materialized LightGBM and XGBoost manifests on the
-same consumed historical OOS evidence and assemble a result conforming to `result-schema-v1.json`.
-That execution must:
+The next separate work package may execute the two materialized single-training prediction manifests,
+then calculate model-comparison metrics only from the consumed historical OOS scoring window and
+assemble a result conforming to `result-schema-v1.json`. That execution must:
 
 1. use only the already-pinned model identities;
-2. perform no joint tuning or feature changes;
-3. use the same historical inputs for both models;
-4. keep `final_holdout_used: false`;
-5. refuse any overlap with `20260801-20260930` through the central protected-holdout guard;
-6. make no promotion or profitability claim;
-7. never represent `20260501-20260630` as unseen final evidence.
+2. keep one frozen Dec-Feb training window per model with no sliding retraining into OOS;
+3. perform no joint tuning or feature changes;
+4. use the same prediction and scoring windows for both models;
+5. keep `final_holdout_used: false`;
+6. refuse any overlap with `20260801-20260930` through the central protected-holdout guard;
+7. make no promotion or profitability claim;
+8. never represent `20260501-20260630` as unseen final evidence.

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import pandas as pd
 import pytest
 
-from ai_platform.research.tradingview.signals import (
+pd = pytest.importorskip("pandas")
+
+from ai_platform.research.tradingview.signals import (  # noqa: E402
     add_bollinger_mean_reversion_signals,
     add_donchian_signals,
     add_supertrend_signals,

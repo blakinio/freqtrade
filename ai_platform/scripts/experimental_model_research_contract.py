@@ -80,7 +80,7 @@ def _strategy_constants(path: Path, class_name: str) -> dict[str, Any]:
     raise ExperimentalModelResearchContractError(f"Strategy class {class_name} not found in {path}")
 
 
-def _validate_shared_contract(foundation: dict[str, Any]) -> None:
+def _validate_shared_contract(foundation: dict[str, Any]) -> None:  # noqa: C901
     if foundation.get("schema_version") != 1:
         raise ExperimentalModelResearchContractError("Foundation schema_version must be 1")
     if foundation.get("status") != "foundation_only":
@@ -89,9 +89,15 @@ def _validate_shared_contract(foundation: dict[str, Any]) -> None:
     phase6 = foundation.get("phase6_isolation")
     if not isinstance(phase6, dict) or phase6.get("membership") is not False:
         raise ExperimentalModelResearchContractError("Experimental tracks must not join Phase 6")
-    for field in ("may_change_candidates", "may_change_selection_policy", "may_consume_research_results"):
+    for field in (
+        "may_change_candidates",
+        "may_change_selection_policy",
+        "may_consume_research_results",
+    ):
         if phase6.get(field) is not False:
-            raise ExperimentalModelResearchContractError(f"Phase 6 isolation requires {field}=false")
+            raise ExperimentalModelResearchContractError(
+                f"Phase 6 isolation requires {field}=false"
+            )
 
     final_holdout = foundation.get("protected_final_holdout")
     if not isinstance(final_holdout, dict):
@@ -110,9 +116,13 @@ def _validate_shared_contract(foundation: dict[str, Any]) -> None:
                 f"Shared temporal geometry drifted for {field}: expected {expected}"
             )
     if geometry.get("historical_oos_status") != "consumed_historical_oos":
-        raise ExperimentalModelResearchContractError("Research may use only consumed historical OOS")
+        raise ExperimentalModelResearchContractError(
+            "Research may use only consumed historical OOS"
+        )
     if geometry.get("training_mode") != "single_frozen_training_window":
-        raise ExperimentalModelResearchContractError("Research training mode must stay single-window")
+        raise ExperimentalModelResearchContractError(
+            "Research training mode must stay single-window"
+        )
     if geometry.get("backtest_retraining_allowed") is not False:
         raise ExperimentalModelResearchContractError("Backtest retraining into OOS is forbidden")
 
@@ -124,13 +134,21 @@ def _validate_shared_contract(foundation: dict[str, Any]) -> None:
     if evaluation.get("metrics") != EXPECTED_METRICS:
         raise ExperimentalModelResearchContractError("Trading metric contract drifted")
     if evaluation.get("strict_oos_trade_filter_required") is not True:
-        raise ExperimentalModelResearchContractError("Strict OOS trade filtering must remain required")
-    for field in ("training_loss_is_selection_evidence", "promotion_allowed", "profitability_claim_allowed"):
+        raise ExperimentalModelResearchContractError(
+            "Strict OOS trade filtering must remain required"
+        )
+    for field in (
+        "training_loss_is_selection_evidence",
+        "promotion_allowed",
+        "profitability_claim_allowed",
+    ):
         if evaluation.get(field) is not False:
-            raise ExperimentalModelResearchContractError(f"Evaluation contract requires {field}=false")
+            raise ExperimentalModelResearchContractError(
+                f"Evaluation contract requires {field}=false"
+            )
 
 
-def _validate_track(track: dict[str, Any], foundation: dict[str, Any]) -> None:
+def _validate_track(track: dict[str, Any], foundation: dict[str, Any]) -> None:  # noqa: C901
     track_id = track.get("track_id")
     manifest_path = _repo_path(str(track.get("manifest", "")), f"{track_id} manifest")
     config_path = _repo_path(str(track.get("config", "")), f"{track_id} config")
@@ -205,16 +223,25 @@ def _validate_track(track: dict[str, Any], foundation: dict[str, Any]) -> None:
         if rl_config.get("model_type") != track.get("algorithm"):
             raise ExperimentalModelResearchContractError("RL configured algorithm drifted")
         if rl_config.get("add_state_info") is not False:
-            raise ExperimentalModelResearchContractError("RL backtesting cannot add live state info")
+            raise ExperimentalModelResearchContractError(
+                "RL backtesting cannot add live state info"
+            )
         if rl_config.get("drop_ohlc_from_features") is not True:
-            raise ExperimentalModelResearchContractError("Raw OHLC must stay outside agent features")
+            raise ExperimentalModelResearchContractError(
+                "Raw OHLC must stay outside agent features"
+            )
         if rl_config.get("randomize_starting_position") is not False:
-            raise ExperimentalModelResearchContractError("RL episode start randomization is disabled")
+            raise ExperimentalModelResearchContractError(
+                "RL episode start randomization is disabled"
+            )
         if freqai.get("continual_learning") is not False:
             raise ExperimentalModelResearchContractError("RL continual learning is forbidden")
         if freqai.get("model_training_parameters", {}).get("seed") != track.get("seed"):
             raise ExperimentalModelResearchContractError("RL seed drifted")
-        if track.get("reward_contract", {}).get("future_market_information_used") is not False:
+        reward_contract = track.get("reward_contract", {})
+        if reward_contract.get("timing") != "pre_transition_decision_tick":
+            raise ExperimentalModelResearchContractError("RL reward timing contract drifted")
+        if reward_contract.get("future_market_information_used") is not False:
             raise ExperimentalModelResearchContractError("RL reward may not use future market data")
         expected_actions = {"0": "neutral", "1": "long_enter", "2": "long_exit"}
         if track.get("action_contract", {}).get("actions") != expected_actions:
@@ -232,7 +259,9 @@ def validate_experimental_model_research_foundation(
 
     tracks = foundation.get("tracks")
     if not isinstance(tracks, list) or len(tracks) != 2:
-        raise ExperimentalModelResearchContractError("Foundation requires exactly two research tracks")
+        raise ExperimentalModelResearchContractError(
+            "Foundation requires exactly two research tracks"
+        )
     track_ids = {track.get("track_id") for track in tracks if isinstance(track, dict)}
     if track_ids != EXPECTED_TRACKS:
         raise ExperimentalModelResearchContractError("Foundation research-track identities drifted")

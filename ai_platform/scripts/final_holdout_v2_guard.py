@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 
 EARLIEST_EXECUTION_DATE = date(2026, 10, 1)
@@ -12,7 +12,7 @@ def _parse_github_timestamp(value: str) -> datetime:
         raise ValueError(f"Invalid GitHub pull-request created_at timestamp: {value!r}") from exc
     if parsed.tzinfo is None:
         raise ValueError("GitHub pull-request created_at timestamp must include a timezone")
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def validate_final_holdout_v2_timing(
@@ -22,10 +22,10 @@ def validate_final_holdout_v2_timing(
 ) -> tuple[str, str]:
     """Validate that both the trigger PR and execution occur after the holdout closes."""
     created_date = _parse_github_timestamp(pr_created_at).date()
-    current = now_utc or datetime.now(timezone.utc)
+    current = now_utc or datetime.now(UTC)
     if current.tzinfo is None:
         raise ValueError("now_utc must include a timezone")
-    today_utc = current.astimezone(timezone.utc).date()
+    today_utc = current.astimezone(UTC).date()
 
     if created_date < EARLIEST_EXECUTION_DATE:
         raise ValueError(

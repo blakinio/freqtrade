@@ -194,8 +194,8 @@ def _validate_contract_semantics(contract: dict[str, Any]) -> None:
         "result_binding": EXPECTED_RESULT_BINDING,
         "authorization": EXPECTED_AUTHORIZATION,
     }
-    for section, expected in expected_sections.items():
-        if contract.get(section) != expected:
+    for section, expected_section in expected_sections.items():
+        if contract.get(section) != expected_section:
             raise ModelComparisonResultProvenanceError(
                 f"Result provenance contract semantics drifted for {section}"
             )

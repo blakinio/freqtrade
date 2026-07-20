@@ -129,6 +129,59 @@ python -m ai_platform.scripts.model_comparison_metric_semantics \
   ai_platform/model_comparison/metric-semantics-v1.json
 ```
 
+## Strict OOS result extractor
+
+`ai_platform.scripts.model_comparison_oos_result_extractor` consumes an already-produced Freqtrade
+backtest ZIP together with its materialized experiment manifest. It never launches Freqtrade,
+downloads data, trains a model, or runs a backtest.
+
+Before scoring, the extractor:
+
+- passes the supplied manifest through the central protected-final-holdout guard;
+- requires the manifest model, experiment identity, strategy, timerange, download range, pairs,
+  timeframes, and fee to match the canonical Phase 6 materialization;
+- identifies exactly one Freqtrade stats JSON member structurally inside the ZIP;
+- requires exactly the manifest strategy result;
+- requires result `strategy_name`, `freqaimodel`, `freqai_identifier`, and `timerange` to match the
+  canonical manifest identity;
+- requires a positive finite `starting_balance`;
+- hashes the source ZIP with SHA-256 before emitting evidence.
+
+Trades are parsed with explicit timezone-aware timestamps. Any missing field, invalid timestamp,
+non-finite `profit_abs`, close-before-open record, or ambiguous stats member fails closed. The strict
+OOS boundary is then applied before any metric calculation. A trade crossing both sides of the OOS
+window is one excluded trade but is counted in both relevant boundary counters.
+
+The extractor emits `oos-extraction-schema-v1.json` evidence containing:
+
+- source archive SHA-256 and selected stats member;
+- canonical model and experiment identity;
+- strict-OOS included/excluded counts;
+- excluded pre-window-open and post-window-close counts;
+- included `force_exit` count;
+- original open/close timestamps for included and excluded trade evidence;
+- profit, drawdown, trade count, and stability;
+- per-month fold trade counts and profits required to reproduce stability;
+- explicit `final_holdout_used: false`, no-retuning, no-promotion, and no-profitability-claim flags.
+
+For non-empty OOS, drawdown is calculated through the native
+`freqtrade.data.metrics.calculate_max_drawdown` implementation using the pinned metric semantics. The
+import is lazy so the lightweight contract/test environment does not acquire pandas or the full
+Freqtrade runtime merely by importing the extractor. Synthetic tests inject a drawdown calculator;
+full-runtime tests verify the native calculation path when pandas is available.
+
+Run extraction only after a backtest archive already exists:
+
+```bash
+python -m ai_platform.scripts.model_comparison_oos_result_extractor \
+  path/to/backtest-result.zip \
+  path/to/materialized/manifest.json \
+  --output path/to/oos-extraction.json
+```
+
+The extraction output is evidence, not a completed model-selection decision and not a profitability
+claim.
+
 ## Final holdout isolation
 
 The prospectively declared final holdout v2 remains:
@@ -163,18 +216,16 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 
 ## Next dependency
 
-The next smallest work package is an OOS result extractor that reads an already-produced backtest
-archive, applies `oos-trade-boundary-v1.json`, and computes `metric-semantics-v1.json` exactly. It must:
+Before any historical LightGBM-versus-XGBoost outputs are used to select a model, the next smallest
+work package should pin a model-comparison selection policy and result assembler. It must:
 
-1. validate the source archive and expected strategy/model identity;
-2. apply the fully-contained closed-trade rule exactly;
-3. emit counts for excluded pre-window opens, excluded post-window closes, and included force exits;
-4. preserve original trade timestamps as audit evidence;
-5. require the same positive `starting_balance` basis for both models;
-6. compute profit, drawdown, trades, and May/June profitable-fold stability exactly as declared;
-7. emit metric evidence sufficient to reproduce the stability score;
-8. keep `final_holdout_used: false` and refuse any final-holdout overlap;
-9. make no promotion or profitability claim.
+1. consume exactly one canonical strict-OOS extraction artifact per pinned model identity;
+2. require matching metric-semantics, trade-boundary, scoring-window, and starting-balance basis;
+3. define the multi-metric selection rule before observing real comparison outputs;
+4. define tie, dominated-result, empty/insufficient-evidence, and identity-mismatch behavior;
+5. assemble `result-schema-v1.json` without changing any model parameter or feature;
+6. keep `final_holdout_used: false` and never use `20260801-20260930` as comparison evidence;
+7. keep promotion and profitability claims forbidden.
 
-Actual LightGBM-versus-XGBoost execution remains a later separate work package. The extractor must be
-reviewed and merged before historical model outputs are used for selection.
+Actual historical LightGBM-versus-XGBoost execution remains a later separate work package after the
+selection semantics are reviewable and merged.

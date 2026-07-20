@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "comparison_id": "freqai-lightgbm-vs-xgboost-v1",
+  "status": "contract_only",
+  "models": [
+    "LightGBMRegressor",
+    "XGBoostRegressor"
+  ],
+  "variable_under_test": "freqai_model",
+  "shared_experiment": {
+    "strategy": "AiPhase52ExitStrategy",
+    "strategy_version": "phase5.2-frozen-entry-exit-v1",
+    "config": "ai_platform/configs/freqai-baseline.example.json",
+    "feature_set_id": "baseline-price-trend-momentum-volume-v1",
+    "target_id": "future-average-return-v1",
+    "training_window": "20251201-20260228",
+    "tuning_window": "20260301-20260430",
+    "historical_oos_windows": [
+      {
+        "name": "holdout-2026-05-06-consumed",
+        "timerange": "20260501-20260630",
+        "unseen_status": "consumed_historical_oos"
+      }
+    ],
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "fee": 0.002,
+    "risk_assumptions": {
+      "entry_prediction_threshold": 0.006,
+      "exit_prediction_threshold": -0.009,
+      "stoploss": -0.05,
+      "minimal_roi": {
+        "0": 0.03,
+        "240": 0.015,
+        "720": 0.0
+      },
+      "max_open_trades": 2,
+      "trading_mode": "spot",
+      "can_short": false,
+      "dry_run": true
+    }
+  },
+  "model_parameter_policy": {
+    "policy": "fixed_before_execution_model_specific_identity",
+    "joint_tuning_allowed": false,
+    "feature_changes_allowed": false
+  },
+  "protected_final_holdout": {
+    "declaration": "ai_platform/validation/final-holdout-v2-declaration.json",
+    "timerange": "20260801-20260930",
+    "usage": "forbidden_for_training_tuning_feature_selection_model_selection_model_comparison"
+  },
+  "selection_policy": {
+    "primary_metrics": [
+      "profit",
+      "drawdown",
+      "trades",
+      "stability"
+    ],
+    "final_holdout_metrics_allowed": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false
+  },
+  "result_schema": "ai_platform/model_comparison/result-schema-v1.json"
+}

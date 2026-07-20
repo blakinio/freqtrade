@@ -160,7 +160,8 @@ def assemble_model_comparison_result(
         selection_decision_path.resolve(),
         "selection decision",
     )
-    if _sha256_bytes(selection_decision_bytes) != validated_provenance["selection_decision_sha256"]:
+    selection_decision_sha256 = validated_provenance["selection_decision_sha256"]
+    if _sha256_bytes(selection_decision_bytes) != selection_decision_sha256:
         raise ModelComparisonResultAssemblerError(
             "Selection decision exact-byte hash does not match bound provenance"
         )

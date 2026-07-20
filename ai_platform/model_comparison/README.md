@@ -19,13 +19,38 @@ The first planned comparison is pinned in `lightgbm-vs-xgboost-v1.json`:
 - joint model-parameter tuning is not part of this comparison slice;
 - feature changes are forbidden during the comparison.
 
-The explicit model identities prevent the future harness from passing the LightGBM-specific
-`num_leaves` setting into `XGBoostRegressor`. The contract validator ties the LightGBM identity to
-the current baseline config and derives the allowed XGBoost parameter identity from the predeclared
-shared parameter keys.
+The explicit model identities prevent the harness from passing the LightGBM-specific `num_leaves`
+setting into `XGBoostRegressor`. The contract validator ties the LightGBM identity to the current
+baseline config and derives the allowed XGBoost parameter identity from the predeclared shared
+parameter keys.
 
-The contract is intentionally `contract_only`. A later, separate work package may implement the
-reproducible harness and execute only historical comparisons covered by this contract.
+The comparison contract remains `contract_only`. The materialization harness consumes it to prepare
+reviewable inputs, but it does not execute either model.
+
+## Materialize-only harness
+
+`ai_platform.scripts.model_comparison_harness` deterministically materializes:
+
+- one model-specific config for LightGBM;
+- one model-specific config for XGBoost;
+- one historical-only experiment manifest per model;
+- a `materialization.json` plan recording hashes and explicit `execution_performed: false`.
+
+The current v1 harness uses only the consumed historical OOS window `20260501-20260630` for the
+planned evaluation timerange. Both models receive the same historical timerange, download coverage,
+pairs, timeframes, fee, strategy, features, target, and risk assumptions. Generated manifests are
+validated through the central `run_experiment.load_manifest` path, so protected-final-holdout overlap
+fails closed before any later execution path can consume them.
+
+Materialize inputs without training, downloading market data, backtesting, or comparing models:
+
+```bash
+python -m ai_platform.scripts.model_comparison_harness \
+  ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json
+```
+
+The default output is under `ai_platform/artifacts/model-comparison/materialized/` and is not a
+completed comparison result. Materialization does not invoke `freqtrade` or any subprocess.
 
 ## Final holdout isolation
 
@@ -61,12 +86,14 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 
 ## Next dependency
 
-The next smallest work package is a model-comparison harness that:
+The next separate work package may execute the materialized LightGBM and XGBoost manifests on the
+same consumed historical OOS evidence and assemble a result conforming to `result-schema-v1.json`.
+That execution must:
 
-1. materializes two experiment identities from this contract;
-2. writes per-model configs using the pinned `model_identities` parameters;
-3. varies only `freqai_model` plus the predeclared model-specific parameter identity;
-4. executes the same historical windows for both models;
-5. emits `result-schema-v1.json` output;
-6. refuses any protected final-holdout overlap;
-7. does not run `20260801-20260930` and does not make a profitability or promotion claim.
+1. use only the already-pinned model identities;
+2. perform no joint tuning or feature changes;
+3. use the same historical inputs for both models;
+4. keep `final_holdout_used: false`;
+5. refuse any overlap with `20260801-20260930` through the central protected-holdout guard;
+6. make no promotion or profitability claim;
+7. never represent `20260501-20260630` as unseen final evidence.

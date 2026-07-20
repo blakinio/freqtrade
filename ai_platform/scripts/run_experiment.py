@@ -17,6 +17,11 @@ from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
 
+from ai_platform.scripts.protected_final_holdout import (
+    ProtectedFinalHoldoutError,
+    validate_manifest_holdout_isolation,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -113,6 +118,11 @@ def load_manifest(path: Path) -> dict[str, Any]:
     fee = manifest["fee"]
     if not isinstance(fee, (int, float)) or not 0 <= fee <= 0.05:
         raise ExperimentError("fee must be a numeric ratio between 0 and 0.05")
+
+    try:
+        validate_manifest_holdout_isolation(path, manifest)
+    except ProtectedFinalHoldoutError as exc:
+        raise ExperimentError(str(exc)) from exc
 
     return manifest
 

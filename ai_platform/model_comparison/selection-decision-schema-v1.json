@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/model-comparison/selection-decision-schema-v1.json",
+  "title": "AI Platform model comparison selection decision v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "selection_policy_id",
+    "model_eligibility",
+    "dominance",
+    "selection",
+    "authorization"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "selection_policy_id": {"const": "freqai-model-comparison-selection-v1"},
+    "model_eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["LightGBMRegressor", "XGBoostRegressor"],
+      "properties": {
+        "LightGBMRegressor": {"$ref": "#/$defs/eligibility"},
+        "XGBoostRegressor": {"$ref": "#/$defs/eligibility"}
+      }
+    },
+    "dominance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "LightGBMRegressor_over_XGBoostRegressor",
+        "XGBoostRegressor_over_LightGBMRegressor"
+      ],
+      "properties": {
+        "LightGBMRegressor_over_XGBoostRegressor": {"type": "boolean"},
+        "XGBoostRegressor_over_LightGBMRegressor": {"type": "boolean"}
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected_model",
+        "basis",
+        "final_holdout_used",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "selected_model": {"enum": [null, "LightGBMRegressor", "XGBoostRegressor"]},
+        "basis": {
+          "enum": [
+            "only_model_passing_predeclared_eligibility_gates",
+            "no_model_passed_predeclared_eligibility_gates",
+            "strict_pareto_dominance_among_eligible_models",
+            "eligible_models_inconclusive_no_strict_pareto_dominance"
+          ]
+        },
+        "final_holdout_used": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "final_holdout_used",
+        "retuning_allowed",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "final_holdout_used": {"const": false},
+        "retuning_allowed": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actual", "threshold", "passed"],
+      "properties": {
+        "actual": {"type": "number"},
+        "threshold": {"type": "number"},
+        "passed": {"type": "boolean"}
+      }
+    },
+    "eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["eligible", "gates"],
+      "properties": {
+        "eligible": {"type": "boolean"},
+        "gates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minimum_trades",
+            "minimum_profit",
+            "maximum_drawdown",
+            "minimum_stability"
+          ],
+          "properties": {
+            "minimum_trades": {"$ref": "#/$defs/gate"},
+            "minimum_profit": {"$ref": "#/$defs/gate"},
+            "maximum_drawdown": {"$ref": "#/$defs/gate"},
+            "minimum_stability": {"$ref": "#/$defs/gate"}
+          }
+        }
+      }
+    }
+  }
+}

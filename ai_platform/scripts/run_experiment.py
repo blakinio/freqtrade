@@ -17,6 +17,11 @@ from pathlib import Path
 from typing import Any
 from zipfile import ZipFile
 
+from ai_platform.scripts.protected_final_holdout import (
+    ProtectedFinalHoldoutError,
+    validate_manifest_holdout_isolation,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -79,6 +84,13 @@ def _git_commit() -> str:
         return "unknown"
 
 
+def _enforce_protected_final_holdout(path: Path, manifest: dict[str, Any]) -> None:
+    try:
+        validate_manifest_holdout_isolation(path, manifest)
+    except ProtectedFinalHoldoutError as exc:
+        raise ExperimentError(str(exc)) from exc
+
+
 def load_manifest(path: Path) -> dict[str, Any]:
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
@@ -114,6 +126,7 @@ def load_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(fee, (int, float)) or not 0 <= fee <= 0.05:
         raise ExperimentError("fee must be a numeric ratio between 0 and 0.05")
 
+    _enforce_protected_final_holdout(path, manifest)
     return manifest
 
 

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,29 @@ DEFAULT_POLICY = REPO_ROOT / "ai_platform/model_comparison/selection-policy-v1.j
 CANONICAL_MATERIALIZATION_ROOT = "ai_platform/artifacts/model-comparison/materialized"
 EXPECTED_POLICY_ID = "freqai-model-comparison-selection-v1"
 EXPECTED_MODELS = ["LightGBMRegressor", "XGBoostRegressor"]
+EXPECTED_AUTHORIZATION = {
+    "final_holdout_used": False,
+    "retuning_allowed": False,
+    "promotion_allowed": False,
+    "profitability_claim_allowed": False,
+}
+EXPECTED_SHARED_EVIDENCE = {
+    "exact_models_required": True,
+    "canonical_experiment_identity_required": True,
+    "same_starting_balance_required": True,
+    "same_scoring_window_required": True,
+    "same_metric_semantics_required": True,
+    "same_oos_trade_boundary_required": True,
+}
+EXPECTED_GATE_PROVENANCE = {
+    "minimum_trades": "gates.minimum_holdout_trades",
+    "minimum_profit": "gates.minimum_holdout_profit",
+    "maximum_drawdown": "gates.maximum_holdout_drawdown",
+    "minimum_stability": (
+        "gates.minimum_profitable_folds / "
+        "metric_semantics.metrics.stability.evaluated_folds"
+    ),
+}
 
 
 class ModelComparisonSelectionPolicyError(RuntimeError):
@@ -60,11 +84,15 @@ def _expected_gate_values(
 ) -> dict[str, float | int]:
     gates = baseline_plan.get("gates")
     if not isinstance(gates, dict):
-        raise ModelComparisonSelectionPolicyError("Baseline validation plan gates must be an object")
+        raise ModelComparisonSelectionPolicyError(
+            "Baseline validation plan gates must be an object"
+        )
     stability = metric_semantics["metrics"]["stability"]
     evaluated_folds = stability["evaluated_folds"]
     if not isinstance(evaluated_folds, int) or evaluated_folds <= 0:
-        raise ModelComparisonSelectionPolicyError("Stability evaluated_folds must be positive")
+        raise ModelComparisonSelectionPolicyError(
+            "Stability evaluated_folds must be positive"
+        )
     return {
         "minimum_trades": gates["minimum_holdout_trades"],
         "minimum_profit": gates["minimum_holdout_profit"],
@@ -80,29 +108,32 @@ def _validate_policy_semantics(
     boundary: dict[str, Any],
     baseline_plan: dict[str, Any],
 ) -> None:
-    models = policy.get("models")
-    if models != {
+    if policy.get("models") != {
         "incumbent": "LightGBMRegressor",
         "challenger": "XGBoostRegressor",
     }:
-        raise ModelComparisonSelectionPolicyError("Unexpected incumbent/challenger model identity")
+        raise ModelComparisonSelectionPolicyError(
+            "Unexpected incumbent/challenger model identity"
+        )
     if comparison.get("models") != EXPECTED_MODELS:
-        raise ModelComparisonSelectionPolicyError("Comparison model set drifted from selection policy")
-    if baseline_plan.get("holdout", {}).get("timerange") != boundary["scoring_window"]["timerange"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Comparison model set drifted from selection policy"
+        )
+    if baseline_plan.get("holdout", {}).get("timerange") != boundary["scoring_window"][
+        "timerange"
+    ]:
         raise ModelComparisonSelectionPolicyError(
             "Baseline holdout gates must refer to the same consumed historical OOS scoring window"
         )
 
-    eligibility = policy.get("eligibility_gates")
-    if not isinstance(eligibility, dict):
-        raise ModelComparisonSelectionPolicyError("eligibility_gates must be an object")
-    expected_gates = _expected_gate_values(baseline_plan, metric_semantics)
-    actual_gates = {key: eligibility.get(key) for key in expected_gates}
-    if actual_gates != expected_gates:
+    expected_eligibility = {
+        **_expected_gate_values(baseline_plan, metric_semantics),
+        "provenance": EXPECTED_GATE_PROVENANCE,
+    }
+    if policy.get("eligibility_gates") != expected_eligibility:
         raise ModelComparisonSelectionPolicyError(
             "Selection eligibility gates drifted from predeclared baseline validation evidence"
         )
-
     if policy.get("objectives") != {
         "profit": "maximize",
         "drawdown": "minimize",
@@ -110,7 +141,7 @@ def _validate_policy_semantics(
         "trades": "eligibility_only",
     }:
         raise ModelComparisonSelectionPolicyError("Unexpected model-selection objectives")
-    expected_rule = {
+    if policy.get("decision_rule") != {
         "policy": "eligibility_then_strict_pareto",
         "strict_pareto_metrics": ["profit", "drawdown", "stability"],
         "one_eligible": "select_eligible",
@@ -118,15 +149,24 @@ def _validate_policy_semantics(
         "both_eligible_and_one_strictly_dominates": "select_dominant",
         "both_eligible_no_strict_dominance": "select_null",
         "exact_tie": "select_null",
-    }
-    if policy.get("decision_rule") != expected_rule:
+    }:
         raise ModelComparisonSelectionPolicyError("Selection decision rule drifted")
+    if policy.get("shared_evidence_requirements") != EXPECTED_SHARED_EVIDENCE:
+        raise ModelComparisonSelectionPolicyError(
+            "Selection shared-evidence requirements drifted"
+        )
+    if policy.get("authorization") != EXPECTED_AUTHORIZATION:
+        raise ModelComparisonSelectionPolicyError(
+            "Selection policy cannot authorize holdout use, retuning, promotion, or claims"
+        )
 
 
 def load_model_comparison_selection_policy(path: Path = DEFAULT_POLICY) -> dict[str, Any]:
     policy = _read_json(path.resolve(), "model comparison selection policy")
     if policy.get("schema_version") != 1:
-        raise ModelComparisonSelectionPolicyError("Only selection policy schema_version 1 is supported")
+        raise ModelComparisonSelectionPolicyError(
+            "Only selection policy schema_version 1 is supported"
+        )
     if policy.get("selection_policy_id") != EXPECTED_POLICY_ID:
         raise ModelComparisonSelectionPolicyError("Unexpected selection_policy_id")
 
@@ -140,7 +180,10 @@ def load_model_comparison_selection_policy(path: Path = DEFAULT_POLICY) -> dict[
         _resolve_repo_path(policy.get("oos_trade_boundary"), "oos_trade_boundary")
     )
     baseline_plan = _read_json(
-        _resolve_repo_path(policy.get("baseline_validation_plan"), "baseline_validation_plan"),
+        _resolve_repo_path(
+            policy.get("baseline_validation_plan"),
+            "baseline_validation_plan",
+        ),
         "baseline validation plan",
     )
     _read_json(
@@ -158,7 +201,10 @@ def load_model_comparison_selection_policy(path: Path = DEFAULT_POLICY) -> dict[
 
 
 def _canonical_experiment_identities(policy: dict[str, Any]) -> dict[str, str]:
-    contract_path = _resolve_repo_path(policy["comparison_contract"], "comparison_contract")
+    contract_path = _resolve_repo_path(
+        policy["comparison_contract"],
+        "comparison_contract",
+    )
     materialization = build_materialization(
         contract_path,
         output_root=CANONICAL_MATERIALIZATION_ROOT,
@@ -169,12 +215,57 @@ def _canonical_experiment_identities(policy: dict[str, Any]) -> dict[str, str]:
     }
 
 
+def _validate_extraction_consistency(extraction: dict[str, Any]) -> None:
+    counts = extraction["counts"]
+    metrics = extraction["metrics"]
+    included_evidence = extraction["included_trade_evidence"]
+    excluded_evidence = extraction["excluded_trade_evidence"]
+    stability = extraction["stability_evidence"]
+
+    if counts["input_trades"] != counts["included_trades"] + counts["excluded_trades"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Extraction trade counts are internally inconsistent"
+        )
+    if metrics["trades"] != counts["included_trades"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Extraction metric trade count does not match included-trade evidence"
+        )
+    if len(included_evidence) != counts["included_trades"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Included-trade evidence length does not match extraction counts"
+        )
+    if len(excluded_evidence) != counts["excluded_trades"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Excluded-trade evidence length does not match extraction counts"
+        )
+    if counts["included_force_exit_trades"] > counts["included_trades"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Included force-exit count exceeds included trades"
+        )
+    if sum(stability["fold_trade_counts"].values()) != metrics["trades"]:
+        raise ModelComparisonSelectionPolicyError(
+            "Stability fold trade counts do not cover all included trades"
+        )
+    expected_stability = stability["profitable_folds"] / stability["evaluated_folds"]
+    if metrics["stability"] != expected_stability:
+        raise ModelComparisonSelectionPolicyError(
+            "Stability metric does not match profitable-fold evidence"
+        )
+    fold_profit = math.fsum(stability["fold_profits"].values())
+    if not math.isclose(fold_profit, metrics["profit"], rel_tol=1e-12, abs_tol=1e-12):
+        raise ModelComparisonSelectionPolicyError(
+            "Fold profits do not reproduce the extraction profit metric"
+        )
+
+
 def _validate_extractions(
     policy: dict[str, Any],
     extractions: list[dict[str, Any]],
 ) -> dict[str, dict[str, Any]]:
     if len(extractions) != 2:
-        raise ModelComparisonSelectionPolicyError("Exactly two OOS extraction artifacts are required")
+        raise ModelComparisonSelectionPolicyError(
+            "Exactly two OOS extraction artifacts are required"
+        )
     schema = _read_json(
         _resolve_repo_path(policy["extraction_schema"], "extraction_schema"),
         "OOS extraction schema",
@@ -185,8 +276,10 @@ def _validate_extractions(
             validator.validate(extraction)
         except ValidationError as exc:
             raise ModelComparisonSelectionPolicyError(
-                f"OOS extraction artifact {index} does not match the extraction schema: {exc.message}"
+                f"OOS extraction artifact {index} does not match the extraction schema: "
+                f"{exc.message}"
             ) from exc
+        _validate_extraction_consistency(extraction)
 
     by_model = {extraction["model_type"]: extraction for extraction in extractions}
     if set(by_model) != set(EXPECTED_MODELS) or len(by_model) != 2:
@@ -274,7 +367,7 @@ def evaluate_model_selection(
     extractions: list[dict[str, Any]],
     policy_path: Path = DEFAULT_POLICY,
 ) -> dict[str, Any]:
-    """Evaluate synthetic or real strict-OOS extraction artifacts without retuning or execution."""
+    """Evaluate strict-OOS extraction artifacts without retuning or model execution."""
     policy = load_model_comparison_selection_policy(policy_path)
     by_model = _validate_extractions(policy, extractions)
     gates = policy["eligibility_gates"]
@@ -294,8 +387,14 @@ def evaluate_model_selection(
     elif not eligible_models:
         basis = "no_model_passed_predeclared_eligibility_gates"
     else:
-        incumbent_dominates = _strictly_dominates(by_model[incumbent], by_model[challenger])
-        challenger_dominates = _strictly_dominates(by_model[challenger], by_model[incumbent])
+        incumbent_dominates = _strictly_dominates(
+            by_model[incumbent],
+            by_model[challenger],
+        )
+        challenger_dominates = _strictly_dominates(
+            by_model[challenger],
+            by_model[incumbent],
+        )
         if incumbent_dominates:
             selected_model = incumbent
             basis = "strict_pareto_dominance_among_eligible_models"

@@ -50,7 +50,9 @@ def _resolve_repo_path(value: Any, label: str) -> Path:
 
 def _parse_iso_utc(value: Any, label: str) -> datetime:
     if not isinstance(value, str) or not value.endswith("Z"):
-        raise OosTradeBoundaryContractError(f"{label} must be an explicit UTC timestamp ending in Z")
+        raise OosTradeBoundaryContractError(
+            f"{label} must be an explicit UTC timestamp ending in Z"
+        )
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
@@ -104,7 +106,9 @@ def _validate_scoring_window(boundary: dict[str, Any], comparison: dict[str, Any
         timerange,
         "scoring_window.timerange",
     )
-    start_inclusive = _parse_iso_utc(scoring.get("start_inclusive"), "scoring_window.start_inclusive")
+    start_inclusive = _parse_iso_utc(
+        scoring.get("start_inclusive"), "scoring_window.start_inclusive"
+    )
     end_exclusive = _parse_iso_utc(scoring.get("end_exclusive"), "scoring_window.end_exclusive")
     if start_inclusive != timerange_start:
         raise OosTradeBoundaryContractError(
@@ -120,9 +124,7 @@ def _validate_scoring_window(boundary: dict[str, Any], comparison: dict[str, Any
 def _validate_trade_policy(boundary: dict[str, Any]) -> None:
     trade = boundary.get("trade_inclusion")
     if not isinstance(trade, dict) or trade.get("policy") != EXPECTED_POLICY:
-        raise OosTradeBoundaryContractError(
-            "OOS scoring must use fully_contained_closed_trades"
-        )
+        raise OosTradeBoundaryContractError("OOS scoring must use fully_contained_closed_trades")
     if trade.get("open_date") != {"operator": ">=", "boundary": "start_inclusive"}:
         raise OosTradeBoundaryContractError("OOS scoring must require open_date >= start_inclusive")
     if trade.get("close_date") != {"operator": "<", "boundary": "end_exclusive"}:
@@ -167,7 +169,9 @@ def _validate_protected_final_holdout(boundary: dict[str, Any], scoring_timerang
     if declaration_path != "ai_platform/validation/final-holdout-v2-declaration.json":
         raise OosTradeBoundaryContractError("Protected final holdout declaration path drifted")
     if protected.get("must_not_overlap_scoring_window") is not True:
-        raise OosTradeBoundaryContractError("Scoring/final-holdout non-overlap must remain mandatory")
+        raise OosTradeBoundaryContractError(
+            "Scoring/final-holdout non-overlap must remain mandatory"
+        )
     if timeranges_overlap(scoring_timerange, declaration_timerange):
         raise OosTradeBoundaryContractError("OOS scoring window overlaps protected final holdout")
 

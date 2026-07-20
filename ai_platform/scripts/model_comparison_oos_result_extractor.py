@@ -24,8 +24,12 @@ from ai_platform.scripts.run_experiment import load_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_COMPARISON_CONTRACT = REPO_ROOT / "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json"
-DEFAULT_BOUNDARY_CONTRACT = REPO_ROOT / "ai_platform/model_comparison/oos-trade-boundary-v1.json"
+DEFAULT_COMPARISON_CONTRACT = (
+    REPO_ROOT / "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json"
+)
+DEFAULT_BOUNDARY_CONTRACT = (
+    REPO_ROOT / "ai_platform/model_comparison/oos-trade-boundary-v1.json"
+)
 DEFAULT_METRIC_SEMANTICS = REPO_ROOT / "ai_platform/model_comparison/metric-semantics-v1.json"
 EXTRACTOR_ID = "freqai-model-comparison-oos-extractor-v1"
 CANONICAL_MATERIALIZATION_ROOT = "ai_platform/artifacts/model-comparison/materialized"
@@ -57,11 +61,13 @@ def _sha256(path: Path) -> str:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
     except OSError as exc:
-        raise ModelComparisonOosExtractorError(f"Unable to hash archive {path}: {exc}") from exc
+        raise ModelComparisonOosExtractorError(
+            f"Unable to hash archive {path}: {exc}"
+        ) from exc
     return digest.hexdigest()
 
 
-def _parse_json_bytes(payload: bytes, label: str) -> dict[str, Any] | None:
+def _parse_json_bytes(payload: bytes) -> dict[str, Any] | None:
     try:
         value = json.loads(payload.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
@@ -84,7 +90,7 @@ def _load_backtest_stats(archive_path: Path) -> tuple[dict[str, Any], str, str]:
                     continue
                 if member.file_size > MAX_JSON_MEMBER_BYTES:
                     continue
-                parsed = _parse_json_bytes(archive.read(member), member.filename)
+                parsed = _parse_json_bytes(archive.read(member))
                 if parsed is not None:
                     candidates.append((member.filename, parsed))
     except (OSError, BadZipFile) as exc:
@@ -103,19 +109,31 @@ def _load_backtest_stats(archive_path: Path) -> tuple[dict[str, Any], str, str]:
 
 def _parse_utc_timestamp(value: Any, label: str) -> datetime:
     if not isinstance(value, str) or not value:
-        raise ModelComparisonOosExtractorError(f"{label} must be a non-empty timestamp string")
+        raise ModelComparisonOosExtractorError(
+            f"{label} must be a non-empty timestamp string"
+        )
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise ModelComparisonOosExtractorError(f"{label} is not a valid ISO-8601 timestamp") from exc
+        raise ModelComparisonOosExtractorError(
+            f"{label} is not a valid ISO-8601 timestamp"
+        ) from exc
     if parsed.tzinfo is None:
-        raise ModelComparisonOosExtractorError(f"{label} must include an explicit timezone")
+        raise ModelComparisonOosExtractorError(
+            f"{label} must include an explicit timezone"
+        )
     return parsed.astimezone(UTC)
 
 
-def _parse_trade(trade: Any, source_index: int, required_fields: list[str]) -> ParsedTrade:
+def _parse_trade(
+    trade: Any,
+    source_index: int,
+    required_fields: list[str],
+) -> ParsedTrade:
     if not isinstance(trade, dict):
-        raise ModelComparisonOosExtractorError(f"Trade {source_index} must be a JSON object")
+        raise ModelComparisonOosExtractorError(
+            f"Trade {source_index} must be a JSON object"
+        )
     missing = [field for field in required_fields if field not in trade]
     if missing:
         raise ModelComparisonOosExtractorError(
@@ -124,8 +142,14 @@ def _parse_trade(trade: Any, source_index: int, required_fields: list[str]) -> P
 
     open_original = trade["open_date"]
     close_original = trade["close_date"]
-    open_date = _parse_utc_timestamp(open_original, f"trade[{source_index}].open_date")
-    close_date = _parse_utc_timestamp(close_original, f"trade[{source_index}].close_date")
+    open_date = _parse_utc_timestamp(
+        open_original,
+        f"trade[{source_index}].open_date",
+    )
+    close_date = _parse_utc_timestamp(
+        close_original,
+        f"trade[{source_index}].close_date",
+    )
     if close_date < open_date:
         raise ModelComparisonOosExtractorError(
             f"Trade {source_index} closes before its open timestamp"
@@ -165,7 +189,9 @@ def _canonical_expected_manifest(model_type: str) -> dict[str, Any]:
     for model in materialization["models"]:
         if model["model_type"] == model_type:
             return model["manifest"]
-    raise ModelComparisonOosExtractorError(f"Unsupported comparison model: {model_type}")
+    raise ModelComparisonOosExtractorError(
+        f"Unsupported comparison model: {model_type}"
+    )
 
 
 def _validate_manifest_against_comparison(
@@ -192,7 +218,8 @@ def _validate_manifest_against_comparison(
     for field in shared_fields:
         if manifest[field] != expected[field]:
             raise ModelComparisonOosExtractorError(
-                f"Manifest field {field} does not match the canonical materialized comparison input"
+                f"Manifest field {field} does not match the canonical materialized "
+                "comparison input"
             )
     return manifest
 
@@ -208,7 +235,9 @@ def _strategy_stats_for_manifest(
         )
     strategy_stats = strategies[manifest["strategy"]]
     if not isinstance(strategy_stats, dict):
-        raise ModelComparisonOosExtractorError("Backtest strategy result must be a JSON object")
+        raise ModelComparisonOosExtractorError(
+            "Backtest strategy result must be a JSON object"
+        )
 
     expected_identity = {
         "strategy_name": manifest["strategy"],
@@ -227,14 +256,22 @@ def _strategy_stats_for_manifest(
 def _starting_balance(strategy_stats: dict[str, Any]) -> float:
     value = strategy_stats.get("starting_balance")
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ModelComparisonOosExtractorError("starting_balance must be a positive finite number")
+        raise ModelComparisonOosExtractorError(
+            "starting_balance must be a positive finite number"
+        )
     value = float(value)
     if not math.isfinite(value) or value <= 0:
-        raise ModelComparisonOosExtractorError("starting_balance must be a positive finite number")
+        raise ModelComparisonOosExtractorError(
+            "starting_balance must be a positive finite number"
+        )
     return value
 
 
-def _trade_evidence(trade: ParsedTrade, *, reasons: list[str] | None = None) -> dict[str, Any]:
+def _trade_evidence(
+    trade: ParsedTrade,
+    *,
+    reasons: list[str] | None = None,
+) -> dict[str, Any]:
     evidence: dict[str, Any] = {
         "source_index": trade.source_index,
         "open_date": trade.open_date_original,
@@ -252,8 +289,14 @@ def _partition_trades(
     boundary: dict[str, Any],
 ) -> tuple[list[ParsedTrade], list[dict[str, Any]], dict[str, int]]:
     scoring = boundary["scoring_window"]
-    start = _parse_utc_timestamp(scoring["start_inclusive"], "scoring_window.start_inclusive")
-    end = _parse_utc_timestamp(scoring["end_exclusive"], "scoring_window.end_exclusive")
+    start = _parse_utc_timestamp(
+        scoring["start_inclusive"],
+        "scoring_window.start_inclusive",
+    )
+    end = _parse_utc_timestamp(
+        scoring["end_exclusive"],
+        "scoring_window.end_exclusive",
+    )
     included: list[ParsedTrade] = []
     excluded_evidence: list[dict[str, Any]] = []
     pre_window_count = 0
@@ -285,7 +328,10 @@ def _partition_trades(
     return included, excluded_evidence, counts
 
 
-def _freqtrade_drawdown(trades: list[ParsedTrade], starting_balance: float) -> float:
+def _freqtrade_drawdown(
+    trades: list[ParsedTrade],
+    starting_balance: float,
+) -> float:
     if not trades:
         return 0.0
     try:
@@ -324,10 +370,18 @@ def _stability_metrics(
     profitable_folds = 0
 
     for fold in folds:
-        start = _parse_utc_timestamp(fold["start_inclusive"], f"fold {fold['name']} start")
-        end = _parse_utc_timestamp(fold["end_exclusive"], f"fold {fold['name']} end")
+        start = _parse_utc_timestamp(
+            fold["start_inclusive"],
+            f"fold {fold['name']} start",
+        )
+        end = _parse_utc_timestamp(
+            fold["end_exclusive"],
+            f"fold {fold['name']} end",
+        )
         fold_trades = [trade for trade in trades if start <= trade.close_date < end]
-        fold_profit = math.fsum(trade.profit_abs for trade in fold_trades) / starting_balance
+        fold_profit = math.fsum(
+            trade.profit_abs for trade in fold_trades
+        ) / starting_balance
         fold_trade_counts[fold["name"]] = len(fold_trades)
         fold_profits[fold["name"]] = fold_profit
         if fold_profit > 0:
@@ -354,14 +408,19 @@ def extract_oos_result(
     comparison = load_model_comparison_contract(DEFAULT_COMPARISON_CONTRACT)
     boundary = load_oos_trade_boundary_contract(DEFAULT_BOUNDARY_CONTRACT)
     semantics = load_model_comparison_metric_semantics(DEFAULT_METRIC_SEMANTICS)
-    manifest = _validate_manifest_against_comparison(manifest_path.resolve(), comparison)
+    manifest = _validate_manifest_against_comparison(
+        manifest_path.resolve(),
+        comparison,
+    )
     stats, stats_member, archive_sha256 = _load_backtest_stats(archive_path)
     strategy_stats = _strategy_stats_for_manifest(stats, manifest)
     starting_balance = _starting_balance(strategy_stats)
 
     raw_trades = strategy_stats.get("trades")
     if not isinstance(raw_trades, list):
-        raise ModelComparisonOosExtractorError("Backtest strategy result trades must be a list")
+        raise ModelComparisonOosExtractorError(
+            "Backtest strategy result trades must be a list"
+        )
     required_fields = semantics["required_trade_fields"]
     trades = [
         _parse_trade(trade, source_index, required_fields)
@@ -376,7 +435,11 @@ def extract_oos_result(
         raise ModelComparisonOosExtractorError(
             "Drawdown calculator must return a finite non-negative ratio"
         )
-    stability, stability_evidence = _stability_metrics(included, starting_balance, semantics)
+    stability, stability_evidence = _stability_metrics(
+        included,
+        starting_balance,
+        semantics,
+    )
 
     return {
         "schema_version": 1,
@@ -414,16 +477,34 @@ def extract_oos_result(
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
     except OSError as exc:
-        raise ModelComparisonOosExtractorError(f"Unable to write extraction output: {exc}") from exc
+        raise ModelComparisonOosExtractorError(
+            f"Unable to write extraction output: {exc}"
+        ) from exc
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("archive", type=Path, help="Existing Freqtrade backtest result ZIP")
-    parser.add_argument("manifest", type=Path, help="Canonical materialized experiment manifest")
-    parser.add_argument("--output", type=Path, required=True, help="Output JSON evidence path")
+    parser.add_argument(
+        "archive",
+        type=Path,
+        help="Existing Freqtrade backtest result ZIP",
+    )
+    parser.add_argument(
+        "manifest",
+        type=Path,
+        help="Canonical materialized experiment manifest",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        required=True,
+        help="Output JSON evidence path",
+    )
     return parser.parse_args(argv)
 
 

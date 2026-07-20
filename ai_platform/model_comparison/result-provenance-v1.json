@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "provenance_contract_id": "freqai-model-comparison-result-provenance-v1",
+  "comparison_contract": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+  "selection_policy": "ai_platform/model_comparison/selection-policy-v1.json",
+  "selection_decision_schema": "ai_platform/model_comparison/selection-decision-schema-v1.json",
+  "extraction_schema": "ai_platform/model_comparison/oos-extraction-schema-v1.json",
+  "materialization": {
+    "filename": "materialization.json",
+    "digest_algorithm": "sha256",
+    "digest_scope": "exact_file_bytes",
+    "result_field": "plan_sha256",
+    "required_model_bindings": ["model_type", "experiment_identity", "manifest_sha256", "config_sha256"]
+  },
+  "execution": {
+    "run_provenance_filename": "provenance.json",
+    "required_stage": "backtest",
+    "result_field": "git_commit",
+    "result_field_semantics": "shared_model_execution_commit",
+    "same_execution_git_commit_required": true,
+    "required_run_provenance_fields": ["stage", "git_commit", "manifest_sha256", "config_sha256", "strategy_sha256"],
+    "manifest_sha256_must_match_materialization": true,
+    "config_sha256_must_match_materialization": true,
+    "strategy_sha256_must_match_between_models": true
+  },
+  "extraction": {
+    "one_extraction_per_model_required": true,
+    "archive_sha256_source_field": "source.archive_sha256",
+    "extraction_artifact_sha256_required": true,
+    "archive_sha256_must_match_bound_backtest_archive": true
+  },
+  "selection": {
+    "selection_policy_sha256_required": true,
+    "selection_decision_sha256_required": true,
+    "selection_decision_must_use_bound_extractions": true
+  },
+  "result_binding": {
+    "git_commit_must_equal_shared_execution_commit": true,
+    "plan_sha256_must_equal_materialization_plan_sha256": true,
+    "model_result_identity_must_match_bound_source": true,
+    "mixed_execution_commits_forbidden": true,
+    "mixed_materialization_plans_forbidden": true
+  },
+  "authorization": {
+    "final_holdout_used": false,
+    "retuning_allowed": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false
+  }
+}

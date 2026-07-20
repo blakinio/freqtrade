@@ -54,6 +54,11 @@ def build_bundle(path: Path) -> dict[str, object]:
     }
 
 
+def _list_items(data: dict[str, object], key: str) -> list[object]:
+    value = data.get(key, [])
+    return value if isinstance(value, list) else []
+
+
 def render_prompt(data: dict[str, object]) -> str:
     lines = [
         f"Continue task {data['task_id']} from repository state.",
@@ -89,7 +94,7 @@ def render_prompt(data: dict[str, object]) -> str:
         ("BLOCKERS", "blockers"),
     ):
         lines.append(f"{label}:")
-        lines.extend(f"- {item}" for item in data.get(key, []))
+        lines.extend(f"- {item}" for item in _list_items(data, key))
 
     first_failure = data.get("first_failure", {})
     if isinstance(first_failure, dict):
@@ -104,7 +109,7 @@ def render_prompt(data: dict[str, object]) -> str:
     lines.extend(
         f"- {item.get('command', '')}: {item.get('result', '')}; "
         f"evidence={item.get('evidence', '')}"
-        for item in data.get("validation", [])
+        for item in _list_items(data, "validation")
         if isinstance(item, dict)
     )
 

@@ -45,9 +45,7 @@ def _read_json_artifact(path: Path, label: str) -> tuple[dict[str, Any], bytes]:
     try:
         payload = json.loads(payload_bytes)
     except json.JSONDecodeError as exc:
-        raise ModelComparisonResultAssemblerError(
-            f"Unable to parse {label} {path}: {exc}"
-        ) from exc
+        raise ModelComparisonResultAssemblerError(f"Unable to parse {label} {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ModelComparisonResultAssemblerError(f"{label} must contain a JSON object")
     return payload, payload_bytes

@@ -37,9 +37,7 @@ def test_metric_semantics_pins_freqtrade_equivalents_and_stability() -> None:
     assert semantics["metrics"]["profit"]["freqtrade_equivalent"] == "profit_total"
     assert semantics["metrics"]["drawdown"]["freqtrade_equivalent"] == "max_drawdown_account"
     assert semantics["metrics"]["trades"]["formula"] == "count(included_trades)"
-    assert semantics["metrics"]["stability"]["policy"] == (
-        "calendar_month_profitable_fold_ratio"
-    )
+    assert semantics["metrics"]["stability"]["policy"] == ("calendar_month_profitable_fold_ratio")
     assert semantics["metrics"]["stability"]["evaluated_folds"] == 2
     assert semantics["metrics"]["stability"]["folds"] == [
         {
@@ -83,9 +81,7 @@ def test_metric_semantics_rejects_close_date_only_trade_scope(tmp_path: Path) ->
 
 def test_metric_semantics_rejects_stability_fold_gap(tmp_path: Path) -> None:
     semantics = _semantics()
-    semantics["metrics"]["stability"]["folds"][1]["start_inclusive"] = (
-        "2026-06-02T00:00:00Z"
-    )
+    semantics["metrics"]["stability"]["folds"][1]["start_inclusive"] = "2026-06-02T00:00:00Z"
 
     with pytest.raises(ModelComparisonMetricSemanticsError, match="contiguous"):
         load_model_comparison_metric_semantics(_write_semantics(tmp_path, semantics))

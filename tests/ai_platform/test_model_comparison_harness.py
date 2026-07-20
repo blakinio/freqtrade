@@ -4,11 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from ai_platform.scripts.model_comparison_harness import (
-    DEFAULT_CONTRACT,
-    ModelComparisonHarnessError,
-    build_materialization,
-)
+from ai_platform.scripts import model_comparison_harness as harness
 from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
 
 
@@ -17,7 +13,7 @@ PROTECTED_FINAL_HOLDOUT = "20260801-20260930"
 
 
 def _materialization() -> dict:
-    return build_materialization(DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)
+    return harness.build_materialization(harness.DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)
 
 
 def test_harness_materializes_exactly_two_models_without_execution() -> None:
@@ -130,7 +126,7 @@ def test_materialized_manifests_pass_central_holdout_guard(tmp_path: Path) -> No
         assert loaded["download_timerange"] == "20250801-20260630"
 
 
-def test_central_guard_rejects_materialized_manifest_if_protected_window_is_injected(
+def test_central_guard_rejects_protected_window_in_materialized_manifest(
     tmp_path: Path,
 ) -> None:
     materialization = _materialization()
@@ -144,8 +140,6 @@ def test_central_guard_rejects_materialized_manifest_if_protected_window_is_inje
 
 
 def test_harness_requires_single_consumed_historical_window(monkeypatch) -> None:
-    import ai_platform.scripts.model_comparison_harness as harness
-
     original_loader = harness.load_model_comparison_contract
 
     def load_with_extra_window(path: Path) -> dict:
@@ -161,13 +155,14 @@ def test_harness_requires_single_consumed_historical_window(monkeypatch) -> None
 
     monkeypatch.setattr(harness, "load_model_comparison_contract", load_with_extra_window)
 
-    with pytest.raises(ModelComparisonHarnessError, match="exactly one consumed historical OOS"):
-        build_materialization(DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)
+    with pytest.raises(
+        harness.ModelComparisonHarnessError,
+        match="exactly one consumed historical OOS",
+    ):
+        harness.build_materialization(harness.DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)
 
 
 def test_harness_rejects_non_contiguous_training_and_tuning(monkeypatch) -> None:
-    import ai_platform.scripts.model_comparison_harness as harness
-
     original_loader = harness.load_model_comparison_contract
 
     def load_with_gap(path: Path) -> dict:
@@ -177,5 +172,8 @@ def test_harness_rejects_non_contiguous_training_and_tuning(monkeypatch) -> None
 
     monkeypatch.setattr(harness, "load_model_comparison_contract", load_with_gap)
 
-    with pytest.raises(ModelComparisonHarnessError, match="Training and tuning windows must be contiguous"):
-        build_materialization(DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)
+    with pytest.raises(
+        harness.ModelComparisonHarnessError,
+        match="Training and tuning windows must be contiguous",
+    ):
+        harness.build_materialization(harness.DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)

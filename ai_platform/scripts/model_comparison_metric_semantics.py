@@ -133,15 +133,21 @@ def _load_stability(semantics: dict[str, Any]) -> dict[str, Any]:
             "stability must normalize the profitable-fold concept over calendar months"
         )
     if stability.get("fold_assignment_field") != "close_date":
-        raise ModelComparisonMetricSemanticsError("Stability folds must realize profit by close_date")
+        raise ModelComparisonMetricSemanticsError(
+            "Stability folds must realize profit by close_date"
+        )
     if stability.get("fold_timezone") != "UTC":
         raise ModelComparisonMetricSemanticsError("Stability folds must use UTC")
     if stability.get("profitable_fold_condition") != "> 0":
-        raise ModelComparisonMetricSemanticsError("A profitable stability fold must have profit > 0")
+        raise ModelComparisonMetricSemanticsError(
+            "A profitable stability fold must have profit > 0"
+        )
     if stability.get("formula") != "profitable_folds / evaluated_folds":
         raise ModelComparisonMetricSemanticsError("Unexpected stability formula")
     if stability.get("evaluated_folds") != 2:
-        raise ModelComparisonMetricSemanticsError("Phase 6 stability must evaluate exactly two folds")
+        raise ModelComparisonMetricSemanticsError(
+            "Phase 6 stability must evaluate exactly two folds"
+        )
     if stability.get("minimum") != 0.0 or stability.get("maximum") != 1.0:
         raise ModelComparisonMetricSemanticsError("Stability must remain normalized to [0, 1]")
     return stability
@@ -162,7 +168,9 @@ def _validate_stability_fold_coverage(
     )
     folds = stability.get("folds")
     if not isinstance(folds, list) or len(folds) != 2:
-        raise ModelComparisonMetricSemanticsError("Stability must declare exactly two calendar folds")
+        raise ModelComparisonMetricSemanticsError(
+            "Stability must declare exactly two calendar folds"
+        )
 
     previous_end = scoring_start
     for index, fold in enumerate(folds):

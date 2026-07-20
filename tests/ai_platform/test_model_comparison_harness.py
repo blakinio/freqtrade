@@ -59,6 +59,25 @@ def test_harness_pins_model_specific_training_parameters() -> None:
     assert "num_leaves" not in xgboost_parameters
 
 
+def test_harness_freezes_single_training_window_before_tuning_and_oos() -> None:
+    materialization = _materialization()
+
+    assert materialization["training_mode"] == "single_frozen_training_window"
+    assert materialization["backtest_retraining_allowed"] is False
+    assert materialization["training_window"] == "20251201-20260228"
+    assert materialization["tuning_window"] == "20260301-20260430"
+    assert materialization["scoring_window"] == "20260501-20260630"
+    assert materialization["prediction_window"] == "20260301-20260630"
+    assert materialization["train_period_days"] == 90
+    assert materialization["backtest_period_days"] == 122
+
+    for model in materialization["models"]:
+        freqai = model["config"]["freqai"]
+        assert freqai["train_period_days"] == 90
+        assert freqai["backtest_period_days"] == 122
+        assert model["manifest"]["timerange"] == "20260301-20260630"
+
+
 def test_harness_configs_differ_only_by_identifier_and_model_parameters() -> None:
     materialization = _materialization()
     configs = [copy.deepcopy(model["config"]) for model in materialization["models"]]
@@ -70,12 +89,13 @@ def test_harness_configs_differ_only_by_identifier_and_model_parameters() -> Non
     assert configs[0] == configs[1]
 
 
-def test_harness_manifests_share_historical_comparison_assumptions() -> None:
+def test_harness_manifests_share_prediction_and_historical_scoring_assumptions() -> None:
     materialization = _materialization()
     manifests = [copy.deepcopy(model["manifest"]) for model in materialization["models"]]
 
+    assert materialization["scoring_window"] == "20260501-20260630"
     for manifest in manifests:
-        assert manifest["timerange"] == "20260501-20260630"
+        assert manifest["timerange"] == "20260301-20260630"
         assert manifest["download_timerange"] == "20250801-20260630"
         for model_specific_field in (
             "experiment_id",
@@ -106,7 +126,8 @@ def test_materialized_manifests_pass_central_holdout_guard(tmp_path: Path) -> No
         manifest_path = tmp_path / f"manifest-{index}.json"
         manifest_path.write_text(json.dumps(model["manifest"]), encoding="utf-8")
         loaded = load_manifest(manifest_path)
-        assert loaded["timerange"] == "20260501-20260630"
+        assert loaded["timerange"] == "20260301-20260630"
+        assert loaded["download_timerange"] == "20250801-20260630"
 
 
 def test_central_guard_rejects_materialized_manifest_if_protected_window_is_injected(
@@ -141,4 +162,20 @@ def test_harness_requires_single_consumed_historical_window(monkeypatch) -> None
     monkeypatch.setattr(harness, "load_model_comparison_contract", load_with_extra_window)
 
     with pytest.raises(ModelComparisonHarnessError, match="exactly one consumed historical OOS"):
+        build_materialization(DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)
+
+
+def test_harness_rejects_non_contiguous_training_and_tuning(monkeypatch) -> None:
+    import ai_platform.scripts.model_comparison_harness as harness
+
+    original_loader = harness.load_model_comparison_contract
+
+    def load_with_gap(path: Path) -> dict:
+        contract = copy.deepcopy(original_loader(path))
+        contract["shared_experiment"]["tuning_window"] = "20260302-20260430"
+        return contract
+
+    monkeypatch.setattr(harness, "load_model_comparison_contract", load_with_gap)
+
+    with pytest.raises(ModelComparisonHarnessError, match="Training and tuning windows must be contiguous"):
         build_materialization(DEFAULT_CONTRACT, output_root=OUTPUT_ROOT)

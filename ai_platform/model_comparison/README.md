@@ -261,7 +261,41 @@ synthetic evidence. It also proves the only valid mapping to the existing result
 
 This contract-only slice intentionally does not claim to verify runtime artifact SHA-256 values when
 the corresponding `provenance.json`, backtest ZIP, extraction JSON, or selection-decision file is not
-provided. Those exact-byte checks belong to the next binding implementation slice.
+provided. Those exact-byte checks belong to the binding implementation.
+
+## Provenance binding implementation
+
+`ai_platform.scripts.model_comparison_provenance_binding` consumes already-produced comparison
+artifacts and fails closed unless their exact file bytes and semantic identities match the canonical
+Phase 6 lineage. It verifies the canonical materialization bytes, each run-provenance file, each
+backtest ZIP, each strict-OOS extraction, and the selection-decision artifact before emitting
+`result-provenance-schema-v1.json` evidence.
+
+The binder also recomputes the deterministic predeclared selection decision from the two bound OOS
+extractions. The supplied decision must match that recomputed decision before its exact-byte SHA-256
+is accepted into provenance evidence.
+
+## Final comparison result assembler
+
+`ai_platform.scripts.model_comparison_result_assembler` consumes successfully bound provenance
+evidence together with the two strict-OOS extraction artifacts and the bound selection decision. It
+does not execute either model or backtest.
+
+Before emitting `result-schema-v1.json`, the assembler:
+
+- validates the bound provenance evidence;
+- verifies each supplied extraction's exact-byte SHA-256 against bound provenance;
+- verifies each extraction's model and experiment identity;
+- verifies the supplied selection-decision exact-byte SHA-256 against bound provenance;
+- recomputes the selection decision from the bound extraction payloads and requires exact semantic
+  equality;
+- maps `git_commit` and `plan_sha256` only through the canonical provenance binding;
+- copies metrics only from the validated strict-OOS extraction payloads;
+- records only the supplied extraction path in each model's `artifact_paths`;
+- validates the completed output against `result-schema-v1.json`.
+
+The assembled historical comparison result is evidence only. It does not authorize retuning,
+promotion, live trading, or a profitability claim.
 
 ## Final holdout isolation
 
@@ -297,17 +331,10 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 
 ## Next dependency
 
-The next smallest work package is **Provenance Binding Implementation v1**. It must consume actual
-artifact files without executing a model and verify every exact-byte hash required by
-`result-provenance-v1.json`:
+After the final result assembler is reviewed and merged, the next separate bounded work package is the
+actual historical LightGBM-versus-XGBoost comparison execution. That execution must use only the
+already-frozen materialized inputs and the consumed historical OOS path. Its artifacts must flow
+through strict-OOS extraction, predeclared selection, provenance binding, and final result assembly.
 
-1. bind each canonical materialized manifest/config hash to its run `provenance.json`;
-2. require both backtest run-provenance files to report the same execution commit and strategy hash;
-3. verify SHA-256 of each run-provenance file, backtest ZIP, and extraction artifact from actual bytes;
-4. verify each extraction's `source.archive_sha256` equals its bound backtest ZIP SHA-256;
-5. verify the selection-policy SHA-256 and future selection-decision SHA-256 from actual bytes;
-6. emit `result-provenance-schema-v1.json` evidence only after all bindings pass;
-7. keep final holdout use, retuning, promotion, and profitability claims forbidden.
-
-Only after that implementation is reviewed and merged should a final result assembler be added.
-Actual historical LightGBM-versus-XGBoost execution remains a later separate work package.
+The execution must not access `20260801-20260930`, change the frozen Phase 5.2 thresholds, retune model
+or strategy parameters, promote a model, authorize live trading, or make a profitability claim.

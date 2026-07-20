@@ -9,6 +9,7 @@
     "comparison_id",
     "status",
     "models",
+    "model_identities",
     "variable_under_test",
     "shared_experiment",
     "model_parameter_policy",
@@ -29,6 +30,48 @@
       "items": false,
       "minItems": 2,
       "maxItems": 2
+    },
+    "model_identities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["LightGBMRegressor", "XGBoostRegressor"],
+      "properties": {
+        "LightGBMRegressor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model_training_parameters"],
+          "properties": {
+            "model_training_parameters": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["n_estimators", "learning_rate", "num_leaves", "n_jobs"],
+              "properties": {
+                "n_estimators": {"type": "integer", "minimum": 1},
+                "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+                "num_leaves": {"type": "integer", "minimum": 2},
+                "n_jobs": {"type": "integer"}
+              }
+            }
+          }
+        },
+        "XGBoostRegressor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model_training_parameters"],
+          "properties": {
+            "model_training_parameters": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["n_estimators", "learning_rate", "n_jobs"],
+              "properties": {
+                "n_estimators": {"type": "integer", "minimum": 1},
+                "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+                "n_jobs": {"type": "integer"}
+              }
+            }
+          }
+        }
+      }
     },
     "variable_under_test": {"const": "freqai_model"},
     "shared_experiment": {

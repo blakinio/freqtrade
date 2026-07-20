@@ -20,6 +20,7 @@ EXPECTED_PRIMARY_METRICS = ["profit", "drawdown", "trades", "stability"]
 EXPECTED_PROTECTED_USAGE = (
     "forbidden_for_training_tuning_feature_selection_model_selection_model_comparison"
 )
+XGBOOST_SHARED_PARAMETER_KEYS = ("n_estimators", "learning_rate", "n_jobs")
 BASELINE_MANIFEST = REPO_ROOT / "ai_platform/experiments/baseline-v1.json"
 BASELINE_REGISTRY = REPO_ROOT / "ai_platform/registry/baseline-v1.json"
 BASELINE_CONFIG = REPO_ROOT / "ai_platform/configs/freqai-baseline.example.json"
@@ -121,6 +122,50 @@ def _validate_shared_baseline(shared: dict[str, Any]) -> dict[str, Any]:
             f"shared_experiment.{drifted[0]} drifted from the current baseline contract"
         )
     return baseline_config
+
+
+def _validate_model_identities(plan: dict[str, Any], baseline_config: dict[str, Any]) -> None:
+    identities = plan.get("model_identities")
+    if not isinstance(identities, dict) or set(identities) != set(EXPECTED_MODELS):
+        raise ModelComparisonContractError(
+            "model_identities must define exactly LightGBMRegressor and XGBoostRegressor"
+        )
+
+    freqai = baseline_config.get("freqai")
+    if not isinstance(freqai, dict):
+        raise ModelComparisonContractError("Baseline config is missing freqai settings")
+    baseline_parameters = freqai.get("model_training_parameters")
+    if not isinstance(baseline_parameters, dict):
+        raise ModelComparisonContractError("Baseline config is missing model_training_parameters")
+
+    lightgbm_identity = identities.get("LightGBMRegressor")
+    xgboost_identity = identities.get("XGBoostRegressor")
+    if not isinstance(lightgbm_identity, dict) or not isinstance(xgboost_identity, dict):
+        raise ModelComparisonContractError("Each model identity must be an object")
+
+    lightgbm_parameters = lightgbm_identity.get("model_training_parameters")
+    xgboost_parameters = xgboost_identity.get("model_training_parameters")
+    if not isinstance(lightgbm_parameters, dict) or not isinstance(xgboost_parameters, dict):
+        raise ModelComparisonContractError("Each model identity must pin model_training_parameters")
+    if lightgbm_parameters != baseline_parameters:
+        raise ModelComparisonContractError(
+            "LightGBMRegressor identity must match the current baseline model parameters"
+        )
+
+    missing_shared = [
+        key for key in XGBOOST_SHARED_PARAMETER_KEYS if key not in baseline_parameters
+    ]
+    if missing_shared:
+        raise ModelComparisonContractError(
+            f"Baseline model parameters are missing shared key {missing_shared[0]}"
+        )
+    expected_xgboost_parameters = {
+        key: baseline_parameters[key] for key in XGBOOST_SHARED_PARAMETER_KEYS
+    }
+    if xgboost_parameters != expected_xgboost_parameters:
+        raise ModelComparisonContractError(
+            "XGBoostRegressor identity must pin only the predeclared shared model parameters"
+        )
 
 
 def _validate_risk_baseline(
@@ -245,6 +290,7 @@ def load_model_comparison_contract(path: Path) -> dict[str, Any]:
     _validate_header(plan)
     shared = _load_shared_experiment(plan)
     baseline_config = _validate_shared_baseline(shared)
+    _validate_model_identities(plan, baseline_config)
     risk = _validate_risk_baseline(shared, baseline_config)
     protected_timerange = _validate_protected_holdout(plan, risk)
     _validate_selection_windows(shared, protected_timerange)

@@ -14,7 +14,9 @@ from ai_platform.scripts.model_comparison_contract import (
 
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_PATH = ROOT / "ai_platform" / "model_comparison" / "lightgbm-vs-xgboost-v1.json"
+CONTRACT_PATH = (
+    ROOT / "ai_platform" / "model_comparison" / "lightgbm-vs-xgboost-v1.json"
+)
 SCHEMA_PATH = ROOT / "ai_platform" / "model_comparison" / "schema-v1.json"
 RESULT_SCHEMA_PATH = ROOT / "ai_platform" / "model_comparison" / "result-schema-v1.json"
 
@@ -73,15 +75,23 @@ def test_model_comparison_rejects_protected_holdout_in_training(tmp_path: Path) 
     contract = _contract()
     contract["shared_experiment"]["training_window"] = "20260815-20260915"
 
-    with pytest.raises(ModelComparisonContractError, match="overlaps protected final holdout"):
+    with pytest.raises(
+        ModelComparisonContractError, match="overlaps protected final holdout"
+    ):
         load_model_comparison_contract(_write_contract(tmp_path, contract))
 
 
-def test_model_comparison_rejects_protected_holdout_in_historical_oos(tmp_path: Path) -> None:
+def test_model_comparison_rejects_protected_holdout_in_historical_oos(
+    tmp_path: Path,
+) -> None:
     contract = _contract()
-    contract["shared_experiment"]["historical_oos_windows"][0]["timerange"] = "20260901-20261031"
+    contract["shared_experiment"]["historical_oos_windows"][0]["timerange"] = (
+        "20260901-20261031"
+    )
 
-    with pytest.raises(ModelComparisonContractError, match="overlaps protected final holdout"):
+    with pytest.raises(
+        ModelComparisonContractError, match="overlaps protected final holdout"
+    ):
         load_model_comparison_contract(_write_contract(tmp_path, contract))
 
 
@@ -89,7 +99,9 @@ def test_model_comparison_rejects_model_set_drift(tmp_path: Path) -> None:
     contract = _contract()
     contract["models"] = ["LightGBMRegressor", "PyTorchMLPRegressor"]
 
-    with pytest.raises(ModelComparisonContractError, match="LightGBMRegressor vs XGBoostRegressor"):
+    with pytest.raises(
+        ModelComparisonContractError, match="LightGBMRegressor vs XGBoostRegressor"
+    ):
         load_model_comparison_contract(_write_contract(tmp_path, contract))
 
 
@@ -99,13 +111,19 @@ def test_model_comparison_rejects_lightgbm_parameter_drift(tmp_path: Path) -> No
         "learning_rate"
     ] = 0.04
 
-    with pytest.raises(ModelComparisonContractError, match="LightGBMRegressor identity"):
+    with pytest.raises(
+        ModelComparisonContractError, match="LightGBMRegressor identity"
+    ):
         load_model_comparison_contract(_write_contract(tmp_path, contract))
 
 
-def test_model_comparison_rejects_lightgbm_only_parameter_in_xgboost(tmp_path: Path) -> None:
+def test_model_comparison_rejects_lightgbm_only_parameter_in_xgboost(
+    tmp_path: Path,
+) -> None:
     contract = _contract()
-    contract["model_identities"]["XGBoostRegressor"]["model_training_parameters"]["num_leaves"] = 31
+    contract["model_identities"]["XGBoostRegressor"]["model_training_parameters"][
+        "num_leaves"
+    ] = 31
 
     with pytest.raises(ModelComparisonContractError, match="XGBoostRegressor identity"):
         load_model_comparison_contract(_write_contract(tmp_path, contract))
@@ -113,13 +131,19 @@ def test_model_comparison_rejects_lightgbm_only_parameter_in_xgboost(tmp_path: P
 
 def test_model_comparison_rejects_frozen_threshold_drift(tmp_path: Path) -> None:
     contract = _contract()
-    contract["shared_experiment"]["risk_assumptions"]["exit_prediction_threshold"] = -0.008
+    contract["shared_experiment"]["risk_assumptions"][
+        "exit_prediction_threshold"
+    ] = -0.008
 
-    with pytest.raises(ModelComparisonContractError, match="drifted from the frozen candidate"):
+    with pytest.raises(
+        ModelComparisonContractError, match="drifted from the frozen candidate"
+    ):
         load_model_comparison_contract(_write_contract(tmp_path, contract))
 
 
-def test_result_contract_forbids_final_holdout_promotion_and_profitability_claims() -> None:
+def test_result_contract_forbids_final_holdout_promotion_and_profitability_claims() -> (
+    None
+):
     schema = json.loads(RESULT_SCHEMA_PATH.read_text(encoding="utf-8"))
     result: dict[str, Any] = {
         "schema_version": 1,
@@ -137,7 +161,9 @@ def test_result_contract_forbids_final_holdout_promotion_and_profitability_claim
                     "trades": 20,
                     "stability": 0.5,
                 },
-                "artifact_paths": ["ai_platform/artifacts/model-comparison/lightgbm.json"],
+                "artifact_paths": [
+                    "ai_platform/artifacts/model-comparison/lightgbm.json"
+                ],
             },
             {
                 "model_type": "XGBoostRegressor",
@@ -148,7 +174,9 @@ def test_result_contract_forbids_final_holdout_promotion_and_profitability_claim
                     "trades": 21,
                     "stability": 0.6,
                 },
-                "artifact_paths": ["ai_platform/artifacts/model-comparison/xgboost.json"],
+                "artifact_paths": [
+                    "ai_platform/artifacts/model-comparison/xgboost.json"
+                ],
             },
         ],
         "selection": {

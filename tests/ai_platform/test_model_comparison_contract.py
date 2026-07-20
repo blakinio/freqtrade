@@ -61,9 +61,7 @@ def test_model_comparison_rejects_protected_holdout_in_training(tmp_path: Path) 
 
 def test_model_comparison_rejects_protected_holdout_in_historical_oos(tmp_path: Path) -> None:
     contract = _contract()
-    contract["shared_experiment"]["historical_oos_windows"][0]["timerange"] = (
-        "20260901-20261031"
-    )
+    contract["shared_experiment"]["historical_oos_windows"][0]["timerange"] = "20260901-20261031"
 
     with pytest.raises(ModelComparisonContractError, match="overlaps protected final holdout"):
         load_model_comparison_contract(_write_contract(tmp_path, contract))

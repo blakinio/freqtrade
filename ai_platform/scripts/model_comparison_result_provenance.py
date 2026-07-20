@@ -27,11 +27,74 @@ DEFAULT_COMPARISON = REPO_ROOT / "ai_platform/model_comparison/lightgbm-vs-xgboo
 CANONICAL_MATERIALIZATION_ROOT = "ai_platform/artifacts/model-comparison/materialized"
 EXPECTED_CONTRACT_ID = "freqai-model-comparison-result-provenance-v1"
 EXPECTED_MODELS = ["LightGBMRegressor", "XGBoostRegressor"]
+EXPECTED_PATHS = {
+    "comparison_contract": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+    "selection_policy": "ai_platform/model_comparison/selection-policy-v1.json",
+    "selection_decision_schema": "ai_platform/model_comparison/selection-decision-schema-v1.json",
+    "extraction_schema": "ai_platform/model_comparison/oos-extraction-schema-v1.json",
+}
 EXPECTED_AUTHORIZATION = {
     "final_holdout_used": False,
     "retuning_allowed": False,
     "promotion_allowed": False,
     "profitability_claim_allowed": False,
+}
+EXPECTED_MATERIALIZATION = {
+    "filename": "materialization.json",
+    "digest_algorithm": "sha256",
+    "digest_scope": "exact_file_bytes",
+    "result_field": "plan_sha256",
+    "required_model_bindings": [
+        "model_type",
+        "experiment_identity",
+        "manifest_sha256",
+        "config_sha256",
+    ],
+}
+EXPECTED_EXECUTION = {
+    "run_provenance_filename": "provenance.json",
+    "run_provenance_digest_algorithm": "sha256",
+    "run_provenance_digest_scope": "exact_file_bytes",
+    "required_stage": "backtest",
+    "result_field": "git_commit",
+    "result_field_semantics": "shared_model_execution_commit",
+    "same_execution_git_commit_required": True,
+    "required_run_provenance_fields": [
+        "stage",
+        "git_commit",
+        "manifest_sha256",
+        "config_sha256",
+        "strategy_sha256",
+    ],
+    "manifest_sha256_must_match_materialization": True,
+    "config_sha256_must_match_materialization": True,
+    "strategy_sha256_must_match_between_models": True,
+}
+EXPECTED_EXTRACTION = {
+    "one_extraction_per_model_required": True,
+    "backtest_archive_digest_algorithm": "sha256",
+    "backtest_archive_digest_scope": "exact_file_bytes",
+    "archive_sha256_source_field": "source.archive_sha256",
+    "extraction_artifact_digest_algorithm": "sha256",
+    "extraction_artifact_digest_scope": "exact_file_bytes",
+    "extraction_artifact_sha256_required": True,
+    "archive_sha256_must_match_bound_backtest_archive": True,
+}
+EXPECTED_SELECTION = {
+    "selection_policy_digest_algorithm": "sha256",
+    "selection_policy_digest_scope": "exact_file_bytes",
+    "selection_policy_sha256_required": True,
+    "selection_decision_digest_algorithm": "sha256",
+    "selection_decision_digest_scope": "exact_file_bytes",
+    "selection_decision_sha256_required": True,
+    "selection_decision_must_use_bound_extractions": True,
+}
+EXPECTED_RESULT_BINDING = {
+    "git_commit_must_equal_shared_execution_commit": True,
+    "plan_sha256_must_equal_materialization_plan_sha256": True,
+    "model_result_identity_must_match_bound_source": True,
+    "mixed_execution_commits_forbidden": True,
+    "mixed_materialization_plans_forbidden": True,
 }
 
 
@@ -72,6 +135,15 @@ def _sha256_bytes(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def _sha256_file(path: Path, label: str) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ModelComparisonResultProvenanceError(
+            f"Unable to hash {label} {path}: {exc}"
+        ) from exc
+
+
 def build_canonical_materialization_plan() -> dict[str, Any]:
     """Rebuild the exact materialization.json payload produced by the Phase 6 harness."""
     materialization = build_materialization(
@@ -88,7 +160,7 @@ def build_canonical_materialization_plan() -> dict[str, Any]:
 
 
 def canonical_provenance_basis() -> dict[str, Any]:
-    """Return deterministic plan and per-model hashes required by provenance validation."""
+    """Return deterministic plan and tracked-policy hashes required by provenance validation."""
     plan = build_canonical_materialization_plan()
     models = {
         model["model_type"]: {
@@ -98,9 +170,11 @@ def canonical_provenance_basis() -> dict[str, Any]:
         }
         for model in plan["models"]
     }
+    selection_policy_path = REPO_ROOT / EXPECTED_PATHS["selection_policy"]
     return {
         "comparison_id": plan["comparison_id"],
         "materialization_plan_sha256": _sha256_bytes(_json_file_bytes(plan)),
+        "selection_policy_sha256": _sha256_file(selection_policy_path, "selection policy"),
         "models": models,
     }
 
@@ -112,45 +186,25 @@ def _validate_contract_semantics(contract: dict[str, Any]) -> None:
         )
     if contract.get("provenance_contract_id") != EXPECTED_CONTRACT_ID:
         raise ModelComparisonResultProvenanceError("Unexpected provenance_contract_id")
-    if contract.get("authorization") != EXPECTED_AUTHORIZATION:
-        raise ModelComparisonResultProvenanceError(
-            "Result provenance cannot authorize holdout use, retuning, promotion, or claims"
-        )
+    for field, expected in EXPECTED_PATHS.items():
+        if contract.get(field) != expected:
+            raise ModelComparisonResultProvenanceError(
+                f"Result provenance contract path drifted for {field}"
+            )
 
-    materialization = contract.get("materialization")
-    if materialization != {
-        "filename": "materialization.json",
-        "digest_algorithm": "sha256",
-        "digest_scope": "exact_file_bytes",
-        "result_field": "plan_sha256",
-        "required_model_bindings": [
-            "model_type",
-            "experiment_identity",
-            "manifest_sha256",
-            "config_sha256",
-        ],
-    }:
-        raise ModelComparisonResultProvenanceError("Materialization provenance semantics drifted")
-
-    execution = contract.get("execution")
-    if execution != {
-        "run_provenance_filename": "provenance.json",
-        "required_stage": "backtest",
-        "result_field": "git_commit",
-        "result_field_semantics": "shared_model_execution_commit",
-        "same_execution_git_commit_required": True,
-        "required_run_provenance_fields": [
-            "stage",
-            "git_commit",
-            "manifest_sha256",
-            "config_sha256",
-            "strategy_sha256",
-        ],
-        "manifest_sha256_must_match_materialization": True,
-        "config_sha256_must_match_materialization": True,
-        "strategy_sha256_must_match_between_models": True,
-    }:
-        raise ModelComparisonResultProvenanceError("Execution provenance semantics drifted")
+    expected_sections = {
+        "materialization": EXPECTED_MATERIALIZATION,
+        "execution": EXPECTED_EXECUTION,
+        "extraction": EXPECTED_EXTRACTION,
+        "selection": EXPECTED_SELECTION,
+        "result_binding": EXPECTED_RESULT_BINDING,
+        "authorization": EXPECTED_AUTHORIZATION,
+    }
+    for section, expected in expected_sections.items():
+        if contract.get(section) != expected:
+            raise ModelComparisonResultProvenanceError(
+                f"Result provenance contract semantics drifted for {section}"
+            )
 
 
 def load_model_comparison_result_provenance_contract(
@@ -159,20 +213,20 @@ def load_model_comparison_result_provenance_contract(
     contract = _read_json(path.resolve(), "model comparison result provenance contract")
     _validate_contract_semantics(contract)
     load_model_comparison_contract(
-        _resolve_repo_path(contract.get("comparison_contract"), "comparison_contract")
+        _resolve_repo_path(contract["comparison_contract"], "comparison_contract")
     )
     load_model_comparison_selection_policy(
-        _resolve_repo_path(contract.get("selection_policy"), "selection_policy")
+        _resolve_repo_path(contract["selection_policy"], "selection_policy")
     )
     _read_json(
         _resolve_repo_path(
-            contract.get("selection_decision_schema"),
+            contract["selection_decision_schema"],
             "selection_decision_schema",
         ),
         "selection decision schema",
     )
     _read_json(
-        _resolve_repo_path(contract.get("extraction_schema"), "extraction_schema"),
+        _resolve_repo_path(contract["extraction_schema"], "extraction_schema"),
         "OOS extraction schema",
     )
     return contract
@@ -247,6 +301,10 @@ def validate_model_comparison_result_provenance(
     if evidence["materialization_plan_sha256"] != basis["materialization_plan_sha256"]:
         raise ModelComparisonResultProvenanceError(
             "Materialization plan hash does not match canonical exact-file bytes"
+        )
+    if evidence["selection_policy_sha256"] != basis["selection_policy_sha256"]:
+        raise ModelComparisonResultProvenanceError(
+            "Selection policy hash does not match tracked exact-file bytes"
         )
     _validate_model_sources(evidence, basis)
     return evidence

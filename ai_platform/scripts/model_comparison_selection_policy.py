@@ -43,8 +43,7 @@ EXPECTED_GATE_PROVENANCE = {
     "minimum_profit": "gates.minimum_holdout_profit",
     "maximum_drawdown": "gates.maximum_holdout_drawdown",
     "minimum_stability": (
-        "gates.minimum_profitable_folds / "
-        "metric_semantics.metrics.stability.evaluated_folds"
+        "gates.minimum_profitable_folds / metric_semantics.metrics.stability.evaluated_folds"
     ),
 }
 
@@ -57,9 +56,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ModelComparisonSelectionPolicyError(
-            f"Unable to read {label} {path}: {exc}"
-        ) from exc
+        raise ModelComparisonSelectionPolicyError(f"Unable to read {label} {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ModelComparisonSelectionPolicyError(f"{label} must contain a JSON object")
     return payload
@@ -67,9 +64,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 
 def _resolve_repo_path(value: Any, label: str) -> Path:
     if not isinstance(value, str) or not value:
-        raise ModelComparisonSelectionPolicyError(
-            f"{label} must be a repository-relative path"
-        )
+        raise ModelComparisonSelectionPolicyError(f"{label} must be a repository-relative path")
     candidate = (REPO_ROOT / value).resolve()
     try:
         candidate.relative_to(REPO_ROOT)
@@ -90,9 +85,7 @@ def _expected_gate_values(
     stability = metric_semantics["metrics"]["stability"]
     evaluated_folds = stability["evaluated_folds"]
     if not isinstance(evaluated_folds, int) or evaluated_folds <= 0:
-        raise ModelComparisonSelectionPolicyError(
-            "Stability evaluated_folds must be positive"
-        )
+        raise ModelComparisonSelectionPolicyError("Stability evaluated_folds must be positive")
     return {
         "minimum_trades": gates["minimum_holdout_trades"],
         "minimum_profit": gates["minimum_holdout_profit"],
@@ -112,16 +105,12 @@ def _validate_policy_semantics(
         "incumbent": "LightGBMRegressor",
         "challenger": "XGBoostRegressor",
     }:
-        raise ModelComparisonSelectionPolicyError(
-            "Unexpected incumbent/challenger model identity"
-        )
+        raise ModelComparisonSelectionPolicyError("Unexpected incumbent/challenger model identity")
     if comparison.get("models") != EXPECTED_MODELS:
         raise ModelComparisonSelectionPolicyError(
             "Comparison model set drifted from selection policy"
         )
-    if baseline_plan.get("holdout", {}).get("timerange") != boundary["scoring_window"][
-        "timerange"
-    ]:
+    if baseline_plan.get("holdout", {}).get("timerange") != boundary["scoring_window"]["timerange"]:
         raise ModelComparisonSelectionPolicyError(
             "Baseline holdout gates must refer to the same consumed historical OOS scoring window"
         )
@@ -152,9 +141,7 @@ def _validate_policy_semantics(
     }:
         raise ModelComparisonSelectionPolicyError("Selection decision rule drifted")
     if policy.get("shared_evidence_requirements") != EXPECTED_SHARED_EVIDENCE:
-        raise ModelComparisonSelectionPolicyError(
-            "Selection shared-evidence requirements drifted"
-        )
+        raise ModelComparisonSelectionPolicyError("Selection shared-evidence requirements drifted")
     if policy.get("authorization") != EXPECTED_AUTHORIZATION:
         raise ModelComparisonSelectionPolicyError(
             "Selection policy cannot authorize holdout use, retuning, promotion, or claims"
@@ -210,8 +197,7 @@ def _canonical_experiment_identities(policy: dict[str, Any]) -> dict[str, str]:
         output_root=CANONICAL_MATERIALIZATION_ROOT,
     )
     return {
-        model["model_type"]: model["experiment_identity"]
-        for model in materialization["models"]
+        model["model_type"]: model["experiment_identity"] for model in materialization["models"]
     }
 
 
@@ -377,8 +363,7 @@ def evaluate_model_selection(
     by_model = _validate_extractions(policy, extractions)
     gates = policy["eligibility_gates"]
     eligibility = {
-        model: _eligibility_evidence(by_model[model], gates)
-        for model in EXPECTED_MODELS
+        model: _eligibility_evidence(by_model[model], gates) for model in EXPECTED_MODELS
     }
     eligible_models = [model for model in EXPECTED_MODELS if eligibility[model]["eligible"]]
 

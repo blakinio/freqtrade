@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/model-comparison/selection-policy-schema-v1.json",
+  "title": "AI Platform model comparison selection policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "selection_policy_id",
+    "comparison_contract",
+    "metric_semantics",
+    "oos_trade_boundary",
+    "extraction_schema",
+    "baseline_validation_plan",
+    "models",
+    "eligibility_gates",
+    "objectives",
+    "decision_rule",
+    "shared_evidence_requirements",
+    "authorization"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "selection_policy_id": {"const": "freqai-model-comparison-selection-v1"},
+    "comparison_contract": {"const": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json"},
+    "metric_semantics": {"const": "ai_platform/model_comparison/metric-semantics-v1.json"},
+    "oos_trade_boundary": {"const": "ai_platform/model_comparison/oos-trade-boundary-v1.json"},
+    "extraction_schema": {"const": "ai_platform/model_comparison/oos-extraction-schema-v1.json"},
+    "baseline_validation_plan": {"const": "ai_platform/validation/baseline-validation-v1.json"},
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["incumbent", "challenger"],
+      "properties": {
+        "incumbent": {"const": "LightGBMRegressor"},
+        "challenger": {"const": "XGBoostRegressor"}
+      }
+    },
+    "eligibility_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_trades",
+        "minimum_profit",
+        "maximum_drawdown",
+        "minimum_stability",
+        "provenance"
+      ],
+      "properties": {
+        "minimum_trades": {"const": 10},
+        "minimum_profit": {"const": 0.0},
+        "maximum_drawdown": {"const": 0.25},
+        "minimum_stability": {"const": 0.5},
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minimum_trades",
+            "minimum_profit",
+            "maximum_drawdown",
+            "minimum_stability"
+          ],
+          "properties": {
+            "minimum_trades": {"const": "gates.minimum_holdout_trades"},
+            "minimum_profit": {"const": "gates.minimum_holdout_profit"},
+            "maximum_drawdown": {"const": "gates.maximum_holdout_drawdown"},
+            "minimum_stability": {
+              "const": "gates.minimum_profitable_folds / metric_semantics.metrics.stability.evaluated_folds"
+            }
+          }
+        }
+      }
+    },
+    "objectives": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profit", "drawdown", "stability", "trades"],
+      "properties": {
+        "profit": {"const": "maximize"},
+        "drawdown": {"const": "minimize"},
+        "stability": {"const": "maximize"},
+        "trades": {"const": "eligibility_only"}
+      }
+    },
+    "decision_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "strict_pareto_metrics",
+        "one_eligible",
+        "both_ineligible",
+        "both_eligible_and_one_strictly_dominates",
+        "both_eligible_no_strict_dominance",
+        "exact_tie"
+      ],
+      "properties": {
+        "policy": {"const": "eligibility_then_strict_pareto"},
+        "strict_pareto_metrics": {"const": ["profit", "drawdown", "stability"]},
+        "one_eligible": {"const": "select_eligible"},
+        "both_ineligible": {"const": "select_null"},
+        "both_eligible_and_one_strictly_dominates": {"const": "select_dominant"},
+        "both_eligible_no_strict_dominance": {"const": "select_null"},
+        "exact_tie": {"const": "select_null"}
+      }
+    },
+    "shared_evidence_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exact_models_required",
+        "canonical_experiment_identity_required",
+        "same_starting_balance_required",
+        "same_scoring_window_required",
+        "same_metric_semantics_required",
+        "same_oos_trade_boundary_required"
+      ],
+      "properties": {
+        "exact_models_required": {"const": true},
+        "canonical_experiment_identity_required": {"const": true},
+        "same_starting_balance_required": {"const": true},
+        "same_scoring_window_required": {"const": true},
+        "same_metric_semantics_required": {"const": true},
+        "same_oos_trade_boundary_required": {"const": true}
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "final_holdout_used",
+        "retuning_allowed",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "final_holdout_used": {"const": false},
+        "retuning_allowed": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    }
+  }
+}

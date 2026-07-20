@@ -125,9 +125,7 @@ def _temporal_geometry(
         "training_window": shared["training_window"],
         "tuning_window": shared["tuning_window"],
         "scoring_window": historical_window["timerange"],
-        "prediction_window": (
-            f"{tuning_start.strftime('%Y%m%d')}-{oos_end.strftime('%Y%m%d')}"
-        ),
+        "prediction_window": (f"{tuning_start.strftime('%Y%m%d')}-{oos_end.strftime('%Y%m%d')}"),
         "train_period_days": train_period_days,
         "backtest_period_days": prediction_period_days,
         "download_timerange": download_timerange,

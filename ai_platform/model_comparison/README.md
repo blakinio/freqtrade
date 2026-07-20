@@ -67,6 +67,35 @@ python -m ai_platform.scripts.model_comparison_harness \
 The default output is under `ai_platform/artifacts/model-comparison/materialized/` and is not a
 completed comparison result. Materialization does not invoke `freqtrade` or any subprocess.
 
+## OOS trade boundary
+
+`oos-trade-boundary-v1.json` defines the exact trade-level boundary for future model-comparison
+scoring. Freqtrade's standard periodic reporting realizes profit by `close_date`, but using only the
+close timestamp is too permissive for this model-selection task: a trade opened in April and closed
+in May would have been initiated during tuning-period prediction coverage.
+
+The Phase 6 OOS boundary is therefore stricter:
+
+- scoring window: `20260501-20260630`;
+- UTC start is inclusive: `2026-05-01T00:00:00Z`;
+- UTC end is exclusive: `2026-07-01T00:00:00Z`;
+- only closed trades with `open_date >= start_inclusive` and `close_date < end_exclusive` are eligible;
+- trades opened before the OOS start are excluded and counted;
+- trades closing after the OOS end are excluded and counted;
+- `force_exit` trades fully contained in the scoring window are included and counted;
+- missing or invalid timestamps fail closed;
+- all future metrics must use included trades only and preserve original timestamps as evidence.
+
+This fully-contained-trade rule prevents an entry decision made during the tuning period from
+contributing to the consumed historical OOS model-selection score.
+
+Validate the boundary contract without reading a backtest archive or executing research:
+
+```bash
+python -m ai_platform.scripts.oos_trade_boundary_contract \
+  ai_platform/model_comparison/oos-trade-boundary-v1.json
+```
+
 ## Final holdout isolation
 
 The prospectively declared final holdout v2 remains:
@@ -88,7 +117,7 @@ after its prospective window is complete. Model-comparison results must always r
 
 ## Validation
 
-Validate the semantic contract without running market research:
+Validate the semantic comparison contract without running market research:
 
 ```bash
 python -m ai_platform.scripts.model_comparison_contract \
@@ -101,15 +130,17 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 
 ## Next dependency
 
-The next separate work package may execute the two materialized single-training prediction manifests,
-then calculate model-comparison metrics only from the consumed historical OOS scoring window and
-assemble a result conforming to `result-schema-v1.json`. That execution must:
+The next smallest work package is an OOS result extractor that reads an already-produced backtest
+archive and applies `oos-trade-boundary-v1.json` before calculating model-comparison metrics. It must:
 
-1. use only the already-pinned model identities;
-2. keep one frozen Dec-Feb training window per model with no sliding retraining into OOS;
-3. perform no joint tuning or feature changes;
-4. use the same prediction and scoring windows for both models;
-5. keep `final_holdout_used: false`;
-6. refuse any overlap with `20260801-20260930` through the central protected-holdout guard;
-7. make no promotion or profitability claim;
-8. never represent `20260501-20260630` as unseen final evidence.
+1. validate the source archive and expected strategy/model identity;
+2. apply the fully-contained closed-trade rule exactly;
+3. emit counts for excluded pre-window opens, excluded post-window closes, and included force exits;
+4. preserve original trade timestamps as audit evidence;
+5. compute metrics only from included trades;
+6. define the currently underspecified `stability` metric before selection logic consumes it;
+7. keep `final_holdout_used: false` and refuse any final-holdout overlap;
+8. make no promotion or profitability claim.
+
+Actual LightGBM-versus-XGBoost execution remains a later separate work package. The extractor and its
+metric semantics must be reviewable before historical model outputs are used for selection.

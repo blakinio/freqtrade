@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from freqtrade.strategy import IStrategy
 from pandas import DataFrame
 
 from ai_platform.research.tradingview.signals import (
@@ -7,7 +8,6 @@ from ai_platform.research.tradingview.signals import (
     add_donchian_signals,
     add_supertrend_signals,
 )
-from freqtrade.strategy import IStrategy
 
 
 class TVDonchianBreakoutStrategy(IStrategy):

@@ -16,7 +16,6 @@ from ai_platform.scripts.protected_final_holdout import (
     timeranges_overlap,
 )
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_BOUNDARY_ID = "freqai-model-comparison-oos-trade-boundary-v1"
 EXPECTED_COMPARISON_CONTRACT = "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json"
@@ -185,7 +184,8 @@ def _validate_authorization(boundary: dict[str, Any]) -> None:
     }
     if boundary.get("authorization") != expected:
         raise OosTradeBoundaryContractError(
-            "OOS boundary cannot authorize holdout use, retuning, promotion, or profitability claims"
+            "OOS boundary cannot authorize holdout use, retuning, promotion, or "
+            "profitability claims"
         )
 
 

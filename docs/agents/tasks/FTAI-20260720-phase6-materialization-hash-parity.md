@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260720-phase6-materialization-hash-parity
-status: implementing
+status: done
 branch: fix/phase6-materialization-exact-byte-hashes
 base_branch: develop
 created: 2026-07-20
@@ -35,11 +35,11 @@ Make materialized config and manifest SHA-256 values match the exact bytes writt
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-20T22:30:00Z
-head: d91a144573ed6aed52a28a937596fc4c6b88b674
-branch: fix/phase6-materialization-exact-byte-hashes
-pr: "#57 open"
-status: implementing
+updated_at: 2026-07-20T22:40:01Z
+head: 9b4098ea355823df2a398ef49d0e111981639cda
+branch: develop
+pr: "#57 merged"
+status: done
 context_routes:
   - ai_platform/scripts/model_comparison_harness.py
   - ai_platform/scripts/run_experiment.py
@@ -51,46 +51,49 @@ owned_paths:
   - docs/ai_platform/PHASE6_MATERIALIZATION_HASH_PARITY.md
   - docs/agents/tasks/FTAI-20260720-phase6-materialization-hash-parity.md
 proven:
+  - Phase 6 materialization exact-byte hash parity was squash-merged by PR #57 into develop as 9b4098ea355823df2a398ef49d0e111981639cda.
   - The previous harness calculated materialized config and manifest hashes from compact canonical JSON while writing indented sorted JSON with a trailing newline.
   - run_experiment hashes exact on-disk config and manifest bytes for run provenance.
   - Result provenance requires runtime manifest/config hashes to equal the corresponding canonical materialization hashes.
-  - Therefore a real comparison executed before this fix would fail provenance binding despite semantically identical JSON.
-  - The fix leaves compact canonical hashing in place for model identity derivation and changes only materialized file digests to the deterministic exact bytes actually written.
-  - No real Phase 6 historical comparison artifacts or completed comparison evidence existed on develop before this correction.
-  - The first PR #54 head 864286714e29ca14b5905397e34cc7c5fce9d59c passed AI Platform CI #222, zizmor #210, and Freqtrade CI #231.
-  - While those checks ran, develop advanced through PR #52 and checkpoint PR #56 to 9d60cb6391d881d4f534d6dd051d2a93c63a88b3; their paths are isolated PyTorch/RL research foundation work and do not overlap this task.
-  - PR #54 became non-mergeable on its stale base. Resetting its head to current develop automatically closed #54; the same four scoped changes were reapplied and replacement PR #57 was opened from current develop.
-  - Protected final holdout 20260801-20260930 is not accessed; frozen thresholds remain entry_prediction_threshold=0.006 and exit_prediction_threshold=-0.009.
+  - The merged fix leaves compact canonical hashing in place for model identity derivation and uses one deterministic exact-byte serializer for both written materialized files and their recorded SHA-256 values.
+  - The regression test writes each generated config and manifest through the harness serializer, hashes the resulting file bytes independently, and requires equality with materialization config_sha256 and manifest_sha256.
+  - No real Phase 6 historical comparison artifacts or completed comparison evidence existed before this correction.
+  - Original PR #54 was automatically closed when its head was reset to incorporate concurrently merged non-overlapping PR #52 and checkpoint PR #56; the same scoped changes were reapplied on current develop and merged through replacement PR #57.
+  - Replacement PR #57 head 4365179158501247c06d7281363a9f1f6f164086 passed AI Platform CI #236, zizmor #226, and Freqtrade CI #247; Pre-commit Types #182 was skipped rather than failed.
+  - Protected final holdout 20260801-20260930 was not accessed; frozen thresholds remain entry_prediction_threshold=0.006 and exit_prediction_threshold=-0.009.
 derived:
-  - The canonical materialization plan SHA-256 and per-model config/manifest SHA-256 values will change after this correction, which is necessary before first real execution and does not invalidate any real Phase 6 result because none exists yet.
-unknown:
-  - CI outcome for replacement PR #57 against current develop.
+  - Phase 6 can now build materialized config and manifest hashes that are compatible with the exact-byte provenance emitted by run_experiment.
+  - The next bounded dependency is one-shot historical comparison execution workflow infrastructure, not the actual comparison trigger itself.
+unknown: []
 conflicts: []
 first_failure:
   marker: pre-execution-provenance-hash-mismatch
-  evidence: Static lifecycle review showed harness materialization digests and run_experiment provenance digests used different byte representations for the same JSON files.
+  evidence: Static lifecycle review showed harness materialization digests and run_experiment provenance digests used different byte representations for the same JSON files before PR #57.
 rejected_hypotheses:
-  - The existing materialization hashes already represented exact written config and manifest file bytes.
+  - The previous materialization hashes already represented exact written config and manifest file bytes.
   - The actual historical LightGBM-versus-XGBoost comparison could safely run before correcting materialization digest semantics.
-  - PR #52 or #56 modified any path owned by this hash-parity fix.
+  - Concurrent PR #52 or checkpoint PR #56 modified any path owned by this hash-parity fix.
 changed_paths:
   - ai_platform/scripts/model_comparison_harness.py
   - tests/ai_platform/test_model_comparison_harness.py
   - docs/ai_platform/PHASE6_MATERIALIZATION_HASH_PARITY.md
   - docs/agents/tasks/FTAI-20260720-phase6-materialization-hash-parity.md
 validation:
-  - command: GitHub Actions AI Platform CI #222 on pre-update head
+  - command: GitHub Actions AI Platform CI #236
     result: PASS
-    evidence: AI Platform CI completed successfully before the base advanced.
-  - command: GitHub Actions Security Analysis with zizmor #210 on pre-update head
+    evidence: replacement PR #57 completed AI Platform CI successfully on current develop base.
+  - command: GitHub Actions Security Analysis with zizmor #226
     result: PASS
     evidence: workflow completed with conclusion success.
-  - command: GitHub Actions Freqtrade CI #231 on pre-update head
+  - command: GitHub Actions Freqtrade CI #247
     result: PASS
     evidence: workflow completed with conclusion success, including Ubuntu Python 3.12 coverage.
+  - command: Pre-commit Types update #182
+    result: SKIPPED
+    evidence: workflow was skipped, not failed.
   - command: local clone/test
     result: BLOCKED
-    evidence: Sandbox has no repository clone and cannot resolve github.com; executable validation uses GitHub Actions.
+    evidence: Sandbox has no repository clone and cannot resolve github.com; executable validation used GitHub Actions.
 blockers: []
-next_action: Validate replacement PR #57 against current develop with required GitHub Actions checks. Fix any concrete CI failure before merge. After merge, close this checkpoint and only then continue toward a separate Phase 6 one-shot historical comparison execution workflow.
+next_action: Create the next bounded Phase 6 task for one-shot historical LightGBM-versus-XGBoost comparison execution workflow infrastructure. The workflow must validate an exact run request and frozen contract before market-data access, materialize only historical inputs ending 20260630, execute both model backtests at the same checked-out commit, and chain strict-OOS extraction, deterministic selection, provenance binding, and final result assembly. The actual comparison trigger must be a separate run-request PR after the workflow infrastructure is merged. It must not access 20260801-20260930, retune thresholds or model parameters, promote a model, authorize live trading, or make a profitability claim.
 ```

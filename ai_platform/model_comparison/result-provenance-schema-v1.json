@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/model-comparison/result-provenance-schema-v1.json",
+  "title": "AI Platform model comparison result provenance v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "provenance_contract_id", "comparison_id", "materialization_plan_sha256", "execution_git_commit", "selection_policy_sha256", "selection_decision_sha256", "model_sources"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "provenance_contract_id": {"const": "freqai-model-comparison-result-provenance-v1"},
+    "comparison_id": {"const": "freqai-lightgbm-vs-xgboost-v1"},
+    "materialization_plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "execution_git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "selection_policy_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "selection_decision_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model_sources": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {"$ref": "#/$defs/modelSource"}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "runProvenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["stage", "git_commit", "manifest_sha256", "config_sha256", "strategy_sha256"],
+      "properties": {
+        "stage": {"const": "backtest"},
+        "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "config_sha256": {"$ref": "#/$defs/sha256"},
+        "strategy_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "modelSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_type", "experiment_identity", "materialized_manifest_sha256", "materialized_config_sha256", "run_provenance_sha256", "run_provenance", "backtest_archive_sha256", "extraction_sha256"],
+      "properties": {
+        "model_type": {"enum": ["LightGBMRegressor", "XGBoostRegressor"]},
+        "experiment_identity": {"type": "string", "minLength": 1},
+        "materialized_manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "materialized_config_sha256": {"$ref": "#/$defs/sha256"},
+        "run_provenance_sha256": {"$ref": "#/$defs/sha256"},
+        "run_provenance": {"$ref": "#/$defs/runProvenance"},
+        "backtest_archive_sha256": {"$ref": "#/$defs/sha256"},
+        "extraction_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    }
+  }
+}

@@ -20,8 +20,9 @@ def rolling_vwap(dataframe: DataFrame, periods: int) -> Series:
 
     typical_price = (dataframe["high"] + dataframe["low"] + dataframe["close"]) / 3.0
     weighted_price = typical_price * dataframe["volume"]
+    weighted_sum = weighted_price.rolling(periods, min_periods=periods).sum()
     volume_sum = dataframe["volume"].rolling(periods, min_periods=periods).sum()
-    return weighted_price.rolling(periods, min_periods=periods).sum() / volume_sum.replace(0, np.nan)
+    return weighted_sum / volume_sum.replace(0, np.nan)
 
 
 def add_wickhunter_vwap_gates(

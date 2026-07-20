@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/model-comparison/result-schema-v1.json",
+  "title": "AI Platform model comparison result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "comparison_id",
+    "status",
+    "git_commit",
+    "plan_sha256",
+    "model_results",
+    "selection"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "comparison_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "status": {"enum": ["completed", "failed"]},
+    "git_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "plan_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "model_results": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["model_type", "experiment_identity", "metrics", "artifact_paths"],
+        "properties": {
+          "model_type": {"enum": ["LightGBMRegressor", "XGBoostRegressor"]},
+          "experiment_identity": {"type": "string", "minLength": 1},
+          "metrics": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["profit", "drawdown", "trades", "stability"],
+            "properties": {
+              "profit": {"type": "number"},
+              "drawdown": {"type": "number"},
+              "trades": {"type": "integer", "minimum": 0},
+              "stability": {"type": "number"}
+            }
+          },
+          "artifact_paths": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selected_model",
+        "basis",
+        "final_holdout_used",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "selected_model": {
+          "enum": [null, "LightGBMRegressor", "XGBoostRegressor"]
+        },
+        "basis": {"type": "string", "minLength": 1},
+        "final_holdout_used": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    }
+  }
+}

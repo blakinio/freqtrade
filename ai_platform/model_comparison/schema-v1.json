@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/model-comparison/schema-v1.json",
+  "title": "AI Platform model comparison contract v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "comparison_id",
+    "status",
+    "models",
+    "variable_under_test",
+    "shared_experiment",
+    "model_parameter_policy",
+    "protected_final_holdout",
+    "selection_policy",
+    "result_schema"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "comparison_id": {"type": "string", "pattern": "^[A-Za-z0-9._-]+$"},
+    "status": {"const": "contract_only"},
+    "models": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "LightGBMRegressor"},
+        {"const": "XGBoostRegressor"}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "variable_under_test": {"const": "freqai_model"},
+    "shared_experiment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "strategy_version",
+        "config",
+        "feature_set_id",
+        "target_id",
+        "training_window",
+        "tuning_window",
+        "historical_oos_windows",
+        "pairs",
+        "timeframes",
+        "fee",
+        "risk_assumptions"
+      ],
+      "properties": {
+        "strategy": {"type": "string", "minLength": 1},
+        "strategy_version": {"type": "string", "minLength": 1},
+        "config": {"type": "string", "minLength": 1},
+        "feature_set_id": {"type": "string", "minLength": 1},
+        "target_id": {"type": "string", "minLength": 1},
+        "training_window": {"type": "string", "pattern": "^[0-9]{8}-[0-9]{8}$"},
+        "tuning_window": {"type": "string", "pattern": "^[0-9]{8}-[0-9]{8}$"},
+        "historical_oos_windows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "timerange", "unseen_status"],
+            "properties": {
+              "name": {"type": "string", "minLength": 1},
+              "timerange": {"type": "string", "pattern": "^[0-9]{8}-[0-9]{8}$"},
+              "unseen_status": {"const": "consumed_historical_oos"}
+            }
+          }
+        },
+        "pairs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "timeframes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "fee": {"type": "number", "minimum": 0, "maximum": 0.05},
+        "risk_assumptions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entry_prediction_threshold",
+            "exit_prediction_threshold",
+            "stoploss",
+            "minimal_roi",
+            "max_open_trades",
+            "trading_mode",
+            "can_short",
+            "dry_run"
+          ],
+          "properties": {
+            "entry_prediction_threshold": {"type": "number"},
+            "exit_prediction_threshold": {"type": "number"},
+            "stoploss": {"type": "number"},
+            "minimal_roi": {"type": "object"},
+            "max_open_trades": {"type": "integer", "minimum": 1},
+            "trading_mode": {"const": "spot"},
+            "can_short": {"const": false},
+            "dry_run": {"const": true}
+          }
+        }
+      }
+    },
+    "model_parameter_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "joint_tuning_allowed", "feature_changes_allowed"],
+      "properties": {
+        "policy": {"const": "fixed_before_execution_model_specific_identity"},
+        "joint_tuning_allowed": {"const": false},
+        "feature_changes_allowed": {"const": false}
+      }
+    },
+    "protected_final_holdout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declaration", "timerange", "usage"],
+      "properties": {
+        "declaration": {"type": "string", "minLength": 1},
+        "timerange": {"type": "string", "pattern": "^[0-9]{8}-[0-9]{8}$"},
+        "usage": {"const": "forbidden_for_training_tuning_feature_selection_model_selection_model_comparison"}
+      }
+    },
+    "selection_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary_metrics",
+        "final_holdout_metrics_allowed",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "primary_metrics": {
+          "const": ["profit", "drawdown", "trades", "stability"]
+        },
+        "final_holdout_metrics_allowed": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    },
+    "result_schema": {"type": "string", "minLength": 1}
+  }
+}

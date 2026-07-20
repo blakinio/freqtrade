@@ -1,4 +1,3 @@
-import copy
 import json
 from pathlib import Path
 
@@ -62,7 +61,10 @@ def test_foundation_rejects_shared_freqai_identifier(tmp_path: Path) -> None:
     foundation = _foundation()
     foundation["tracks"][1]["freqai_identifier"] = foundation["tracks"][0]["freqai_identifier"]
 
-    with pytest.raises(ExperimentalModelResearchContractError, match="RL seed drifted|identifier drifted"):
+    with pytest.raises(
+        ExperimentalModelResearchContractError,
+        match="RL seed drifted|identifier drifted",
+    ):
         validate_experimental_model_research_foundation(_write_foundation(tmp_path, foundation))
 
 
@@ -83,7 +85,7 @@ def test_trading_metrics_are_required_and_training_loss_is_not_selection_evidenc
     assert evaluation["strict_oos_trade_filter_required"] is True
 
 
-def test_pyTorch_track_keeps_frozen_candidate_thresholds() -> None:
+def test_pytorch_track_keeps_frozen_candidate_thresholds() -> None:
     foundation = validate_experimental_model_research_foundation()
     frozen = foundation["shared_trading_assumptions"]["frozen_candidate_reference"]
 

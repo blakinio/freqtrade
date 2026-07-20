@@ -65,7 +65,10 @@ def timeranges_overlap(left: str, right: str) -> bool:
     return left_start <= right_end and right_start <= left_end
 
 
-def _dedicated_final_holdout_workflow_authorized(manifest_path: Path, manifest: dict[str, Any]) -> bool:
+def _dedicated_final_holdout_workflow_authorized(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+) -> bool:
     declaration = load_protected_final_holdout()
     try:
         exact_manifest = manifest_path.resolve() == FINAL_HOLDOUT_MANIFEST_PATH.resolve()

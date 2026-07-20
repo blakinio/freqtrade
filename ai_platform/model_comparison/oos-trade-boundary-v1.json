@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "boundary_id": "freqai-model-comparison-oos-trade-boundary-v1",
+  "comparison_contract": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+  "scoring_window": {
+    "timerange": "20260501-20260630",
+    "start_inclusive": "2026-05-01T00:00:00Z",
+    "end_exclusive": "2026-07-01T00:00:00Z",
+    "timezone": "UTC",
+    "source_status": "consumed_historical_oos"
+  },
+  "trade_inclusion": {
+    "policy": "fully_contained_closed_trades",
+    "open_date": {
+      "operator": ">=",
+      "boundary": "start_inclusive"
+    },
+    "close_date": {
+      "operator": "<",
+      "boundary": "end_exclusive"
+    },
+    "pre_window_open_trade": "exclude_and_count",
+    "post_window_close_trade": "exclude_and_count",
+    "force_exit_within_window": "include_and_count",
+    "missing_or_invalid_timestamp": "fail_closed"
+  },
+  "accounting_reference": {
+    "freqtrade_periodic_realization_field": "close_date",
+    "oos_policy_is_stricter_than_periodic_realization": true,
+    "reason": "A trade opened before the OOS start was initiated during tuning-period prediction coverage and cannot contribute to OOS model-selection evidence."
+  },
+  "future_extractor_requirements": {
+    "metric_scope": "included_trades_only",
+    "record_excluded_pre_window_open_trades": true,
+    "record_excluded_post_window_close_trades": true,
+    "record_included_force_exit_trades": true,
+    "preserve_original_trade_timestamps": true
+  },
+  "protected_final_holdout": {
+    "declaration": "ai_platform/validation/final-holdout-v2-declaration.json",
+    "timerange": "20260801-20260930",
+    "must_not_overlap_scoring_window": true
+  },
+  "authorization": {
+    "final_holdout_used": false,
+    "retuning_allowed": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/model-comparison/oos-trade-boundary-schema-v1.json",
+  "title": "AI Platform model comparison OOS trade boundary v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "boundary_id",
+    "comparison_contract",
+    "scoring_window",
+    "trade_inclusion",
+    "accounting_reference",
+    "future_extractor_requirements",
+    "protected_final_holdout",
+    "authorization"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "boundary_id": {"const": "freqai-model-comparison-oos-trade-boundary-v1"},
+    "comparison_contract": {"const": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json"},
+    "scoring_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timerange", "start_inclusive", "end_exclusive", "timezone", "source_status"],
+      "properties": {
+        "timerange": {"const": "20260501-20260630"},
+        "start_inclusive": {"const": "2026-05-01T00:00:00Z"},
+        "end_exclusive": {"const": "2026-07-01T00:00:00Z"},
+        "timezone": {"const": "UTC"},
+        "source_status": {"const": "consumed_historical_oos"}
+      }
+    },
+    "trade_inclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy",
+        "open_date",
+        "close_date",
+        "pre_window_open_trade",
+        "post_window_close_trade",
+        "force_exit_within_window",
+        "missing_or_invalid_timestamp"
+      ],
+      "properties": {
+        "policy": {"const": "fully_contained_closed_trades"},
+        "open_date": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["operator", "boundary"],
+          "properties": {
+            "operator": {"const": ">="},
+            "boundary": {"const": "start_inclusive"}
+          }
+        },
+        "close_date": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["operator", "boundary"],
+          "properties": {
+            "operator": {"const": "<"},
+            "boundary": {"const": "end_exclusive"}
+          }
+        },
+        "pre_window_open_trade": {"const": "exclude_and_count"},
+        "post_window_close_trade": {"const": "exclude_and_count"},
+        "force_exit_within_window": {"const": "include_and_count"},
+        "missing_or_invalid_timestamp": {"const": "fail_closed"}
+      }
+    },
+    "accounting_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "freqtrade_periodic_realization_field",
+        "oos_policy_is_stricter_than_periodic_realization",
+        "reason"
+      ],
+      "properties": {
+        "freqtrade_periodic_realization_field": {"const": "close_date"},
+        "oos_policy_is_stricter_than_periodic_realization": {"const": true},
+        "reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "future_extractor_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric_scope",
+        "record_excluded_pre_window_open_trades",
+        "record_excluded_post_window_close_trades",
+        "record_included_force_exit_trades",
+        "preserve_original_trade_timestamps"
+      ],
+      "properties": {
+        "metric_scope": {"const": "included_trades_only"},
+        "record_excluded_pre_window_open_trades": {"const": true},
+        "record_excluded_post_window_close_trades": {"const": true},
+        "record_included_force_exit_trades": {"const": true},
+        "preserve_original_trade_timestamps": {"const": true}
+      }
+    },
+    "protected_final_holdout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declaration", "timerange", "must_not_overlap_scoring_window"],
+      "properties": {
+        "declaration": {"const": "ai_platform/validation/final-holdout-v2-declaration.json"},
+        "timerange": {"const": "20260801-20260930"},
+        "must_not_overlap_scoring_window": {"const": true}
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "final_holdout_used",
+        "retuning_allowed",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "final_holdout_used": {"const": false},
+        "retuning_allowed": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    }
+  }
+}

@@ -40,6 +40,23 @@ def test_model_comparison_contract_pins_fair_first_comparison() -> None:
     contract = load_model_comparison_contract(CONTRACT_PATH)
 
     assert contract["models"] == ["LightGBMRegressor", "XGBoostRegressor"]
+    assert contract["model_identities"] == {
+        "LightGBMRegressor": {
+            "model_training_parameters": {
+                "n_estimators": 400,
+                "learning_rate": 0.03,
+                "num_leaves": 31,
+                "n_jobs": -1,
+            }
+        },
+        "XGBoostRegressor": {
+            "model_training_parameters": {
+                "n_estimators": 400,
+                "learning_rate": 0.03,
+                "n_jobs": -1,
+            }
+        },
+    }
     assert contract["variable_under_test"] == "freqai_model"
     assert contract["shared_experiment"]["feature_set_id"] == (
         "baseline-price-trend-momentum-volume-v1"
@@ -73,6 +90,26 @@ def test_model_comparison_rejects_model_set_drift(tmp_path: Path) -> None:
     contract["models"] = ["LightGBMRegressor", "PyTorchMLPRegressor"]
 
     with pytest.raises(ModelComparisonContractError, match="LightGBMRegressor vs XGBoostRegressor"):
+        load_model_comparison_contract(_write_contract(tmp_path, contract))
+
+
+def test_model_comparison_rejects_lightgbm_parameter_drift(tmp_path: Path) -> None:
+    contract = _contract()
+    contract["model_identities"]["LightGBMRegressor"]["model_training_parameters"][
+        "learning_rate"
+    ] = 0.04
+
+    with pytest.raises(ModelComparisonContractError, match="LightGBMRegressor identity"):
+        load_model_comparison_contract(_write_contract(tmp_path, contract))
+
+
+def test_model_comparison_rejects_lightgbm_only_parameter_in_xgboost(tmp_path: Path) -> None:
+    contract = _contract()
+    contract["model_identities"]["XGBoostRegressor"]["model_training_parameters"][
+        "num_leaves"
+    ] = 31
+
+    with pytest.raises(ModelComparisonContractError, match="XGBoostRegressor identity"):
         load_model_comparison_contract(_write_contract(tmp_path, contract))
 
 

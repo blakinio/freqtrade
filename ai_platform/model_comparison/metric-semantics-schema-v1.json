@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/model-comparison/metric-semantics-schema-v1.json",
+  "title": "AI Platform model comparison metric semantics v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "metric_semantics_id",
+    "comparison_contract",
+    "oos_trade_boundary",
+    "starting_balance",
+    "required_trade_fields",
+    "metrics",
+    "empty_oos_policy",
+    "selection_constraints"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "metric_semantics_id": {"const": "freqai-model-comparison-metrics-v1"},
+    "comparison_contract": {"const": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json"},
+    "oos_trade_boundary": {"const": "ai_platform/model_comparison/oos-trade-boundary-v1.json"},
+    "starting_balance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_field", "requirement"],
+      "properties": {
+        "source_field": {"const": "starting_balance"},
+        "requirement": {"const": "positive_finite_number"}
+      }
+    },
+    "required_trade_fields": {
+      "const": ["open_date", "close_date", "profit_abs", "exit_reason"]
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profit", "drawdown", "trades", "stability"],
+      "properties": {
+        "profit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["result_field", "freqtrade_equivalent", "formula", "empty_trade_value"],
+          "properties": {
+            "result_field": {"const": "profit"},
+            "freqtrade_equivalent": {"const": "profit_total"},
+            "formula": {"const": "sum(included_trades.profit_abs) / starting_balance"},
+            "empty_trade_value": {"const": 0.0}
+          }
+        },
+        "drawdown": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result_field",
+            "freqtrade_equivalent",
+            "implementation",
+            "date_col",
+            "value_col",
+            "starting_balance_source",
+            "result_attribute",
+            "relative_selection",
+            "empty_trade_value"
+          ],
+          "properties": {
+            "result_field": {"const": "drawdown"},
+            "freqtrade_equivalent": {"const": "max_drawdown_account"},
+            "implementation": {"const": "freqtrade.data.metrics.calculate_max_drawdown"},
+            "date_col": {"const": "close_date"},
+            "value_col": {"const": "profit_abs"},
+            "starting_balance_source": {"const": "starting_balance"},
+            "result_attribute": {"const": "relative_account_drawdown"},
+            "relative_selection": {"const": false},
+            "empty_trade_value": {"const": 0.0}
+          }
+        },
+        "trades": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["result_field", "formula", "empty_trade_value"],
+          "properties": {
+            "result_field": {"const": "trades"},
+            "formula": {"const": "count(included_trades)"},
+            "empty_trade_value": {"const": 0}
+          }
+        },
+        "stability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result_field",
+            "policy",
+            "fold_assignment_field",
+            "fold_timezone",
+            "fold_profit_formula",
+            "profitable_fold_condition",
+            "empty_fold_profit",
+            "formula",
+            "evaluated_folds",
+            "minimum",
+            "maximum",
+            "folds",
+            "required_evidence"
+          ],
+          "properties": {
+            "result_field": {"const": "stability"},
+            "policy": {"const": "calendar_month_profitable_fold_ratio"},
+            "fold_assignment_field": {"const": "close_date"},
+            "fold_timezone": {"const": "UTC"},
+            "fold_profit_formula": {
+              "const": "sum(fold_included_trades.profit_abs) / starting_balance"
+            },
+            "profitable_fold_condition": {"const": "> 0"},
+            "empty_fold_profit": {"const": 0.0},
+            "formula": {"const": "profitable_folds / evaluated_folds"},
+            "evaluated_folds": {"const": 2},
+            "minimum": {"const": 0.0},
+            "maximum": {"const": 1.0},
+            "folds": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "timerange", "start_inclusive", "end_exclusive"],
+                  "properties": {
+                    "name": {"const": "2026-05"},
+                    "timerange": {"const": "20260501-20260531"},
+                    "start_inclusive": {"const": "2026-05-01T00:00:00Z"},
+                    "end_exclusive": {"const": "2026-06-01T00:00:00Z"}
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["name", "timerange", "start_inclusive", "end_exclusive"],
+                  "properties": {
+                    "name": {"const": "2026-06"},
+                    "timerange": {"const": "20260601-20260630"},
+                    "start_inclusive": {"const": "2026-06-01T00:00:00Z"},
+                    "end_exclusive": {"const": "2026-07-01T00:00:00Z"}
+                  }
+                }
+              ],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "required_evidence": {
+              "const": [
+                "evaluated_folds",
+                "profitable_folds",
+                "fold_trade_counts",
+                "fold_profits"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "empty_oos_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profit", "drawdown", "trades", "stability", "selection_evidence_sufficient"],
+      "properties": {
+        "profit": {"const": 0.0},
+        "drawdown": {"const": 0.0},
+        "trades": {"const": 0},
+        "stability": {"const": 0.0},
+        "selection_evidence_sufficient": {"const": false}
+      }
+    },
+    "selection_constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric_scope",
+        "same_starting_balance_required",
+        "same_scoring_window_required",
+        "same_stability_folds_required",
+        "final_holdout_metrics_allowed",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "metric_scope": {"const": "strict_oos_included_trades_only"},
+        "same_starting_balance_required": {"const": true},
+        "same_scoring_window_required": {"const": true},
+        "same_stability_folds_required": {"const": true},
+        "final_holdout_metrics_allowed": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    }
+  }
+}

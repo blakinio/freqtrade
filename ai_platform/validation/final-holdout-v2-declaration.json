@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "declaration_id": "freqai-baseline-final-holdout-v2",
+  "status": "declared_unseen_pending_final_validation_work_package",
+  "declared_on": "2026-07-20",
+  "selection_rule": "Use the first two complete calendar months beginning after the declaration month. This rule is fixed before the holdout window starts and is not based on observed holdout results.",
+  "frozen_parameters": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009
+  },
+  "selection_evidence": "ai_platform/evidence/phase5-exit-thresholds-v1.json",
+  "training": {
+    "timerange": "20251201-20260228"
+  },
+  "tuning": {
+    "timerange": "20260301-20260430"
+  },
+  "consumed_holdout_reference": {
+    "name": "holdout-2026-05-06",
+    "timerange": "20260501-20260630",
+    "reusable_as_unseen": false
+  },
+  "final_holdout": {
+    "name": "holdout-2026-08-09",
+    "timerange": "20260801-20260930",
+    "declared_before_window_start": true,
+    "overlaps_consumed_holdout": false,
+    "used": false
+  },
+  "authorization": {
+    "retuning_allowed": false,
+    "final_validation_authorized": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false
+  },
+  "next_step": "After this declaration is merged, prepare a separate final-validation work package that uses exactly entry_prediction_threshold=0.006 and exit_prediction_threshold=-0.009 on timerange 20260801-20260930. Do not run final validation before the declared window is complete and available. Do not use the final holdout result for any further tuning."
+}

@@ -225,6 +225,44 @@ dominance evidence machine-readable.
 This slice remains safe to test with synthetic extraction artifacts; it does not execute either model
 or read the protected final holdout.
 
+## Result provenance contract
+
+`result-provenance-v1.json` defines the artifact lineage required before a final model-comparison
+result may be assembled. It resolves the previously ambiguous `result-schema-v1.json` provenance
+fields:
+
+- `git_commit` means the single shared Git commit at which both model backtests were executed;
+- `plan_sha256` means SHA-256 of the exact bytes of the canonical `materialization.json` file.
+
+The execution commit is sourced from the `provenance.json` emitted by `run_experiment` at backtest
+execution time. Both model run-provenance records must have `stage=backtest`, the same `git_commit`,
+manifest/config hashes matching their canonical materialization entries, and the same strategy hash.
+Mixed execution commits are forbidden.
+
+The provenance chain binds each model through:
+
+1. canonical materialization plan model type and experiment identity;
+2. canonical materialized manifest/config SHA-256 values;
+3. exact-byte SHA-256 of the run `provenance.json` file plus its required fields;
+4. exact-byte SHA-256 of the backtest ZIP;
+5. exact-byte SHA-256 of the strict-OOS extraction artifact.
+
+The comparison-level evidence additionally binds the exact-byte SHA-256 of the tracked selection
+policy and the future selection-decision artifact. All digest algorithms are pinned to SHA-256 and all
+artifact digest scopes are exact file bytes, avoiding ambiguity from alternate JSON serialization.
+
+`ai_platform.scripts.model_comparison_result_provenance` can already validate canonical plan hashes,
+tracked selection-policy bytes, canonical experiment identities, materialized manifest/config hashes,
+shared execution commit, run-to-materialization hash equality, and shared strategy hash using
+synthetic evidence. It also proves the only valid mapping to the existing result fields:
+
+- `result.git_commit = provenance.execution_git_commit`;
+- `result.plan_sha256 = provenance.materialization_plan_sha256`.
+
+This contract-only slice intentionally does not claim to verify runtime artifact SHA-256 values when
+the corresponding `provenance.json`, backtest ZIP, extraction JSON, or selection-decision file is not
+provided. Those exact-byte checks belong to the next binding implementation slice.
+
 ## Final holdout isolation
 
 The prospectively declared final holdout v2 remains:
@@ -259,18 +297,17 @@ machine-readable output contract and hard-codes `final_holdout_used`, `promotion
 
 ## Next dependency
 
-The current `result-schema-v1.json` requires both `git_commit` and `plan_sha256`, but the existing
-contracts do not yet define which lifecycle commit `git_commit` represents or how the final assembler
-must bind those provenance fields to the two source extraction artifacts. The next smallest work
-package should therefore pin comparison-result provenance before implementing the final assembler.
-It must:
+The next smallest work package is **Provenance Binding Implementation v1**. It must consume actual
+artifact files without executing a model and verify every exact-byte hash required by
+`result-provenance-v1.json`:
 
-1. define whether `git_commit` identifies materialization, model execution, extraction, or assembly;
-2. bind the result to the exact materialization plan hash and both source extraction artifact hashes;
-3. prevent a result from combining artifacts produced from different comparison plans or commits;
-4. preserve the predeclared selection decision without recomputing or changing model parameters;
-5. assemble `result-schema-v1.json` only after provenance is unambiguous and verifiable;
-6. keep `final_holdout_used: false`, promotion forbidden, and profitability claims forbidden.
+1. bind each canonical materialized manifest/config hash to its run `provenance.json`;
+2. require both backtest run-provenance files to report the same execution commit and strategy hash;
+3. verify SHA-256 of each run-provenance file, backtest ZIP, and extraction artifact from actual bytes;
+4. verify each extraction's `source.archive_sha256` equals its bound backtest ZIP SHA-256;
+5. verify the selection-policy SHA-256 and future selection-decision SHA-256 from actual bytes;
+6. emit `result-provenance-schema-v1.json` evidence only after all bindings pass;
+7. keep final holdout use, retuning, promotion, and profitability claims forbidden.
 
-Actual historical LightGBM-versus-XGBoost execution remains a later separate work package after the
-selection policy and result-provenance contract are reviewable and merged.
+Only after that implementation is reviewed and merged should a final result assembler be added.
+Actual historical LightGBM-versus-XGBoost execution remains a later separate work package.

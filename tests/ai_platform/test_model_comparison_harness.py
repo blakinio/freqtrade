@@ -110,9 +110,7 @@ def test_harness_materialization_is_deterministic() -> None:
     second = _materialization()
 
     assert first == second
-    assert first["models"][0]["experiment_identity"] != first["models"][1][
-        "experiment_identity"
-    ]
+    assert first["models"][0]["experiment_identity"] != first["models"][1]["experiment_identity"]
 
 
 def test_materialized_manifests_pass_central_holdout_guard(tmp_path: Path) -> None:

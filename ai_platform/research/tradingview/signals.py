@@ -78,11 +78,15 @@ def add_donchian_signals(
     result["tv_donchian_exit_lower"] = (
         result["low"].rolling(exit_period, min_periods=exit_period).min().shift(1)
     )
-    result["tv_donchian_ema"] = result["close"].ewm(
-        span=ema_period,
-        adjust=False,
-        min_periods=ema_period,
-    ).mean()
+    result["tv_donchian_ema"] = (
+        result["close"]
+        .ewm(
+            span=ema_period,
+            adjust=False,
+            min_periods=ema_period,
+        )
+        .mean()
+    )
 
     result["tv_donchian_enter_long"] = (
         (result["close"] > result["tv_donchian_entry_upper"])
@@ -92,12 +96,12 @@ def add_donchian_signals(
         (result["close"] < result["tv_donchian_entry_lower"])
         & (result["close"] < result["tv_donchian_ema"])
     ).astype(int)
-    result["tv_donchian_exit_long"] = (
-        result["close"] < result["tv_donchian_exit_lower"]
-    ).astype(int)
-    result["tv_donchian_exit_short"] = (
-        result["close"] > result["tv_donchian_exit_upper"]
-    ).astype(int)
+    result["tv_donchian_exit_long"] = (result["close"] < result["tv_donchian_exit_lower"]).astype(
+        int
+    )
+    result["tv_donchian_exit_short"] = (result["close"] > result["tv_donchian_exit_upper"]).astype(
+        int
+    )
     return result
 
 

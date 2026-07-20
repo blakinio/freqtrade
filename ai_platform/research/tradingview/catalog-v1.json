@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "research_track": "tradingview-strategy-research-v1",
+  "status": "research_only",
+  "phase6_member": false,
+  "promotion_allowed": false,
+  "profitability_claim_allowed": false,
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "allowed": false,
+    "earliest_final_evaluation_utc": "2026-10-01T00:00:00Z"
+  },
+  "sources": [
+    {
+      "id": "wickhunter-multi-vwap",
+      "name": "Multi VWAP for Wick Hunter",
+      "source_url": "https://www.tradingview.com/script/9bDNkZXk-Multi-VWAP-for-Wick-Hunter/",
+      "source_visibility": "open_source",
+      "research_family": "liquidation_reversal",
+      "local_adaptation": "rolling typical-price VWAP plus symmetric percentage-distance gates",
+      "executable_strategy_class": null,
+      "status": "blocked_on_historical_liquidation_feed",
+      "notes": "The local implementation provides the VWAP gate only. A time-aligned historical liquidation event stream is required before this becomes a valid tradable backtest candidate."
+    },
+    {
+      "id": "donchian-breakout",
+      "name": "Donchian Breakout Strategy",
+      "source_url": "https://www.tradingview.com/script/hyYvFjux-Donchian-Breakout-Strategy/",
+      "source_visibility": "open_source",
+      "research_family": "trend_breakout",
+      "local_adaptation": "previous-window Donchian breakout with EMA direction filter and shorter Donchian exit",
+      "executable_strategy_class": "TVDonchianBreakoutStrategy",
+      "status": "ready_for_historical_oos_backtest"
+    },
+    {
+      "id": "supertrend-reversal",
+      "name": "SuperTrend STRATEGY",
+      "source_url": "https://www.tradingview.com/script/VLRj2sG9-SuperTrend-STRATEGY/",
+      "source_visibility": "open_source",
+      "research_family": "trend_following",
+      "local_adaptation": "ATR Supertrend direction flips with long and short reversal signals",
+      "executable_strategy_class": "TVSupertrendStrategy",
+      "status": "ready_for_historical_oos_backtest"
+    },
+    {
+      "id": "bollinger-mean-reversion",
+      "name": "Bollinger Bands Simple Strategy",
+      "source_url": "https://www.tradingview.com/script/GDrB3tu3-Bollinger-Bands-Simple-Strategy/",
+      "source_visibility": "open_source",
+      "research_family": "mean_reversion",
+      "local_adaptation": "two-standard-deviation Bollinger entries with middle-band exits and fixed hard stoploss",
+      "executable_strategy_class": "TVBollingerMeanReversionStrategy",
+      "status": "ready_for_historical_oos_backtest"
+    }
+  ],
+  "license_boundary": "Source pages are used as public research inspiration. Local implementations are independently written adaptations; Pine source code is not copied or republished."
+}

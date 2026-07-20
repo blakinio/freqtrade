@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -53,7 +52,9 @@ def _parse_iso_utc(value: Any, label: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise ModelComparisonMetricSemanticsError(f"{label} is not a valid ISO-8601 timestamp") from exc
+        raise ModelComparisonMetricSemanticsError(
+            f"{label} is not a valid ISO-8601 timestamp"
+        ) from exc
     if parsed.tzinfo != UTC:
         raise ModelComparisonMetricSemanticsError(f"{label} must use UTC")
     return parsed
@@ -92,7 +93,9 @@ def _validate_core_metrics(semantics: dict[str, Any]) -> None:
         "empty_trade_value": 0.0,
     }
     if metrics.get("profit") != expected_profit:
-        raise ModelComparisonMetricSemanticsError("profit semantics drifted from Freqtrade profit_total")
+        raise ModelComparisonMetricSemanticsError(
+            "profit semantics drifted from Freqtrade profit_total"
+        )
 
     expected_drawdown = {
         "result_field": "drawdown",
@@ -116,13 +119,12 @@ def _validate_core_metrics(semantics: dict[str, Any]) -> None:
         "empty_trade_value": 0,
     }
     if metrics.get("trades") != expected_trades:
-        raise ModelComparisonMetricSemanticsError("trades must count strict-OOS included trades only")
+        raise ModelComparisonMetricSemanticsError(
+            "trades must count strict-OOS included trades only"
+        )
 
 
-def _validate_stability_folds(
-    semantics: dict[str, Any],
-    boundary: dict[str, Any],
-) -> None:
+def _load_stability(semantics: dict[str, Any]) -> dict[str, Any]:
     stability = semantics["metrics"].get("stability")
     if not isinstance(stability, dict):
         raise ModelComparisonMetricSemanticsError("stability semantics must be an object")
@@ -142,10 +144,22 @@ def _validate_stability_folds(
         raise ModelComparisonMetricSemanticsError("Phase 6 stability must evaluate exactly two folds")
     if stability.get("minimum") != 0.0 or stability.get("maximum") != 1.0:
         raise ModelComparisonMetricSemanticsError("Stability must remain normalized to [0, 1]")
+    return stability
 
+
+def _validate_stability_fold_coverage(
+    stability: dict[str, Any],
+    boundary: dict[str, Any],
+) -> None:
     scoring = boundary["scoring_window"]
-    scoring_start = _parse_iso_utc(scoring["start_inclusive"], "scoring_window.start_inclusive")
-    scoring_end = _parse_iso_utc(scoring["end_exclusive"], "scoring_window.end_exclusive")
+    scoring_start = _parse_iso_utc(
+        scoring["start_inclusive"],
+        "scoring_window.start_inclusive",
+    )
+    scoring_end = _parse_iso_utc(
+        scoring["end_exclusive"],
+        "scoring_window.end_exclusive",
+    )
     folds = stability.get("folds")
     if not isinstance(folds, list) or len(folds) != 2:
         raise ModelComparisonMetricSemanticsError("Stability must declare exactly two calendar folds")
@@ -154,8 +168,14 @@ def _validate_stability_folds(
     for index, fold in enumerate(folds):
         if not isinstance(fold, dict):
             raise ModelComparisonMetricSemanticsError("Stability folds must be objects")
-        start = _parse_iso_utc(fold.get("start_inclusive"), f"stability.folds[{index}].start_inclusive")
-        end = _parse_iso_utc(fold.get("end_exclusive"), f"stability.folds[{index}].end_exclusive")
+        start = _parse_iso_utc(
+            fold.get("start_inclusive"),
+            f"stability.folds[{index}].start_inclusive",
+        )
+        end = _parse_iso_utc(
+            fold.get("end_exclusive"),
+            f"stability.folds[{index}].end_exclusive",
+        )
         if start != previous_end:
             raise ModelComparisonMetricSemanticsError(
                 "Stability folds must be contiguous and start at the OOS boundary"
@@ -163,15 +183,23 @@ def _validate_stability_folds(
         if end <= start:
             raise ModelComparisonMetricSemanticsError("Stability fold end must be after start")
         previous_end = end
+
     if previous_end != scoring_end:
         raise ModelComparisonMetricSemanticsError(
             "Stability folds must exactly cover the complete strict OOS scoring window"
         )
-
     first_start = _parse_iso_utc(folds[0]["start_inclusive"], "first fold start")
     second_start = _parse_iso_utc(folds[1]["start_inclusive"], "second fold start")
     if second_start != first_start + timedelta(days=31):
         raise ModelComparisonMetricSemanticsError("Expected May and June 2026 calendar folds")
+
+
+def _validate_stability_folds(
+    semantics: dict[str, Any],
+    boundary: dict[str, Any],
+) -> None:
+    stability = _load_stability(semantics)
+    _validate_stability_fold_coverage(stability, boundary)
 
 
 def _validate_empty_oos_policy(semantics: dict[str, Any]) -> None:
@@ -204,18 +232,12 @@ def _validate_selection_constraints(semantics: dict[str, Any]) -> None:
         )
 
 
-def _validate_numeric_contract_examples(semantics: dict[str, Any]) -> None:
-    stability = semantics["metrics"]["stability"]
-    minimum = stability.get("minimum")
-    maximum = stability.get("maximum")
-    if not all(isinstance(value, (int, float)) and math.isfinite(value) for value in (minimum, maximum)):
-        raise ModelComparisonMetricSemanticsError("Stability bounds must be finite numbers")
-
-
 def load_model_comparison_metric_semantics(path: Path) -> dict[str, Any]:
     semantics = _read_json(path.resolve(), "model comparison metric semantics")
     if semantics.get("schema_version") != 1:
-        raise ModelComparisonMetricSemanticsError("Only metric semantics schema_version 1 is supported")
+        raise ModelComparisonMetricSemanticsError(
+            "Only metric semantics schema_version 1 is supported"
+        )
     if semantics.get("metric_semantics_id") != EXPECTED_SEMANTICS_ID:
         raise ModelComparisonMetricSemanticsError("Unexpected metric_semantics_id")
     if semantics.get("comparison_contract") != EXPECTED_COMPARISON:
@@ -235,7 +257,6 @@ def load_model_comparison_metric_semantics(path: Path) -> dict[str, Any]:
     _validate_stability_folds(semantics, boundary)
     _validate_empty_oos_policy(semantics)
     _validate_selection_constraints(semantics)
-    _validate_numeric_contract_examples(semantics)
     return semantics
 
 

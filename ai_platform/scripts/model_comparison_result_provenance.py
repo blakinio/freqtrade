@@ -106,9 +106,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ModelComparisonResultProvenanceError(
-            f"Unable to read {label} {path}: {exc}"
-        ) from exc
+        raise ModelComparisonResultProvenanceError(f"Unable to read {label} {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ModelComparisonResultProvenanceError(f"{label} must contain a JSON object")
     return payload
@@ -116,9 +114,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 
 def _resolve_repo_path(value: Any, label: str) -> Path:
     if not isinstance(value, str) or not value:
-        raise ModelComparisonResultProvenanceError(
-            f"{label} must be a repository-relative path"
-        )
+        raise ModelComparisonResultProvenanceError(f"{label} must be a repository-relative path")
     candidate = (REPO_ROOT / value).resolve()
     try:
         candidate.relative_to(REPO_ROOT)
@@ -139,9 +135,7 @@ def _sha256_file(path: Path, label: str) -> str:
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError as exc:
-        raise ModelComparisonResultProvenanceError(
-            f"Unable to hash {label} {path}: {exc}"
-        ) from exc
+        raise ModelComparisonResultProvenanceError(f"Unable to hash {label} {path}: {exc}") from exc
 
 
 def build_canonical_materialization_plan() -> dict[str, Any]:

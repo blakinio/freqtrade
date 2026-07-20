@@ -28,12 +28,16 @@ jobs:
           fetch-depth: 1
 
       - name: Validate frozen v2 contract and block premature holdout access
+        env:
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
         run: |
           python - <<'PY'
           import json
           import math
-          from datetime import datetime, timezone
+          import os
           from pathlib import Path
+
+          from ai_platform.scripts.final_holdout_v2_guard import validate_final_holdout_v2_timing
 
           request_path = Path("ai_platform/validation/run-requests/final-holdout-v2.json")
           declaration_path = Path("ai_platform/validation/final-holdout-v2-declaration.json")
@@ -50,8 +54,6 @@ jobs:
           expected_tuning = "20260301-20260430"
           expected_entry = 0.006
           expected_exit = -0.009
-          earliest_execution_date = "2026-10-01"
-          today_utc = datetime.now(timezone.utc).date().isoformat()
 
           checks = {
               "request_declaration_path": request.get("holdout_declaration") == str(declaration_path),
@@ -117,16 +119,15 @@ jobs:
           if failed:
               raise SystemExit("Frozen final-validation v2 contract failed: " + ", ".join(failed))
 
-          if today_utc < earliest_execution_date:
-              raise SystemExit(
-                  "Final holdout v2 is prospectively declared but not yet complete. "
-                  f"Earliest execution date is {earliest_execution_date} UTC; today is {today_utc}. "
-                  "No holdout data was downloaded or accessed by this workflow."
-              )
+          try:
+              pr_created_date, today_utc = validate_final_holdout_v2_timing(os.environ["PR_CREATED_AT"])
+          except ValueError as exc:
+              raise SystemExit(str(exc)) from exc
 
           print(
               "Frozen final-validation v2 contract passed: "
-              f"entry={expected_entry}, exit={expected_exit}, holdout={expected_holdout}, today_utc={today_utc}"
+              f"entry={expected_entry}, exit={expected_exit}, holdout={expected_holdout}, "
+              f"trigger_pr_created_utc={pr_created_date}, today_utc={today_utc}"
           )
           PY
 

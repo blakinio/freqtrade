@@ -66,9 +66,7 @@ def test_result_provenance_contract_and_evidence_are_valid() -> None:
 
     Draft202012Validator(schema).validate(evidence)
     assert contract["execution"]["result_field"] == "git_commit"
-    assert contract["execution"]["result_field_semantics"] == (
-        "shared_model_execution_commit"
-    )
+    assert contract["execution"]["result_field_semantics"] == "shared_model_execution_commit"
     assert contract["execution"]["run_provenance_digest_scope"] == "exact_file_bytes"
     assert contract["materialization"]["result_field"] == "plan_sha256"
     assert contract["extraction"]["backtest_archive_digest_scope"] == "exact_file_bytes"
@@ -145,7 +143,10 @@ def test_result_provenance_rejects_duplicate_model_sources() -> None:
     evidence = _evidence()
     evidence["model_sources"][1] = copy.deepcopy(evidence["model_sources"][0])
 
-    with pytest.raises(ModelComparisonResultProvenanceError, match="one source per canonical model"):
+    with pytest.raises(
+        ModelComparisonResultProvenanceError,
+        match="one source per canonical model",
+    ):
         validate_model_comparison_result_provenance(evidence)
 
 

@@ -2,13 +2,13 @@ import json
 from pathlib import Path
 
 import pytest
-from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
 
 from ai_platform.scripts import run_optimization, run_validation
 from ai_platform.scripts.protected_final_holdout import (
     FINAL_HOLDOUT_WORKFLOW,
     protected_timerange,
 )
+from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
 
 
 ROOT = Path(__file__).resolve().parents[2]

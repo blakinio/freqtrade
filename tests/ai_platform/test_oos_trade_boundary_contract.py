@@ -10,7 +10,6 @@ from ai_platform.scripts.oos_trade_boundary_contract import (
     load_oos_trade_boundary_contract,
 )
 
-
 ROOT = Path(__file__).resolve().parents[2]
 BOUNDARY_PATH = ROOT / "ai_platform/model_comparison/oos-trade-boundary-v1.json"
 SCHEMA_PATH = ROOT / "ai_platform/model_comparison/oos-trade-boundary-schema-v1.json"

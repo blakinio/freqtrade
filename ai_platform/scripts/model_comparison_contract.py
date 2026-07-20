@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")

@@ -171,7 +171,9 @@ def _artifact_set(
     return provenance_path, extraction_paths, decision_path, provenance
 
 
-def test_assembler_emits_schema_valid_completed_result_from_bound_evidence(tmp_path: Path) -> None:
+def test_assembler_emits_schema_valid_completed_result_from_bound_evidence(
+    tmp_path: Path,
+) -> None:
     provenance_path, extraction_paths, decision_path, provenance = _artifact_set(tmp_path)
 
     result = assemble_model_comparison_result(
@@ -184,7 +186,8 @@ def test_assembler_emits_schema_valid_completed_result_from_bound_evidence(tmp_p
     assert result["status"] == "completed"
     assert result["git_commit"] == provenance["execution_git_commit"]
     assert result["plan_sha256"] == provenance["materialization_plan_sha256"]
-    assert result["selection"] == json.loads(decision_path.read_text(encoding="utf-8"))["selection"]
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert result["selection"] == decision["selection"]
     assert result["selection"]["selected_model"] == "XGBoostRegressor"
     assert result["selection"]["final_holdout_used"] is False
     assert result["selection"]["promotion_allowed"] is False
@@ -202,7 +205,9 @@ def test_assembler_emits_schema_valid_completed_result_from_bound_evidence(tmp_p
     assert json.loads(output.read_text(encoding="utf-8")) == result
 
 
-def test_assembler_rejects_extraction_bytes_not_bound_by_provenance(tmp_path: Path) -> None:
+def test_assembler_rejects_extraction_bytes_not_bound_by_provenance(
+    tmp_path: Path,
+) -> None:
     provenance_path, extraction_paths, decision_path, _ = _artifact_set(tmp_path)
     extraction_path = extraction_paths["LightGBMRegressor"]
     extraction = json.loads(extraction_path.read_text(encoding="utf-8"))
@@ -225,7 +230,10 @@ def test_assembler_rejects_selection_decision_bytes_not_bound_by_provenance(
     decision["selection"]["basis"] = "eligible_models_inconclusive_no_strict_pareto_dominance"
     _write_json(decision_path, decision)
 
-    with pytest.raises(ModelComparisonResultAssemblerError, match="Selection decision exact-byte hash"):
+    with pytest.raises(
+        ModelComparisonResultAssemblerError,
+        match="Selection decision exact-byte hash",
+    ):
         assemble_model_comparison_result(
             provenance_path,
             extraction_paths=extraction_paths,
@@ -252,7 +260,9 @@ def test_assembler_rejects_bound_but_semantically_unrelated_selection_decision(
         )
 
 
-def test_assembler_requires_exactly_one_extraction_path_per_canonical_model(tmp_path: Path) -> None:
+def test_assembler_requires_exactly_one_extraction_path_per_canonical_model(
+    tmp_path: Path,
+) -> None:
     provenance_path, extraction_paths, decision_path, _ = _artifact_set(tmp_path)
     extraction_paths.pop("XGBoostRegressor")
 

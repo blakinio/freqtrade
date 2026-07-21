@@ -69,10 +69,10 @@ def _canonical_inputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa:
         "prediction_timerange": EXPECTED_PREDICTION_TIMERANGE,
         "download_timerange": EXPECTED_DOWNLOAD_TIMERANGE,
     }
-    for field, expected in expected_geometry.items():
-        if geometry.get(field) != expected:
+    for field, expected_value in expected_geometry.items():
+        if geometry.get(field) != expected_value:
             raise ExperimentalHistoricalPreflightError(
-                f"Experimental temporal geometry drifted for {field}: expected {expected}"
+                f"Experimental temporal geometry drifted for {field}: expected {expected_value}"
             )
 
     tracks: list[dict[str, Any]] = []
@@ -87,14 +87,14 @@ def _canonical_inputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa:
         exchange = str(config.get("exchange", {}).get("name", "")).lower()
         freqai = config.get("freqai", {})
 
-        expected = {
+        expected_manifest = {
             "download_timerange": EXPECTED_DOWNLOAD_TIMERANGE,
             "timerange": EXPECTED_PREDICTION_TIMERANGE,
             "pairs": EXPECTED_PAIRS,
             "timeframes": EXPECTED_TIMEFRAMES,
             "fee": EXPECTED_FEE,
         }
-        for field, value in expected.items():
+        for field, value in expected_manifest.items():
             if manifest.get(field) != value:
                 raise ExperimentalHistoricalPreflightError(
                     f"{track_id} manifest drifted for {field}: expected {value!r}"

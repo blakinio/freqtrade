@@ -63,7 +63,7 @@ proven:
   - Freqtrade TimeRange parses an eight-digit stop token at 00:00 UTC on that date, so the corrected technical stop is 20260701 while semantic windows still end 20260630.
   - Strict experimental OOS scoring remains 20260501-20260630 with end_exclusive 2026-07-01T00:00:00Z.
   - backtest_period_days=122 matches March 1 through June 30 inclusive and therefore requires Freqtrade execution timerange 20260301-20260701.
-  - PyTorch and RL manifests use 20260301-20260701 for execution and 20250801-20260701 for download without touching the protected final holdout.
+  - PyTorch and RL manifests use 20260301-20260701 for execution and 20250801-20260701 for download; protected final holdout 20260801-20260930 remains unused and forbidden, frozen thresholds 0.006/-0.009 are unchanged, and Phase 6 isolation remains intact.
   - PR #73 parallelizes Kraken trade-history acquisition per pair and verifies 15m, 1h, and 4h coverage independently for BTC/USDT and ETH/USDT.
   - PR #75 was closed without merge as superseded by the stronger parallel preflight in PR #73.
   - A deterministic pre-commit Mypy failure was isolated to variable-name reuse in experimental_model_historical_execution_preflight.py and fixed without changing runtime semantics.
@@ -74,7 +74,6 @@ proven:
   - Final preflight artifacts for BTC/USDT and ETH/USDT report status=ready, market_data_available=true, phase6_member=false, protected_final_holdout_used=false, retuning_allowed=false, promotion_allowed=false, and profitability_claim_allowed=false.
   - AI Platform CI run 29823749276, zizmor run 29823749275, Experimental Model Runtime Smoke run 29823749273, Freqtrade CI run 29823749339, and Experimental Model Historical Execution Preflight run 29823749323 all completed successfully on validated implementation head a3572689a6e3a3b808d95d886ae7e58e017418e5.
   - develop is merge-base 550766fc5e1fce065a0ddc7d8c3866f965e17393 and the branch is ahead with behind_by=0, so no replay/rebase is required before merge unless develop moves again.
-  - Protected final holdout 20260801-20260930 remains unused and forbidden; frozen thresholds 0.006/-0.009 and Phase 6 isolation remain unchanged.
 derived:
   - Results from PR #66's stale 20260630-stop download cannot certify full June historical coverage and remain rejected as evidence.
   - Verified pair-specific caches can be restored into a later bounded execution runner without changing model or scoring contracts.

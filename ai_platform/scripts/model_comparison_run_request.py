@@ -98,8 +98,8 @@ def canonical_model_comparison_run_request() -> dict[str, Any]:
         "contract_sha256": materialization["contract_sha256"],
         **EXPECTED_WINDOWS,
         "protected_final_holdout": EXPECTED_PROTECTED_FINAL_HOLDOUT,
-        "frozen_parameters": EXPECTED_FROZEN_PARAMETERS,
-        "authorization": EXPECTED_AUTHORIZATION,
+        "frozen_parameters": dict(EXPECTED_FROZEN_PARAMETERS),
+        "authorization": dict(EXPECTED_AUTHORIZATION),
     }
 
 

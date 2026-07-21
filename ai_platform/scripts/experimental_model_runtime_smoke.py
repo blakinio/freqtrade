@@ -117,12 +117,16 @@ def _build_rl_environment() -> tuple[LongOnlyEnvironment, pd.DataFrame]:
     return environment, features
 
 
+def _action_count(environment: LongOnlyEnvironment) -> int:
+    return int(environment.action_space.n)
+
+
 def _run_rl_build_smoke() -> dict[str, object]:
     environment, features = _build_rl_environment()
     return {
         "environment": type(environment).__name__,
         "rows": len(features),
-        "actions": environment.action_space.n,
+        "actions": _action_count(environment),
     }
 
 
@@ -132,18 +136,19 @@ def _run_rl_reset_smoke() -> dict[str, object]:
     return {
         "environment": type(environment).__name__,
         "rows": len(features),
-        "observation_shape": list(observation.shape),
+        "observation_shape": [int(value) for value in observation.shape],
     }
 
 
 def _run_rl_contract_smoke() -> dict[str, object]:
     environment, features = _build_rl_environment()
     observation, _ = environment.reset(seed=42)
+    action_count = _action_count(environment)
 
     if LongOnlyReinforcementLearner.MyRLEnv is not LongOnlyEnvironment:
         raise RuntimeError("Canonical RL learner is not bound to LongOnlyEnvironment")
-    if environment.action_space.n != 3:
-        raise RuntimeError(f"Unexpected RL action count: {environment.action_space.n}")
+    if action_count != 3:
+        raise RuntimeError(f"Unexpected RL action count: {action_count}")
     if observation.shape != (4, features.shape[1]):
         raise RuntimeError(f"Unexpected RL observation shape: {observation.shape}")
 
@@ -151,8 +156,8 @@ def _run_rl_contract_smoke() -> dict[str, object]:
         "model": "LongOnlyReinforcementLearner",
         "environment": "LongOnlyEnvironment",
         "rows": len(features),
-        "actions": environment.action_space.n,
-        "observation_shape": list(observation.shape),
+        "actions": action_count,
+        "observation_shape": [int(value) for value in observation.shape],
     }
 
 
@@ -195,7 +200,7 @@ def _run_rl_fit_smoke() -> dict[str, object]:
         "backend": "PPO",
         "rows": len(features),
         "train_cycles": 1,
-        "actions": environment.action_space.n,
+        "actions": _action_count(environment),
     }
 
 

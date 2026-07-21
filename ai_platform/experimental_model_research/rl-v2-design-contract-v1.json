@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "contract_id": "rl-v2-design-contract-v1",
+  "status": "design_only",
+  "task": "docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md",
+  "source_diagnosis": "docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md",
+  "predecessor": {
+    "track_id": "rl-research-v1",
+    "immutable": true,
+    "model": "LongOnlyReinforcementLearner",
+    "strategy": "AiLongOnlyRLResearchStrategy",
+    "historical_evidence_may_be_reinterpreted_as_fresh_validation": false
+  },
+  "scope": {
+    "contract_validation_allowed": true,
+    "rl_v2_model_implementation_allowed": false,
+    "rl_v2_strategy_implementation_allowed": false,
+    "rl_v2_config_implementation_allowed": false,
+    "training_allowed": false,
+    "backtest_allowed": false,
+    "market_data_download_allowed": false,
+    "hyperopt_allowed": false,
+    "performance_evaluation_allowed": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false
+  },
+  "reward_contract": {
+    "decision_time_state_only": true,
+    "future_market_information_used": false,
+    "perpetual_neutral_unpenalized_allowed": false,
+    "flat_neutral_reward_relation": "strictly_less_than_valid_long_entry_reward",
+    "invalid_action_penalty_required": true,
+    "reward_magnitude_tuning_allowed_in_this_task": false,
+    "required_synthetic_cases": [
+      "flat_neutral_vs_valid_long_entry",
+      "invalid_action_is_penalized",
+      "holding_behavior_is_bounded",
+      "exit_reward_uses_decision_time_state_only",
+      "perpetual_neutral_episode_is_not_unpenalized"
+    ]
+  },
+  "position_state_inference_contract": {
+    "implementation_must_choose_exactly_one_design_mode": true,
+    "allowed_design_modes": [
+      "explicit_position_state_training_and_historical_inference_parity",
+      "position_independent_action_semantics"
+    ],
+    "selected_design_mode": null,
+    "selection_deferred_to_separate_implementation_task": true,
+    "training_historical_inference_parity_required": true,
+    "synthetic_parity_test_required": true,
+    "hidden_position_dependent_action_validity_without_observation_allowed": false,
+    "assume_add_state_info_available_in_backtesting": false
+  },
+  "observability_contract": {
+    "evidence_required_before_performance_interpretation": true,
+    "mandatory_counts": [
+      "deterministic_inference_actions_by_pair_and_action",
+      "do_predict_accepted_rejected_by_pair",
+      "pre_trade_entry_exit_signals_by_pair",
+      "raw_backtest_trades",
+      "strict_oos_input_included_excluded_trades"
+    ],
+    "action_histogram_must_include_zero_count_actions": true,
+    "raw_and_strict_oos_trade_counts_must_remain_separately_attributable": true
+  },
+  "evaluation_isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "status": "consumed_historical_oos",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "used": false,
+      "usage": "forbidden",
+      "not_before": "2026-10-01T00:00:00Z"
+    },
+    "future_evaluation_window": {
+      "selected": false,
+      "selection_allowed_in_this_task": false,
+      "prospective_declaration_required": true,
+      "must_be_non_protected_and_unconsumed": true
+    }
+  },
+  "phase6_isolation": {
+    "member": false,
+    "may_change_candidates": false,
+    "may_change_selection_policy": false,
+    "may_consume_rl_v2_results": false,
+    "authoritative_selected_model": null
+  },
+  "frozen_candidate_reference": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009,
+    "may_change": false
+  }
+}

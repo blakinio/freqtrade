@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-rl-v2-design-contract
-status: active
-branch: docs/rl-v2-design-contract-task
+status: implementing
+branch: feat/rl-v2-design-contract-v1
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "pending"
+related_pr: "102"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md
   - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
@@ -21,7 +21,7 @@ required_reads:
   - freqtrade/freqai/RL/BaseReinforcementLearningModel.py
   - freqtrade/freqai/RL/BaseEnvironment.py
 search_first:
-  - merged PR #100 and current develop before RL-v2 contract work
+  - PR #102 live state and current develop before implementation merge
   - open PRs or active tasks overlapping RL research ownership
 optional_reads:
   - ai_platform/experimental_model_research/evidence/rl-research-v1-historical-oos-v1.json
@@ -71,15 +71,15 @@ The RL-v2 design contract must fail closed unless all of the following are expli
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T00:45:00+02:00
-head: e0f6d3e557a880c49d6146530f806a0826f2d8e6
-branch: docs/rl-v2-design-contract-task
-pr: pending
+updated_at: 2026-07-22T01:05:00+02:00
+head: a7e8c0cae881d81464e1c3e050735ee75ad90ca5
+branch: feat/rl-v2-design-contract-v1
+pr: 102
 status: ready
 context_routes:
-  - docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md
-  - ai_platform/freqaimodels/LongOnlyReinforcementLearner.py
-  - freqtrade/freqai/RL/BaseReinforcementLearningModel.py
+  - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
+  - ai_platform/experimental_model_research/rl-v2-design-contract-v1.json
+  - ai_platform/scripts/rl_v2_design_contract.py
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md
   - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
@@ -88,32 +88,50 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_design_contract.py
 proven:
   - RL zero-trade diagnosis PR #100 was squash-merged as e0f6d3e557a880c49d6146530f806a0826f2d8e6 and closed the diagnosis task.
-  - The diagnosis classified rl-research-v1 as a functionally successful execution with reward-induced neutral-policy collapse / inactive-policy attractor.
-  - The v1 reward gives 0 to Neutral while neutral and 0 to valid Long_enter, while entering exposes the policy to later holding and exit downside.
-  - The v1 action mapping itself is internally consistent and the source backtest had zero trades before strict-OOS extraction.
-  - The v1 artifact did not preserve deterministic action-frequency, do_predict, or pre-trade signal histograms.
-  - Position-dependent action validity exists in v1 while add_state_info is false with a memoryless MlpPolicy; this is a secondary design limitation.
-  - Frozen thresholds remain 0.006/-0.009, Phase 6 remains selected_model null, and protected final holdout 20260801-20260930 remains unused.
+  - Task declaration PR #101 was squash-merged as e040eb1fcf0761409694856cb36794944d0ca34f before implementation began.
+  - The v1 reward admits permanent neutrality as an unpenalized zero-reward solution while valid Long_enter has no immediate reward advantage.
+  - The design contract keeps rl-research-v1 immutable and authorizes no RL-v2 model, strategy, config, training, backtest, data download or performance evaluation.
+  - Reward invariants require flat-neutral reward to be strictly below valid long-entry reward, invalid-action penalty, no future-derived reward inputs and synthetic edge-case coverage.
+  - Future implementation must choose exactly one position-state design mode and prove training/historical-inference parity synthetically before any historical execution.
+  - Mandatory evidence requires action histograms, do_predict counts, pre-trade signal counts, raw backtest counts and strict-OOS counts as separately attributable layers.
+  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 are forbidden; this task selects no future evaluation window.
+  - Frozen thresholds 0.006/-0.009 and completed Phase 6 selected_model null remain unchanged and RL-v2 cannot be consumed by Phase 6.
+  - AI Platform compile and targeted tests passed before formatting cleanup; Ruff lint passed after line wrapping.
+  - One-shot Ruff 0.15.20 formatting completed and self-deleted; net PR scope returned to exactly five owned paths.
 derived:
-  - The smallest safe follow-up is a design contract and synthetic/static validator before any RL-v2 implementation or fresh evaluation.
-  - RL-v2 must make reward incentives, position-state/inference parity, and action-level observability prospective requirements rather than post-hoc diagnostics.
+  - The contract removes post-hoc ambiguity by making reward geometry, position-state parity and action-level observability merge-time requirements for any later RL-v2 implementation task.
+  - Numeric reward magnitudes and the concrete position-state/action-semantics architecture remain intentionally deferred and cannot be tuned in this design-contract task.
 unknown:
-  - Which concrete RL-v2 action semantics or position-state mechanism will later satisfy the contract; implementation is intentionally out of scope here.
+  - Which concrete RL-v2 design mode and reward magnitudes a later implementation task will choose.
+  - Whether the final normal-actor repository gate cycle passes unchanged after formatter cleanup.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: Diagnosis is complete; this task prospectively defines constraints for future redesign rather than fixing v1 in place.
+  marker: ruff-format-only
+  evidence: Initial AI Platform CI compile and tests passed; Ruff lint was fixed, then exact Ruff 0.15.20 formatting was applied without semantic changes.
 rejected_hypotheses:
-  - Modify or rerun rl-research-v1 to validate a redesign.
-  - Tune reward magnitudes or model parameters against consumed historical OOS.
-  - Use protected final holdout data for RL-v2 design validation.
+  - Modify or rerun rl-research-v1 to validate the design contract.
+  - Select numeric reward magnitudes or a future evaluation window in this task.
+  - Tune any design against consumed historical OOS or protected final holdout data.
   - Add RL-v2 to completed Phase 6 or compare it retrospectively with PyTorch.
 changed_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md
+  - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
+  - ai_platform/experimental_model_research/rl-v2-design-contract-v1.json
+  - ai_platform/scripts/rl_v2_design_contract.py
+  - tests/ai_platform/test_rl_v2_design_contract.py
 validation:
-  - command: live repository and overlap preflight
+  - command: task declaration PR #101
     result: PASS
-    evidence: develop is e0f6d3e557a880c49d6146530f806a0826f2d8e6 after merged PR #100, and no open PR overlaps RL-v2 design-contract ownership.
+    evidence: Freqtrade CI 29874237734 and zizmor 29874237741 completed successfully before squash merge e040eb1fcf0761409694856cb36794944d0ca34f.
+  - command: static contract construction review
+    result: PASS
+    evidence: Contract and canonical validator encode exact design-only authorization, reward, parity, observability, evaluation-isolation, Phase 6 and frozen-threshold boundaries.
+  - command: AI Platform compile and targeted mutation tests
+    result: PASS
+    evidence: AI Platform CI runs 29874581029 and 29874824851 completed compile and test steps successfully; later failures were limited to Ruff lint/format and were corrected without semantic changes.
+  - command: final repository gates after formatter cleanup
+    result: PENDING
+    evidence: Final normal-actor gate cycle will run from this checkpoint metadata commit.
 blockers: []
-next_action: Merge this bounded task declaration, then implement only the machine-readable RL-v2 design contract, fail-closed validator, synthetic/static tests and documentation on a dedicated implementation branch without creating an RL-v2 model/strategy/config or running any model execution.
+next_action: Require final AI Platform CI, Freqtrade CI and zizmor to pass on the clean five-path PR #102 head, verify behind_by=0 and no review blockers, then squash-merge and close this design-contract task without starting any RL-v2 model execution.
 ```

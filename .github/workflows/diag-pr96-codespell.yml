@@ -1,0 +1,40 @@
+name: Diagnose PR96 Codespell
+
+on:
+  pull_request:
+    branches:
+      - docs/ai-platform-status-reconciliation
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+      - name: Install exact codespell
+        run: python -m pip install --disable-pip-version-check --quiet codespell==2.4.2
+      - name: Capture codespell output
+        shell: bash
+        run: |
+          set +e
+          mkdir -p diagnostic
+          codespell ai_platform/README.md docs/ai_platform/ROADMAP.md > diagnostic/codespell.log 2>&1
+          status=$?
+          printf '%s\n' "$status" > diagnostic/status.txt
+          cat diagnostic/codespell.log
+          exit 0
+      - name: Upload diagnostic
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pr96-codespell-${{ github.sha }}
+          path: diagnostic/
+          if-no-files-found: error
+          retention-days: 1

@@ -50,9 +50,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ModelComparisonRunRequestError(
-            f"Unable to read {label} {path}: {exc}"
-        ) from exc
+        raise ModelComparisonRunRequestError(f"Unable to read {label} {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ModelComparisonRunRequestError(f"{label} must contain a JSON object")
     return payload
@@ -78,9 +76,7 @@ def _canonical_inputs() -> tuple[dict[str, Any], dict[str, Any]]:
         )
 
     risk = contract["shared_experiment"]["risk_assumptions"]
-    frozen_parameters = {
-        parameter: risk.get(parameter) for parameter in EXPECTED_FROZEN_PARAMETERS
-    }
+    frozen_parameters = {parameter: risk.get(parameter) for parameter in EXPECTED_FROZEN_PARAMETERS}
     if frozen_parameters != EXPECTED_FROZEN_PARAMETERS:
         raise ModelComparisonRunRequestError(
             "Frozen Phase 5.2 thresholds drifted from the Phase 6 execution boundary"
@@ -119,8 +115,7 @@ def load_model_comparison_run_request(path: Path) -> dict[str, Any]:
         if extra:
             details.append(f"extra={','.join(extra)}")
         raise ModelComparisonRunRequestError(
-            "Run request fields do not match the canonical execution request: "
-            + "; ".join(details)
+            "Run request fields do not match the canonical execution request: " + "; ".join(details)
         )
 
     for field, expected_value in expected.items():
@@ -153,11 +148,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.request is not None:
             print("Do not pass a request path with --print-canonical", file=sys.stderr)
             return 2
-        print(
-            json.dumps(
-                canonical_model_comparison_run_request(), indent=2, sort_keys=True
-            )
-        )
+        print(json.dumps(canonical_model_comparison_run_request(), indent=2, sort_keys=True))
         return 0
     if args.request is None:
         print(

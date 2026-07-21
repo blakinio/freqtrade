@@ -77,7 +77,8 @@ def test_rl_v2_reward_contract_rejects_neutral_policy_attractor() -> None:
 
 def test_rl_v2_reward_contract_requires_entry_preference() -> None:
     contract = _contract()
-    contract["reward_geometry"]["valid_long_entry_strictly_preferred_to_neutral_while_flat"] = False
+    reward = contract["reward_geometry"]
+    reward["valid_long_entry_strictly_preferred_to_neutral_while_flat"] = False
 
     with pytest.raises(ContractValidationError, match="strictly preferred"):
         validate_contract(contract)
@@ -123,7 +124,8 @@ def test_rl_v2_observability_closes_v1_action_evidence_gap() -> None:
 
 def test_rl_v2_contract_rejects_missing_action_histogram_evidence() -> None:
     contract = _contract()
-    contract["observability"]["required_evidence"].remove("deterministic_action_counts_by_pair")
+    evidence = contract["observability"]["required_evidence"]
+    evidence.remove("deterministic_action_counts_by_pair")
 
     with pytest.raises(ContractValidationError, match="evidence is incomplete"):
         validate_contract(contract)

@@ -25,7 +25,10 @@ def _mutated_contract(tmp_path: Path, mutate) -> Path:
 
 
 def test_repository_contract_matches_canonical_design_contract() -> None:
-    assert validate_rl_v2_design_contract(CONTRACT_PATH) == canonical_rl_v2_design_contract()
+    assert (
+        validate_rl_v2_design_contract(CONTRACT_PATH)
+        == canonical_rl_v2_design_contract()
+    )
 
 
 def test_contract_rejects_unpenalized_perpetual_neutral_policy(tmp_path: Path) -> None:
@@ -66,7 +69,9 @@ def test_contract_rejects_future_derived_reward_inputs(tmp_path: Path) -> None:
         validate_rl_v2_design_contract(path)
 
 
-def test_contract_rejects_runtime_implementation_or_execution_authorization(tmp_path: Path) -> None:
+def test_contract_rejects_runtime_implementation_or_execution_authorization(
+    tmp_path: Path,
+) -> None:
     path = _mutated_contract(
         tmp_path,
         lambda payload: payload["scope"].update(
@@ -78,7 +83,9 @@ def test_contract_rejects_runtime_implementation_or_execution_authorization(tmp_
         validate_rl_v2_design_contract(path)
 
 
-def test_contract_rejects_hidden_position_state_without_parity_requirement(tmp_path: Path) -> None:
+def test_contract_rejects_hidden_position_state_without_parity_requirement(
+    tmp_path: Path,
+) -> None:
     path = _mutated_contract(
         tmp_path,
         lambda payload: payload["position_state_inference_contract"].update(
@@ -89,7 +96,10 @@ def test_contract_rejects_hidden_position_state_without_parity_requirement(tmp_p
         ),
     )
 
-    with pytest.raises(RLV2DesignContractError, match="position_state_inference_contract"):
+    with pytest.raises(
+        RLV2DesignContractError,
+        match="position_state_inference_contract",
+    ):
         validate_rl_v2_design_contract(path)
 
 
@@ -129,7 +139,9 @@ def test_contract_rejects_protected_final_holdout_use(tmp_path: Path) -> None:
         validate_rl_v2_design_contract(path)
 
 
-def test_contract_rejects_future_evaluation_window_selected_in_design_task(tmp_path: Path) -> None:
+def test_contract_rejects_future_evaluation_window_selected_in_design_task(
+    tmp_path: Path,
+) -> None:
     path = _mutated_contract(
         tmp_path,
         lambda payload: payload["evaluation_isolation"]["future_evaluation_window"].update(

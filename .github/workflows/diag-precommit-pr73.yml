@@ -1,9 +1,11 @@
 name: Diagnose PR73 Pre-commit
 
 on:
-  push:
+  pull_request:
     branches:
-      - diag/precommit-pr73
+      - feat/experimental-model-historical-execution-preflight-v2
+    paths:
+      - ".github/workflows/diag-precommit-pr73.yml"
 
 permissions:
   contents: read

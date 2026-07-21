@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -21,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 REQUEST_SCHEMA = (
     ROOT / "ai_platform/model_comparison/historical-comparison-run-request-schema-v1.json"
 )
+STRATEGY_FILE = ROOT / "ai_platform/strategies/AiPhase52ExitStrategy.py"
 WORKFLOW = ROOT / ".github/workflows/ai-platform-phase6-historical-comparison.yml"
 
 
@@ -34,6 +36,8 @@ def test_expected_historical_comparison_request_matches_schema() -> None:
 
     Draft202012Validator(schema).validate(request)
     assert request["models"] == EXPECTED_MODELS
+    assert request["strategy"] == "ai_platform/strategies/AiPhase52ExitStrategy.py"
+    assert request["strategy_sha256"] == hashlib.sha256(STRATEGY_FILE.read_bytes()).hexdigest()
     assert request["historical_oos_timerange"] == EXPECTED_HISTORICAL_OOS
     assert request["historical_oos_status"] == "consumed_historical_oos"
     assert request["download_timerange"] == EXPECTED_DOWNLOAD_TIMERANGE
@@ -67,6 +71,7 @@ def test_exact_request_validates(tmp_path: Path) -> None:
     [
         ("comparison_contract_sha256", "0" * 64),
         ("selection_policy_sha256", "0" * 64),
+        ("strategy_sha256", "0" * 64),
         ("models", ["XGBoostRegressor", "LightGBMRegressor"]),
         ("historical_oos_timerange", "20260801-20260930"),
         ("download_timerange", "20250801-20260930"),
@@ -112,6 +117,8 @@ def test_workflow_chains_complete_historical_comparison_pipeline() -> None:
 
     assert workflow.count("python -m ai_platform.scripts.run_experiment") == 2
     assert workflow.count("model_comparison_oos_result_extractor") == 2
+    assert "expected_strategy_sha256 = request[\"strategy_sha256\"]" in workflow
+    assert "provenance.get(\"strategy_sha256\")" in workflow
     assert "evaluate_model_selection" in workflow
     assert "model_comparison_provenance_binding" in workflow
     assert "model_comparison_result_assembler" in workflow

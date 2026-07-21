@@ -1,0 +1,60 @@
+{
+  "action": "execute_experimental_model_historical_backtests",
+  "authorization": {
+    "cross_track_selection_allowed": false,
+    "feature_changes_allowed": false,
+    "final_holdout_used": false,
+    "historical_backtest_execution_allowed": true,
+    "live_trading_allowed": false,
+    "model_parameter_changes_allowed": false,
+    "profitability_claim_allowed": false,
+    "promotion_allowed": false,
+    "retuning_allowed": false,
+    "reward_changes_allowed": false,
+    "strict_oos_extraction_allowed": true,
+    "superiority_claim_allowed": false
+  },
+  "contract_path": "ai_platform/experimental_model_research/historical-backtest-execution-contract-v1.json",
+  "contract_sha256": "07a77b817fab57f398313dd032e8e7a0759888d4d73b00c3cc8902fdf278079f",
+  "download_timerange": "20250801-20260701",
+  "execution_timerange": "20260301-20260701",
+  "frozen_parameters": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009
+  },
+  "protected_final_holdout": "20260801-20260930",
+  "request_id": "experimental-model-historical-backtest-execution-v1",
+  "schema_version": 1,
+  "semantic_prediction_window": "20260301-20260630",
+  "strict_oos_scoring_window": "20260501-20260630",
+  "tracks": [
+    {
+      "config_path": "ai_platform/configs/freqai-pytorch-research.example.json",
+      "config_sha256": "102d48dbcee44791347abeb27ebad1874b47ee27662c6f554973a9d0b33b36e3",
+      "freqai_identifier": "ai-platform-pytorch-research-v1",
+      "freqai_model": "SeededPyTorchMLPRegressor",
+      "freqai_model_path": "ai_platform/freqaimodels/SeededPyTorchMLPRegressor.py",
+      "freqai_model_sha256": "2a8d379530380c0c772c3306051ddfc89fa6334ffad080ec25ef7ec4c17c287e",
+      "manifest_path": "ai_platform/experiments/pytorch-research-v1.json",
+      "manifest_sha256": "c5208f8ca64a60684476011fb01d509a8591d97c1c72bb7c802162344002b2ea",
+      "strategy": "AiFrozenCandidateStrategy",
+      "strategy_path": "ai_platform/strategies/AiFrozenCandidateStrategy.py",
+      "strategy_sha256": "1a70232ac23be7dda958644b148ca63fa09ba03a8a770cae969400a2cfbc14a2",
+      "track_id": "pytorch-research-v1"
+    },
+    {
+      "config_path": "ai_platform/configs/freqai-rl-research.example.json",
+      "config_sha256": "b266d65a773e95f97880cab9c429ccd78ea7bfe157894e75a9f4463da4678c9d",
+      "freqai_identifier": "ai-platform-rl-research-v1",
+      "freqai_model": "LongOnlyReinforcementLearner",
+      "freqai_model_path": "ai_platform/freqaimodels/LongOnlyReinforcementLearner.py",
+      "freqai_model_sha256": "e39580db348a0f2e2ac65ff004526fcdf4fee1a26505928ed41838b80c90f935",
+      "manifest_path": "ai_platform/experiments/rl-research-v1.json",
+      "manifest_sha256": "4aa2e16b5b0732b845a8827dc7550c7d20c7d066d71222798ee2ac4800fdb9a6",
+      "strategy": "AiLongOnlyRLResearchStrategy",
+      "strategy_path": "ai_platform/strategies/AiLongOnlyRLResearchStrategy.py",
+      "strategy_sha256": "67df55ded2395955125118312efdd23bc77f25a7f4106d12dc773d28e8beb972",
+      "track_id": "rl-research-v1"
+    }
+  ]
+}

@@ -27,7 +27,7 @@ python -m ai_platform.scripts.model_comparison_execution_request --print-templat
 
 A later trigger-only PR must add the printed JSON unchanged at the reserved request path. The runtime
 validator requires exact equality with the generated template, including exact-byte SHA-256 values of
-the tracked comparison contract and selection policy.
+the tracked comparison contract, selection policy, and frozen strategy source.
 
 ## Frozen pre-data checks
 
@@ -36,12 +36,14 @@ Before any dependency cache or historical data is touched, the request validator
 - comparison id `freqai-lightgbm-vs-xgboost-v1`;
 - exactly `LightGBMRegressor` and `XGBoostRegressor`;
 - `freqai_model` as the only primary variable under test;
+- strategy `AiPhase52ExitStrategy`;
+- the strategy source still declares frozen entry `0.006`;
+- the strategy `DecimalParameter` runtime default is the selected frozen exit `-0.009`;
+- exact SHA-256 of `AiPhase52ExitStrategy.py` is bound into the run request;
 - training window `20251201-20260228`;
 - tuning window `20260301-20260430`;
 - consumed historical OOS scoring window `20260501-20260630`;
 - historical download range exactly `20250801-20260630`;
-- frozen entry threshold `0.006`;
-- frozen exit threshold `-0.009`;
 - joint model-parameter tuning forbidden;
 - feature changes forbidden;
 - protected final holdout exactly `20260801-20260930` and forbidden for model comparison;
@@ -62,14 +64,17 @@ After the request-only and frozen-contract gate passes, the workflow:
    `2026-06-30` and converts them to the required timeframes;
 6. runs the LightGBM and XGBoost backtests sequentially from the exact checked-out request commit;
 7. requires both run-provenance files to report that same request-head commit;
-8. applies the strict fully-contained historical-OOS extractor to both backtest archives;
-9. evaluates the already-predeclared deterministic selection policy;
-10. binds exact-byte materialization, run provenance, archive, extraction, and selection evidence;
-11. assembles the completed model-comparison result through the tracked final result schema;
-12. verifies final-holdout, promotion, and profitability-claim flags remain false;
-13. uploads the materialized comparison tree and completed evidence as a durable workflow artifact.
+8. requires both run-provenance files to report the exact strategy SHA-256 bound by the request;
+9. applies the strict fully-contained historical-OOS extractor to both backtest archives;
+10. evaluates the already-predeclared deterministic selection policy;
+11. binds exact-byte materialization, run provenance, archive, extraction, and selection evidence;
+12. assembles the completed model-comparison result through the tracked final result schema;
+13. verifies final-holdout, promotion, and profitability-claim flags remain false;
+14. uploads the request, materialized comparison tree, and completed evidence as a durable artifact.
 
-The workflow does not retune strategy thresholds, model parameters, or features.
+The workflow does not retune strategy thresholds, model parameters, or features. The selected
+Phase 5.2 exit threshold is frozen as the strategy's runtime default, so the strategy file hash recorded
+by `run_experiment` cryptographically identifies the threshold-bearing source used by both backtests.
 
 ## Data isolation
 
@@ -86,6 +91,7 @@ evidence.
 
 A successful trigger run uploads:
 
+- the exact canonical run request;
 - canonical materialized configs and manifests;
 - canonical `materialization.json`;
 - per-model run provenance and run summaries;

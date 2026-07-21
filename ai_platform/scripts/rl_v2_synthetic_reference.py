@@ -7,10 +7,11 @@ import argparse
 import json
 import math
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from enum import Enum, IntEnum
+from enum import IntEnum, StrEnum
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from ai_platform.scripts.rl_v2_design_contract import (
     CONTRACT_PATH as DESIGN_CONTRACT_PATH,
@@ -39,14 +40,14 @@ class DesiredPosition(IntEnum):
     TARGET_LONG = 1
 
 
-class PositionState(str, Enum):
+class PositionState(StrEnum):
     """Externally owned current trade state used only by the transition adapter/reward."""
 
     FLAT = "flat"
     LONG = "long"
 
 
-class Transition(str, Enum):
+class Transition(StrEnum):
     """Synthetic transition emitted from current state plus desired position."""
 
     HOLD_FLAT = "hold_flat"
@@ -149,7 +150,8 @@ def _read_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RLV2SyntheticReferenceError(f"Unable to read RL-v2 descriptor {path}: {exc}") from exc
+        message = f"Unable to read RL-v2 descriptor {path}: {exc}"
+        raise RLV2SyntheticReferenceError(message) from exc
     if not isinstance(payload, dict):
         raise RLV2SyntheticReferenceError("RL-v2 descriptor must contain a JSON object")
     return payload
@@ -168,9 +170,13 @@ def validate_synthetic_implementation(
     allowed_modes = design_contract["position_state_inference_contract"]["allowed_design_modes"]
     selected_mode = canonical_synthetic_descriptor()["selected_design_mode"]
     if selected_mode not in allowed_modes:
-        raise RLV2SyntheticReferenceError("Selected synthetic design mode is not contract-authorized")
+        raise RLV2SyntheticReferenceError(
+            "Selected synthetic design mode is not contract-authorized"
+        )
     if selected_mode != "position_independent_action_semantics":
-        raise RLV2SyntheticReferenceError("Synthetic task must select position-independent semantics")
+        raise RLV2SyntheticReferenceError(
+            "Synthetic task must select position-independent semantics"
+        )
 
     actual = _read_json(descriptor_path)
     expected = canonical_synthetic_descriptor()
@@ -253,7 +259,12 @@ def reference_reward(
     """Calculate bounded synthetic reward from explicitly supplied decision-time state only."""
     if not math.isfinite(unrealized_profit):
         raise RLV2SyntheticReferenceError("unrealized_profit must be finite")
-    if isinstance(duration_steps, bool) or not isinstance(duration_steps, int) or duration_steps < 0:
+    invalid_duration = (
+        isinstance(duration_steps, bool)
+        or not isinstance(duration_steps, int)
+        or duration_steps < 0
+    )
+    if invalid_duration:
         raise RLV2SyntheticReferenceError("duration_steps must be a non-negative integer")
 
     desired = _normalize_action(action)

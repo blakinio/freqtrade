@@ -1,0 +1,32 @@
+{
+  "comparison_contract": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+  "comparison_contract_sha256": "77f62b396123c32ac98ab12c68dbc9acf6cb6b5b4f1a3167dcc0e2ac21c0132b",
+  "comparison_id": "freqai-lightgbm-vs-xgboost-v1",
+  "download_timerange": "20250801-20260630",
+  "execution_commit_policy": "pull_request_head_sha",
+  "execution_mode": "one_shot_historical_model_comparison",
+  "feature_changes_allowed": false,
+  "final_holdout_used": false,
+  "historical_oos_status": "consumed_historical_oos",
+  "historical_oos_timerange": "20260501-20260630",
+  "live_trading_allowed": false,
+  "model_parameter_tuning_allowed": false,
+  "models": [
+    "LightGBMRegressor",
+    "XGBoostRegressor"
+  ],
+  "profitability_claim_allowed": false,
+  "promotion_allowed": false,
+  "protected_final_holdout": "20260801-20260930",
+  "request_id": "freqai-lightgbm-vs-xgboost-historical-comparison-run-v1",
+  "retuning_allowed": false,
+  "schema_version": 1,
+  "selection_policy": "ai_platform/model_comparison/selection-policy-v1.json",
+  "selection_policy_sha256": "ed22926f2e5277db04a12519452804d0efd887a19c26ed51a03afefbf1bc856a",
+  "strategy": "ai_platform/strategies/AiPhase52ExitStrategy.py",
+  "strategy_sha256": "b0a3be7d7258eb0234aaf66cccf04680d121bd79ba2509fa2ceca632d751cc94",
+  "training_window": "20251201-20260228",
+  "trigger_change_policy": "request_file_only",
+  "tuning_window": "20260301-20260430",
+  "unseen_final_evidence_claim_allowed": false
+}

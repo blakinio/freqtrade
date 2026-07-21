@@ -50,7 +50,9 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ModelComparisonRunRequestError(f"Unable to read {label} {path}: {exc}") from exc
+        raise ModelComparisonRunRequestError(
+            f"Unable to read {label} {path}: {exc}"
+        ) from exc
     if not isinstance(payload, dict):
         raise ModelComparisonRunRequestError(f"{label} must contain a JSON object")
     return payload
@@ -117,7 +119,8 @@ def load_model_comparison_run_request(path: Path) -> dict[str, Any]:
         if extra:
             details.append(f"extra={','.join(extra)}")
         raise ModelComparisonRunRequestError(
-            "Run request fields do not match the canonical execution request: " + "; ".join(details)
+            "Run request fields do not match the canonical execution request: "
+            + "; ".join(details)
         )
 
     for field, expected_value in expected.items():
@@ -150,10 +153,17 @@ def main(argv: list[str] | None = None) -> int:
         if args.request is not None:
             print("Do not pass a request path with --print-canonical", file=sys.stderr)
             return 2
-        print(json.dumps(canonical_model_comparison_run_request(), indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                canonical_model_comparison_run_request(), indent=2, sort_keys=True
+            )
+        )
         return 0
     if args.request is None:
-        print("A request path is required unless --print-canonical is used", file=sys.stderr)
+        print(
+            "A request path is required unless --print-canonical is used",
+            file=sys.stderr,
+        )
         return 2
     try:
         request = load_model_comparison_run_request(args.request)

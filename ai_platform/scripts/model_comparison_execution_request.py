@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import sys
@@ -19,6 +20,7 @@ COMPARISON_CONTRACT = REPO_ROOT / "ai_platform/model_comparison/lightgbm-vs-xgbo
 SELECTION_POLICY = REPO_ROOT / "ai_platform/model_comparison/selection-policy-v1.json"
 BASELINE_MANIFEST = REPO_ROOT / "ai_platform/experiments/baseline-v1.json"
 FINAL_HOLDOUT_DECLARATION = REPO_ROOT / "ai_platform/validation/final-holdout-v2-declaration.json"
+STRATEGY_FILE = REPO_ROOT / "ai_platform/strategies/AiPhase52ExitStrategy.py"
 EXPECTED_MODELS = ["LightGBMRegressor", "XGBoostRegressor"]
 EXPECTED_COMPARISON_ID = "freqai-lightgbm-vs-xgboost-v1"
 EXPECTED_REQUEST_ID = "freqai-lightgbm-vs-xgboost-historical-comparison-run-v1"
@@ -56,11 +58,71 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _numeric_literal(node: ast.expr, label: str) -> float:
+    try:
+        value = ast.literal_eval(node)
+    except (ValueError, TypeError) as exc:
+        raise ModelComparisonExecutionRequestError(
+            f"Frozen strategy {label} must be a numeric literal"
+        ) from exc
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ModelComparisonExecutionRequestError(
+            f"Frozen strategy {label} must be a numeric literal"
+        )
+    return float(value)
+
+
+def _strategy_thresholds() -> tuple[float, float]:
+    try:
+        tree = ast.parse(STRATEGY_FILE.read_text(encoding="utf-8"))
+    except (OSError, SyntaxError) as exc:
+        raise ModelComparisonExecutionRequestError(
+            f"Unable to inspect frozen strategy {STRATEGY_FILE}: {exc}"
+        ) from exc
+
+    strategy_class = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "AiPhase52ExitStrategy"
+        ),
+        None,
+    )
+    if strategy_class is None:
+        raise ModelComparisonExecutionRequestError("Frozen AiPhase52ExitStrategy class is missing")
+
+    entry_threshold: float | None = None
+    exit_threshold: float | None = None
+    for statement in strategy_class.body:
+        if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+            continue
+        target = statement.targets[0]
+        if not isinstance(target, ast.Name):
+            continue
+        if target.id == "entry_prediction_threshold":
+            entry_threshold = _numeric_literal(statement.value, "entry_prediction_threshold")
+        elif target.id == "exit_prediction_threshold" and isinstance(statement.value, ast.Call):
+            for keyword in statement.value.keywords:
+                if keyword.arg == "default":
+                    exit_threshold = _numeric_literal(
+                        keyword.value,
+                        "exit_prediction_threshold default",
+                    )
+                    break
+
+    if entry_threshold is None or exit_threshold is None:
+        raise ModelComparisonExecutionRequestError(
+            "Frozen strategy prediction threshold declarations are incomplete"
+        )
+    return entry_threshold, exit_threshold
+
+
 def _validate_frozen_sources() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     contract = _read_json(COMPARISON_CONTRACT, "model comparison contract")
     policy = _read_json(SELECTION_POLICY, "model selection policy")
     baseline = _read_json(BASELINE_MANIFEST, "baseline experiment manifest")
     declaration = _read_json(FINAL_HOLDOUT_DECLARATION, "protected final holdout declaration")
+    strategy_entry, strategy_exit = _strategy_thresholds()
 
     shared = contract.get("shared_experiment")
     if not isinstance(shared, dict):
@@ -87,6 +149,9 @@ def _validate_frozen_sources() -> tuple[dict[str, Any], dict[str, Any], dict[str
         "comparison_id": contract.get("comparison_id") == EXPECTED_COMPARISON_ID,
         "models": contract.get("models") == EXPECTED_MODELS,
         "variable_under_test": contract.get("variable_under_test") == "freqai_model",
+        "strategy": shared.get("strategy") == "AiPhase52ExitStrategy",
+        "strategy_entry_threshold": strategy_entry == EXPECTED_ENTRY_THRESHOLD,
+        "strategy_exit_threshold": strategy_exit == EXPECTED_EXIT_THRESHOLD,
         "training_window": shared.get("training_window") == EXPECTED_TRAINING_WINDOW,
         "tuning_window": shared.get("tuning_window") == EXPECTED_TUNING_WINDOW,
         "historical_oos_window": historical_window.get("timerange") == EXPECTED_HISTORICAL_OOS,
@@ -181,6 +246,8 @@ def expected_execution_request() -> dict[str, Any]:
         "comparison_contract_sha256": _sha256(COMPARISON_CONTRACT),
         "selection_policy": SELECTION_POLICY.relative_to(REPO_ROOT).as_posix(),
         "selection_policy_sha256": _sha256(SELECTION_POLICY),
+        "strategy": STRATEGY_FILE.relative_to(REPO_ROOT).as_posix(),
+        "strategy_sha256": _sha256(STRATEGY_FILE),
         "models": contract["models"],
         "training_window": shared["training_window"],
         "tuning_window": shared["tuning_window"],

@@ -5,7 +5,7 @@ branch: feat/rl-v2-design-contract-v1
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "pending"
+related_pr: "102"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md
   - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
@@ -21,7 +21,7 @@ required_reads:
   - freqtrade/freqai/RL/BaseReinforcementLearningModel.py
   - freqtrade/freqai/RL/BaseEnvironment.py
 search_first:
-  - merged task declaration PR #101 and current develop before implementation merge
+  - PR #102 live state and current develop before implementation merge
   - open PRs or active tasks overlapping RL research ownership
 optional_reads:
   - ai_platform/experimental_model_research/evidence/rl-research-v1-historical-oos-v1.json
@@ -71,10 +71,10 @@ The RL-v2 design contract must fail closed unless all of the following are expli
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T00:55:00+02:00
-head: 6156e23efccd4cc41a3424b2a73e05ad9483da80
+updated_at: 2026-07-22T01:05:00+02:00
+head: a7e8c0cae881d81464e1c3e050735ee75ad90ca5
 branch: feat/rl-v2-design-contract-v1
-pr: pending
+pr: 102
 status: ready
 context_routes:
   - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
@@ -96,16 +96,18 @@ proven:
   - Mandatory evidence requires action histograms, do_predict counts, pre-trade signal counts, raw backtest counts and strict-OOS counts as separately attributable layers.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 are forbidden; this task selects no future evaluation window.
   - Frozen thresholds 0.006/-0.009 and completed Phase 6 selected_model null remain unchanged and RL-v2 cannot be consumed by Phase 6.
+  - AI Platform compile and targeted tests passed before formatting cleanup; Ruff lint passed after line wrapping.
+  - One-shot Ruff 0.15.20 formatting completed and self-deleted; net PR scope returned to exactly five owned paths.
 derived:
   - The contract removes post-hoc ambiguity by making reward geometry, position-state parity and action-level observability merge-time requirements for any later RL-v2 implementation task.
   - Numeric reward magnitudes and the concrete position-state/action-semantics architecture remain intentionally deferred and cannot be tuned in this design-contract task.
 unknown:
   - Which concrete RL-v2 design mode and reward magnitudes a later implementation task will choose.
-  - Whether repository CI will expose formatting or validator issues in the new static implementation.
+  - Whether the final normal-actor repository gate cycle passes unchanged after formatter cleanup.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: No runtime execution was attempted; implementation is limited to a static canonical contract and mutation tests.
+  marker: ruff-format-only
+  evidence: Initial AI Platform CI compile and tests passed; Ruff lint was fixed, then exact Ruff 0.15.20 formatting was applied without semantic changes.
 rejected_hypotheses:
   - Modify or rerun rl-research-v1 to validate the design contract.
   - Select numeric reward magnitudes or a future evaluation window in this task.
@@ -124,9 +126,12 @@ validation:
   - command: static contract construction review
     result: PASS
     evidence: Contract and canonical validator encode exact design-only authorization, reward, parity, observability, evaluation-isolation, Phase 6 and frozen-threshold boundaries.
-  - command: targeted validator mutation tests and repository CI
+  - command: AI Platform compile and targeted mutation tests
+    result: PASS
+    evidence: AI Platform CI runs 29874581029 and 29874824851 completed compile and test steps successfully; later failures were limited to Ruff lint/format and were corrected without semantic changes.
+  - command: final repository gates after formatter cleanup
     result: PENDING
-    evidence: Implementation PR has not yet been opened.
+    evidence: Final normal-actor gate cycle will run from this checkpoint metadata commit.
 blockers: []
-next_action: Open the RL-v2 design-contract implementation PR, require AI Platform CI, Freqtrade CI and zizmor to pass, fix only concrete static validation failures, then squash-merge and close the durable checkpoint without starting any RL-v2 model execution.
+next_action: Require final AI Platform CI, Freqtrade CI and zizmor to pass on the clean five-path PR #102 head, verify behind_by=0 and no review blockers, then squash-merge and close this design-contract task without starting any RL-v2 model execution.
 ```

@@ -57,7 +57,7 @@ The trading strategy is `AiFrozenCandidateStrategy`, which keeps the Phase 5.2 e
 
 ## Reinforcement Learning Research
 
-Current FreqAI RL support uses Gymnasium environments and Stable-Baselines3/sb-contrib models. The optional `freqai_rl` dependency profile supplies Gymnasium, Stable-Baselines3, sb3-contrib, Torch, and tqdm. The built-in framework supports custom model classes and custom environments without modifying Freqtrade core.
+Current FreqAI RL support uses Gymnasium environments and Stable-Baselines3/sb3-contrib models. The optional `freqai_rl` dependency profile supplies Gymnasium, Stable-Baselines3, sb3-contrib, Torch, and tqdm. The built-in framework supports custom model classes and custom environments without modifying Freqtrade core.
 
 Track identity:
 

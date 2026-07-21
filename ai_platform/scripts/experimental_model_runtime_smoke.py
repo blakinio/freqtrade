@@ -117,7 +117,26 @@ def _build_rl_environment() -> tuple[LongOnlyEnvironment, pd.DataFrame]:
     return environment, features
 
 
-def _run_rl_environment_smoke() -> dict[str, object]:
+def _run_rl_build_smoke() -> dict[str, object]:
+    environment, features = _build_rl_environment()
+    return {
+        "environment": type(environment).__name__,
+        "rows": len(features),
+        "actions": environment.action_space.n,
+    }
+
+
+def _run_rl_reset_smoke() -> dict[str, object]:
+    environment, features = _build_rl_environment()
+    observation, _ = environment.reset(seed=42)
+    return {
+        "environment": type(environment).__name__,
+        "rows": len(features),
+        "observation_shape": list(observation.shape),
+    }
+
+
+def _run_rl_contract_smoke() -> dict[str, object]:
     environment, features = _build_rl_environment()
     observation, _ = environment.reset(seed=42)
 
@@ -196,7 +215,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "component",
-        choices=("pytorch", "rl-environment", "rl-fit", "all"),
+        choices=("pytorch", "rl-build", "rl-reset", "rl-contract", "rl-fit", "all"),
         nargs="?",
         default="all",
     )
@@ -204,8 +223,12 @@ def main() -> int:
 
     if args.component == "pytorch":
         result = _envelope("pytorch", _run_pytorch_smoke())
-    elif args.component == "rl-environment":
-        result = _envelope("rl-environment", _run_rl_environment_smoke())
+    elif args.component == "rl-build":
+        result = _envelope("rl-build", _run_rl_build_smoke())
+    elif args.component == "rl-reset":
+        result = _envelope("rl-reset", _run_rl_reset_smoke())
+    elif args.component == "rl-contract":
+        result = _envelope("rl-contract", _run_rl_contract_smoke())
     elif args.component == "rl-fit":
         result = _envelope("rl-fit", _run_rl_fit_smoke())
     else:
@@ -213,7 +236,9 @@ def main() -> int:
             "all",
             {
                 "pytorch": _run_pytorch_smoke(),
-                "rl_environment": _run_rl_environment_smoke(),
+                "rl_build": _run_rl_build_smoke(),
+                "rl_reset": _run_rl_reset_smoke(),
+                "rl_contract": _run_rl_contract_smoke(),
                 "rl_fit": _run_rl_fit_smoke(),
             },
         )

@@ -27,14 +27,19 @@ The tracks deliberately reuse the already-consumed historical research geometry 
 - training window: `20251201-20260228`;
 - tuning/prediction-only coverage: `20260301-20260430`;
 - consumed historical OOS scoring window: `20260501-20260630`;
-- combined prediction window: `20260301-20260630`;
-- download coverage: `20250801-20260630`;
+- combined prediction window label: `20260301-20260630`;
+- download coverage label: `20250801-20260630`;
 - `train_period_days = 90`;
 - `backtest_period_days = 122`.
 
-The 122-day backtest period is intentional: it keeps one frozen training window before March-June prediction coverage and prevents periodic FreqAI retraining from learning from May-June historical OOS while that same window is later scored.
+The semantic labels above use an inclusive end date. Freqtrade parses the stop token in `YYYYMMDD-YYYYMMDD` at midnight on that date, so its executable stop boundary is exclusive. The foundation therefore pins separate execution encodings:
 
-Any future result used as research evidence must score only fully contained trades from `20260501-20260630` and report the same trading-level metric families used by the existing research pipeline: profit, drawdown, trade count, and stability. Training loss and the generic March-June `run-summary.json` metrics are not accepted as OOS selection evidence.
+- `freqtrade_prediction_timerange = 20260301-20260701`;
+- `freqtrade_download_timerange = 20250801-20260701`.
+
+These exclusive July 1 stop tokens include all of June 30 without expanding the semantic research window. The 122-day backtest period is consistent with March 1 through June 30 inclusive and keeps one frozen training window before March-June prediction coverage. It prevents periodic FreqAI retraining from learning from May-June historical OOS while that same window is later scored.
+
+Any future result used as research evidence must score only fully contained trades from `20260501-20260630` and report the same trading-level metric families used by the existing research pipeline: profit, drawdown, trade count, and stability. The strict scoring boundary remains `open_date >= 2026-05-01T00:00:00Z` and `close_date < 2026-07-01T00:00:00Z`. Training loss and the generic March-June `run-summary.json` metrics are not accepted as OOS selection evidence.
 
 ## PyTorch Research
 
@@ -116,14 +121,15 @@ The validator and lightweight tests check:
 - the dependency-closed heavy runtime profile;
 - `dry_run: true` and empty exchange credentials;
 - central protected-final-holdout isolation;
-- exact train/tune/OOS geometry and single-training policy;
+- exact train/tune/OOS semantic geometry and single-training policy;
+- separate Freqtrade execution timeranges with an exclusive July 1 stop;
 - frozen PyTorch strategy thresholds;
 - explicit seeds;
 - long-only RL actions;
 - no future-information reward declaration;
 - no Phase 6 membership, promotion, or profitability claim.
 
-The heavy-runtime integration proof is documented separately in `docs/ai_platform/EXPERIMENTAL_MODEL_RUNTIME_SMOKE.md`. It validates the canonical PyTorch and RL runtime paths on synthetic-only data and is not trading-quality evidence. A later execution task must provide strict May-June OOS result extraction for real experimental backtest artifacts; generic full-window run summaries are insufficient evidence.
+The heavy-runtime integration proof is documented separately in `docs/ai_platform/EXPERIMENTAL_MODEL_RUNTIME_SMOKE.md`. It validates the canonical PyTorch and RL runtime paths on synthetic-only data and is not trading-quality evidence. The boundary-safe historical prerequisite is documented in `docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_EXECUTION_PREFLIGHT.md`. A later execution task must provide strict May-June OOS result extraction for real experimental backtest artifacts; generic full-window run summaries are insufficient evidence.
 
 ## Strict historical-OOS extraction
 
@@ -135,11 +141,11 @@ Before scoring, it:
 
 - validates the full experimental-model research foundation;
 - accepts only `pytorch-research-v1` or `rl-research-v1` with exact canonical manifest content;
-- verifies the strategy, model class, FreqAI identifier, and prediction timerange embedded in the backtest stats;
+- verifies the strategy, model class, FreqAI identifier, and executable prediction timerange embedded in the backtest stats;
 - records SHA-256 provenance for the archive, manifest, and config;
 - requires exactly one matching strategy result in the archive.
 
-The scoring boundary is `fully_contained_closed_trades`: `open_date >= 2026-05-01T00:00:00Z` and `close_date < 2026-07-01T00:00:00Z`. Trades crossing into the window from April or closing on/after July 1 are excluded and counted. A `force_exit` is included only when the trade is fully contained inside the scoring window.
+The scoring boundary is `fully_contained_closed_trades`: `open_date >= 2026-05-01T00:00:00Z` and `close_date < 2026-07-01T00:00:00Z`. Trades crossing into the window from April or closing on/after July 1 are excluded and counted. A trade opened and closed on June 30 is eligible; a trade closing exactly at July 1 is not. A `force_exit` is included only when the trade is fully contained inside the scoring window.
 
 The output reports profit, drawdown, included trade count, and two-fold May/June stability using included trades only. Every extraction remains explicitly outside Phase 6, cannot be consumed by its current comparison or selection policy, and cannot authorize promotion or a profitability claim.
 

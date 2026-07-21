@@ -110,7 +110,7 @@ def test_workflow_is_request_only_and_orders_gate_before_data_access() -> None:
 def test_workflow_chains_complete_historical_comparison_pipeline() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert workflow.count("ai_platform.scripts.run_experiment") == 2
+    assert workflow.count("python -m ai_platform.scripts.run_experiment") == 2
     assert workflow.count("model_comparison_oos_result_extractor") == 2
     assert "evaluate_model_selection" in workflow
     assert "model_comparison_provenance_binding" in workflow

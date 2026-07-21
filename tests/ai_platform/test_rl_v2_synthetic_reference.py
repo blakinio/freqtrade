@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -275,3 +276,19 @@ def test_invalid_design_contract_binding_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(RLV2SyntheticReferenceError, match="design contract invalid"):
         validate_synthetic_implementation(DESCRIPTOR_PATH, path)
+
+
+def test_temporary_ruff_diagnostics() -> None:
+    result = subprocess.run(
+        [
+            "ruff",
+            "check",
+            "ai_platform/scripts/rl_v2_synthetic_reference.py",
+            "tests/ai_platform/test_rl_v2_synthetic_reference.py",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr

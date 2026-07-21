@@ -29,7 +29,7 @@ permissions:
 
 concurrency:
   group: "experimental-model-historical-execution-preflight-${{ github.ref }}"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   contract:
@@ -154,12 +154,14 @@ jobs:
       - name: Prepare research user directory
         run: freqtrade create-userdir --userdir user_data
 
-      - name: Restore dedicated pair-specific Kraken history cache
+      - name: Restore pair cache or stale preflight seed
         id: kraken-data-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ${{ env.DATA_DIR }}
           key: experimental-model-historical-preflight-v2-${{ runner.os }}-${{ matrix.slug }}-${{ hashFiles('ai_platform/experiments/pytorch-research-v1.json', 'ai_platform/experiments/rl-research-v1.json', 'ai_platform/configs/freqai-pytorch-research.example.json', 'ai_platform/configs/freqai-rl-research.example.json') }}
+          restore-keys: |
+            experimental-model-historical-preflight-v1-${{ runner.os }}-
 
       - name: Download exact declared Kraken history through June 30
         if: steps.kraken-data-cache.outputs.cache-hit != 'true'

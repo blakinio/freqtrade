@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260722-rl-zero-trade-functional-diagnosis
-status: active
+status: done
 branch: docs/rl-zero-trade-functional-diagnosis
 base_branch: develop
 created: 2026-07-22
@@ -20,7 +20,7 @@ required_reads:
   - ai_platform/strategies/AiLongOnlyRLResearchStrategy.py
   - ai_platform/freqaimodels/LongOnlyReinforcementLearner.py
 search_first:
-  - PR #100 live state and current develop before task closure
+  - merged PR #100 and current develop before any RL-v2 work
   - closed execution-carrier PR #94 and workflow run 29844351936
   - merged durable evidence PR #95
 optional_reads:
@@ -49,11 +49,11 @@ Determine, without any new model execution or tuning, why the completed frozen `
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T00:30:00+02:00
-head: 2fd283d26edf05d505a8c951e0f0cdc375f900b1
+updated_at: 2026-07-22T00:35:00+02:00
+head: 34d7e0baa0e9fd9c87f8e92b910f6875d8f80db0
 branch: docs/rl-zero-trade-functional-diagnosis
 pr: 100
-status: ready
+status: done
 context_routes:
   - docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EVIDENCE.md
@@ -99,9 +99,9 @@ validation:
   - command: preserved artifact and source inspection
     result: PASS
     evidence: RL artifact 8503197359, run log, run summary, strict-OOS extraction and canonical FreqAI RL source were inspected without model execution or data rerun.
-  - command: PR #100 repository gates
-    result: PENDING
-    evidence: Diagnosis PR is open against develop; exact final CI identifiers will be recorded before merge.
+  - command: PR #100 repository gates before task-close commit
+    result: PASS
+    evidence: AI Platform CI 29873885586, zizmor 29873885558, and Freqtrade CI 29873885669 completed successfully; pre-commit, documentation build and CI Gate passed.
 blockers: []
-next_action: Let PR #100 complete required repository gates, then update this checkpoint to status done with exact final CI identifiers and squash-merge the diagnosis-only work package. Do not implement RL-v2 changes inside this task.
+next_action: none. This diagnosis-only task is complete. Any RL-v2 redesign must begin as a new prospectively declared bounded task with fresh non-protected evaluation data and must preserve Phase 5 final-holdout and Phase 6 isolation.
 ```

@@ -1,20 +1,20 @@
 {
   "artifact": {
-    "artifact_id": 8493443451,
-    "digest": "sha256:012ff27b73f2a0944ed19689c993a9021237dff1bf7859c48aa3177d4c7739f4",
-    "downloaded_zip_sha256": "012ff27b73f2a0944ed19689c993a9021237dff1bf7859c48aa3177d4c7739f4",
-    "expires_at": "2026-10-19T10:14:41Z",
-    "name": "phase6-model-comparison-evidence-77",
-    "size_in_bytes": 544628
+    "artifact_id": 8498159861,
+    "digest": "sha256:a180b4b4eb2265a96884198388b60d1fca6439066043d8385ca2f3a374df28e4",
+    "downloaded_zip_sha256": "a180b4b4eb2265a96884198388b60d1fca6439066043d8385ca2f3a374df28e4",
+    "expires_at": "2026-10-19T12:57:41Z",
+    "name": "phase6-model-comparison-evidence-88",
+    "size_in_bytes": 547872
   },
   "comparison": {
     "comparison_id": "freqai-lightgbm-vs-xgboost-v1",
-    "comparison_result_sha256": "7bb0a8b8318eadf0365b731528d492b701d2352db2fd75c38c58a361e2ac3a45",
-    "execution_git_commit": "38d83e6d22f63a5234458e7c85453b90536b7590",
-    "materialization_plan_sha256": "2ecd1eea136fd47e997838cc09e5b16804f863a0ee35df62071bbf2b5f99d176",
+    "comparison_result_sha256": "4f9c7ea5ae9eecfce86a4e242f38caac82313723ecf471daf201687a4c404545",
+    "execution_git_commit": "ad44823af157a27258a1bdbc3c64536aae2d3593",
+    "materialization_plan_sha256": "592190e32ead23afe0822ba8d7da679f0898aab459fd101ab67fdd7d94f61cb5",
     "models": [
       {
-        "backtest_archive_sha256": "abdab58af3d1b9adf7ab5f6357ab1ddd8652fe677bb45da5cda8432eb9c6a65e",
+        "backtest_archive_sha256": "5c13b8a3a3301b5c73403f0ee0d6f8f93b34bc19705bb2e510ee5d4a6f1a893b",
         "eligible": false,
         "experiment_identity": "freqai-lightgbm-vs-xgboost-v1-lightgbm-dba8694c5a89",
         "failed_gates": [
@@ -28,12 +28,12 @@
           "trades": 17
         },
         "model_type": "LightGBMRegressor",
-        "oos_extraction_sha256": "a7fbe83218abc8bac7ca199055d9829ba41bacdc11bf614038b3500e979a418d",
-        "run_id": "20260721T112939Z-436fb5a6",
-        "run_provenance_sha256": "ee808f94eb0a237e33bdf529fd34885fcf70007a610db3abf0dc614870555fcc"
+        "oos_extraction_sha256": "ebfe5d68dcf584515d89b70d52095480d4dcdbdf207e4c3a120757a84115f6e6",
+        "run_id": "20260721T141257Z-c5258b12",
+        "run_provenance_sha256": "56e1c334189da654cefd696da5afb9899683de70e06aee183add139e14361947"
       },
       {
-        "backtest_archive_sha256": "4f405ef814a60fecdcf6cdf2cdaf829df65f70c02b21c264dc7903095b80633c",
+        "backtest_archive_sha256": "c6529306a7a40c53050bed67853417e5b3725278854414d83df866c32f94c1b5",
         "eligible": false,
         "experiment_identity": "freqai-lightgbm-vs-xgboost-v1-xgboost-7818ab26c6da",
         "failed_gates": [
@@ -47,12 +47,12 @@
           "trades": 25
         },
         "model_type": "XGBoostRegressor",
-        "oos_extraction_sha256": "db92bf810e109bc9957a5ba269f08cac2f14cdbe72307f3b1c30603b069b7030",
-        "run_id": "20260721T112959Z-3e991d75",
-        "run_provenance_sha256": "a8e592ed546142e1d4ad06a2334bd89cc59532bfbbfb19254034a88d4e2028bd"
+        "oos_extraction_sha256": "10b7b70fc078a708191511006646f66347bf439c429535047449ba44b33eb9c3",
+        "run_id": "20260721T141317Z-eab43b3c",
+        "run_provenance_sha256": "70b5dfe3ba4fdb74a6c58f66442d9bce53b946e87907c3282c72910238412d69"
       }
     ],
-    "result_provenance_sha256": "756f0fc6e0dc42ee0d6afbe300352117e913283db107ed675a41ddc50a04ae12",
+    "result_provenance_sha256": "7b5b0432c534b5814795298d1308f56c05bfdd3325c8d51775be04d6515064da",
     "result_status": "completed",
     "selection": {
       "basis": "no_model_passed_predeclared_eligibility_gates",
@@ -64,25 +64,32 @@
     "selection_decision_sha256": "56ca4282ed4df30fe2bc3cc8bcf9da5c0175f593018403cbaea2acf66861d47e",
     "selection_policy_sha256": "ed22926f2e5277db04a12519452804d0efd887a19c26ed51a03afefbf1bc856a"
   },
-  "conclusion": "This record preserves the exact original Phase 6 run #77 evidence, but its no-selection conclusion is superseded and is not authoritative because the materialized Freqtrade execution and download stop dates were 20260630, which excluded the remainder of the declared June 30 session. A corrected frozen rerun is required before any Phase 6 model-comparison conclusion is treated as authoritative.",
+  "conclusion": "The boundary-corrected canonical Phase 6 rerun covered the complete declared June 30 session using Freqtrade exclusive execution/download stops at 20260701. Neither LightGBMRegressor nor XGBoostRegressor passed the predeclared minimum-profit and minimum-stability gates, so the authoritative deterministic selection is selected_model null. Phase 6 therefore ends with no eligible model selected and authorizes no promotion, profitability claim, retuning from consumed historical OOS, or protected-final-holdout access.",
   "evidence_file_sha256": {
-    "comparison-result.json": "7bb0a8b8318eadf0365b731528d492b701d2352db2fd75c38c58a361e2ac3a45",
-    "lightgbm-oos-extraction.json": "a7fbe83218abc8bac7ca199055d9829ba41bacdc11bf614038b3500e979a418d",
-    "lightgbm-run-provenance.json": "ee808f94eb0a237e33bdf529fd34885fcf70007a610db3abf0dc614870555fcc",
-    "lightgbm-run-summary.json": "4da08667274d836f0ae8d66cd2a90e3949898e8fac1152492ac23fdbd2985dbb",
-    "materialization.json": "2ecd1eea136fd47e997838cc09e5b16804f863a0ee35df62071bbf2b5f99d176",
-    "result-provenance.json": "756f0fc6e0dc42ee0d6afbe300352117e913283db107ed675a41ddc50a04ae12",
-    "run_request.json": "191ba1432bc172ffa723efd1dc522f69f88db89ccbb3357e9b264667bfdcb57b",
+    "comparison-result.json": "4f9c7ea5ae9eecfce86a4e242f38caac82313723ecf471daf201687a4c404545",
+    "lightgbm-oos-extraction.json": "ebfe5d68dcf584515d89b70d52095480d4dcdbdf207e4c3a120757a84115f6e6",
+    "lightgbm-run-provenance.json": "56e1c334189da654cefd696da5afb9899683de70e06aee183add139e14361947",
+    "lightgbm-run-summary.json": "8b42bc13f1406fa43da66cfd391de24665ab8d79e5e800dfff75dcfdbe0ef7dd",
+    "materialization.json": "592190e32ead23afe0822ba8d7da679f0898aab459fd101ab67fdd7d94f61cb5",
+    "result-provenance.json": "7b5b0432c534b5814795298d1308f56c05bfdd3325c8d51775be04d6515064da",
+    "run-request.json": "191ba1432bc172ffa723efd1dc522f69f88db89ccbb3357e9b264667bfdcb57b",
     "selection-decision.json": "56ca4282ed4df30fe2bc3cc8bcf9da5c0175f593018403cbaea2acf66861d47e",
-    "xgboost-oos-extraction.json": "db92bf810e109bc9957a5ba269f08cac2f14cdbe72307f3b1c30603b069b7030",
-    "xgboost-run-provenance.json": "a8e592ed546142e1d4ad06a2334bd89cc59532bfbbfb19254034a88d4e2028bd",
-    "xgboost-run-summary.json": "9d53ca4a04473888a5dafa950a0bfa54de2ec5ed83d935b5f9efc0160a7c4a32"
+    "xgboost-oos-extraction.json": "10b7b70fc078a708191511006646f66347bf439c429535047449ba44b33eb9c3",
+    "xgboost-run-provenance.json": "70b5dfe3ba4fdb74a6c58f66442d9bce53b946e87907c3282c72910238412d69",
+    "xgboost-run-summary.json": "a37a100eb04a661cd9cb9a81b609f0b7b6a8d46194b15c05183697e5de768471"
+  },
+  "execution_geometry": {
+    "download_execution_timerange": "20250801-20260701",
+    "prediction_execution_timerange": "20260301-20260701",
+    "semantic_download_timerange": "20250801-20260630",
+    "semantic_prediction_window": "20260301-20260630",
+    "strict_oos_close_upper_bound_exclusive": "2026-07-01T00:00:00Z"
   },
   "frozen_parameters": {
     "entry_prediction_threshold": 0.006,
     "exit_prediction_threshold": -0.009
   },
-  "next_step": "Execute exactly one corrected canonical LightGBM-versus-XGBoost historical comparison through the merged Phase 6 workflow after boundary fix PR #81. Preserve the same frozen candidates, parameters, features, selection policy, and consumed historical OOS semantics; use Freqtrade execution/download exclusive stops at 20260701; do not retune and do not access the protected final holdout.",
+  "next_step": "Phase 6 is complete with no eligible LightGBM or XGBoost model selected. Do not retune from consumed historical OOS 20260501-20260630 and do not access protected final holdout 20260801-20260930. Any further model-family research, including the isolated PyTorch/RL track, must remain a separate bounded work package and cannot retroactively alter the frozen Phase 6 candidates or selection policy.",
   "protected_final_holdout": {
     "final_validation_authorized": false,
     "live_trading_allowed": false,
@@ -92,36 +99,35 @@
     "timerange": "20260801-20260930",
     "used": false
   },
-  "research_commit": "38d83e6d22f63a5234458e7c85453b90536b7590",
+  "research_commit": "ad44823af157a27258a1bdbc3c64536aae2d3593",
   "schema_version": 1,
-  "status": "superseded_incomplete_execution_boundary",
+  "status": "completed_authoritative_no_selection",
   "strict_historical_oos": {
     "final_holdout_used": false,
     "source_status": "consumed_historical_oos",
     "timerange": "20260501-20260630"
   },
-  "supersession": {
+  "superseded_predecessor": {
+    "artifact_digest": "sha256:012ff27b73f2a0944ed19689c993a9021237dff1bf7859c48aa3177d4c7739f4",
+    "artifact_id": 8493443451,
+    "artifact_name": "phase6-model-comparison-evidence-77",
     "authoritative": false,
-    "boundary_fix_merge_commit": "303b600c0b7386b68db8f61ef9c740a7ea9a1f54",
-    "boundary_fix_pull_request": 81,
-    "defect": "The original materialized and runtime manifests used Freqtrade timerange 20260301-20260630 and download_timerange 20250801-20260630. Freqtrade interprets the stop date at midnight, so those execution ranges did not cover the complete 2026-06-30 session declared by the semantic historical window.",
-    "original_download_execution_timerange": "20250801-20260630",
-    "original_prediction_execution_timerange": "20260301-20260630",
-    "required_corrected_download_execution_timerange": "20250801-20260701",
-    "required_corrected_prediction_execution_timerange": "20260301-20260701",
-    "required_corrected_rerun": true,
-    "supersedes_conclusion_only": true
+    "evidence_git_history_preserved": true,
+    "execution_git_commit": "38d83e6d22f63a5234458e7c85453b90536b7590",
+    "reason": "Its Freqtrade execution and download stop dates were 20260630, excluding the remainder of the declared June 30 session.",
+    "superseded_by_boundary_fix_pull_request": 81
   },
   "trigger_pull_request": {
     "merged": false,
-    "number": 77,
-    "purpose": "one-shot execution trigger only"
+    "number": 88,
+    "purpose": "one-shot boundary-corrected execution trigger only",
+    "state": "closed"
   },
   "work_package": "Phase 6 LightGBM-versus-XGBoost historical model comparison",
   "workflow": {
     "conclusion": "success",
-    "job_id": 88604850782,
+    "job_id": 88639846851,
     "name": "AI Platform Phase 6 Model Comparison",
-    "run_id": 29821473503
+    "run_id": 29832315428
   }
 }

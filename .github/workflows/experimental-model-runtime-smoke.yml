@@ -38,8 +38,14 @@ jobs:
       - name: Smoke canonical PyTorch fit
         run: python -m ai_platform.scripts.experimental_model_runtime_smoke pytorch
 
-      - name: Smoke canonical RL environment
-        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-environment
+      - name: Smoke RL environment construction
+        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-build
+
+      - name: Smoke RL environment reset
+        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-reset
+
+      - name: Smoke RL environment contract
+        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-contract
 
       - name: Smoke canonical RL PPO fit
         run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-fit

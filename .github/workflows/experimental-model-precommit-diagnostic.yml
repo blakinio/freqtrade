@@ -12,15 +12,9 @@ permissions:
   contents: read
 
 jobs:
-  mypy-file:
-    name: "Mypy diagnostic - ${{ matrix.target }}"
+  mypy-output:
+    name: Capture Mypy diagnostic output
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - ai_platform/scripts/experimental_model_historical_execution_preflight.py
-          - ai_platform/scripts/experimental_model_research_contract.py
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -32,7 +26,31 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Run Mypy for one changed AI Platform file
-        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+      - name: Install pre-commit
+        run: python -m pip install --disable-pip-version-check --quiet pre-commit
+
+      - name: Capture isolated Mypy output
+        id: mypy
+        continue-on-error: true
+        run: |
+          set +e
+          pre-commit run mypy --files \
+            ai_platform/scripts/experimental_model_historical_execution_preflight.py \
+            > mypy-diagnostic.txt 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat mypy-diagnostic.txt
+          exit "$status"
+
+      - name: Upload Mypy diagnostic
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          extra_args: "mypy --files ${{ matrix.target }}"
+          name: experimental-model-mypy-diagnostic
+          path: mypy-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Fail when Mypy failed
+        if: steps.mypy.outputs.status != '0'
+        run: exit 1

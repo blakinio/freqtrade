@@ -157,7 +157,7 @@ jobs:
           test -d "$run_dir"
           echo "run_dir=$run_dir" >> "$GITHUB_OUTPUT"
 
-      - name: Verify both backtests used the exact request commit
+      - name: Verify both backtests used the exact request commit and frozen strategy
         env:
           EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha }}
           LIGHTGBM_RUN_DIR: ${{ steps.lightgbm.outputs.run_dir }}
@@ -168,17 +168,27 @@ jobs:
           import os
           from pathlib import Path
 
-          expected = os.environ["EXPECTED_COMMIT"]
+          expected_commit = os.environ["EXPECTED_COMMIT"]
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          expected_strategy_sha256 = request["strategy_sha256"]
           commits = []
+          strategy_hashes = []
           for env_name in ("LIGHTGBM_RUN_DIR", "XGBOOST_RUN_DIR"):
               run_dir = Path(os.environ[env_name])
               provenance = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
               if provenance.get("stage") != "backtest":
                   raise SystemExit(f"{env_name} provenance stage is not backtest")
               commits.append(provenance.get("git_commit"))
-          if commits != [expected, expected]:
+              strategy_hashes.append(provenance.get("strategy_sha256"))
+          if commits != [expected_commit, expected_commit]:
               raise SystemExit(
-                  f"Model backtests must both execute at request head {expected}; got {commits}"
+                  "Model backtests must both execute at request head "
+                  f"{expected_commit}; got {commits}"
+              )
+          if strategy_hashes != [expected_strategy_sha256, expected_strategy_sha256]:
+              raise SystemExit(
+                  "Model backtests must both use the request-bound frozen strategy hash; "
+                  f"expected {expected_strategy_sha256}, got {strategy_hashes}"
               )
           PY
 
@@ -298,6 +308,7 @@ jobs:
         with:
           name: phase6-historical-model-comparison-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
           path: |
+            ${{ env.REQUEST_PATH }}
             ${{ env.EVIDENCE_DIR }}/
             ${{ env.COMPARISON_ROOT }}/
           if-no-files-found: error

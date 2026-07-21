@@ -15,6 +15,8 @@ from typing import Any
 
 from ai_platform.scripts.rl_v2_design_contract import (
     CONTRACT_PATH as DESIGN_CONTRACT_PATH,
+)
+from ai_platform.scripts.rl_v2_design_contract import (
     RLV2DesignContractError,
     validate_rl_v2_design_contract,
 )

@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260722-rl-v2-design-contract
-status: implementing
-branch: feat/rl-v2-design-contract-v1
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
@@ -16,13 +16,11 @@ required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md
-  - ai_platform/freqaimodels/LongOnlyReinforcementLearner.py
-  - ai_platform/strategies/AiLongOnlyRLResearchStrategy.py
-  - freqtrade/freqai/RL/BaseReinforcementLearningModel.py
-  - freqtrade/freqai/RL/BaseEnvironment.py
+  - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
+  - ai_platform/experimental_model_research/rl-v2-design-contract-v1.json
 search_first:
-  - PR #102 live state and current develop before implementation merge
-  - open PRs or active tasks overlapping RL research ownership
+  - current develop and open PRs before declaring any RL-v2 implementation task
+  - active tasks overlapping RL research ownership
 optional_reads:
   - ai_platform/experimental_model_research/evidence/rl-research-v1-historical-oos-v1.json
   - ai_platform/configs/freqai-rl-research.example.json
@@ -71,9 +69,9 @@ The RL-v2 design contract must fail closed unless all of the following are expli
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T01:05:00+02:00
-head: a7e8c0cae881d81464e1c3e050735ee75ad90ca5
-branch: feat/rl-v2-design-contract-v1
+updated_at: 2026-07-22T01:20:00+02:00
+head: c1834ef876e3c64bce89559ad20d93f7b6104f88
+branch: develop
 pr: 102
 status: ready
 context_routes:
@@ -89,25 +87,23 @@ owned_paths:
 proven:
   - RL zero-trade diagnosis PR #100 was squash-merged as e0f6d3e557a880c49d6146530f806a0826f2d8e6 and closed the diagnosis task.
   - Task declaration PR #101 was squash-merged as e040eb1fcf0761409694856cb36794944d0ca34f before implementation began.
-  - The v1 reward admits permanent neutrality as an unpenalized zero-reward solution while valid Long_enter has no immediate reward advantage.
+  - Implementation PR #102 was squash-merged as c1834ef876e3c64bce89559ad20d93f7b6104f88 with exactly five owned paths and no RL-v2 runtime/model/strategy/config execution changes.
   - The design contract keeps rl-research-v1 immutable and authorizes no RL-v2 model, strategy, config, training, backtest, data download or performance evaluation.
   - Reward invariants require flat-neutral reward to be strictly below valid long-entry reward, invalid-action penalty, no future-derived reward inputs and synthetic edge-case coverage.
   - Future implementation must choose exactly one position-state design mode and prove training/historical-inference parity synthetically before any historical execution.
   - Mandatory evidence requires action histograms, do_predict counts, pre-trade signal counts, raw backtest counts and strict-OOS counts as separately attributable layers.
-  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 are forbidden; this task selects no future evaluation window.
+  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden; no future evaluation window was selected.
   - Frozen thresholds 0.006/-0.009 and completed Phase 6 selected_model null remain unchanged and RL-v2 cannot be consumed by Phase 6.
-  - AI Platform compile and targeted tests passed before formatting cleanup; Ruff lint passed after line wrapping.
-  - One-shot Ruff 0.15.20 formatting completed and self-deleted; net PR scope returned to exactly five owned paths.
+  - Final PR #102 gates passed on head 730042f821168d49026f1ca9ce728b4750f7a2f4: AI Platform CI 29875028448, Freqtrade CI 29875028434, and zizmor 29875028428; Pre-commit Types was skipped, not failed.
 derived:
-  - The contract removes post-hoc ambiguity by making reward geometry, position-state parity and action-level observability merge-time requirements for any later RL-v2 implementation task.
-  - Numeric reward magnitudes and the concrete position-state/action-semantics architecture remain intentionally deferred and cannot be tuned in this design-contract task.
+  - The contract removes post-hoc ambiguity by making reward geometry, position-state parity and action-level observability prospective requirements for any later RL-v2 implementation task.
+  - Numeric reward magnitudes and the concrete position-state/action-semantics architecture remain intentionally deferred and cannot be tuned from consumed historical OOS.
 unknown:
-  - Which concrete RL-v2 design mode and reward magnitudes a later implementation task will choose.
-  - Whether the final normal-actor repository gate cycle passes unchanged after formatter cleanup.
+  - Which concrete RL-v2 design mode and reward magnitudes a later separately declared implementation task will choose.
 conflicts: []
 first_failure:
-  marker: ruff-format-only
-  evidence: Initial AI Platform CI compile and tests passed; Ruff lint was fixed, then exact Ruff 0.15.20 formatting was applied without semantic changes.
+  marker: ruff-format-only-resolved
+  evidence: Initial implementation CI failures were limited to Ruff lint/format; exact formatting was applied without semantic changes and all final gates passed.
 rejected_hypotheses:
   - Modify or rerun rl-research-v1 to validate the design contract.
   - Select numeric reward magnitudes or a future evaluation window in this task.
@@ -123,15 +119,18 @@ validation:
   - command: task declaration PR #101
     result: PASS
     evidence: Freqtrade CI 29874237734 and zizmor 29874237741 completed successfully before squash merge e040eb1fcf0761409694856cb36794944d0ca34f.
-  - command: static contract construction review
+  - command: AI Platform CI on final implementation head
     result: PASS
-    evidence: Contract and canonical validator encode exact design-only authorization, reward, parity, observability, evaluation-isolation, Phase 6 and frozen-threshold boundaries.
-  - command: AI Platform compile and targeted mutation tests
+    evidence: Run 29875028448 completed successfully, including compile, targeted tests, Ruff lint and Ruff format.
+  - command: Freqtrade CI on final implementation head
     result: PASS
-    evidence: AI Platform CI runs 29874581029 and 29874824851 completed compile and test steps successfully; later failures were limited to Ruff lint/format and were corrected without semantic changes.
-  - command: final repository gates after formatter cleanup
-    result: PENDING
-    evidence: Final normal-actor gate cycle will run from this checkpoint metadata commit.
+    evidence: Run 29875028434 completed successfully, including pre-commit, docs and full required core matrix/CI Gate.
+  - command: GitHub Actions Security Analysis with zizmor on final implementation head
+    result: PASS
+    evidence: Run 29875028428 completed successfully.
+  - command: protected-boundary and experiment-isolation review
+    result: PASS
+    evidence: No training, backtest, data download, consumed-OOS reuse, protected-final-holdout access, Phase 6 change or future evaluation-window selection occurred.
 blockers: []
-next_action: Require final AI Platform CI, Freqtrade CI and zizmor to pass on the clean five-path PR #102 head, verify behind_by=0 and no review blockers, then squash-merge and close this design-contract task without starting any RL-v2 model execution.
+next_action: Declare a separate RL-v2 synthetic implementation task that selects exactly one allowed position-state/action-semantics design mode and implements synthetic-only reward, parity and observability proofs, without training, backtest, consumed historical OOS, protected final holdout access or performance conclusions.
 ```

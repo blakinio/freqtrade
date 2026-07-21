@@ -269,9 +269,11 @@ jobs:
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
 
       - name: Extract strict historical OOS evidence
+        env:
+          ARCHIVE: ${{ steps.execute.outputs.archive }}
         run: |
           python -m ai_platform.scripts.experimental_model_oos_result_extractor \
-            "${{ steps.execute.outputs.archive }}" \
+            "$ARCHIVE" \
             "$MANIFEST_PATH" \
             --output "$EVIDENCE_ROOT/$TRACK_SLUG/strict-oos-extraction.json"
 
@@ -348,6 +350,8 @@ jobs:
       - name: Collect failed track diagnostics
         if: failure()
         shell: bash
+        env:
+          RUN_DIR: ${{ steps.execute.outputs.run_dir }}
         run: |
           set +e
           diagnostics="$EVIDENCE_ROOT/$TRACK_SLUG-failure"
@@ -356,9 +360,9 @@ jobs:
           cp "$TRACK_SLUG-run-error.txt" "$diagnostics/" 2>/dev/null || true
           cp "$REQUEST_PATH" "$diagnostics/run-request.json" 2>/dev/null || true
           cp "$CONTRACT_PATH" "$diagnostics/execution-contract.json" 2>/dev/null || true
-          if [[ -n "${{ steps.execute.outputs.run_dir }}" && -d "${{ steps.execute.outputs.run_dir }}" ]]; then
-            cp "${{ steps.execute.outputs.run_dir }}/run-summary.json" "$diagnostics/" 2>/dev/null || true
-            cp "${{ steps.execute.outputs.run_dir }}/backtest.log" "$diagnostics/" 2>/dev/null || true
+          if [[ -n "$RUN_DIR" && -d "$RUN_DIR" ]]; then
+            cp "$RUN_DIR/run-summary.json" "$diagnostics/" 2>/dev/null || true
+            cp "$RUN_DIR/backtest.log" "$diagnostics/" 2>/dev/null || true
           fi
 
       - name: Upload failed track diagnostics

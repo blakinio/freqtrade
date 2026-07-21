@@ -1,0 +1,371 @@
+name: Experimental Model Historical Backtest Execution
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: experimental-model-historical-backtest-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json
+  CONTRACT_PATH: ai_platform/experimental_model_research/historical-backtest-execution-contract-v1.json
+  TASK_PATH: docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md
+  DATA_DIR: user_data/data/kraken
+  EVIDENCE_ROOT: experimental-model-historical-backtest-evidence
+
+jobs:
+  validate-request:
+    name: Validate one-shot execution request
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact execution request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate trigger PR scope before runtime or data access
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Experimental execution PR must add exactly the canonical run-request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate active bounded execution checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Validate canonical request and frozen execution contract
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/request"
+          python -m ai_platform.scripts.experimental_model_historical_backtest_run_request \
+            "$REQUEST_PATH"
+          python -m ai_platform.scripts.experimental_model_historical_backtest_run_request \
+            --print-canonical > "$EVIDENCE_ROOT/request/canonical-request.json"
+          cp "$REQUEST_PATH" "$EVIDENCE_ROOT/request/run-request.json"
+          cp "$CONTRACT_PATH" "$EVIDENCE_ROOT/request/execution-contract.json"
+
+      - name: Upload request validation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: experimental-model-historical-backtest-request-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/request/
+          if-no-files-found: error
+          retention-days: 90
+
+  data:
+    name: Prepare verified Kraken history (${{ matrix.pair }})
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pair: BTC/USDT
+            slug: btc-usdt
+          - pair: ETH/USDT
+            slug: eth-usdt
+
+    steps:
+      - name: Checkout exact execution request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate active bounded execution checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependency-closed FreqAI and RL runtime
+        run: python -m pip install --disable-pip-version-check --quiet -e ".[freqai,freqai_rl]"
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Restore verified pair cache or historical market-data seed
+        id: kraken-data-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.DATA_DIR }}
+          key: experimental-model-historical-preflight-v2-${{ runner.os }}-${{ matrix.slug }}-${{ hashFiles('ai_platform/experiments/pytorch-research-v1.json', 'ai_platform/experiments/rl-research-v1.json', 'ai_platform/configs/freqai-pytorch-research.example.json', 'ai_platform/configs/freqai-rl-research.example.json') }}
+          restore-keys: |
+            phase6-model-comparison-v1-${{ runner.os }}-
+            experimental-model-historical-preflight-v1-${{ runner.os }}-
+
+      - name: Complete boundary-correct Kraken history on cache miss
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        run: |
+          freqtrade download-data \
+            --config ai_platform/configs/freqai-pytorch-research.example.json \
+            --pairs "${{ matrix.pair }}" \
+            --timeframes 15m 1h 4h \
+            --timerange 20250801-20260701 \
+            --dl-trades \
+            --convert
+
+      - name: Verify pair coverage before any model execution
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/data-${{ matrix.slug }}"
+          python -m ai_platform.scripts.experimental_model_historical_execution_preflight \
+            verify-data --datadir "$DATA_DIR" --pair "${{ matrix.pair }}" \
+            > "$EVIDENCE_ROOT/data-${{ matrix.slug }}/coverage.json"
+
+      - name: Save pair cache only after successful verification
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.DATA_DIR }}
+          key: ${{ steps.kraken-data-cache.outputs.cache-primary-key }}
+
+      - name: Upload pair coverage evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: experimental-model-historical-backtest-data-${{ matrix.slug }}-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/data-${{ matrix.slug }}/
+          if-no-files-found: error
+          retention-days: 90
+
+  backtest:
+    name: Execute frozen historical backtest (${{ matrix.track_id }})
+    needs: data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - track_id: pytorch-research-v1
+            slug: pytorch
+            manifest: ai_platform/experiments/pytorch-research-v1.json
+          - track_id: rl-research-v1
+            slug: rl
+            manifest: ai_platform/experiments/rl-research-v1.json
+
+    env:
+      EXECUTION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      MANIFEST_PATH: ${{ matrix.manifest }}
+      TRACK_ID: ${{ matrix.track_id }}
+      TRACK_SLUG: ${{ matrix.slug }}
+
+    steps:
+      - name: Checkout exact execution request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate active bounded execution checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependency-closed FreqAI and RL runtime
+        run: python -m pip install --disable-pip-version-check --quiet -e ".[freqai,freqai_rl]"
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Restore exact verified BTC cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.DATA_DIR }}
+          key: experimental-model-historical-preflight-v2-${{ runner.os }}-btc-usdt-${{ hashFiles('ai_platform/experiments/pytorch-research-v1.json', 'ai_platform/experiments/rl-research-v1.json', 'ai_platform/configs/freqai-pytorch-research.example.json', 'ai_platform/configs/freqai-rl-research.example.json') }}
+          fail-on-cache-miss: true
+
+      - name: Restore exact verified ETH cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.DATA_DIR }}
+          key: experimental-model-historical-preflight-v2-${{ runner.os }}-eth-usdt-${{ hashFiles('ai_platform/experiments/pytorch-research-v1.json', 'ai_platform/experiments/rl-research-v1.json', 'ai_platform/configs/freqai-pytorch-research.example.json', 'ai_platform/configs/freqai-rl-research.example.json') }}
+          fail-on-cache-miss: true
+
+      - name: Re-verify combined market data immediately before execution
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/$TRACK_SLUG"
+          python -m ai_platform.scripts.experimental_model_historical_execution_preflight \
+            verify-data --datadir "$DATA_DIR" \
+            > "$EVIDENCE_ROOT/$TRACK_SLUG/data-coverage.json"
+
+      - name: Re-validate canonical request immediately before execution
+        run: >-
+          python -m ai_platform.scripts.experimental_model_historical_backtest_run_request
+          "$REQUEST_PATH"
+
+      - name: Run exactly one canonical historical backtest
+        id: execute
+        shell: bash
+        run: |
+          set +e
+          python -m ai_platform.scripts.run_experiment "$MANIFEST_PATH" \
+            --stage backtest \
+            > "$TRACK_SLUG-run-path.txt" \
+            2> "$TRACK_SLUG-run-error.txt"
+          status=$?
+          set -e
+
+          if [[ "$status" -ne 0 ]]; then
+            echo "::group::$TRACK_ID runner stderr"
+            cat "$TRACK_SLUG-run-error.txt" || true
+            echo "::endgroup::"
+            exit "$status"
+          fi
+
+          run_dir="$(tail -n 1 "$TRACK_SLUG-run-path.txt")"
+          test -n "$run_dir"
+          test -d "$run_dir"
+          echo "run_dir=$run_dir" >> "$GITHUB_OUTPUT"
+
+          archive="$(python - "$run_dir" <<'PY'
+          import sys
+          from pathlib import Path
+
+          from ai_platform.scripts.run_experiment import find_backtest_archive
+
+          print(find_backtest_archive(Path(sys.argv[1])).resolve())
+          PY
+          )"
+          test -n "$archive"
+          test -f "$archive"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Extract strict historical OOS evidence
+        run: |
+          python -m ai_platform.scripts.experimental_model_oos_result_extractor \
+            "${{ steps.execute.outputs.archive }}" \
+            "$MANIFEST_PATH" \
+            --output "$EVIDENCE_ROOT/$TRACK_SLUG/strict-oos-extraction.json"
+
+      - name: Validate execution identity and collect immutable evidence
+        shell: bash
+        env:
+          RUN_DIR: ${{ steps.execute.outputs.run_dir }}
+          ARCHIVE: ${{ steps.execute.outputs.archive }}
+        run: |
+          set -euo pipefail
+          evidence_dir="$EVIDENCE_ROOT/$TRACK_SLUG"
+
+          python - "$RUN_DIR/run-summary.json" "$evidence_dir/strict-oos-extraction.json" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          summary = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          extraction = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          expected_track = os.environ["TRACK_ID"]
+          expected_head = os.environ["EXECUTION_HEAD_SHA"]
+
+          if summary.get("status") != "success":
+              raise SystemExit("Canonical historical backtest did not finish successfully")
+          if summary.get("experiment_id") != expected_track:
+              raise SystemExit("Run summary experiment identity drifted")
+          if summary.get("git_commit") != expected_head:
+              raise SystemExit("Run provenance is not bound to the exact trigger head")
+          if summary.get("timerange") != "20260301-20260701":
+              raise SystemExit("Execution timerange drifted")
+          if summary.get("download_timerange") != "20250801-20260701":
+              raise SystemExit("Download timerange drifted")
+          commands = summary.get("commands")
+          if not isinstance(commands, list) or len(commands) != 1:
+              raise SystemExit("Expected exactly one executed Freqtrade command")
+          if len(commands[0]) < 2 or commands[0][1] != "backtesting":
+              raise SystemExit("Execution command was not exactly one backtesting invocation")
+
+          if extraction.get("track_id") != expected_track:
+              raise SystemExit("Strict OOS extraction track identity drifted")
+          authorization = extraction.get("authorization", {})
+          expected_false = {
+              "final_holdout_used",
+              "retuning_allowed",
+              "promotion_allowed",
+              "profitability_claim_allowed",
+              "phase6_member",
+          }
+          if any(authorization.get(field) is not False for field in expected_false):
+              raise SystemExit("Strict OOS extraction authorization drifted")
+          if authorization.get("extraction_only") is not True:
+              raise SystemExit("Strict OOS extraction must remain evidence plumbing only")
+          PY
+
+          cp "$REQUEST_PATH" "$evidence_dir/run-request.json"
+          cp "$CONTRACT_PATH" "$evidence_dir/execution-contract.json"
+          cp "$MANIFEST_PATH" "$evidence_dir/canonical-manifest.json"
+          cp "$RUN_DIR/manifest.json" "$evidence_dir/run-manifest.json"
+          cp "$RUN_DIR/provenance.json" "$evidence_dir/run-provenance.json"
+          cp "$RUN_DIR/run-summary.json" "$evidence_dir/run-summary.json"
+          cp "$RUN_DIR/backtest.log" "$evidence_dir/backtest.log"
+          cp "$ARCHIVE" "$evidence_dir/backtest-result.zip"
+
+      - name: Upload successful independent track evidence
+        if: success()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: experimental-model-historical-backtest-${{ matrix.slug }}-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/${{ matrix.slug }}/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Collect failed track diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          diagnostics="$EVIDENCE_ROOT/$TRACK_SLUG-failure"
+          mkdir -p "$diagnostics"
+          cp "$TRACK_SLUG-run-path.txt" "$diagnostics/" 2>/dev/null || true
+          cp "$TRACK_SLUG-run-error.txt" "$diagnostics/" 2>/dev/null || true
+          cp "$REQUEST_PATH" "$diagnostics/run-request.json" 2>/dev/null || true
+          cp "$CONTRACT_PATH" "$diagnostics/execution-contract.json" 2>/dev/null || true
+          if [[ -n "${{ steps.execute.outputs.run_dir }}" && -d "${{ steps.execute.outputs.run_dir }}" ]]; then
+            cp "${{ steps.execute.outputs.run_dir }}/run-summary.json" "$diagnostics/" 2>/dev/null || true
+            cp "${{ steps.execute.outputs.run_dir }}/backtest.log" "$diagnostics/" 2>/dev/null || true
+          fi
+
+      - name: Upload failed track diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: experimental-model-historical-backtest-${{ matrix.slug }}-diagnostics-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/${{ matrix.slug }}-failure/
+          if-no-files-found: error
+          retention-days: 14

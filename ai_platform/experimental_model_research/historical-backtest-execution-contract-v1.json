@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "contract_id": "experimental-model-historical-backtest-execution-v1",
+  "task": "docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md",
+  "foundation": "ai_platform/experimental_model_research/foundation-v1.json",
+  "request_path": "ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json",
+  "trigger": {
+    "event": "pull_request_opened",
+    "base_branch": "develop",
+    "exact_one_file": true
+  },
+  "execution": {
+    "mode": "one_shot_trigger_pr",
+    "executions_per_track": 1,
+    "semantic_prediction_window": "20260301-20260630",
+    "timerange": "20260301-20260701",
+    "download_timerange": "20250801-20260701"
+  },
+  "market_data": {
+    "exchange": "kraken",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "fee": 0.002,
+    "verification_module": "ai_platform.scripts.experimental_model_historical_execution_preflight",
+    "cache_namespace": "experimental-model-historical-preflight-v2"
+  },
+  "tracks": [
+    {
+      "track_id": "pytorch-research-v1",
+      "manifest": "ai_platform/experiments/pytorch-research-v1.json",
+      "config": "ai_platform/configs/freqai-pytorch-research.example.json",
+      "strategy": "AiFrozenCandidateStrategy",
+      "strategy_file": "ai_platform/strategies/AiFrozenCandidateStrategy.py",
+      "freqai_model": "SeededPyTorchMLPRegressor",
+      "freqai_model_file": "ai_platform/freqaimodels/SeededPyTorchMLPRegressor.py",
+      "freqai_identifier": "ai-platform-pytorch-research-v1"
+    },
+    {
+      "track_id": "rl-research-v1",
+      "manifest": "ai_platform/experiments/rl-research-v1.json",
+      "config": "ai_platform/configs/freqai-rl-research.example.json",
+      "strategy": "AiLongOnlyRLResearchStrategy",
+      "strategy_file": "ai_platform/strategies/AiLongOnlyRLResearchStrategy.py",
+      "freqai_model": "LongOnlyReinforcementLearner",
+      "freqai_model_file": "ai_platform/freqaimodels/LongOnlyReinforcementLearner.py",
+      "freqai_identifier": "ai-platform-rl-research-v1"
+    }
+  ],
+  "strict_oos_extraction": {
+    "module": "ai_platform.scripts.experimental_model_oos_result_extractor",
+    "contract": "ai_platform/experimental_model_research/oos-extraction-contract-v1.json",
+    "scoring_window": "20260501-20260630",
+    "start_inclusive": "2026-05-01T00:00:00Z",
+    "end_exclusive": "2026-07-01T00:00:00Z",
+    "one_extraction_per_track": true
+  },
+  "frozen_parameters": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009
+  },
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "used": false,
+    "usage": "forbidden"
+  },
+  "phase6_isolation": {
+    "member": false,
+    "may_change_candidates": false,
+    "may_change_selection_policy": false,
+    "may_consume_results": false
+  },
+  "authorization": {
+    "historical_backtest_execution_allowed": true,
+    "strict_oos_extraction_allowed": true,
+    "final_holdout_used": false,
+    "retuning_allowed": false,
+    "model_parameter_changes_allowed": false,
+    "feature_changes_allowed": false,
+    "reward_changes_allowed": false,
+    "cross_track_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false
+  }
+}

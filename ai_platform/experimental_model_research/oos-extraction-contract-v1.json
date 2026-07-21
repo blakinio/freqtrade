@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "contract_id": "experimental-model-research-strict-oos-extraction-v1",
+  "foundation": "ai_platform/experimental_model_research/foundation-v1.json",
+  "schema": "ai_platform/experimental_model_research/oos-extraction-schema-v1.json",
+  "allowed_tracks": [
+    "pytorch-research-v1",
+    "rl-research-v1"
+  ],
+  "scoring_window": {
+    "timerange": "20260501-20260630",
+    "start_inclusive": "2026-05-01T00:00:00Z",
+    "end_exclusive": "2026-07-01T00:00:00Z",
+    "timezone": "UTC",
+    "source_status": "consumed_historical_oos"
+  },
+  "trade_inclusion": {
+    "policy": "fully_contained_closed_trades",
+    "open_date_operator": ">=",
+    "close_date_operator": "<",
+    "pre_window_open_trade": "exclude_and_count",
+    "post_window_close_trade": "exclude_and_count",
+    "force_exit_within_window": "include_and_count",
+    "missing_or_invalid_timestamp": "fail_closed"
+  },
+  "required_trade_fields": [
+    "open_date",
+    "close_date",
+    "profit_abs",
+    "exit_reason"
+  ],
+  "metrics": {
+    "profit": "sum_included_profit_abs_divided_by_starting_balance",
+    "drawdown": "freqtrade_relative_account_drawdown_on_included_trades_only",
+    "trades": "included_trade_count",
+    "stability": {
+      "definition": "profitable_folds_divided_by_evaluated_folds",
+      "fold_profit": "sum_included_profit_abs_closed_in_fold_divided_by_starting_balance",
+      "folds": [
+        {
+          "name": "2026-05",
+          "start_inclusive": "2026-05-01T00:00:00Z",
+          "end_exclusive": "2026-06-01T00:00:00Z"
+        },
+        {
+          "name": "2026-06",
+          "start_inclusive": "2026-06-01T00:00:00Z",
+          "end_exclusive": "2026-07-01T00:00:00Z"
+        }
+      ]
+    }
+  },
+  "protected_final_holdout": {
+    "declaration": "ai_platform/validation/final-holdout-v2-declaration.json",
+    "timerange": "20260801-20260930",
+    "used": false,
+    "usage": "forbidden"
+  },
+  "phase6_isolation": {
+    "member": false,
+    "comparison_results_may_consume_extraction": false,
+    "selection_policy_may_consume_extraction": false
+  },
+  "authorization": {
+    "extraction_only": true,
+    "final_holdout_used": false,
+    "retuning_allowed": false,
+    "promotion_allowed": false,
+    "profitability_claim_allowed": false
+  }
+}

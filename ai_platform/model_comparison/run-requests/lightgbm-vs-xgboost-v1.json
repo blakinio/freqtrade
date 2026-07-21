@@ -1,0 +1,27 @@
+{
+  "action": "execute_historical_model_comparison",
+  "authorization": {
+    "feature_changes_allowed": false,
+    "final_holdout_used": false,
+    "live_trading_allowed": false,
+    "model_parameter_changes_allowed": false,
+    "profitability_claim_allowed": false,
+    "promotion_allowed": false,
+    "retuning_allowed": false
+  },
+  "comparison_id": "freqai-lightgbm-vs-xgboost-v1",
+  "contract_path": "ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json",
+  "contract_sha256": "77f62b396123c32ac98ab12c68dbc9acf6cb6b5b4f1a3167dcc0e2ac21c0132b",
+  "download_timerange": "20250801-20260630",
+  "frozen_parameters": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009
+  },
+  "prediction_window": "20260301-20260630",
+  "protected_final_holdout": "20260801-20260930",
+  "request_id": "freqai-lightgbm-vs-xgboost-v1-historical-run-v1",
+  "schema_version": 1,
+  "scoring_window": "20260501-20260630",
+  "training_window": "20251201-20260228",
+  "tuning_window": "20260301-20260430"
+}

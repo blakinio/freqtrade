@@ -33,7 +33,7 @@ def _write_archive(
     strategy: str,
     model: str,
     identifier: str,
-    timerange: str = "20260301-20260630",
+    timerange: str = "20260301-20260701",
     trades: list[dict] | None = None,
 ) -> Path:
     stats = {
@@ -71,6 +71,7 @@ def test_pytorch_extraction_scores_only_fully_contained_historical_oos_trades(
         _trade("2026-04-30T23:45:00Z", "2026-05-01T00:15:00Z", 200.0),
         _trade("2026-05-01T00:00:00Z", "2026-05-02T00:00:00Z", 100.0),
         _trade("2026-06-10T00:00:00Z", "2026-06-11T00:00:00Z", -50.0),
+        _trade("2026-06-30T10:00:00Z", "2026-06-30T11:00:00Z", 10.0),
         _trade("2026-06-30T23:00:00Z", "2026-07-01T00:00:00Z", 300.0),
         _trade("2026-06-20T00:00:00Z", "2026-06-21T00:00:00Z", 25.0, "force_exit"),
     ]
@@ -85,26 +86,26 @@ def test_pytorch_extraction_scores_only_fully_contained_historical_oos_trades(
     assert result["freqai_identifier"] == "ai-platform-pytorch-research-v1"
     assert result["scoring_window"]["timerange"] == "20260501-20260630"
     assert result["counts"] == {
-        "input_trades": 5,
-        "included_trades": 3,
+        "input_trades": 6,
+        "included_trades": 4,
         "excluded_trades": 2,
         "excluded_pre_window_open_trades": 1,
         "excluded_post_window_close_trades": 1,
         "included_force_exit_trades": 1,
     }
     assert result["metrics"] == {
-        "profit": pytest.approx(0.0075),
+        "profit": pytest.approx(0.0085),
         "drawdown": pytest.approx(0.02),
-        "trades": 3,
+        "trades": 4,
         "stability": pytest.approx(0.5),
     }
     assert result["stability_evidence"]["fold_trade_counts"] == {
         "2026-05": 1,
-        "2026-06": 2,
+        "2026-06": 3,
     }
     assert result["stability_evidence"]["fold_profits"] == {
         "2026-05": pytest.approx(0.01),
-        "2026-06": pytest.approx(-0.0025),
+        "2026-06": pytest.approx(-0.0015),
     }
     assert result["authorization"] == {
         "extraction_only": True,

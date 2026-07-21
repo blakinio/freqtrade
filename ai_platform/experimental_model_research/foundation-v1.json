@@ -22,6 +22,8 @@
     "historical_oos_status": "consumed_historical_oos",
     "prediction_window": "20260301-20260630",
     "download_timerange": "20250801-20260630",
+    "freqtrade_prediction_timerange": "20260301-20260701",
+    "freqtrade_download_timerange": "20250801-20260701",
     "train_period_days": 90,
     "backtest_period_days": 122,
     "training_mode": "single_frozen_training_window",

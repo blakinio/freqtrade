@@ -1,0 +1,327 @@
+name: AI Platform Phase 6 Historical Model Comparison
+
+on:
+  pull_request:
+    types: [opened]
+    branches: [develop]
+    paths:
+      - "ai_platform/model_comparison/run-requests/historical-comparison-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-platform-phase6-historical-model-comparison
+  cancel-in-progress: false
+
+jobs:
+  historical-model-comparison:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 480
+    env:
+      REQUEST_PATH: ai_platform/model_comparison/run-requests/historical-comparison-v1.json
+      COMPARISON_ROOT: ai_platform/artifacts/model-comparison/materialized/freqai-lightgbm-vs-xgboost-v1
+      LIGHTGBM_MANIFEST: ai_platform/artifacts/model-comparison/materialized/freqai-lightgbm-vs-xgboost-v1/lightgbm/manifest.json
+      XGBOOST_MANIFEST: ai_platform/artifacts/model-comparison/materialized/freqai-lightgbm-vs-xgboost-v1/xgboost/manifest.json
+      EVIDENCE_DIR: phase6-historical-comparison-evidence
+
+    steps:
+      - name: Checkout exact run-request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Validate request-only trigger and frozen Phase 6 contract
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          mapfile -t changed_files < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          if [[ "${#changed_files[@]}" -ne 1 || "${changed_files[0]}" != "$REQUEST_PATH" ]]; then
+            printf 'Run-request PR must change exactly %s. Changed files:\n' "$REQUEST_PATH" >&2
+            printf '%s\n' "${changed_files[@]}" >&2
+            exit 1
+          fi
+          python -m ai_platform.scripts.model_comparison_execution_request "$REQUEST_PATH"
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: true # zizmor: ignore[cache-poisoning] - research dependency cache only
+          python-version: "3.12"
+          cache-dependency-glob: "requirements**.txt"
+          cache-suffix: "phase6-historical-model-comparison-3.12"
+
+      - name: Install FreqAI dependencies
+        run: |
+          uv pip install -r requirements-freqai.txt
+          uv pip install -e .
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Materialize frozen historical comparison inputs
+        id: materialize
+        run: |
+          set -euo pipefail
+          plan_path="$(python -m ai_platform.scripts.model_comparison_harness | tail -n 1)"
+          test -f "$plan_path"
+          test -f "$LIGHTGBM_MANIFEST"
+          test -f "$XGBOOST_MANIFEST"
+          echo "plan_path=$plan_path" >> "$GITHUB_OUTPUT"
+
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          plan = json.loads(Path(os.environ["COMPARISON_ROOT"], "materialization.json").read_text())
+          if plan["download_timerange"] != "20250801-20260630":
+              raise SystemExit("Phase 6 materialization download range drifted")
+          if plan["scoring_window"] != "20260501-20260630":
+              raise SystemExit("Phase 6 materialization scoring range drifted")
+          if plan["final_holdout_used"] is not False or plan["execution_performed"] is not False:
+              raise SystemExit("Phase 6 materialization safety flags drifted")
+          PY
+
+      - name: Restore dedicated Kraken historical data cache
+        id: kraken-data-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: phase6-historical-comparison-v1-${{ runner.os }}-${{ hashFiles('ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json', 'ai_platform/experiments/baseline-v1.json', 'ai_platform/configs/freqai-baseline.example.json') }}
+
+      - name: Download exact declared Kraken history through 2026-06-30
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+
+          manifest = json.loads(Path(os.environ["LIGHTGBM_MANIFEST"]).read_text(encoding="utf-8"))
+          if manifest["download_timerange"] != "20250801-20260630":
+              raise SystemExit("Historical comparison download range must end on 2026-06-30")
+          if manifest["timerange"] != "20260301-20260630":
+              raise SystemExit("Historical comparison prediction range drifted")
+
+          config_path = Path(manifest["config"])
+          config = json.loads(config_path.read_text(encoding="utf-8"))
+          exchange = str(config.get("exchange", {}).get("name", "")).lower()
+          if exchange != "kraken":
+              raise SystemExit(f"Phase 6 historical comparison expects Kraken, got {exchange!r}")
+
+          command = [
+              "freqtrade",
+              "download-data",
+              "--config",
+              str(config_path),
+              "--pairs",
+              *manifest["pairs"],
+              "--timeframes",
+              *manifest["timeframes"],
+              "--timerange",
+              manifest["download_timerange"],
+              "--dl-trades",
+              "--convert",
+          ]
+          subprocess.run(command, check=True)
+          PY
+
+      - name: Save dedicated Kraken historical data cache
+        if: steps.kraken-data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: user_data/data/kraken
+          key: ${{ steps.kraken-data-cache.outputs.cache-primary-key }}
+
+      - name: Run frozen LightGBM historical backtest
+        id: lightgbm
+        run: |
+          set -euo pipefail
+          run_dir="$(python -m ai_platform.scripts.run_experiment "$LIGHTGBM_MANIFEST" --stage backtest | tail -n 1)"
+          test -d "$run_dir"
+          echo "run_dir=$run_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Run frozen XGBoost historical backtest
+        id: xgboost
+        run: |
+          set -euo pipefail
+          run_dir="$(python -m ai_platform.scripts.run_experiment "$XGBOOST_MANIFEST" --stage backtest | tail -n 1)"
+          test -d "$run_dir"
+          echo "run_dir=$run_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Verify both backtests used the exact request commit and frozen strategy
+        env:
+          EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha }}
+          LIGHTGBM_RUN_DIR: ${{ steps.lightgbm.outputs.run_dir }}
+          XGBOOST_RUN_DIR: ${{ steps.xgboost.outputs.run_dir }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          expected_commit = os.environ["EXPECTED_COMMIT"]
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          expected_strategy_sha256 = request["strategy_sha256"]
+          commits = []
+          strategy_hashes = []
+          for env_name in ("LIGHTGBM_RUN_DIR", "XGBOOST_RUN_DIR"):
+              run_dir = Path(os.environ[env_name])
+              provenance = json.loads((run_dir / "provenance.json").read_text(encoding="utf-8"))
+              if provenance.get("stage") != "backtest":
+                  raise SystemExit(f"{env_name} provenance stage is not backtest")
+              commits.append(provenance.get("git_commit"))
+              strategy_hashes.append(provenance.get("strategy_sha256"))
+          if commits != [expected_commit, expected_commit]:
+              raise SystemExit(
+                  "Model backtests must both execute at request head "
+                  f"{expected_commit}; got {commits}"
+              )
+          if strategy_hashes != [expected_strategy_sha256, expected_strategy_sha256]:
+              raise SystemExit(
+                  "Model backtests must both use the request-bound frozen strategy hash; "
+                  f"expected {expected_strategy_sha256}, got {strategy_hashes}"
+              )
+          PY
+
+      - name: Extract strict historical OOS evidence
+        id: extract
+        env:
+          LIGHTGBM_RUN_DIR: ${{ steps.lightgbm.outputs.run_dir }}
+          XGBOOST_RUN_DIR: ${{ steps.xgboost.outputs.run_dir }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+
+          lightgbm_archive="$(python - "$LIGHTGBM_RUN_DIR" <<'PY'
+          import sys
+          from pathlib import Path
+          from ai_platform.scripts.run_experiment import find_backtest_archive
+          print(find_backtest_archive(Path(sys.argv[1])))
+          PY
+          )"
+          xgboost_archive="$(python - "$XGBOOST_RUN_DIR" <<'PY'
+          import sys
+          from pathlib import Path
+          from ai_platform.scripts.run_experiment import find_backtest_archive
+          print(find_backtest_archive(Path(sys.argv[1])))
+          PY
+          )"
+
+          python -m ai_platform.scripts.model_comparison_oos_result_extractor \
+            "$lightgbm_archive" "$LIGHTGBM_MANIFEST" \
+            --output "$EVIDENCE_DIR/lightgbm-extraction.json"
+          python -m ai_platform.scripts.model_comparison_oos_result_extractor \
+            "$xgboost_archive" "$XGBOOST_MANIFEST" \
+            --output "$EVIDENCE_DIR/xgboost-extraction.json"
+
+          echo "lightgbm_archive=$lightgbm_archive" >> "$GITHUB_OUTPUT"
+          echo "xgboost_archive=$xgboost_archive" >> "$GITHUB_OUTPUT"
+
+      - name: Evaluate the predeclared deterministic selection policy
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from ai_platform.scripts.model_comparison_selection_policy import evaluate_model_selection
+
+          evidence_dir = Path(os.environ["EVIDENCE_DIR"])
+          extractions = [
+              json.loads((evidence_dir / "lightgbm-extraction.json").read_text(encoding="utf-8")),
+              json.loads((evidence_dir / "xgboost-extraction.json").read_text(encoding="utf-8")),
+          ]
+          decision = evaluate_model_selection(extractions)
+          (evidence_dir / "selection-decision.json").write_text(
+              json.dumps(decision, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Bind exact-byte comparison provenance
+        env:
+          PLAN_PATH: ${{ steps.materialize.outputs.plan_path }}
+          LIGHTGBM_RUN_DIR: ${{ steps.lightgbm.outputs.run_dir }}
+          XGBOOST_RUN_DIR: ${{ steps.xgboost.outputs.run_dir }}
+          LIGHTGBM_ARCHIVE: ${{ steps.extract.outputs.lightgbm_archive }}
+          XGBOOST_ARCHIVE: ${{ steps.extract.outputs.xgboost_archive }}
+        run: |
+          python -m ai_platform.scripts.model_comparison_provenance_binding \
+            "$PLAN_PATH" \
+            --lightgbm-run-provenance "$LIGHTGBM_RUN_DIR/provenance.json" \
+            --lightgbm-backtest "$LIGHTGBM_ARCHIVE" \
+            --lightgbm-extraction "$EVIDENCE_DIR/lightgbm-extraction.json" \
+            --xgboost-run-provenance "$XGBOOST_RUN_DIR/provenance.json" \
+            --xgboost-backtest "$XGBOOST_ARCHIVE" \
+            --xgboost-extraction "$EVIDENCE_DIR/xgboost-extraction.json" \
+            --selection-decision "$EVIDENCE_DIR/selection-decision.json" \
+            --output "$EVIDENCE_DIR/result-provenance.json"
+
+      - name: Assemble completed historical comparison result
+        run: |
+          python -m ai_platform.scripts.model_comparison_result_assembler \
+            "$EVIDENCE_DIR/result-provenance.json" \
+            --lightgbm-extraction "$EVIDENCE_DIR/lightgbm-extraction.json" \
+            --xgboost-extraction "$EVIDENCE_DIR/xgboost-extraction.json" \
+            --selection-decision "$EVIDENCE_DIR/selection-decision.json" \
+            --output "$EVIDENCE_DIR/model-comparison-result.json"
+
+      - name: Verify completed result remains historical-only and non-promotional
+        env:
+          EXPECTED_COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          evidence_dir = Path(os.environ["EVIDENCE_DIR"])
+          result = json.loads(
+              (evidence_dir / "model-comparison-result.json").read_text(encoding="utf-8")
+          )
+          if result.get("status") != "completed":
+              raise SystemExit("Historical comparison result is not completed")
+          if result.get("git_commit") != os.environ["EXPECTED_COMMIT"]:
+              raise SystemExit("Historical comparison result commit does not match request head")
+          selection = result.get("selection", {})
+          forbidden = {
+              "final_holdout_used": selection.get("final_holdout_used"),
+              "promotion_allowed": selection.get("promotion_allowed"),
+              "profitability_claim_allowed": selection.get("profitability_claim_allowed"),
+          }
+          if any(value is not False for value in forbidden.values()):
+              raise SystemExit(f"Historical comparison safety flags drifted: {forbidden}")
+          print("PHASE6_HISTORICAL_COMPARISON_RESULT=" + json.dumps(result, sort_keys=True))
+          PY
+
+      - name: Upload durable Phase 6 historical comparison evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phase6-historical-model-comparison-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ env.REQUEST_PATH }}
+            ${{ env.EVIDENCE_DIR }}/
+            ${{ env.COMPARISON_ROOT }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: phase6-historical-model-comparison-diagnostics-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ env.REQUEST_PATH }}
+            ${{ env.EVIDENCE_DIR }}/
+            ${{ env.COMPARISON_ROOT }}/
+          if-no-files-found: warn
+          retention-days: 14

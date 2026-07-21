@@ -49,9 +49,7 @@ def test_research_tracks_are_distinct_and_guarded_from_final_holdout() -> None:
     for track in tracks:
         manifest = load_manifest(ROOT / track["manifest"])
         assert not timeranges_overlap(manifest["timerange"], protected_timerange())
-        assert not timeranges_overlap(
-            manifest["download_timerange"], protected_timerange()
-        )
+        assert not timeranges_overlap(manifest["download_timerange"], protected_timerange())
 
 
 def test_research_tracks_pin_dependency_closed_heavy_runtime_profile() -> None:
@@ -66,39 +64,27 @@ def test_foundation_rejects_phase6_membership(tmp_path: Path) -> None:
     foundation = _foundation()
     foundation["phase6_isolation"]["membership"] = True
 
-    with pytest.raises(
-        ExperimentalModelResearchContractError, match="must not join Phase 6"
-    ):
-        validate_experimental_model_research_foundation(
-            _write_foundation(tmp_path, foundation)
-        )
+    with pytest.raises(ExperimentalModelResearchContractError, match="must not join Phase 6"):
+        validate_experimental_model_research_foundation(_write_foundation(tmp_path, foundation))
 
 
 def test_foundation_rejects_shared_freqai_identifier(tmp_path: Path) -> None:
     foundation = _foundation()
-    foundation["tracks"][1]["freqai_identifier"] = foundation["tracks"][0][
-        "freqai_identifier"
-    ]
+    foundation["tracks"][1]["freqai_identifier"] = foundation["tracks"][0]["freqai_identifier"]
 
     with pytest.raises(
         ExperimentalModelResearchContractError,
         match=r"RL seed drifted|identifier drifted",
     ):
-        validate_experimental_model_research_foundation(
-            _write_foundation(tmp_path, foundation)
-        )
+        validate_experimental_model_research_foundation(_write_foundation(tmp_path, foundation))
 
 
 def test_foundation_rejects_rl_future_information_reward(tmp_path: Path) -> None:
     foundation = _foundation()
     foundation["tracks"][1]["reward_contract"]["future_market_information_used"] = True
 
-    with pytest.raises(
-        ExperimentalModelResearchContractError, match="future market data"
-    ):
-        validate_experimental_model_research_foundation(
-            _write_foundation(tmp_path, foundation)
-        )
+    with pytest.raises(ExperimentalModelResearchContractError, match="future market data"):
+        validate_experimental_model_research_foundation(_write_foundation(tmp_path, foundation))
 
 
 def test_rl_reward_timing_is_pinned_to_decision_tick() -> None:
@@ -111,9 +97,7 @@ def test_rl_reward_timing_is_pinned_to_decision_tick() -> None:
     assert rl_track["reward_contract"]["future_market_information_used"] is False
 
 
-def test_trading_metrics_are_required_and_training_loss_is_not_selection_evidence() -> (
-    None
-):
+def test_trading_metrics_are_required_and_training_loss_is_not_selection_evidence() -> None:
     foundation = validate_experimental_model_research_foundation()
     evaluation = foundation["evaluation_contract"]
 

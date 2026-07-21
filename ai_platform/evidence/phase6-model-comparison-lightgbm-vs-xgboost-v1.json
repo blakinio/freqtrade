@@ -64,7 +64,7 @@
     "selection_decision_sha256": "56ca4282ed4df30fe2bc3cc8bcf9da5c0175f593018403cbaea2acf66861d47e",
     "selection_policy_sha256": "ed22926f2e5277db04a12519452804d0efd887a19c26ed51a03afefbf1bc856a"
   },
-  "conclusion": "Neither frozen Phase 6 candidate passed the predeclared eligibility gates. No model was selected, no promotion is authorized, and no profitability claim is allowed.",
+  "conclusion": "This record preserves the exact original Phase 6 run #77 evidence, but its no-selection conclusion is superseded and is not authoritative because the materialized Freqtrade execution and download stop dates were 20260630, which excluded the remainder of the declared June 30 session. A corrected frozen rerun is required before any Phase 6 model-comparison conclusion is treated as authoritative.",
   "evidence_file_sha256": {
     "comparison-result.json": "7bb0a8b8318eadf0365b731528d492b701d2352db2fd75c38c58a361e2ac3a45",
     "lightgbm-oos-extraction.json": "a7fbe83218abc8bac7ca199055d9829ba41bacdc11bf614038b3500e979a418d",
@@ -82,7 +82,7 @@
     "entry_prediction_threshold": 0.006,
     "exit_prediction_threshold": -0.009
   },
-  "next_step": "Preserve this historical evidence and close the execution trigger without merging it. Do not retune from the consumed historical OOS result. Any later governance or final-validation decision must be a separate work package and must preserve the protected final holdout boundary.",
+  "next_step": "Execute exactly one corrected canonical LightGBM-versus-XGBoost historical comparison through the merged Phase 6 workflow after boundary fix PR #81. Preserve the same frozen candidates, parameters, features, selection policy, and consumed historical OOS semantics; use Freqtrade execution/download exclusive stops at 20260701; do not retune and do not access the protected final holdout.",
   "protected_final_holdout": {
     "final_validation_authorized": false,
     "live_trading_allowed": false,
@@ -94,11 +94,23 @@
   },
   "research_commit": "38d83e6d22f63a5234458e7c85453b90536b7590",
   "schema_version": 1,
-  "status": "completed_no_selection",
+  "status": "superseded_incomplete_execution_boundary",
   "strict_historical_oos": {
     "final_holdout_used": false,
     "source_status": "consumed_historical_oos",
     "timerange": "20260501-20260630"
+  },
+  "supersession": {
+    "authoritative": false,
+    "boundary_fix_merge_commit": "303b600c0b7386b68db8f61ef9c740a7ea9a1f54",
+    "boundary_fix_pull_request": 81,
+    "defect": "The original materialized and runtime manifests used Freqtrade timerange 20260301-20260630 and download_timerange 20250801-20260630. Freqtrade interprets the stop date at midnight, so those execution ranges did not cover the complete 2026-06-30 session declared by the semantic historical window.",
+    "original_download_execution_timerange": "20250801-20260630",
+    "original_prediction_execution_timerange": "20260301-20260630",
+    "required_corrected_download_execution_timerange": "20250801-20260701",
+    "required_corrected_prediction_execution_timerange": "20260301-20260701",
+    "required_corrected_rerun": true,
+    "supersedes_conclusion_only": true
   },
   "trigger_pull_request": {
     "merged": false,

@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://oteryn.local/ai-platform/experimental-model-research/oos-extraction-schema-v1.json",
+  "title": "AI Platform experimental model strict historical OOS extraction v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "extractor_id",
+    "contract_id",
+    "track_id",
+    "model_type",
+    "experiment_identity",
+    "freqai_identifier",
+    "strategy",
+    "source",
+    "scoring_window",
+    "starting_balance",
+    "counts",
+    "metrics",
+    "stability_evidence",
+    "included_trade_evidence",
+    "excluded_trade_evidence",
+    "authorization"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "extractor_id": {"const": "experimental-model-strict-oos-extractor-v1"},
+    "contract_id": {"const": "experimental-model-research-strict-oos-extraction-v1"},
+    "track_id": {"enum": ["pytorch-research-v1", "rl-research-v1"]},
+    "model_type": {"enum": ["SeededPyTorchMLPRegressor", "LongOnlyReinforcementLearner"]},
+    "experiment_identity": {"enum": ["pytorch-research-v1", "rl-research-v1"]},
+    "freqai_identifier": {"enum": ["ai-platform-pytorch-research-v1", "ai-platform-rl-research-v1"]},
+    "strategy": {"enum": ["AiFrozenCandidateStrategy", "AiLongOnlyRLResearchStrategy"]},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["archive_sha256", "stats_member", "manifest_sha256", "config_sha256"],
+      "properties": {
+        "archive_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "stats_member": {"type": "string", "minLength": 1},
+        "manifest_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "config_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "scoring_window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timerange", "start_inclusive", "end_exclusive", "timezone", "source_status"],
+      "properties": {
+        "timerange": {"const": "20260501-20260630"},
+        "start_inclusive": {"const": "2026-05-01T00:00:00Z"},
+        "end_exclusive": {"const": "2026-07-01T00:00:00Z"},
+        "timezone": {"const": "UTC"},
+        "source_status": {"const": "consumed_historical_oos"}
+      }
+    },
+    "starting_balance": {"type": "number", "exclusiveMinimum": 0},
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_trades",
+        "included_trades",
+        "excluded_trades",
+        "excluded_pre_window_open_trades",
+        "excluded_post_window_close_trades",
+        "included_force_exit_trades"
+      ],
+      "properties": {
+        "input_trades": {"type": "integer", "minimum": 0},
+        "included_trades": {"type": "integer", "minimum": 0},
+        "excluded_trades": {"type": "integer", "minimum": 0},
+        "excluded_pre_window_open_trades": {"type": "integer", "minimum": 0},
+        "excluded_post_window_close_trades": {"type": "integer", "minimum": 0},
+        "included_force_exit_trades": {"type": "integer", "minimum": 0}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profit", "drawdown", "trades", "stability"],
+      "properties": {
+        "profit": {"type": "number"},
+        "drawdown": {"type": "number", "minimum": 0},
+        "trades": {"type": "integer", "minimum": 0},
+        "stability": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "stability_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evaluated_folds", "profitable_folds", "fold_trade_counts", "fold_profits"],
+      "properties": {
+        "evaluated_folds": {"const": 2},
+        "profitable_folds": {"type": "integer", "minimum": 0, "maximum": 2},
+        "fold_trade_counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["2026-05", "2026-06"],
+          "properties": {
+            "2026-05": {"type": "integer", "minimum": 0},
+            "2026-06": {"type": "integer", "minimum": 0}
+          }
+        },
+        "fold_profits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["2026-05", "2026-06"],
+          "properties": {
+            "2026-05": {"type": "number"},
+            "2026-06": {"type": "number"}
+          }
+        }
+      }
+    },
+    "included_trade_evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/includedTrade"}
+    },
+    "excluded_trade_evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/excludedTrade"}
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "extraction_only",
+        "phase6_member",
+        "final_holdout_used",
+        "retuning_allowed",
+        "promotion_allowed",
+        "profitability_claim_allowed"
+      ],
+      "properties": {
+        "extraction_only": {"const": true},
+        "phase6_member": {"const": false},
+        "final_holdout_used": {"const": false},
+        "retuning_allowed": {"const": false},
+        "promotion_allowed": {"const": false},
+        "profitability_claim_allowed": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "includedTrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_index", "open_date", "close_date", "profit_abs", "exit_reason"],
+      "properties": {
+        "source_index": {"type": "integer", "minimum": 0},
+        "open_date": {"type": "string", "minLength": 1},
+        "close_date": {"type": "string", "minLength": 1},
+        "profit_abs": {"type": "number"},
+        "exit_reason": {"type": "string", "minLength": 1}
+      }
+    },
+    "excludedTrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_index",
+        "open_date",
+        "close_date",
+        "profit_abs",
+        "exit_reason",
+        "exclusion_reasons"
+      ],
+      "properties": {
+        "source_index": {"type": "integer", "minimum": 0},
+        "open_date": {"type": "string", "minLength": 1},
+        "close_date": {"type": "string", "minLength": 1},
+        "profit_abs": {"type": "number"},
+        "exit_reason": {"type": "string", "minLength": 1},
+        "exclusion_reasons": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["pre_window_open", "post_window_close"]}
+        }
+      }
+    }
+  }
+}

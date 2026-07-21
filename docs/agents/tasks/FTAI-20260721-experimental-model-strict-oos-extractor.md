@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260721-experimental-model-strict-oos-extractor
-status: implementing
+status: ready
 branch: feat/experimental-model-strict-oos-extractor-v1
 base_branch: develop
 created: 2026-07-21
 updated: 2026-07-21
-related_pr: ""
+related_pr: "59"
 owned_paths:
   - ai_platform/experimental_model_research/oos-extraction-contract-v1.json
   - ai_platform/experimental_model_research/oos-extraction-schema-v1.json
@@ -35,11 +35,11 @@ Add extraction-only evidence plumbing for the isolated PyTorch and RL research t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T05:30:00Z
-head: 6c23f361ae93bc5a9c6b792331865ebd20f7e459
-branch: feat/experimental-model-strict-oos-extractor-v1
-pr: none
-status: implementing
+updated_at: 2026-07-21T06:47:00Z
+head: 6b07e97a0c18927dfa766ae6f52689eec456e761
+branch: develop
+pr: 59
+status: ready
 context_routes:
   - docs/ai_platform/EXPERIMENTAL_MODEL_RESEARCH.md
   - ai_platform/experimental_model_research/oos-extraction-contract-v1.json
@@ -52,22 +52,24 @@ owned_paths:
   - docs/ai_platform/EXPERIMENTAL_MODEL_RESEARCH.md
   - docs/agents/tasks/FTAI-20260721-experimental-model-strict-oos-extractor.md
 proven:
-  - develop was verified at f97365b1f5de3dc3cb32ce410a674534be7b9319 before branch creation and no open pull requests were present.
-  - The prior experimental-model foundation checkpoint requires a strict fully-contained May-June OOS extractor before any PyTorch or RL performance conclusion.
-  - The new extractor accepts only the two canonical experimental manifests and reuses no Phase 6 comparison membership or selection policy.
-  - The scoring contract requires open_date at or after 2026-05-01T00:00:00Z and close_date before 2026-07-01T00:00:00Z.
-  - The protected final holdout remains 20260801-20260930 and manifest validation occurs before archive scoring.
-  - Extraction is artifact-only and does not download data, train, backtest, retune, promote, or claim profitability.
+  - Implementation PR 59 was squash-merged to develop as 6b07e97a0c18927dfa766ae6f52689eec456e761 after all required checks passed.
+  - The extractor accepts only the canonical pytorch-research-v1 and rl-research-v1 manifests and validates strategy, model, FreqAI identifier, timerange, archive structure, and source hashes.
+  - Strict scoring includes only trades with open_date at or after 2026-05-01T00:00:00Z and close_date before 2026-07-01T00:00:00Z.
+  - April-crossing and July-crossing trades are excluded and counted; fully contained force_exit trades are included and counted.
+  - Output reports profit, drawdown, included trade count, and two-fold May-June stability using included trades only.
+  - The protected final holdout remains 20260801-20260930 and manifest validation rejects protected-holdout overlap before archive scoring.
+  - Extraction artifacts are phase6_member false and cannot be consumed by the current Phase 6 comparison or selection policy.
+  - No data download, training, backtest execution, retuning, model promotion, protected-holdout access, or profitability claim was performed.
 derived:
-  - Existing strict trade parsing and partition helpers can be reused without modifying Phase 6 files or semantics.
-  - Separate experimental contract and schema keep PyTorch/RL evidence distinguishable from Phase 6 OOS extractions.
+  - Reusing lower-level strict trade parsing and partition helpers preserves boundary semantics without modifying Phase 6 contracts or result artifacts.
+  - Experimental contract and schema keep PyTorch and RL evidence provenance separate from Phase 6 evidence.
 unknown:
-  - CI has not yet validated the new extractor, schema, tests, and documentation.
-  - No real PyTorch or RL backtest archive has been produced or scored.
+  - No real PyTorch or RL backtest archive has been produced or scored by the extractor.
+  - Heavy freqai_rl runtime import and minimal real model integration remain unverified for both canonical research tracks.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: none
+  marker: AI Platform CI Ruff
+  evidence: Initial PR runs exposed import-order, line-length, and formatting failures; repository-configured Ruff formatting was applied and final AI Platform CI run 29807297838 passed.
 rejected_hypotheses:
   - Generic March-June run-summary metrics are sufficient historical-OOS evidence.
   - Experimental PyTorch or RL extraction should be emitted as a Phase 6 comparison artifact.
@@ -79,9 +81,18 @@ changed_paths:
   - docs/ai_platform/EXPERIMENTAL_MODEL_RESEARCH.md
   - docs/agents/tasks/FTAI-20260721-experimental-model-strict-oos-extractor.md
 validation:
-  - command: GitHub Actions CI
-    result: NOT_RUN
-    evidence: Implementation pull request has not been opened yet.
+  - command: AI Platform CI run 29807297838
+    result: PASS
+    evidence: Compile, complete AI Platform tests, Ruff, Ruff format, codespell, and configured JSON validation completed successfully on implementation head e46aae21c7e901c4a93c853e93fecbfa86827256.
+  - command: Freqtrade CI run 29807297832
+    result: PASS
+    evidence: Pre-commit, documentation, core test matrix, coverage, repository smoke checks, Ruff, formatting, and mypy gates completed successfully.
+  - command: GitHub Actions Security Analysis with zizmor run 29807297829
+    result: PASS
+    evidence: Security analysis completed successfully on implementation head e46aae21c7e901c4a93c853e93fecbfa86827256.
+  - command: PR 59 mergeability and review-thread check
+    result: PASS
+    evidence: PR was mergeable and had no inline review threads or submitted reviews before squash merge.
 blockers: []
-next_action: Open the implementation pull request against develop and use required CI to validate compile, targeted tests, Ruff, formatting, codespell, schema syntax, and repository checks before merge.
+next_action: Run a minimal heavy-runtime proof-of-integration smoke for both canonical PyTorch and RL model classes using the freqai_rl dependency profile and synthetic or minimal pre-OOS data only, without historical-OOS scoring or model-performance conclusions.
 ```

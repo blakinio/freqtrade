@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260721-experimental-model-historical-execution-preflight
-status: ready
-branch: feat/experimental-model-historical-execution-preflight-v2
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-21
 updated: 2026-07-21
-related_pr: "#73"
+related_pr: "#73 merged"
 owned_paths:
   - ai_platform/experimental_model_research/foundation-v1.json
   - ai_platform/experiments/pytorch-research-v1.json
@@ -38,14 +38,15 @@ Verify boundary-correct historical market-data availability, execution resources
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T11:40:00Z
-head: a3572689a6e3a3b808d95d886ae7e58e017418e5
-branch: feat/experimental-model-historical-execution-preflight-v2
-pr: "#73"
+updated_at: 2026-07-21T12:10:49Z
+head: 262cebef33c8e06d8c9379f1603be93552f445fe
+branch: develop
+pr: "#73 merged"
 status: ready
 context_routes:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_EXECUTION_PREFLIGHT.md
   - ai_platform/scripts/experimental_model_historical_execution_preflight.py
+  - docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md
 owned_paths:
   - ai_platform/experimental_model_research/foundation-v1.json
   - ai_platform/experiments/pytorch-research-v1.json
@@ -58,31 +59,31 @@ owned_paths:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_EXECUTION_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260721-experimental-model-historical-execution-preflight.md
 proven:
-  - Runtime-smoke-hardening checkpoint #70 keeps this historical-execution preflight as the canonical next action.
-  - Closed PR #66 proved dependency installation, static execution contracts, and both custom resolvers but its 20260630 stop cannot certify full June coverage.
-  - Freqtrade TimeRange parses an eight-digit stop token at 00:00 UTC on that date, so the corrected technical stop is 20260701 while semantic windows still end 20260630.
-  - Strict experimental OOS scoring remains 20260501-20260630 with end_exclusive 2026-07-01T00:00:00Z.
-  - backtest_period_days=122 matches March 1 through June 30 inclusive and therefore requires Freqtrade execution timerange 20260301-20260701.
+  - Runtime-smoke-hardening checkpoint #70 established this historical-execution preflight as the required gate before any canonical PyTorch or RL historical backtest.
+  - Closed PR #66 proved dependency installation, static execution contracts, and both custom resolvers but its 20260630 stop could not certify full June coverage.
+  - Freqtrade TimeRange parses an eight-digit stop token at 00:00 UTC on that date, so technical execution stops are corrected to 20260701 while semantic windows still end 20260630.
+  - Strict experimental OOS scoring remains 20260501-20260630 with end_exclusive 2026-07-01T00:00:00Z, and backtest_period_days=122 matches March 1 through June 30 inclusive.
   - PyTorch and RL manifests use 20260301-20260701 for execution and 20250801-20260701 for download; protected final holdout 20260801-20260930 remains unused and forbidden, frozen thresholds 0.006/-0.009 are unchanged, and Phase 6 isolation remains intact.
   - PR #73 parallelizes Kraken trade-history acquisition per pair and verifies 15m, 1h, and 4h coverage independently for BTC/USDT and ETH/USDT.
   - PR #75 was closed without merge as superseded by the stronger parallel preflight in PR #73.
   - A deterministic pre-commit Mypy failure was isolated to variable-name reuse in experimental_model_historical_execution_preflight.py and fixed without changing runtime semantics.
-  - Workflow concurrency uses cancel-in-progress=false and pair-specific jobs have a 240-minute timeout.
-  - Exact boundary-correct v2 cache was restored on final preflight run 29823749323; the download step was skipped only because the exact v2 cache key hit, and independent coverage verification still executed for each pair.
-  - BTC/USDT coverage evidence is ready for 15m, 1h, and 4h from 2025-08-01 through at least the required 2026-07-01 boundary; rows are 32021, 8010, and 2004 respectively.
-  - ETH/USDT coverage evidence is ready for 15m, 1h, and 4h from 2025-08-01 through at least the required 2026-07-01 boundary; rows are 31985, 8011, and 2004 respectively.
-  - Final preflight artifacts for BTC/USDT and ETH/USDT report status=ready, market_data_available=true, phase6_member=false, protected_final_holdout_used=false, retuning_allowed=false, promotion_allowed=false, and profitability_claim_allowed=false.
-  - AI Platform CI run 29823749276, zizmor run 29823749275, Experimental Model Runtime Smoke run 29823749273, Freqtrade CI run 29823749339, and Experimental Model Historical Execution Preflight run 29823749323 all completed successfully on validated implementation head a3572689a6e3a3b808d95d886ae7e58e017418e5.
-  - develop is merge-base 550766fc5e1fce065a0ddc7d8c3866f965e17393 and the branch is ahead with behind_by=0, so no replay/rebase is required before merge unless develop moves again.
+  - Workflow concurrency uses cancel-in-progress=false, pair-specific jobs have a 240-minute timeout, and exact boundary-correct v2 caches are accepted only with independent coverage verification.
+  - BTC/USDT verified coverage spans 2025-08-01 through at least the required 2026-07-01 boundary for 15m, 1h, and 4h with 32021, 8010, and 2004 rows respectively.
+  - ETH/USDT verified coverage spans 2025-08-01 through at least the required 2026-07-01 boundary for 15m, 1h, and 4h with 31985, 8011, and 2004 rows respectively.
+  - Final preflight artifacts report status=ready, market_data_available=true, phase6_member=false, protected_final_holdout_used=false, retuning_allowed=false, promotion_allowed=false, and profitability_claim_allowed=false.
+  - Validated implementation head a3572689a6e3a3b808d95d886ae7e58e017418e5 passed AI Platform CI 29823749276, zizmor 29823749275, Experimental Model Runtime Smoke 29823749273, Freqtrade CI 29823749339, and Historical Execution Preflight 29823749323.
+  - Final PR merge-ref 823b300e08b4c1611298fe268c0feccc37b9de4b passed AI Platform CI 29827777608, zizmor 29827777589, Experimental Model Runtime Smoke 29827777615, Historical Execution Preflight 29827777584, and full Freqtrade CI 29827777612 against the then-current develop.
+  - Direct develop-versus-branch comparison before merge contained only the twelve intended experimental-preflight paths; apparent extra Phase 6 paths came from GitHub synthetic merge refs while develop advanced independently.
+  - PR #73 was squash-merged into develop as 262cebef33c8e06d8c9379f1603be93552f445fe, and immediate comparison confirmed develop identical to that SHA.
 derived:
-  - Results from PR #66's stale 20260630-stop download cannot certify full June historical coverage and remain rejected as evidence.
-  - Verified pair-specific caches can be restored into a later bounded execution runner without changing model or scoring contracts.
-  - The next bounded task may authorize canonical experimental backtest execution only after this preflight PR is merged; this PR itself authorizes no backtest.
+  - Results from PR #66's stale 20260630-stop download remain invalid as proof of full-June historical coverage.
+  - Verified pair-specific caches may be consumed by a later bounded execution workflow without changing model, scoring, or holdout contracts.
+  - Real PyTorch or RL historical backtesting now requires a separate bounded execution work package and cannot be inferred as authorized merely from this preflight merge.
 unknown: []
 conflicts: []
 first_failure:
   marker: freqtrade-exclusive-stop-boundary
-  evidence: Canonical manifests used stop token 20260630, but TimeRange parses that as 2026-06-30T00:00:00Z while strict OOS requires end_exclusive 2026-07-01T00:00:00Z.
+  evidence: Canonical manifests originally used stop token 20260630, but TimeRange parses that as 2026-06-30T00:00:00Z while strict OOS requires end_exclusive 2026-07-01T00:00:00Z.
 rejected_hypotheses:
   - Treat PR #66's 20260630-stop download as valid full-June historical coverage.
   - Change the semantic historical OOS label or access the protected 20260801-20260930 final holdout.
@@ -100,21 +101,15 @@ changed_paths:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_EXECUTION_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260721-experimental-model-historical-execution-preflight.md
 validation:
-  - command: AI Platform CI run 29823749276
+  - command: AI Platform CI / zizmor / Experimental Model Runtime Smoke / Historical Execution Preflight / Freqtrade CI on final PR merge-ref
     result: PASS
-    evidence: Boundary contract tests and AI Platform quality gates completed successfully.
-  - command: GitHub Actions Security Analysis with zizmor run 29823749275
+    evidence: Runs 29827777608, 29827777589, 29827777615, 29827777584, and 29827777612 all completed successfully before squash merge.
+  - command: PR #73 squash merge
     result: PASS
-    evidence: Workflow security analysis completed successfully.
-  - command: Experimental Model Runtime Smoke run 29823749273
+    evidence: PR #73 merged successfully as 262cebef33c8e06d8c9379f1603be93552f445fe.
+  - command: compare 262cebef33c8e06d8c9379f1603be93552f445fe...develop
     result: PASS
-    evidence: Canonical PyTorch reproducibility and RL environment/PPO runtime paths remained green with corrected manifests.
-  - command: Freqtrade CI run 29823749339
-    result: PASS
-    evidence: Full repository CI completed successfully on the validated implementation head.
-  - command: Experimental Model Historical Execution Preflight run 29823749323
-    result: PASS
-    evidence: Guarded contract/resolver validation and both BTC/USDT and ETH/USDT pair-specific coverage jobs completed successfully and uploaded durable evidence artifacts.
+    evidence: develop was identical immediately after merge with ahead_by=0 and behind_by=0.
 blockers: []
-next_action: Require the metadata-only checkpoint head to pass standard gates and cached boundary-correct preflight, then squash-merge PR #73. After merge, close this task durably and open a separate bounded execution task before any real PyTorch or RL backtest.
+next_action: This preflight work package is complete. Continue only through the separate bounded task docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md; do not run a real PyTorch or RL backtest outside that task and do not access protected final holdout 20260801-20260930.
 ```

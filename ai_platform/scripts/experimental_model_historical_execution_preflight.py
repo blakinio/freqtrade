@@ -263,11 +263,13 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
 
     report = build_preflight_report()
     timerange = TimeRange.parse_timerange(EXECUTION_DOWNLOAD_TIMERANGE)
-    if timerange.startdt is None or timerange.stopdt is None:
+    startdt = timerange.startdt
+    stopdt = timerange.stopdt
+    if startdt is None or stopdt is None:
         raise ExperimentalHistoricalPreflightError("Expected a bounded download timerange")
 
     expected_stop = _date_token("20260701")
-    if timerange.stopdt != expected_stop:
+    if stopdt != expected_stop:
         raise ExperimentalHistoricalPreflightError(
             "Freqtrade parser did not preserve the required exclusive 2026-07-01 stop boundary"
         )
@@ -289,7 +291,7 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
                 )
             first_date = frame["date"].min().to_pydatetime()
             last_date = frame["date"].max().to_pydatetime()
-            if first_date > timerange.startdt:
+            if first_date > startdt:
                 raise ExperimentalHistoricalPreflightError(
                     "Downloaded data starts too late for "
                     f"{pair} {timeframe}: {first_date.isoformat()}"

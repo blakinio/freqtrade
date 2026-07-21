@@ -12,20 +12,15 @@ permissions:
   contents: read
 
 jobs:
-  hook:
-    name: "Pre-commit diagnostic - ${{ matrix.hook }}"
+  mypy-file:
+    name: "Mypy diagnostic - ${{ matrix.target }}"
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        hook:
-          - mypy
-          - end-of-file-fixer
-          - mixed-line-ending
-          - debug-statements
-          - check-ast
-          - trailing-whitespace
-          - strip-exif
+        target:
+          - ai_platform/scripts/experimental_model_historical_execution_preflight.py
+          - ai_platform/scripts/experimental_model_research_contract.py
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -37,7 +32,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Run isolated pre-commit hook
+      - name: Run Mypy for one changed AI Platform file
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
         with:
-          extra_args: "${{ matrix.hook }} --all-files"
+          extra_args: "mypy --files ${{ matrix.target }}"

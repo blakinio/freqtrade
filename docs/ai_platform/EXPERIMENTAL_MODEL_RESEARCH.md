@@ -57,7 +57,7 @@ The trading strategy is `AiFrozenCandidateStrategy`, which keeps the Phase 5.2 e
 
 ## Reinforcement Learning Research
 
-Current FreqAI RL support uses Gymnasium environments and Stable-Baselines3/sb3-contrib models. The optional `freqai_rl` dependency profile supplies Gymnasium, Stable-Baselines3, sb3-contrib, Torch, and tqdm. The built-in framework supports custom model classes and custom environments without modifying Freqtrade core.
+Current FreqAI RL support uses Gymnasium environments and Stable-Baselines3/sb3-contrib models. The `freqai_rl` extra supplies Gymnasium, Stable-Baselines3, sb3-contrib, Torch, and tqdm, while the canonical custom classes also inherit through the regular FreqAI stack. Therefore the dependency-closed heavy runtime profile for both research tracks is `freqtrade[freqai,freqai_rl]`.
 
 Track identity:
 
@@ -104,15 +104,16 @@ The FreqAI RL training environment is intentionally simpler than the full Freqtr
 
 ## Dependencies and validation
 
-PyTorch and RL runtime smoke checks require the repository's `freqai_rl` optional dependency profile because that is where the current repository declares Torch. Lightweight contract validation does not import Torch, Gymnasium, pandas, TA-Lib, or Stable-Baselines3 and can run in AI Platform CI:
+The dependency-closed heavy runtime profile for both canonical research model classes is `freqtrade[freqai,freqai_rl]`. The `freqai_rl` extra supplies Torch, Gymnasium, and Stable-Baselines3, while the inherited FreqAI model stack also requires dependencies from the regular `freqai` extra. Lightweight contract validation does not import Torch, Gymnasium, pandas, TA-Lib, or Stable-Baselines3 and can run in AI Platform CI:
 
 ```bash
 python -m ai_platform.scripts.experimental_model_research_contract
 ```
 
-The validator checks:
+The validator and lightweight tests check:
 
 - distinct manifests, configs, FreqAI identifiers, and artifact roots;
+- the dependency-closed heavy runtime profile;
 - `dry_run: true` and empty exchange credentials;
 - central protected-final-holdout isolation;
 - exact train/tune/OOS geometry and single-training policy;
@@ -122,7 +123,7 @@ The validator checks:
 - no future-information reward declaration;
 - no Phase 6 membership, promotion, or profitability claim.
 
-No expensive training is required to validate this foundation. A later execution task must first provide strict May-June OOS result extraction for these experimental manifests; generic full-window run summaries are insufficient evidence.
+The heavy-runtime integration proof is documented separately in `docs/ai_platform/EXPERIMENTAL_MODEL_RUNTIME_SMOKE.md`. It validates the canonical PyTorch and RL runtime paths on synthetic-only data and is not trading-quality evidence. A later execution task must provide strict May-June OOS result extraction for real experimental backtest artifacts; generic full-window run summaries are insufficient evidence.
 
 ## Strict historical-OOS extraction
 

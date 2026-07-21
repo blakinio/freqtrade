@@ -39,9 +39,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ModelComparisonExecutionRequestError(
-            f"Unable to read {label} {path}: {exc}"
-        ) from exc
+        raise ModelComparisonExecutionRequestError(f"Unable to read {label} {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ModelComparisonExecutionRequestError(f"{label} must contain a JSON object")
     return payload
@@ -103,21 +101,15 @@ def _validate_frozen_sources() -> tuple[dict[str, Any], dict[str, Any], dict[str
         is False,
         "contract_final_holdout": contract.get("protected_final_holdout", {}).get("timerange")
         == EXPECTED_FINAL_HOLDOUT,
-        "contract_final_holdout_forbidden": contract.get("protected_final_holdout", {}).get(
-            "usage"
-        )
+        "contract_final_holdout_forbidden": contract.get("protected_final_holdout", {}).get("usage")
         == "forbidden_for_training_tuning_feature_selection_model_selection_model_comparison",
         "selection_policy_id": policy.get("selection_policy_id")
         == "freqai-model-comparison-selection-v1",
         "selection_retuning_forbidden": policy.get("authorization", {}).get("retuning_allowed")
         is False,
-        "selection_final_holdout_unused": policy.get("authorization", {}).get(
-            "final_holdout_used"
-        )
+        "selection_final_holdout_unused": policy.get("authorization", {}).get("final_holdout_used")
         is False,
-        "selection_promotion_forbidden": policy.get("authorization", {}).get(
-            "promotion_allowed"
-        )
+        "selection_promotion_forbidden": policy.get("authorization", {}).get("promotion_allowed")
         is False,
         "selection_profitability_claim_forbidden": policy.get("authorization", {}).get(
             "profitability_claim_allowed"

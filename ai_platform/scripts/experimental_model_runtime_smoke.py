@@ -1,253 +1,217 @@
+#!/usr/bin/env python3
+"""Run bounded heavy-runtime integration smokes for canonical PyTorch and RL research models."""
+
 from __future__ import annotations
 
-import argparse
+import copy
 import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import torch
-from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import BaseCallback
 
 from ai_platform.freqaimodels.LongOnlyReinforcementLearner import (
-    LongOnlyEnvironment,
+    LongOnlyActions,
     LongOnlyReinforcementLearner,
 )
 from ai_platform.freqaimodels.SeededPyTorchMLPRegressor import SeededPyTorchMLPRegressor
 
 
-class _NoOpTensorboardLogger:
-    def log_scalar(self, *_args, **_kwargs) -> None:
-        return None
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PYTORCH_CONFIG = REPO_ROOT / "ai_platform/configs/freqai-pytorch-research.example.json"
+RL_CONFIG = REPO_ROOT / "ai_platform/configs/freqai-rl-research.example.json"
+TRAINING_WINDOW_START = pd.Timestamp("2025-12-01T00:00:00Z")
+TRAINING_WINDOW_END_EXCLUSIVE = pd.Timestamp("2026-03-01T00:00:00Z")
+HISTORICAL_OOS_START = pd.Timestamp("2026-05-01T00:00:00Z")
+FINAL_HOLDOUT_START = pd.Timestamp("2026-08-01T00:00:00Z")
 
 
-class _NoOpCallback(BaseCallback):
-    def _on_step(self) -> bool:
-        return True
+class _NoopTensorboardLogger:
+    def log_scalar(self, tag: str, scalar_value: float, step: int) -> None:
+        del tag, scalar_value, step
+
+    def close(self) -> None:
+        return
 
 
-def _synthetic_features(rows: int = 32) -> pd.DataFrame:
-    values = np.linspace(-0.75, 0.75, rows * 3, dtype=np.float32).reshape(rows, 3)
-    return pd.DataFrame(values, columns=["feature_a", "feature_b", "feature_c"])
+def _load_runtime_config(path: Path, user_data_dir: Path) -> dict[str, Any]:
+    config = json.loads(path.read_text(encoding="utf-8"))
+    if config.get("dry_run") is not True:
+        raise RuntimeError(f"Heavy-runtime smoke requires dry_run=true: {path}")
+    config["user_data_dir"] = user_data_dir
+    config["freqai"]["activate_tensorboard"] = False
+    return config
 
 
-def _run_pytorch_smoke() -> dict[str, object]:
-    features = _synthetic_features()
-    labels = pd.DataFrame(
-        (features.sum(axis=1) * 0.01).to_numpy(dtype=np.float32),
-        columns=["target"],
-    )
+def _synthetic_index(rows: int) -> pd.DatetimeIndex:
+    index = pd.date_range("2026-01-01T00:00:00Z", periods=rows, freq="15min")
+    if index.min() < TRAINING_WINDOW_START or index.max() >= TRAINING_WINDOW_END_EXCLUSIVE:
+        raise RuntimeError("Synthetic smoke data escaped the declared pre-OOS training window")
+    if index.max() >= HISTORICAL_OOS_START or index.max() >= FINAL_HOLDOUT_START:
+        raise RuntimeError("Synthetic smoke data reached a protected evaluation boundary")
+    return index
 
-    model = object.__new__(SeededPyTorchMLPRegressor)
-    model.research_seed = 42
-    model.freqai_info = {"model_training_parameters": {"research_seed": 42}}
-    model.learning_rate = 3e-4
-    model.model_kwargs = {"hidden_dim": 8, "dropout_percent": 0.0, "n_layer": 1}
-    model.trainer_kwargs = {"n_epochs": 1, "batch_size": 8, "early_stopping_patience": 0}
-    model.device = "cpu"
-    model.splits = ["train"]
-    model.tb_logger = _NoOpTensorboardLogger()
-    model.get_init_model = lambda _pair: None
 
-    trainer = model.fit(
+def _pytorch_data(rows: int = 128) -> dict[str, pd.DataFrame]:
+    index = _synthetic_index(rows * 2)
+    x = np.linspace(-1.0, 1.0, rows * 2, dtype=np.float32)
+    features = pd.DataFrame(
         {
-            "train_features": features,
-            "train_labels": labels,
+            "%feature_a": x,
+            "%feature_b": np.sin(x * np.pi),
+            "%feature_c": np.cos(x * np.pi),
         },
-        SimpleNamespace(pair="SYNTHETIC/USDT"),
+        index=index,
     )
-
-    with torch.no_grad():
-        prediction = trainer.model(torch.tensor(features.to_numpy(), dtype=torch.float32))
-
-    if prediction.shape != (len(features), 1):
-        raise RuntimeError(f"Unexpected PyTorch prediction shape: {tuple(prediction.shape)}")
-    if not torch.isfinite(prediction).all():
-        raise RuntimeError("PyTorch smoke produced non-finite predictions")
-
+    labels = pd.DataFrame({"&target": 0.5 * x + 0.1}, index=index)
     return {
-        "model": "SeededPyTorchMLPRegressor",
-        "rows": len(features),
-        "epochs": 1,
-        "device": "cpu",
-        "prediction_shape": list(prediction.shape),
+        "train_features": features.iloc[:rows].copy(),
+        "train_labels": labels.iloc[:rows].copy(),
+        "test_features": features.iloc[rows:].copy(),
+        "test_labels": labels.iloc[rows:].copy(),
     }
 
 
-def _build_rl_environment() -> tuple[LongOnlyEnvironment, pd.DataFrame]:
-    features = _synthetic_features()
-    rows = len(features)
-    prices = pd.DataFrame(
+def _train_pytorch_once(user_data_dir: Path) -> dict[str, torch.Tensor]:
+    config = _load_runtime_config(PYTORCH_CONFIG, user_data_dir)
+    model = SeededPyTorchMLPRegressor(config=config)
+    model.tb_logger = _NoopTensorboardLogger()
+    if model.research_seed != 42:
+        raise RuntimeError("Canonical PyTorch research seed drifted")
+
+    trainer = model.fit(_pytorch_data(), SimpleNamespace(pair="BTC/USDT"))
+    state = {
+        name: tensor.detach().cpu().clone() for name, tensor in trainer.model.state_dict().items()
+    }
+    if not state or not all(torch.isfinite(tensor).all().item() for tensor in state.values()):
+        raise RuntimeError("PyTorch smoke produced missing or non-finite model parameters")
+    return state
+
+
+def _smoke_pytorch(root: Path) -> dict[str, Any]:
+    first = _train_pytorch_once(root / "pytorch-first")
+    second = _train_pytorch_once(root / "pytorch-second")
+    if first.keys() != second.keys() or not all(
+        torch.equal(first[name], second[name]) for name in first
+    ):
+        raise RuntimeError("Seeded PyTorch smoke was not reproducible within the same CPU runtime")
+    return {
+        "status": "pass",
+        "seed": 42,
+        "same_runtime_reproducible": True,
+        "performance_scored": False,
+    }
+
+
+def _rl_frames(
+    train_rows: int = 128,
+    test_rows: int = 64,
+) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    total_rows = train_rows + test_rows
+    index = _synthetic_index(total_rows)
+    phase = np.linspace(0.0, 4.0 * np.pi, total_rows, dtype=np.float32)
+    features = pd.DataFrame(
         {
-            "open": np.linspace(100.0, 101.0, rows, dtype=np.float32),
-            "high": np.linspace(100.1, 101.1, rows, dtype=np.float32),
-            "low": np.linspace(99.9, 100.9, rows, dtype=np.float32),
-            "close": np.linspace(100.0, 101.0, rows, dtype=np.float32),
-        }
-    )
-    config = {
-        "stake_amount": 100,
-        "freqai": {
-            "rl_config": {
-                "add_state_info": False,
-                "max_training_drawdown_pct": 0.2,
-                "max_trade_duration_candles": 16,
-                "randomize_starting_position": False,
-            }
+            "%feature_a": np.sin(phase),
+            "%feature_b": np.cos(phase),
         },
-    }
-    environment = LongOnlyEnvironment(
-        df=features,
-        prices=prices,
-        reward_kwargs={"rr": 1.0, "profit_aim": 0.01},
-        window_size=4,
-        starting_point=True,
-        id="synthetic-smoke",
-        seed=42,
-        config=config,
-        live=False,
-        fee=0.002,
-        can_short=False,
-        pair="SYNTHETIC/USDT",
-        df_raw=prices.copy(),
+        index=index,
     )
-    return environment, features
-
-
-def _action_count(environment: LongOnlyEnvironment) -> int:
-    return int(environment.action_space.n)
-
-
-def _run_rl_build_smoke() -> dict[str, object]:
-    environment, features = _build_rl_environment()
-    return {
-        "environment": type(environment).__name__,
-        "rows": len(features),
-        "actions": _action_count(environment),
+    base_price = 100.0 + np.linspace(0.0, 1.0, total_rows)
+    raw = pd.DataFrame(
+        {
+            "open": base_price,
+            "high": base_price + 0.2,
+            "low": base_price - 0.2,
+            "close": base_price + 0.05,
+        },
+        index=index,
+    )
+    data_dictionary = {
+        "train_features": features.iloc[:train_rows].copy(),
+        "test_features": features.iloc[train_rows:].copy(),
     }
+    return (
+        data_dictionary,
+        raw.iloc[:train_rows].copy(),
+        raw.iloc[train_rows:].copy(),
+        raw.copy(),
+    )
 
 
-def _run_rl_reset_smoke() -> dict[str, object]:
-    environment, features = _build_rl_environment()
-    observation, _ = environment.reset(seed=42)
-    return {
-        "environment": type(environment).__name__,
-        "rows": len(features),
-        "observation_shape": [int(value) for value in observation.shape],
-    }
+def _smoke_rl(root: Path) -> dict[str, Any]:
+    config = _load_runtime_config(RL_CONFIG, root / "rl")
+    learner = LongOnlyReinforcementLearner(config=config)
+    learner.live = False
+    learner.can_short = False
 
+    if learner.MODELCLASS.__name__ != "PPO":
+        raise RuntimeError("Canonical RL backend did not resolve Stable-Baselines3 PPO")
 
-def _run_rl_contract_smoke() -> dict[str, object]:
-    environment, features = _build_rl_environment()
-    observation, _ = environment.reset(seed=42)
-    action_count = _action_count(environment)
+    data_dictionary, prices_train, prices_test, raw = _rl_frames()
+    learner.df_raw = raw
+    data_path = root / "rl-fit"
+    data_path.mkdir(parents=True, exist_ok=True)
+    dk = SimpleNamespace(pair="BTC/USDT", data_path=data_path, full_path=data_path)
 
-    if LongOnlyReinforcementLearner.MyRLEnv is not LongOnlyEnvironment:
-        raise RuntimeError("Canonical RL learner is not bound to LongOnlyEnvironment")
-    if action_count != 3:
-        raise RuntimeError(f"Unexpected RL action count: {action_count}")
-    if observation.shape != (4, features.shape[1]):
-        raise RuntimeError(f"Unexpected RL observation shape: {observation.shape}")
+    env_info = learner.pack_env_dict(dk.pair)
+    if env_info.get("seed") != 42 or env_info.get("fee") != 0.002:
+        raise RuntimeError("Canonical RL environment seed or fee drifted")
 
-    return {
-        "model": "LongOnlyReinforcementLearner",
-        "environment": "LongOnlyEnvironment",
-        "rows": len(features),
-        "actions": action_count,
-        "observation_shape": [int(value) for value in observation.shape],
-    }
+    probe_env = learner.MyRLEnv(
+        df=data_dictionary["train_features"],
+        prices=prices_train,
+        **copy.deepcopy(env_info),
+    )
+    observation, _ = probe_env.reset()
+    if probe_env.action_space.n != 3 or tuple(observation.shape) != (1, 2):
+        raise RuntimeError("Canonical long-only RL action or observation contract drifted")
+    probe_env.step(LongOnlyActions.Long_enter.value)
+    probe_env.step(LongOnlyActions.Neutral.value)
+    probe_env.step(LongOnlyActions.Long_exit.value)
 
-
-def _run_rl_fit_smoke() -> dict[str, object]:
-    environment, features = _build_rl_environment()
-    environment.reset(seed=42)
-
-    learner = object.__new__(LongOnlyReinforcementLearner)
-    learner.freqai_info = {
-        "rl_config": {"train_cycles": 1},
-        "model_training_parameters": {"n_steps": 8, "batch_size": 4, "seed": 42},
-    }
-    learner.rl_config = {"progress_bar": False}
-    learner.net_arch = [8, 8]
-    learner.policy_type = "MlpPolicy"
-    learner.train_env = environment
-    learner.activate_tensorboard = False
-    learner.dd = SimpleNamespace(model_dictionary={})
-    learner.continual_learning = False
-    learner.MODELCLASS = PPO
-    learner.eval_callback = _NoOpCallback()
-    learner.tensorboard_callback = _NoOpCallback()
-
-    with tempfile.TemporaryDirectory(prefix="freqai-rl-smoke-") as temp_dir:
-        temp_path = Path(temp_dir)
-        trained_model = learner.fit(
-            {"train_features": features},
-            SimpleNamespace(
-                full_path=temp_path,
-                data_path=temp_path,
-                pair="SYNTHETIC/USDT",
-            ),
-        )
-
-    if not isinstance(trained_model, PPO):
-        raise RuntimeError(f"Unexpected RL model type: {type(trained_model).__name__}")
+    learner.set_train_and_eval_environments(
+        data_dictionary,
+        prices_train,
+        prices_test,
+        dk,
+    )
+    model = learner.fit(data_dictionary, dk)
+    if model.__class__.__name__ != "PPO" or int(model.num_timesteps) < len(
+        data_dictionary["train_features"]
+    ):
+        raise RuntimeError("Canonical RL fit did not complete the bounded PPO integration smoke")
 
     return {
-        "model": "LongOnlyReinforcementLearner",
-        "backend": "PPO",
-        "rows": len(features),
-        "train_cycles": 1,
-        "actions": _action_count(environment),
-    }
-
-
-def _envelope(component: str, result: dict[str, object]) -> dict[str, object]:
-    return {
-        "schema_version": 1,
-        "component": component,
-        "data_source": "synthetic_only",
-        "historical_oos_scored": False,
-        "protected_final_holdout_used": False,
-        "performance_conclusion_allowed": False,
-        "result": result,
+        "status": "pass",
+        "backend": "stable_baselines3",
+        "algorithm": "PPO",
+        "actions": 3,
+        "seed": 42,
+        "performance_scored": False,
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "component",
-        choices=("pytorch", "rl-build", "rl-reset", "rl-contract", "rl-fit", "all"),
-        nargs="?",
-        default="all",
-    )
-    args = parser.parse_args()
-
-    if args.component == "pytorch":
-        result = _envelope("pytorch", _run_pytorch_smoke())
-    elif args.component == "rl-build":
-        result = _envelope("rl-build", _run_rl_build_smoke())
-    elif args.component == "rl-reset":
-        result = _envelope("rl-reset", _run_rl_reset_smoke())
-    elif args.component == "rl-contract":
-        result = _envelope("rl-contract", _run_rl_contract_smoke())
-    elif args.component == "rl-fit":
-        result = _envelope("rl-fit", _run_rl_fit_smoke())
-    else:
-        result = _envelope(
-            "all",
-            {
-                "pytorch": _run_pytorch_smoke(),
-                "rl_build": _run_rl_build_smoke(),
-                "rl_reset": _run_rl_reset_smoke(),
-                "rl_contract": _run_rl_contract_smoke(),
-                "rl_fit": _run_rl_fit_smoke(),
-            },
-        )
-
+    with tempfile.TemporaryDirectory(prefix="ai-platform-heavy-runtime-") as tmp:
+        root = Path(tmp)
+        result = {
+            "smoke_id": "experimental-model-heavy-runtime-smoke-v1",
+            "data_scope": "synthetic_pre_oos_training_window_only",
+            "data_end_before": TRAINING_WINDOW_END_EXCLUSIVE.isoformat(),
+            "historical_oos_scored": False,
+            "final_holdout_used": False,
+            "phase6_member": False,
+            "retuning_performed": False,
+            "promotion_allowed": False,
+            "profitability_claim_allowed": False,
+            "pytorch": _smoke_pytorch(root),
+            "rl": _smoke_rl(root),
+        }
     print(json.dumps(result, sort_keys=True))
     return 0
 

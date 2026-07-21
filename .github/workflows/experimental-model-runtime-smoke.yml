@@ -5,6 +5,21 @@ on:
     branches:
       - develop
     paths:
+      - "ai_platform/configs/freqai-pytorch-research.example.json"
+      - "ai_platform/configs/freqai-rl-research.example.json"
+      - "ai_platform/experimental_model_research/foundation-v1.json"
+      - "ai_platform/freqaimodels/**"
+      - "ai_platform/scripts/experimental_model_runtime_smoke.py"
+      - "docs/agents/tasks/FTAI-20260721-experimental-model-runtime-smoke-hardening.md"
+      - ".github/workflows/experimental-model-runtime-smoke.yml"
+      - "pyproject.toml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "ai_platform/configs/freqai-pytorch-research.example.json"
+      - "ai_platform/configs/freqai-rl-research.example.json"
+      - "ai_platform/experimental_model_research/foundation-v1.json"
       - "ai_platform/freqaimodels/**"
       - "ai_platform/scripts/experimental_model_runtime_smoke.py"
       - ".github/workflows/experimental-model-runtime-smoke.yml"
@@ -14,16 +29,27 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: experimental-model-runtime-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   runtime-smoke:
     name: PyTorch and RL heavy runtime smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
+
+      - name: Validate active task checkpoint
+        if: github.event_name == 'pull_request'
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260721-experimental-model-runtime-smoke-hardening.md
+          --require-checkpoint
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
@@ -32,26 +58,10 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
-      - name: Validate active task checkpoint
-        run: >-
-          python tools/agents/checkpoint.py
-          docs/agents/tasks/FTAI-20260721-experimental-model-heavy-runtime-smoke.md
-          --require-checkpoint
-
       - name: Install FreqAI and freqai_rl runtime dependencies
-        run: python -m pip install --quiet -e ".[freqai,freqai_rl]"
+        run: >-
+          python -m pip install --disable-pip-version-check --quiet
+          -e ".[freqai,freqai_rl]"
 
-      - name: Smoke canonical PyTorch fit
-        run: python -m ai_platform.scripts.experimental_model_runtime_smoke pytorch
-
-      - name: Smoke RL environment construction
-        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-build
-
-      - name: Smoke RL environment reset
-        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-reset
-
-      - name: Smoke RL environment contract
-        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-contract
-
-      - name: Smoke canonical RL PPO fit
-        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-fit
+      - name: Run bounded canonical experimental-model runtime smoke
+        run: python -m ai_platform.scripts.experimental_model_runtime_smoke

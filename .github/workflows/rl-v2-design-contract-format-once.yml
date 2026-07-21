@@ -1,0 +1,54 @@
+# Temporary one-shot formatter; self-deletes after applying exact AI CI formatting.
+name: RL-v2 Design Contract One-Shot Format
+
+on:
+  push:
+    branches:
+      - feat/rl-v2-design-contract-v1
+
+permissions:
+  contents: write
+
+jobs:
+  format-and-clean:
+    if: github.repository == 'blakinio/freqtrade'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/rl-v2-design-contract-v1
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install AI CI Ruff
+        run: python -m pip install --disable-pip-version-check --quiet ruff==0.15.20
+
+      - name: Apply exact formatting and self-delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff format \
+            ai_platform/scripts/rl_v2_design_contract.py \
+            tests/ai_platform/test_rl_v2_design_contract.py
+          ruff check \
+            ai_platform/scripts/rl_v2_design_contract.py \
+            tests/ai_platform/test_rl_v2_design_contract.py
+          ruff format --check \
+            ai_platform/scripts/rl_v2_design_contract.py \
+            tests/ai_platform/test_rl_v2_design_contract.py
+          rm -f .github/workflows/rl-v2-design-contract-format-once.yml
+
+      - name: Commit formatter result and cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add -A
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style(ai-platform): apply RL-v2 contract formatting"
+          git push origin HEAD:feat/rl-v2-design-contract-v1

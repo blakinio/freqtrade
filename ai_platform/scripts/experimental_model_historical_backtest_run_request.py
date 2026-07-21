@@ -18,13 +18,9 @@ from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_REPO_PATH = (
-    "ai_platform/experimental_model_research/historical-backtest-execution-contract-v1.json"
-)
+CONTRACT_REPO_PATH = "ai_platform/experimental_model_research/historical-backtest-execution-contract-v1.json"
 CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
-REQUEST_REPO_PATH = (
-    "ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json"
-)
+REQUEST_REPO_PATH = "ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json"
 EXPECTED_REQUEST_ID = "experimental-model-historical-backtest-execution-v1"
 EXPECTED_ACTION = "execute_experimental_model_historical_backtests"
 EXPECTED_TRACKS = {
@@ -176,9 +172,7 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest contract_id drifted"
         )
-    expected_task = (
-        "docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md"
-    )
+    expected_task = "docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md"
     if contract.get("task") != expected_task:
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest task drifted"
@@ -195,12 +189,16 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
     _validate_exact_contract_fields(contract)
 
     contract_tracks = contract.get("tracks")
-    if not isinstance(contract_tracks, list) or len(contract_tracks) != len(EXPECTED_TRACKS):
+    if not isinstance(contract_tracks, list) or len(contract_tracks) != len(
+        EXPECTED_TRACKS
+    ):
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest contract must contain exactly two canonical tracks"
         )
     actual_tracks = {
-        track.get("track_id"): track for track in contract_tracks if isinstance(track, dict)
+        track.get("track_id"): track
+        for track in contract_tracks
+        if isinstance(track, dict)
     }
     if actual_tracks != EXPECTED_TRACKS:
         raise ExperimentalModelHistoricalBacktestRunRequestError(
@@ -246,7 +244,13 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
             raise ExperimentalModelHistoricalBacktestRunRequestError(
                 f"Foundation is missing canonical track {track_id}"
             )
-        for field in ("manifest", "config", "strategy", "freqai_model", "freqai_identifier"):
+        for field in (
+            "manifest",
+            "config",
+            "strategy",
+            "freqai_model",
+            "freqai_identifier",
+        ):
             if foundation_track.get(field) != expected_track[field]:
                 raise ExperimentalModelHistoricalBacktestRunRequestError(
                     f"{track_id} foundation field {field} drifted"
@@ -334,7 +338,9 @@ def canonical_experimental_model_historical_backtest_run_request() -> dict[str, 
     }
 
 
-def load_experimental_model_historical_backtest_run_request(path: Path) -> dict[str, Any]:
+def load_experimental_model_historical_backtest_run_request(
+    path: Path,
+) -> dict[str, Any]:
     """Load and fail closed unless a request exactly matches the canonical payload."""
     request = _read_json(path.resolve(), "experimental historical backtest run request")
     expected = canonical_experimental_model_historical_backtest_run_request()
@@ -389,12 +395,18 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
     if args.request is None:
-        print("A request path is required unless --print-canonical is used", file=sys.stderr)
+        print(
+            "A request path is required unless --print-canonical is used",
+            file=sys.stderr,
+        )
         return 2
     try:
         request = load_experimental_model_historical_backtest_run_request(args.request)
     except ExperimentalModelHistoricalBacktestRunRequestError as exc:
-        print(f"Experimental historical backtest run request invalid: {exc}", file=sys.stderr)
+        print(
+            f"Experimental historical backtest run request invalid: {exc}",
+            file=sys.stderr,
+        )
         return 1
     print(request["request_id"])
     return 0

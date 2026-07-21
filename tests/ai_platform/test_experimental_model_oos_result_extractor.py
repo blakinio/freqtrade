@@ -33,7 +33,7 @@ def _write_archive(
     strategy: str,
     model: str,
     identifier: str,
-    timerange: str = "20260301-20260630",
+    timerange: str = "20260301-20260701",
     trades: list[dict] | None = None,
 ) -> Path:
     stats = {

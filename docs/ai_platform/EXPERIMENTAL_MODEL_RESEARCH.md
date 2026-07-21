@@ -5,7 +5,7 @@ This work package creates two research-only tracks outside the Phase 6 LightGBM-
 - **PyTorch Research** — a small seeded MLP regression baseline;
 - **Reinforcement Learning Research** — a long-only PPO proof of integration.
 
-The foundation does not execute training or backtesting, does not change the Phase 6 comparison contract or selection policy, does not retune the frozen Phase 5.2 candidate, and does not access the protected final holdout.
+The foundation does not execute canonical research training or backtesting, does not change the Phase 6 comparison contract or selection policy, does not retune the frozen Phase 5.2 candidate, and does not access the protected final holdout.
 
 ## Isolation contract
 
@@ -57,7 +57,7 @@ The trading strategy is `AiFrozenCandidateStrategy`, which keeps the Phase 5.2 e
 
 ## Reinforcement Learning Research
 
-Current FreqAI RL support uses Gymnasium environments and Stable-Baselines3/sb3-contrib models. The optional `freqai_rl` dependency profile supplies Gymnasium, Stable-Baselines3, sb3-contrib, Torch, and tqdm. The built-in framework supports custom model classes and custom environments without modifying Freqtrade core.
+Current FreqAI RL support uses Gymnasium environments and Stable-Baselines3/sb3-contrib models. The optional `freqai_rl` extra supplies Gymnasium, Stable-Baselines3, sb3-contrib, Torch, and tqdm. The canonical custom classes also inherit through the regular FreqAI stack, which imports dependencies from the separate `freqai` extra. Therefore the dependency-closed research runtime profile is `freqtrade[freqai,freqai_rl]`.
 
 Track identity:
 
@@ -104,15 +104,16 @@ The FreqAI RL training environment is intentionally simpler than the full Freqtr
 
 ## Dependencies and validation
 
-PyTorch and RL runtime smoke checks require the repository's `freqai_rl` optional dependency profile because that is where the current repository declares Torch. Lightweight contract validation does not import Torch, Gymnasium, pandas, TA-Lib, or Stable-Baselines3 and can run in AI Platform CI:
+The dependency-closed heavy runtime profile for both canonical research model classes is `freqtrade[freqai,freqai_rl]`. The `freqai_rl` extra supplies Torch/Gymnasium/SB3, while the inherited FreqAI model stack requires the regular `freqai` dependencies as well. Lightweight contract validation still avoids importing Torch, Gymnasium, pandas, TA-Lib, or Stable-Baselines3 and can run in AI Platform CI:
 
 ```bash
 python -m ai_platform.scripts.experimental_model_research_contract
 ```
 
-The validator checks:
+The validator and lightweight tests check:
 
 - distinct manifests, configs, FreqAI identifiers, and artifact roots;
+- the dependency-closed heavy runtime profile;
 - `dry_run: true` and empty exchange credentials;
 - central protected-final-holdout isolation;
 - exact train/tune/OOS geometry and single-training policy;
@@ -122,7 +123,20 @@ The validator checks:
 - no future-information reward declaration;
 - no Phase 6 membership, promotion, or profitability claim.
 
-No expensive training is required to validate this foundation. A later execution task must first provide strict May-June OOS result extraction for these experimental manifests; generic full-window run summaries are insufficient evidence.
+## Heavy-runtime proof of integration
+
+`ai_platform/scripts/experimental_model_runtime_smoke.py` is a bounded integration smoke, not a research evaluation. Its dedicated GitHub Actions workflow installs `freqtrade[freqai,freqai_rl]` and then:
+
+- imports and instantiates the canonical `SeededPyTorchMLPRegressor` and `LongOnlyReinforcementLearner` classes;
+- fits the small seeded PyTorch MLP twice on identical synthetic data and checks same-runtime deterministic parameters;
+- instantiates the three-action long-only RL environment, exercises enter/neutral/exit transitions, resolves Stable-Baselines3 PPO, and completes one bounded canonical `fit` call;
+- uses only synthetic timestamps inside `20251201-20260228`;
+- performs no Freqtrade backtest, no historical-OOS extraction or scoring, no threshold tuning, and no final-holdout access;
+- emits no model-performance or profitability conclusion and cannot authorize promotion.
+
+This smoke exists only to prove that the declared model classes and dependency profile work together in a real heavy runtime. It does not change `execution_performed=false` for the canonical research tracks because no canonical manifest research execution is performed.
+
+A later execution task may produce frozen research backtest artifacts only after the runtime smoke is proven. Any such evidence must still pass strict May-June OOS extraction; generic full-window run summaries remain insufficient evidence.
 
 ## Strict historical-OOS extraction
 

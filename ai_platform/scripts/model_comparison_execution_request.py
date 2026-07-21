@@ -56,11 +56,6 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _require(condition: bool, message: str) -> None:
-    if not condition:
-        raise ModelComparisonExecutionRequestError(message)
-
-
 def _validate_frozen_sources() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     contract = _read_json(COMPARISON_CONTRACT, "model comparison contract")
     policy = _read_json(SELECTION_POLICY, "model selection policy")
@@ -68,15 +63,25 @@ def _validate_frozen_sources() -> tuple[dict[str, Any], dict[str, Any], dict[str
     declaration = _read_json(FINAL_HOLDOUT_DECLARATION, "protected final holdout declaration")
 
     shared = contract.get("shared_experiment")
-    _require(isinstance(shared, dict), "Comparison contract shared_experiment must be an object")
+    if not isinstance(shared, dict):
+        raise ModelComparisonExecutionRequestError(
+            "Comparison contract shared_experiment must be an object"
+        )
     historical = shared.get("historical_oos_windows")
-    _require(
-        isinstance(historical, list) and len(historical) == 1 and isinstance(historical[0], dict),
-        "Comparison contract must contain exactly one historical OOS window",
-    )
+    if not isinstance(historical, list) or len(historical) != 1:
+        raise ModelComparisonExecutionRequestError(
+            "Comparison contract must contain exactly one historical OOS window"
+        )
     historical_window = historical[0]
+    if not isinstance(historical_window, dict):
+        raise ModelComparisonExecutionRequestError(
+            "Comparison contract historical OOS window must be an object"
+        )
     risk = shared.get("risk_assumptions")
-    _require(isinstance(risk, dict), "Comparison contract risk_assumptions must be an object")
+    if not isinstance(risk, dict):
+        raise ModelComparisonExecutionRequestError(
+            "Comparison contract risk_assumptions must be an object"
+        )
 
     checks = {
         "comparison_id": contract.get("comparison_id") == EXPECTED_COMPARISON_ID,

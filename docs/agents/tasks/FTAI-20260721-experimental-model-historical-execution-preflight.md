@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260721-experimental-model-historical-execution-preflight
-status: validating
+status: ready
 branch: feat/experimental-model-historical-execution-preflight-v2
 base_branch: develop
 created: 2026-07-21
@@ -38,11 +38,11 @@ Verify boundary-correct historical market-data availability, execution resources
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T11:00:00Z
-head: 0e6414f4489713181b9083e9847244fbe2d0f536
+updated_at: 2026-07-21T11:40:00Z
+head: a3572689a6e3a3b808d95d886ae7e58e017418e5
 branch: feat/experimental-model-historical-execution-preflight-v2
 pr: "#73"
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_EXECUTION_PREFLIGHT.md
   - ai_platform/scripts/experimental_model_historical_execution_preflight.py
@@ -67,17 +67,19 @@ proven:
   - PR #73 parallelizes Kraken trade-history acquisition per pair and verifies 15m, 1h, and 4h coverage independently for BTC/USDT and ETH/USDT.
   - PR #75 was closed without merge as superseded by the stronger parallel preflight in PR #73.
   - A deterministic pre-commit Mypy failure was isolated to variable-name reuse in experimental_model_historical_execution_preflight.py and fixed without changing runtime semantics.
-  - Freqtrade CI pre-commit checks pass after the Mypy fix.
-  - Workflow concurrency now uses cancel-in-progress=false so validation commits do not cancel long pair downloads.
-  - Final pair-specific preflight jobs have a 240-minute timeout; existing earlier 120-minute jobs may finish first and seed verified pair caches.
-  - AI Platform CI run 29823122085, zizmor run 29823122066, and Experimental Model Runtime Smoke run 29823122115 completed successfully on implementation head 0e6414f4489713181b9083e9847244fbe2d0f536.
+  - Workflow concurrency uses cancel-in-progress=false and pair-specific jobs have a 240-minute timeout.
+  - Exact boundary-correct v2 cache was restored on final preflight run 29823749323; the download step was skipped only because the exact v2 cache key hit, and independent coverage verification still executed for each pair.
+  - BTC/USDT coverage evidence is ready for 15m, 1h, and 4h from 2025-08-01 through at least the required 2026-07-01 boundary; rows are 32021, 8010, and 2004 respectively.
+  - ETH/USDT coverage evidence is ready for 15m, 1h, and 4h from 2025-08-01 through at least the required 2026-07-01 boundary; rows are 31985, 8011, and 2004 respectively.
+  - Final preflight artifacts for BTC/USDT and ETH/USDT report status=ready, market_data_available=true, phase6_member=false, protected_final_holdout_used=false, retuning_allowed=false, promotion_allowed=false, and profitability_claim_allowed=false.
+  - AI Platform CI run 29823749276, zizmor run 29823749275, Experimental Model Runtime Smoke run 29823749273, Freqtrade CI run 29823749339, and Experimental Model Historical Execution Preflight run 29823749323 all completed successfully on validated implementation head a3572689a6e3a3b808d95d886ae7e58e017418e5.
+  - develop is merge-base 550766fc5e1fce065a0ddc7d8c3866f965e17393 and the branch is ahead with behind_by=0, so no replay/rebase is required before merge unless develop moves again.
   - Protected final holdout 20260801-20260930 remains unused and forbidden; frozen thresholds 0.006/-0.009 and Phase 6 isolation remain unchanged.
 derived:
-  - Results from PR #66's stale 20260630-stop download cannot certify full June coverage and remain rejected as evidence.
-  - Pair-specific verified caches can later be restored into one execution runner without changing model or scoring contracts.
-unknown:
-  - Whether both boundary-correct pair-specific Kraken downloads cover all required timeframes through the final June 30 candles.
-  - Whether the full Freqtrade CI matrix completes successfully after the already-green pre-commit job.
+  - Results from PR #66's stale 20260630-stop download cannot certify full June historical coverage and remain rejected as evidence.
+  - Verified pair-specific caches can be restored into a later bounded execution runner without changing model or scoring contracts.
+  - The next bounded task may authorize canonical experimental backtest execution only after this preflight PR is merged; this PR itself authorizes no backtest.
+unknown: []
 conflicts: []
 first_failure:
   marker: freqtrade-exclusive-stop-boundary
@@ -85,7 +87,7 @@ first_failure:
 rejected_hypotheses:
   - Treat PR #66's 20260630-stop download as valid full-June historical coverage.
   - Change the semantic historical OOS label or access the protected 20260801-20260930 final holdout.
-  - Run a real PyTorch or RL backtest before the corrected preflight is green.
+  - Run a real PyTorch or RL backtest before the corrected preflight is green and merged.
   - Merge duplicate PR #75 instead of consolidating on the stronger parallel PR #73.
 changed_paths:
   - ai_platform/experimental_model_research/foundation-v1.json
@@ -99,21 +101,21 @@ changed_paths:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_EXECUTION_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260721-experimental-model-historical-execution-preflight.md
 validation:
-  - command: AI Platform CI run 29823122085
+  - command: AI Platform CI run 29823749276
     result: PASS
     evidence: Boundary contract tests and AI Platform quality gates completed successfully.
-  - command: GitHub Actions Security Analysis with zizmor run 29823122066
+  - command: GitHub Actions Security Analysis with zizmor run 29823749275
     result: PASS
     evidence: Workflow security analysis completed successfully.
-  - command: Experimental Model Runtime Smoke run 29823122115
+  - command: Experimental Model Runtime Smoke run 29823749273
     result: PASS
     evidence: Canonical PyTorch reproducibility and RL environment/PPO runtime paths remained green with corrected manifests.
-  - command: Freqtrade CI run 29823122048
-    result: NOT_RUN
-    evidence: Pre-commit checks passed after the Mypy fix; the remaining repository matrix is still running.
-  - command: Experimental Model Historical Execution Preflight run 29821500846
-    result: NOT_RUN
-    evidence: Guarded contract/resolver job passed; BTC/USDT and ETH/USDT boundary-correct Kraken downloads are still running before coverage verification and cache save.
+  - command: Freqtrade CI run 29823749339
+    result: PASS
+    evidence: Full repository CI completed successfully on the validated implementation head.
+  - command: Experimental Model Historical Execution Preflight run 29823749323
+    result: PASS
+    evidence: Guarded contract/resolver validation and both BTC/USDT and ETH/USDT pair-specific coverage jobs completed successfully and uploaded durable evidence artifacts.
 blockers: []
-next_action: Let the active pair-specific Kraken jobs finish and verify corrected coverage, require the full Freqtrade CI matrix to pass, then replay PR #73 onto the latest develop using the verified pair caches for one final cached preflight before merge.
+next_action: Require the metadata-only checkpoint head to pass standard gates and cached boundary-correct preflight, then squash-merge PR #73. After merge, close this task durably and open a separate bounded execution task before any real PyTorch or RL backtest.
 ```

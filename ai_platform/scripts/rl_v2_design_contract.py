@@ -125,7 +125,10 @@ def _validate_algorithm_scope(contract: dict[str, Any]) -> None:
 
 def _validate_reward_geometry(contract: dict[str, Any]) -> None:
     reward = contract.get("reward_geometry", {})
-    _require(reward.get("decision_time_information_only") is True, "Reward must be decision-time only")
+    _require(
+        reward.get("decision_time_information_only") is True,
+        "Reward must be decision-time only",
+    )
     _require(
         reward.get("future_candle_information_allowed") is False,
         "Future candle information must remain forbidden",
@@ -138,7 +141,10 @@ def _validate_reward_geometry(contract: dict[str, Any]) -> None:
         reward.get("perpetual_neutral_inactivity_unpenalized") is False,
         "Perpetual neutral inactivity may not remain an unpenalized solution",
     )
-    _require(reward.get("invalid_actions_penalized") is True, "Invalid actions must be penalized")
+    _require(
+        reward.get("invalid_actions_penalized") is True,
+        "Invalid actions must be penalized",
+    )
     _require(
         reward.get("numeric_reward_values_status")
         == "must_be_frozen_in_later_implementation_task_before_execution",
@@ -157,8 +163,14 @@ def _validate_position_inference_parity(contract: dict[str, Any]) -> None:
         "RL-v2 policy actions must express desired position",
     )
     action_space = parity.get("action_space", {})
-    _require(action_space.get("type") == "Discrete(2)", "Desired-position action space must be Discrete(2)")
-    _require(action_space.get("actions") == EXPECTED_ACTIONS, "Desired-position action mapping is invalid")
+    _require(
+        action_space.get("type") == "Discrete(2)",
+        "Desired-position action space must be Discrete(2)",
+    )
+    _require(
+        action_space.get("actions") == EXPECTED_ACTIONS,
+        "Desired-position action mapping is invalid",
+    )
     _require(
         parity.get("policy_requires_current_position_observation") is False,
         "Policy must not require hidden current-position state",
@@ -186,7 +198,10 @@ def _validate_observability(contract: dict[str, Any]) -> None:
     observability = contract.get("observability", {})
     evidence = observability.get("required_evidence")
     _require(isinstance(evidence, list), "observability.required_evidence must be a list")
-    _require(REQUIRED_EVIDENCE.issubset(set(evidence)), "Mandatory execution evidence is incomplete")
+    _require(
+        REQUIRED_EVIDENCE.issubset(set(evidence)),
+        "Mandatory execution evidence is incomplete",
+    )
     for field in (
         "action_histogram_required_before_artifact_upload",
         "prediction_gate_histogram_required_before_artifact_upload",
@@ -211,8 +226,14 @@ def _validate_evaluation_isolation(contract: dict[str, Any]) -> None:
         {CONSUMED_HISTORICAL_OOS, PROTECTED_FINAL_HOLDOUT}.issubset(set(forbidden)),
         "Consumed OOS and protected final holdout must both remain forbidden",
     )
-    _require(evaluation.get("future_evaluation_window") is None, "Future evaluation window is not declared yet")
-    _require(evaluation.get("future_evaluation_status") == "not_declared", "Future evaluation must remain undeclared")
+    _require(
+        evaluation.get("future_evaluation_window") is None,
+        "Future evaluation window is not declared yet",
+    )
+    _require(
+        evaluation.get("future_evaluation_status") == "not_declared",
+        "Future evaluation must remain undeclared",
+    )
     _require(
         evaluation.get("prospective_declaration_required") is True,
         "Future evaluation must require prospective declaration",
@@ -267,7 +288,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"RL-v2 contract validation failed: {exc}", file=sys.stderr)
         return 1
 
-    print(json.dumps({"contract_id": contract["contract_id"], "status": "valid"}, sort_keys=True))
+    result = {"contract_id": contract["contract_id"], "status": "valid"}
+    print(json.dumps(result, sort_keys=True))
     return 0
 
 

@@ -105,10 +105,10 @@ def _canonical_inputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa:
         "freqtrade_prediction_timerange": EXECUTION_PREDICTION_TIMERANGE,
         "freqtrade_download_timerange": EXECUTION_DOWNLOAD_TIMERANGE,
     }
-    for field, expected in expected_geometry.items():
-        if geometry.get(field) != expected:
+    for field, expected_value in expected_geometry.items():
+        if geometry.get(field) != expected_value:
             raise ExperimentalHistoricalPreflightError(
-                f"Experimental temporal geometry drifted for {field}: expected {expected}"
+                f"Experimental temporal geometry drifted for {field}: expected {expected_value}"
             )
 
     _validate_exclusive_execution_boundary(
@@ -140,14 +140,14 @@ def _canonical_inputs() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa:
         exchange = str(config.get("exchange", {}).get("name", "")).lower()
         freqai = config.get("freqai", {})
 
-        expected = {
+        expected_manifest = {
             "download_timerange": EXECUTION_DOWNLOAD_TIMERANGE,
             "timerange": EXECUTION_PREDICTION_TIMERANGE,
             "pairs": EXPECTED_PAIRS,
             "timeframes": EXPECTED_TIMEFRAMES,
             "fee": EXPECTED_FEE,
         }
-        for field, value in expected.items():
+        for field, value in expected_manifest.items():
             if manifest.get(field) != value:
                 raise ExperimentalHistoricalPreflightError(
                     f"{track_id} manifest drifted for {field}: expected {value!r}"

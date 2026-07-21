@@ -19,13 +19,11 @@ from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_REPO_PATH = (
-    "ai_platform/experimental_model_research/"
-    "historical-backtest-execution-contract-v1.json"
+    "ai_platform/experimental_model_research/historical-backtest-execution-contract-v1.json"
 )
 CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
 REQUEST_REPO_PATH = (
-    "ai_platform/experimental_model_research/run-requests/"
-    "historical-backtest-execution-v1.json"
+    "ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json"
 )
 EXPECTED_REQUEST_ID = "experimental-model-historical-backtest-execution-v1"
 EXPECTED_ACTION = "execute_experimental_model_historical_backtests"
@@ -179,40 +177,29 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
             "Historical backtest contract_id drifted"
         )
     expected_task = (
-        "docs/agents/tasks/FTAI-20260721-"
-        "experimental-model-historical-backtest-execution.md"
+        "docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md"
     )
     if contract.get("task") != expected_task:
-        raise ExperimentalModelHistoricalBacktestRunRequestError(
-            "Historical backtest task drifted"
-        )
+        raise ExperimentalModelHistoricalBacktestRunRequestError("Historical backtest task drifted")
     expected_foundation = "ai_platform/experimental_model_research/foundation-v1.json"
     if contract.get("foundation") != expected_foundation:
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Experimental research foundation path drifted"
         )
     if contract.get("request_path") != REQUEST_REPO_PATH:
-        raise ExperimentalModelHistoricalBacktestRunRequestError(
-            "Canonical request path drifted"
-        )
+        raise ExperimentalModelHistoricalBacktestRunRequestError("Canonical request path drifted")
     _validate_exact_contract_fields(contract)
 
     contract_tracks = contract.get("tracks")
-    if not isinstance(contract_tracks, list) or len(contract_tracks) != len(
-        EXPECTED_TRACKS
-    ):
+    if not isinstance(contract_tracks, list) or len(contract_tracks) != len(EXPECTED_TRACKS):
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest contract must contain exactly two canonical tracks"
         )
     actual_tracks = {
-        track.get("track_id"): track
-        for track in contract_tracks
-        if isinstance(track, dict)
+        track.get("track_id"): track for track in contract_tracks if isinstance(track, dict)
     }
     if actual_tracks != EXPECTED_TRACKS:
-        raise ExperimentalModelHistoricalBacktestRunRequestError(
-            "Canonical track contract drifted"
-        )
+        raise ExperimentalModelHistoricalBacktestRunRequestError("Canonical track contract drifted")
 
     try:
         foundation = validate_experimental_model_research_foundation(
@@ -236,9 +223,7 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
     if foundation["protected_final_holdout"] != EXPECTED_PROTECTED_FINAL_HOLDOUT | {
         "declaration": "ai_platform/validation/final-holdout-v2-declaration.json"
     }:
-        raise ExperimentalModelHistoricalBacktestRunRequestError(
-            "Foundation final holdout drifted"
-        )
+        raise ExperimentalModelHistoricalBacktestRunRequestError("Foundation final holdout drifted")
     frozen = foundation["shared_trading_assumptions"]["frozen_candidate_reference"]
     if frozen != EXPECTED_FROZEN_PARAMETERS:
         raise ExperimentalModelHistoricalBacktestRunRequestError(
@@ -362,8 +347,7 @@ def load_experimental_model_historical_backtest_run_request(
         if extra:
             details.append(f"extra={','.join(extra)}")
         raise ExperimentalModelHistoricalBacktestRunRequestError(
-            "Run request fields do not match the canonical execution request: "
-            + "; ".join(details)
+            "Run request fields do not match the canonical execution request: " + "; ".join(details)
         )
     for field, expected_value in expected.items():
         if request[field] != expected_value:

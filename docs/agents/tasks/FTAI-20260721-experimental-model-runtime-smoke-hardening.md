@@ -37,7 +37,7 @@ updated_at: 2026-07-21T09:25:00Z
 head: 219d996f986e1544a4efeb3cc8a2f2b13f5366d4
 branch: develop
 pr: "#68 merged"
-status: done
+status: ready
 context_routes:
   - docs/ai_platform/EXPERIMENTAL_MODEL_RUNTIME_SMOKE.md
   - ai_platform/scripts/experimental_model_runtime_smoke.py

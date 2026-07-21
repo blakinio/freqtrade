@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from ai_platform.scripts.rl_v2_design_contract import CONTRACT_PATH as DESIGN_CONTRACT_PATH
+from ai_platform.scripts.rl_v2_design_contract import (
+    CONTRACT_PATH as DESIGN_CONTRACT_PATH,
+)
 from ai_platform.scripts.rl_v2_synthetic_reference import (
     DESCRIPTOR_PATH,
     REWARD_REFERENCE,
@@ -238,7 +240,7 @@ def test_observability_records_separate_prediction_signal_and_trade_layers() -> 
     assert snapshot["totals"]["pre_trade_signals"] == {"entry": 1, "exit": 1}
     assert snapshot["raw_backtest_trades"] == 1
     assert snapshot["strict_oos"] == {"input": 1, "included": 1, "excluded": 0}
-    json.dumps(snapshot, sort_keys=True)
+    assert json.loads(json.dumps(snapshot, sort_keys=True)) == snapshot
 
 
 def test_strict_oos_observability_counts_must_reconcile() -> None:

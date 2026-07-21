@@ -7,7 +7,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 EXPECTED_CONTRACT_ID = "rl-v2-design-contract-v1"
@@ -58,18 +58,23 @@ def _require(condition: bool, message: str) -> None:
         raise ContractValidationError(message)
 
 
+def _object(parent: dict[str, Any], key: str) -> dict[str, Any]:
+    value = parent.get(key)
+    _require(isinstance(value, dict), f"{key} must be an object")
+    return cast(dict[str, Any], value)
+
+
 def load_contract(path: Path) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload: Any = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ContractValidationError(f"Unable to read contract {path}: {exc}") from exc
     _require(isinstance(payload, dict), "Contract root must be a JSON object")
-    return payload
+    return cast(dict[str, Any], payload)
 
 
 def _validate_authorization(contract: dict[str, Any]) -> None:
-    authorization = contract.get("authorization")
-    _require(isinstance(authorization, dict), "authorization must be an object")
+    authorization = _object(contract, "authorization")
     required = {
         "model_implementation_allowed",
         "strategy_implementation_allowed",
@@ -88,7 +93,7 @@ def _validate_authorization(contract: dict[str, Any]) -> None:
 
 
 def _validate_isolation(contract: dict[str, Any]) -> None:
-    isolation = contract.get("isolation", {})
+    isolation = _object(contract, "isolation")
     _require(isolation.get("phase6_member") is False, "RL-v2 must remain outside Phase 6")
     _require(isolation.get("may_change_phase6") is False, "RL-v2 may not change Phase 6")
     _require(
@@ -110,7 +115,7 @@ def _validate_isolation(contract: dict[str, Any]) -> None:
 
 
 def _validate_algorithm_scope(contract: dict[str, Any]) -> None:
-    scope = contract.get("algorithm_scope", {})
+    scope = _object(contract, "algorithm_scope")
     _require(scope.get("algorithm") == "PPO", "Algorithm must remain PPO in this design slice")
     _require(scope.get("policy_type") == "MlpPolicy", "Policy type must remain MlpPolicy")
     _require(scope.get("seed") == 42, "Seed must remain 42")
@@ -124,7 +129,7 @@ def _validate_algorithm_scope(contract: dict[str, Any]) -> None:
 
 
 def _validate_reward_geometry(contract: dict[str, Any]) -> None:
-    reward = contract.get("reward_geometry", {})
+    reward = _object(contract, "reward_geometry")
     _require(
         reward.get("decision_time_information_only") is True,
         "Reward must be decision-time only",
@@ -157,12 +162,12 @@ def _validate_reward_geometry(contract: dict[str, Any]) -> None:
 
 
 def _validate_position_inference_parity(contract: dict[str, Any]) -> None:
-    parity = contract.get("position_inference_parity", {})
+    parity = _object(contract, "position_inference_parity")
     _require(
         parity.get("policy_action_semantics") == "desired_position",
         "RL-v2 policy actions must express desired position",
     )
-    action_space = parity.get("action_space", {})
+    action_space = _object(parity, "action_space")
     _require(
         action_space.get("type") == "Discrete(2)",
         "Desired-position action space must be Discrete(2)",
@@ -187,7 +192,7 @@ def _validate_position_inference_parity(contract: dict[str, Any]) -> None:
         parity.get("synthetic_parity_test_required") is True,
         "Synthetic training/inference parity test must be required",
     )
-    translation = parity.get("strategy_translation", {})
+    translation = _object(parity, "strategy_translation")
     _require(
         translation.get("current_trade_state_owner") == "freqtrade_trade_lifecycle",
         "Current trade state must remain owned by Freqtrade trade lifecycle",
@@ -195,11 +200,12 @@ def _validate_position_inference_parity(contract: dict[str, Any]) -> None:
 
 
 def _validate_observability(contract: dict[str, Any]) -> None:
-    observability = contract.get("observability", {})
+    observability = _object(contract, "observability")
     evidence = observability.get("required_evidence")
     _require(isinstance(evidence, list), "observability.required_evidence must be a list")
+    evidence_items = cast(list[Any], evidence)
     _require(
-        REQUIRED_EVIDENCE.issubset(set(evidence)),
+        REQUIRED_EVIDENCE.issubset({str(item) for item in evidence_items}),
         "Mandatory execution evidence is incomplete",
     )
     for field in (
@@ -211,7 +217,7 @@ def _validate_observability(contract: dict[str, Any]) -> None:
 
 
 def _validate_evaluation_isolation(contract: dict[str, Any]) -> None:
-    evaluation = contract.get("evaluation_isolation", {})
+    evaluation = _object(contract, "evaluation_isolation")
     _require(
         evaluation.get("consumed_historical_oos") == CONSUMED_HISTORICAL_OOS,
         "Consumed historical OOS identity changed",
@@ -222,8 +228,9 @@ def _validate_evaluation_isolation(contract: dict[str, Any]) -> None:
     )
     forbidden = evaluation.get("forbidden_windows")
     _require(isinstance(forbidden, list), "forbidden_windows must be a list")
+    forbidden_items = {str(item) for item in cast(list[Any], forbidden)}
     _require(
-        {CONSUMED_HISTORICAL_OOS, PROTECTED_FINAL_HOLDOUT}.issubset(set(forbidden)),
+        {CONSUMED_HISTORICAL_OOS, PROTECTED_FINAL_HOLDOUT}.issubset(forbidden_items),
         "Consumed OOS and protected final holdout must both remain forbidden",
     )
     _require(
@@ -252,7 +259,7 @@ def validate_contract(contract: dict[str, Any]) -> None:
     _require(contract.get("schema_version") == 1, "Only schema_version 1 is supported")
     _require(contract.get("contract_id") == EXPECTED_CONTRACT_ID, "Unexpected contract_id")
     _require(contract.get("status") == "design_only", "Contract must remain design_only")
-    source = contract.get("source", {})
+    source = _object(contract, "source")
     _require(source.get("predecessor_track") == "rl-research-v1", "Unexpected predecessor track")
     _require(
         source.get("diagnosis") == "docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md",
@@ -267,8 +274,9 @@ def validate_contract(contract: dict[str, Any]) -> None:
     _validate_evaluation_isolation(contract)
     gates = contract.get("pre_execution_gates")
     _require(isinstance(gates, list), "pre_execution_gates must be a list")
+    gate_items = {str(item) for item in cast(list[Any], gates)}
     _require(
-        REQUIRED_PRE_EXECUTION_GATES.issubset(set(gates)),
+        REQUIRED_PRE_EXECUTION_GATES.issubset(gate_items),
         "Pre-execution gate contract is incomplete",
     )
 

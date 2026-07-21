@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260721-phase6-model-comparison-boundary-corrected-rerun
-status: active
-branch: docs/phase6-model-comparison-boundary-supersession
+status: done
+branch: docs/phase6-model-comparison-corrected-evidence
 base_branch: develop
 created: 2026-07-21
 updated: 2026-07-21
-related_pr: "pending"
+related_pr: "#91"
 owned_paths:
   - ai_platform/evidence/phase6-model-comparison-lightgbm-vs-xgboost-v1.json
   - ai_platform/model_comparison/run-requests/lightgbm-vs-xgboost-v1.json
@@ -19,8 +19,8 @@ required_reads:
   - ai_platform/scripts/model_comparison_run_request.py
   - .github/workflows/ai-platform-phase6-model-comparison.yml
 search_first:
-  - PR #81 merged state and current develop before corrected trigger
-  - open PRs overlapping Phase 6 comparison workflow or evidence ownership
+  - PR #91 merged state and current develop after corrected evidence closure
+  - open PRs overlapping the separate PyTorch/RL research workstream
 optional_reads:
   - docs/agents/tasks/FTAI-20260721-phase6-model-comparison-historical-execution.md
   - docs/agents/tasks/FTAI-20260721-phase6-model-comparison-evidence.md
@@ -30,16 +30,16 @@ optional_reads:
 
 ## Goal
 
-Supersede the incomplete execution-boundary conclusion from canonical run #77 without discarding its exact historical evidence, then execute exactly one corrected canonical LightGBM-versus-XGBoost rerun through the merged exclusive-stop workflow. Preserve every frozen comparison choice and keep the protected final holdout unused.
+Supersede the incomplete execution-boundary conclusion from canonical run #77 without discarding its exact historical evidence, execute exactly one corrected canonical LightGBM-versus-XGBoost rerun through the merged exclusive-stop workflow, preserve the corrected evidence durably, and close Phase 6 without retuning or protected-final-holdout access.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T12:35:00Z
-head: 303b600c0b7386b68db8f61ef9c740a7ea9a1f54
-branch: docs/phase6-model-comparison-boundary-supersession
-pr: pending supersession PR
+updated_at: 2026-07-21T15:05:00Z
+head: fa609018a691242cd9db2a8274a1e24e63aa7ee5
+branch: docs/phase6-model-comparison-corrected-evidence
+pr: "#91"
 status: ready
 context_routes:
   - docs/ai_platform/PHASE6_MODEL_COMPARISON_EXECUTION.md
@@ -50,40 +50,57 @@ owned_paths:
   - ai_platform/model_comparison/run-requests/lightgbm-vs-xgboost-v1.json
   - docs/agents/tasks/FTAI-20260721-phase6-model-comparison-boundary-corrected-rerun.md
 proven:
-  - Original canonical trigger PR #77 executed commit 38d83e6d22f63a5234458e7c85453b90536b7590 and produced durable artifact phase6-model-comparison-evidence-77 with digest sha256:012ff27b73f2a0944ed19689c993a9021237dff1bf7859c48aa3177d4c7739f4.
-  - Direct inspection of the preserved #77 artifact showed both materialized and runtime manifests used timerange 20260301-20260630 and download_timerange 20250801-20260630.
-  - Freqtrade treats the stop date as the execution boundary at midnight, so those ranges omitted the remainder of the declared 2026-06-30 session.
-  - Boundary fix PR #81 preserved semantic prediction 20260301-20260630, semantic download 20250801-20260630, and strict scoring 20260501-20260630 while materializing execution stops 20260301-20260701 and 20250801-20260701.
-  - PR #81 passed exact-head AI Platform CI #320, zizmor #337, and Freqtrade CI #359 before squash merge as 303b600c0b7386b68db8f61ef9c740a7ea9a1f54.
+  - Original canonical run #77 evidence remains preserved in Git history but is non-authoritative because its execution/download stops at 20260630 omitted the remainder of the declared June 30 session.
+  - Boundary fix PR #81 preserved all semantic research windows and frozen comparison choices while changing only Freqtrade execution/download exclusive stops to 20260701; it merged as 303b600c0b7386b68db8f61ef9c740a7ea9a1f54.
+  - Corrected one-shot trigger PR #88 added exactly ai_platform/model_comparison/run-requests/lightgbm-vs-xgboost-v1.json, executed commit ad44823af157a27258a1bdbc3c64536aae2d3593, and was closed without merge after evidence collection.
+  - Corrected dedicated workflow run 29832315428 / job 88639846851 completed successfully through trigger-scope validation, frozen-contract validation, materialization, historical data preparation, both frozen backtests, strict-OOS extraction, deterministic selection, provenance binding, result assembly, and evidence upload.
+  - Trigger-head AI Platform CI run 29832315390, zizmor run 29832315494, and Freqtrade CI run 29832315485 completed successfully; Pre-commit Types update run 29832315504 was skipped rather than failed.
+  - Corrected artifact phase6-model-comparison-evidence-88 has artifact id 8498159861 and GitHub digest sha256:a180b4b4eb2265a96884198388b60d1fca6439066043d8385ca2f3a374df28e4.
+  - Independently downloaded corrected artifact ZIP hashes to a180b4b4eb2265a96884198388b60d1fca6439066043d8385ca2f3a374df28e4, exactly matching the GitHub digest.
+  - Corrected materialization records semantic prediction 20260301-20260630 and semantic download 20250801-20260630 while using execution ranges 20260301-20260701 and 20250801-20260701.
+  - Strict historical OOS remains 20260501-20260630 with close upper bound exclusive 2026-07-01T00:00:00Z.
   - Frozen candidates remain LightGBMRegressor and XGBoostRegressor; entry_prediction_threshold remains 0.006 and exit_prediction_threshold remains -0.009.
-  - Protected final holdout 20260801-20260930 remains unused and unauthorized for this rerun.
+  - Corrected deterministic selection remains selected_model null with basis no_model_passed_predeclared_eligibility_gates.
+  - LightGBMRegressor corrected strict-OOS metrics are profit -0.00147892571, drawdown 0.0018957532099999298, trades 17, stability 0.0; minimum-profit and minimum-stability gates failed.
+  - XGBoostRegressor corrected strict-OOS metrics are profit -0.0015392486680000002, drawdown 0.0021411325816178377, trades 25, stability 0.0; minimum-profit and minimum-stability gates failed.
+  - Protected final holdout 20260801-20260930 remains unused and unauthorized; retuning, promotion, live trading, and profitability claims remain forbidden.
+  - Durable evidence PR #91 exact-head gates completed successfully before final checkpoint metadata update: AI Platform CI run 29841913929, zizmor run 29841915670, and Freqtrade CI run 29841915711; Pre-commit Types update run 29841913923 was skipped rather than failed.
 derived:
-  - The preserved #77 metrics and selected_model null decision remain exact records of that run but are not authoritative Phase 6 comparison conclusions pending the corrected rerun.
-  - The corrected rerun must use the same contract, model identities, features, selection policy, consumed historical OOS semantics, and no-retuning boundary.
+  - The boundary-corrected run is the authoritative Phase 6 LightGBM-versus-XGBoost comparison evidence.
+  - Phase 6 ends with no eligible model selected under the frozen predeclared policy.
+  - The corrected evidence does not authorize changing thresholds, features, candidates, model parameters, selection policy, or using consumed historical OOS for new tuning.
+  - Separate PyTorch/RL research cannot retroactively alter the completed Phase 6 result.
 unknown:
-  - Whether corrected full-June-30 execution changes either model metric or the deterministic selected_model result.
+  - Whether an independent future model-family research work package will produce a candidate worth evaluating under a separately declared policy; this is outside Phase 6.
 conflicts: []
 first_failure:
-  marker: phase6-end-exclusive-boundary-defect
-  evidence: The original canonical manifests ended at 20260630, which Freqtrade interpreted at midnight and therefore did not cover the complete declared June 30 session.
+  marker: none
+  evidence: The corrected one-shot comparison and evidence collection completed successfully; both candidates simply failed the predeclared eligibility gates.
 rejected_hypotheses:
-  - Treat the #77 no-selection result as authoritative after discovering the incomplete execution boundary.
-  - Retune thresholds, model parameters, features, candidates, or selection policy before the corrected rerun.
-  - Use the protected final holdout to resolve or validate the corrected historical comparison.
-  - Merge the corrected trigger PR merely because its one-shot workflow completes.
+  - Merge trigger PR #88 merely because its workflow completed.
+  - Select LightGBM solely because its corrected historical profit is slightly less negative than XGBoost despite both failing the frozen gates.
+  - Retune thresholds, model parameters, features, candidates, or selection policy from consumed historical OOS.
+  - Access protected final holdout 20260801-20260930 to break the no-selection outcome.
+  - Let isolated PyTorch/RL research rewrite or expand the completed Phase 6 candidate set.
 changed_paths:
   - ai_platform/evidence/phase6-model-comparison-lightgbm-vs-xgboost-v1.json
   - docs/agents/tasks/FTAI-20260721-phase6-model-comparison-boundary-corrected-rerun.md
 validation:
-  - command: preserved #77 artifact manifest inspection
+  - command: AI Platform Phase 6 Model Comparison run 29832315428 / job 88639846851
     result: PASS
-    evidence: Materialized and runtime manifests both recorded prediction stop 20260630 and download stop 20260630.
-  - command: boundary fix PR #81 exact-head gates
+    evidence: All corrected execution, extraction, deterministic selection, provenance-binding, result-assembly, and artifact-upload steps completed successfully.
+  - command: trigger-head repository gates for ad44823af157a27258a1bdbc3c64536aae2d3593
     result: PASS
-    evidence: AI Platform CI #320, zizmor #337, and Freqtrade CI #359 completed successfully before merge 303b600c0b7386b68db8f61ef9c740a7ea9a1f54.
+    evidence: AI Platform CI 29832315390, zizmor 29832315494, and Freqtrade CI 29832315485 completed successfully; Pre-commit Types update 29832315504 was skipped.
+  - command: independently downloaded corrected artifact SHA-256
+    result: PASS
+    evidence: Local ZIP SHA-256 a180b4b4eb2265a96884198388b60d1fca6439066043d8385ca2f3a374df28e4 exactly matches the GitHub artifact digest.
   - command: protected final holdout boundary review
     result: PASS
-    evidence: Final holdout 20260801-20260930 remains outside all corrected historical semantic and execution ranges and remains unused.
+    evidence: Final holdout 20260801-20260930 remains outside all corrected historical semantic/execution ranges and was not used.
+  - command: durable evidence PR #91 repository gates on fa609018a691242cd9db2a8274a1e24e63aa7ee5
+    result: PASS
+    evidence: AI Platform CI 29841913929, zizmor 29841915670, and Freqtrade CI 29841915711 completed successfully; Pre-commit Types update 29841913923 was skipped.
 blockers: []
-next_action: After this supersession record is merged, create a separate trigger-only PR from fresh develop that adds exactly ai_platform/model_comparison/run-requests/lightgbm-vs-xgboost-v1.json, execute the corrected canonical Phase 6 workflow once, close the trigger without merge after evidence collection, and replace the superseded durable conclusion only from the corrected artifact.
+next_action: Phase 6 corrected evidence closure is complete after PR #91 merges. Continue only with the separately bounded PyTorch/RL execution-infrastructure workstream; do not retune Phase 6, alter its frozen candidate set or selection policy, or access the protected final holdout 20260801-20260930.
 ```

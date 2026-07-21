@@ -57,6 +57,21 @@ def test_research_tracks_pin_dependency_closed_heavy_runtime_profile() -> None:
     }
 
 
+def test_research_tracks_separate_semantic_and_freqtrade_execution_boundaries() -> None:
+    foundation = validate_experimental_model_research_foundation()
+    geometry = foundation["shared_temporal_geometry"]
+
+    assert geometry["prediction_window"] == "20260301-20260630"
+    assert geometry["download_timerange"] == "20250801-20260630"
+    assert geometry["freqtrade_prediction_timerange"] == "20260301-20260701"
+    assert geometry["freqtrade_download_timerange"] == "20250801-20260701"
+
+    for track in foundation["tracks"]:
+        manifest = load_manifest(ROOT / track["manifest"])
+        assert manifest["timerange"] == geometry["freqtrade_prediction_timerange"]
+        assert manifest["download_timerange"] == geometry["freqtrade_download_timerange"]
+
+
 def test_foundation_rejects_phase6_membership(tmp_path: Path) -> None:
     foundation = _foundation()
     foundation["phase6_isolation"]["membership"] = True

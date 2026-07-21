@@ -1,0 +1,47 @@
+name: Generate Experimental Model Request Once
+
+on:
+  push:
+    branches:
+      - run/experimental-model-historical-backtest-execution-v1
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout request branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Generate and validate canonical request
+        shell: bash
+        run: |
+          set -euo pipefail
+          request="ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json"
+          mkdir -p "$(dirname "$request")"
+          python -m ai_platform.scripts.experimental_model_historical_backtest_run_request \
+            --print-canonical > "$request"
+          python -m ai_platform.scripts.experimental_model_historical_backtest_run_request \
+            "$request"
+
+      - name: Remove generator and commit canonical request
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/generate-experimental-model-request-once.yml
+          git add ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "run(ai-platform): add canonical experimental model execution request"
+          git push origin "HEAD:$BRANCH_NAME"

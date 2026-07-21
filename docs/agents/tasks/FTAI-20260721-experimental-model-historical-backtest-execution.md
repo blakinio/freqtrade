@@ -57,7 +57,7 @@ proven:
   - Both canonical manifests use Freqtrade execution timerange 20260301-20260701 and download timerange 20250801-20260701, encoding semantic windows ending 20260630 with an exclusive July 1 stop.
   - Strict historical-OOS scoring remains 20260501-20260630 and must use ai_platform.scripts.experimental_model_oos_result_extractor rather than generic full-window summaries.
   - Kraken BTC/USDT and ETH/USDT data are independently verified for 15m, 1h, and 4h through the required June 30 boundary and stored in exact boundary-correct v2 pair caches.
-  - Frozen entry_prediction_threshold 0.006 and exit_prediction_threshold -0.009 remain unchanged and may not be retuned in this task.
+  - Frozen entry_prediction_threshold 0.006 and exit_prediction_threshold -0.009 must remain frozen in this task.
   - Protected final holdout 20260801-20260930 remains unused and forbidden.
   - PyTorch and RL remain outside Phase 6 membership and may not change completed Phase 6 candidates, policy, evidence, or result.
   - This work package is research-only and authorizes no promotion, live trading, profitability claim, or superiority conclusion.

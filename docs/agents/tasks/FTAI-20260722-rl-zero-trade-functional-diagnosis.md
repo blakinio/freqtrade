@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-rl-zero-trade-functional-diagnosis
-status: ready
+status: done
 branch: research/rl-zero-trade-functional-diagnosis-v1
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "pending"
+related_pr: "99"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-zero-trade-functional-diagnosis.md
   - docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md
@@ -48,11 +48,11 @@ Determine, without any new model execution or tuning, why the completed frozen `
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T00:30:00+02:00
-head: a86cd0004e87f14c96c01b9fb956d91a34f59796
+updated_at: 2026-07-22T00:40:00+02:00
+head: 87b5d3a4f294b355ccffdaa1985b2e213bd69420
 branch: research/rl-zero-trade-functional-diagnosis-v1
-pr: pending diagnosis PR
-status: ready
+pr: 99
+status: done
 context_routes:
   - docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md
   - ai_platform/experimental_model_research/evidence/rl-research-v1-historical-oos-v1.json
@@ -109,5 +109,5 @@ validation:
     result: PASS
     evidence: No training, model execution, historical rerun, parameter change, final-holdout access, Phase 6 change or cross-track selection occurred.
 blockers: []
-next_action: Open and merge the diagnosis-only PR preserving this root-cause record; any reward-contract hardening or observability implementation must begin as a separate prospectively declared bounded task.
+next_action: none. This diagnosis task is complete once PR #99 is merged; any reward-contract hardening or observability implementation requires a separate prospectively declared bounded task.
 ```

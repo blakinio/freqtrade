@@ -1,3 +1,4 @@
+# Temporary one-shot branch formatter; remove before merge.
 name: Experimental Model One-Shot Ruff Autofix
 
 on:

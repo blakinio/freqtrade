@@ -85,6 +85,12 @@ def _parse_timerange(value: str, label: str) -> tuple[datetime, datetime]:
     return start, end
 
 
+def _execution_timerange(start: datetime, inclusive_end: datetime) -> str:
+    """Convert an inclusive research date window to Freqtrade's exclusive-stop CLI range."""
+    exclusive_end = inclusive_end + timedelta(days=1)
+    return f"{start.strftime('%Y%m%d')}-{exclusive_end.strftime('%Y%m%d')}"
+
+
 def _temporal_geometry(
     shared: dict[str, Any],
     download_timerange: str,
@@ -129,14 +135,17 @@ def _temporal_geometry(
     if train_period_days <= 0 or prediction_period_days <= 0:
         raise ModelComparisonHarnessError("Derived FreqAI temporal periods must be positive")
 
+    prediction_window = f"{tuning_start.strftime('%Y%m%d')}-{oos_end.strftime('%Y%m%d')}"
     return {
         "training_window": shared["training_window"],
         "tuning_window": shared["tuning_window"],
         "scoring_window": historical_window["timerange"],
-        "prediction_window": (f"{tuning_start.strftime('%Y%m%d')}-{oos_end.strftime('%Y%m%d')}"),
+        "prediction_window": prediction_window,
+        "prediction_execution_timerange": _execution_timerange(tuning_start, oos_end),
         "train_period_days": train_period_days,
         "backtest_period_days": prediction_period_days,
         "download_timerange": download_timerange,
+        "download_execution_timerange": _execution_timerange(download_start, download_end),
     }
 
 
@@ -185,8 +194,8 @@ def _materialized_manifest(
         "strategy": shared["strategy"],
         "strategy_path": "ai_platform/strategies",
         "freqai_model": model_type,
-        "timerange": temporal["prediction_window"],
-        "download_timerange": temporal["download_timerange"],
+        "timerange": temporal["prediction_execution_timerange"],
+        "download_timerange": temporal["download_execution_timerange"],
         "pairs": copy.deepcopy(shared["pairs"]),
         "timeframes": copy.deepcopy(shared["timeframes"]),
         "fee": shared["fee"],

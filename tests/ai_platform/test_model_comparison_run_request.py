@@ -16,6 +16,10 @@ from ai_platform.scripts.model_comparison_run_request import (
 )
 
 
+ROOT = Path(__file__).resolve().parents[2]
+WORKFLOW = ROOT / ".github/workflows/ai-platform-phase6-model-comparison.yml"
+
+
 def _write_request(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -31,6 +35,20 @@ def test_canonical_run_request_pins_historical_only_execution_boundary() -> None
     assert request["frozen_parameters"] == EXPECTED_FROZEN_PARAMETERS
     assert request["authorization"] == EXPECTED_AUTHORIZATION
     assert request["contract_sha256"] == hashlib.sha256(CONTRACT_PATH.read_bytes()).hexdigest()
+
+
+def test_workflow_preserves_semantic_windows_but_uses_exclusive_execution_stops() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert '"prediction_window": "20260301-20260630"' in workflow
+    assert '"download_timerange": "20250801-20260630"' in workflow
+    assert '"prediction_execution_timerange": "20260301-20260701"' in workflow
+    assert '"download_execution_timerange": "20250801-20260701"' in workflow
+    assert 'manifest["timerange"] != "20260301-20260701"' in workflow
+    assert 'manifest["download_timerange"] != "20250801-20260701"' in workflow
+    assert "phase6-model-comparison-kraken-trades-v2-" in workflow
+    assert "phase6-model-comparison-kraken-trades-v1-" not in workflow
+    assert EXPECTED_PROTECTED_FINAL_HOLDOUT not in workflow
 
 
 def test_exact_canonical_run_request_is_accepted(tmp_path: Path) -> None:

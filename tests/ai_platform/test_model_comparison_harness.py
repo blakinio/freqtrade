@@ -65,6 +65,9 @@ def test_harness_freezes_single_training_window_before_tuning_and_oos() -> None:
     assert materialization["tuning_window"] == "20260301-20260430"
     assert materialization["scoring_window"] == "20260501-20260630"
     assert materialization["prediction_window"] == "20260301-20260630"
+    assert materialization["prediction_execution_timerange"] == "20260301-20260701"
+    assert materialization["download_timerange"] == "20250801-20260630"
+    assert materialization["download_execution_timerange"] == "20250801-20260701"
     assert materialization["train_period_days"] == 90
     assert materialization["backtest_period_days"] == 122
 
@@ -72,7 +75,17 @@ def test_harness_freezes_single_training_window_before_tuning_and_oos() -> None:
         freqai = model["config"]["freqai"]
         assert freqai["train_period_days"] == 90
         assert freqai["backtest_period_days"] == 122
-        assert model["manifest"]["timerange"] == "20260301-20260630"
+        assert model["manifest"]["timerange"] == "20260301-20260701"
+        assert model["manifest"]["download_timerange"] == "20250801-20260701"
+
+
+def test_harness_execution_ranges_include_full_semantic_end_dates() -> None:
+    materialization = _materialization()
+
+    assert materialization["prediction_window"].endswith("20260630")
+    assert materialization["prediction_execution_timerange"].endswith("20260701")
+    assert materialization["download_timerange"].endswith("20260630")
+    assert materialization["download_execution_timerange"].endswith("20260701")
 
 
 def test_harness_configs_differ_only_by_identifier_and_model_parameters() -> None:
@@ -91,9 +104,11 @@ def test_harness_manifests_share_prediction_and_historical_scoring_assumptions()
     manifests = [copy.deepcopy(model["manifest"]) for model in materialization["models"]]
 
     assert materialization["scoring_window"] == "20260501-20260630"
+    assert materialization["prediction_window"] == "20260301-20260630"
+    assert materialization["download_timerange"] == "20250801-20260630"
     for manifest in manifests:
-        assert manifest["timerange"] == "20260301-20260630"
-        assert manifest["download_timerange"] == "20250801-20260630"
+        assert manifest["timerange"] == "20260301-20260701"
+        assert manifest["download_timerange"] == "20250801-20260701"
         for model_specific_field in (
             "experiment_id",
             "config",
@@ -136,8 +151,8 @@ def test_materialized_manifests_pass_central_holdout_guard(tmp_path: Path) -> No
         manifest_path = tmp_path / f"manifest-{index}.json"
         manifest_path.write_text(json.dumps(model["manifest"]), encoding="utf-8")
         loaded = load_manifest(manifest_path)
-        assert loaded["timerange"] == "20260301-20260630"
-        assert loaded["download_timerange"] == "20250801-20260630"
+        assert loaded["timerange"] == "20260301-20260701"
+        assert loaded["download_timerange"] == "20250801-20260701"
 
 
 def test_central_guard_rejects_protected_window_in_materialized_manifest(

@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "contract_id": "rl-v2-design-contract-v1",
+  "status": "design_only",
+  "source": {
+    "predecessor_track": "rl-research-v1",
+    "diagnosis": "docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md"
+  },
+  "authorization": {
+    "model_implementation_allowed": false,
+    "strategy_implementation_allowed": false,
+    "training_allowed": false,
+    "backtest_allowed": false,
+    "market_data_download_allowed": false,
+    "historical_oos_execution_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false
+  },
+  "isolation": {
+    "phase6_member": false,
+    "may_change_phase6": false,
+    "cross_track_selection_allowed": false,
+    "consumed_oos_retuning_allowed": false,
+    "frozen_entry_prediction_threshold": 0.006,
+    "frozen_exit_prediction_threshold": -0.009
+  },
+  "algorithm_scope": {
+    "algorithm": "PPO",
+    "policy_type": "MlpPolicy",
+    "seed": 42,
+    "algorithm_change_allowed": false,
+    "feature_search_allowed": false,
+    "hyperparameter_sweep_allowed": false,
+    "reward_sweep_allowed": false
+  },
+  "reward_geometry": {
+    "decision_time_information_only": true,
+    "future_candle_information_allowed": false,
+    "valid_long_entry_strictly_preferred_to_neutral_while_flat": true,
+    "perpetual_neutral_inactivity_unpenalized": false,
+    "invalid_actions_penalized": true,
+    "numeric_reward_values_status": "must_be_frozen_in_later_implementation_task_before_execution",
+    "synthetic_reward_tests_required": true
+  },
+  "position_inference_parity": {
+    "policy_action_semantics": "desired_position",
+    "action_space": {
+      "type": "Discrete(2)",
+      "actions": {
+        "0": "target_flat",
+        "1": "target_long"
+      }
+    },
+    "policy_requires_current_position_observation": false,
+    "backtest_add_state_info_assumed_available": false,
+    "training_and_historical_inference_semantics_identical": true,
+    "strategy_translation": {
+      "target_long": "emit_enter_long_candidate",
+      "target_flat": "emit_exit_long_candidate",
+      "current_trade_state_owner": "freqtrade_trade_lifecycle"
+    },
+    "synthetic_parity_test_required": true
+  },
+  "observability": {
+    "required_evidence": [
+      "deterministic_action_counts_by_pair",
+      "deterministic_action_counts_total",
+      "do_predict_accepted_count",
+      "do_predict_rejected_count",
+      "pre_execution_enter_signal_count",
+      "pre_execution_exit_signal_count",
+      "rejected_signal_count",
+      "raw_backtest_trade_count",
+      "strict_oos_input_trade_count",
+      "strict_oos_included_trade_count",
+      "strict_oos_excluded_trade_count",
+      "deterministic_eval_episode_reward",
+      "git_commit",
+      "freqai_identifier",
+      "model_class",
+      "config_sha256",
+      "strategy_sha256",
+      "model_source_sha256",
+      "contract_sha256"
+    ],
+    "action_histogram_required_before_artifact_upload": true,
+    "prediction_gate_histogram_required_before_artifact_upload": true,
+    "pre_trade_signal_histogram_required_before_artifact_upload": true
+  },
+  "evaluation_isolation": {
+    "consumed_historical_oos": "20260501-20260630",
+    "protected_final_holdout": "20260801-20260930",
+    "forbidden_windows": [
+      "20260501-20260630",
+      "20260801-20260930"
+    ],
+    "future_evaluation_window": null,
+    "future_evaluation_status": "not_declared",
+    "prospective_declaration_required": true,
+    "fresh_non_protected_data_required": true,
+    "separate_execution_request_required": true
+  },
+  "pre_execution_gates": [
+    "design_contract_validation_pass",
+    "reward_unit_tests_pass",
+    "synthetic_reward_tests_pass",
+    "desired_position_action_semantics_tests_pass",
+    "training_inference_parity_tests_pass",
+    "execution_observability_instrumented",
+    "fresh_evaluation_window_prospectively_declared",
+    "forbidden_window_overlap_check_pass",
+    "protected_final_holdout_check_pass",
+    "canonical_identity_hashes_pinned"
+  ],
+  "next_implementation_scope": {
+    "allowed": [
+      "reward_contract_implementation",
+      "desired_position_action_semantics_implementation",
+      "execution_observability_instrumentation",
+      "unit_tests",
+      "synthetic_environment_tests"
+    ],
+    "still_forbidden": [
+      "historical_training",
+      "historical_backtest",
+      "evaluation_window_selection",
+      "reward_search",
+      "feature_search",
+      "hyperparameter_search",
+      "phase6_modification",
+      "protected_final_holdout_access"
+    ]
+  }
+}

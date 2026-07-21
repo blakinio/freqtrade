@@ -89,7 +89,9 @@ jobs:
               "tuning_window": "20260301-20260430",
               "scoring_window": "20260501-20260630",
               "prediction_window": "20260301-20260630",
+              "prediction_execution_timerange": "20260301-20260701",
               "download_timerange": "20250801-20260630",
+              "download_execution_timerange": "20250801-20260701",
               "historical_oos_status": "consumed_historical_oos",
               "final_holdout_used": False,
               "execution_performed": False,
@@ -137,14 +139,14 @@ jobs:
         with:
           path: user_data/data/kraken
           key: >-
-            phase6-model-comparison-kraken-trades-v1-${{ runner.os }}-${{
+            phase6-model-comparison-kraken-trades-v2-${{ runner.os }}-${{
             hashFiles(
               'ai_platform/experiments/baseline-v1.json',
               'ai_platform/configs/freqai-baseline.example.json',
               'ai_platform/model_comparison/lightgbm-vs-xgboost-v1.json'
             ) }}
           restore-keys: |
-            phase6-model-comparison-kraken-trades-v1-${{ runner.os }}-
+            phase6-model-comparison-kraken-trades-v2-${{ runner.os }}-
 
       - name: Download declared historical Kraken data only
         if: steps.kraken-data-cache.outputs.cache-hit != 'true'
@@ -159,10 +161,10 @@ jobs:
 
           manifest_path = Path(os.environ["MANIFEST_PATH"])
           manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-          if manifest["download_timerange"] != "20250801-20260630":
-              raise SystemExit("Phase 6 download timerange drifted from historical-only boundary")
-          if manifest["timerange"] != "20260301-20260630":
-              raise SystemExit("Phase 6 prediction timerange drifted from frozen materialization")
+          if manifest["download_timerange"] != "20250801-20260701":
+              raise SystemExit("Phase 6 download execution timerange drifted")
+          if manifest["timerange"] != "20260301-20260701":
+              raise SystemExit("Phase 6 prediction execution timerange drifted")
 
           config_path = Path(manifest["config"])
           config = json.loads(config_path.read_text(encoding="utf-8"))

@@ -49,10 +49,17 @@ def _load_runtime_config(path: Path, user_data_dir: Path) -> dict[str, Any]:
 
 def _synthetic_index(rows: int) -> pd.DatetimeIndex:
     index = pd.date_range("2026-01-01T00:00:00Z", periods=rows, freq="15min")
-    if index.min() < TRAINING_WINDOW_START or index.max() >= TRAINING_WINDOW_END_EXCLUSIVE:
-        raise RuntimeError("Synthetic smoke data escaped the declared pre-OOS training window")
+    if (
+        index.min() < TRAINING_WINDOW_START
+        or index.max() >= TRAINING_WINDOW_END_EXCLUSIVE
+    ):
+        raise RuntimeError(
+            "Synthetic smoke data escaped the declared pre-OOS training window"
+        )
     if index.max() >= HISTORICAL_OOS_START or index.max() >= FINAL_HOLDOUT_START:
-        raise RuntimeError("Synthetic smoke data reached a protected evaluation boundary")
+        raise RuntimeError(
+            "Synthetic smoke data reached a protected evaluation boundary"
+        )
     return index
 
 
@@ -88,8 +95,12 @@ def _train_pytorch_once(user_data_dir: Path) -> dict[str, torch.Tensor]:
         name: tensor.detach().cpu().clone()
         for name, tensor in trainer.model.state_dict().items()
     }
-    if not state or not all(torch.isfinite(tensor).all().item() for tensor in state.values()):
-        raise RuntimeError("PyTorch smoke produced missing or non-finite model parameters")
+    if not state or not all(
+        torch.isfinite(tensor).all().item() for tensor in state.values()
+    ):
+        raise RuntimeError(
+            "PyTorch smoke produced missing or non-finite model parameters"
+        )
     return state
 
 
@@ -99,7 +110,9 @@ def _smoke_pytorch(root: Path) -> dict[str, Any]:
     if first.keys() != second.keys() or not all(
         torch.equal(first[name], second[name]) for name in first
     ):
-        raise RuntimeError("Seeded PyTorch smoke was not reproducible within the same CPU runtime")
+        raise RuntimeError(
+            "Seeded PyTorch smoke was not reproducible within the same CPU runtime"
+        )
     return {
         "status": "pass",
         "seed": 42,
@@ -170,7 +183,9 @@ def _smoke_rl(root: Path) -> dict[str, Any]:
     )
     observation, _ = probe_env.reset()
     if probe_env.action_space.n != 3 or tuple(observation.shape) != (1, 2):
-        raise RuntimeError("Canonical long-only RL action or observation contract drifted")
+        raise RuntimeError(
+            "Canonical long-only RL action or observation contract drifted"
+        )
     probe_env.step(LongOnlyActions.Long_enter.value)
     probe_env.step(LongOnlyActions.Neutral.value)
     probe_env.step(LongOnlyActions.Long_exit.value)
@@ -185,7 +200,9 @@ def _smoke_rl(root: Path) -> dict[str, Any]:
     if model.__class__.__name__ != "PPO" or int(model.num_timesteps) < len(
         data_dictionary["train_features"]
     ):
-        raise RuntimeError("Canonical RL fit did not complete the bounded PPO integration smoke")
+        raise RuntimeError(
+            "Canonical RL fit did not complete the bounded PPO integration smoke"
+        )
 
     return {
         "status": "pass",

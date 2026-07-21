@@ -18,9 +18,15 @@ from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_REPO_PATH = "ai_platform/experimental_model_research/historical-backtest-execution-contract-v1.json"
+CONTRACT_REPO_PATH = (
+    "ai_platform/experimental_model_research/"
+    "historical-backtest-execution-contract-v1.json"
+)
 CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
-REQUEST_REPO_PATH = "ai_platform/experimental_model_research/run-requests/historical-backtest-execution-v1.json"
+REQUEST_REPO_PATH = (
+    "ai_platform/experimental_model_research/run-requests/"
+    "historical-backtest-execution-v1.json"
+)
 EXPECTED_REQUEST_ID = "experimental-model-historical-backtest-execution-v1"
 EXPECTED_ACTION = "execute_experimental_model_historical_backtests"
 EXPECTED_TRACKS = {
@@ -172,7 +178,10 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest contract_id drifted"
         )
-    expected_task = "docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md"
+    expected_task = (
+        "docs/agents/tasks/FTAI-20260721-"
+        "experimental-model-historical-backtest-execution.md"
+    )
     if contract.get("task") != expected_task:
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest task drifted"

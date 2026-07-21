@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260721-experimental-model-historical-backtest-execution
-status: active
+status: done
 branch: docs/experimental-model-historical-backtest-evidence
 base_branch: develop
 created: 2026-07-21
@@ -23,7 +23,7 @@ required_reads:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EXECUTION.md
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EVIDENCE.md
 search_first:
-  - PR #95 live state and final repository gates
+  - merged PR #95 and current develop before any follow-up experimental-model task
   - closed execution-carrier PR #94
   - workflow run 29844351936 and artifacts 8503203347 / 8503197359
 ---
@@ -38,11 +38,11 @@ Create and use a fail-closed, one-shot historical execution path for exactly the
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T22:04:27Z
-head: 818093e0aacb92ebe1d56148dec444d9a0c80681
+updated_at: 2026-07-21T22:06:00Z
+head: 5b5557587d1990ed7bfff016337468f40a7792e0
 branch: docs/experimental-model-historical-backtest-evidence
 pr: 95
-status: ready
+status: done
 context_routes:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EXECUTION.md
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EVIDENCE.md
@@ -63,18 +63,18 @@ proven:
   - RL artifact 8503197359 digest sha256:66bef9f73ea898e81707ad2088693d93e86f13fdae59f3782075fb456cb9f9d4 matched the independently downloaded ZIP SHA-256.
   - RL strict OOS 20260501-20260630 contains zero trades, profit 0.0, drawdown 0.0, and stability 0.0; zero profit/drawdown is an inactive zero-trade outcome, not profitability evidence.
   - Trigger PR #94 was closed without merge after evidence collection as required by the one-shot contract.
-  - PyTorch and RL remain independent research tracks outside completed Phase 6 and cannot alter authoritative Phase 6 selected_model null.
-  - Frozen thresholds 0.006/-0.009 remain unchanged and consumed historical OOS cannot be used for retuning this task.
-  - Protected final holdout 20260801-20260930 remains unused and forbidden.
+  - PR #95 durably preserves independent PyTorch and RL evidence records plus the interpretation boundary without adding execution logic or cross-track selection.
+  - PyTorch and RL remain outside completed Phase 6; authoritative Phase 6 selected_model null, frozen thresholds 0.006/-0.009, and protected final holdout 20260801-20260930 remain unchanged.
+  - PR #95 pre-close gates passed: AI Platform CI 29872470567, zizmor 29872470568, and Freqtrade CI 29872470616 including pre-commit, documentation build, and CI Gate.
 derived:
-  - The bounded historical execution objective is complete once PR #95 durably preserves both independent evidence records and this task is closed.
+  - The bounded historical execution and durable evidence objective is complete.
   - No cross-track ranking or winner-selection policy may be invented retrospectively from these observations.
-  - Any follow-up model/reward/feature research requires a new prospectively declared bounded task.
+  - Any follow-up model, feature, reward, or experimental execution research requires a new prospectively declared bounded task.
 unknown: []
 conflicts: []
 first_failure:
   marker: none
-  evidence: The fresh one-shot execution completed successfully; no unresolved runtime or evidence-integrity failure remains.
+  evidence: The fresh one-shot execution and durable evidence preservation completed without an unresolved runtime, integrity, or repository-gate failure.
 rejected_hypotheses:
   - Merge trigger PR #94 into develop.
   - Treat RL zero trades as profitability evidence.
@@ -94,9 +94,9 @@ validation:
   - command: independent artifact digest verification
     result: PASS
     evidence: Downloaded PyTorch and RL artifact ZIP SHA-256 values exactly matched GitHub Actions digests for artifacts 8503203347 and 8503197359.
-  - command: PR #95 repository gates
-    result: PENDING
-    evidence: Evidence PR opened against develop; final CI identifiers will be recorded before merge.
+  - command: PR #95 repository gates before task-close commit
+    result: PASS
+    evidence: AI Platform CI 29872470567, zizmor 29872470568, and Freqtrade CI 29872470616 completed successfully; pre-commit, documentation build and CI Gate passed.
 blockers: []
-next_action: Let PR #95 complete required repository gates, then update this checkpoint to status done with exact final CI identifiers and squash-merge the evidence-only work package. Do not start follow-up experimental-model research inside this task.
+next_action: none. This task is complete. Any follow-up experimental-model research must start as a new bounded work package from current develop and must preserve Phase 6 isolation, frozen thresholds, consumed historical-OOS non-retuning, and protected-final-holdout isolation.
 ```

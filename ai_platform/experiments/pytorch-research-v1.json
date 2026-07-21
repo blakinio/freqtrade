@@ -6,8 +6,8 @@
   "strategy": "AiFrozenCandidateStrategy",
   "strategy_path": "ai_platform/strategies",
   "freqai_model": "SeededPyTorchMLPRegressor",
-  "timerange": "20260301-20260630",
-  "download_timerange": "20250801-20260630",
+  "timerange": "20260301-20260701",
+  "download_timerange": "20250801-20260701",
   "pairs": [
     "BTC/USDT",
     "ETH/USDT"

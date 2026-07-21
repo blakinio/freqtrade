@@ -49,6 +49,14 @@ def test_research_tracks_are_distinct_and_guarded_from_final_holdout() -> None:
         assert not timeranges_overlap(manifest["download_timerange"], protected_timerange())
 
 
+def test_research_tracks_pin_dependency_closed_heavy_runtime_profile() -> None:
+    foundation = validate_experimental_model_research_foundation()
+
+    assert {track["dependency_profile"] for track in foundation["tracks"]} == {
+        "freqtrade[freqai,freqai_rl]"
+    }
+
+
 def test_foundation_rejects_phase6_membership(tmp_path: Path) -> None:
     foundation = _foundation()
     foundation["phase6_isolation"]["membership"] = True

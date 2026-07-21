@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260721-experimental-model-heavy-runtime-smoke
-status: ready
+status: done
 branch: feat/experimental-model-heavy-runtime-smoke-v1
 base_branch: develop
 created: 2026-07-21
@@ -32,11 +32,11 @@ Run the smallest real heavy-runtime proof of integration for both canonical expe
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T08:20:00Z
-head: 9ecd7bc37bb5b8113ac148255d0c3e29bbaeb7a7
-branch: feat/experimental-model-heavy-runtime-smoke-v1
-pr: "#61"
-status: ready
+updated_at: 2026-07-21T08:30:00Z
+head: 2ed90b8d74949117edacb634f286acf6e8fd034c
+branch: develop
+pr: "#61 merged"
+status: done
 context_routes:
   - docs/ai_platform/EXPERIMENTAL_MODEL_RESEARCH.md
   - docs/ai_platform/EXPERIMENTAL_MODEL_RUNTIME_SMOKE.md
@@ -46,14 +46,13 @@ owned_paths:
   - docs/ai_platform/EXPERIMENTAL_MODEL_RUNTIME_SMOKE.md
   - docs/agents/tasks/FTAI-20260721-experimental-model-heavy-runtime-smoke.md
 proven:
-  - develop was verified at 8be21011678da596ad20f0415c58698e7dacc92a before branch creation and no open pull requests were present.
-  - The prior strict experimental OOS extractor checkpoint declared the next action as a minimal heavy-runtime proof for both canonical PyTorch and RL classes.
+  - PR #61 was squash-merged into develop as 2ed90b8d74949117edacb634f286acf6e8fd034c after the final head remained mergeable and had no review comments.
   - The dedicated workflow installs the repository freqai and freqai_rl optional dependency profiles on Python 3.12 and uses deterministic synthetic data only.
   - SeededPyTorchMLPRegressor completed its real inherited fit path for one synthetic epoch and produced finite predictions with the expected shape.
   - LongOnlyEnvironment completed construction, reset, the canonical three-action/observation contract checks, and the LongOnlyReinforcementLearner inherited PPO fit path on synthetic data.
   - The initial combined RL smoke failure was isolated to the runtime-result path before PPO; after normalizing Gymnasium-derived action/shape scalar values to built-in integers, construction, reset, contract, and PPO fit all passed.
-  - Experimental Model Runtime Smoke run 29813554543 completed successfully on head 9ecd7bc37bb5b8113ac148255d0c3e29bbaeb7a7.
-  - AI Platform CI run 29813554620, Freqtrade CI run 29813554818, and zizmor run 29813554635 completed successfully on the same head; Pre-commit Types update run 29813554657 was skipped rather than failed.
+  - Final Experimental Model Runtime Smoke run 29813916198 completed successfully and validated this checkpoint with tools/agents/checkpoint.py --require-checkpoint before rerunning all heavy-runtime stages.
+  - Final AI Platform CI run 29813916158, Freqtrade CI run 29813916131, and zizmor run 29813916115 completed successfully; Pre-commit Types update run 29813916129 was skipped rather than failed.
   - Protected final holdout 20260801-20260930 remained unused; no historical OOS was scored and no Phase 6 membership, promotion, profitability, or model-performance conclusion was produced.
 derived:
   - Both canonical experimental model paths are runtime-feasible under the declared heavy dependency profile, but this is integration evidence only and says nothing about trading quality.
@@ -64,7 +63,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: experimental-runtime-smoke-rl-result-scalar
-  evidence: The first dedicated runtime runs installed all heavy dependencies and passed PyTorch fit but failed in the combined RL environment result path before PPO; splitting the stages and normalizing action/shape values to built-in integers yielded successful construction, reset, contract, and PPO fit on run 29813554543.
+  evidence: The first dedicated runtime runs installed all heavy dependencies and passed PyTorch fit but failed in the combined RL environment result path before PPO; splitting the stages and normalizing action/shape values to built-in integers yielded successful construction, reset, contract, and PPO fit.
 rejected_hypotheses:
   - Use May-June historical OOS to make the runtime smoke more realistic.
   - Access the protected final holdout for integration validation.
@@ -75,18 +74,18 @@ changed_paths:
   - docs/ai_platform/EXPERIMENTAL_MODEL_RUNTIME_SMOKE.md
   - docs/agents/tasks/FTAI-20260721-experimental-model-heavy-runtime-smoke.md
 validation:
-  - command: GitHub Actions Experimental Model Runtime Smoke #7
+  - command: GitHub Actions Experimental Model Runtime Smoke #9
     result: PASS
-    evidence: Run 29813554543 passed dependency installation, canonical PyTorch fit, RL construction, RL reset, RL contract, and canonical RL PPO fit.
-  - command: GitHub Actions AI Platform CI #259
+    evidence: Run 29813916198 passed checkpoint validation, dependency installation, canonical PyTorch fit, RL construction, RL reset, RL contract, and canonical RL PPO fit.
+  - command: GitHub Actions AI Platform CI #261
     result: PASS
-    evidence: Run 29813554620 completed successfully.
-  - command: GitHub Actions Freqtrade CI #274
+    evidence: Run 29813916158 completed successfully on the final implementation head.
+  - command: GitHub Actions Freqtrade CI #276
     result: PASS
-    evidence: Run 29813554818 completed successfully.
-  - command: GitHub Actions Security Analysis with zizmor #253
+    evidence: Run 29813916131 completed successfully on the final implementation head.
+  - command: GitHub Actions Security Analysis with zizmor #255
     result: PASS
-    evidence: Run 29813554635 completed successfully.
+    evidence: Run 29813916115 completed successfully on the final implementation head.
 blockers: []
-next_action: Merge PR #61 into develop after confirming its head is unchanged, it remains mergeable, required checks remain green, and no unresolved review thread exists.
+next_action: Create the next bounded experimental historical-execution task and first verify historical market-data availability, execution resources, and the existing FreqAI command path for the declared single-training-window geometry before producing any PyTorch or RL backtest archive for strict 20260501-20260630 OOS extraction.
 ```

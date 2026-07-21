@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260721-phase6-model-comparison-boundary-corrected-rerun
-status: active
+status: done
 branch: docs/phase6-model-comparison-corrected-evidence
 base_branch: develop
 created: 2026-07-21
 updated: 2026-07-21
-related_pr: "pending evidence PR"
+related_pr: "#91"
 owned_paths:
   - ai_platform/evidence/phase6-model-comparison-lightgbm-vs-xgboost-v1.json
   - ai_platform/model_comparison/run-requests/lightgbm-vs-xgboost-v1.json
@@ -19,8 +19,8 @@ required_reads:
   - ai_platform/scripts/model_comparison_run_request.py
   - .github/workflows/ai-platform-phase6-model-comparison.yml
 search_first:
-  - PR #88 closed state and corrected workflow evidence
-  - open PRs overlapping Phase 6 comparison workflow or evidence ownership
+  - PR #91 merged state and current develop after corrected evidence closure
+  - open PRs overlapping the separate PyTorch/RL research workstream
 optional_reads:
   - docs/agents/tasks/FTAI-20260721-phase6-model-comparison-historical-execution.md
   - docs/agents/tasks/FTAI-20260721-phase6-model-comparison-evidence.md
@@ -36,10 +36,10 @@ Supersede the incomplete execution-boundary conclusion from canonical run #77 wi
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T15:00:00Z
-head: 1fc2e2bd58e8838975023f45cda9f688585b424c
+updated_at: 2026-07-21T15:05:00Z
+head: fa609018a691242cd9db2a8274a1e24e63aa7ee5
 branch: docs/phase6-model-comparison-corrected-evidence
-pr: pending evidence PR
+pr: "#91"
 status: ready
 context_routes:
   - docs/ai_platform/PHASE6_MODEL_COMPARISON_EXECUTION.md
@@ -64,8 +64,9 @@ proven:
   - LightGBMRegressor corrected strict-OOS metrics are profit -0.00147892571, drawdown 0.0018957532099999298, trades 17, stability 0.0; minimum-profit and minimum-stability gates failed.
   - XGBoostRegressor corrected strict-OOS metrics are profit -0.0015392486680000002, drawdown 0.0021411325816178377, trades 25, stability 0.0; minimum-profit and minimum-stability gates failed.
   - Protected final holdout 20260801-20260930 remains unused and unauthorized; retuning, promotion, live trading, and profitability claims remain forbidden.
+  - Durable evidence PR #91 exact-head gates completed successfully before final checkpoint metadata update: AI Platform CI run 29841913929, zizmor run 29841915670, and Freqtrade CI run 29841915711; Pre-commit Types update run 29841913923 was skipped rather than failed.
 derived:
-  - The boundary-corrected run is now the authoritative Phase 6 LightGBM-versus-XGBoost comparison evidence.
+  - The boundary-corrected run is the authoritative Phase 6 LightGBM-versus-XGBoost comparison evidence.
   - Phase 6 ends with no eligible model selected under the frozen predeclared policy.
   - The corrected evidence does not authorize changing thresholds, features, candidates, model parameters, selection policy, or using consumed historical OOS for new tuning.
   - Separate PyTorch/RL research cannot retroactively alter the completed Phase 6 result.
@@ -97,6 +98,9 @@ validation:
   - command: protected final holdout boundary review
     result: PASS
     evidence: Final holdout 20260801-20260930 remains outside all corrected historical semantic/execution ranges and was not used.
+  - command: durable evidence PR #91 repository gates on fa609018a691242cd9db2a8274a1e24e63aa7ee5
+    result: PASS
+    evidence: AI Platform CI 29841913929, zizmor 29841915670, and Freqtrade CI 29841915711 completed successfully; Pre-commit Types update 29841913923 was skipped.
 blockers: []
-next_action: Open a two-file durable-evidence PR against current develop, validate repository gates, squash-merge it, then mark this task done. After Phase 6 evidence closure, continue only with the separately bounded PyTorch/RL execution-infrastructure workstream; do not retune Phase 6 or access the protected final holdout.
+next_action: Phase 6 corrected evidence closure is complete after PR #91 merges. Continue only with the separately bounded PyTorch/RL execution-infrastructure workstream; do not retune Phase 6, alter its frozen candidate set or selection policy, or access the protected final holdout 20260801-20260930.
 ```

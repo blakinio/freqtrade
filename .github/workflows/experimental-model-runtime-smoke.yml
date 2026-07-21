@@ -32,6 +32,12 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
 
+      - name: Validate active task checkpoint
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260721-experimental-model-heavy-runtime-smoke.md
+          --require-checkpoint
+
       - name: Install FreqAI and freqai_rl runtime dependencies
         run: python -m pip install --quiet -e ".[freqai,freqai_rl]"
 

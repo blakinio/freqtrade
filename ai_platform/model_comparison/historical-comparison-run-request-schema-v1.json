@@ -13,6 +13,8 @@
     "comparison_contract_sha256",
     "selection_policy",
     "selection_policy_sha256",
+    "strategy",
+    "strategy_sha256",
     "models",
     "training_window",
     "tuning_window",
@@ -42,6 +44,8 @@
     "comparison_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "selection_policy": {"const": "ai_platform/model_comparison/selection-policy-v1.json"},
     "selection_policy_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "strategy": {"const": "ai_platform/strategies/AiPhase52ExitStrategy.py"},
+    "strategy_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "models": {
       "type": "array",
       "minItems": 2,

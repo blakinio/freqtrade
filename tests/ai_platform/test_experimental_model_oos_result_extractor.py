@@ -5,20 +5,20 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
-
 from ai_platform.scripts.experimental_model_oos_result_extractor import (
     ExperimentalModelOosExtractorError,
     extract_experimental_oos_result,
     validate_experimental_oos_extraction,
 )
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PYTORCH_MANIFEST = REPO_ROOT / "ai_platform/experiments/pytorch-research-v1.json"
 RL_MANIFEST = REPO_ROOT / "ai_platform/experiments/rl-research-v1.json"
 
 
-def _trade(open_date: str, close_date: str, profit_abs: float, exit_reason: str = "exit_signal"):
+def _trade(
+    open_date: str, close_date: str, profit_abs: float, exit_reason: str = "exit_signal"
+):
     return {
         "open_date": open_date,
         "close_date": close_date,
@@ -145,7 +145,9 @@ def test_extractor_rejects_noncanonical_manifest_drift(tmp_path: Path) -> None:
     drifted_manifest = tmp_path / "drifted.json"
     drifted_manifest.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ExperimentalModelOosExtractorError, match="differs from the canonical"):
+    with pytest.raises(
+        ExperimentalModelOosExtractorError, match="differs from the canonical"
+    ):
         extract_experimental_oos_result(
             _pytorch_archive(tmp_path),
             drifted_manifest,
@@ -161,7 +163,9 @@ def test_extractor_rejects_protected_final_holdout_manifest_before_archive_use(
     holdout_manifest = tmp_path / "holdout.json"
     holdout_manifest.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ExperimentalModelOosExtractorError, match="protected final holdout"):
+    with pytest.raises(
+        ExperimentalModelOosExtractorError, match="protected final holdout"
+    ):
         extract_experimental_oos_result(
             tmp_path / "does-not-need-to-exist.zip",
             holdout_manifest,

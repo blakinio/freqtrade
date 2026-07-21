@@ -8,28 +8,40 @@ and to preserve a strict boundary between research tooling and trading-engine co
 
 ## Current scope
 
-Phases 0 through 4 of the AI Trading Platform roadmap are implemented. Phase 5 is active through its
-first reviewable work package: staged signal-threshold optimization.
+Phases 0 through 4 are implemented. Phase 5 tuning work through Phase 5.2 is complete, but Phase 5
+remains active until its prospectively declared final holdout v2 can be evaluated no earlier than
+`2026-10-01 UTC`. Phase 6 model comparison is complete with authoritative `selected_model = null`.
+
+The currently frozen candidate parameters are:
+
+- `entry_prediction_threshold = 0.006`;
+- `exit_prediction_threshold = -0.009`.
+
+The protected prospective final holdout v2 is `20260801-20260930`. It remains unused and may not be
+used for training, tuning, Hyperopt, feature selection, model selection, or iterative evaluation as
+data arrives.
 
 The current system is research-only:
 
 - spot trading;
 - BTC/USDT and ETH/USDT baseline universe;
 - 15m base timeframe with 1h and 4h context;
-- FreqAI with `LightGBMRegressor` as the baseline model;
 - long-only strategies;
 - dry-run configuration;
 - reproducible experiment manifests and provenance;
-- walk-forward and final-holdout validation;
+- walk-forward and historical OOS validation;
 - automated lookahead and recursive analysis;
 - promotion gates;
 - durable SQLite experiment registry and duplicate detection;
 - bounded deterministic strategy discovery;
-- staged entry-threshold Hyperopt with a frozen final holdout and local perturbation checks;
+- staged threshold optimization with frozen candidate parameters;
+- completed LightGBM-versus-XGBoost Phase 6 comparison with no eligible model selected;
+- separate evidence-only PyTorch and reinforcement-learning historical research tracks;
 - no live-capital automation.
 
-The repository contains infrastructure for research and validation. It does not claim that any
-strategy is profitable or ready for live capital merely because the pipeline exists or CI passes.
+The repository contains infrastructure and evidence for research and validation. It does not claim
+that any current strategy or model is profitable or ready for live capital merely because a pipeline
+exists, CI passes, or a historical backtest completed.
 
 ## Project layout
 
@@ -37,57 +49,48 @@ strategy is profitable or ready for live capital merely because the pipeline exi
 ai_platform/
 ├── README.md
 ├── configs/
-│   └── freqai-baseline.example.json
 ├── discovery/
-│   ├── README.md
-│   ├── search-space-schema-v1.json
-│   └── search-space-v1.json
 ├── experiments/
-│   ├── README.md
-│   ├── baseline-v1.json
-│   └── schema-v1.json
+├── experimental_model_research/
+│   └── evidence/
+├── freqaimodels/
 ├── optimization/
-│   ├── README.md
-│   ├── baseline-signal-thresholds-v1.json
-│   └── schema-v1.json
 ├── registry/
-│   ├── README.md
-│   ├── baseline-v1.json
-│   └── schema-v1.json
 ├── scripts/
-│   ├── discovery.py
-│   ├── registry.py
-│   ├── run_experiment.py
-│   ├── run_optimization.py
-│   └── run_validation.py
 ├── strategies/
-│   └── AiBaselineStrategy.py
 └── validation/
-    ├── baseline-validation-v1.json
-    └── schema-v1.json
 ```
 
 Generated research artifacts are written below `ai_platform/artifacts/` and are ignored by Git.
+Durable evidence that must survive GitHub Actions artifact expiry is stored explicitly in tracked
+project evidence records.
 
 ## Safety invariants
 
 - Do not commit exchange credentials or other secrets.
 - Research configs must remain `dry_run: true`.
-- The baseline and generated discovery strategies remain spot-only and long-only.
+- The baseline and generated discovery strategies remain spot-only and long-only unless a separate
+  reviewed work package explicitly changes that boundary.
 - Project-specific code stays outside upstream `freqtrade/` core unless a separately reviewed core
   change is explicitly required.
 - A profitable backtest is never sufficient for promotion.
 - Failed validation gates block promotion.
 - Discovery candidates cannot bypass the experiment, validation, and registry pipeline.
-- Hyperopt and parameter selection cannot use the frozen final holdout.
-- A stable optimization result is not promoted automatically; it still requires final validation.
+- Hyperopt and parameter selection cannot use the protected final holdout.
+- Frozen Phase 5 thresholds may not be retuned from consumed historical OOS inside the completed
+  tuning work package.
+- Phase 6 ended with `selected_model = null`; no model is promoted by that comparison.
+- PyTorch and RL historical evidence is independent and cannot retroactively change Phase 6.
+- A stable optimization result is not promoted automatically; it still requires authorized final
+  validation.
 - No work package may silently transition from research/dry-run into live trading.
 
 ## Environment
 
 Install Freqtrade with FreqAI dependencies using the repository-supported installation method.
 For a local editable Python environment, the relevant optional dependency group is `freqai`.
-Hyperopt dependencies are also required when running Phase 5 optimization.
+Hyperopt dependencies are required for optimization work. Experimental RL execution additionally
+uses the explicitly bounded `freqai_rl` runtime profile where declared by its work package.
 
 ## Reproducible baseline experiment
 
@@ -128,11 +131,13 @@ python ai_platform/scripts/run_validation.py \
   ai_platform/validation/baseline-validation-v1.json
 ```
 
-The pipeline performs separate walk-forward folds and a final holdout, then applies configured
+The pipeline performs separate walk-forward folds and holdout evaluation, then applies configured
 performance gates together with lookahead and recursive-analysis checks. It emits a machine-readable
 validation report with `promotion_allowed`.
 
-The holdout is evidence for final evaluation and must not become tuning data in Phase 5.
+Historical validation windows that have already been consumed by tuning or model research must not
+be silently reused as fresh final evidence. The currently protected prospective final holdout v2 is
+`20260801-20260930` and its one-shot final evaluation is not authorized before `2026-10-01 UTC`.
 
 ## Experiment registry
 
@@ -187,30 +192,68 @@ only then eligible for robustness ranking.
 
 See `ai_platform/discovery/README.md` for the exact execution chain and safety boundaries.
 
-## Phase 5.1 signal-threshold optimization
+## Phase 5 threshold optimization status
 
-The first Phase 5 work package exposes only the baseline entry prediction threshold to Freqtrade
-Hyperopt. Exit, ROI, stop-loss, protection, feature, and model parameters remain fixed.
-
-Run the pinned optimization plan when the required historical data is available:
-
-```bash
-python ai_platform/scripts/run_optimization.py \
-  ai_platform/optimization/baseline-signal-thresholds-v1.json
-```
-
-The optimization contract separates:
+The staged threshold-tuning work has frozen:
 
 ```text
-training context -> tuning/selection -> frozen final holdout
+entry_prediction_threshold = 0.006
+exit_prediction_threshold = -0.009
 ```
 
-Hyperopt receives only the tuning window. A selected threshold must then survive local parameter
-perturbation before it becomes eligible for a separate final validation run. Optimization artifacts
-always keep `promotion_allowed: false`; the final holdout cannot be used to retune a failed result.
+Phase 5.1 handled entry-threshold selection and Phase 5.2 handled exit-threshold selection under the
+repository's train/tune/holdout separation and local stability requirements. These thresholds are
+now frozen for the current candidate.
 
-See `ai_platform/optimization/README.md` for the exact split, identity contract, stability gates, and
-final-evaluation boundary.
+The protected final holdout v2 is:
+
+```text
+20260801-20260930
+```
+
+It was declared prospectively and remains unavailable for tuning or selection. The final one-shot
+evaluation cannot run before `2026-10-01 UTC`. A future failed final evaluation must not be used to
+retune the same candidate against that holdout.
+
+See `ai_platform/optimization/README.md` and the tracked final-holdout-v2 contracts for exact
+execution boundaries.
+
+## Phase 6 model comparison status
+
+The canonical Phase 6 comparison evaluated the frozen LightGBM and XGBoost candidates under the same
+historical evaluation geometry and trading-cost assumptions.
+
+The boundary-corrected authoritative outcome is:
+
+```text
+selected_model = null
+```
+
+Neither `LightGBMRegressor` nor `XGBoostRegressor` passed the predeclared minimum-profit and
+minimum-stability eligibility gates. Phase 6 is therefore complete with no model selected and no
+promotion authorized.
+
+PyTorch and reinforcement-learning research were executed later as separate isolated experimental
+tracks. They were not Phase 6 candidates and cannot change its result.
+
+## Experimental PyTorch and RL evidence
+
+The bounded historical execution work package ran exactly one frozen historical backtest for each of
+the two isolated research tracks and preserved independent strict historical-OOS evidence.
+
+Observed evidence:
+
+- PyTorch `SeededPyTorchMLPRegressor`: 20 strict-OOS trades, negative aggregate profit, stability
+  `0.0`, with negative May and June folds;
+- RL `LongOnlyReinforcementLearner`: zero strict-OOS trades, profit `0.0`, drawdown `0.0`, stability
+  `0.0`; the zero values reflect inactivity and are not profitability evidence.
+
+See:
+
+`docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EVIDENCE.md`
+
+The tracks remain evidence-only. No cross-track winner, promotion, retuning, profitability claim, or
+superiority claim is authorized.
 
 ## Optional interactive dry-run
 
@@ -230,28 +273,30 @@ freqtrade trade \
   --freqaimodel LightGBMRegressor
 ```
 
-This command is for dry-run only. Continuous dry-run operations and monitoring are a later roadmap
-phase.
+This command is for dry-run only. Continuous dry-run operations and monitoring remain a later
+roadmap phase and should not be confused with evidence of a validated or promoted model.
 
-## Current work package — Phase 5
+## Current work package boundary
 
-Phase 5 is **Hyperparameter optimization** and remains active.
+No current model is promoted for live or dry-run lifecycle advancement by Phase 6 or the experimental
+PyTorch/RL evidence.
 
-The required staged order is:
+The active time-gated program boundary is the future Phase 5 final holdout v2 evaluation:
 
-1. signal thresholds;
-2. then exits;
-3. then risk/protection parameters;
-4. model parameters only after the strategy baseline is stable.
+```text
+holdout: 20260801-20260930
+not before: 2026-10-01 UTC
+```
 
-The final holdout window must remain untouched during tuning. Selected parameters must be recorded
-in reproducible experiment metadata, and local parameter perturbation must be used to detect brittle
-or overfit optima.
+Until then, work may improve infrastructure, monitoring, documentation, or separately declared
+research contracts, but must not consume the protected holdout or retune the frozen `0.006/-0.009`
+candidate using already-consumed historical OOS.
 
 See `docs/ai_platform/ROADMAP.md`.
 
 ## Design intent
 
-The baseline strategy, bounded discovery engine, and optimization workflow are intentionally
-conservative. Complexity should be added only when it improves reproducible out-of-sample
-robustness, not because it improves one in-sample backtest.
+The baseline strategy, bounded discovery engine, optimization workflow, model comparison, and
+experimental-model tracks are intentionally conservative. Complexity should be added only when it
+improves reproducible out-of-sample robustness under a prospectively declared evaluation policy, not
+because it improves one in-sample backtest.

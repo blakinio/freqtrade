@@ -7,11 +7,13 @@ from freqtrade.strategy import DecimalParameter, IStrategy
 
 
 class AiPhase52ExitStrategy(IStrategy):
-    """Research-only Phase 5.2 strategy with a frozen entry threshold.
+    """Research-only Phase 5.2 strategy with frozen selected prediction thresholds.
 
-    The Phase 5.1 entry selection is fixed at 0.006. Phase 5.2 exposes only
-    the prediction-based exit threshold to Hyperopt. This strategy is not
-    production-ready and must not be used for live-capital automation.
+    Phase 5.1 selected the entry threshold at 0.006 and Phase 5.2 selected the
+    exit threshold at -0.009. The exit remains a DecimalParameter so the
+    historical Phase 5.2 optimization tooling stays reproducible, but its
+    runtime default is now the already-selected frozen value. This strategy is
+    not production-ready and must not be used for live-capital automation.
     """
 
     timeframe = "15m"
@@ -31,12 +33,12 @@ class AiPhase52ExitStrategy(IStrategy):
     # Frozen Phase 5.1 selection. This value is intentionally not a Hyperopt parameter.
     entry_prediction_threshold = 0.006
 
-    # Phase 5.2 exposes only the prediction-based exit threshold in the sell space.
+    # Frozen Phase 5.2 selection; the sell-space parameter remains available for reproducibility.
     exit_prediction_threshold = DecimalParameter(
         -0.02,
         0.01,
         decimals=3,
-        default=0.0,
+        default=-0.009,
         space="sell",
     )
 

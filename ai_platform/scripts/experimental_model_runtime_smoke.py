@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import tempfile
 from pathlib import Path
@@ -76,7 +77,7 @@ def _run_pytorch_smoke() -> dict[str, object]:
     }
 
 
-def _run_rl_smoke() -> dict[str, object]:
+def _build_rl_environment() -> tuple[LongOnlyEnvironment, pd.DataFrame]:
     features = _synthetic_features()
     rows = len(features)
     prices = pd.DataFrame(
@@ -113,6 +114,11 @@ def _run_rl_smoke() -> dict[str, object]:
         pair="SYNTHETIC/USDT",
         df_raw=prices.copy(),
     )
+    return environment, features
+
+
+def _run_rl_environment_smoke() -> dict[str, object]:
+    environment, features = _build_rl_environment()
     observation, _ = environment.reset(seed=42)
 
     if LongOnlyReinforcementLearner.MyRLEnv is not LongOnlyEnvironment:
@@ -121,6 +127,19 @@ def _run_rl_smoke() -> dict[str, object]:
         raise RuntimeError(f"Unexpected RL action count: {environment.action_space.n}")
     if observation.shape != (4, features.shape[1]):
         raise RuntimeError(f"Unexpected RL observation shape: {observation.shape}")
+
+    return {
+        "model": "LongOnlyReinforcementLearner",
+        "environment": "LongOnlyEnvironment",
+        "rows": len(features),
+        "actions": environment.action_space.n,
+        "observation_shape": list(observation.shape),
+    }
+
+
+def _run_rl_fit_smoke() -> dict[str, object]:
+    environment, features = _build_rl_environment()
+    environment.reset(seed=42)
 
     learner = object.__new__(LongOnlyReinforcementLearner)
     learner.freqai_info = {
@@ -155,22 +174,50 @@ def _run_rl_smoke() -> dict[str, object]:
     return {
         "model": "LongOnlyReinforcementLearner",
         "backend": "PPO",
-        "rows": rows,
+        "rows": len(features),
         "train_cycles": 1,
         "actions": environment.action_space.n,
     }
 
 
-def main() -> int:
-    result = {
+def _envelope(component: str, result: dict[str, object]) -> dict[str, object]:
+    return {
         "schema_version": 1,
+        "component": component,
         "data_source": "synthetic_only",
         "historical_oos_scored": False,
         "protected_final_holdout_used": False,
         "performance_conclusion_allowed": False,
-        "pytorch": _run_pytorch_smoke(),
-        "reinforcement_learning": _run_rl_smoke(),
+        "result": result,
     }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "component",
+        choices=("pytorch", "rl-environment", "rl-fit", "all"),
+        nargs="?",
+        default="all",
+    )
+    args = parser.parse_args()
+
+    if args.component == "pytorch":
+        result = _envelope("pytorch", _run_pytorch_smoke())
+    elif args.component == "rl-environment":
+        result = _envelope("rl-environment", _run_rl_environment_smoke())
+    elif args.component == "rl-fit":
+        result = _envelope("rl-fit", _run_rl_fit_smoke())
+    else:
+        result = _envelope(
+            "all",
+            {
+                "pytorch": _run_pytorch_smoke(),
+                "rl_environment": _run_rl_environment_smoke(),
+                "rl_fit": _run_rl_fit_smoke(),
+            },
+        )
+
     print(json.dumps(result, sort_keys=True))
     return 0
 

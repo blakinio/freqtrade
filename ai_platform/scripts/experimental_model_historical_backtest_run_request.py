@@ -61,7 +61,9 @@ EXPECTED_MARKET_DATA = {
     "pairs": ["BTC/USDT", "ETH/USDT"],
     "timeframes": ["15m", "1h", "4h"],
     "fee": 0.002,
-    "verification_module": "ai_platform.scripts.experimental_model_historical_execution_preflight",
+    "verification_module": (
+        "ai_platform.scripts.experimental_model_historical_execution_preflight"
+    ),
     "cache_namespace": "experimental-model-historical-preflight-v2",
 }
 EXPECTED_STRICT_OOS = {
@@ -146,6 +148,24 @@ def _repo_path(value: str) -> Path:
     return candidate
 
 
+def _validate_exact_contract_fields(contract: dict[str, Any]) -> None:
+    expected_sections = {
+        "trigger": EXPECTED_TRIGGER,
+        "execution": EXPECTED_EXECUTION,
+        "market_data": EXPECTED_MARKET_DATA,
+        "strict_oos_extraction": EXPECTED_STRICT_OOS,
+        "frozen_parameters": EXPECTED_FROZEN_PARAMETERS,
+        "protected_final_holdout": EXPECTED_PROTECTED_FINAL_HOLDOUT,
+        "phase6_isolation": EXPECTED_PHASE6_ISOLATION,
+        "authorization": EXPECTED_AUTHORIZATION,
+    }
+    for field, expected in expected_sections.items():
+        if contract.get(field) != expected:
+            raise ExperimentalModelHistoricalBacktestRunRequestError(
+                f"Historical backtest contract field {field} drifted"
+            )
+
+
 def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa: C901
     contract = _read_json(CONTRACT_PATH, "experimental historical backtest contract")
     if contract.get("schema_version") != 1:
@@ -156,69 +176,71 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest contract_id drifted"
         )
-    if contract.get("task") != (
+    expected_task = (
         "docs/agents/tasks/FTAI-20260721-experimental-model-historical-backtest-execution.md"
-    ):
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Historical backtest task drifted")
-    if contract.get("foundation") != "ai_platform/experimental_model_research/foundation-v1.json":
+    )
+    if contract.get("task") != expected_task:
+        raise ExperimentalModelHistoricalBacktestRunRequestError(
+            "Historical backtest task drifted"
+        )
+    expected_foundation = "ai_platform/experimental_model_research/foundation-v1.json"
+    if contract.get("foundation") != expected_foundation:
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Experimental research foundation path drifted"
         )
     if contract.get("request_path") != REQUEST_REPO_PATH:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Canonical request path drifted")
-    if contract.get("trigger") != EXPECTED_TRIGGER:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("One-shot trigger contract drifted")
-    if contract.get("execution") != EXPECTED_EXECUTION:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Execution geometry drifted")
-    if contract.get("market_data") != EXPECTED_MARKET_DATA:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Market-data contract drifted")
-    if contract.get("strict_oos_extraction") != EXPECTED_STRICT_OOS:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Strict OOS extraction contract drifted")
-    if contract.get("frozen_parameters") != EXPECTED_FROZEN_PARAMETERS:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Frozen thresholds drifted")
-    if contract.get("protected_final_holdout") != EXPECTED_PROTECTED_FINAL_HOLDOUT:
         raise ExperimentalModelHistoricalBacktestRunRequestError(
-            "Protected final holdout contract drifted"
+            "Canonical request path drifted"
         )
-    if contract.get("phase6_isolation") != EXPECTED_PHASE6_ISOLATION:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Phase 6 isolation contract drifted")
-    if contract.get("authorization") != EXPECTED_AUTHORIZATION:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Execution authorization drifted")
+    _validate_exact_contract_fields(contract)
 
     contract_tracks = contract.get("tracks")
     if not isinstance(contract_tracks, list) or len(contract_tracks) != len(EXPECTED_TRACKS):
         raise ExperimentalModelHistoricalBacktestRunRequestError(
             "Historical backtest contract must contain exactly two canonical tracks"
         )
-    actual_tracks = {track.get("track_id"): track for track in contract_tracks if isinstance(track, dict)}
+    actual_tracks = {
+        track.get("track_id"): track for track in contract_tracks if isinstance(track, dict)
+    }
     if actual_tracks != EXPECTED_TRACKS:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Canonical track contract drifted")
+        raise ExperimentalModelHistoricalBacktestRunRequestError(
+            "Canonical track contract drifted"
+        )
 
     try:
         foundation = validate_experimental_model_research_foundation(
             _repo_path(contract["foundation"])
         )
-    except ExperimentalModelResearchContractError as exc:
+    except (ExperimentalModelResearchContractError, ExperimentError) as exc:
         raise ExperimentalModelHistoricalBacktestRunRequestError(str(exc)) from exc
 
     geometry = foundation["shared_temporal_geometry"]
-    if geometry.get("prediction_window") != EXPECTED_EXECUTION["semantic_prediction_window"]:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Semantic prediction window drifted")
-    if geometry.get("freqtrade_prediction_timerange") != EXPECTED_EXECUTION["timerange"]:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Execution timerange drifted")
-    if geometry.get("freqtrade_download_timerange") != EXPECTED_EXECUTION["download_timerange"]:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Download timerange drifted")
-    if geometry.get("historical_oos_window") != EXPECTED_STRICT_OOS["scoring_window"]:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Historical OOS window drifted")
-    if foundation["protected_final_holdout"]["timerange"] != EXPECTED_PROTECTED_FINAL_HOLDOUT["timerange"]:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Foundation final holdout drifted")
-    if foundation["shared_trading_assumptions"]["frozen_candidate_reference"] != EXPECTED_FROZEN_PARAMETERS:
-        raise ExperimentalModelHistoricalBacktestRunRequestError("Foundation frozen thresholds drifted")
+    expected_geometry = {
+        "prediction_window": EXPECTED_EXECUTION["semantic_prediction_window"],
+        "freqtrade_prediction_timerange": EXPECTED_EXECUTION["timerange"],
+        "freqtrade_download_timerange": EXPECTED_EXECUTION["download_timerange"],
+        "historical_oos_window": EXPECTED_STRICT_OOS["scoring_window"],
+    }
+    for field, expected in expected_geometry.items():
+        if geometry.get(field) != expected:
+            raise ExperimentalModelHistoricalBacktestRunRequestError(
+                f"Foundation temporal geometry drifted for {field}"
+            )
+    if foundation["protected_final_holdout"] != EXPECTED_PROTECTED_FINAL_HOLDOUT | {
+        "declaration": "ai_platform/validation/final-holdout-v2-declaration.json"
+    }:
+        raise ExperimentalModelHistoricalBacktestRunRequestError(
+            "Foundation final holdout drifted"
+        )
+    frozen = foundation["shared_trading_assumptions"]["frozen_candidate_reference"]
+    if frozen != EXPECTED_FROZEN_PARAMETERS:
+        raise ExperimentalModelHistoricalBacktestRunRequestError(
+            "Foundation frozen thresholds drifted"
+        )
 
     foundation_tracks = {track["track_id"]: track for track in foundation["tracks"]}
     canonical_tracks: list[dict[str, Any]] = []
-    for track_id in EXPECTED_TRACKS:
-        expected_track = EXPECTED_TRACKS[track_id]
+    for track_id, expected_track in EXPECTED_TRACKS.items():
         foundation_track = foundation_tracks.get(track_id)
         if foundation_track is None:
             raise ExperimentalModelHistoricalBacktestRunRequestError(
@@ -243,7 +265,7 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
             manifest = load_manifest(manifest_path)
         except ExperimentError as exc:
             raise ExperimentalModelHistoricalBacktestRunRequestError(str(exc)) from exc
-        manifest_expected = {
+        expected_manifest = {
             "experiment_id": track_id,
             "config": expected_track["config"],
             "strategy": expected_track["strategy"],
@@ -254,8 +276,8 @@ def _validate_contract() -> tuple[dict[str, Any], list[dict[str, Any]]]:  # noqa
             "timeframes": EXPECTED_MARKET_DATA["timeframes"],
             "fee": EXPECTED_MARKET_DATA["fee"],
         }
-        for field, expected_value in manifest_expected.items():
-            if manifest.get(field) != expected_value:
+        for field, expected in expected_manifest.items():
+            if manifest.get(field) != expected:
                 raise ExperimentalModelHistoricalBacktestRunRequestError(
                     f"{track_id} manifest field {field} drifted"
                 )
@@ -325,7 +347,8 @@ def load_experimental_model_historical_backtest_run_request(path: Path) -> dict[
         if extra:
             details.append(f"extra={','.join(extra)}")
         raise ExperimentalModelHistoricalBacktestRunRequestError(
-            "Run request fields do not match the canonical execution request: " + "; ".join(details)
+            "Run request fields do not match the canonical execution request: "
+            + "; ".join(details)
         )
     for field, expected_value in expected.items():
         if request[field] != expected_value:

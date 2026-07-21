@@ -49,6 +49,21 @@ def test_research_tracks_are_distinct_and_guarded_from_final_holdout() -> None:
         assert not timeranges_overlap(manifest["download_timerange"], protected_timerange())
 
 
+def test_semantic_windows_are_distinct_from_exclusive_execution_timeranges() -> None:
+    foundation = validate_experimental_model_research_foundation()
+    geometry = foundation["shared_temporal_geometry"]
+
+    assert geometry["prediction_window"] == "20260301-20260630"
+    assert geometry["download_window"] == "20250801-20260630"
+    assert geometry["prediction_timerange"] == "20260301-20260701"
+    assert geometry["download_timerange"] == "20250801-20260701"
+
+    for track in foundation["tracks"]:
+        manifest = load_manifest(ROOT / track["manifest"])
+        assert manifest["timerange"] == geometry["prediction_timerange"]
+        assert manifest["download_timerange"] == geometry["download_timerange"]
+
+
 def test_research_tracks_pin_dependency_closed_heavy_runtime_profile() -> None:
     foundation = validate_experimental_model_research_foundation()
 

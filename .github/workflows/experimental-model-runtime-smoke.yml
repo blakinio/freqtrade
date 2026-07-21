@@ -35,5 +35,11 @@ jobs:
       - name: Install FreqAI and freqai_rl runtime dependencies
         run: python -m pip install --quiet -e ".[freqai,freqai_rl]"
 
-      - name: Run synthetic-only experimental model smoke
-        run: python -m ai_platform.scripts.experimental_model_runtime_smoke
+      - name: Smoke canonical PyTorch fit
+        run: python -m ai_platform.scripts.experimental_model_runtime_smoke pytorch
+
+      - name: Smoke canonical RL environment
+        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-environment
+
+      - name: Smoke canonical RL PPO fit
+        run: python -m ai_platform.scripts.experimental_model_runtime_smoke rl-fit

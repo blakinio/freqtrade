@@ -108,7 +108,10 @@ def _smoke_pytorch(root: Path) -> dict[str, Any]:
     }
 
 
-def _rl_frames(train_rows: int = 128, test_rows: int = 64) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def _rl_frames(
+    train_rows: int = 128,
+    test_rows: int = 64,
+) -> tuple[dict[str, pd.DataFrame], pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     total_rows = train_rows + test_rows
     index = _synthetic_index(total_rows)
     phase = np.linspace(0.0, 4.0 * np.pi, total_rows, dtype=np.float32)

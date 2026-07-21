@@ -11,7 +11,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_PATH = REPO_ROOT / "ai_platform/experimental_model_research/rl-v2-design-contract-v1.json"
+CONTRACT_PATH = (
+    REPO_ROOT / "ai_platform/experimental_model_research/rl-v2-design-contract-v1.json"
+)
 
 
 class RLV2DesignContractError(RuntimeError):
@@ -125,7 +127,9 @@ def _read_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RLV2DesignContractError(f"Unable to read RL-v2 design contract {path}: {exc}") from exc
+        raise RLV2DesignContractError(
+            f"Unable to read RL-v2 design contract {path}: {exc}"
+        ) from exc
     if not isinstance(payload, dict):
         raise RLV2DesignContractError("RL-v2 design contract must contain a JSON object")
     return payload

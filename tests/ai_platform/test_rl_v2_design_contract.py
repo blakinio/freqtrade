@@ -25,10 +25,7 @@ def _mutated_contract(tmp_path: Path, mutate) -> Path:
 
 
 def test_repository_contract_matches_canonical_design_contract() -> None:
-    assert (
-        validate_rl_v2_design_contract(CONTRACT_PATH)
-        == canonical_rl_v2_design_contract()
-    )
+    assert validate_rl_v2_design_contract(CONTRACT_PATH) == canonical_rl_v2_design_contract()
 
 
 def test_contract_rejects_unpenalized_perpetual_neutral_policy(tmp_path: Path) -> None:
@@ -60,9 +57,7 @@ def test_contract_rejects_flat_neutral_reward_without_strict_entry_advantage(
 def test_contract_rejects_future_derived_reward_inputs(tmp_path: Path) -> None:
     path = _mutated_contract(
         tmp_path,
-        lambda payload: payload["reward_contract"].update(
-            {"future_market_information_used": True}
-        ),
+        lambda payload: payload["reward_contract"].update({"future_market_information_used": True}),
     )
 
     with pytest.raises(RLV2DesignContractError, match="reward_contract"):

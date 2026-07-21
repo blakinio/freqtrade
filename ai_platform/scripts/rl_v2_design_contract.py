@@ -11,9 +11,7 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_PATH = (
-    REPO_ROOT / "ai_platform/experimental_model_research/rl-v2-design-contract-v1.json"
-)
+CONTRACT_PATH = REPO_ROOT / "ai_platform/experimental_model_research/rl-v2-design-contract-v1.json"
 
 
 class RLV2DesignContractError(RuntimeError):

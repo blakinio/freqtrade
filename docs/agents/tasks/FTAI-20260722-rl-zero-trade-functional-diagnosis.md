@@ -5,7 +5,7 @@ branch: docs/rl-zero-trade-functional-diagnosis-task
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "pending"
+related_pr: "97"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-zero-trade-functional-diagnosis.md
   - docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md
@@ -47,9 +47,9 @@ Determine, without any new model execution or tuning, why the completed frozen `
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-22T00:00:00+02:00
-head: 55a70d6e6f548390939d34af7c07618e4379be03
+head: 70c4f7488af2f5a7cb06c20c488f4be1b02c294b
 branch: docs/rl-zero-trade-functional-diagnosis-task
-pr: pending task declaration PR
+pr: 97
 status: active
 context_routes:
   - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EVIDENCE.md

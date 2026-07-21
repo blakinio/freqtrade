@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260721-phase6-historical-comparison-workflow
-status: active
-branch: feat/phase6-historical-comparison-workflow-v1
+status: ready
+branch: develop
 base_branch: develop
 created: 2026-07-21
 updated: 2026-07-21
@@ -39,11 +39,11 @@ Add guarded one-shot historical LightGBM-versus-XGBoost execution infrastructure
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-21T08:45:00Z
-head: f4c0592b3d86322e363767df8e61d21a7b693e90
-branch: feat/phase6-historical-comparison-workflow-v1
-pr: "#63 open"
-status: active
+updated_at: 2026-07-21T09:30:00Z
+head: 433d9a70289c901a6ce74f2cbcab071583c47c03
+branch: develop
+pr: "#63 merged"
+status: ready
 context_routes:
   - docs/ai_platform/PHASE6_HISTORICAL_COMPARISON_EXECUTION.md
   - ai_platform/scripts/model_comparison_execution_request.py
@@ -56,27 +56,25 @@ owned_paths:
   - docs/ai_platform/PHASE6_HISTORICAL_COMPARISON_EXECUTION.md
   - docs/agents/tasks/FTAI-20260721-phase6-historical-comparison-workflow.md
 proven:
-  - develop was 8be21011678da596ad20f0415c58698e7dacc92a when this bounded task branched; concurrent experimental runtime work later advanced develop without overlapping owned paths.
-  - The previous Phase 6 hash-parity checkpoint requires workflow infrastructure before a separate actual run-request PR.
-  - The infrastructure branch does not contain ai_platform/model_comparison/run-requests/historical-comparison-v1.json, so it cannot trigger the historical comparison workflow.
-  - The run request is exact-match validated before dependency installation, cache restore, or market-data access.
+  - PR #63 squash-merged to develop at 433d9a70289c901a6ce74f2cbcab071583c47c03.
+  - The merged workflow is request-only; the infrastructure change did not add ai_platform/model_comparison/run-requests/historical-comparison-v1.json and therefore did not execute the comparison.
+  - The request validator runs before dependency installation, cache restore, or market-data access and pins contract, selection-policy, and strategy SHA-256 values.
   - Historical download coverage is pinned to 20250801-20260630 and strict scoring to consumed historical OOS 20260501-20260630.
-  - Protected final holdout 20260801-20260930 remains unused and forbidden for model comparison.
-  - Frozen thresholds remain entry_prediction_threshold=0.006 and exit_prediction_threshold=-0.009.
-  - AiPhase52ExitStrategy runtime default for exit_prediction_threshold was corrected from 0.0 to the already-selected frozen -0.009 before any Phase 6 comparison execution.
-  - The canonical run request now binds exact AiPhase52ExitStrategy.py SHA-256, and the workflow requires both runtime provenance records to report that same strategy hash.
+  - AiPhase52ExitStrategy runtime default is frozen to the already-selected exit_prediction_threshold=-0.009; entry_prediction_threshold remains 0.006.
+  - Both historical backtest provenance records must match the request-head commit and request-bound frozen strategy SHA-256.
+  - Protected final holdout 20260801-20260930 remains unused and forbidden for model comparison, promotion, live trading, and profitability claims.
 derived:
-  - A later request-only PR can safely be the sole trigger for materialization, both frozen backtests, strict-OOS extraction, deterministic selection, provenance binding, and final result assembly.
+  - A separate request-only PR containing exactly the canonical generated request can now be used as the sole trigger for the historical LightGBM-versus-XGBoost comparison.
 unknown:
-  - Full GitHub Actions validation result for the final infrastructure head.
+  - The actual historical LightGBM-versus-XGBoost comparison result and workflow artifact do not exist yet because the trigger request has not been added.
 conflicts: []
 first_failure:
-  marker: pr63-static-test-format-typeguard
-  evidence: Initial CI exposed an over-broad static call-count assertion, then Ruff format drift, then pre-commit type narrowing caused by a non-TypeGuard helper; all were corrected without changing the request-only execution contract.
+  marker: pr63-static-test-format-typeguard-runtime-exit-default
+  evidence: CI exposed static test, formatting, and type-narrowing issues; execution-readiness review also found strategy exit default=0.0, which was corrected to frozen -0.009 and bound by strategy SHA before merge.
 rejected_hypotheses:
-  - The actual historical comparison should be triggered from the infrastructure PR itself.
-  - A generic or shared final-holdout data cache should be restored for this historical comparison.
-  - Contract risk_assumptions alone were sufficient to guarantee runtime exit=-0.009; strategy source inspection showed DecimalParameter default=0.0, so the frozen selected default and strategy hash had to be bound before execution.
+  - The infrastructure PR itself should trigger the actual historical comparison.
+  - Contract risk_assumptions alone were sufficient to guarantee runtime exit=-0.009.
+  - A generic or protected-final-holdout cache should be reused for this historical comparison.
 changed_paths:
   - .github/workflows/ai-platform-phase6-historical-comparison.yml
   - ai_platform/model_comparison/historical-comparison-run-request-schema-v1.json
@@ -86,12 +84,21 @@ changed_paths:
   - docs/ai_platform/PHASE6_HISTORICAL_COMPARISON_EXECUTION.md
   - docs/agents/tasks/FTAI-20260721-phase6-historical-comparison-workflow.md
 validation:
-  - command: AI Platform CI #267
+  - command: AI Platform CI #278
     result: PASS
-    evidence: pre-strategy-binding head passed tests, Ruff, formatter, Codespell, and JSON validation; final head requires rerun.
-  - command: GitHub Actions Security Analysis with zizmor #263
+    evidence: success on final PR #63 head 8b937de25e17404ccbde10885b2bae313fe36864
+  - command: GitHub Actions Security Analysis with zizmor #274
     result: PASS
-    evidence: pre-strategy-binding head passed security analysis; final head requires rerun.
+    evidence: success on final PR #63 head 8b937de25e17404ccbde10885b2bae313fe36864
+  - command: Freqtrade CI #295
+    result: PASS
+    evidence: success on final PR #63 head 8b937de25e17404ccbde10885b2bae313fe36864
+  - command: review threads PR #63
+    result: PASS
+    evidence: no inline review threads
+  - command: compare 433d9a70289c901a6ce74f2cbcab071583c47c03...develop
+    result: PASS
+    evidence: identical; ahead_by=0; behind_by=0
 blockers: []
-next_action: Wait for exact final-head CI on PR #63, fix only concrete failures, and squash-merge only after required gates and review threads are clean; do not add the run-request file in this PR.
+next_action: Create a separate branch from develop, add exactly ai_platform/model_comparison/run-requests/historical-comparison-v1.json using the canonical request generated by model_comparison_execution_request.py, open a trigger-only PR against develop, and inspect the guarded Phase 6 historical comparison workflow result without modifying any other file in that PR.
 ```

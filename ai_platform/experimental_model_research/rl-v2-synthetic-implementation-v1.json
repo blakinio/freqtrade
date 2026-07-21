@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "implementation_id": "rl-v2-synthetic-implementation-v1",
+  "status": "synthetic_only",
+  "task": "docs/agents/tasks/FTAI-20260722-rl-v2-synthetic-implementation.md",
+  "design_contract": "ai_platform/experimental_model_research/rl-v2-design-contract-v1.json",
+  "selected_design_mode": "position_independent_action_semantics",
+  "scope": {
+    "synthetic_reference_allowed": true,
+    "unit_tests_allowed": true,
+    "freqai_model_implementation_allowed": false,
+    "strategy_implementation_allowed": false,
+    "freqtrade_config_implementation_allowed": false,
+    "experiment_manifest_implementation_allowed": false,
+    "training_allowed": false,
+    "backtest_allowed": false,
+    "market_data_download_allowed": false,
+    "hyperopt_allowed": false,
+    "strict_oos_execution_allowed": false,
+    "performance_evaluation_allowed": false
+  },
+  "action_semantics": {
+    "0": "target_flat",
+    "1": "target_long",
+    "meaning_depends_on_hidden_current_position": false,
+    "training_inference_semantics_identical": true
+  },
+  "reward_reference": {
+    "invalid_action_penalty": -1.0,
+    "flat_neutral_reward": -0.1,
+    "flat_to_long_reward": 0.1,
+    "long_hold_penalty_floor": -0.01,
+    "long_hold_penalty_ceiling": 0.0,
+    "long_to_flat_reward": "decision_time_unrealized_profit_pct_x100",
+    "future_market_information_used": false
+  },
+  "observability": {
+    "action_counts_by_pair_and_action": true,
+    "zero_count_actions_included": true,
+    "do_predict_accepted_rejected_by_pair": true,
+    "pre_trade_entry_exit_signals_by_pair": true,
+    "raw_backtest_trade_count": true,
+    "strict_oos_input_included_excluded_counts": true,
+    "json_serializable_snapshot": true
+  },
+  "evaluation_isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden",
+      "not_before": "2026-10-01T00:00:00Z"
+    },
+    "future_evaluation_window_selected": false
+  },
+  "phase6_isolation": {
+    "member": false,
+    "may_change_candidates": false,
+    "may_change_selection_policy": false,
+    "may_consume_results": false,
+    "authoritative_selected_model": null
+  },
+  "frozen_candidate_reference": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009,
+    "may_change": false
+  }
+}

@@ -117,8 +117,8 @@ def test_workflow_chains_complete_historical_comparison_pipeline() -> None:
 
     assert workflow.count("python -m ai_platform.scripts.run_experiment") == 2
     assert workflow.count("model_comparison_oos_result_extractor") == 2
-    assert "expected_strategy_sha256 = request[\"strategy_sha256\"]" in workflow
-    assert "provenance.get(\"strategy_sha256\")" in workflow
+    assert 'expected_strategy_sha256 = request["strategy_sha256"]' in workflow
+    assert 'provenance.get("strategy_sha256")' in workflow
     assert "evaluate_model_selection" in workflow
     assert "model_comparison_provenance_binding" in workflow
     assert "model_comparison_result_assembler" in workflow

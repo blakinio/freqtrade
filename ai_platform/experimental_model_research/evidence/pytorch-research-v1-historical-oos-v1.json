@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "status": "completed_evidence_only",
+  "track_id": "pytorch-research-v1",
+  "experiment_identity": "pytorch-research-v1",
+  "model_type": "SeededPyTorchMLPRegressor",
+  "strategy": "AiFrozenCandidateStrategy",
+  "freqai_identifier": "ai-platform-pytorch-research-v1",
+  "execution": {
+    "trigger_pull_request": 94,
+    "trigger_merged": false,
+    "workflow_run_id": 29844351936,
+    "execution_git_commit": "af9e27c48c9f2bf4e7277d09fe5eaec2ee020af3",
+    "run_id": "20260721T165446Z-cb63cd31",
+    "execution_timerange": "20260301-20260701",
+    "semantic_prediction_window": "20260301-20260630",
+    "download_timerange": "20250801-20260701",
+    "strict_oos_timerange": "20260501-20260630",
+    "strict_oos_end_exclusive": "2026-07-01T00:00:00Z",
+    "fee_ratio_per_side": 0.002
+  },
+  "artifact": {
+    "artifact_id": 8503203347,
+    "name": "experimental-model-historical-backtest-pytorch-94",
+    "size_in_bytes": 271666,
+    "digest": "sha256:5092ef0d5b44de9812a822299b1af88c69d10c8c4f1ccc6b55c30359b3bf864d",
+    "downloaded_zip_sha256": "5092ef0d5b44de9812a822299b1af88c69d10c8c4f1ccc6b55c30359b3bf864d",
+    "expires_at": "2026-10-19T15:31:11Z"
+  },
+  "full_execution_metrics": {
+    "profit": -0.00135191384,
+    "drawdown": 0.002226460105720247,
+    "trades": 34
+  },
+  "strict_historical_oos": {
+    "profit": -0.001927824937,
+    "drawdown": 0.0022277419634928177,
+    "trades": 20,
+    "stability": 0.0,
+    "input_trades": 34,
+    "included_trades": 20,
+    "excluded_trades": 14,
+    "fold_profits": {
+      "2026-05": -0.0006747305089999999,
+      "2026-06": -0.001253094428
+    },
+    "fold_trade_counts": {
+      "2026-05": 11,
+      "2026-06": 9
+    },
+    "profitable_folds": 0
+  },
+  "evidence_file_sha256": {
+    "backtest-result.zip": "5486b37806a680f4c9990404af51ad366847133d2b0858400438c61ad7072210",
+    "backtest.log": "2af350af9b5965bb3b8ed3cf15302fe56eec267a8798a1e44dbc805e0e87f133",
+    "canonical-manifest.json": "c5208f8ca64a60684476011fb01d509a8591d97c1c72bb7c802162344002b2ea",
+    "data-coverage.json": "a38702f3866b1e89717250e8004463ea827ade37175c5824788632c98681944a",
+    "execution-contract.json": "07a77b817fab57f398313dd032e8e7a0759888d4d73b00c3cc8902fdf278079f",
+    "run-manifest.json": "c5208f8ca64a60684476011fb01d509a8591d97c1c72bb7c802162344002b2ea",
+    "run-provenance.json": "ced13dfca25b38d12ea5e492d05687d1ae8b79b36a3e653bd9d9a376d1cf9b11",
+    "run-request.json": "19047a61e9b3215bec5e86b5412997f099bcd25612e8c7b8b0e5f0a25c88e283",
+    "run-summary.json": "1c10af0f2a914e469996357cdfb6d94f5a115dc585a3220bc07030a19db22d12",
+    "strict-oos-extraction.json": "246a93d9001c323c6a7456c9699bcc05c0d6020d8244e889f337aa97fbac16c5"
+  },
+  "frozen_parameters": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009
+  },
+  "authorization": {
+    "phase6_member": false,
+    "cross_track_selection_allowed": false,
+    "retuning_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false,
+    "final_holdout_used": false
+  },
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "used": false
+  },
+  "conclusion": "The frozen PyTorch research track executed successfully and produced valid strict historical-OOS evidence. The strict OOS result contains 20 trades with negative aggregate profit in both May and June and stability 0.0. This is evidence only: it does not authorize promotion, retuning, profitability or superiority claims, final-holdout access, or any change to completed Phase 6."
+}

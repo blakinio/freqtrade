@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "status": "completed_evidence_only",
+  "track_id": "rl-research-v1",
+  "experiment_identity": "rl-research-v1",
+  "model_type": "LongOnlyReinforcementLearner",
+  "strategy": "AiLongOnlyRLResearchStrategy",
+  "freqai_identifier": "ai-platform-rl-research-v1",
+  "execution": {
+    "trigger_pull_request": 94,
+    "trigger_merged": false,
+    "workflow_run_id": 29844351936,
+    "execution_git_commit": "af9e27c48c9f2bf4e7277d09fe5eaec2ee020af3",
+    "run_id": "20260721T165410Z-e46e31f6",
+    "execution_timerange": "20260301-20260701",
+    "semantic_prediction_window": "20260301-20260630",
+    "download_timerange": "20250801-20260701",
+    "strict_oos_timerange": "20260501-20260630",
+    "strict_oos_end_exclusive": "2026-07-01T00:00:00Z",
+    "fee_ratio_per_side": 0.002
+  },
+  "artifact": {
+    "artifact_id": 8503197359,
+    "name": "experimental-model-historical-backtest-rl-94",
+    "size_in_bytes": 232050,
+    "digest": "sha256:66bef9f73ea898e81707ad2088693d93e86f13fdae59f3782075fb456cb9f9d4",
+    "downloaded_zip_sha256": "66bef9f73ea898e81707ad2088693d93e86f13fdae59f3782075fb456cb9f9d4",
+    "expires_at": "2026-10-19T15:31:11Z"
+  },
+  "full_execution_metrics": {
+    "profit": 0.0,
+    "drawdown": 0.0,
+    "trades": 0
+  },
+  "strict_historical_oos": {
+    "profit": 0.0,
+    "drawdown": 0.0,
+    "trades": 0,
+    "stability": 0.0,
+    "input_trades": 0,
+    "included_trades": 0,
+    "excluded_trades": 0,
+    "fold_profits": {
+      "2026-05": 0.0,
+      "2026-06": 0.0
+    },
+    "fold_trade_counts": {
+      "2026-05": 0,
+      "2026-06": 0
+    },
+    "profitable_folds": 0
+  },
+  "evidence_file_sha256": {
+    "backtest-result.zip": "5ba3b38ad63cd172d271b38fa1222f5e065942b7a0d46ffb8e44b055802de6a6",
+    "backtest.log": "a3f7e855fc790d77efed2e1da8ab01009999adf74718981878e0ca5012f6d8a0",
+    "canonical-manifest.json": "4aa2e16b5b0732b845a8827dc7550c7d20c7d066d71222798ee2ac4800fdb9a6",
+    "data-coverage.json": "a38702f3866b1e89717250e8004463ea827ade37175c5824788632c98681944a",
+    "execution-contract.json": "07a77b817fab57f398313dd032e8e7a0759888d4d73b00c3cc8902fdf278079f",
+    "run-manifest.json": "4aa2e16b5b0732b845a8827dc7550c7d20c7d066d71222798ee2ac4800fdb9a6",
+    "run-provenance.json": "309b2c98accece6c8033e170d88d8bec928bd1c2b663cbfc1d930cd996e3965a",
+    "run-request.json": "19047a61e9b3215bec5e86b5412997f099bcd25612e8c7b8b0e5f0a25c88e283",
+    "run-summary.json": "3fcbfcce409fe4c16f515efcf50b08ea23b68469b2de636c44ba67a19e4bd715",
+    "strict-oos-extraction.json": "6ae65fd2ae96fa53f9802db1ff25f08c35415b8268f4be3909d067c4db21d414"
+  },
+  "frozen_parameters": {
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009
+  },
+  "authorization": {
+    "phase6_member": false,
+    "cross_track_selection_allowed": false,
+    "retuning_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false,
+    "final_holdout_used": false
+  },
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "used": false
+  },
+  "conclusion": "The frozen RL research track executed successfully and produced schema-valid strict historical-OOS evidence with zero trades. Zero profit and zero drawdown are consequences of no executed trades and are not profitability evidence. This record does not authorize cross-track selection, promotion, retuning, profitability or superiority claims, final-holdout access, or any change to completed Phase 6."
+}

@@ -126,12 +126,21 @@ Status: `active`
 
 Goal: tune strategy thresholds and risk parameters without contaminating final evaluation.
 
-Current work package:
+Completed tuning work packages:
 
-- Phase 5.1 — signal-threshold Hyperopt foundation;
-- entry threshold only;
-- frozen final holdout enforced by the optimization contract;
-- local parameter perturbation required before final validation eligibility.
+- Phase 5.1 selected and froze `entry_prediction_threshold = 0.006`;
+- Phase 5.2 selected and froze `exit_prediction_threshold = -0.009`;
+- the selected candidate parameters are frozen and may not be tuned again from consumed historical OOS;
+- the protected prospective final holdout v2 is `20260801-20260930`;
+- the one-shot final holdout v2 evaluation is not authorized before `2026-10-01 UTC`.
+
+Current boundary:
+
+- Phase 5 remains active only because final holdout v2 has not yet been evaluated;
+- data from `20260801-20260930` may not be used for training, tuning, Hyperopt, feature selection,
+  model selection, or iterative evaluation as it arrives;
+- a failed future final-holdout result cannot be used to retune the frozen candidate inside the same
+  work package.
 
 Deliverables:
 
@@ -155,15 +164,25 @@ Acceptance criteria:
 
 ## Phase 6 — Model comparison
 
-Status: `planned`
+Status: `done`
 
-Goal: determine whether a model improves trading outcomes over the LightGBM baseline.
+Goal: determine whether a model improves trading outcomes over the frozen LightGBM baseline under a
+predeclared fair comparison contract.
 
-Candidates:
+Completed canonical candidates:
 
-- LightGBM baseline;
-- XGBoost;
-- custom/PyTorch only when justified.
+- `LightGBMRegressor`;
+- `XGBoostRegressor`.
+
+Authoritative outcome:
+
+- the boundary-corrected historical comparison completed with identical evaluation geometry and
+  trading-cost assumptions;
+- neither model passed the predeclared minimum-profit and minimum-stability eligibility gates;
+- authoritative `selected_model = null`;
+- Phase 6 therefore authorizes no model promotion and no profitability claim;
+- PyTorch and reinforcement-learning research remain separate experimental tracks and cannot
+  retroactively alter Phase 6 candidates, policy, evidence, or result.
 
 Acceptance criteria:
 
@@ -265,4 +284,10 @@ These are intentionally not part of the early critical path:
 - automatic capital scaling;
 - autonomous live promotion.
 
-They should be evaluated only after the baseline research and validation system is reliable.
+The bounded PyTorch and reinforcement-learning historical research tracks have completed one frozen,
+evidence-only historical execution each. PyTorch produced negative strict historical-OOS profit with
+stability `0.0`; the RL track produced zero trades. Neither result authorizes promotion, retuning,
+cross-track selection, a profitability/superiority claim, or protected-final-holdout access.
+
+Experimental backlog items should be evaluated only through separate prospectively declared bounded
+work packages after the baseline research and validation system is reliable.

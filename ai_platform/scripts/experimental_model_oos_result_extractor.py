@@ -11,6 +11,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError
+
 from ai_platform.scripts.experimental_model_research_contract import (
     ExperimentalModelResearchContractError,
     validate_experimental_model_research_foundation,
@@ -31,17 +34,13 @@ from ai_platform.scripts.run_experiment import (
     load_manifest,
     validate_research_config,
 )
-from jsonschema import Draft202012Validator
-from jsonschema.exceptions import ValidationError
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = (
-    REPO_ROOT
-    / "ai_platform/experimental_model_research/oos-extraction-contract-v1.json"
+    REPO_ROOT / "ai_platform/experimental_model_research/oos-extraction-contract-v1.json"
 )
-DEFAULT_SCHEMA = (
-    REPO_ROOT / "ai_platform/experimental_model_research/oos-extraction-schema-v1.json"
-)
+DEFAULT_SCHEMA = REPO_ROOT / "ai_platform/experimental_model_research/oos-extraction-schema-v1.json"
 EXTRACTOR_ID = "experimental-model-strict-oos-extractor-v1"
 EXPECTED_TRACKS = {"pytorch-research-v1", "rl-research-v1"}
 EXPECTED_AUTHORIZATION = {
@@ -61,9 +60,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise ExperimentalModelOosExtractorError(
-            f"Unable to read {label} {path}: {exc}"
-        ) from exc
+        raise ExperimentalModelOosExtractorError(f"Unable to read {label} {path}: {exc}") from exc
     if not isinstance(payload, dict):
         raise ExperimentalModelOosExtractorError(f"{label} must contain a JSON object")
     return payload
@@ -71,16 +68,12 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 
 def _resolve_repo_path(value: Any, label: str) -> Path:
     if not isinstance(value, str) or not value:
-        raise ExperimentalModelOosExtractorError(
-            f"{label} must be a repository-relative path"
-        )
+        raise ExperimentalModelOosExtractorError(f"{label} must be a repository-relative path")
     candidate = (REPO_ROOT / value).resolve()
     try:
         candidate.relative_to(REPO_ROOT)
     except ValueError as exc:
-        raise ExperimentalModelOosExtractorError(
-            f"{label} escapes repository root"
-        ) from exc
+        raise ExperimentalModelOosExtractorError(f"{label} escapes repository root") from exc
     return candidate
 
 
@@ -88,38 +81,24 @@ def _sha256(path: Path, label: str) -> str:
     try:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except OSError as exc:
-        raise ExperimentalModelOosExtractorError(
-            f"Unable to hash {label} {path}: {exc}"
-        ) from exc
+        raise ExperimentalModelOosExtractorError(f"Unable to hash {label} {path}: {exc}") from exc
 
 
 def _load_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:  # noqa: C901
     contract = _read_json(path.resolve(), "experimental OOS extraction contract")
     if contract.get("schema_version") != 1:
-        raise ExperimentalModelOosExtractorError(
-            "OOS extraction contract schema_version must be 1"
-        )
-    if (
-        contract.get("contract_id")
-        != "experimental-model-research-strict-oos-extraction-v1"
-    ):
+        raise ExperimentalModelOosExtractorError("OOS extraction contract schema_version must be 1")
+    if contract.get("contract_id") != "experimental-model-research-strict-oos-extraction-v1":
         raise ExperimentalModelOosExtractorError(
             "Unexpected experimental OOS extraction contract_id"
         )
-    if (
-        contract.get("foundation")
-        != "ai_platform/experimental_model_research/foundation-v1.json"
-    ):
-        raise ExperimentalModelOosExtractorError(
-            "Experimental OOS foundation path drifted"
-        )
+    if contract.get("foundation") != "ai_platform/experimental_model_research/foundation-v1.json":
+        raise ExperimentalModelOosExtractorError("Experimental OOS foundation path drifted")
     if (
         contract.get("schema")
         != "ai_platform/experimental_model_research/oos-extraction-schema-v1.json"
     ):
-        raise ExperimentalModelOosExtractorError(
-            "Experimental OOS extraction schema path drifted"
-        )
+        raise ExperimentalModelOosExtractorError("Experimental OOS extraction schema path drifted")
     if set(contract.get("allowed_tracks", [])) != EXPECTED_TRACKS:
         raise ExperimentalModelOosExtractorError(
             "Experimental OOS allowed track identities drifted"
@@ -134,19 +113,12 @@ def _load_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:  # noqa: C9
         "source_status": "consumed_historical_oos",
     }
     if scoring != expected_scoring:
-        raise ExperimentalModelOosExtractorError(
-            "Experimental OOS scoring window drifted"
-        )
+        raise ExperimentalModelOosExtractorError("Experimental OOS scoring window drifted")
 
     inclusion = contract.get("trade_inclusion", {})
     if inclusion.get("policy") != "fully_contained_closed_trades":
-        raise ExperimentalModelOosExtractorError(
-            "Experimental OOS trade inclusion policy drifted"
-        )
-    if (
-        inclusion.get("open_date_operator") != ">="
-        or inclusion.get("close_date_operator") != "<"
-    ):
+        raise ExperimentalModelOosExtractorError("Experimental OOS trade inclusion policy drifted")
+    if inclusion.get("open_date_operator") != ">=" or inclusion.get("close_date_operator") != "<":
         raise ExperimentalModelOosExtractorError(
             "Experimental OOS timestamp boundary semantics drifted"
         )
@@ -163,13 +135,9 @@ def _load_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:  # noqa: C9
 
     holdout = contract.get("protected_final_holdout", {})
     if holdout.get("timerange") != protected_timerange():
-        raise ExperimentalModelOosExtractorError(
-            "Protected final holdout timerange drifted"
-        )
+        raise ExperimentalModelOosExtractorError("Protected final holdout timerange drifted")
     if holdout.get("used") is not False or holdout.get("usage") != "forbidden":
-        raise ExperimentalModelOosExtractorError(
-            "Protected final holdout must remain forbidden"
-        )
+        raise ExperimentalModelOosExtractorError("Protected final holdout must remain forbidden")
 
     phase6 = contract.get("phase6_isolation", {})
     if phase6 != {
@@ -179,9 +147,7 @@ def _load_contract(path: Path = DEFAULT_CONTRACT) -> dict[str, Any]:  # noqa: C9
     }:
         raise ExperimentalModelOosExtractorError("Phase 6 isolation semantics drifted")
     if contract.get("authorization") != EXPECTED_AUTHORIZATION:
-        raise ExperimentalModelOosExtractorError(
-            "Experimental OOS authorization drifted"
-        )
+        raise ExperimentalModelOosExtractorError("Experimental OOS authorization drifted")
     return contract
 
 
@@ -224,13 +190,8 @@ def _load_track_and_manifest(
     except ExperimentError as exc:
         raise ExperimentalModelOosExtractorError(str(exc)) from exc
     freqai = config.get("freqai")
-    if (
-        not isinstance(freqai, dict)
-        or freqai.get("identifier") != track["freqai_identifier"]
-    ):
-        raise ExperimentalModelOosExtractorError(
-            f"{track_id} FreqAI identifier drifted"
-        )
+    if not isinstance(freqai, dict) or freqai.get("identifier") != track["freqai_identifier"]:
+        raise ExperimentalModelOosExtractorError(f"{track_id} FreqAI identifier drifted")
     return foundation, track, config_path, manifest
 
 
@@ -246,9 +207,7 @@ def _strategy_stats_for_track(
         )
     strategy_stats = strategies[track["strategy"]]
     if not isinstance(strategy_stats, dict):
-        raise ExperimentalModelOosExtractorError(
-            "Backtest strategy result must be a JSON object"
-        )
+        raise ExperimentalModelOosExtractorError("Backtest strategy result must be a JSON object")
 
     expected_identity = {
         "strategy_name": track["strategy"],
@@ -275,16 +234,10 @@ def _stability_metrics(
     profitable_folds = 0
 
     for fold in folds:
-        start = _parse_contract_timestamp(
-            fold["start_inclusive"], f"fold {fold['name']} start"
-        )
-        end = _parse_contract_timestamp(
-            fold["end_exclusive"], f"fold {fold['name']} end"
-        )
+        start = _parse_contract_timestamp(fold["start_inclusive"], f"fold {fold['name']} start")
+        end = _parse_contract_timestamp(fold["end_exclusive"], f"fold {fold['name']} end")
         fold_trades = [trade for trade in trades if start <= trade.close_date < end]
-        fold_profit = (
-            math.fsum(trade.profit_abs for trade in fold_trades) / starting_balance
-        )
+        fold_profit = math.fsum(trade.profit_abs for trade in fold_trades) / starting_balance
         fold_trade_counts[fold["name"]] = len(fold_trades)
         fold_profits[fold["name"]] = fold_profit
         if fold_profit > 0:
@@ -306,13 +259,9 @@ def _parse_contract_timestamp(value: str, label: str):
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise ExperimentalModelOosExtractorError(
-            f"{label} is not valid ISO-8601"
-        ) from exc
+        raise ExperimentalModelOosExtractorError(f"{label} is not valid ISO-8601") from exc
     if parsed.tzinfo is None:
-        raise ExperimentalModelOosExtractorError(
-            f"{label} must include an explicit timezone"
-        )
+        raise ExperimentalModelOosExtractorError(f"{label} must include an explicit timezone")
     return parsed.astimezone(UTC)
 
 
@@ -342,9 +291,7 @@ def extract_experimental_oos_result(
 
     raw_trades = strategy_stats.get("trades")
     if not isinstance(raw_trades, list):
-        raise ExperimentalModelOosExtractorError(
-            "Backtest strategy result trades must be a list"
-        )
+        raise ExperimentalModelOosExtractorError("Backtest strategy result trades must be a list")
     required_fields = contract["required_trade_fields"]
     trades = [
         _parse_trade(trade, source_index, required_fields)
@@ -360,9 +307,7 @@ def extract_experimental_oos_result(
         raise ExperimentalModelOosExtractorError(
             "Drawdown calculator must return a finite non-negative ratio"
         )
-    stability, stability_evidence = _stability_metrics(
-        included, starting_balance, contract
-    )
+    stability, stability_evidence = _stability_metrics(included, starting_balance, contract)
 
     result = {
         "schema_version": 1,
@@ -402,9 +347,7 @@ def extract_experimental_oos_result(
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     except OSError as exc:
         raise ExperimentalModelOosExtractorError(
             f"Unable to write extraction output: {exc}"
@@ -413,15 +356,9 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "archive", type=Path, help="Existing Freqtrade backtest result ZIP"
-    )
-    parser.add_argument(
-        "manifest", type=Path, help="Canonical PyTorch or RL research manifest"
-    )
-    parser.add_argument(
-        "--output", type=Path, required=True, help="Output JSON evidence path"
-    )
+    parser.add_argument("archive", type=Path, help="Existing Freqtrade backtest result ZIP")
+    parser.add_argument("manifest", type=Path, help="Canonical PyTorch or RL research manifest")
+    parser.add_argument("--output", type=Path, required=True, help="Output JSON evidence path")
     return parser.parse_args(argv)
 
 

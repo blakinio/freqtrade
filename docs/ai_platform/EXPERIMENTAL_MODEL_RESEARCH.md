@@ -123,3 +123,32 @@ The validator checks:
 - no Phase 6 membership, promotion, or profitability claim.
 
 No expensive training is required to validate this foundation. A later execution task must first provide strict May-June OOS result extraction for these experimental manifests; generic full-window run summaries are insufficient evidence.
+
+## Strict historical-OOS extraction
+
+The research-only extractor is `ai_platform/scripts/experimental_model_oos_result_extractor.py`. Its immutable semantics are declared in `ai_platform/experimental_model_research/oos-extraction-contract-v1.json`, and its output is validated by `ai_platform/experimental_model_research/oos-extraction-schema-v1.json`.
+
+The extractor consumes an already-produced Freqtrade backtest ZIP plus one canonical research manifest. It does not download data, train a model, execute a backtest, retune thresholds, or access the protected final holdout.
+
+Before scoring, it:
+
+- validates the full experimental-model research foundation;
+- accepts only `pytorch-research-v1` or `rl-research-v1` with exact canonical manifest content;
+- verifies the strategy, model class, FreqAI identifier, and prediction timerange embedded in the backtest stats;
+- records SHA-256 provenance for the archive, manifest, and config;
+- requires exactly one matching strategy result in the archive.
+
+The scoring boundary is `fully_contained_closed_trades`: `open_date >= 2026-05-01T00:00:00Z` and `close_date < 2026-07-01T00:00:00Z`. Trades crossing into the window from April or closing on/after July 1 are excluded and counted. A `force_exit` is included only when the trade is fully contained inside the scoring window.
+
+The output reports profit, drawdown, included trade count, and two-fold May/June stability using included trades only. Every extraction remains explicitly outside Phase 6, cannot be consumed by its current comparison or selection policy, and cannot authorize promotion or a profitability claim.
+
+Example extraction after a safe backtest artifact exists:
+
+```bash
+python -m ai_platform.scripts.experimental_model_oos_result_extractor \
+  path/to/backtest-result.zip \
+  ai_platform/experiments/pytorch-research-v1.json \
+  --output path/to/pytorch-strict-oos.json
+```
+
+Producing a valid extraction is evidence plumbing only. It is not evidence that PyTorch or RL is superior or profitable.

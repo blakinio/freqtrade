@@ -19,12 +19,8 @@ DESCRIPTOR_PATH = (
     / "experimental_model_research"
     / "rl-v2-runtime-integration-v1.json"
 )
-MODEL_PATH = (
-    REPO_ROOT / "ai_platform" / "freqaimodels" / "DesiredPositionReinforcementLearner.py"
-)
-STRATEGY_PATH = (
-    REPO_ROOT / "ai_platform" / "strategies" / "AiDesiredPositionRLResearchStrategy.py"
-)
+MODEL_PATH = REPO_ROOT / "ai_platform" / "freqaimodels" / "DesiredPositionReinforcementLearner.py"
+STRATEGY_PATH = REPO_ROOT / "ai_platform" / "strategies" / "AiDesiredPositionRLResearchStrategy.py"
 
 
 def _descriptor() -> dict:

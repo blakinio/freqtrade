@@ -43,13 +43,20 @@ Recommended initial shape:
 
 ```text
 ai_platform/portal/
-  backend/          # future FastAPI modular control plane
-  web/              # future Next.js/React portal
-  contracts/        # versioned API/event/domain contracts
-  execution/        # Freqtrade adapter/orchestration boundary
-  intelligence/     # post-trade analysis and AI insight boundary
-  simulator/        # deterministic exchange/market simulator
-  e2e/              # full-platform scenario harness
+  contracts/       # shared versioned API/event/domain contracts
+  control_plane/   # future FastAPI modular control plane
+  execution/       # Freqtrade adapter/orchestration boundary
+  events/          # event/outbox integration
+  observability/   # telemetry contracts/instrumentation
+  risk/            # deterministic risk policy
+  model_control/   # model lifecycle control integration
+  intelligence/    # post-trade analysis and AI insights
+  learning/        # insight -> hypothesis -> experiment workflow
+  simulator/       # deterministic exchange/market simulator
+  e2e/             # full-platform scenario harness
+  web/             # future Next.js/React portal
+  deploy/          # production-like deployment boundary
+  quality_agent/   # bounded autonomous diagnosis/repair
 ```
 
 The current architecture package defines these boundaries before production code is authorized.
@@ -62,6 +69,7 @@ The current architecture package defines these boundaries before production code
 - `DATA_AND_OBSERVABILITY_ARCHITECTURE.md` — data ownership, event contracts, decision snapshots, telemetry and retention.
 - `QUALITY_AND_AUTONOMOUS_E2E.md` — full-platform testing, user simulation and bounded agent-assisted repair.
 - `UI_INFORMATION_ARCHITECTURE.md` — portal navigation and major product surfaces.
+- `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
 - `DELIVERY_ROADMAP.md` — staged delivery plan and gates.
 - `AGENT_EXECUTION_PLAN.md` — bounded agent workstreams, ownership and dependencies.
 

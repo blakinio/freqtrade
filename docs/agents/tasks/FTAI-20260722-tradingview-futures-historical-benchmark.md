@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-tradingview-futures-historical-benchmark
-status: active
-branch: fix/tradingview-futures-benchmark-maintenance-v1
+status: done
+branch: docs/tradingview-futures-benchmark-final-closure
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "pending"
+related_pr: "#132, #140, #141, #146, #152"
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-benchmark-v1.json
   - ai_platform/scripts/tradingview_futures_historical_benchmark.py
@@ -66,7 +66,9 @@ No candidate is promoted. Any changed Supertrend startup geometry or other strat
 
 ## Archived one-shot workflow
 
-After the canonical request was consumed and evidence preserved, the benchmark workflow was converted to an archive guard. Maintenance PRs now validate the checkpoint and frozen contract, prove the consumed request is unchanged, and cannot execute another benchmark. Deleting or modifying the consumed request fails closed.
+PR #152 converted the consumed result-producing workflow into a maintenance-only archive guard and was squash-merged as `f989f778d8dfeb623fd09dba3dd5fe42e90505c6` after Freqtrade CI, zizmor, and the dedicated archive guard succeeded.
+
+Maintenance PRs now validate the checkpoint and frozen contract, prove the consumed request is unchanged, and cannot execute another benchmark. Deleting or modifying the consumed request fails closed. No result-producing job remains in the archived workflow.
 
 ## Safety boundaries
 
@@ -81,11 +83,11 @@ After the canonical request was consumed and evidence preserved, the benchmark w
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:45:00+02:00
-head: e02971b52d4d1940148605444b292aabdc177645
-branch: fix/tradingview-futures-benchmark-maintenance-v1
+updated_at: 2026-07-22T23:55:00+02:00
+head: f989f778d8dfeb623fd09dba3dd5fe42e90505c6
+branch: docs/tradingview-futures-benchmark-final-closure
 pr: pending
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-lookahead-repair.md
@@ -109,11 +111,11 @@ proven:
   - Recursive evidence is effectively stable for Bollinger, convergent with small EMA variance for Donchian, and materially unstable at startup 50 for Supertrend direction.
   - selected_candidate remains null and promotion, retuning, profitability and superiority claims remain forbidden.
   - Protected final holdout 20260801-20260930 remains unused and Phase 5 thresholds 0.006/-0.009 remain frozen.
-  - The consumed one-shot request is now protected by a maintenance-only archive guard and cannot trigger another benchmark.
+  - PR #152 merged the maintenance-only archive guard as f989f778d8dfeb623fd09dba3dd5fe42e90505c6 after all required gates succeeded.
 derived:
   - No v1 TradingView candidate qualifies for promotion from this historical evidence.
   - A changed Supertrend startup geometry would be a new prospective variant, not a correction to this frozen result.
-  - The benchmark can be durably closed after archive-guard CI succeeds.
+  - The completed benchmark is durably archived and cannot be retriggered by maintenance changes.
 unknown: []
 conflicts: []
 first_failure:
@@ -128,12 +130,12 @@ changed_paths:
   - .github/workflows/ai-platform-tradingview-futures-historical-benchmark.yml
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md
 validation:
-  - command: immutable benchmark artifact review
+  - command: immutable benchmark and repaired lookahead evidence review
     result: PASS
-    evidence: workflow 29947929886 artifact 8541078835 inspected; metrics and recursive evidence recorded without changing ranking.
-  - command: isolated lookahead repair evidence review
+    evidence: workflows 29947929886 and 29958028584 preserve frozen metrics and complete has_bias=False evidence without rerunning backtests.
+  - command: PR #152 repository gates and archive guard
     result: PASS
-    evidence: workflow 29958028584 recorded complete has_bias=False evidence for all three candidates.
+    evidence: Freqtrade CI 29959922194, zizmor 29959922230, and archive guard 29959922331 completed successfully before squash merge f989f778d8dfeb623fd09dba3dd5fe42e90505c6.
 blockers: []
-next_action: Open the archive-guard and benchmark-closure PR, merge only after checkpoint, Freqtrade CI, zizmor and the archive guard are green, then record the merge SHA in one final maintenance-safe checkpoint update.
+next_action: Keep this benchmark archived; do not retune or promote these v1 candidates, and require a separately declared prospective task for any changed strategy variant or future research execution.
 ```

@@ -1,10 +1,12 @@
+import { cookies } from "next/headers";
 import Link from "next/link";
 
 import { StatusPill } from "@/components/status-pill";
 import { listBots } from "@/lib/portal-api";
 
 export default async function BotsPage() {
-  const bots = await listBots();
+  const cookieHeader = (await cookies()).toString();
+  const bots = await listBots(cookieHeader);
   return (
     <section className="page-stack">
       <div className="page-heading">

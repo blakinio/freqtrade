@@ -45,11 +45,12 @@ _BUILTIN_ROLE_PERMISSIONS: dict[RoleName, frozenset[Permission]] = {
 
 
 def builtin_role(tenant_id: NonEmptyStr, role_name: RoleName) -> Role:
+    permissions = tuple(sorted(_BUILTIN_ROLE_PERMISSIONS[role_name], key=lambda item: item.value))
     return Role(
         role_id=f"builtin:{role_name.value}",
         tenant_id=tenant_id,
         name=role_name,
-        permissions=_BUILTIN_ROLE_PERMISSIONS[role_name],
+        permissions=permissions,
     )
 
 

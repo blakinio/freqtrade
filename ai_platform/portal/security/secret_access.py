@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ai_platform.portal.contracts.environment import Environment, EnvironmentContext, WorkloadPlane
-from ai_platform.portal.contracts.secrets import SecretRef
+from ai_platform.portal.contracts.secret_refs import SecretRef
 
 
 class SecretAccessDeniedError(PermissionError):

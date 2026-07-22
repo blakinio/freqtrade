@@ -8,7 +8,11 @@ import pytest
 from ai_platform.portal.contracts.identity import ActorType
 from ai_platform.portal.contracts.risk import TradeSide
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.control_plane.database import SessionFactory, build_engine, build_session_factory
+from ai_platform.portal.control_plane.database import (
+    SessionFactory,
+    build_engine,
+    build_session_factory,
+)
 from ai_platform.portal.intelligence.database import create_intelligence_schema
 from ai_platform.portal.intelligence.schema import (
     DecisionSnapshot,

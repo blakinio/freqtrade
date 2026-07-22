@@ -70,10 +70,14 @@ class TradeIntelligenceService:
                     )
                     is not None
                 ):
-                    raise TradeIntelligenceConflictError("decision snapshot identity already exists")
+                    raise TradeIntelligenceConflictError(
+                        "decision snapshot identity already exists"
+                    )
                 self._repository.add_snapshot(session, snapshot)
         except IntegrityError as exc:
-            raise TradeIntelligenceConflictError("decision snapshot identity already exists") from exc
+            raise TradeIntelligenceConflictError(
+                "decision snapshot identity already exists"
+            ) from exc
         return snapshot
 
     def analyze_outcome(
@@ -116,7 +120,9 @@ class TradeIntelligenceService:
                 self._repository.add_outcome(session, outcome)
                 self._repository.add_analysis(session, analysis)
         except IntegrityError as exc:
-            raise TradeIntelligenceConflictError("trade outcome or analysis identity already exists") from exc
+            raise TradeIntelligenceConflictError(
+                "trade outcome or analysis identity already exists"
+            ) from exc
         return analysis
 
     def get_analysis(self, context: RequestContext, analysis_id: str) -> TradeAnalysis:

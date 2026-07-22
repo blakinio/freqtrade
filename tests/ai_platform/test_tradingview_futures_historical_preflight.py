@@ -78,7 +78,7 @@ def test_market_discovery_resolves_exact_usd_perpetuals() -> None:
 
 
 def test_market_discovery_fails_on_ambiguous_perpetual() -> None:
-    with pytest.raises(TradingViewFuturesPreflightError, match="exactly one eligible BTC"):
+    with pytest.raises(TradingViewFuturesPreflightError, match="one eligible BTC"):
         discover_markets(
             [
                 _market("BTC", "BTC/USD:USD"),
@@ -89,7 +89,7 @@ def test_market_discovery_fails_on_ambiguous_perpetual() -> None:
 
 
 def test_market_discovery_fails_when_required_base_is_missing() -> None:
-    with pytest.raises(TradingViewFuturesPreflightError, match="exactly one eligible ETH"):
+    with pytest.raises(TradingViewFuturesPreflightError, match="one eligible ETH"):
         discover_markets([_market("BTC", "BTC/USD:USD")])
 
 

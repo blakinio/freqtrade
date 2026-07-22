@@ -49,25 +49,6 @@ jobs:
       - name: Compile AI platform Python
         run: python -m compileall -q ai_platform tests/ai_platform
 
-      - name: Validate P4 compact checkpoint
-        run: >-
-          python tools/agents/checkpoint.py
-          docs/agents/tasks/FTAI-20260722-portal-p4-data-observability.md
-          --require-checkpoint
-
-      - name: Generate P4 compact resume
-        run: >-
-          python tools/agents/resume.py --task
-          docs/agents/tasks/FTAI-20260722-portal-p4-data-observability.md
-          | tee p4-resume.txt
-
-      - name: Upload P4 compact resume
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: portal-p4-final-resume
-          path: p4-resume.txt
-          retention-days: 1
-
       - name: Run AI platform tests
         run: >-
           python -m pytest -q -o addopts=''

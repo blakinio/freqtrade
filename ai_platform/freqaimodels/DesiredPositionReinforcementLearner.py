@@ -15,6 +15,7 @@ from ai_platform.scripts.rl_v2_synthetic_reference import (
     desired_position_transition,
     reference_reward,
 )
+from freqtrade.exceptions import OperationalException
 from freqtrade.freqai.prediction_models.ReinforcementLearner import ReinforcementLearner
 from freqtrade.freqai.RL.BaseEnvironment import BaseEnvironment, Positions
 
@@ -23,6 +24,8 @@ class DesiredPositionEnvironment(BaseEnvironment):
     """Two-action long-only environment bound to the frozen RL-v2 synthetic semantics."""
 
     def __init__(self, **kwargs) -> None:
+        if kwargs.get("can_short", False):
+            raise RLV2SyntheticReferenceError("RL-v2 desired-position environment is long-only")
         super().__init__(**kwargs)
         self.actions = DesiredPosition
 
@@ -129,6 +132,13 @@ class DesiredPositionReinforcementLearner(ReinforcementLearner):
     """Research-only PPO-compatible FreqAI adapter for RL-v2 desired-position semantics."""
 
     MyRLEnv = DesiredPositionEnvironment
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        if self.model_type != "PPO":
+            raise OperationalException("RL-v2 runtime integration requires model_type=PPO")
+        if self.policy_type != "MlpPolicy":
+            raise OperationalException("RL-v2 runtime integration requires policy_type=MlpPolicy")
 
     def pack_env_dict(self, pair: str) -> dict[str, Any]:
         env_info = super().pack_env_dict(pair)

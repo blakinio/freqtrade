@@ -1,260 +1,343 @@
-<!DOCTYPE html>
-<html lang="en" class="__variable_d12fba"><head>
-<meta charset="utf-8">
-<meta name="robots" content="noindex,nofollow">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; connect-src 'none'; script-src 'none'; frame-src 'none'">
-<!-- Static visual capture. Live scripts and authenticated session data were intentionally excluded. --><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="assets/_next/static/css/f930877cd1f57d1e.css" crossorigin="anonymous" data-precedence="next"><meta name="next-size-adjust" content=""><title>Profile &amp; Referrals</title><meta name="theme-color" content="#121212"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Wick Hunter"><link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20data-codex-favicon-badge%3D%22codex-favicon-badge%22%20width%3D%2232%22%20height%3D%2232%22%20viewBox%3D%220%200%2032%2032%22%3E%3Cimage%20href%3D%22data%3Aimage%2Fbmp%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAKBUlEQVR4nKxXCXRU1Rm%2B9751MksWQogBCiJIRAQhICQKJKItAcQUT6I9RUHFXZSlih6tjLTVaAQkboVWBa3LMco50LhRlBiFiCCgCEQMBoIKDckkmeW9edu9%2Fe%2FMC4wQaE%2BP95x%2F3rz3%2Fvvv9%2Fv%2FJ6KzLMYY5leMMfxlfvg7DuhKoEJK6QiCSTrCwEYZZwhTxvY7jlNvGM669PS0z%2Fl%2BjLkcLgLTnnTgsyl3FfeF29lA1wMNARIQog5FVjNC9k64PwRiwnAVGUK9CSLnAkseYqTdttGbbW2tr%2Bfl5Wln0oN7UExcr8Ehdhf8fRgolz%2Bj1PwOEbq27v1D25%2Br3JTd1qoNwYgOBCnpEAXLtNiPts0a84f3aV6ybKo6KD9zMnaEvtQW1oqqWMtlnxoJ3INycARlA%2F0daDoQYcxphY3L5t3w5le7th0Zl5HuuUD1iJgIKMoERGFTOuRhiIDl82XJ77UsE3V0th0Md5hrZt89dtfc%2BUWjHCrFNn14%2BPnS0sEmj%2BxpBnRbB9cBcLseaGTyjVO%2F6YP9S%2BaWrfFcNKp%2Fvz45mTv6j%2F7VnmCwxD41enMGvqxG%2BxuXUmLeLkmeMo8cENtCR0PhLuPJd%2Bpv3eZPx0N37zz%2BxvjxQ8I%2FM6C72GBlAdUBDXfNqqn559t%2FmDtjgzz7xhldz7xccfykuiApR8MS%2B2rQPvAoyNzoJVbZhOpLBEF8QlG8xYxSJ9Qeqrvq%2BpF%2FvG3%2BqPTtNdonRRX99VQDBPDegeuHcHtFMuysFuPYzRj7W4PBzaLrMU5V0vNKGlaDKpzScdUBj0IelWRlPj8Kejx%2BoHBC31kLHy%2BKKXhVI%2FBSnBL6hbD7L0Aq0PdAJfC8pafC%2BR8XrydaWLjAkyue%2B4Cq%2BB6x7DizbeerWx4sKR07FkVzcoZHSQWuwG1t4XxgXuoq52seV54IUbJgSBA8QwnqWVk5ektIep%2B8cuX82tCwQo9o2vK4qa31KBk44M8c8VLVx2%2B0tMSNHat2SIkU2Ky1FKG0coxkhSABQkNWgOIo%2BmVWIm1XFT%2BVLTG5Stcoi0WMSH1j5SMIdXThayZV36drhqjHRGPPdy31bdaKnbwoUALDEC0oCKYN8OXcKwikxKHOO9GQ9o%2BNX98XS3oZpMWoWMyaeM1UjIXLGLU7EcHpiLL96z69Z61rwIma4em0USugqe%2FXBKlw5gkVKUNXZ2b2GZ%2BTowi9c5Uv%2FL2Wl76IcWjw4Gq5qekeo1%2Bav1KR1bswEqhInCtRhsNlrSrs16U0%2FIB0dczk8xTZv0CRvMVaPBRXZb%2Bqm%2BF6hMpfDaILWRAt4fWXSGXt6lp1ypwp00RZfCiZIkRE%2BFlt2NqouBmWwcJhrYeldHgW4sqnjKsaoUqBabZjEcsOd6lyIFMQ5DnTiqq2vLv1vm%2B4JXKaf6hN9WF2XLcdCuALcREFAQeD5cL0cwaxSecnIwCyqas05gbEBDJI679Dm5hjxoABDPP4JIUVFKMgNwx5ZPlBypxBlFpIwGKGacUMgUjjFUGdeiLBDA3HiORgTERI2sFDLc2zGz7Ze08wWGGOua3WKSnBNnhvuyeJH%2BXuviDwCJAPG%2B%2FINk26jQiSzbEVSuYKNBCJ0y55cgKg2URRVLn134F3GyFn7YIgwS5h9vTCJy7hUkRBHgGGI3iPwl3ahnXfXLp%2FX3jpItizgrElQOwZl6qBndO1rgEJ2BcVpN7oOPRjAUmTKbVFMKDQI7YzWc1aZDtmniL5kEXEN7%2Fe8%2FlTBRdPqnGomSfLacMgqRMmjn3oKBjVV1W9KBwJN3r89Nt0NHKWqPpnuSGWU04DQyeBjLoGIPDZM3nchHMbdUOzADH5o1zlnEELwdMCCbyPxdtDcSP%2BflPotbBhRjdathkhROJFVZal9rqfIdobE4K0iL1v5rUFxwWUVpgS4v%2BCmkggGInnLF5aKsR17UAipxhlQT6D0Hp7iVwREiqPbt2%2Fg7%2F75ljzsxjhTxzHhNZsjSFYnAu1NSCuR1Ak0nVw9p2XyoAlY6HqdwP7FCBeK6Uu%2FQZoGtAa13vuLRapzTqkNHuirlsfZ2ZIFzLkqLzzS6LPo1uRvbqlrfsSrbYK%2By33NDQt1IflLnsFamC0KCh5pqXFFcWjRrVol9eHD9goPkpEadyJIxChTbyweQGikzjAi3toSkoYcRjaDFG4MjNL3QbexCGk0BoFA4AFzEBL3996%2F0HO3fDDQqO4OChu%2BGxRjeNY70LRgwSsy5KC9BjaeVFR72MYSaO7C8xVlmh0LmE3LYrLwyNgQaMhaxGTLvjzC%2BWHu8JdbQAkxO%2Fr4zdNbYMRCW9O8iaxPVL3UwK6Y1r4b6B9l8%2FTK5MQGYU6QruWvXCTQJh3uivc1%2B2hW3CUA1Fd3SFs2zTN5eEFmpEQCBPebkTMpkkjKx8jeuC6rFzJD0PfnzZsmffTqVXDMaIOBe3pRVWFvrSMe6lNf%2FiobtOKY2z1EOwEZgJkx4GtERS%2B1D1XnkxBEKD4lkKCsqA%2BRJikRKd7HuAFs54h%2BwsH6bUi0p7FODeGfsFVXvycz3LsebYpDo5F4p1NB1rWH7FX1hNuFVj5AfDUQi2MF5G%2F0nF6P93ezgKucWdqwTi1RXNvU%2FJ92h7Dti%2FzKIHHAgHvTX37Z91efHl%2BKDEI8b5XVLRAXbz4d9kzZhRsBLn5yUaIeMNYBv%2BN%2F38oSXbMmcXV%2FRDDmwFbBgNwxeOG9uj6LfMr%2BXsQjNiCBcvNOWVPk307frwBUnbY3c2no0dBuc%2BdmISzROPE6p4v%2BRjH2F5cfH4wG1O8ErrlYBjdmeWYDUnl5XxwoQmBFRXYqa5a3DZz8kpl43uN1zJkbmdJEFsM9A4IvZjPjN1RSAk3Sbme%2BIpqbu7IeHBJ%2FtDqVVMHZWRnV8mKd6blxEEia4xa%2BnUoAck1CVk%2F%2By544I7XMj%2F7qHn6iNEDDq587aqrBeKHOYB44RWfYGuA%2Fgr0JSgxTwt2kJFFd5tDFS8tZGpn9PVnGlvWvf71Er%2FfPwXaOWCKszdmRq9O4koyNacakGgUyxds9dRt%2FfzW9o6os2z1rG8LJvWeBtPL7%2BHI8I8VEMQ64btwH2H4AEjoBN9FAaMAR1CAtUNtx6J1d1TUnAexWpTm9Q2EhgYn1fxAj8Zufm%2F7%2FcdSlZ8WgdTCqZj8fFk0rF%2Bj6ajpspJBDQ8%2FfjmRvHgkjBXDYSbIdQC9IKSdYPP3zBJ2v%2FXKnh9fXlmXLynSnKzMrDEYuoweDx8nlDz29qd3rgSZrq7gmT%2FNTl0zZrzo92j2LMMwy7SYpRi6ediyrO8tm7byemI2ggGGDPD6lLGBdN%2FFAW%2BG16YGNYzYQTjSr1oaXbN%2B%2B11HwEicGF16WGczoPs7kZWXvyUI4bYi5Ai%2FhWKb4DD7AoiCVxJkAFGH2I7BJ6q9iApbYOj5F47GttZ8%2BUBXivwztuX%2FAAAA%2F%2F%2BSbDbgAAAABklEQVQDAIrpBZr%2FGFgBAAAAAElFTkSuQmCC%22%20width%3D%2232%22%20height%3D%2232%22%20opacity%3D%220.3%22%20%2F%3E%3Cpath%20d%3D%22M3.04536%204.45259C2.7582%203.60299%203.60299%202.7582%204.45259%203.04536L14.1828%206.33403C15.1637%206.66558%2015.0872%208.08006%2014.0715%208.39045L10.2994%209.54319C9.93919%209.65327%209.65327%209.93919%209.54319%2010.2994L8.39046%2014.0715C8.08007%2015.0872%206.66558%2015.1637%206.33404%2014.1828L3.04536%204.45259Z%22%20fill%3D%22black%22%20stroke%3D%22white%22%20stroke-width%3D%221.5%22%20stroke-linejoin%3D%22round%22%20paint-order%3D%22stroke%20fill%22%20transform%3D%22translate(-2%20-2)%20scale(2.1)%22%20%2F%3E%3C%2Fsvg%3E" type="image/x-icon" sizes="1377x1401" data-codex-favicon-badge="true"><style data-emotion="css-global" data-s="">html{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;box-sizing:border-box;-webkit-text-size-adjust:100%;}*,*::before,*::after{box-sizing:inherit;}strong,b{font-weight:700;}body{margin:0;color:#ECF3FF;font-family:Gilroy,Inter,Roboto,Helvetica,Arial,sans-serif;font-weight:400;font-size:1rem;line-height:1.5;background-color:#0F0F2D;}@media print{body{background-color:#fff;}}body::backdrop{background-color:#0F0F2D;}html,body,*{font-family:Gilroy,Inter,Roboto,Helvetica,Arial,sans-serif;}.custom-list li{margin-bottom:30px;}</style><style data-emotion="css-global" data-s=""></style><style data-emotion="css-global" data-s=""></style><style data-emotion="css-global" data-s=""></style><style data-emotion="css-global" data-s=""></style><style data-emotion="css-global" data-s=""></style><style data-emotion="css-global" data-s=""></style><style data-emotion="css-global" data-s=""></style><style data-emotion="css-global" data-s=""></style><style data-emotion="css rksp5u" data-s="">.css-rksp5u{position:fixed;inset:0;background-color:#0A0A0A;display:-webkit-box;display:-webkit-flex;display:-ms-flexbox;display:flex;-webkit-align-items:center;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;-webkit-justify-content:center;justify-content:center;z-index:9999;}</style><style data-emotion="css 10egq61" data-s="">.css-10egq61{display:-webkit-box;display:-webkit-flex;display:-ms-flexbox;display:flex;gap:16px;}</style><style data-emotion="css p6ujlq animation-3sirbb" data-s="">.css-p6ujlq{width:16px;height:16px;border-radius:50%;background:linear-gradient(100.03deg, #5293FF 12.79%, #943CE1 96.85%);-webkit-animation:animation-3sirbb 1.2s ease-in-out infinite;animation:animation-3sirbb 1.2s ease-in-out infinite;-webkit-animation-delay:0s;animation-delay:0s;}@-webkit-keyframes animation-3sirbb{0%,80%,100%{-webkit-transform:scale(0);-moz-transform:scale(0);-ms-transform:scale(0);transform:scale(0);}40%{-webkit-transform:scale(1);-moz-transform:scale(1);-ms-transform:scale(1);transform:scale(1);}}@keyframes animation-3sirbb{0%,80%,100%{-webkit-transform:scale(0);-moz-transform:scale(0);-ms-transform:scale(0);transform:scale(0);}40%{-webkit-transform:scale(1);-moz-transform:scale(1);-ms-transform:scale(1);transform:scale(1);}}</style><style data-emotion="css pm3k1g animation-3sirbb" data-s="">.css-pm3k1g{width:16px;height:16px;border-radius:50%;background:linear-gradient(100.03deg, #5293FF 12.79%, #943CE1 96.85%);-webkit-animation:animation-3sirbb 1.2s ease-in-out infinite;animation:animation-3sirbb 1.2s ease-in-out infinite;-webkit-animation-delay:0.2s;animation-delay:0.2s;}@-webkit-keyframes animation-3sirbb{0%,80%,100%{-webkit-transform:scale(0);-moz-transform:scale(0);-ms-transform:scale(0);transform:scale(0);}40%{-webkit-transform:scale(1);-moz-transform:scale(1);-ms-transform:scale(1);transform:scale(1);}}@keyframes animation-3sirbb{0%,80%,100%{-webkit-transform:scale(0);-moz-transform:scale(0);-ms-transform:scale(0);transform:scale(0);}40%{-webkit-transform:scale(1);-moz-transform:scale(1);-ms-transform:scale(1);transform:scale(1);}}</style><style data-emotion="css 1qlds6y animation-3sirbb" data-s="">.css-1qlds6y{width:16px;height:16px;border-radius:50%;background:linear-gradient(100.03deg, #5293FF 12.79%, #943CE1 96.85%);-webkit-animation:animation-3sirbb 1.2s ease-in-out infinite;animation:animation-3sirbb 1.2s ease-in-out infinite;-webkit-animation-delay:0.4s;animation-delay:0.4s;}@-webkit-keyframes animation-3sirbb{0%,80%,100%{-webkit-transform:scale(0);-moz-transform:scale(0);-ms-transform:scale(0);transform:scale(0);}40%{-webkit-transform:scale(1);-moz-transform:scale(1);-ms-transform:scale(1);transform:scale(1);}}@keyframes animation-3sirbb{0%,80%,100%{-webkit-transform:scale(0);-moz-transform:scale(0);-ms-transform:scale(0);transform:scale(0);}40%{-webkit-transform:scale(1);-moz-transform:scale(1);-ms-transform:scale(1);transform:scale(1);}}</style><style data-emotion="css" data-s=""></style><style id="_goober"> .go1475592160{height:0;}.go1671063245{height:auto;}.go1888806478{display:flex;flex-wrap:wrap;flex-grow:1;}@media (min-width:600px){.go1888806478{flex-grow:initial;min-width:288px;}}.go167266335{background-color:#313131;font-size:0.875rem;line-height:1.43;letter-spacing:0.01071em;color:#fff;align-items:center;padding:6px 16px;border-radius:4px;box-shadow:0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px 0px rgba(0,0,0,0.14),0px 1px 18px 0px rgba(0,0,0,0.12);}.go3162094071{padding-left:20px;}.go3844575157{background-color:#313131;}.go1725278324{background-color:#43a047;}.go3651055292{background-color:#d32f2f;}.go4215275574{background-color:#ff9800;}.go1930647212{background-color:#2196f3;}.go946087465{display:flex;align-items:center;padding:8px 0;}.go703367398{display:flex;align-items:center;margin-left:auto;padding-left:16px;margin-right:-8px;}.go3963613292{width:100%;position:relative;transform:translateX(0);top:0;right:0;bottom:0;left:0;min-width:288px;}.go1141946668{box-sizing:border-box;display:flex;max-height:100%;position:fixed;z-index:1400;height:auto;width:auto;transition:top 300ms ease 0ms,right 300ms ease 0ms,bottom 300ms ease 0ms,left 300ms ease 0ms,max-width 300ms ease 0ms;pointer-events:none;max-width:calc(100% - 40px);}.go1141946668 .notistack-CollapseWrapper{padding:6px 0px;transition:padding 300ms ease 0ms;}@media (max-width:599.95px){.go1141946668{width:100%;max-width:calc(100% - 32px);}}.go3868796639 .notistack-CollapseWrapper{padding:2px 0px;}.go3118922589{top:14px;flex-direction:column;}.go1453831412{bottom:14px;flex-direction:column-reverse;}.go4027089540{left:20px;}@media (min-width:600px){.go4027089540{align-items:flex-start;}}@media (max-width:599.95px){.go4027089540{left:16px;}}.go2989568495{right:20px;}@media (min-width:600px){.go2989568495{align-items:flex-end;}}@media (max-width:599.95px){.go2989568495{right:16px;}}.go4034260886{left:50%;transform:translateX(-50%);}@media (min-width:600px){.go4034260886{align-items:center;}}</style><style id="monica-reading-highlight-style">
-        .monica-reading-highlight {
-          animation: fadeInOut 1.5s ease-in-out;
-        }
-
-        @keyframes fadeInOut {
-          0%, 100% { background-color: transparent; }
-          30%, 70% { background-color: rgba(2, 118, 255, 0.20); }
-        }
-      </style></head><body style="min-height:100vh;width:100%" monica-id="ofpnmcalabcbjgholdjcjblkibolbppb" monica-version="9.0.18"><div hidden=""><!--$--><!--/$--></div><next-route-announcer style="position: absolute;"></next-route-announcer><div id="monica-content-root" class="monica-widget" style="pointer-events: auto;"></div><div id="monica-content-root" class="monica-widget" style="pointer-events: auto;"></div><div class="MuiBox-root css-1dzk8i6"><div class="MuiBox-root css-qiny11"><div class="MuiBox-root css-nic0np"><div class="MuiBox-root css-1s7hqlr"><button class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-dsggap" tabindex="0" type="button"><svg width="50" height="50" viewBox="0 0 50 50" fill="none"><rect opacity="0.24" x="0.5" y="0.5" width="49" height="49" rx="19.5" stroke="#6175A7"></rect><path d="M29 17L21 25L29 33" stroke="#6175A7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button><img alt="Logo" loading="lazy" width="150" height="0" decoding="async" data-nimg="1" src="assets/logo-text.webp" style="color: transparent; height: auto; filter: none;"></div><div class="MuiBox-root css-1yjvs5a"><div class="MuiBox-root css-658p6u">TRADING BOTS</div><ul class="MuiList-root css-11fhglq"><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/dashboard"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.08333 5.41683C2.08333 3.57588 3.57571 2.0835 5.41666 2.0835C7.25761 2.0835 8.75 3.57588 8.75 5.41683C8.75 7.25778 7.25761 8.75016 5.41666 8.75016C3.57571 8.75016 2.08333 7.25778 2.08333 5.41683Z" stroke="#414A59" stroke-width="1.5"></path><path d="M11.25 14.5833C11.25 12.7424 12.7424 11.25 14.5833 11.25C16.4243 11.25 17.9167 12.7424 17.9167 14.5833C17.9167 16.4243 16.4243 17.9167 14.5833 17.9167C12.7424 17.9167 11.25 16.4243 11.25 14.5833Z" stroke="#414A59" stroke-width="1.5"></path><path d="M17.9167 5.41683C17.9167 3.84548 17.9167 3.05981 17.4285 2.57165C16.9404 2.0835 16.1547 2.0835 14.5833 2.0835C13.012 2.0835 12.2263 2.0835 11.7382 2.57165C11.25 3.05981 11.25 3.84548 11.25 5.41683C11.25 6.98818 11.25 7.77385 11.7382 8.26201C12.2263 8.75016 13.012 8.75016 14.5833 8.75016C16.1547 8.75016 16.9404 8.75016 17.4285 8.26201C17.9167 7.77385 17.9167 6.98818 17.9167 5.41683Z" stroke="#414A59" stroke-width="1.5"></path><path d="M8.74999 14.5835C8.74999 13.0121 8.74999 12.2265 8.26184 11.7383C7.77368 11.2502 6.98801 11.2502 5.41666 11.2502C3.84531 11.2502 3.05964 11.2502 2.57148 11.7383C2.08333 12.2265 2.08333 13.0121 2.08333 14.5835C2.08333 16.1548 2.08333 16.9405 2.57148 17.4287C3.05964 17.9168 3.84531 17.9168 5.41666 17.9168C6.98801 17.9168 7.77368 17.9168 8.26184 17.4287C8.74999 16.9405 8.74999 16.1548 8.74999 14.5835Z" stroke="#414A59" stroke-width="1.5"></path></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Dashboard</span></div></div></a></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/pnl-reporting"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_961_11912)"><path d="M18.3333 18.3335H1.66667" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M17.5 18.3335V12.0835C17.5 11.3931 16.9404 10.8335 16.25 10.8335H13.75C13.0596 10.8335 12.5 11.3931 12.5 12.0835V18.3335" stroke="#414A59" stroke-width="1.5"></path><path d="M12.5 18.3332V4.1665C12.5 2.98799 12.5 2.39874 12.1339 2.03262C11.7678 1.6665 11.1785 1.6665 10 1.6665C8.82149 1.6665 8.23223 1.6665 7.86612 2.03262C7.5 2.39874 7.5 2.98799 7.5 4.1665V18.3332" stroke="#414A59" stroke-width="1.5"></path><path d="M7.5 18.3332V7.9165C7.5 7.22615 6.94036 6.6665 6.25 6.6665H3.75C3.05964 6.6665 2.5 7.22615 2.5 7.9165V18.3332" stroke="#414A59" stroke-width="1.5"></path></g><defs><clipPath id="clip0_961_11912"><rect width="20" height="20" fill="white"></rect></clipPath></defs></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">PNL Reporting</span></div></div></a></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/open-deals"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_961_11905)"><path d="M18.3333 18.3332H10C6.07163 18.3332 4.10745 18.3332 2.88706 17.1128C1.66667 15.8924 1.66667 13.9282 1.66667 9.99984V1.6665" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M15.8335 5.8335L13.2351 9.1055C12.8371 9.6067 12.6381 9.8573 12.4096 9.97943C12.0584 10.1672 11.6386 10.1764 11.2795 10.004C11.0459 9.89194 10.8362 9.65023 10.4168 9.16681C9.99737 8.68341 9.78765 8.4417 9.5541 8.32962C9.19499 8.15729 8.77525 8.16641 8.42397 8.3542C8.19551 8.47633 7.9965 8.72692 7.59849 9.22811L5 12.5002" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path></g><defs><clipPath id="clip0_961_11905"><rect width="20" height="20" fill="white"></rect></clipPath></defs></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Open Deals</span></div></div></a></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/terminal"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_961_11916)"><path d="M1.66667 9.99984C1.66667 6.07147 1.66667 4.10728 2.88706 2.88689C4.10745 1.6665 6.07163 1.6665 10 1.6665C13.9284 1.6665 15.8926 1.6665 17.113 2.88689C18.3333 4.10728 18.3333 6.07147 18.3333 9.99984C18.3333 13.9282 18.3333 15.8924 17.113 17.1128C15.8926 18.3332 13.9284 18.3332 10 18.3332C6.07163 18.3332 4.10745 18.3332 2.88706 17.1128C1.66667 15.8924 1.66667 13.9282 1.66667 9.99984Z" stroke="#414A59" stroke-width="1.5"></path><path d="M14.1667 12.5H12.0833H10" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M5.83333 8.3335L6.02867 8.49628C7.09673 9.38633 7.63077 9.83136 7.63077 10.4168C7.63077 11.0023 7.09673 11.4473 6.02867 12.3374L5.83333 12.5002" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path></g><defs><clipPath id="clip0_961_11916"><rect width="20" height="20" rx="5" fill="white"></rect></clipPath></defs></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Trading Terminal</span></div></div></a></div><div class="MuiBox-root css-0"><button class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" type="button"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_961_11917)"><path d="M3.3335 9.9987C3.3335 6.856 3.3335 5.28465 4.30981 4.30834C5.28612 3.33203 6.85747 3.33203 10.0002 3.33203C13.1429 3.33203 14.7142 3.33203 15.6905 4.30834C16.6668 5.28465 16.6668 6.856 16.6668 9.9987C16.6668 13.1414 16.6668 14.7127 15.6905 15.6891C14.7142 16.6654 13.1429 16.6654 10.0002 16.6654C6.85747 16.6654 5.28612 16.6654 4.30981 15.6891C3.3335 14.7127 3.3335 13.1414 3.3335 9.9987Z" stroke="#414A59" stroke-width="1.5"></path><path d="M3.33333 10H1.66666" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M18.3333 10H16.6667" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M3.33333 7.5L1.66666 7.5" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M18.3333 7.5H16.6667" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M3.33333 12.5H1.66666" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M18.3333 12.5H16.6667" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M10 16.668L10 18.3346" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M10 1.66797L10 3.33464" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M7.5 16.668L7.5 18.3346" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M7.5 1.66797L7.5 3.33464" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M12.5 16.668L12.5 18.3346" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M12.5 1.66797L12.5 3.33464" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M7.5 11.668C8.20865 12.1932 9.07047 12.5013 10 12.5013C10.9295 12.5013 11.7914 12.1932 12.5 11.668" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><mask id="path-15-inside-1_961_11917" fill="white"><ellipse cx="12.5001" cy="7.91797" rx="0.833333" ry="1.25"></ellipse></mask><ellipse cx="12.5001" cy="7.91797" rx="0.833333" ry="1.25" fill="#1C274C"></ellipse><path d="M12.3334 7.91797C12.3334 8.09326 12.2842 8.20672 12.2573 8.24715C12.2452 8.26529 12.2507 8.24946 12.2887 8.22534C12.331 8.19851 12.405 8.16797 12.5001 8.16797V10.168C13.1686 10.168 13.6514 9.76154 13.9214 9.35655C14.196 8.94457 14.3334 8.43304 14.3334 7.91797H12.3334ZM12.5001 8.16797C12.5952 8.16797 12.6691 8.19851 12.7114 8.22534C12.7495 8.24946 12.755 8.26529 12.7429 8.24715C12.7159 8.20672 12.6667 8.09326 12.6667 7.91797H10.6667C10.6667 8.43304 10.8041 8.94457 11.0788 9.35655C11.3488 9.76154 11.8316 10.168 12.5001 10.168V8.16797ZM12.6667 7.91797C12.6667 7.74268 12.7159 7.62922 12.7429 7.58879C12.755 7.57064 12.7495 7.58647 12.7114 7.61059C12.6691 7.63743 12.5952 7.66797 12.5001 7.66797V5.66797C11.8316 5.66797 11.3488 6.0744 11.0788 6.47939C10.8041 6.89136 10.6667 7.4029 10.6667 7.91797H12.6667ZM12.5001 7.66797C12.405 7.66797 12.331 7.63743 12.2887 7.61059C12.2507 7.58647 12.2452 7.57064 12.2573 7.58879C12.2842 7.62922 12.3334 7.74268 12.3334 7.91797H14.3334C14.3334 7.4029 14.196 6.89136 13.9214 6.47939C13.6514 6.0744 13.1686 5.66797 12.5001 5.66797V7.66797Z" fill="#414A59" mask="url(#path-15-inside-1_961_11917)"></path><mask id="path-17-inside-2_961_11917" fill="white"><ellipse cx="7.49984" cy="7.91797" rx="0.833333" ry="1.25"></ellipse></mask><ellipse cx="7.49984" cy="7.91797" rx="0.833333" ry="1.25" fill="#1C274C"></ellipse><path d="M7.33317 7.91797C7.33317 8.09326 7.284 8.20672 7.25704 8.24715C7.24495 8.26529 7.25047 8.24946 7.28849 8.22534C7.33078 8.19851 7.40471 8.16797 7.49984 8.16797V10.168C8.16834 10.168 8.65115 9.76154 8.92114 9.35655C9.1958 8.94457 9.33317 8.43304 9.33317 7.91797H7.33317ZM7.49984 8.16797C7.59496 8.16797 7.66889 8.19851 7.71119 8.22534C7.74921 8.24946 7.75473 8.26529 7.74263 8.24715C7.71568 8.20672 7.6665 8.09326 7.6665 7.91797H5.6665C5.6665 8.43304 5.80388 8.94457 6.07853 9.35655C6.34852 9.76154 6.83134 10.168 7.49984 10.168V8.16797ZM7.6665 7.91797C7.6665 7.74268 7.71568 7.62922 7.74263 7.58879C7.75473 7.57064 7.74921 7.58647 7.71119 7.61059C7.66889 7.63743 7.59496 7.66797 7.49984 7.66797V5.66797C6.83134 5.66797 6.34852 6.0744 6.07853 6.47939C5.80388 6.89136 5.6665 7.4029 5.6665 7.91797H7.6665ZM7.49984 7.66797C7.40471 7.66797 7.33078 7.63743 7.28849 7.61059C7.25047 7.58647 7.24495 7.57064 7.25704 7.58879C7.284 7.62922 7.33317 7.74268 7.33317 7.91797H9.33317C9.33317 7.4029 9.1958 6.89136 8.92114 6.47939C8.65115 6.0744 8.16834 5.66797 7.49984 5.66797V7.66797Z" fill="#414A59" mask="url(#path-17-inside-2_961_11917)"></path></g><defs><clipPath id="clip0_961_11917"><rect width="20" height="20" fill="white"></rect></clipPath></defs></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Trading Bots</span></div></div><span class="MuiBox-root css-14ur8p5"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span></button></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/marketplace"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2.91667 9.1665V11.6665C2.91667 14.8092 2.91667 16.3805 3.89298 17.3569C4.86929 18.3332 6.44064 18.3332 9.58334 18.3332H10.4167C13.5594 18.3332 15.1307 18.3332 16.107 17.3569C17.0833 16.3805 17.0833 14.8092 17.0833 11.6665V9.1665" stroke="#414A59" stroke-width="1.5"></path><path d="M7.91667 1.6665H12.0833L12.6265 7.09764C12.7818 8.65151 11.5616 9.99984 10 9.99984C8.43839 9.99984 7.21817 8.65151 7.37356 7.09764L7.91667 1.6665Z" stroke="#414A59" stroke-width="1.5"></path><path d="M2.77477 4.45928C2.92317 3.71728 2.99737 3.34628 3.14824 3.04554C3.46613 2.41183 4.03814 1.9429 4.72188 1.75546C5.04637 1.6665 5.42472 1.6665 6.18141 1.6665H7.91666L7.31289 7.70423C7.18257 9.00742 6.08596 9.99984 4.77627 9.99984C3.16756 9.99984 1.96101 8.52808 2.27651 6.95061L2.77477 4.45928Z" stroke="#414A59" stroke-width="1.5"></path><path d="M17.2252 4.45928C17.0768 3.71728 17.0026 3.34628 16.8517 3.04554C16.5339 2.41183 15.9619 1.9429 15.2781 1.75546C14.9536 1.6665 14.5753 1.6665 13.8186 1.6665H12.0833L12.6871 7.70423C12.8174 9.00742 13.914 9.99984 15.2237 9.99984C16.8324 9.99984 18.039 8.52808 17.7235 6.95061L17.2252 4.45928Z" stroke="#414A59" stroke-width="1.5"></path><path d="M7.91667 17.9168V15.4168C7.91667 14.638 7.91667 14.2486 8.08414 13.9585C8.19385 13.7685 8.35165 13.6107 8.54167 13.501C8.83174 13.3335 9.22116 13.3335 10 13.3335C10.7789 13.3335 11.1683 13.3335 11.4583 13.501C11.6484 13.6107 11.8062 13.7685 11.9159 13.9585C12.0833 14.2486 12.0833 14.638 12.0833 15.4168V17.9168" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Marketplace</span></div></div></a></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/grid-bots"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8.33366 2.5L4.16699 17.5" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.8337 2.5L11.667 17.5" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M18.333 7.5H3.33301" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M16.667 13.333H1.66699" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Grid Bots</span></div></div></a></div></ul></div><div class="MuiBox-root css-1yjvs5a"><div class="MuiBox-root css-658p6u">PLATFORM</div><ul class="MuiList-root css-11fhglq"><div class="MuiBox-root css-0"><button class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" type="button"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><g clip-path="url(#clip0_961_11938)"><path d="M1.66667 9.99984C1.66667 6.07147 1.66667 4.10728 2.88706 2.88689C4.10745 1.6665 6.07163 1.6665 10 1.6665C13.9284 1.6665 15.8926 1.6665 17.113 2.88689C18.3333 4.10728 18.3333 6.07147 18.3333 9.99984C18.3333 13.9282 18.3333 15.8924 17.113 17.1128C15.8926 18.3332 13.9284 18.3332 10 18.3332C6.07163 18.3332 4.10745 18.3332 2.88706 17.1128C1.66667 15.8924 1.66667 13.9282 1.66667 9.99984Z" stroke="#414A59" stroke-width="1.5"></path><path d="M9.16667 9.99984C9.16667 11.1504 8.23393 12.0832 7.08333 12.0832C5.93274 12.0832 5 11.1504 5 9.99984C5 8.84924 5.93274 7.9165 7.08333 7.9165C8.23393 7.9165 9.16667 8.84924 9.16667 9.99984Z" stroke="#414A59" stroke-width="1.5"></path><path d="M9.16667 10H12.9167M12.9167 10H14.1667C14.6269 10 15 10.3731 15 10.8333V11.6667M12.9167 10V11.25" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path></g><defs><clipPath id="clip0_961_11938"><rect width="20" height="20" fill="white"></rect></clipPath></defs></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Logs</span></div></div><span class="MuiBox-root css-14ur8p5"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span></button></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/subscription"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18.3333 8.3335C18.3487 8.93938 18.3333 9.21203 18.3333 10.0002C18.3333 13.1429 18.3333 14.7142 17.357 15.6905C16.3807 16.6668 14.8094 16.6668 11.6667 16.6668H8.33334C5.19064 16.6668 3.61929 16.6668 2.64298 15.6905C1.66667 14.7142 1.66667 13.1429 1.66667 10.0002C1.66667 6.85747 1.66667 5.28612 2.64298 4.30981C3.61929 3.3335 5.19064 3.3335 8.33334 3.3335H10.8333" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><path d="M5 6.6665L6.79908 8.16574C8.32961 9.44118 9.09488 10.0789 10 10.0789C10.9051 10.0789 11.6704 9.44118 13.2009 8.16574" stroke="#414A59" stroke-width="1.5" stroke-linecap="round"></path><ellipse cx="15.8333" cy="4.1665" rx="2.5" ry="2.5" stroke="#414A59" stroke-width="1.5"></ellipse></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Subscription &amp; Credits</span></div></div></a></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1qv3gq4" tabindex="0" href="#" data-original-path="/profile"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-mx0ve8"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="6" r="2.5" stroke="white" stroke-width="1.5"></circle><path d="M3.33333 16.6667C3.33333 13.3333 6.66667 11.6667 10 11.6667C13.3333 11.6667 16.6667 13.3333 16.6667 16.6667" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7.5 11.25C8.16667 10.5 9.16667 10 10 10C10.8333 10 11.8333 10.5 12.5 11.25" stroke="white" stroke-width="1.5" stroke-linecap="round"></path></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Profile &amp; Referrals</span></div></div></a></div><div class="MuiBox-root css-0"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-quxgh1" tabindex="0" href="#" data-original-path="/profile?tab=notifications"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1cc2e9p"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18.7491 9.70957V9.00497C18.7491 5.13623 15.7274 2 12 2C8.27256 2 5.25087 5.13623 5.25087 9.00497V9.70957C5.25087 10.5552 5.00972 11.3818 4.5578 12.0854L3.45036 13.8095C2.43882 15.3843 3.21105 17.5249 4.97036 18.0229C9.57274 19.3257 14.4273 19.3257 19.0296 18.0229C20.789 17.5249 21.5612 15.3843 20.5496 13.8095L19.4422 12.0854C18.9903 11.3818 18.7491 10.5552 18.7491 9.70957Z" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7.5 19C8.15503 20.7478 9.92246 22 12 22C14.0775 22 15.845 20.7478 16.5 19" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Notifications</span></div></div></a></div></ul></div><div class="MuiBox-root css-6hez7n"><a class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-evypwh" tabindex="0" href="https://docs.wickhunter.io/en/" target="_blank" rel="noopener noreferrer"><div class="MuiBox-root css-1mervjy"><span class="MuiBox-root css-1ae7sfe"><svg class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-1mjbhg7" focusable="false" aria-hidden="true" viewBox="0 0 24 24"><path d="M21 5c-1.11-.35-2.33-.5-3.5-.5-1.95 0-4.05.4-5.5 1.5-1.45-1.1-3.55-1.5-5.5-1.5S2.45 4.9 1 6v14.65c0 .25.25.5.5.5.1 0 .15-.05.25-.05C3.1 20.45 5.05 20 6.5 20c1.95 0 4.05.4 5.5 1.5 1.35-.85 3.8-1.5 5.5-1.5 1.65 0 3.35.3 4.75 1.05.1.05.15.05.25.05.25 0 .5-.25.5-.5V6c-.6-.45-1.25-.75-2-1m0 13.5c-1.1-.35-2.3-.5-3.5-.5-1.7 0-4.15.65-5.5 1.5V8c1.35-.85 3.8-1.5 5.5-1.5 1.2 0 2.4.15 3.5.5z"></path><path d="M17.5 10.5c.88 0 1.73.09 2.5.26V9.24c-.79-.15-1.64-.24-2.5-.24-1.7 0-3.24.29-4.5.83v1.66c1.13-.64 2.7-.99 4.5-.99M13 12.49v1.66c1.13-.64 2.7-.99 4.5-.99.88 0 1.73.09 2.5.26V11.9c-.79-.15-1.64-.24-2.5-.24-1.7 0-3.24.3-4.5.83m4.5 1.84c-1.7 0-3.24.29-4.5.83v1.66c1.13-.64 2.7-.99 4.5-.99.88 0 1.73.09 2.5.26v-1.52c-.79-.16-1.64-.24-2.5-.24"></path></svg></span><div class="MuiListItemText-root css-ctkxu4"><span class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-1a1cx72">Documentation</span></div></div></a></div></div><main class="MuiBox-root css-tvttg3" id="wrapper" data-protonpass-form=""><div class="MuiBox-root css-oja8kk"><div class="MuiBox-root css-1t6likb"><a target="_blank" rel="noopener noreferrer" href="https://www.youtube.com/@wickhunter9006"><svg width="20" height="16" viewBox="0 0 20 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.4636 0.648438H4.31558C1.93215 0.648438 0 2.58059 0 4.96402V11.0368C0 13.4202 1.93215 15.3523 4.31558 15.3523H15.4636C17.8471 15.3523 19.7792 13.4202 19.7792 11.0368V4.96402C19.7792 2.58059 17.8471 0.648438 15.4636 0.648438ZM13.545 8.29585L7.863 11.0058C7.7116 11.078 7.53671 10.9677 7.53671 10.7999V5.21057C7.53671 5.04046 7.71619 4.93021 7.86791 5.00711L13.55 7.88649C13.7189 7.97208 13.716 8.21436 13.545 8.29585Z" fill="#414A59"></path></svg></a><a target="_blank" rel="noopener noreferrer" href="https://discord.com/invite/B8tCTk9bWC"><svg width="21" height="16" viewBox="0 0 21 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17.0374 1.31043C15.7349 0.700068 14.3421 0.256486 12.8861 0.00390625C12.7073 0.327705 12.4984 0.76322 12.3543 1.10967C10.8065 0.87654 9.27291 0.87654 7.75355 1.10967C7.60954 0.76322 7.39588 0.327705 7.21546 0.00390625C5.75784 0.256486 4.36352 0.701698 3.06099 1.31366C0.433792 5.28982 -0.2784 9.16722 0.0776966 12.9896C1.8202 14.2928 3.50889 15.0845 5.16908 15.6026C5.57899 15.0376 5.94458 14.4369 6.25952 13.8039C5.6597 13.5756 5.0852 13.2939 4.54237 12.9669C4.68638 12.8601 4.82724 12.7483 4.96334 12.6334C8.27424 14.1844 11.8716 14.1844 15.143 12.6334C15.2806 12.7483 15.4215 12.8601 15.5639 12.9669C15.0195 13.2956 14.4434 13.5772 13.8436 13.8055C14.1585 14.4369 14.5226 15.0392 14.934 15.6042C16.5958 15.0861 18.2861 14.2945 20.0286 12.9896C20.4464 8.5585 19.3148 4.7167 17.0374 1.31043ZM6.71058 10.6389C5.71669 10.6389 4.90161 9.70957 4.90161 8.57792C4.90161 7.44627 5.69928 6.51537 6.71058 6.51537C7.72191 6.51537 8.53696 7.44464 8.51956 8.57792C8.52113 9.70957 7.72191 10.6389 6.71058 10.6389ZM13.3957 10.6389C12.4018 10.6389 11.5867 9.70957 11.5867 8.57792C11.5867 7.44627 12.3844 6.51537 13.3957 6.51537C14.407 6.51537 15.2221 7.44464 15.2047 8.57792C15.2047 9.70957 14.407 10.6389 13.3957 10.6389Z" fill="#414A59"></path></svg></a><a target="_blank" rel="noopener noreferrer" href="https://x.com/WickHunterBot"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.6145 6.61032L15.4182 0.00390625H14.0434L9.00192 5.73899L4.97832 0.00390625H0.336426L6.42222 8.67719L0.336426 15.6042H1.71122L7.03168 9.54644L11.2818 15.6042H15.9237M2.20742 1.01916H4.3195L14.0423 14.6388H11.9297" fill="#414A59"></path></svg></a></div><button class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-6av0oj" tabindex="0" type="button" aria-label="Switch to light mode"><svg class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-vh810p" focusable="false" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 7c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5M2 13h2c.55 0 1-.45 1-1s-.45-1-1-1H2c-.55 0-1 .45-1 1s.45 1 1 1m18 0h2c.55 0 1-.45 1-1s-.45-1-1-1h-2c-.55 0-1 .45-1 1s.45 1 1 1M11 2v2c0 .55.45 1 1 1s1-.45 1-1V2c0-.55-.45-1-1-1s-1 .45-1 1m0 18v2c0 .55.45 1 1 1s1-.45 1-1v-2c0-.55-.45-1-1-1s-1 .45-1 1M5.99 4.58c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0s.39-1.03 0-1.41zm12.37 12.37c-.39-.39-1.03-.39-1.41 0-.39.39-.39 1.03 0 1.41l1.06 1.06c.39.39 1.03.39 1.41 0 .39-.39.39-1.03 0-1.41zm1.06-10.96c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0zM7.05 18.36c.39-.39.39-1.03 0-1.41-.39-.39-1.03-.39-1.41 0l-1.06 1.06c-.39.39-.39 1.03 0 1.41s1.03.39 1.41 0z"></path></svg></button><a class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary css-1imgxs2" tabindex="0" href="#" data-original-path="/profile?tab=notifications"><div class="MuiBox-root css-lllnmq"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M18.7491 9.70957V9.00497C18.7491 5.13623 15.7274 2 12 2C8.27256 2 5.25087 5.13623 5.25087 9.00497V9.70957C5.25087 10.5552 5.00972 11.3818 4.5578 12.0854L3.45036 13.8095C2.43882 15.3843 3.21105 17.5249 4.97036 18.0229C9.57274 19.3257 14.4273 19.3257 19.0296 18.0229C20.789 17.5249 21.5612 15.3843 20.5496 13.8095L19.4422 12.0854C18.9903 11.3818 18.7491 10.5552 18.7491 9.70957Z" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M7.5 19C8.15503 20.7478 9.92246 22 12 22C14.0775 22 15.845 20.7478 16.5 19" stroke="#414A59" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg></div></a><button class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary css-vg2gkt" tabindex="0" type="button"><div class="MuiBox-root css-171onha"><h6 class="MuiTypography-root MuiTypography-h6 css-1at7fy8">Credits:</h6><h6 class="MuiTypography-root MuiTypography-subtitle2 css-1iuhq8l">0</h6></div><span class="MuiButton-icon MuiButton-endIcon MuiButton-iconSizeMedium css-1g78ho2"><div class="MuiBox-root css-1ns5f5t"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M8 1.5C6.71442 1.5 5.45772 1.88122 4.3888 2.59545C3.31988 3.30968 2.48676 4.32484 1.99479 5.51256C1.50282 6.70028 1.37409 8.00721 1.6249 9.26809C1.8757 10.529 2.49477 11.6872 3.40381 12.5962C4.31285 13.5052 5.47104 14.1243 6.73192 14.3751C7.99279 14.6259 9.29973 14.4972 10.4874 14.0052C11.6752 13.5132 12.6903 12.6801 13.4046 11.6112C14.1188 10.5423 14.5 9.28558 14.5 8C14.4982 6.27665 13.8128 4.62441 12.5942 3.40582C11.3756 2.18722 9.72335 1.50182 8 1.5ZM8 12C7.85167 12 7.70666 11.956 7.58333 11.8736C7.45999 11.7912 7.36386 11.6741 7.30709 11.537C7.25033 11.4 7.23548 11.2492 7.26441 11.1037C7.29335 10.9582 7.36478 10.8246 7.46967 10.7197C7.57456 10.6148 7.7082 10.5434 7.85368 10.5144C7.99917 10.4855 8.14997 10.5003 8.28701 10.5571C8.42406 10.6139 8.54119 10.71 8.6236 10.8333C8.70602 10.9567 8.75 11.1017 8.75 11.25C8.75 11.4489 8.67098 11.6397 8.53033 11.7803C8.38968 11.921 8.19892 12 8 12ZM8.5 8.955V9C8.5 9.13261 8.44732 9.25979 8.35356 9.35355C8.25979 9.44732 8.13261 9.5 8 9.5C7.86739 9.5 7.74022 9.44732 7.64645 9.35355C7.55268 9.25979 7.5 9.13261 7.5 9V8.5C7.5 8.36739 7.55268 8.24021 7.64645 8.14645C7.74022 8.05268 7.86739 8 8 8C8.82688 8 9.5 7.4375 9.5 6.75C9.5 6.0625 8.82688 5.5 8 5.5C7.17313 5.5 6.5 6.0625 6.5 6.75V7C6.5 7.13261 6.44732 7.25979 6.35356 7.35355C6.25979 7.44732 6.13261 7.5 6 7.5C5.86739 7.5 5.74022 7.44732 5.64645 7.35355C5.55268 7.25979 5.5 7.13261 5.5 7V6.75C5.5 5.50938 6.62125 4.5 8 4.5C9.37875 4.5 10.5 5.50938 10.5 6.75C10.5 7.83625 9.64 8.74563 8.5 8.955Z" fill="#414A59"></path></svg></div></span></button><div class="MuiBox-root css-0"><div class="MuiBox-root css-fxwj1n"><div class="MuiAvatar-root MuiAvatar-circular css-19r7lnm"><img alt="Avatar" class="MuiAvatar-img css-45do71" src="assets/images/default_avatar_large.png"></div><svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-opacity="0.5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></div></div><div class="MuiBox-root css-1gmwkzf"><div class="MuiBox-root css-79elbk"><div class="MuiFormControl-root css-1v38q5d"><div class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl Mui-readOnly MuiInputBase-readOnly css-8s1akb"><input aria-invalid="false" readonly="" class="MuiInputBase-input MuiOutlinedInput-input Mui-readOnly MuiInputBase-readOnly css-1dhj0ns" type="text" value=""><fieldset aria-hidden="true" class="MuiOutlinedInput-notchedOutline css-kdbx36"><legend class="css-w4cd9x"><span class="notranslate" aria-hidden="true">​</span></legend></fieldset></div><div class="MuiBox-root css-16fzehu"><img alt="Exchange Icon" loading="lazy" width="24" height="24" decoding="async" data-nimg="1" src="assets/images/landing/icons/bitget.webp" style="color: transparent;"><h6 class="MuiTypography-root MuiTypography-h6 css-1at7fy8">[Spot]</h6><h5 class="MuiTypography-root MuiTypography-h5 css-1c20var">My Bitget Account</h5></div><div class="MuiBox-root css-n0ne9h"><svg class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-us2md" focusable="false" aria-hidden="true" viewBox="0 0 10 6"><path d="M1 1L5 5L9 1" stroke="#414A59" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"></path></svg></div></div></div><button class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary css-1cdmtga" tabindex="0" type="button"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 4V20M4 12L20 12" stroke="url(#paint0_linear_961_13721)" stroke-width="1.5" stroke-linecap="round"></path><defs><linearGradient id="paint0_linear_961_13721" x1="5.2" y1="4" x2="13.2507" y2="19.3438" gradientUnits="userSpaceOnUse"><stop stop-color="#5293FF"></stop><stop offset="1" stop-color="#943CE1"></stop></linearGradient></defs></svg><span class="MuiTouchRipple-root css-4mb1j7"></span></button></div></div><div class="MuiBox-root css-17qid2m"><div class="MuiBox-root css-0"><div class="MuiTabs-root css-1bqp220"><div class="MuiTabs-scrollableX MuiTabs-hideScrollbar css-i8yde5" style="width: 99px; height: 99px; position: absolute; top: -9999px; overflow: scroll;"></div><div class="MuiTabs-scroller MuiTabs-hideScrollbar MuiTabs-scrollableX css-jb8z7h" style="margin-bottom: 0px;"><div role="tablist" class="MuiTabs-list MuiTabs-flexContainer css-162tvoi"><button class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-1fjizep" tabindex="0" type="button" role="tab" aria-selected="true">Profile Info</button><button class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ltfxk4" tabindex="-1" type="button" role="tab" aria-selected="false">Referrals</button><button class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ltfxk4" tabindex="-1" type="button" role="tab" aria-selected="false">Notifications</button><button class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ltfxk4" tabindex="-1" type="button" role="tab" aria-selected="false">Withdrawal Methods</button><button class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-1ltfxk4" tabindex="-1" type="button" role="tab" aria-selected="false">Two Factor Authentication</button></div><span class="MuiTabs-indicator css-1ugnaai" style="left: 0px; width: 114.763px;"></span></div></div><div class="MuiBox-root css-h5fkc8"><div class="MuiBox-root css-0"><div class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-row MuiGrid-spacing-xs-2 css-1klpoq2"><div class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-md-4 css-s9s723"><div class="MuiAvatar-root MuiAvatar-circular css-eose71"><img alt="Avatar" class="MuiAvatar-img css-45do71" src="assets/images/default_avatar_large.png"></div><button class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary css-qkni6i" tabindex="0" type="button"><span class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-cveorv"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="13" r="3" stroke="#5293FF" stroke-width="1.5"></circle><path d="M9.77778 21H14.2222C17.3433 21 18.9038 21 20.0248 20.2646C20.51 19.9462 20.9267 19.5371 21.251 19.0607C22 17.9601 22 16.4279 22 13.3636C22 10.2994 22 8.76721 21.251 7.6666C20.9267 7.19014 20.51 6.78104 20.0248 6.46268C19.3044 5.99013 18.4027 5.82123 17.022 5.76086C16.3631 5.76086 15.7959 5.27068 15.6667 4.63636C15.4728 3.68489 14.6219 3 13.6337 3H10.3663C9.37805 3 8.52715 3.68489 8.33333 4.63636C8.20412 5.27068 7.63685 5.76086 6.978 5.76086C5.59733 5.82123 4.69555 5.99013 3.97524 6.46268C3.48995 6.78104 3.07328 7.19014 2.74902 7.6666C2 8.76721 2 10.2994 2 13.3636C2 16.4279 2 17.9601 2.74902 19.0607C3.07328 19.5371 3.48995 19.9462 3.97524 20.2646C5.09624 21 6.65675 21 9.77778 21Z" stroke="#5293FF" stroke-width="1.5"></path><path d="M19 10H18" stroke="#5293FF" stroke-width="1.5" stroke-linecap="round"></path></svg></span>Change</button><div class="MuiBox-root css-75stw6"><h4 class="MuiTypography-root MuiTypography-h4 css-1lg7x3c">Your User ID:</h4><h6 class="MuiTypography-root MuiTypography-h6 css-1at7fy8">00000000-0000-4000-8000-000000000000</h6></div><div class="MuiBox-root css-8tq86l"><h4 class="MuiTypography-root MuiTypography-h4 css-1lg7x3c">Email:</h4><h6 class="MuiTypography-root MuiTypography-h6 css-1at7fy8">demo@example.com</h6></div></div><div class="MuiGrid-root MuiGrid-direction-xs-row MuiGrid-grid-xs-12 MuiGrid-grid-md-8 css-1vyu5pa"><h2 class="MuiTypography-root MuiTypography-h2 css-8yhqkh">Name &amp; Surname</h2><div class="MuiBox-root css-1kg2e2b"><div class="MuiBox-root css-jm12xa"><h5 class="MuiTypography-root MuiTypography-h5 css-1htqfh">Name</h5><div class="MuiBox-root css-11mn6qt"><div class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-159ys8j"><div class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl css-qxiv09"><input aria-invalid="false" id="«r6»" class="MuiInputBase-input MuiInput-input css-in64xc" type="text"></div></div></div></div><div class="MuiBox-root css-jm12xa"><h5 class="MuiTypography-root MuiTypography-h5 css-1htqfh">Surname</h5><div class="MuiBox-root css-11mn6qt"><div class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-159ys8j"><div class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl css-qxiv09"><input aria-invalid="false" id="«r7»" class="MuiInputBase-input MuiInput-input css-in64xc" type="text"></div></div></div></div><button class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorPrimary css-6dikvp" tabindex="0" type="button">Save</button></div><h2 class="MuiTypography-root MuiTypography-h2 css-8yhqkh">Social Media</h2><div class="MuiBox-root css-5nkcqp"><h5 class="MuiTypography-root MuiTypography-h5 css-8ymgm1">Twitter</h5><div class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1vufm7e"><div class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedStart css-cu5t7w"><div class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-standard MuiInputAdornment-sizeMedium css-19cy11a"><span class="notranslate" aria-hidden="true">​</span><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.6145 6.61032L15.4182 0.00390625H14.0434L9.00192 5.73899L4.97832 0.00390625H0.336426L6.42222 8.67719L0.336426 15.6042H1.71122L7.03168 9.54644L11.2818 15.6042H15.9237M2.20742 1.01916H4.3195L14.0423 14.6388H11.9297" fill="#414A59"></path></svg></div><input aria-invalid="false" id="«r9»" placeholder="@username" class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedStart css-in64xc" type="text" value=""></div></div></div><div class="MuiBox-root css-5nkcqp"><h5 class="MuiTypography-root MuiTypography-h5 css-8ymgm1">YouTube</h5><div class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1vufm7e"><div class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedStart css-cu5t7w"><div class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-standard MuiInputAdornment-sizeMedium css-19cy11a"><span class="notranslate" aria-hidden="true">​</span><svg width="20" height="16" viewBox="0 0 20 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M15.4636 0.648438H4.31558C1.93215 0.648438 0 2.58059 0 4.96402V11.0368C0 13.4202 1.93215 15.3523 4.31558 15.3523H15.4636C17.8471 15.3523 19.7792 13.4202 19.7792 11.0368V4.96402C19.7792 2.58059 17.8471 0.648438 15.4636 0.648438ZM13.545 8.29585L7.863 11.0058C7.7116 11.078 7.53671 10.9677 7.53671 10.7999V5.21057C7.53671 5.04046 7.71619 4.93021 7.86791 5.00711L13.55 7.88649C13.7189 7.97208 13.716 8.21436 13.545 8.29585Z" fill="#414A59"></path></svg></div><input aria-invalid="false" id="«ra»" placeholder="@username" class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedStart css-in64xc" type="text" value=""></div></div></div><div class="MuiBox-root css-5nkcqp"><h5 class="MuiTypography-root MuiTypography-h5 css-8ymgm1">Instagram</h5><div class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1vufm7e"><div class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedStart css-cu5t7w"><div class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-standard MuiInputAdornment-sizeMedium css-19cy11a"><span class="notranslate" aria-hidden="true">​</span><svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.93295 0.0215999C4.14656 0.00387774 5.24546 0 9.00288 0H11.9322C14.0432 0.00366506 14.1634 0.0210676 14.5644 0.0791622L14.5877 0.0825291C15.4554 0.207707 16.1835 0.553892 16.779 1.12274C17.1126 1.44385 17.3424 1.75791 17.5493 2.17846C17.8016 2.6922 17.9255 3.17824 17.9822 3.90106C17.9944 4.05615 17.9999 6.5243 17.9999 8.99412C17.9999 11.4635 17.9948 13.9362 17.9826 14.0913C17.9266 14.8026 17.8027 15.2928 17.5583 15.7969C17.0724 16.7994 16.1795 17.5306 15.1011 17.8089C14.71 17.91 14.3563 17.9575 13.7472 17.9862C13.5299 17.9972 11.2568 18 8.98363 18C6.71052 18 4.4388 17.9931 4.21592 17.9834C3.68986 17.9585 3.28009 17.9058 2.90908 17.8103C1.83759 17.5333 0.928074 16.7911 0.451853 15.8024C0.202667 15.2859 0.0850003 14.8137 0.0227038 14.0632C0.00470266 13.85 0.00055276 12.7519 0.00055276 8.99647C0.00055276 8.53635 0.000370119 8.11881 0.000204094 7.73927C-8.64174e-05 7.07513 -0.000326049 6.52731 0.00055276 6.07122C0.00409094 3.95726 0.0212803 3.83864 0.0797381 3.43522C0.0807408 3.4283 0.0817556 3.42129 0.0827826 3.4142C0.208069 2.54707 0.554159 1.8176 1.1252 1.22466C1.43876 0.899519 1.75647 0.66758 2.15932 0.467479C2.68206 0.207156 3.16187 0.0857128 3.93295 0.0215999ZM6.24397 2.35193C6.95785 2.31946 7.18595 2.31152 9.00353 2.31152H9.00144C10.8196 2.31152 11.0468 2.31946 11.7607 2.35193C12.4732 2.38453 12.9598 2.49724 13.3864 2.66262C13.827 2.83329 14.1993 3.06178 14.5716 3.43378C14.9439 3.8055 15.1725 4.17861 15.344 4.61846C15.5085 5.04368 15.6215 5.52963 15.6549 6.24158C15.687 6.95493 15.6954 7.18285 15.6954 8.99909C15.6954 10.8153 15.687 11.0427 15.6549 11.756C15.6215 12.4677 15.5085 12.9538 15.344 13.3792C15.1725 13.8189 14.9439 14.192 14.5716 14.5637C14.1997 14.9357 13.8269 15.1648 13.3869 15.3356C12.9611 15.5009 12.4742 15.6136 11.7617 15.6462C11.0478 15.6787 10.8204 15.6867 9.00269 15.6867C7.18525 15.6867 6.95729 15.6787 6.24342 15.6463C5.53109 15.6137 5.04461 15.5009 4.6188 15.3356C4.17891 15.1648 3.80553 14.9357 3.43367 14.5637C3.06153 14.192 2.83287 13.8189 2.66179 13.379C2.49644 12.9538 2.38364 12.4678 2.35087 11.7559C2.31853 11.0426 2.31044 10.8153 2.31044 8.99909C2.31044 7.18286 2.31881 6.95478 2.35073 6.24145C2.3828 5.52977 2.49574 5.04368 2.66166 4.61832C2.83315 4.17861 3.06182 3.8055 3.43409 3.43378C3.80608 3.06192 4.17947 2.83343 4.61964 2.66263C5.04518 2.49724 5.5315 2.38453 6.24397 2.35193ZM8.78048 3.51662C8.64514 3.51656 8.51973 3.5165 8.40315 3.51668L8.40316 3.515C7.15584 3.5164 6.91658 3.52476 6.29919 3.55262C5.64667 3.58258 5.29238 3.69125 5.05647 3.78321C4.74415 3.9047 4.52106 4.04959 4.28683 4.28366C4.05259 4.51772 3.9073 4.74064 3.786 5.05273C3.6944 5.28847 3.58537 5.64235 3.55553 6.29439C3.52346 6.99936 3.51705 7.21003 3.51705 8.99588C3.51705 10.7817 3.52346 10.9935 3.55553 11.6985C3.58523 12.3505 3.6944 12.7044 3.786 12.9399C3.90759 13.2521 4.05259 13.4745 4.28683 13.7085C4.52106 13.9426 4.74415 14.0875 5.05647 14.2087C5.29253 14.3002 5.64667 14.4092 6.29919 14.4393C7.0047 14.4713 7.21649 14.4783 9.00353 14.4783C10.7904 14.4783 11.0024 14.4713 11.7079 14.4393C12.3604 14.4095 12.7148 14.3008 12.9505 14.2088C13.2629 14.0876 13.4853 13.9427 13.7195 13.7087C13.9538 13.4747 14.0991 13.2525 14.2204 12.9404C14.312 12.705 14.421 12.3511 14.4508 11.6991C14.4829 10.9941 14.4899 10.7823 14.4899 8.99756C14.4899 7.21281 14.4829 7.00104 14.4508 6.29606C14.4211 5.64402 14.312 5.29013 14.2204 5.05468C14.0988 4.7426 13.9538 4.51968 13.7195 4.28561C13.4854 4.05155 13.2628 3.90664 12.9505 3.78543C12.7145 3.6939 12.3604 3.58495 11.7079 3.55513C11.0022 3.52309 10.7904 3.51668 9.00353 3.51668C8.9263 3.51668 8.852 3.51665 8.78048 3.51662ZM11.7728 5.42932C11.7728 4.98613 12.1326 4.62709 12.576 4.62709L12.5759 4.62682C13.0193 4.62682 13.3791 4.98627 13.3791 5.42932C13.3791 5.87237 13.0193 6.23183 12.576 6.23183C12.1326 6.23183 11.7728 5.87237 11.7728 5.42932ZM5.56664 8.99909C5.56664 7.10251 7.10542 5.56482 9.0034 5.56474C10.9014 5.56474 12.4399 7.10247 12.4399 8.99909C12.4399 10.8957 10.9016 12.4327 9.00353 12.4327C7.1055 12.4327 5.56664 10.8957 5.56664 8.99909ZM11.2344 8.99909C11.2344 7.76788 10.2355 6.7699 9.00353 6.7699C7.77141 6.7699 6.77269 7.76788 6.77269 8.99909C6.77269 10.2302 7.77141 11.2283 9.00353 11.2283C10.2355 11.2283 11.2344 10.2302 11.2344 8.99909Z" fill="#414A59"></path></svg></div><input aria-invalid="false" id="«rb»" placeholder="@username" class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedStart css-in64xc" type="text" value=""></div></div></div><div class="MuiBox-root css-5nkcqp"><h5 class="MuiTypography-root MuiTypography-h5 css-8ymgm1">Discord</h5><div class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1vufm7e"><div class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedStart css-cu5t7w"><div class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-standard MuiInputAdornment-sizeMedium css-19cy11a"><span class="notranslate" aria-hidden="true">​</span><svg width="21" height="16" viewBox="0 0 21 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M17.0374 1.31043C15.7349 0.700068 14.3421 0.256486 12.8861 0.00390625C12.7073 0.327705 12.4984 0.76322 12.3543 1.10967C10.8065 0.87654 9.27291 0.87654 7.75355 1.10967C7.60954 0.76322 7.39588 0.327705 7.21546 0.00390625C5.75784 0.256486 4.36352 0.701698 3.06099 1.31366C0.433792 5.28982 -0.2784 9.16722 0.0776966 12.9896C1.8202 14.2928 3.50889 15.0845 5.16908 15.6026C5.57899 15.0376 5.94458 14.4369 6.25952 13.8039C5.6597 13.5756 5.0852 13.2939 4.54237 12.9669C4.68638 12.8601 4.82724 12.7483 4.96334 12.6334C8.27424 14.1844 11.8716 14.1844 15.143 12.6334C15.2806 12.7483 15.4215 12.8601 15.5639 12.9669C15.0195 13.2956 14.4434 13.5772 13.8436 13.8055C14.1585 14.4369 14.5226 15.0392 14.934 15.6042C16.5958 15.0861 18.2861 14.2945 20.0286 12.9896C20.4464 8.5585 19.3148 4.7167 17.0374 1.31043ZM6.71058 10.6389C5.71669 10.6389 4.90161 9.70957 4.90161 8.57792C4.90161 7.44627 5.69928 6.51537 6.71058 6.51537C7.72191 6.51537 8.53696 7.44464 8.51956 8.57792C8.52113 9.70957 7.72191 10.6389 6.71058 10.6389ZM13.3957 10.6389C12.4018 10.6389 11.5867 9.70957 11.5867 8.57792C11.5867 7.44627 12.3844 6.51537 13.3957 6.51537C14.407 6.51537 15.2221 7.44464 15.2047 8.57792C15.2047 9.70957 14.407 10.6389 13.3957 10.6389Z" fill="#414A59"></path></svg></div><input aria-invalid="false" id="«rc»" placeholder="@username" class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedStart css-in64xc" type="text" value=""></div></div></div><div class="MuiBox-root css-5nkcqp"><h5 class="MuiTypography-root MuiTypography-h5 css-8ymgm1">TradingView</h5><div class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-1vufm7e"><div class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedStart css-cu5t7w"><div class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-standard MuiInputAdornment-sizeMedium css-19cy11a"><span class="notranslate" aria-hidden="true">​</span><svg width="24" height="12" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.46359 12H4.73179V4.67369H0V0H9.44227V12H9.46359ZM18.9272 12H13.5346L18.6075 0H24L18.9272 12ZM13.5133 0C15.0053 0 16.2202 1.2 16.2202 2.67369C16.2202 4.14737 15.0053 5.34737 13.5133 5.34737C12.0213 5.34737 10.8064 4.14737 10.8064 2.67369C10.8277 1.2 12.0213 0 13.5133 0Z" fill="#414A59"></path></svg></div><input aria-invalid="false" id="«rd»" placeholder="@username" class="MuiInputBase-input MuiInput-input MuiInputBase-inputAdornedStart css-in64xc" type="text" value=""></div></div></div></div></div></div></div></div></div></main></div></div><iframe id="intercom-frame" style="position: absolute !important; opacity: 0 !important; width: 1px !important; height: 1px !important; top: 0 !important; left: 0 !important; border: none !important; display: block !important; z-index: -1 !important; pointer-events: none;" aria-hidden="true" tabindex="-1" title="Intercom"></iframe><div class="intercom-lightweight-app"><div class="intercom-lightweight-app-launcher intercom-launcher" role="button" tabindex="0" aria-label="Open Intercom Messenger" aria-live="polite" aria-expanded="false"><div class="intercom-lightweight-app-launcher-icon intercom-lightweight-app-launcher-icon-open"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 32"><path d="M28 32s-4.714-1.855-8.527-3.34H3.437C1.54 28.66 0 27.026 0 25.013V3.644C0 1.633 1.54 0 3.437 0h21.125c1.898 0 3.437 1.632 3.437 3.645v18.404H28V32zm-4.139-11.982a.88.88 0 00-1.292-.105c-.03.026-3.015 2.681-8.57 2.681-5.486 0-8.517-2.636-8.571-2.684a.88.88 0 00-1.29.107 1.01 1.01 0 00-.219.708.992.992 0 00.318.664c.142.128 3.537 3.15 9.762 3.15 6.226 0 9.621-3.022 9.763-3.15a.992.992 0 00.317-.664 1.01 1.01 0 00-.218-.707z"></path></svg></div><div class="intercom-lightweight-app-launcher-icon intercom-lightweight-app-launcher-icon-minimize"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path fill-rule="evenodd" clip-rule="evenodd" d="M18.601 8.39897C18.269 8.06702 17.7309 8.06702 17.3989 8.39897L12 13.7979L6.60099 8.39897C6.26904 8.06702 5.73086 8.06702 5.39891 8.39897C5.06696 8.73091 5.06696 9.2691 5.39891 9.60105L11.3989 15.601C11.7309 15.933 12.269 15.933 12.601 15.601L18.601 9.60105C18.9329 9.2691 18.9329 8.73091 18.601 8.39897Z" fill="currentColor"></path>
-</svg>
-</div></div><style id="intercom-lightweight-app-style" type="text/css">
-  @keyframes intercom-lightweight-app-launcher {
-    from {
-      opacity: 0;
-      transform: scale(0.5);
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src 'none'; connect-src 'none'; script-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">
+  <title>Profile &amp; Referrals — static design reference</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0f0f2d;
+      --panel: #151535;
+      --panel-2: #1a1a40;
+      --border: #2e3153;
+      --muted: #7f89a8;
+      --text: #ecf3ff;
+      --accent-a: #5293ff;
+      --accent-b: #943ce1;
     }
-    to {
-      opacity: 1;
-      transform: scale(1);
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-  }
 
-  @keyframes intercom-lightweight-app-gradient {
-    from {
-      opacity: 0;
+    button, input { font: inherit; }
+    button { cursor: default; }
+
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
     }
-    to {
-      opacity: 1;
+
+    .sidebar {
+      padding: 26px 18px;
+      border-right: 1px solid var(--border);
+      background: #10102e;
     }
-  }
 
-  @keyframes intercom-lightweight-app-messenger {
-    0% {
-      opacity: 0;
-      transform: scale(0);
+    .brand {
+      margin: 0 10px 30px;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: .04em;
     }
-    40% {
-      opacity: 1;
+
+    .group { margin-top: 26px; }
+    .group-title {
+      margin: 0 10px 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .12em;
     }
-    100% {
-      transform: scale(1);
+
+    .nav-item {
+      width: 100%;
+      margin: 3px 0;
+      padding: 11px 12px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: #8c95b3;
+      text-align: left;
     }
-  }
 
-  .intercom-lightweight-app {
-    position: fixed;
-    z-index: 2147483001;
-    width: 0;
-    height: 0;
-    font-family: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-  }
-
-  .intercom-lightweight-app-gradient {
-    position: fixed;
-    z-index: 2147483002;
-    width: 500px;
-    height: 500px;
-    bottom: 0;
-    right: 0;
-    pointer-events: none;
-    background: radial-gradient(
-      ellipse at bottom right,
-      rgba(29, 39, 54, 0.16) 0%,
-      rgba(29, 39, 54, 0) 72%);
-    animation: intercom-lightweight-app-gradient 200ms ease-out;
-  }
-
-  .intercom-lightweight-app-launcher {
-    position: fixed;
-    z-index: 2147483003;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none;
-    bottom: 20px;
-    right: 20px;
-    max-width: 48px;
-    width: 48px;
-    max-height: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: #0071b2;
-    cursor: pointer;
-    box-shadow: 0 1px 6px 0 rgba(0, 0, 0, 0.06), 0 2px 32px 0 rgba(0, 0, 0, 0.16);
-    transition: transform 167ms cubic-bezier(0.33, 0.00, 0.00, 1.00);
-    box-sizing: content-box;
-  }
-
-
-  .intercom-lightweight-app-launcher:hover {
-    transition: transform 250ms cubic-bezier(0.33, 0.00, 0.00, 1.00);
-    transform: scale(1.1)
-  }
-
-  .intercom-lightweight-app-launcher:active {
-    transform: scale(0.85);
-    transition: transform 134ms cubic-bezier(0.45, 0, 0.2, 1);
-  }
-
-
-  .intercom-lightweight-app-launcher:focus {
-    outline: none;
-
-
-  }
-
-  .intercom-lightweight-app-launcher-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 48px;
-    height: 48px;
-    transition: transform 100ms linear, opacity 80ms linear;
-  }
-
-  .intercom-lightweight-app-launcher-icon-open {
-
-        opacity: 1;
-        transform: rotate(0deg) scale(1);
-
-  }
-
-  .intercom-lightweight-app-launcher-icon-open svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  .intercom-lightweight-app-launcher-icon-open svg path {
-    fill: rgb(247, 247, 247);
-  }
-
-  .intercom-lightweight-app-launcher-icon-self-serve {
-
-        opacity: 1;
-        transform: rotate(0deg) scale(1);
-
-  }
-
-  .intercom-lightweight-app-launcher-icon-self-serve svg {
-    height: 44px;
-  }
-
-  .intercom-lightweight-app-launcher-icon-self-serve svg path {
-    fill: rgb(247, 247, 247);
-  }
-
-  .intercom-lightweight-app-launcher-custom-icon-open {
-    max-height: 24px;
-    max-width: 24px;
-
-
-        opacity: 1;
-        transform: rotate(0deg) scale(1);
-
-  }
-
-  .intercom-lightweight-app-launcher-icon-minimize {
-
-        opacity: 0;
-        transform: rotate(-60deg) scale(0);
-
-  }
-
-  .intercom-lightweight-app-launcher-icon-minimize svg path {
-    fill: rgb(247, 247, 247);
-  }
-
-  /* Extended launcher styles */
-  .intercom-lightweight-app-launcher.intercom-launcher-extended {
-    width: calc(180px - 30px);
-    max-width: calc(180px - 30px);
-    height: calc(45px - 26px);
-    max-height: calc(45px - 26px);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 12px 16px 12px 12px !important;
-    gap: 6px;
-    /* Use theme background instead of hardcoded gradient */
-    background: #0071b2;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0px -2px 50px rgba(0, 0, 0, 0.1);
-
-  }
-
-  .intercom-lightweight-app-launcher.intercom-launcher-extended .intercom-lightweight-app-launcher-icon {
-    position: relative;
-    width: 24px;
-    height: 24px;
-  }
-
-  .intercom-lightweight-app-launcher-text {
-    /* Match text color with launcher icon */
-    color: rgb(247, 247, 247);
-    font-size: 14px;
-    font-weight: 600;
-    line-height: 1.5;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 140px;
-    opacity: 1;
-    transition: opacity 80ms linear;
-  }
-
-  .intercom-lightweight-app-messenger {
-    position: fixed;
-    z-index: 2147483003;
-    overflow: hidden;
-    background-color: #14161a;
-    animation: intercom-lightweight-app-messenger 250ms cubic-bezier(0, 1, 1, 1);
-    transform-origin: bottom right;
-
-
-        width: 400px;
-        height: calc(100% - 104px);
-        max-height: 704px;
-        min-height: 250px;
-        right: 20px;
-        bottom: 84px;
-        box-shadow: 0 5px 40px rgba(0,0,0,0.16);
-
-
-    border-radius: 24px;
-  }
-
-  .intercom-lightweight-app-messenger-header {
-    height: 64px;
-    border-bottom: none;
-    background: #14161a;
-  }
-
-  .intercom-lightweight-app-messenger-footer{
-    position:absolute;
-    bottom:0;
-    width: 100%;
-    height: 80px;
-    background: #14161a;
-    font-size: 14px;
-    line-height: 21px;
-    border-top: 1px solid rgba(0, 0, 0, 0.05);
-    box-shadow: 0px 0px 25px rgba(0, 0, 0, 0.05);
-  }
-
-  @media print {
-    .intercom-lightweight-app {
-      display: none;
+    .nav-item.active {
+      color: #fff;
+      background: linear-gradient(100deg, rgba(82,147,255,.2), rgba(148,60,225,.18));
     }
-  }
-</style></div><protonpass-root-65e1 data-protonpass-role="root" data-protonpass-theme="os"></protonpass-root-65e1></body><div id="codex-agent-overlay-root" data-codex-agent-overlay-root="true"></div></html>
+
+    .content { min-width: 0; }
+    .topbar {
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 14px;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pill {
+      padding: 9px 13px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    .avatar {
+      width: 38px;
+      height: 38px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+      font-weight: 800;
+    }
+
+    main { padding: 28px; }
+
+    .account-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    .account-box {
+      min-width: 260px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+
+    .eyebrow { color: var(--muted); font-size: 12px; }
+    .account-name { margin-top: 2px; font-weight: 700; }
+
+    .tabs {
+      display: flex;
+      gap: 24px;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab {
+      position: relative;
+      padding: 14px 0;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .tab.active { color: #fff; }
+    .tab.active::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent-a), var(--accent-b));
+    }
+
+    .profile-grid {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 34px;
+      padding-top: 30px;
+    }
+
+    .profile-card,
+    .form-card {
+      padding: 22px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .profile-card { text-align: center; }
+    .profile-avatar {
+      width: 112px;
+      height: 112px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 16px;
+      border-radius: 50%;
+      background: #26264c;
+      color: #aab3d0;
+      font-size: 34px;
+      font-weight: 800;
+    }
+
+    .secondary {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--accent-a);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--accent-a);
+    }
+
+    .meta { margin-top: 22px; text-align: left; }
+    .meta + .meta { margin-top: 14px; }
+    .meta-label { color: var(--muted); font-size: 12px; }
+    .meta-value { margin-top: 3px; word-break: break-word; }
+
+    h1 { margin: 0 0 18px; font-size: 22px; }
+    h2 { margin: 26px 0 12px; font-size: 18px; }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    label { display: block; color: var(--muted); font-size: 12px; }
+    input {
+      width: 100%;
+      margin-top: 7px;
+      padding: 11px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+      background: var(--panel-2);
+      color: var(--text);
+    }
+
+    .save {
+      margin-top: 18px;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(100deg, var(--accent-a), var(--accent-b));
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .social-list { display: grid; gap: 12px; }
+
+    .notice {
+      margin-top: 24px;
+      padding: 12px 14px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      color: var(--muted);
+      background: rgba(255,255,255,.02);
+    }
+
+    @media (max-width: 900px) {
+      .shell { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .profile-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      main { padding: 18px; }
+      .topbar { padding: 14px 18px; }
+      .fields { grid-template-columns: 1fr; }
+      .account-row { align-items: stretch; flex-direction: column; }
+      .account-box { min-width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Static navigation reference">
+      <div class="brand">Trading Platform</div>
+
+      <div class="group">
+        <div class="group-title">TRADING BOTS</div>
+        <button class="nav-item" type="button">Dashboard</button>
+        <button class="nav-item" type="button">PNL Reporting</button>
+        <button class="nav-item" type="button">Open Deals</button>
+        <button class="nav-item" type="button">Trading Terminal</button>
+        <button class="nav-item" type="button">Trading Bots</button>
+        <button class="nav-item" type="button">Marketplace</button>
+        <button class="nav-item" type="button">Grid Bots</button>
+      </div>
+
+      <div class="group">
+        <div class="group-title">PLATFORM</div>
+        <button class="nav-item" type="button">Logs</button>
+        <button class="nav-item" type="button">Subscription &amp; Credits</button>
+        <button class="nav-item active" type="button">Profile &amp; Referrals</button>
+        <button class="nav-item" type="button">Notifications</button>
+      </div>
+    </aside>
+
+    <section class="content">
+      <header class="topbar">
+        <div class="pill">Credits: 0</div>
+        <div class="avatar" aria-hidden="true">D</div>
+      </header>
+
+      <main>
+        <div class="account-row">
+          <div class="account-box">
+            <div class="eyebrow">Connected exchange</div>
+            <div class="account-name">[Spot] Demo Exchange Account</div>
+          </div>
+          <button class="pill" type="button">+</button>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Static profile tabs">
+          <button class="tab active" type="button" role="tab" aria-selected="true">Profile Info</button>
+          <button class="tab" type="button" role="tab" aria-selected="false">Referrals</button>
+          <button class="tab" type="button" role="tab" aria-selected="false">Notifications</button>
+          <button class="tab" type="button" role="tab" aria-selected="false">Withdrawal Methods</button>
+          <button class="tab" type="button" role="tab" aria-selected="false">Two Factor Authentication</button>
+        </div>
+
+        <div class="profile-grid">
+          <section class="profile-card" aria-label="Demo identity">
+            <div class="profile-avatar" aria-hidden="true">DEMO</div>
+            <button class="secondary" type="button">Change</button>
+
+            <div class="meta">
+              <div class="meta-label">Your User ID</div>
+              <div class="meta-value">00000000-0000-4000-8000-000000000000</div>
+            </div>
+            <div class="meta">
+              <div class="meta-label">Email</div>
+              <div class="meta-value">demo@example.com</div>
+            </div>
+          </section>
+
+          <section class="form-card">
+            <h1>Name &amp; Surname</h1>
+            <div class="fields">
+              <label>Name<input type="text" value="Demo" readonly></label>
+              <label>Surname<input type="text" value="User" readonly></label>
+            </div>
+            <button class="save" type="button">Save</button>
+
+            <h2>Social Media</h2>
+            <div class="social-list">
+              <label>X / Twitter<input type="text" placeholder="@username" readonly></label>
+              <label>YouTube<input type="text" placeholder="@username" readonly></label>
+              <label>Instagram<input type="text" placeholder="@username" readonly></label>
+              <label>Discord<input type="text" placeholder="@username" readonly></label>
+              <label>TradingView<input type="text" placeholder="@username" readonly></label>
+            </div>
+
+            <div class="notice">
+              Static design reference only. Controls intentionally perform no navigation, network requests, form submission, or application behavior.
+            </div>
+          </section>
+        </div>
+      </main>
+    </section>
+  </div>
+</body>
+</html>

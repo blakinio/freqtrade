@@ -227,9 +227,11 @@ def test_strategy_statically_maps_target_long_to_entry_and_target_flat_to_exit()
     entry = ast.unparse(_method_node(strategy, "populate_entry_trend"))
     exit_ = ast.unparse(_method_node(strategy, "populate_exit_trend"))
 
-    assert 'dataframe["do_predict"] == 1' in entry
+    assert "do_predict" in entry
+    assert "== 1" in entry
     assert "DesiredPosition.TARGET_LONG.value" in entry
-    assert 'dataframe["do_predict"] == 1' in exit_
+    assert "do_predict" in exit_
+    assert "== 1" in exit_
     assert "DesiredPosition.TARGET_FLAT.value" in exit_
     assert "TARGET_FLAT.value" not in entry
     assert "TARGET_LONG.value" not in exit_

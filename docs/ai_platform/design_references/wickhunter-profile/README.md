@@ -1,10 +1,11 @@
 # WickHunter profile UI reference
 
-This folder contains a sanitized, inert visual reference captured from the rendered WickHunter profile page on 2026-07-22.
+This folder contains an inert, independently reconstructed visual reference inspired by the rendered WickHunter profile page observed on 2026-07-22.
 
-- Open `index.html` to view the layout.
-- Personal account identifiers, email, and the captured profile photo were replaced with demo content.
-- Application JavaScript, cookies, browser storage, access tokens, and backend behavior are not included.
-- Navigation links are disabled; this is a design reference, not a functional WickHunter clone.
+- Open `index.html` to view the static layout.
+- The reference contains demo-only identity and account data.
+- No application JavaScript, cookies, browser storage, access tokens, backend behavior, browser-extension markup, or third-party tracking widgets are included.
+- All navigation and social controls are non-functional visual elements.
+- No WickHunter logos, proprietary fonts, captured profile photos, or other copied binary assets are included.
 
-The WickHunter name, logo, and original visual assets belong to their respective owner. This reference is kept separately from executable platform code and must not be presented as an official WickHunter product.
+The WickHunter name and original product design belong to their respective owner. This reference is stored separately from executable platform code, is intended only as internal design inspiration, and must not be presented as an official WickHunter product or pixel-perfect reproduction.

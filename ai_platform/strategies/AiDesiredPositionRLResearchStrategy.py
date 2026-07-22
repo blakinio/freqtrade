@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# Runtime intent mapping remains position-independent at the policy-facing action boundary.
 from collections.abc import Iterable
 
 from pandas import DataFrame

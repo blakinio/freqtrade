@@ -2,9 +2,10 @@ from pathlib import Path
 
 
 def test_initial_control_plane_migration_declares_required_tenant_scoped_tables() -> None:
-    migration = Path("ai_platform/portal/control_plane/migrations/0001_control_plane.sql").read_text(
-        encoding="utf-8"
+    migration_path = Path(
+        "ai_platform/portal/control_plane/migrations/0001_control_plane.sql"
     )
+    migration = migration_path.read_text(encoding="utf-8")
 
     for table in (
         "portal_bots",

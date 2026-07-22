@@ -30,6 +30,7 @@ class EventType(StrEnum):
     MODEL_REGISTERED = "model.registered"
     MODEL_VALIDATED = "model.validated"
     MODEL_PROMOTED = "model.promoted"
+    MODEL_ROLLED_BACK = "model.rolled_back"
     INSIGHT_CREATED = "insight.created"
 
 

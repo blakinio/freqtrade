@@ -1,10 +1,10 @@
 ---
 task_id: FTAI-20260722-rl-v2-runtime-integration
-status: active
-branch: feat/rl-v2-runtime-integration
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-22
-updated: 2026-07-22
+updated: 2026-07-23
 related_pr: "151"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
@@ -105,11 +105,11 @@ This task does not authorize a training config, experiment manifest, run request
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:45:00+02:00
-head: 8ad99ab56b59fc0532d963905ee4619dc963269a
-branch: feat/rl-v2-runtime-integration
+updated_at: 2026-07-23T00:52:00+02:00
+head: 251fa56aeaaa8fb95c7cdf73015da0c1142dc978
+branch: develop
 pr: 151
-status: review
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-synthetic-implementation.md
   - docs/ai_platform/RL_V2_SYNTHETIC_IMPLEMENTATION.md
@@ -122,35 +122,29 @@ owned_paths:
   - ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py
   - tests/ai_platform/test_rl_v2_runtime_integration.py
 proven:
-  - RL-v2 design contract PR #102 and synthetic implementation PR #107 are merged and frozen as the canonical parent semantics.
-  - Canonical synthetic implementation uses position_independent_action_semantics with stable desired-position actions target_flat/target_long and prospectively frozen reward constants.
-  - Runtime-integration task declaration PR #142 was squash-merged as 5ad498e6a2538690ff371fd7b061bdd363820bf5.
-  - Live develop advanced from the prior checkpoint to 02e580d3a0ef8892ab57539ac833e5a4066d082a only through unrelated checkpoint/lookahead work before this implementation branch was created.
-  - No open PR found during the live preflight overlapped the declared RL-v2 model/strategy owned paths.
-  - Branch feat/rl-v2-runtime-integration was created from develop 02e580d3a0ef8892ab57539ac833e5a4066d082a and PR #151 targets develop.
-  - DesiredPositionEnvironment exposes exactly two policy-facing desired-position actions and delegates transition and reward behavior to ai_platform.scripts.rl_v2_synthetic_reference.
-  - AiDesiredPositionRLResearchStrategy maps do_predict-gated target_long to entry intent and target_flat to exit intent without introducing short semantics.
-  - Runtime observability binding reuses RLV2ObservabilityAccumulator for action, do_predict and pre-trade signal layers and does not fabricate raw-trade or strict-OOS counts.
-  - Runtime descriptor freezes Stable-Baselines3/FreqAI, PPO and MlpPolicy integration metadata while authorizing no config, manifest, run request, training, backtest or historical evaluation.
-  - AI Platform CI run 29959805166 compiled the new Python and passed the AI Platform test suite before its Ruff step failed; the formatting-only lint remediation is commit 8ad99ab56b59fc0532d963905ee4619dc963269a.
-  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
+  - RL-v2 design contract PR #102 and synthetic implementation PR #107 remain the frozen canonical parent semantics.
+  - PR #151 implemented a two-action desired-position environment and strategy adapter that reuse the canonical synthetic transition, reward and observability primitives without adding short semantics.
+  - PR #151 added only the bounded runtime adapter surface, descriptor, observability binding, static/synthetic tests and documentation; no training config, experiment manifest, run request or evaluation window was added.
+  - Final PR #151 head 01b1e51cff09f0f0c91e41aca5cd975af403af8a passed AI Platform CI 29962856917, Experimental Model Runtime Smoke 29962856904, zizmor 29962857057 and Freqtrade CI 29962856870; Pre-commit Types 29962856867 was skipped, not failed.
+  - The heavy freqai_rl dependency profile successfully installed and the bounded canonical experimental-model runtime smoke passed, resolving the prior runtime-import uncertainty for this adapter surface.
+  - PR #151 was squash-merged to develop as 251fa56aeaaa8fb95c7cdf73015da0c1142dc978.
+  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 were not accessed and remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
-  - Static/AST tests prove runtime source binding to the canonical synthetic reference without importing the heavy freqai_rl dependency profile.
-  - Any concrete runtime import/construction or execution remains a separately declared later task after this integration is frozen.
+  - The runtime integration is frozen and ready only for a separately declared execution-preflight work package.
+  - Any future training configuration, run request, historical execution or evaluation-window declaration must remain outside this completed task.
 unknown:
-  - Whether the heavy freqai_rl dependency profile can complete import/runtime smoke for the new adapter; the first smoke run was cancelled by the lint-fix synchronize event before the smoke step and the latest PR #151 CI is the current evidence source.
   - Whether a later separately declared execution-preflight task will need a dedicated config/manifest; those artifacts remain intentionally out of scope here.
 conflicts: []
 first_failure:
-  marker: ai_platform_ci_ruff
-  evidence: AI Platform CI run 29959805166 passed compile and tests, then failed at Ruff; changed Python source was reviewed for the repository 100-character line-length rule and commit 8ad99ab56b59fc0532d963905ee4619dc963269a wrapped the overlong static-test path assignment before CI re-ran.
+  marker: resolved_ai_platform_ci_formatting
+  evidence: Early PR #151 CI first failed at Ruff/Ruff format after compile and tests passed; exact Ruff 0.15.21 formatting was applied, the temporary diagnostic workflow was removed, and final AI Platform CI 29962856917 passed lint and format checks.
 rejected_hypotheses:
   - Train or backtest while implementing the runtime adapter.
   - Add a run request, historical timerange, or evaluation window to the integration task.
   - Retune frozen synthetic reward constants using consumed OOS evidence.
   - Modify the completed Phase 6 comparison or frozen Phase 5 thresholds.
-  - Import the heavy RL runtime from lightweight static tests when source/AST binding is sufficient.
+  - Treat a temporary formatting diagnostic workflow as part of the deliverable.
 changed_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
   - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
@@ -159,21 +153,21 @@ changed_paths:
   - ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py
   - tests/ai_platform/test_rl_v2_runtime_integration.py
 validation:
-  - command: live develop/open-PR/overlap preflight
+  - command: PR #151 final AI Platform CI
     result: PASS
-    evidence: develop was 02e580d3a0ef8892ab57539ac833e5a4066d082a before branch creation and no open PR overlapped the declared RL-v2 model/strategy owned paths.
-  - command: required reads plus concrete BaseEnvironment/ReinforcementLearner API compatibility read
+    evidence: Run 29962856917 passed compile, AI Platform tests, Ruff lint, Ruff format, Codespell and JSON validation.
+  - command: PR #151 Experimental Model Runtime Smoke
     result: PASS
-    evidence: all required reads were inspected; optional core files were opened only to resolve the concrete runtime adapter API binding.
+    evidence: Run 29962856904 installed FreqAI/freqai_rl runtime dependencies and passed the bounded canonical experimental-model runtime smoke without training or historical execution.
+  - command: PR #151 zizmor
+    result: PASS
+    evidence: Run 29962857057 completed successfully after the temporary diagnostic workflow had been removed from the final PR diff.
+  - command: PR #151 Freqtrade CI
+    result: PASS
+    evidence: Run 29962856870 completed successfully, including pre-commit checks, documentation build and the applicable core test matrix.
   - command: local targeted pytest/compile/Ruff
     result: NOT_RUN
-    evidence: /tmp/handoff_repo is not mounted in the current sandbox; no training, backtest or historical execution was substituted for missing local validation.
-  - command: AI Platform CI 29959805166 before lint remediation
-    result: FAIL
-    evidence: compile and AI Platform tests passed; Ruff was the first failing step. Ruff format and later validation steps were skipped after that failure.
-  - command: PR #151 repository CI after lint remediation 8ad99ab56b59fc0532d963905ee4619dc963269a
-    result: PENDING
-    evidence: replacement AI Platform CI, Freqtrade CI, zizmor and Experimental Model Runtime Smoke runs were created; Pre-commit Types is skipped, not failed.
+    evidence: The repository checkout from the handoff path was not mounted in this sandbox; repository CI provided executable validation instead.
 blockers: []
-next_action: Inspect the latest PR #151 CI and review results; fix the first concrete failure if any, otherwise squash-merge the PR and close the task checkpoint without performing model execution.
+next_action: Declare a separate bounded RL-v2 execution-preflight task before adding any training config, run request, historical evaluation window, or model execution.
 ```

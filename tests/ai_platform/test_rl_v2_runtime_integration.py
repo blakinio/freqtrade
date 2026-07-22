@@ -26,9 +26,7 @@ SYNTHETIC_DESCRIPTOR = (
     / "experimental_model_research"
     / "rl-v2-synthetic-implementation-v1.json"
 )
-MODEL_SOURCE = (
-    REPO_ROOT / "ai_platform" / "freqaimodels" / "DesiredPositionReinforcementLearner.py"
-)
+MODEL_SOURCE = REPO_ROOT / "ai_platform" / "freqaimodels" / "DesiredPositionReinforcementLearner.py"
 STRATEGY_SOURCE = (
     REPO_ROOT / "ai_platform" / "strategies" / "AiDesiredPositionRLResearchStrategy.py"
 )

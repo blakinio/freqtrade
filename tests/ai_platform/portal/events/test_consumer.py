@@ -56,8 +56,7 @@ def _event() -> EventEnvelope:
 def _insert_effect(session: Session, event: EventEnvelope) -> None:
     session.execute(
         text(
-            "INSERT INTO p4_test_side_effects (effect_id, event_id) "
-            "VALUES (:effect_id, :event_id)"
+            "INSERT INTO p4_test_side_effects (effect_id, event_id) VALUES (:effect_id, :event_id)"
         ),
         {"effect_id": str(uuid4()), "event_id": str(event.event_id)},
     )

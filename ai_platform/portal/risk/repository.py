@@ -119,6 +119,14 @@ class RiskRepository:
             return None
         return TradeIntent.model_validate_json(row.intent_json)
 
+    def list_trade_intents(self, session: Session, tenant_id: str) -> tuple[TradeIntent, ...]:
+        rows = session.scalars(
+            select(TradeIntentRow)
+            .where(TradeIntentRow.tenant_id == tenant_id)
+            .order_by(TradeIntentRow.created_at, TradeIntentRow.trade_intent_id)
+        ).all()
+        return tuple(TradeIntent.model_validate_json(row.intent_json) for row in rows)
+
     def add_risk_decision(self, session: Session, decision: RiskDecision) -> None:
         session.add(
             RiskDecisionRow(

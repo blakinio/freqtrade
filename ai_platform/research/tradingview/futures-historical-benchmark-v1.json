@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "tradingview-futures-historical-benchmark-v1",
+  "status": "execution_contract_ready",
+  "research_track": "tradingview-strategy-research-v1",
+  "preflight_id": "tradingview-futures-historical-preflight-v1",
+  "candidates": [
+    "TVDonchianBreakoutStrategy",
+    "TVSupertrendStrategy",
+    "TVBollingerMeanReversionStrategy"
+  ],
+  "source_identity": {
+    "strategy_path": "ai_platform/strategies/TradingViewResearchStrategies.py",
+    "strategy_git_blob_sha": "e6deee3f9f8832745c66933dc639e5b7c9cffe53",
+    "signal_path": "ai_platform/research/tradingview/signals.py",
+    "signal_git_blob_sha": "7d9f8360166d8f8fc2ffa238f0ad3385af111a31"
+  },
+  "excluded_candidates": {
+    "wickhunter-multi-vwap": "blocked_on_historical_liquidation_feed"
+  },
+  "exchange": {
+    "name": "krakenfutures",
+    "trading_mode": "futures",
+    "margin_mode": "isolated",
+    "stake_currency": "USD",
+    "pairs": [
+      {
+        "base": "BTC",
+        "symbol": "BTC/USD:USD",
+        "market_id": "PF_XBTUSD"
+      },
+      {
+        "base": "ETH",
+        "symbol": "ETH/USD:USD",
+        "market_id": "PF_ETHUSD"
+      }
+    ]
+  },
+  "data": {
+    "timeframe": "15m",
+    "semantic_research_window": "20260301-20260630",
+    "execution_timerange": "20260301-20260701",
+    "download_timerange": "20260201-20260701",
+    "freqtrade_stop_semantics": "end_exclusive",
+    "maximum_startup_candle_count": 120
+  },
+  "execution_assumptions": {
+    "fee": 0.002,
+    "max_open_trades": 2,
+    "stake_amount": 100,
+    "dry_run_wallet": 10000,
+    "dry_run": true,
+    "same_pairs_required": true,
+    "same_timeframe_required": true,
+    "same_timerange_required": true,
+    "same_fee_required": true,
+    "same_wallet_and_stake_required": true,
+    "same_execution_semantics_required": true
+  },
+  "validation_analyses": {
+    "lookahead": {
+      "required": true,
+      "minimum_trade_amount": 1,
+      "targeted_trade_amount": 20,
+      "allow_limit_orders": false,
+      "failure_policy": "record_incomplete_and_block_validation_claim"
+    },
+    "recursive": {
+      "required": true,
+      "pair": "BTC/USD:USD",
+      "startup_candles": [
+        49,
+        99,
+        119,
+        199,
+        499,
+        999
+      ],
+      "failure_policy": "record_incomplete_and_block_validation_claim"
+    }
+  },
+  "run_request": {
+    "path": "ai_platform/research/tradingview/run-requests/futures-historical-benchmark-v1.json",
+    "requested_action": "execute_one_shot_historical_benchmark",
+    "pull_request_scope": "add_exactly_one_canonical_run_request_file"
+  },
+  "historical_evidence": {
+    "consumed_platform_oos": "20260501-20260630",
+    "classification": "historical_research_evidence_only",
+    "unseen_final_evidence": false,
+    "retuning_from_reported_results_allowed": false,
+    "automatic_promotion_allowed": false,
+    "historical_ordering_allowed": true
+  },
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "usage": "forbidden",
+    "used": false,
+    "earliest_final_evaluation_utc": "2026-10-01T00:00:00Z"
+  },
+  "phase6_isolation": {
+    "member": false,
+    "selection_policy_may_consume_results": false,
+    "authoritative_selected_model_remains": null
+  },
+  "authorization": {
+    "canonical_one_shot_backtest_allowed": true,
+    "market_discovery_allowed": true,
+    "historical_data_download_allowed": true,
+    "lookahead_analysis_allowed": true,
+    "recursive_analysis_allowed": true,
+    "hyperopt_allowed": false,
+    "parameter_search_allowed": false,
+    "strategy_mutation_allowed": false,
+    "retuning_allowed": false,
+    "automatic_winner_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false,
+    "final_holdout_access_allowed": false
+  }
+}

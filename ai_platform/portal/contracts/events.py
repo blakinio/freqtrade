@@ -11,7 +11,10 @@ from ai_platform.portal.contracts.payloads import reject_sensitive_payload_keys
 
 class EventType(StrEnum):
     BOT_CREATED = "bot.created"
+    BOT_CONFIG_REVISED = "bot.config_revised"
     BOT_START_REQUESTED = "bot.start_requested"
+    BOT_PAUSE_REQUESTED = "bot.pause_requested"
+    BOT_STOP_REQUESTED = "bot.stop_requested"
     BOT_STARTED = "bot.started"
     BOT_PAUSED = "bot.paused"
     BOT_STOPPED = "bot.stopped"

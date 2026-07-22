@@ -5,7 +5,7 @@ branch: feat/portal-p5-model-control
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: null
+related_pr: "#124"
 owned_paths:
   - ai_platform/portal/model_control/
   - tests/ai_platform/portal/model_control/
@@ -85,10 +85,10 @@ Implement portal-side immutable model metadata and controlled registration, prom
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T20:05:00+02:00
-head: 9a47f21e5a2c3b124ed2a24ecc0fad61bb8149c5
+updated_at: 2026-07-22T20:45:00+02:00
+head: 7c8e881567644a3a1f80f4eb78b4f84177e04ec8
 branch: feat/portal-p5-model-control
-pr: null
+pr: "#124"
 status: active
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -101,33 +101,50 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260722-portal-p5-model-control.md
 proven:
   - PR #123 added canonical model.registered audit and model.rolled_back audit/event vocabulary and was squash-merged to develop as 9a47f21e5a2c3b124ed2a24ecc0fad61bb8149c5 after AI Platform CI, Freqtrade CI and zizmor passed.
-  - P2 persists domain state, audit and outbox evidence atomically and BotConfigRevision already pins an immutable model_version.
-  - Canonical ModelVersion pins artifact/hash/features/dataset/training pipeline/parameters/Git identity and is frozen by the P1 contract.
-  - Existing research registry records evidence states and explicitly does not promote or execute models by itself.
-  - MODEL_TRAIN, MODEL_READ and MODEL_PROMOTE permissions already exist; MODEL_REVIEWER has model.promote and model.read.
-  - No model_control implementation path exists on current develop.
+  - P5 stores canonical ModelVersion JSON under tenant/model identity with no repository update path and rejects duplicate identities instead of overwriting metadata.
+  - Registration is separate from promotion slots and writes model metadata, canonical audit and canonical outbox evidence in one transaction.
+  - Promotion slots are scoped by tenant/model_family/environment and do not modify existing immutable BotConfigRevision state.
+  - Promotion and rollback append transition history and write audit/outbox evidence atomically with slot mutation.
+  - Rollback targets must have prior explicit PROMOTE history in the same slot and must remain in an assignable non-live lifecycle state.
+  - New-assignment validation is read-only and requires the BotConfigRevision pinned model to equal the current promoted slot target.
+  - Targeted tests cover immutable duplicate rejection, tenant isolation, permissions, lifecycle eligibility, no silent activation, promotion, rollback provenance, assignment validation and transaction rollback on outbox failure.
+  - The historical pytest module-name collision class was avoided by using unique test module names test_model_control_service.py and test_model_control_migration.py.
+  - Live develop remained 9a47f21e5a2c3b124ed2a24ecc0fad61bb8149c5 and no open model_control/P5 overlap was found before PR #124 opened.
 derived:
-  - A P5-owned promotion slot can govern future model assignment without mutating existing immutable bot config revisions.
-  - Rollback should select a previously promoted immutable version in the same slot, not mutate the current model artifact.
+  - P5 controls future assignment policy without creating a mutable per-bot model pointer that can diverge from BotConfigRevision.
+  - Applying a changed promoted model to a bot remains a future explicit immutable P2 revision workflow, not an in-place P5 mutation.
 unknown: []
 conflicts: []
 first_failure:
   marker: none
-  evidence: none
+  evidence: No executable validation failure has been observed yet; PR #124 CI is the first runtime validation gate in this connector-only session.
 rejected_hypotheses:
   - Mutate ModelVersion lifecycle/artifact fields in place.
   - Treat research registry promotion_status as automatic runtime activation authority.
   - Maintain a second mutable bot model pointer that can diverge from BotConfigRevision.
   - Use model.promoted to ambiguously encode rollback.
 changed_paths:
+  - ai_platform/portal/model_control/__init__.py
+  - ai_platform/portal/model_control/database.py
+  - ai_platform/portal/model_control/migrations/0001_model_control.sql
+  - ai_platform/portal/model_control/models.py
+  - ai_platform/portal/model_control/repository.py
+  - ai_platform/portal/model_control/schema.py
+  - ai_platform/portal/model_control/service.py
+  - tests/ai_platform/portal/model_control/test_model_control_migration.py
+  - tests/ai_platform/portal/model_control/test_model_control_service.py
+  - docs/ai_platform/portal/MODEL_CONTROL_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-p5-model-control.md
 validation:
   - command: PR #123 required CI
     result: PASS
-    evidence: AI Platform CI 29942106177, Freqtrade CI 29942106185 and zizmor 29942109186 passed on the final contract-change head; Pre-commit Types update was skipped.
-  - command: develop verification
+    evidence: AI Platform CI 29942106177, Freqtrade CI 29942106185 and zizmor 29942109186 passed before the prerequisite contract change merged.
+  - command: P5 live scope/base verification
     result: PASS
-    evidence: develop was identical to contract merge SHA 9a47f21e5a2c3b124ed2a24ecc0fad61bb8149c5 before resetting this P5 branch.
+    evidence: feat/portal-p5-model-control was 14 commits ahead and 0 behind develop before PR #124; diff was limited to the declared P5 owned paths.
+  - command: Focused/local P5 validation
+    result: NOT_RUN
+    evidence: Local repository execution is unavailable in this connector-only session; PR #124 CI is the executable validation gate.
 blockers: []
-next_action: Implement P5 model_control schema, repository and service with immutable model registration, promotion slots, explicit rollback, assignment validation and transactional audit/outbox evidence, then add targeted tests and migration coverage.
+next_action: Verify PR #124 final checkpoint head CI and review state, fix the first concrete failure if any, then squash-merge when all required gates pass and verify develop before closing P5 with exactly one successor next_action.
 ```

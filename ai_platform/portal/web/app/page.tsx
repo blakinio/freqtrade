@@ -1,8 +1,11 @@
+import { cookies } from "next/headers";
+
 import { StatusPill } from "@/components/status-pill";
 import { dashboardSnapshot } from "@/lib/portal-api";
 
 export default async function DashboardPage() {
-  const snapshot = await dashboardSnapshot();
+  const cookieHeader = (await cookies()).toString();
+  const snapshot = await dashboardSnapshot(cookieHeader);
   const cards = [
     ["Active bots", String(snapshot.activeBots)],
     ["Needs attention", String(snapshot.attentionBots)],

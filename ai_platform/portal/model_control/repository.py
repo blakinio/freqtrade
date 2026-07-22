@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -202,7 +203,7 @@ class ModelControlRepository:
     @staticmethod
     def _transition_from_row(row: ModelPromotionHistoryRow) -> ModelPromotionTransition:
         return ModelPromotionTransition(
-            transition_id=row.transition_id,
+            transition_id=UUID(row.transition_id),
             tenant_id=row.tenant_id,
             model_family_id=row.model_family_id,
             environment=Environment(row.environment),

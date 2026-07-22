@@ -215,7 +215,8 @@ def test_desired_state_commands_require_explicit_permission(
         service.set_desired_state(creator, "bot-1", desired_state)
 
     authorized = _context("tenant-a", required_permission)
-    assert service.set_desired_state(authorized, "bot-1", desired_state).desired_state is desired_state
+    updated = service.set_desired_state(authorized, "bot-1", desired_state)
+    assert updated.desired_state is desired_state
 
 
 def test_created_is_not_a_valid_desired_state_command(session_factory: SessionFactory) -> None:

@@ -7,7 +7,11 @@ import pytest
 
 from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.control_plane.database import build_engine, build_session_factory, create_schema
+from ai_platform.portal.control_plane.database import (
+    build_engine,
+    build_session_factory,
+    create_schema,
+)
 from ai_platform.portal.intelligence.database import create_intelligence_schema
 from ai_platform.portal.learning.database import create_learning_schema
 from ai_platform.portal.risk.database import create_risk_schema
@@ -38,7 +42,9 @@ def _session_factory():
     return build_session_factory(engine)
 
 
-def test_universal_scenario_executes_simulated_trade_and_learning_candidate_without_model_mutation() -> None:
+def test_universal_scenario_executes_simulated_trade_and_learning_candidate_without_model_mutation() -> (
+    None
+):
     manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
     context = _context(
         Permission.BOT_CREATE,

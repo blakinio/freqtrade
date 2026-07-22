@@ -36,7 +36,9 @@ class UniversalScenarioRunner:
         self._intelligence = TradeIntelligenceService(session_factory)
         self._learning = LearningService(session_factory)
 
-    def run_captured(self, context: RequestContext, manifest: ScenarioManifest) -> ScenarioRunReport:
+    def run_captured(
+        self, context: RequestContext, manifest: ScenarioManifest
+    ) -> ScenarioRunReport:
         try:
             evidence = self.run(context, manifest)
         except ScenarioAssertionError as exc:

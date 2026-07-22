@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -15,7 +14,7 @@ from ai_platform.portal.contracts.risk import ApprovedExecutionIntent, TradeSide
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.intelligence.schema import ReconciliationStatus, TradeOutcome
 from ai_platform.portal.risk.schema import RiskEvaluationSnapshot
-from ai_platform.portal.simulator.schema import MarketTick, ScenarioManifest
+from ai_platform.portal.simulator.schema import ScenarioManifest
 
 
 class SimulatorStateError(RuntimeError):

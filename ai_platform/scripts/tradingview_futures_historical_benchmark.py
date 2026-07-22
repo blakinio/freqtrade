@@ -7,7 +7,6 @@ import argparse
 import hashlib
 import json
 import math
-import subprocess
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -15,8 +14,9 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_PATH = REPO_ROOT / "ai_platform/research/tradingview/futures-historical-benchmark-v1.json"
-CONFIG_TEMPLATE_PATH = REPO_ROOT / "ai_platform/configs/tradingview-futures-research.example.json"
+CONTRACT_PATH = (
+    REPO_ROOT / "ai_platform/research/tradingview/futures-historical-benchmark-v1.json"
+)
 BENCHMARK_ID = "tradingview-futures-historical-benchmark-v1"
 PREFLIGHT_ID = "tradingview-futures-historical-preflight-v1"
 EXPECTED_CANDIDATES = [
@@ -44,7 +44,8 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise TradingViewHistoricalBenchmarkError(f"Unable to read {label} {path}: {exc}") from exc
+        message = f"Unable to read {label} {path}: {exc}"
+        raise TradingViewHistoricalBenchmarkError(message) from exc
     if not isinstance(payload, dict):
         raise TradingViewHistoricalBenchmarkError(f"{label} must contain a JSON object")
     return payload
@@ -52,7 +53,8 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    path.write_text(content, encoding="utf-8")
 
 
 def _git_blob_sha(path: str) -> str:
@@ -60,20 +62,16 @@ def _git_blob_sha(path: str) -> str:
     try:
         candidate.relative_to(REPO_ROOT)
     except ValueError as exc:
-        raise TradingViewHistoricalBenchmarkError(f"Source path escapes repository root: {path}") from exc
+        message = f"Source path escapes repository root: {path}"
+        raise TradingViewHistoricalBenchmarkError(message) from exc
     if not candidate.is_file():
         raise TradingViewHistoricalBenchmarkError(f"Frozen source file is missing: {path}")
     try:
-        result = subprocess.run(
-            ["git", "hash-object", str(candidate)],
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as exc:
-        raise TradingViewHistoricalBenchmarkError(f"Unable to hash frozen source {path}") from exc
-    return result.stdout.strip()
+        payload = candidate.read_bytes()
+    except OSError as exc:
+        raise TradingViewHistoricalBenchmarkError(f"Unable to read frozen source {path}") from exc
+    header = f"blob {len(payload)}\0".encode()
+    return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()  # noqa: S324
 
 
 def _validate_source_identity(contract: dict[str, Any]) -> None:
@@ -85,16 +83,17 @@ def _validate_source_identity(contract: dict[str, Any]) -> None:
         "signal_git_blob_sha": "7d9f8360166d8f8fc2ffa238f0ad3385af111a31",
     }
     if identity != expected:
-        raise TradingViewHistoricalBenchmarkError("Frozen TradingView source identity contract drifted")
+        raise TradingViewHistoricalBenchmarkError(
+            "Frozen TradingView source identity contract drifted"
+        )
     for path_field, sha_field in (
         ("strategy_path", "strategy_git_blob_sha"),
         ("signal_path", "signal_git_blob_sha"),
     ):
         actual = _git_blob_sha(identity[path_field])
         if actual != identity[sha_field]:
-            raise TradingViewHistoricalBenchmarkError(
-                f"Frozen source identity changed for {identity[path_field]}: {actual}"
-            )
+            message = f"Frozen source identity changed for {identity[path_field]}: {actual}"
+            raise TradingViewHistoricalBenchmarkError(message)
 
 
 def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C901
@@ -109,7 +108,9 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
     if contract.get("preflight_id") != PREFLIGHT_ID:
         raise TradingViewHistoricalBenchmarkError("Required preflight identity drifted")
     if contract.get("candidates") != EXPECTED_CANDIDATES:
-        raise TradingViewHistoricalBenchmarkError("Canonical TradingView candidate set or order drifted")
+        raise TradingViewHistoricalBenchmarkError(
+            "Canonical TradingView candidate set or order drifted"
+        )
     if contract.get("excluded_candidates") != {
         "wickhunter-multi-vwap": "blocked_on_historical_liquidation_feed"
     }:
@@ -128,7 +129,9 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
         ],
     }
     if exchange != expected_exchange:
-        raise TradingViewHistoricalBenchmarkError("Frozen Kraken Futures benchmark market contract drifted")
+        raise TradingViewHistoricalBenchmarkError(
+            "Frozen Kraken Futures benchmark market contract drifted"
+        )
 
     data = contract.get("data")
     expected_data = {
@@ -255,16 +258,18 @@ def canonical_request() -> dict[str, Any]:
 
 
 def validate_request(path: Path) -> dict[str, Any]:
-    """Validate that a trigger file is byte-semantically equal to the canonical request object."""
+    """Validate that a trigger file is semantically equal to the canonical request object."""
     validate_contract()
     request = _read_json(path.resolve(), "TradingView historical benchmark run request")
     if request != canonical_request():
-        raise TradingViewHistoricalBenchmarkError("Run request differs from the canonical one-shot request")
+        raise TradingViewHistoricalBenchmarkError(
+            "Run request differs from the canonical one-shot request"
+        )
     return request
 
 
 def validate_runtime_markets(path: Path) -> dict[str, Any]:
-    """Bind runtime discovery evidence to the exact preflight-proven symbols and market IDs."""
+    """Bind runtime discovery evidence to exact preflight-proven symbols and market IDs."""
     validate_contract()
     report = _read_json(path.resolve(), "runtime market discovery report")
     if report.get("preflight_id") != PREFLIGHT_ID or report.get("exchange") != "krakenfutures":
@@ -310,9 +315,8 @@ def validate_materialized_config(path: Path) -> dict[str, Any]:
     }
     for field, value in expected.items():
         if config.get(field) != value:
-            raise TradingViewHistoricalBenchmarkError(
-                f"Materialized config field {field} drifted: expected {value!r}"
-            )
+            message = f"Materialized config field {field} drifted: expected {value!r}"
+            raise TradingViewHistoricalBenchmarkError(message)
     exchange = config.get("exchange")
     if not isinstance(exchange, dict) or exchange.get("name") != "krakenfutures":
         raise TradingViewHistoricalBenchmarkError("Materialized config exchange drifted")
@@ -337,12 +341,14 @@ def _sha256(path: Path) -> str:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
     except OSError as exc:
-        raise TradingViewHistoricalBenchmarkError(f"Unable to hash backtest archive: {exc}") from exc
+        raise TradingViewHistoricalBenchmarkError(
+            f"Unable to hash backtest archive: {exc}"
+        ) from exc
     return digest.hexdigest()
 
 
 def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # noqa: C901
-    """Extract a common immutable evidence schema from one frozen Freqtrade backtest archive."""
+    """Extract a common immutable evidence schema from one frozen Freqtrade archive."""
     contract = validate_contract()
     if strategy not in EXPECTED_CANDIDATES:
         raise TradingViewHistoricalBenchmarkError(f"Unsupported benchmark strategy: {strategy}")
@@ -352,7 +358,9 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             _load_backtest_stats,
         )
     except ImportError as exc:
-        raise TradingViewHistoricalBenchmarkError("Freqtrade backtest extraction helpers unavailable") from exc
+        raise TradingViewHistoricalBenchmarkError(
+            "Freqtrade backtest extraction helpers unavailable"
+        ) from exc
     try:
         stats, stats_member, archive_sha256 = _load_backtest_stats(archive_path.resolve())
     except ModelComparisonOosExtractorError as exc:
@@ -389,7 +397,8 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             raise TradingViewHistoricalBenchmarkError(f"Trade {index} must be a JSON object")
         pair = trade.get("pair")
         if pair not in EXPECTED_PAIRS:
-            raise TradingViewHistoricalBenchmarkError(f"Trade {index} uses unexpected pair {pair!r}")
+            message = f"Trade {index} uses unexpected pair {pair!r}"
+            raise TradingViewHistoricalBenchmarkError(message)
         profit_abs = _finite_number(trade.get("profit_abs"), f"trade[{index}].profit_abs")
         exit_reason = trade.get("exit_reason")
         if not isinstance(exit_reason, str) or not exit_reason:
@@ -398,7 +407,9 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             )
         is_short = trade.get("is_short")
         if not isinstance(is_short, bool):
-            raise TradingViewHistoricalBenchmarkError(f"trade[{index}].is_short must be boolean")
+            raise TradingViewHistoricalBenchmarkError(
+                f"trade[{index}].is_short must be boolean"
+            )
         pair_counts[pair] += 1
         pair_profit_abs[pair] += profit_abs
         exit_counts[exit_reason] += 1
@@ -413,7 +424,9 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
 
     reported_total_trades = strategy_stats.get("total_trades")
     if reported_total_trades != len(raw_trades):
-        raise TradingViewHistoricalBenchmarkError("Reported total_trades differs from archived trade list")
+        raise TradingViewHistoricalBenchmarkError(
+            "Reported total_trades differs from archived trade list"
+        )
 
     starting_balance = _finite_number(strategy_stats.get("starting_balance"), "starting_balance")
     if starting_balance <= 0:
@@ -445,7 +458,9 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             "profit_total_abs": _finite_number(
                 strategy_stats.get("profit_total_abs"), "profit_total_abs"
             ),
-            "max_drawdown": _finite_number(strategy_stats.get("max_drawdown"), "max_drawdown"),
+            "max_drawdown": _finite_number(
+                strategy_stats.get("max_drawdown"), "max_drawdown"
+            ),
             "max_drawdown_abs": _finite_number(
                 strategy_stats.get("max_drawdown_abs"), "max_drawdown_abs"
             ),

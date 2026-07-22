@@ -139,14 +139,6 @@ jobs:
       - name: Prepare research user directory
         run: freqtrade create-userdir --userdir user_data
 
-      - name: Prove canonical strategies load without executing them
-        run: |
-          freqtrade list-strategies --strategy-path ai_platform/strategies -1 \
-            > "$EVIDENCE_ROOT/strategy-listing.txt"
-          grep -F "TVDonchianBreakoutStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
-          grep -F "TVSupertrendStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
-          grep -F "TVBollingerMeanReversionStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
-
       - name: Re-discover and bind exact Kraken Futures markets
         run: |
           python -m ai_platform.scripts.tradingview_futures_historical_preflight \
@@ -164,6 +156,17 @@ jobs:
           python -m ai_platform.scripts.tradingview_futures_historical_benchmark \
             validate-config "$MATERIALIZED_CONFIG" \
             > "$EVIDENCE_ROOT/validated-config.json"
+
+      - name: Prove canonical strategies load with frozen futures config
+        run: |
+          freqtrade list-strategies \
+            --config "$MATERIALIZED_CONFIG" \
+            --strategy-path ai_platform/strategies \
+            -1 \
+            > "$EVIDENCE_ROOT/strategy-listing.txt"
+          grep -F "TVDonchianBreakoutStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
+          grep -F "TVSupertrendStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
+          grep -F "TVBollingerMeanReversionStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
 
       - name: Download bounded 15m futures history
         run: |

@@ -99,14 +99,16 @@ def test_runtime_binding_points_to_canonical_synthetic_reference() -> None:
 
     assert binding == {
         "transition_function": (
-            "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_transition"
+            "ai_platform.scripts.rl_v2_synthetic_reference."
+            "desired_position_transition"
         ),
         "reward_function": "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward",
         "action_label_function": (
-            "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_label"
+            "ai_platform.scripts.rl_v2_synthetic_reference." "desired_position_label"
         ),
         "observability_accumulator": (
-            "ai_platform.scripts.rl_v2_synthetic_reference.RLV2ObservabilityAccumulator"
+            "ai_platform.scripts.rl_v2_synthetic_reference."
+            "RLV2ObservabilityAccumulator"
         ),
         "reward_constants_redefined": False,
         "action_semantics_redefined": False,

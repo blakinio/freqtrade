@@ -1,2 +1,8 @@
-[lint]
-ignore = ["ALL"]
+extend = "../../../pyproject.toml"
+
+[lint.per-file-ignores]
+"__init__.py" = ["ALL"]
+"database.py" = ["ALL"]
+"models.py" = ["ALL"]
+"repository.py" = ["ALL"]
+"schema.py" = ["ALL"]

@@ -9,7 +9,7 @@ related_pr: null
 owned_paths:
   - ai_platform/portal/contracts/audit.py
   - ai_platform/portal/contracts/events.py
-  - tests/ai_platform/portal/test_contracts.py
+  - tests/ai_platform/portal/test_model_lifecycle_contract_actions.py
   - docs/agents/tasks/FTAI-20260722-portal-p5-model-contract-actions.md
 required_reads:
   - AGENTS.md
@@ -52,15 +52,15 @@ Add the smallest P1 vocabulary extension required for P5 to represent model regi
 1. `AuditAction.MODEL_REGISTERED` serializes as `model.registered`.
 2. `AuditAction.MODEL_ROLLED_BACK` serializes as `model.rolled_back`.
 3. `EventType.MODEL_ROLLED_BACK` serializes as `model.rolled_back`.
-4. Existing enum values remain unchanged.
-5. Contract tests and required repository CI pass.
+4. Existing `model.promoted` audit/event values remain unchanged.
+5. Focused contract tests and required repository CI pass.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T19:30:00+02:00
-head: 23724dff8674da37bcdfa4d7c8e363d1afd2629d
+updated_at: 2026-07-22T19:38:00+02:00
+head: 8c0fb81e7b605a74c41b32f48ecfab7fa6094ff5
 branch: fix/portal-p5-model-lifecycle-actions
 pr: null
 status: active
@@ -70,29 +70,36 @@ context_routes:
 owned_paths:
   - ai_platform/portal/contracts/audit.py
   - ai_platform/portal/contracts/events.py
-  - tests/ai_platform/portal/test_contracts.py
+  - tests/ai_platform/portal/test_model_lifecycle_contract_actions.py
   - docs/agents/tasks/FTAI-20260722-portal-p5-model-contract-actions.md
 proven:
   - P2 writes state, audit and outbox evidence atomically for domain mutations.
-  - Canonical P1 vocabulary contains model.promoted but no dedicated rollback action/event.
+  - Canonical P1 vocabulary contained model.promoted but no dedicated rollback action/event.
   - Using model.promoted for rollback would make the business action ambiguous.
-  - Candidate registration has EventType.MODEL_REGISTERED but no matching canonical AuditAction.
+  - Candidate registration had EventType.MODEL_REGISTERED but no matching canonical AuditAction.
+  - The implementation adds only AuditAction.MODEL_REGISTERED, AuditAction.MODEL_ROLLED_BACK and EventType.MODEL_ROLLED_BACK while preserving existing enum values.
 derived:
-  - P5 requires an additive P1 vocabulary change before lifecycle persistence/services can be implemented without ad-hoc strings.
+  - After this additive contract change merges, P5 can implement registration, promotion and rollback evidence without ad-hoc action/event strings.
 unknown: []
 conflicts: []
 first_failure:
   marker: none
-  evidence: none
+  evidence: No validation failure has been observed yet.
 rejected_hypotheses:
   - Encode rollback as model.promoted with a payload flag.
   - Emit raw model.rollback strings outside P1 enums.
 changed_paths:
+  - ai_platform/portal/contracts/audit.py
+  - ai_platform/portal/contracts/events.py
+  - tests/ai_platform/portal/test_model_lifecycle_contract_actions.py
   - docs/agents/tasks/FTAI-20260722-portal-p5-model-contract-actions.md
 validation:
   - command: GitHub live-state preflight
     result: PASS
     evidence: Branch created from develop 23724dff8674da37bcdfa4d7c8e363d1afd2629d after confirming the P5 vocabulary gap.
+  - command: Focused/local contract validation
+    result: NOT_RUN
+    evidence: Local repository execution is unavailable in this connector-only session; GitHub CI will be used as the executable validation gate.
 blockers: []
-next_action: Add the minimal audit/event enum values and focused contract regression tests, then open a PR against develop and use CI as the validation gate.
+next_action: Open a pull request against current develop, verify the diff remains additive and scope-limited, then use required CI as the validation gate before merging and resuming P5 model_control.
 ```

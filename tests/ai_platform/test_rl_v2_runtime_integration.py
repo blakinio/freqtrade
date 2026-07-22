@@ -14,22 +14,11 @@ from ai_platform.scripts.rl_v2_synthetic_reference import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RUNTIME_DESCRIPTOR = (
-    REPO_ROOT
-    / "ai_platform"
-    / "experimental_model_research"
-    / "rl-v2-runtime-integration-v1.json"
-)
-SYNTHETIC_DESCRIPTOR = (
-    REPO_ROOT
-    / "ai_platform"
-    / "experimental_model_research"
-    / "rl-v2-synthetic-implementation-v1.json"
-)
-MODEL_SOURCE = REPO_ROOT / "ai_platform" / "freqaimodels" / "DesiredPositionReinforcementLearner.py"
-STRATEGY_SOURCE = (
-    REPO_ROOT / "ai_platform" / "strategies" / "AiDesiredPositionRLResearchStrategy.py"
-)
+RESEARCH_DIR = REPO_ROOT / "ai_platform" / "experimental_model_research"
+RUNTIME_DESCRIPTOR = RESEARCH_DIR / "rl-v2-runtime-integration-v1.json"
+SYNTHETIC_DESCRIPTOR = RESEARCH_DIR / "rl-v2-synthetic-implementation-v1.json"
+MODEL_SOURCE = REPO_ROOT / "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py"
+STRATEGY_SOURCE = REPO_ROOT / "ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py"
 
 
 def _read_json(path: Path) -> dict:
@@ -70,10 +59,14 @@ def test_runtime_descriptor_is_bound_to_frozen_synthetic_reference() -> None:
     runtime = _read_json(RUNTIME_DESCRIPTOR)
     synthetic = _read_json(SYNTHETIC_DESCRIPTOR)
 
+    runtime_actions = runtime["action_semantics"]["actions"]
+    synthetic_actions = synthetic["action_semantics"]["actions"]
+    runtime_reference = runtime["synthetic_reference"]
+
     assert runtime["integration_id"] == "rl-v2-runtime-integration-v1"
     assert runtime["status"] == "runtime_integration_only"
-    assert runtime["synthetic_reference"]["implementation_id"] == synthetic["implementation_id"]
-    assert runtime["action_semantics"]["actions"] == synthetic["action_semantics"]["actions"]
+    assert runtime_reference["implementation_id"] == synthetic["implementation_id"]
+    assert runtime_actions == synthetic_actions
     assert runtime["action_semantics"]["action_space_size"] == 2
     assert runtime["action_semantics"]["short_actions_present"] is False
     assert runtime["action_semantics"]["policy_requires_hidden_current_position"] is False
@@ -83,18 +76,18 @@ def test_runtime_descriptor_is_bound_to_frozen_synthetic_reference() -> None:
 
 def test_runtime_descriptor_freezes_backend_and_authorizes_no_execution() -> None:
     runtime = _read_json(RUNTIME_DESCRIPTOR)
+    binding = runtime["runtime_binding"]
 
-    assert runtime["runtime_binding"]["backend_family"] == (
-        "stable_baselines3_via_freqai_reinforcement_learner"
-    )
-    assert runtime["runtime_binding"]["algorithm_family"] == "PPO"
-    assert runtime["runtime_binding"]["policy_family"] == "MlpPolicy"
+    assert binding["backend_family"] == "stable_baselines3_via_freqai_reinforcement_learner"
+    assert binding["algorithm_family"] == "PPO"
+    assert binding["policy_family"] == "MlpPolicy"
 
     scope = runtime["scope"]
     assert scope["runtime_adapter_implementation_allowed"] is True
     assert scope["static_binding_tests_allowed"] is True
     assert scope["synthetic_binding_tests_allowed"] is True
-    for forbidden in (
+
+    forbidden_fields = (
         "training_config_allowed",
         "experiment_manifest_allowed",
         "run_request_allowed",
@@ -112,8 +105,9 @@ def test_runtime_descriptor_freezes_backend_and_authorizes_no_execution() -> Non
         "future_evaluation_window_selection_allowed",
         "promotion_allowed",
         "live_trading_allowed",
-    ):
-        assert scope[forbidden] is False
+    )
+    for field in forbidden_fields:
+        assert scope[field] is False
 
 
 def test_runtime_descriptor_preserves_evaluation_and_phase_isolation() -> None:
@@ -141,20 +135,21 @@ def test_model_adapter_statically_reuses_canonical_transition_and_reward() -> No
 
     imported_reference_names: set[str] = set()
     for node in tree.body:
-        if (
-            isinstance(node, ast.ImportFrom)
-            and node.module == "ai_platform.scripts.rl_v2_synthetic_reference"
-        ):
-            imported_reference_names.update(alias.name for alias in node.names)
+        if not isinstance(node, ast.ImportFrom):
+            continue
+        if node.module != "ai_platform.scripts.rl_v2_synthetic_reference":
+            continue
+        imported_reference_names.update(alias.name for alias in node.names)
 
-    assert {
+    expected_names = {
         "DesiredPosition",
         "PositionState",
         "Transition",
         "desired_position_label",
         "desired_position_transition",
         "reference_reward",
-    }.issubset(imported_reference_names)
+    }
+    assert expected_names.issubset(imported_reference_names)
 
     set_action_space = _method_node(environment, "set_action_space")
     transition = _method_node(environment, "_transition")
@@ -178,48 +173,52 @@ def test_model_adapter_two_actions_have_position_independent_meaning() -> None:
     assert "Target_long = DesiredPosition.TARGET_LONG.value" in source
     assert "spaces.Discrete(len(DesiredPositionActions))" in source
 
+    flat_target = DesiredPosition.TARGET_FLAT
+    long_target = DesiredPosition.TARGET_LONG
     for position in (PositionState.FLAT, PositionState.LONG):
-        assert desired_position_transition(position, DesiredPosition.TARGET_FLAT) in (
-            Transition.HOLD_FLAT,
-            Transition.EXIT_LONG,
-        )
-        assert desired_position_transition(position, DesiredPosition.TARGET_LONG) in (
-            Transition.ENTER_LONG,
-            Transition.HOLD_LONG,
-        )
+        flat_transition = desired_position_transition(position, flat_target)
+        long_transition = desired_position_transition(position, long_target)
+        assert flat_transition in (Transition.HOLD_FLAT, Transition.EXIT_LONG)
+        assert long_transition in (Transition.ENTER_LONG, Transition.HOLD_LONG)
 
 
 def test_runtime_reward_binding_matches_frozen_reference_cases() -> None:
-    assert reference_reward(
+    remain_flat = reference_reward(
         PositionState.FLAT,
         DesiredPosition.TARGET_FLAT,
         unrealized_profit=0.0,
         duration_steps=0,
-    ) == pytest.approx(-0.01)
-    assert reference_reward(
+    )
+    enter_long = reference_reward(
         PositionState.FLAT,
         DesiredPosition.TARGET_LONG,
         unrealized_profit=0.0,
         duration_steps=0,
-    ) == pytest.approx(0.0)
-    assert reference_reward(
+    )
+    hold_long = reference_reward(
         PositionState.LONG,
         DesiredPosition.TARGET_LONG,
         unrealized_profit=10.0,
         duration_steps=1_000_000,
-    ) == pytest.approx(0.01)
-    assert reference_reward(
+    )
+    exit_long = reference_reward(
         PositionState.LONG,
         DesiredPosition.TARGET_FLAT,
         unrealized_profit=10.0,
         duration_steps=1,
-    ) == pytest.approx(0.05)
-    assert reference_reward(
+    )
+    invalid = reference_reward(
         PositionState.FLAT,
         99,
         unrealized_profit=0.0,
         duration_steps=0,
-    ) == pytest.approx(-1.0)
+    )
+
+    assert remain_flat == pytest.approx(-0.01)
+    assert enter_long == pytest.approx(0.0)
+    assert hold_long == pytest.approx(0.01)
+    assert exit_long == pytest.approx(0.05)
+    assert invalid == pytest.approx(-1.0)
 
 
 def test_strategy_statically_maps_target_long_to_entry_and_target_flat_to_exit() -> None:

@@ -97,11 +97,12 @@ def test_runtime_descriptor_preserves_non_execution_and_isolation_boundaries() -
 def test_runtime_binding_points_to_canonical_synthetic_reference() -> None:
     binding = _descriptor()["binding"]
     transition = "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_transition"
+    reward = "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward"
     action_label = "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_label"
     obs = "ai_platform.scripts.rl_v2_synthetic_reference.RLV2ObservabilityAccumulator"
 
     assert binding["transition_function"] == transition
-    assert binding["reward_function"] == "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward"
+    assert binding["reward_function"] == reward
     assert binding["action_label_function"] == action_label
     assert binding["observability_accumulator"] == obs
     assert binding["reward_constants_redefined"] is False

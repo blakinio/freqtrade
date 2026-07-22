@@ -112,9 +112,9 @@ The snapshot is deterministic, JSON serializable, and tested without market data
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T08:55:00+02:00
-head: 43e595681780a21e9d5905cf7523a964705b4a42
-branch: feat/rl-v2-synthetic-implementation
+updated_at: 2026-07-22T10:02:31+02:00
+head: d66b3e8d9381563556d7bdf37fe0bafbb3b87881
+branch: develop
 pr: 107
 status: done
 context_routes:
@@ -142,7 +142,8 @@ proven:
   - No RL-v2 FreqAI model, strategy, config, manifest, workflow, market data, training, backtest, OOS execution, performance evaluation, or future evaluation window was created or used.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and completed Phase 6 selected_model null remain unchanged.
-  - PR #107 pre-close gates passed on head 43e595681780a21e9d5905cf7523a964705b4a42: AI Platform CI 29877479814, zizmor 29877479791, and Freqtrade CI 29877479866 including pre-commit, documentation build, core matrix, and CI Gate.
+  - PR #107 final head 0365a16b7dde738350de7b4008f4222f80b1b2c2 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431 including pre-commit, documentation build, full core matrix, build distributions, and CI Gate.
+  - PR #107 was squash-merged to develop as d66b3e8d9381563556d7bdf37fe0bafbb3b87881; no open PR remains.
 derived:
   - A later runtime-integration-only task may reuse these pure semantics and counters after this task is merged and frozen.
   - Historical execution and a fresh prospective evaluation window remain separate later work packages.
@@ -167,9 +168,9 @@ validation:
   - command: repository and overlap preflight
     result: PASS
     evidence: No open PR overlapped the canonical synthetic-only scope; implementation branch started from merged task declaration 36d9014b54f28caeb2d0a61900c624694b081430.
-  - command: PR #107 repository gates before task-close commit
+  - command: PR #107 final repository gates and merge
     result: PASS
-    evidence: AI Platform CI 29877479814, zizmor 29877479791, and Freqtrade CI 29877479866 completed successfully; pre-commit, documentation build, core matrix, and CI Gate passed.
+    evidence: Final head 0365a16b7dde738350de7b4008f4222f80b1b2c2 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431; PR #107 squash-merged as d66b3e8d9381563556d7bdf37fe0bafbb3b87881.
 blockers: []
-next_action: none. This synthetic-only implementation task is complete. Any RL-v2 runtime integration must begin as a new separately declared bounded task and must still prohibit historical training, backtesting, evaluation-window declaration, and protected-final-holdout access.
+next_action: Verify current develop and open PRs, then declare a new bounded RL-v2 runtime-integration-only task that reuses the merged synthetic semantics and observability while still prohibiting historical training, backtesting, evaluation-window declaration, and protected-final-holdout access.
 ```

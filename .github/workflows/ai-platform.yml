@@ -56,7 +56,8 @@ jobs:
       - name: Ruff
         run: |
           set -o pipefail
-          ruff check --fix --diff ai_platform tests/ai_platform 2>&1 | tee ruff-output.txt
+          ruff check --fix --diff --exit-non-zero-on-fix ai_platform tests/ai_platform 2>&1 \
+            | tee ruff-output.txt
 
       - name: Upload Ruff diagnostics
         if: ${{ failure() }}

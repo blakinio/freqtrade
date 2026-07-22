@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -21,6 +21,12 @@ from ai_platform.portal.model_control.schema import (
     ModelPromotionSlot,
     ModelPromotionTransition,
 )
+
+
+def _utc_from_database(value: datetime) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 class ModelControlRepository:
@@ -196,7 +202,7 @@ class ModelControlRepository:
             model_family_id=row.model_family_id,
             environment=Environment(row.environment),
             model_version_id=row.current_model_version_id,
-            updated_at=row.updated_at,
+            updated_at=_utc_from_database(row.updated_at),
             updated_by_actor_id=row.updated_by_actor_id,
         )
 
@@ -211,5 +217,5 @@ class ModelControlRepository:
             to_model_version_id=row.to_model_version_id,
             action=ModelPromotionAction(row.action),
             actor_id=row.actor_id,
-            occurred_at=row.occurred_at,
+            occurred_at=_utc_from_database(row.occurred_at),
         )

@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from ai_platform.portal.contracts.bots import BotInstance
+from ai_platform.portal.contracts.payloads import reject_sensitive_payload_keys
 from ai_platform.portal.execution.errors import UnsafeRuntimeConfigurationError
 from ai_platform.portal.execution.runtime import ResolvedRuntimeArtifacts
 
@@ -12,13 +13,17 @@ _FORBIDDEN_CREDENTIAL_FIELDS = frozenset(
     {
         "api_key",
         "api_secret",
+        "apikey",
+        "apisecret",
         "key",
         "passphrase",
         "password",
         "secret",
         "token",
         "websocket_token",
+        "websockettoken",
         "ws_token",
+        "wstoken",
     }
 )
 
@@ -53,6 +58,11 @@ def build_safe_dry_run_config(
 
 
 def _reject_credential_fields(value: object, path: str = "config") -> None:
+    try:
+        reject_sensitive_payload_keys(value, path=path)
+    except ValueError as exc:
+        raise UnsafeRuntimeConfigurationError(str(exc)) from exc
+
     if isinstance(value, dict):
         for key, child in value.items():
             normalized = str(key).strip().lower()

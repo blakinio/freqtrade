@@ -113,10 +113,10 @@ The snapshot is deterministic, JSON serializable, and tested without market data
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-22T10:02:31+02:00
-head: d66b3e8d9381563556d7bdf37fe0bafbb3b87881
+head: 1e37eae7d4c60cdb657e388a6f407359e719e047
 branch: develop
 pr: 107
-status: done
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md
   - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md

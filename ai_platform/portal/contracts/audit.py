@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import JsonValue, field_validator
+from pydantic import Field, JsonValue, field_validator
 
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, UtcDateTime
 from ai_platform.portal.contracts.identity import ActorType
@@ -42,7 +42,7 @@ class AuditEvent(ContractModel):
     correlation_id: UUID
     causation_id: UUID | None = None
     reason_code: NonEmptyStr | None = None
-    details: dict[str, JsonValue] = {}
+    details: dict[str, JsonValue] = Field(default_factory=dict)
 
     @field_validator("details")
     @classmethod

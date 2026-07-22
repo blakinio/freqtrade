@@ -7,7 +7,11 @@ import pytest
 
 from ai_platform.portal.contracts.identity import ActorType
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.control_plane.database import SessionFactory, build_engine, build_session_factory
+from ai_platform.portal.control_plane.database import (
+    SessionFactory,
+    build_engine,
+    build_session_factory,
+)
 from ai_platform.portal.intelligence.schema import InsightSeverity, TradeInsight
 from ai_platform.portal.learning.database import create_learning_schema
 from ai_platform.portal.learning.schema import AutonomyLevel, EvidenceWindow, ExperimentOutcome

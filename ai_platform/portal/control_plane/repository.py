@@ -8,6 +8,7 @@ from ai_platform.portal.contracts.bots import (
     BotConfigRevision,
     BotDesiredState,
     BotInstance,
+    BotObservedState,
     BotSpec,
 )
 from ai_platform.portal.contracts.events import EventEnvelope
@@ -138,7 +139,9 @@ class BotRepository:
             statement = statement.where(AuditEventRow.resource_type == resource_type)
         if resource_id is not None:
             statement = statement.where(AuditEventRow.resource_id == resource_id)
-        rows = session.scalars(statement.order_by(AuditEventRow.occurred_at, AuditEventRow.audit_id)).all()
+        rows = session.scalars(
+            statement.order_by(AuditEventRow.occurred_at, AuditEventRow.audit_id)
+        ).all()
         return tuple(AuditEvent.model_validate_json(row.event_json) for row in rows)
 
     def add_outbox_event(self, session: Session, event: EventEnvelope) -> None:
@@ -179,6 +182,6 @@ class BotRepository:
             tenant_id=row.tenant_id,
             name=row.name,
             spec=BotSpec.model_validate_json(row.spec_json),
-            desired_state=row.desired_state,
-            observed_state=row.observed_state,
+            desired_state=BotDesiredState(row.desired_state),
+            observed_state=BotObservedState(row.observed_state),
         )

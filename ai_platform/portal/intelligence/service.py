@@ -207,8 +207,8 @@ class TradeIntelligenceService:
                 "Trade closed with non-negative realized PNL."
             ),
             DiagnosisCode.LOSS_WITHIN_EXPECTED_RISK: (
-                "Trade closed at a loss without evidence that the declared risk budget was exceeded; "
-                "this is not classified as a model error."
+                "Trade closed at a loss without evidence that the declared "
+                "risk budget was exceeded; this is not classified as a model error."
             ),
             DiagnosisCode.LOSS_REQUIRES_REVIEW: (
                 "Trade loss exceeded the declared risk budget and requires evidence review."

@@ -162,6 +162,7 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/bots/{bot_id}",
         "/v1/bots/{bot_id}/revisions",
         "/v1/bots/{bot_id}/desired-state",
+        "/v1/terminal/intents",
     }
     serialized = str(schema).lower()
     for forbidden in ("api_key", "api_secret", "passphrase", "websocket_token"):

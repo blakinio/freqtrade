@@ -11,6 +11,7 @@ from ai_platform.portal.security.secret_access import (
     require_secret_access,
 )
 
+
 __all__ = [
     "PermissionDeniedError",
     "SecretAccessDeniedError",

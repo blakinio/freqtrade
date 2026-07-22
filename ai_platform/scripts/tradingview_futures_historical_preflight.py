@@ -233,7 +233,9 @@ def validate_strategy_classes(path: Path = STRATEGY_PATH) -> dict[str, Any]:
     for class_name in EXPECTED_CANDIDATES:
         node = classes.get(class_name)
         if node is None:
-            raise TradingViewFuturesPreflightError(f"Missing canonical strategy class: {class_name}")
+            raise TradingViewFuturesPreflightError(
+                f"Missing canonical strategy class: {class_name}"
+            )
         assignments: dict[str, Any] = {}
         for statement in node.body:
             if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
@@ -344,7 +346,9 @@ def materialize_config(symbol_report: dict[str, Any]) -> dict[str, Any]:
     config = deepcopy(validate_config_template())
     config["exchange"]["pair_whitelist"] = pairs
     if config["dry_run"] is not True:
-        raise TradingViewFuturesPreflightError("Materialized research config must remain dry_run=true")
+        raise TradingViewFuturesPreflightError(
+            "Materialized research config must remain dry_run=true"
+        )
     return config
 
 

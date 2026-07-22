@@ -85,8 +85,8 @@ Implement portal-side immutable model metadata and controlled registration, prom
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T20:50:00+02:00
-head: 6032c00d2114c6f64ac1c75214b83c4be5988ed9
+updated_at: 2026-07-22T21:00:00+02:00
+head: e4382474a4cbe7a2e45a6a19c48fa6f204d8a3f7
 branch: feat/portal-p5-model-control
 pr: "#124"
 status: active
@@ -110,8 +110,8 @@ proven:
   - Targeted tests cover immutable duplicate rejection, tenant isolation, permissions, lifecycle eligibility, no silent activation, promotion, rollback provenance, assignment validation and transaction rollback on outbox failure.
   - SQLite test persistence returns timezone-aware columns as naive datetimes; repository read adapters normalize those values to UTC before rebuilding strict P1 contracts.
   - P5 package import ordering follows repository Ruff policy including two blank lines after imports; all temporary lint diagnostics and suppressions were removed before final validation.
-  - Sync PR #131 merged current develop 7c8ced80b2b445144a26112e69f8c1cbd475b13e into feat/portal-p5-model-control as merge commit 6032c00d2114c6f64ac1c75214b83c4be5988ed9.
-  - After synchronization, develop is the merge base and the PR #124 diff is limited to the 11 declared P5 model_control/test/docs/task files.
+  - Sync PR #131 merged develop 7c8ced80b2b445144a26112e69f8c1cbd475b13e into the P5 branch, and resync PR #133 merged latest develop be21e2a050c5399a6972e69e0142c00bcc55c516 as merge commit e4382474a4cbe7a2e45a6a19c48fa6f204d8a3f7.
+  - The develop changes synchronized through PR #131 and #133 are unrelated TradingView benchmark files and do not overlap P5 model_control ownership.
 derived:
   - P5 controls future assignment policy without creating a mutable per-bot model pointer that can diverge from BotConfigRevision.
   - Applying a changed promoted model to a bot remains a future explicit immutable P2 revision workflow, not an in-place P5 mutation.
@@ -145,9 +145,12 @@ validation:
   - command: P5 clean implementation AI Platform CI 29947726640
     result: PASS
     evidence: Compile, AI Platform tests, Ruff, Ruff format, Codespell and JSON validation passed with temporary diagnostics removed before develop synchronization.
-  - command: P5 live base synchronization
+  - command: PR #124 synchronized checkpoint head e30b6da5e29bce82a5fa7643de71652fa65bf7e5
     result: PASS
-    evidence: PR #131 merged develop 7c8ced80b2b445144a26112e69f8c1cbd475b13e into the P5 feature branch; compare now reports the feature branch ahead and 0 behind develop with only P5 paths in the diff.
+    evidence: AI Platform CI 29947918679, Freqtrade CI 29947918634 and zizmor 29947918614 passed; Pre-commit Types update 29947918620 was skipped and is not a failure gate.
+  - command: Latest develop synchronization
+    result: PASS
+    evidence: PR #133 merged latest develop be21e2a050c5399a6972e69e0142c00bcc55c516 into the P5 branch without P5 path overlap.
 blockers: []
-next_action: Verify required CI and review state on the synchronized final checkpoint head of PR #124, fix any concrete failure, then squash-merge when green and verify develop before closing P5 with one successor next_action.
+next_action: Verify required CI and review state on the latest-develop synchronized checkpoint head of PR #124, then squash-merge when green and verify develop before closing P5 with exactly one successor next_action.
 ```

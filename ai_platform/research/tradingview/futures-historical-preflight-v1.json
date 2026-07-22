@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "preflight_id": "tradingview-futures-historical-preflight-v1",
+  "status": "preflight_only",
+  "research_track": "tradingview-strategy-research-v1",
+  "candidates": [
+    "TVDonchianBreakoutStrategy",
+    "TVSupertrendStrategy",
+    "TVBollingerMeanReversionStrategy"
+  ],
+  "excluded_candidates": {
+    "wickhunter-multi-vwap": "blocked_on_historical_liquidation_feed"
+  },
+  "exchange": {
+    "name": "krakenfutures",
+    "trading_mode": "futures",
+    "margin_mode": "isolated",
+    "stake_currency": "USD",
+    "required_market_bases": [
+      "BTC",
+      "ETH"
+    ],
+    "market_contract": {
+      "active": true,
+      "contract": true,
+      "swap": true,
+      "quote": "USD",
+      "settle": "USD"
+    },
+    "resolved_symbols": "runtime_preflight_required"
+  },
+  "data": {
+    "timeframe": "15m",
+    "semantic_research_window": "20260301-20260630",
+    "execution_timerange": "20260301-20260701",
+    "download_timerange": "20260201-20260701",
+    "freqtrade_stop_semantics": "end_exclusive",
+    "maximum_startup_candle_count": 120,
+    "minimum_warmup_start_utc": "2026-02-27T18:00:00Z"
+  },
+  "comparison_assumptions": {
+    "fee": 0.002,
+    "same_pairs_required": true,
+    "same_timeframe_required": true,
+    "same_timerange_required": true,
+    "same_execution_semantics_required": true,
+    "ranking_allowed": false
+  },
+  "historical_evidence": {
+    "consumed_platform_oos": "20260501-20260630",
+    "unseen_final_evidence": false,
+    "retuning_from_reported_results_allowed": false
+  },
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "usage": "forbidden",
+    "used": false,
+    "earliest_final_evaluation_utc": "2026-10-01T00:00:00Z"
+  },
+  "authorization": {
+    "market_discovery_allowed": true,
+    "historical_data_download_allowed": true,
+    "data_coverage_verification_allowed": true,
+    "strategy_loading_check_allowed": true,
+    "strategy_backtest_allowed": false,
+    "hyperopt_allowed": false,
+    "parameter_search_allowed": false,
+    "strategy_mutation_allowed": false,
+    "winner_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false,
+    "final_holdout_access_allowed": false
+  }
+}

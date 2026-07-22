@@ -47,9 +47,7 @@ class AiDesiredPositionRLResearchStrategy(IStrategy):
     ) -> DataFrame:
         dataframe["%-pct-change"] = dataframe["close"].pct_change()
         dataframe["%-volume-change"] = dataframe["volume"].pct_change()
-        dataframe["%-high-low-range"] = (dataframe["high"] - dataframe["low"]) / dataframe[
-            "close"
-        ]
+        dataframe["%-high-low-range"] = (dataframe["high"] - dataframe["low"]) / dataframe["close"]
         return dataframe
 
     def feature_engineering_standard(

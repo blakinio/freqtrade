@@ -14,10 +14,17 @@ from ai_platform.scripts.rl_v2_synthetic_reference import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DESCRIPTOR_PATH = (
-    REPO_ROOT / "ai_platform" / "experimental_model_research" / "rl-v2-runtime-integration-v1.json"
+    REPO_ROOT
+    / "ai_platform"
+    / "experimental_model_research"
+    / "rl-v2-runtime-integration-v1.json"
 )
-MODEL_PATH = REPO_ROOT / "ai_platform" / "freqaimodels" / "DesiredPositionReinforcementLearner.py"
-STRATEGY_PATH = REPO_ROOT / "ai_platform" / "strategies" / "AiDesiredPositionRLResearchStrategy.py"
+MODEL_PATH = (
+    REPO_ROOT / "ai_platform" / "freqaimodels" / "DesiredPositionReinforcementLearner.py"
+)
+STRATEGY_PATH = (
+    REPO_ROOT / "ai_platform" / "strategies" / "AiDesiredPositionRLResearchStrategy.py"
+)
 
 
 def _descriptor() -> dict:
@@ -169,7 +176,7 @@ def test_model_adapter_source_binds_environment_to_canonical_functions() -> None
     assert "MyRLEnv = DesiredPositionEnvironment" in source
 
 
-def test_strategy_adapter_source_maps_prediction_gate_to_desired_position_intents_only() -> None:
+def test_strategy_adapter_maps_prediction_gate_to_desired_position_intents_only() -> None:
     source = STRATEGY_PATH.read_text(encoding="utf-8")
     ast.parse(source)
 

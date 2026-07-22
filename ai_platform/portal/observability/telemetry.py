@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from time import monotonic
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 from ai_platform.portal.contracts.environment import Environment
@@ -197,7 +197,7 @@ class TelemetryRecorder:
         context: TelemetryContext,
         attributes: Mapping[str, Any] | None,
     ) -> dict[str, Any]:
-        base = {
+        base: dict[str, Any] = {
             "operation": name,
             "service": context.service,
             "component": context.component,
@@ -212,4 +212,4 @@ class TelemetryRecorder:
         }
         if attributes:
             base.update(attributes)
-        return redact_sensitive(base)
+        return cast(dict[str, Any], redact_sensitive(base))

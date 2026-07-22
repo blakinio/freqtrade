@@ -112,11 +112,11 @@ The snapshot is deterministic, JSON serializable, and tested without market data
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T10:02:31+02:00
-head: d66b3e8d9381563556d7bdf37fe0bafbb3b87881
+updated_at: 2026-07-22T10:07:36+02:00
+head: 1e37eae7d4c60cdb657e388a6f407359e719e047
 branch: develop
 pr: 107
-status: done
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md
   - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
@@ -143,7 +143,7 @@ proven:
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and completed Phase 6 selected_model null remain unchanged.
   - PR #107 final head 0365a16b7dde738350de7b4008f4222f80b1b2c2 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431 including pre-commit, documentation build, full core matrix, build distributions, and CI Gate.
-  - PR #107 was squash-merged to develop as d66b3e8d9381563556d7bdf37fe0bafbb3b87881; no open PR remains.
+  - PR #107 was squash-merged to develop as d66b3e8d9381563556d7bdf37fe0bafbb3b87881; open PR #109 is an unrelated sanitized WickHunter UI design-reference draft and does not overlap RL-v2 runtime-integration ownership.
 derived:
   - A later runtime-integration-only task may reuse these pure semantics and counters after this task is merged and frozen.
   - Historical execution and a fresh prospective evaluation window remain separate later work packages.
@@ -167,10 +167,13 @@ changed_paths:
 validation:
   - command: repository and overlap preflight
     result: PASS
-    evidence: No open PR overlapped the canonical synthetic-only scope; implementation branch started from merged task declaration 36d9014b54f28caeb2d0a61900c624694b081430.
+    evidence: No RL-v2 runtime-integration task or overlapping implementation PR exists; open PR #109 is docs/design-reference only and unrelated to RL-v2 ownership.
   - command: PR #107 final repository gates and merge
     result: PASS
     evidence: Final head 0365a16b7dde738350de7b4008f4222f80b1b2c2 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431; PR #107 squash-merged as d66b3e8d9381563556d7bdf37fe0bafbb3b87881.
+  - command: handover checkpoint contract review
+    result: PASS
+    evidence: Checkpoint uses governance-allowed status ready, current develop head 1e37eae7d4c60cdb657e388a6f407359e719e047, and exactly one concrete next_action.
 blockers: []
 next_action: Verify current develop and open PRs, then declare a new bounded RL-v2 runtime-integration-only task that reuses the merged synthetic semantics and observability while still prohibiting historical training, backtesting, evaluation-window declaration, and protected-final-holdout access.
 ```

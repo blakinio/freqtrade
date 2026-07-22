@@ -118,48 +118,40 @@ def test_runtime_binding_points_to_canonical_synthetic_reference() -> None:
 
 
 def test_desired_position_actions_remain_valid_semantics_in_both_position_states() -> None:
-    assert desired_position_transition(
-        PositionState.FLAT, DesiredPosition.TARGET_FLAT
-    ) is Transition.HOLD_FLAT
-    assert desired_position_transition(
-        PositionState.FLAT, DesiredPosition.TARGET_LONG
-    ) is Transition.ENTER_LONG
-    assert desired_position_transition(
-        PositionState.LONG, DesiredPosition.TARGET_LONG
-    ) is Transition.HOLD_LONG
-    assert desired_position_transition(
-        PositionState.LONG, DesiredPosition.TARGET_FLAT
-    ) is Transition.EXIT_LONG
+    flat_hold = desired_position_transition(PositionState.FLAT, DesiredPosition.TARGET_FLAT)
+    flat_enter = desired_position_transition(PositionState.FLAT, DesiredPosition.TARGET_LONG)
+    long_hold = desired_position_transition(PositionState.LONG, DesiredPosition.TARGET_LONG)
+    long_exit = desired_position_transition(PositionState.LONG, DesiredPosition.TARGET_FLAT)
+
+    assert flat_hold is Transition.HOLD_FLAT
+    assert flat_enter is Transition.ENTER_LONG
+    assert long_hold is Transition.HOLD_LONG
+    assert long_exit is Transition.EXIT_LONG
 
 
 def test_runtime_reward_contract_uses_frozen_reference_for_valid_and_invalid_actions() -> None:
-    assert (
-        reference_reward(
-            PositionState.FLAT,
-            DesiredPosition.TARGET_FLAT,
-            unrealized_profit=0.0,
-            duration_steps=0,
-        )
-        == -0.01
+    remain_flat = reference_reward(
+        PositionState.FLAT,
+        DesiredPosition.TARGET_FLAT,
+        unrealized_profit=0.0,
+        duration_steps=0,
     )
-    assert (
-        reference_reward(
-            PositionState.FLAT,
-            DesiredPosition.TARGET_LONG,
-            unrealized_profit=0.0,
-            duration_steps=0,
-        )
-        == 0.0
+    enter_long = reference_reward(
+        PositionState.FLAT,
+        DesiredPosition.TARGET_LONG,
+        unrealized_profit=0.0,
+        duration_steps=0,
     )
-    assert (
-        reference_reward(
-            PositionState.FLAT,
-            99,
-            unrealized_profit=0.0,
-            duration_steps=0,
-        )
-        == -1.0
+    invalid = reference_reward(
+        PositionState.FLAT,
+        99,
+        unrealized_profit=0.0,
+        duration_steps=0,
     )
+
+    assert remain_flat == -0.01
+    assert enter_long == 0.0
+    assert invalid == -1.0
 
 
 def test_model_adapter_source_binds_environment_to_canonical_functions() -> None:

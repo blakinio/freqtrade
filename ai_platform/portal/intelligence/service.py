@@ -70,10 +70,14 @@ class TradeIntelligenceService:
                     )
                     is not None
                 ):
-                    raise TradeIntelligenceConflictError("decision snapshot identity already exists")
+                    raise TradeIntelligenceConflictError(
+                        "decision snapshot identity already exists"
+                    )
                 self._repository.add_snapshot(session, snapshot)
         except IntegrityError as exc:
-            raise TradeIntelligenceConflictError("decision snapshot identity already exists") from exc
+            raise TradeIntelligenceConflictError(
+                "decision snapshot identity already exists"
+            ) from exc
         return snapshot
 
     def analyze_outcome(
@@ -116,7 +120,9 @@ class TradeIntelligenceService:
                 self._repository.add_outcome(session, outcome)
                 self._repository.add_analysis(session, analysis)
         except IntegrityError as exc:
-            raise TradeIntelligenceConflictError("trade outcome or analysis identity already exists") from exc
+            raise TradeIntelligenceConflictError(
+                "trade outcome or analysis identity already exists"
+            ) from exc
         return analysis
 
     def get_analysis(self, context: RequestContext, analysis_id: str) -> TradeAnalysis:
@@ -196,20 +202,19 @@ class TradeIntelligenceService:
 
     @staticmethod
     def _deterministic_summary(diagnosis: DeterministicDiagnosis) -> str:
-        summaries = {
-            DiagnosisCode.PROFITABLE: "Trade closed with non-negative realized PNL.",
-            DiagnosisCode.LOSS_WITHIN_EXPECTED_RISK: (
-                "Trade closed at a loss without evidence that the declared risk budget was exceeded; "
-                "this is not classified as a model error."
-            ),
-            DiagnosisCode.LOSS_REQUIRES_REVIEW: (
-                "Trade loss exceeded the declared risk budget and requires evidence review."
-            ),
-            DiagnosisCode.DATA_GAP: (
-                "Trade outcome is not fully reconciled; causal diagnosis is deferred until evidence is complete."
-            ),
-        }
-        return summaries[diagnosis.code]
+        if diagnosis.code is DiagnosisCode.PROFITABLE:
+            return "Trade closed with non-negative realized PNL."
+        if diagnosis.code is DiagnosisCode.LOSS_WITHIN_EXPECTED_RISK:
+            return (
+                "Trade closed at a loss without evidence that the declared risk budget was "
+                "exceeded; this is not classified as a model error."
+            )
+        if diagnosis.code is DiagnosisCode.LOSS_REQUIRES_REVIEW:
+            return "Trade loss exceeded the declared risk budget and requires evidence review."
+        return (
+            "Trade outcome is not fully reconciled; causal diagnosis is deferred until "
+            "evidence is complete."
+        )
 
     @staticmethod
     def _severity(code: DiagnosisCode) -> InsightSeverity:

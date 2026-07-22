@@ -21,6 +21,30 @@ test("creates a canonical dry-run bot through the same-origin BFF", async ({ pag
   );
 });
 
+test("submits manual intent through deterministic risk gate and fails closed at execution", async ({
+  page,
+}) => {
+  await page.goto("/terminal");
+  await expect(page.getByRole("heading", { name: "Risk-gated manual intent" })).toBeVisible();
+  await page.getByRole("button", { name: "Submit trade intent" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Risk: APPROVED · Execution: BLOCKED · ORDER_SUBMISSION_NOT_IMPLEMENTED",
+  );
+});
+
+test("terminal BFF rejects browser-supplied risk snapshot authority", async ({ request }) => {
+  const response = await request.post("/api/terminal", {
+    data: {
+      bot_id: "bot-btc-dryrun-01",
+      pair: "BTC/USDT",
+      side: "BUY",
+      amount: "0.01",
+      snapshot: { runtime_health: "HEALTHY", daily_loss: "0" },
+    },
+  });
+  expect(response.status()).toBe(422);
+});
+
 test("renders an intentional authorization denied state", async ({ page }) => {
   await page.goto("/denied");
   await expect(

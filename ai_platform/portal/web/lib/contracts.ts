@@ -10,6 +10,8 @@ export type BotObservedState =
   | "STOPPING"
   | "STOPPED"
   | "ERROR";
+export type TradeSide = "BUY" | "SELL";
+export type TerminalExecutionState = "REJECTED" | "BLOCKED" | "SUBMITTED";
 
 export interface BotSpec {
   tenant_id: string;
@@ -51,4 +53,34 @@ export interface DashboardSnapshot {
   modelHealth: "healthy" | "degraded" | "unknown";
   riskStatus: "normal" | "attention" | "unknown";
   bots: BotInstance[];
+}
+
+export interface TerminalIntentRequest {
+  bot_id: string;
+  pair: string;
+  side: TradeSide;
+  amount: string;
+}
+
+export interface TerminalRiskDecision {
+  risk_decision_id: string;
+  trade_intent_id: string;
+  risk_policy_version: string;
+  decision: "APPROVED" | "REJECTED";
+  reason_codes: string[];
+}
+
+export interface TerminalOrder {
+  order_id: string;
+  pair: string;
+  side: TradeSide;
+  state: string;
+  amount: string;
+}
+
+export interface TerminalIntentResult {
+  risk_decision: TerminalRiskDecision;
+  execution_state: TerminalExecutionState;
+  execution_reason_code: string;
+  order: TerminalOrder | null;
 }

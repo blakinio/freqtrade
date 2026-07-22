@@ -3,8 +3,15 @@ import type {
   CreateBotRequest,
   DashboardSnapshot,
   PortalEnvironment,
+  TerminalIntentRequest,
+  TerminalIntentResult,
 } from "./contracts";
-import { createFixtureBot, fixtureDashboard, listFixtureBots } from "./fixtures";
+import {
+  createFixtureBot,
+  fixtureDashboard,
+  listFixtureBots,
+  submitFixtureTerminalIntent,
+} from "./fixtures";
 
 export class PortalApiConfigurationError extends Error {}
 export class PortalApiResponseError extends Error {
@@ -81,6 +88,20 @@ export async function createBot(
     return createFixtureBot(request);
   }
   return apiFetch<BotInstance>("/v1/bots", {
+    method: "POST",
+    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    body: JSON.stringify(request),
+  });
+}
+
+export async function submitTerminalIntent(
+  request: TerminalIntentRequest,
+  cookieHeader?: string | null,
+): Promise<TerminalIntentResult> {
+  if (dataMode() === "fixture") {
+    return submitFixtureTerminalIntent(request);
+  }
+  return apiFetch<TerminalIntentResult>("/v1/terminal/intents", {
     method: "POST",
     headers: cookieHeader ? { cookie: cookieHeader } : undefined,
     body: JSON.stringify(request),

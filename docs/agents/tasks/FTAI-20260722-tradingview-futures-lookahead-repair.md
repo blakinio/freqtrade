@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-tradingview-futures-lookahead-repair
-status: complete
+status: ready
 branch: docs/tradingview-futures-lookahead-repair-closure
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "#140, #141"
+related_pr: "#140, #141, #146"
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-lookahead-repair-v1.json
   - ai_platform/research/tradingview/run-requests/futures-historical-lookahead-repair-v1.json
@@ -80,11 +80,11 @@ PR #141 added exactly the canonical repair run-request, all required CI succeede
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:15:00+02:00
-head: feb018cb3c1b99fa3b4ee8039e1ecef189316a34
+updated_at: 2026-07-22T23:18:00+02:00
+head: 142e176a230b974c26cb8886350f7ce35439f520
 branch: docs/tradingview-futures-lookahead-repair-closure
-pr: none
-status: complete
+pr: "#146"
+status: ready
 context_routes:
   - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md
@@ -150,5 +150,5 @@ validation:
     result: PASS
     evidence: run 29958028584; all three candidates produced complete has_bias=False evidence
 blockers: []
-next_action: Review the already-preserved recursive-analysis evidence and historical benchmark metrics as research evidence only; do not retune these v1 candidates on the consumed window and do not promote any candidate automatically.
+next_action: Merge PR #146 after checkpoint validation, Freqtrade CI and zizmor are green; then treat this repair task as durably closed and keep future research interpretation separate from promotion decisions.
 ```

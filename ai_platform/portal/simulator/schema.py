@@ -41,3 +41,16 @@ class SimulatorEvidenceBundle(ContractModel):
     active_model_after: NonEmptyStr
     candidate_model_version_id: NonEmptyStr
     realized_pnl: Decimal
+
+
+class ScenarioFailureEvidence(ContractModel):
+    scenario_id: NonEmptyStr
+    correlation_id: UUID
+    stage: NonEmptyStr
+    reason_code: NonEmptyStr
+
+
+class ScenarioRunReport(ContractModel):
+    passed: bool
+    evidence: SimulatorEvidenceBundle | None = None
+    failure: ScenarioFailureEvidence | None = None

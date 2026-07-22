@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from ai_platform.portal.contracts.bots import BotSpec
@@ -17,7 +17,12 @@ from ai_platform.portal.learning.service import LearningService
 from ai_platform.portal.risk.schema import RiskPolicyLimits
 from ai_platform.portal.risk.service import RiskService
 from ai_platform.portal.simulator.exchange import DeterministicExchangeSimulator
-from ai_platform.portal.simulator.schema import ScenarioManifest, SimulatorEvidenceBundle
+from ai_platform.portal.simulator.schema import (
+    ScenarioFailureEvidence,
+    ScenarioManifest,
+    ScenarioRunReport,
+    SimulatorEvidenceBundle,
+)
 
 
 class ScenarioAssertionError(RuntimeError):
@@ -30,6 +35,21 @@ class UniversalScenarioRunner:
         self._risk = RiskService(session_factory)
         self._intelligence = TradeIntelligenceService(session_factory)
         self._learning = LearningService(session_factory)
+
+    def run_captured(self, context: RequestContext, manifest: ScenarioManifest) -> ScenarioRunReport:
+        try:
+            evidence = self.run(context, manifest)
+        except ScenarioAssertionError as exc:
+            return ScenarioRunReport(
+                passed=False,
+                failure=ScenarioFailureEvidence(
+                    scenario_id=manifest.scenario_id,
+                    correlation_id=context.correlation_id,
+                    stage="scenario_assertion",
+                    reason_code=str(exc),
+                ),
+            )
+        return ScenarioRunReport(passed=True, evidence=evidence)
 
     def run(self, context: RequestContext, manifest: ScenarioManifest) -> SimulatorEvidenceBundle:
         required = {

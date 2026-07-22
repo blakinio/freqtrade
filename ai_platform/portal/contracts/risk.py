@@ -108,7 +108,8 @@ class ApprovedExecutionIntent(ContractModel):
     def validate_approval(self) -> Self:
         if self.risk_decision.decision is not RiskDecisionOutcome.APPROVED:
             raise ValueError("approved execution intent requires an approved risk decision")
-        if self.trade_intent.tenant_id != self.tenant_id or self.risk_decision.tenant_id != self.tenant_id:
+        tenant_ids = {self.tenant_id, self.trade_intent.tenant_id, self.risk_decision.tenant_id}
+        if len(tenant_ids) != 1:
             raise ValueError("trade intent and risk decision must belong to the execution tenant")
         if self.risk_decision.trade_intent_id != self.trade_intent.trade_intent_id:
             raise ValueError("risk decision must reference the same trade intent")
@@ -131,7 +132,8 @@ class RejectedExecutionIntent(ContractModel):
     def validate_rejection(self) -> Self:
         if self.risk_decision.decision is not RiskDecisionOutcome.REJECTED:
             raise ValueError("rejected execution intent requires a rejected risk decision")
-        if self.trade_intent.tenant_id != self.tenant_id or self.risk_decision.tenant_id != self.tenant_id:
+        tenant_ids = {self.tenant_id, self.trade_intent.tenant_id, self.risk_decision.tenant_id}
+        if len(tenant_ids) != 1:
             raise ValueError("trade intent and risk decision must belong to the rejection tenant")
         if self.risk_decision.trade_intent_id != self.trade_intent.trade_intent_id:
             raise ValueError("risk decision must reference the same trade intent")

@@ -41,7 +41,7 @@ class DesiredPositionEnvironment(BaseEnvironment):
         if self._position == Positions.Long:
             return PositionState.LONG
         raise RLV2SyntheticReferenceError(
-            f"Unsupported runtime position for long-only RL-v2 adapter: {self._position}"
+            f"Unsupported runtime position for long-only RL-v2 adapter: {self._position}",
         )
 
     def _transition(self, action: int) -> Transition:

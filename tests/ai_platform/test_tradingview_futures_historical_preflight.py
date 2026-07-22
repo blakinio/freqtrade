@@ -52,9 +52,7 @@ def test_contract_report_is_preflight_only() -> None:
 
 
 def test_contract_rejects_backtest_authorization(tmp_path) -> None:
-    contract_path = (
-        tmp_path / "futures-historical-preflight-v1.json"
-    )
+    contract_path = tmp_path / "futures-historical-preflight-v1.json"
     source = validate_contract()
     source["authorization"]["strategy_backtest_allowed"] = True
     contract_path.write_text(json.dumps(source), encoding="utf-8")

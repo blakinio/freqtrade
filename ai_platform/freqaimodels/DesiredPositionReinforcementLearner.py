@@ -139,5 +139,5 @@ class DesiredPositionReinforcementLearner(ReinforcementLearner):
 
     @staticmethod
     def create_observability_accumulator(pairs: Iterable[str]) -> RLV2ObservabilityAccumulator:
-        """Expose the canonical zero-initialized observability vocabulary without fabricating counts."""
+        """Create the canonical observability accumulator without fabricating counts."""
         return RLV2ObservabilityAccumulator(pairs)

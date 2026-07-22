@@ -43,7 +43,7 @@ jobs:
       - name: Install lightweight validation dependencies
         run: >-
           python -m pip install --disable-pip-version-check
-          pytest pre-commit jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
           "httpx>=0.24.1" fastapi ruff==0.15.21 codespell==2.4.2
 
       - name: Compile AI platform Python
@@ -62,20 +62,6 @@ jobs:
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform
-
-      - name: Reproduce repository pre-commit
-        run: |
-          set -o pipefail
-          pre-commit run --all-files 2>&1 | tee precommit-output.txt
-
-      - name: Upload pre-commit diagnostics
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: portal-p2-precommit-${{ github.event.pull_request.number }}
-          path: precommit-output.txt
-          if-no-files-found: ignore
-          retention-days: 1
 
       - name: Validate baseline JSON
         run: python -m json.tool ai_platform/configs/freqai-baseline.example.json > /dev/null

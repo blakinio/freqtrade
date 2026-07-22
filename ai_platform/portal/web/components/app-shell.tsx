@@ -8,6 +8,7 @@ const navigation = [
   { href: "/", label: "Dashboard" },
   { href: "/bots", label: "Bots" },
   { href: "/bots/new", label: "Create Bot" },
+  { href: "/terminal", label: "Trading Terminal" },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {

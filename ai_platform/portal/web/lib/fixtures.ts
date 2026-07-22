@@ -1,4 +1,11 @@
-import type { BotInstance, CreateBotRequest, DashboardSnapshot, PortalEnvironment } from "./contracts";
+import type {
+  BotInstance,
+  CreateBotRequest,
+  DashboardSnapshot,
+  PortalEnvironment,
+  TerminalIntentRequest,
+  TerminalIntentResult,
+} from "./contracts";
 
 const fixtureBots: BotInstance[] = [
   {
@@ -73,5 +80,23 @@ export function fixtureDashboard(environment: PortalEnvironment): DashboardSnaps
     modelHealth: "healthy",
     riskStatus: "normal",
     bots,
+  };
+}
+
+export function submitFixtureTerminalIntent(request: TerminalIntentRequest): TerminalIntentResult {
+  const rejected = Number(request.amount) > 0.5;
+  return {
+    risk_decision: {
+      risk_decision_id: "fixture-risk-decision-1",
+      trade_intent_id: "fixture-trade-intent-1",
+      risk_policy_version: "risk-default-v1",
+      decision: rejected ? "REJECTED" : "APPROVED",
+      reason_codes: [rejected ? "ORDER_NOTIONAL_LIMIT_EXCEEDED" : "RISK_APPROVED"],
+    },
+    execution_state: rejected ? "REJECTED" : "BLOCKED",
+    execution_reason_code: rejected
+      ? "ORDER_NOTIONAL_LIMIT_EXCEEDED"
+      : "ORDER_SUBMISSION_NOT_IMPLEMENTED",
+    order: null,
   };
 }

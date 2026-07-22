@@ -4,6 +4,7 @@ import hashlib
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import TypeAlias
 from uuid import uuid4
 
 from pydantic import JsonValue
@@ -46,7 +47,7 @@ class RiskConflictError(RuntimeError):
 
 
 Clock = Callable[[], datetime]
-RiskEvaluationResult = ApprovedExecutionIntent | RejectedExecutionIntent
+RiskEvaluationResult: TypeAlias = ApprovedExecutionIntent | RejectedExecutionIntent
 
 RISK_APPROVED = "RISK_APPROVED"
 KILL_SWITCH_ACTIVE = "KILL_SWITCH_ACTIVE"

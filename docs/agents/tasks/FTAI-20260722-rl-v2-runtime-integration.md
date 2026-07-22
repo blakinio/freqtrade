@@ -105,8 +105,8 @@ This task does not authorize a training config, experiment manifest, run request
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:25:00+02:00
-head: 5ad498e6a2538690ff371fd7b061bdd363820bf5
+updated_at: 2026-07-22T23:30:00+02:00
+head: feb018cb3c1b99fa3b4ee8039e1ecef189316a34
 branch: develop
 pr: 142
 status: ready
@@ -127,7 +127,8 @@ proven:
   - Synthetic implementation PR #107 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431 before squash merge d66b3e8d9381563556d7bdf37fe0bafbb3b87881.
   - Duplicate PR #139 was closed without merge after canonical PR #107 was discovered on develop.
   - Runtime-integration task declaration PR #142 passed Freqtrade CI 29958123208 and zizmor 29958123243; Pre-commit Types was skipped, not failed.
-  - PR #142 was squash-merged as 5ad498e6a2538690ff371fd7b061bdd363820bf5 and current develop is identical to that SHA at checkpoint time.
+  - PR #142 was squash-merged as 5ad498e6a2538690ff371fd7b061bdd363820bf5.
+  - Current develop at checkpoint time is feb018cb3c1b99fa3b4ee8039e1ecef189316a34 after unrelated TradingView lookahead repair trigger #141; no RL-v2 owned path changed.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:

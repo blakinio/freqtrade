@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import get_type_hints
 from uuid import uuid4
 
@@ -55,9 +55,8 @@ from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.identity import ActorType
 
 
-NOW = datetime(2026, 7, 22, 8, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 22, 8, 0, tzinfo=UTC)
 HASH_A = "a" * 64
-HASH_B = "b" * 64
 
 
 def _context() -> CorrelationContext:
@@ -97,8 +96,8 @@ def _model_version(**overrides: object) -> ModelVersion:
         "feature_schema_version_id": "features-v1",
         "dataset_version_id": "dataset-v1",
         "training_window": TrainingWindow(
-            start_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            end_at=datetime(2026, 2, 1, tzinfo=timezone.utc),
+            start_at=datetime(2026, 1, 1, tzinfo=UTC),
+            end_at=datetime(2026, 2, 1, tzinfo=UTC),
         ),
         "training_pipeline_version_id": "pipeline-v1",
         "parameters": (ModelParameter(name="learning_rate", value_json="0.05"),),
@@ -130,13 +129,16 @@ def _risk_decision(
     context: CorrelationContext,
     outcome: RiskDecisionOutcome,
 ) -> RiskDecision:
+    reason_code = (
+        "within_limits" if outcome is RiskDecisionOutcome.APPROVED else "limit_exceeded"
+    )
     return RiskDecision(
         risk_decision_id=uuid4(),
         tenant_id=trade_intent.tenant_id,
         trade_intent_id=trade_intent.trade_intent_id,
         risk_policy_version="risk-v1",
         decision=outcome,
-        reason_codes=("within_limits" if outcome is RiskDecisionOutcome.APPROVED else "limit_exceeded",),
+        reason_codes=(reason_code,),
         evaluated_limits=(
             RiskLimitEvaluation(
                 limit_name="max_exposure",
@@ -459,5 +461,5 @@ def test_naive_business_timestamp_is_rejected() -> None:
     with pytest.raises(ValidationError, match="timezone"):
         TrainingWindow(
             start_at=datetime(2026, 1, 1),
-            end_at=datetime(2026, 2, 1, tzinfo=timezone.utc),
+            end_at=datetime(2026, 2, 1, tzinfo=UTC),
         )

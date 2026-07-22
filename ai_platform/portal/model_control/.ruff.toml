@@ -1,4 +1,5 @@
 extend = "../../../pyproject.toml"
+src = ["../../../"]
 
 [lint.per-file-ignores]
 "__init__.py" = ["ALL"]
@@ -6,4 +7,3 @@ extend = "../../../pyproject.toml"
 "models.py" = ["ALL"]
 "repository.py" = ["ALL"]
 "schema.py" = ["ALL"]
-"service.py" = ["C90", "B", "F", "E", "I"]

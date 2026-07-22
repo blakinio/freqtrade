@@ -60,12 +60,22 @@ Promotion requires evidence appropriate to the stage. At minimum, before dry-run
 
 1. Read this file first.
 2. Read `docs/ai_platform/ARCHITECTURE.md` and `docs/ai_platform/ROADMAP.md` for AI-platform work.
-3. Inspect current branch, HEAD, open PRs, and relevant CI before editing.
-4. Work on a dedicated feature branch.
-5. Keep commits focused and reviewable.
-6. Run the narrowest relevant validation first, then broader tests if needed.
-7. Open a PR against `develop` unless the repository state explicitly indicates another base.
-8. Record important architecture or workflow changes in repository documentation.
+3. For AI Trading Portal/control-plane work, also read `docs/ai_platform/portal/README.md` and the task-relevant documents under `docs/ai_platform/portal/`; use `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md` as the program boundary.
+4. Inspect current branch, HEAD, open PRs, and relevant CI before editing.
+5. Work on a dedicated feature branch.
+6. Keep commits focused and reviewable.
+7. Run the narrowest relevant validation first, then broader tests if needed.
+8. Open a PR against `develop` unless the repository state explicitly indicates another base.
+9. Record important architecture or workflow changes in repository documentation.
+
+## Portal/control-plane safety boundary
+
+- Treat Freqtrade as a private execution engine behind an internal adapter; do not expose its control API or WebSocket directly to the public Internet or browser clients.
+- Portal, research, training, execution, and autonomous-validation concerns must remain separated by explicit contracts and credentials.
+- AI/post-trade analysis may create evidence, insights, experiments, and model candidates; it must not directly mutate a running production model or bypass deterministic risk controls.
+- Autonomous repair agents may prepare regression tests, isolated branches, fixes, and PRs; they may not patch production or bypass CI/promotion gates.
+- Cloudflare/Zero Trust may protect ingress and privileged surfaces, but application RBAC, tenant isolation, secret handling, and private Freqtrade networking remain mandatory defense layers.
+- Portal implementation must not alter frozen Phase 5 thresholds, consume the protected final holdout iteratively, reopen completed Phase 6, or reinterpret PyTorch/RL evidence as promotion authorization.
 
 ## Validation expectations
 

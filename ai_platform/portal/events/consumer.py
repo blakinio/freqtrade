@@ -40,6 +40,7 @@ class IdempotentEventConsumer:
 
     def consume(self, event: EventEnvelope) -> ConsumeResult:
         session = self._session_factory()
+        handler_started = False
         try:
             with session.begin():
                 marker = EventInboxRow(
@@ -52,10 +53,13 @@ class IdempotentEventConsumer:
                 )
                 session.add(marker)
                 session.flush()
+                handler_started = True
                 self._handler(session, event)
             return ConsumeResult.PROCESSED
         except IntegrityError:
             session.rollback()
+            if handler_started:
+                raise
             return ConsumeResult.DUPLICATE
         finally:
             session.close()

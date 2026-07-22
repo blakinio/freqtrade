@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-tradingview-futures-historical-benchmark
-status: implementing
-branch: feat/tradingview-futures-historical-benchmark-implementation-v1
+status: ready
+branch: develop
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: ""
+related_pr: "132"
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-benchmark-v1.json
   - ai_platform/scripts/tradingview_futures_historical_benchmark.py
@@ -114,16 +114,16 @@ The benchmark may produce an ordering for research review, but it must explicitl
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T19:25:00+02:00
-head: 8ff495ed829527883c811f0b773362ff36a47c58
-branch: feat/tradingview-futures-historical-benchmark-implementation-v1
+updated_at: 2026-07-22T23:01:59+02:00
+head: 73f612557fd2a14d2ab3f8d413a32853b1e7f554
+branch: develop
 pr: none
-status: implementing
+status: ready
 context_routes:
   - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
   - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
-  - .github/workflows/experimental-model-historical-backtest-execution.yml
+  - .github/workflows/ai-platform-tradingview-futures-historical-benchmark.yml
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-benchmark-v1.json
   - ai_platform/scripts/tradingview_futures_historical_benchmark.py
@@ -133,43 +133,39 @@ owned_paths:
   - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md
 proven:
-  - TradingView futures preflight PR #112 merged to develop as 0dd4a1b79cd5794bddb06f339c526e4b8685c9eb after all required CI and the dedicated runtime preflight succeeded.
-  - Benchmark declaration PR #121 merged to develop as 23724dff8674da37bcdfa4d7c8e363d1afd2629d after Freqtrade CI and zizmor succeeded.
-  - Preflight resolved BTC/USD:USD as PF_XBTUSD and ETH/USD:USD as PF_ETHUSD under krakenfutures futures isolated USD mode with sufficient 15m coverage.
-  - The implementation contract freezes the three candidate identities, source Git blob identities, pairs, 15m timeframe, 20260301-20260701 execution timerange, fee 0.002 and common wallet/stake semantics.
-  - The implementation validator rejects source, authorization, request, market and materialized-config drift and extracts every backtest into one common evidence schema.
-  - The workflow executes no benchmark on the implementation PR; result execution requires a later PR that adds exactly the canonical run-request file.
-  - The result workflow is designed to run all three candidates sequentially on one runtime/data/config, retain backtest archives, run lookahead and recursive analyses, and emit historical ordering with selected_candidate=null.
-  - Wick Hunter remains excluded because no trustworthy historical liquidation feed has been bound to the research track.
+  - PR #122 merged the frozen benchmark contract and one-shot workflow; subsequent resolver and extractor compatibility fixes were merged without changing candidate logic or frozen benchmark geometry.
+  - Canonical trigger PR #132 changed exactly ai_platform/research/tradingview/run-requests/futures-historical-benchmark-v1.json, passed all required CI, and was squash-merged as 73f612557fd2a14d2ab3f8d413a32853b1e7f554.
+  - Dedicated benchmark run 29947929886 completed contract validation, strategy resolver preflight, market rebinding, data coverage verification, all three backtests, validation analyses, comparison assembly, and artifact upload successfully.
+  - Immutable benchmark artifact 8541078835 has digest sha256:9cb7c603d6c1f612a783907aa6ca112c7f946efff80abdd38ad283bed1ad822c and is retained until 2026-10-20.
+  - Historical ordering is TVBollingerMeanReversionStrategy, TVSupertrendStrategy, TVDonchianBreakoutStrategy; selected_candidate remains null and no promotion or superiority claim is authorized.
+  - Bollinger produced profit_total -0.02944326341, max_drawdown 0.03016401647122 and 912 trades; Supertrend produced -0.031403532914, 0.03162537857 and 603 trades; Donchian produced -0.034981894459, 0.0350744488 and 613 trades.
+  - Lookahead analysis returned exit code 0 but no CSV/strategy row for all three candidates, so every lookahead status is incomplete; recursive analysis returned exit code 0 for all three and is marked completed_review_required.
+  - Protected final holdout 20260801-20260930 was not used; retuning, automatic validation, promotion, live trading, profitability claims and superiority claims remain forbidden.
 derived:
-  - After implementation CI succeeds and merges, a scope-limited one-file run-request PR can safely authorize the one-shot historical benchmark without changing candidate code.
-  - Historical ordering may guide research review but cannot authorize retuning, validation, promotion or a profitability/superiority claim.
+  - None of the three frozen candidates produced positive historical return under the common benchmark assumptions, so the historical ordering is research evidence only and does not justify promotion.
+  - The task now needs evidence materialization and manual validation review rather than another benchmark rerun or parameter change.
 unknown:
-  - Whether all three candidates complete the frozen futures backtest in the current runtime.
-  - Whether lookahead-analysis produces a complete CSV row for every candidate and whether any bias is detected.
-  - Whether recursive-analysis completes for every candidate and what indicator variance requires manual review.
-  - Comparative historical performance of the three candidates under identical assumptions.
+  - Why lookahead-analysis produced no CSV strategy row despite exit code 0, and whether a separate bounded compatibility investigation can produce conclusive bias evidence without changing candidate logic.
+  - Whether recursive-analysis indicator variance is operationally negligible for each candidate after manual review of the retained logs.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: none
+  marker: resolved_prior_execution_failures
+  evidence: Attempts #125/#127 failed closed before backtesting and #129 failed on drawdown normalization; resolver fixes #126/#128 and extractor fix #130 resolved those issues, and #132 completed successfully.
 rejected_hypotheses:
-  - Add Wick Hunter to the benchmark without historical liquidation observations.
-  - Retune candidate parameters after observing this benchmark.
-  - Use protected final holdout data for the benchmark.
-  - Reuse spot BTC/USDT and ETH/USDT instead of the preflight-proven futures markets.
-  - Execute benchmark results in the same PR that introduces or changes the execution contract.
+  - Add Wick Hunter without trustworthy historical liquidation observations.
+  - Retune or mutate candidate parameters after observing benchmark results.
+  - Treat historical ordering as automatic winner selection or promotion authorization.
+  - Use protected final holdout data for this benchmark or its follow-up review.
 changed_paths:
-  - ai_platform/research/tradingview/futures-historical-benchmark-v1.json
-  - ai_platform/scripts/tradingview_futures_historical_benchmark.py
-  - tests/ai_platform/test_tradingview_futures_historical_benchmark.py
-  - .github/workflows/ai-platform-tradingview-futures-historical-benchmark.yml
-  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
+  - ai_platform/research/tradingview/run-requests/futures-historical-benchmark-v1.json
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md
 validation:
-  - command: GitHub Actions on implementation PR
-    result: NOT_RUN
-    evidence: Implementation branch prepared; canonical result-producing run-request file intentionally absent.
+  - command: GitHub Actions on PR #132 head 9c03faedea870cea78b46672545fb4a4ba371e6f
+    result: PASS
+    evidence: AI Platform CI, Freqtrade CI, zizmor and AI Platform TradingView Futures Historical Benchmark all completed success; Pre-commit Types update was skipped.
+  - command: Dedicated benchmark workflow run 29947929886
+    result: PASS
+    evidence: Execute frozen one-shot historical benchmark completed successfully and uploaded artifact 8541078835 with digest sha256:9cb7c603d6c1f612a783907aa6ca112c7f946efff80abdd38ad283bed1ad822c.
 blockers: []
-next_action: Open the implementation pull request against develop, use AI Platform CI, Freqtrade CI, zizmor and the benchmark contract job to fix any contract, test, lint, workflow or checkpoint failure, merge only when green, then create a separate branch that adds exactly the canonical run-request file and observe the one-shot benchmark evidence.
+next_action: Create a separate evidence-materialization and validation-review branch from current develop, persist the immutable run 29947929886 provenance and benchmark summary, review the incomplete lookahead and recursive-analysis evidence without retuning, and close the task with selected_candidate remaining null unless a separately declared future work package is authorized.
 ```

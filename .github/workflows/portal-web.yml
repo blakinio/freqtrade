@@ -1,0 +1,65 @@
+name: Portal Web CI
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/web/**"
+      - ".github/workflows/portal-web.yml"
+      - "docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md"
+      - "docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  web-validation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Generate bootstrap lockfile
+        run: npm install --package-lock-only --ignore-scripts
+
+      - name: Upload bootstrap lockfile
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: portal-web-package-lock
+          path: ai_platform/portal/web/package-lock.json
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Install dependencies from generated lockfile
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Chromium E2E
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+        run: npm run test:e2e

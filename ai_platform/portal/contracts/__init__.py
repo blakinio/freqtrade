@@ -66,6 +66,7 @@ from ai_platform.portal.contracts.secret_refs import (
     SecretRef,
 )
 
+
 __all__ = [
     "Actor",
     "ActorType",

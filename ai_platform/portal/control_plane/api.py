@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from decimal import Decimal
+
 from fastapi import Depends, FastAPI, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from ai_platform.portal.contracts.bots import BotDesiredState, BotInstance, BotSpec
+from ai_platform.portal.contracts.risk import TradeSide
 from ai_platform.portal.control_plane.context import (
     IdentityContextProvider,
     RequestContext,
@@ -15,6 +18,12 @@ from ai_platform.portal.control_plane.service import (
     BotNotFoundError,
     ControlPlaneConflictError,
     ControlPlaneService,
+)
+from ai_platform.portal.risk.service import RiskConflictError, RiskPolicyNotFoundError
+from ai_platform.portal.risk.terminal import (
+    RiskSnapshotUnavailableError,
+    TerminalIntentResult,
+    TerminalService,
 )
 from ai_platform.portal.security.authorization import PermissionDeniedError
 
@@ -39,15 +48,26 @@ class DesiredStateRequest(BaseModel):
     desired_state: BotDesiredState
 
 
+class TerminalIntentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    bot_id: str
+    pair: str
+    side: TradeSide
+    amount: Decimal
+
+
 def create_app(
     session_factory: SessionFactory,
     identity_context_provider: IdentityContextProvider | None = None,
+    terminal_service: TerminalService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
         version="0.1.0",
     )
     service = ControlPlaneService(session_factory)
+    terminal = terminal_service or TerminalService(session_factory)
     context_dependency = identity_dependency(identity_context_provider)
 
     @app.exception_handler(PermissionDeniedError)
@@ -61,9 +81,30 @@ def create_app(
     async def not_found_handler(_request: object, exc: BotNotFoundError) -> JSONResponse:
         return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
 
+    @app.exception_handler(RiskPolicyNotFoundError)
+    async def risk_not_found_handler(
+        _request: object,
+        exc: RiskPolicyNotFoundError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)})
+
     @app.exception_handler(ControlPlaneConflictError)
     async def conflict_handler(_request: object, exc: ControlPlaneConflictError) -> JSONResponse:
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+
+    @app.exception_handler(RiskConflictError)
+    async def risk_conflict_handler(_request: object, exc: RiskConflictError) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+
+    @app.exception_handler(RiskSnapshotUnavailableError)
+    async def risk_snapshot_unavailable_handler(
+        _request: object,
+        exc: RiskSnapshotUnavailableError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={"detail": str(exc)},
+        )
 
     @app.exception_handler(ValueError)
     async def validation_handler(_request: object, exc: ValueError) -> JSONResponse:
@@ -107,5 +148,18 @@ def create_app(
         context: RequestContext = Depends(context_dependency),
     ) -> BotInstance:
         return service.set_desired_state(context, bot_id, request.desired_state)
+
+    @app.post("/v1/terminal/intents", response_model=TerminalIntentResult)
+    def submit_terminal_intent(
+        request: TerminalIntentRequest,
+        context: RequestContext = Depends(context_dependency),
+    ) -> TerminalIntentResult:
+        return terminal.submit_manual_intent(
+            context,
+            bot_id=request.bot_id,
+            pair=request.pair,
+            side=request.side,
+            amount=request.amount,
+        )
 
     return app

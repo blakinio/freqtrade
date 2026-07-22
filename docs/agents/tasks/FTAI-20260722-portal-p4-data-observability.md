@@ -22,11 +22,11 @@ required_reads:
   - ai_platform/portal/contracts/events.py
   - ai_platform/portal/control_plane/models.py
 search_first:
-  - current develop and PR #119 merged/final-head state
-  - open PRs overlapping events or observability ownership
-  - canonical P1 EventEnvelope and P2 transactional outbox
+  - current develop and open PRs or active tasks overlapping P5 model_control ownership
+  - merged PR #119 and P4 checkpoint before declaring successor work
+  - canonical P1 model and audit contracts plus existing registry semantics
 optional_reads:
-  - only event publication and telemetry implementation-adjacent files
+  - only model lifecycle implementation-adjacent files when the successor task requires them
 ---
 
 # AI Trading Portal P4 — Data / Observability Foundation
@@ -74,9 +74,9 @@ Implement durable at-least-once outbox publication, idempotent consumer referenc
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T16:30:36+02:00
-head: 0327c75159cdd70d754051383304646c192cc92a
-branch: feat/portal-p4-data-observability
+updated_at: 2026-07-22T16:47:37+02:00
+head: ef32a6e90b3075e3170c093d483fb76bf8625dce
+branch: develop
 pr: "#119"
 status: ready
 context_routes:
@@ -91,14 +91,15 @@ owned_paths:
   - docs/ai_platform/portal/DATA_OBSERVABILITY_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-p4-data-observability.md
 proven:
-  - P3 PR #118 was squash-merged to develop as 4ccbfcdcc4b18a69b352679793d4028bcbc6f120 and P4 was based on that exact state.
   - P4 implements replaceable at-least-once outbox publication over P2 portal_outbox_events and marks published_at only after a successful transport call.
   - P4 adds durable portal_event_inbox deduplication keyed by consumer_name and event_id with handler side effects in the same transaction.
   - P4 propagates canonical request, correlation and causation identifiers without changing the P1 EventEnvelope schema.
   - P4 structured telemetry recursively redacts secret/token/password/private-key/cookie fields and records exception types without exception messages.
-  - PR #119 implementation head 0327c75159cdd70d754051383304646c192cc92a passed AI Platform CI 29925402251, Freqtrade CI 29925401946 and zizmor 29925401950.
+  - PR #119 final head a64709b3c7158425be0d80b57383b14ad7e4892d passed AI Platform CI 29929002230, Freqtrade CI 29929002827 and zizmor 29929002195.
+  - PR #119 had no submitted reviews or review threads and was squash-merged as ef32a6e90b3075e3170c093d483fb76bf8625dce.
+  - develop was verified identical to ef32a6e90b3075e3170c093d483fb76bf8625dce immediately after the P4 merge.
 derived:
-  - P4 acceptance criteria are satisfied without deploying an external event bus or observability backend and without owning bot business logic.
+  - P4 acceptance criteria are complete and successor work can proceed as a separate P5 Model Lifecycle Control task without changing P4 contracts.
 unknown:
   - Final event bus and telemetry backend implementations remain intentionally replaceable deployment decisions outside P4.
 conflicts: []
@@ -133,13 +134,19 @@ validation:
     evidence: Compile, AI Platform tests, Ruff, Ruff format, Codespell and JSON validation succeeded on implementation head 0327c75159cdd70d754051383304646c192cc92a.
   - command: Freqtrade CI run 29925401946
     result: PASS
-    evidence: Pre-commit, docs, full platform matrix, coverage, smoke tests, Ruff, formatter, mypy and final CI Gate succeeded on the implementation head.
-  - command: zizmor run 29925401950
+    evidence: Pre-commit, docs, full platform matrix, coverage, smoke tests, Ruff, formatter, mypy and CI Gate succeeded on the implementation head.
+  - command: AI Platform CI run 29929002230
     result: PASS
-    evidence: GitHub Actions security analysis succeeded on the implementation head.
-  - command: Pre-commit Types update run 29925401282
+    evidence: Final checkpoint-only head a64709b3c7158425be0d80b57383b14ad7e4892d passed AI Platform validation.
+  - command: Freqtrade CI run 29929002827
+    result: PASS
+    evidence: Final checkpoint-only head passed pre-commit, documentation, full platform matrix, coverage, mypy and final CI Gate.
+  - command: zizmor run 29929002195
+    result: PASS
+    evidence: Final checkpoint-only head passed GitHub Actions security analysis.
+  - command: Pre-commit Types update run 29929002829
     result: NOT_RUN
     evidence: Workflow concluded skipped and is not a failure gate.
 blockers: []
-next_action: Verify PR #119 final checkpoint-only head CI and review state, squash-merge it to develop, then verify develop equals the merge SHA before starting a separate P5 Model Lifecycle Control task.
+next_action: Declare and start a separate P5 Model Lifecycle Control task from current develop after checking live open PRs and active tasks for model_control overlap; preserve frozen research boundaries and do not modify P4 contracts.
 ```

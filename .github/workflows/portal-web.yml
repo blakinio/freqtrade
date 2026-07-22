@@ -52,3 +52,36 @@ jobs:
           PORTAL_WEB_DATA_MODE: fixture
           PORTAL_ENVIRONMENT: test
         run: npm run test:e2e
+
+  precommit-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Capture pre-commit output
+        continue-on-error: true
+        run: |
+          python -m pip install pre-commit
+          set +e
+          pre-commit run --all-files --show-diff-on-failure --color=never > /tmp/precommit.log 2>&1
+          status=$?
+          echo "$status" > /tmp/precommit.exit
+          cat /tmp/precommit.log
+          exit "$status"
+
+      - name: Upload pre-commit diagnostic
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: portal-p6-precommit-diagnostic
+          path: |
+            /tmp/precommit.log
+            /tmp/precommit.exit
+          if-no-files-found: error
+          retention-days: 1

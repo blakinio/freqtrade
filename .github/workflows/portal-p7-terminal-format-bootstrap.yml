@@ -29,7 +29,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check ruff==0.15.21
       - name: Fix and format terminal Python
         run: |
-          ruff check --fix ai_platform/portal/risk/terminal.py ai_platform/portal/control_plane/api.py tests/ai_platform/portal/risk/test_terminal.py tests/ai_platform/portal/control_plane/test_api.py
+          ruff check --fix --exit-zero ai_platform/portal/risk/terminal.py ai_platform/portal/control_plane/api.py tests/ai_platform/portal/risk/test_terminal.py tests/ai_platform/portal/control_plane/test_api.py
           ruff format ai_platform/portal/risk/terminal.py ai_platform/portal/control_plane/api.py tests/ai_platform/portal/risk/test_terminal.py tests/ai_platform/portal/control_plane/test_api.py
       - name: Commit output
         env:

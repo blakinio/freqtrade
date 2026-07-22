@@ -14,9 +14,7 @@ from typing import Any
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CONTRACT_PATH = (
-    REPO_ROOT / "ai_platform/research/tradingview/futures-historical-benchmark-v1.json"
-)
+CONTRACT_PATH = REPO_ROOT / "ai_platform/research/tradingview/futures-historical-benchmark-v1.json"
 BENCHMARK_ID = "tradingview-futures-historical-benchmark-v1"
 PREFLIGHT_ID = "tradingview-futures-historical-preflight-v1"
 EXPECTED_CANDIDATES = [
@@ -407,9 +405,7 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             )
         is_short = trade.get("is_short")
         if not isinstance(is_short, bool):
-            raise TradingViewHistoricalBenchmarkError(
-                f"trade[{index}].is_short must be boolean"
-            )
+            raise TradingViewHistoricalBenchmarkError(f"trade[{index}].is_short must be boolean")
         pair_counts[pair] += 1
         pair_profit_abs[pair] += profit_abs
         exit_counts[exit_reason] += 1
@@ -458,9 +454,7 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             "profit_total_abs": _finite_number(
                 strategy_stats.get("profit_total_abs"), "profit_total_abs"
             ),
-            "max_drawdown": _finite_number(
-                strategy_stats.get("max_drawdown"), "max_drawdown"
-            ),
+            "max_drawdown": _finite_number(strategy_stats.get("max_drawdown"), "max_drawdown"),
             "max_drawdown_abs": _finite_number(
                 strategy_stats.get("max_drawdown_abs"), "max_drawdown_abs"
             ),

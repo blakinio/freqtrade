@@ -225,9 +225,7 @@ def test_each_deterministic_limit_fails_closed(
     assert isinstance(result, RejectedExecutionIntent)
     assert result.risk_decision.decision is RiskDecisionOutcome.REJECTED
     assert reason_code in result.risk_decision.reason_codes
-    assert any(
-        not item.passed for item in result.risk_decision.evaluated_limits
-    )
+    assert any(not item.passed for item in result.risk_decision.evaluated_limits)
 
 
 def test_active_kill_switch_always_rejects_and_release_restores_evaluation(

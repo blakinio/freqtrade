@@ -150,8 +150,14 @@ def test_revisions_append_without_mutating_previous_revision(
     assert revisions[1].model_version == "model-v2"
     assert updated.spec.config_revision == 2
     assert updated.spec.model_version == "model-v2"
-    assert audits[-1].action is AuditAction.BOT_CONFIG_REVISED
-    assert outbox[-1].event_type is EventType.BOT_CONFIG_REVISED
+    assert {audit.action for audit in audits} == {
+        AuditAction.BOT_CREATED,
+        AuditAction.BOT_CONFIG_REVISED,
+    }
+    assert {event.event_type for event in outbox} == {
+        EventType.BOT_CREATED,
+        EventType.BOT_CONFIG_REVISED,
+    }
 
 
 def test_revision_number_must_be_monotonic(session_factory: SessionFactory) -> None:
@@ -178,8 +184,14 @@ def test_desired_state_command_does_not_change_observed_state(
     with session_factory() as session:
         audits = repository.list_audit_events(session, "tenant-a", "bot", "bot-1")
         outbox = repository.list_outbox_events(session, "tenant-a", "bot", "bot-1")
-    assert audits[-1].action is AuditAction.BOT_START_REQUESTED
-    assert outbox[-1].event_type is EventType.BOT_START_REQUESTED
+    assert {audit.action for audit in audits} == {
+        AuditAction.BOT_CREATED,
+        AuditAction.BOT_START_REQUESTED,
+    }
+    assert {event.event_type for event in outbox} == {
+        EventType.BOT_CREATED,
+        EventType.BOT_START_REQUESTED,
+    }
 
 
 @pytest.mark.parametrize(

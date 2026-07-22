@@ -202,23 +202,19 @@ class TradeIntelligenceService:
 
     @staticmethod
     def _deterministic_summary(diagnosis: DeterministicDiagnosis) -> str:
-        summaries = {
-            DiagnosisCode.PROFITABLE: (
-                "Trade closed with non-negative realized PNL."
-            ),
-            DiagnosisCode.LOSS_WITHIN_EXPECTED_RISK: (
-                "Trade closed at a loss without evidence that the declared "
-                "risk budget was exceeded; this is not classified as a model error."
-            ),
-            DiagnosisCode.LOSS_REQUIRES_REVIEW: (
-                "Trade loss exceeded the declared risk budget and requires evidence review."
-            ),
-            DiagnosisCode.DATA_GAP: (
-                "Trade outcome is not fully reconciled; causal diagnosis is deferred until "
-                "evidence is complete."
-            ),
-        }
-        return summaries[diagnosis.code]
+        if diagnosis.code is DiagnosisCode.PROFITABLE:
+            return "Trade closed with non-negative realized PNL."
+        if diagnosis.code is DiagnosisCode.LOSS_WITHIN_EXPECTED_RISK:
+            return (
+                "Trade closed at a loss without evidence that the declared risk budget was "
+                "exceeded; this is not classified as a model error."
+            )
+        if diagnosis.code is DiagnosisCode.LOSS_REQUIRES_REVIEW:
+            return "Trade loss exceeded the declared risk budget and requires evidence review."
+        return (
+            "Trade outcome is not fully reconciled; causal diagnosis is deferred until "
+            "evidence is complete."
+        )
 
     @staticmethod
     def _severity(code: DiagnosisCode) -> InsightSeverity:

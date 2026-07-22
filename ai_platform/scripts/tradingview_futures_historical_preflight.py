@@ -183,9 +183,7 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:
         raise TradingViewFuturesPreflightError("Research-track identity drifted")
     if contract.get("candidates") != EXPECTED_CANDIDATES:
         raise TradingViewFuturesPreflightError("Canonical candidate set drifted")
-    expected_exclusion = {
-        "wickhunter-multi-vwap": "blocked_on_historical_liquidation_feed"
-    }
+    expected_exclusion = {"wickhunter-multi-vwap": "blocked_on_historical_liquidation_feed"}
     if contract.get("excluded_candidates") != expected_exclusion:
         raise TradingViewFuturesPreflightError("Wick Hunter exclusion drifted")
     if contract.get("exchange") != EXPECTED_EXCHANGE_CONTRACT:
@@ -296,10 +294,7 @@ def discover_markets(markets: list[dict[str, Any]]) -> dict[str, Any]:
         )
         if len(matches) != 1:
             symbols = [str(market.get("symbol")) for market in matches]
-            message = (
-                f"Expected one eligible {base} USD perpetual; "
-                f"found {len(matches)}: {symbols}"
-            )
+            message = f"Expected one eligible {base} USD perpetual; found {len(matches)}: {symbols}"
             raise TradingViewFuturesPreflightError(message)
         market = matches[0]
         resolved[base] = {

@@ -51,8 +51,7 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    path.write_text(content, encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def _git_blob_sha(path: str) -> str:
@@ -60,8 +59,9 @@ def _git_blob_sha(path: str) -> str:
     try:
         candidate.relative_to(REPO_ROOT)
     except ValueError as exc:
-        message = f"Source path escapes repository root: {path}"
-        raise TradingViewHistoricalBenchmarkError(message) from exc
+        raise TradingViewHistoricalBenchmarkError(
+            f"Source path escapes repository root: {path}"
+        ) from exc
     if not candidate.is_file():
         raise TradingViewHistoricalBenchmarkError(f"Frozen source file is missing: {path}")
     try:
@@ -90,8 +90,9 @@ def _validate_source_identity(contract: dict[str, Any]) -> None:
     ):
         actual = _git_blob_sha(identity[path_field])
         if actual != identity[sha_field]:
-            message = f"Frozen source identity changed for {identity[path_field]}: {actual}"
-            raise TradingViewHistoricalBenchmarkError(message)
+            raise TradingViewHistoricalBenchmarkError(
+                f"Frozen source identity changed for {identity[path_field]}: {actual}"
+            )
 
 
 def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C901
@@ -115,8 +116,7 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
         raise TradingViewHistoricalBenchmarkError("Wick Hunter exclusion boundary drifted")
     _validate_source_identity(contract)
 
-    exchange = contract.get("exchange")
-    expected_exchange = {
+    if contract.get("exchange") != {
         "name": "krakenfutures",
         "trading_mode": "futures",
         "margin_mode": "isolated",
@@ -125,26 +125,22 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
             {"base": "BTC", "symbol": "BTC/USD:USD", "market_id": "PF_XBTUSD"},
             {"base": "ETH", "symbol": "ETH/USD:USD", "market_id": "PF_ETHUSD"},
         ],
-    }
-    if exchange != expected_exchange:
+    }:
         raise TradingViewHistoricalBenchmarkError(
             "Frozen Kraken Futures benchmark market contract drifted"
         )
 
-    data = contract.get("data")
-    expected_data = {
+    if contract.get("data") != {
         "timeframe": EXPECTED_TIMEFRAME,
         "semantic_research_window": "20260301-20260630",
         "execution_timerange": EXPECTED_TIMERANGE,
         "download_timerange": EXPECTED_DOWNLOAD_TIMERANGE,
         "freqtrade_stop_semantics": "end_exclusive",
         "maximum_startup_candle_count": 120,
-    }
-    if data != expected_data:
+    }:
         raise TradingViewHistoricalBenchmarkError("Frozen benchmark data geometry drifted")
 
-    assumptions = contract.get("execution_assumptions")
-    expected_assumptions = {
+    if contract.get("execution_assumptions") != {
         "fee": EXPECTED_FEE,
         "max_open_trades": 2,
         "stake_amount": 100,
@@ -156,12 +152,10 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
         "same_fee_required": True,
         "same_wallet_and_stake_required": True,
         "same_execution_semantics_required": True,
-    }
-    if assumptions != expected_assumptions:
+    }:
         raise TradingViewHistoricalBenchmarkError("Frozen common execution assumptions drifted")
 
-    analyses = contract.get("validation_analyses")
-    expected_analyses = {
+    if contract.get("validation_analyses") != {
         "lookahead": {
             "required": True,
             "minimum_trade_amount": 1,
@@ -175,20 +169,17 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
             "startup_candles": [49, 99, 119, 199, 499, 999],
             "failure_policy": "record_incomplete_and_block_validation_claim",
         },
-    }
-    if analyses != expected_analyses:
+    }:
         raise TradingViewHistoricalBenchmarkError("Benchmark validation-analysis contract drifted")
 
-    request = contract.get("run_request")
-    if request != {
+    if contract.get("run_request") != {
         "path": EXPECTED_REQUEST_PATH,
         "requested_action": "execute_one_shot_historical_benchmark",
         "pull_request_scope": "add_exactly_one_canonical_run_request_file",
     }:
         raise TradingViewHistoricalBenchmarkError("One-shot run-request contract drifted")
 
-    historical = contract.get("historical_evidence")
-    if historical != {
+    if contract.get("historical_evidence") != {
         "consumed_platform_oos": "20260501-20260630",
         "classification": "historical_research_evidence_only",
         "unseen_final_evidence": False,
@@ -213,7 +204,7 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
     }:
         raise TradingViewHistoricalBenchmarkError("Phase 6 isolation contract drifted")
 
-    expected_authorization = {
+    if contract.get("authorization") != {
         "canonical_one_shot_backtest_allowed": True,
         "market_discovery_allowed": True,
         "historical_data_download_allowed": True,
@@ -229,8 +220,7 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
         "profitability_claim_allowed": False,
         "superiority_claim_allowed": False,
         "final_holdout_access_allowed": False,
-    }
-    if contract.get("authorization") != expected_authorization:
+    }:
         raise TradingViewHistoricalBenchmarkError("Benchmark authorization boundary drifted")
     return contract
 
@@ -313,8 +303,9 @@ def validate_materialized_config(path: Path) -> dict[str, Any]:
     }
     for field, value in expected.items():
         if config.get(field) != value:
-            message = f"Materialized config field {field} drifted: expected {value!r}"
-            raise TradingViewHistoricalBenchmarkError(message)
+            raise TradingViewHistoricalBenchmarkError(
+                f"Materialized config field {field} drifted: expected {value!r}"
+            )
     exchange = config.get("exchange")
     if not isinstance(exchange, dict) or exchange.get("name") != "krakenfutures":
         raise TradingViewHistoricalBenchmarkError("Materialized config exchange drifted")
@@ -330,6 +321,27 @@ def _finite_number(value: Any, label: str) -> float:
     if not math.isfinite(result):
         raise TradingViewHistoricalBenchmarkError(f"{label} must be a finite number")
     return result
+
+
+def _relative_drawdown(strategy_stats: dict[str, Any]) -> float:
+    """Normalize current and legacy Freqtrade relative drawdown fields fail-closed."""
+    values: list[tuple[str, float]] = []
+    for field in ("max_drawdown_account", "max_relative_drawdown", "max_drawdown"):
+        raw = strategy_stats.get(field)
+        if raw is not None:
+            values.append((field, _finite_number(raw, field)))
+    if not values:
+        raise TradingViewHistoricalBenchmarkError(
+            "Backtest archive contains no finite relative drawdown field"
+        )
+    canonical = values[0][1]
+    for _field, value in values[1:]:
+        if not math.isclose(value, canonical, rel_tol=1e-12, abs_tol=1e-12):
+            details = ", ".join(f"{name}={number}" for name, number in values)
+            raise TradingViewHistoricalBenchmarkError(
+                f"Backtest relative drawdown fields disagree: {details}"
+            )
+    return canonical
 
 
 def _sha256(path: Path) -> str:
@@ -395,8 +407,9 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             raise TradingViewHistoricalBenchmarkError(f"Trade {index} must be a JSON object")
         pair = trade.get("pair")
         if pair not in EXPECTED_PAIRS:
-            message = f"Trade {index} uses unexpected pair {pair!r}"
-            raise TradingViewHistoricalBenchmarkError(message)
+            raise TradingViewHistoricalBenchmarkError(
+                f"Trade {index} uses unexpected pair {pair!r}"
+            )
         profit_abs = _finite_number(trade.get("profit_abs"), f"trade[{index}].profit_abs")
         exit_reason = trade.get("exit_reason")
         if not isinstance(exit_reason, str) or not exit_reason:
@@ -454,7 +467,7 @@ def extract_backtest(archive_path: Path, strategy: str) -> dict[str, Any]:  # no
             "profit_total_abs": _finite_number(
                 strategy_stats.get("profit_total_abs"), "profit_total_abs"
             ),
-            "max_drawdown": _finite_number(strategy_stats.get("max_drawdown"), "max_drawdown"),
+            "max_drawdown": _relative_drawdown(strategy_stats),
             "max_drawdown_abs": _finite_number(
                 strategy_stats.get("max_drawdown_abs"), "max_drawdown_abs"
             ),

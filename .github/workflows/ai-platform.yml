@@ -43,7 +43,7 @@ jobs:
       - name: Install lightweight validation dependencies
         run: >-
           python -m pip install --disable-pip-version-check
-          pytest jsonschema ruff==0.15.21 codespell==2.4.2
+          pytest jsonschema "pydantic>=2.2" ruff==0.15.21 codespell==2.4.2
 
       - name: Compile AI platform Python
         run: python -m compileall -q ai_platform tests/ai_platform

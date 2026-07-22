@@ -26,16 +26,12 @@ class RuntimeWorkspaceStore:
     def record_path_for(self, runtime_id: str) -> Path:
         return self.workspace_for(runtime_id) / "runtime-manifest.json"
 
-    def write_config(self, runtime_id: str, config: dict[str, Any]) -> str:
-        canonical = json.dumps(
-            config,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        )
-        digest = hashlib.sha256(canonical.encode()).hexdigest()
+    def config_sha256(self, config: dict[str, Any]) -> str:
+        return hashlib.sha256(self._canonical_config(config).encode()).hexdigest()
+
+    def write_config(self, runtime_id: str, config: dict[str, Any]) -> None:
+        canonical = self._canonical_config(config)
         self._write_text_atomic(self.config_path_for(runtime_id), canonical + "\n")
-        return digest
 
     def write_record(self, record: RuntimeRecord) -> None:
         payload = json.dumps(
@@ -51,6 +47,15 @@ class RuntimeWorkspaceStore:
         if not path.exists():
             return None
         return RuntimeRecord.model_validate_json(path.read_text(encoding="utf-8"))
+
+    @staticmethod
+    def _canonical_config(config: dict[str, Any]) -> str:
+        return json.dumps(
+            config,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
 
     @staticmethod
     def _write_text_atomic(path: Path, content: str) -> None:

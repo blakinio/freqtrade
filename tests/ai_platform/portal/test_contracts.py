@@ -129,9 +129,7 @@ def _risk_decision(
     context: CorrelationContext,
     outcome: RiskDecisionOutcome,
 ) -> RiskDecision:
-    reason_code = (
-        "within_limits" if outcome is RiskDecisionOutcome.APPROVED else "limit_exceeded"
-    )
+    reason_code = "within_limits" if outcome is RiskDecisionOutcome.APPROVED else "limit_exceeded"
     return RiskDecision(
         risk_decision_id=uuid4(),
         tenant_id=trade_intent.tenant_id,

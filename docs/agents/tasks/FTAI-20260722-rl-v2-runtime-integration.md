@@ -105,8 +105,8 @@ This task does not authorize a training config, experiment manifest, run request
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:38:00+02:00
-head: e2a8381e023e9466b55bcd4eca9e054fd7a09988
+updated_at: 2026-07-22T23:45:00+02:00
+head: 8ad99ab56b59fc0532d963905ee4619dc963269a
 branch: feat/rl-v2-runtime-integration
 pr: 151
 status: review
@@ -132,18 +132,19 @@ proven:
   - AiDesiredPositionRLResearchStrategy maps do_predict-gated target_long to entry intent and target_flat to exit intent without introducing short semantics.
   - Runtime observability binding reuses RLV2ObservabilityAccumulator for action, do_predict and pre-trade signal layers and does not fabricate raw-trade or strict-OOS counts.
   - Runtime descriptor freezes Stable-Baselines3/FreqAI, PPO and MlpPolicy integration metadata while authorizing no config, manifest, run request, training, backtest or historical evaluation.
+  - AI Platform CI run 29959805166 compiled the new Python and passed the AI Platform test suite before its Ruff step failed; the formatting-only lint remediation is commit 8ad99ab56b59fc0532d963905ee4619dc963269a.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
-  - Static/AST tests can prove runtime source binding to the canonical synthetic reference without importing the heavy freqai_rl dependency profile.
+  - Static/AST tests prove runtime source binding to the canonical synthetic reference without importing the heavy freqai_rl dependency profile.
   - Any concrete runtime import/construction or execution remains a separately declared later task after this integration is frozen.
 unknown:
-  - Whether the heavy freqai_rl dependency profile can import the new adapter in repository CI without additional isolation; PR #151 CI is the current executable evidence source.
+  - Whether the heavy freqai_rl dependency profile can complete import/runtime smoke for the new adapter; the first smoke run was cancelled by the lint-fix synchronize event before the smoke step and the latest PR #151 CI is the current evidence source.
   - Whether a later separately declared execution-preflight task will need a dedicated config/manifest; those artifacts remain intentionally out of scope here.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: No implementation failure is known yet; local executable validation was unavailable because the task checkpoint checkout path is not mounted in this sandbox, and PR #151 CI is pending.
+  marker: ai_platform_ci_ruff
+  evidence: AI Platform CI run 29959805166 passed compile and tests, then failed at Ruff; changed Python source was reviewed for the repository 100-character line-length rule and commit 8ad99ab56b59fc0532d963905ee4619dc963269a wrapped the overlong static-test path assignment before CI re-ran.
 rejected_hypotheses:
   - Train or backtest while implementing the runtime adapter.
   - Add a run request, historical timerange, or evaluation window to the integration task.
@@ -167,9 +168,12 @@ validation:
   - command: local targeted pytest/compile/Ruff
     result: NOT_RUN
     evidence: /tmp/handoff_repo is not mounted in the current sandbox; no training, backtest or historical execution was substituted for missing local validation.
-  - command: PR #151 repository CI
+  - command: AI Platform CI 29959805166 before lint remediation
+    result: FAIL
+    evidence: compile and AI Platform tests passed; Ruff was the first failing step. Ruff format and later validation steps were skipped after that failure.
+  - command: PR #151 repository CI after lint remediation 8ad99ab56b59fc0532d963905ee4619dc963269a
     result: PENDING
-    evidence: PR #151 was opened from feat/rl-v2-runtime-integration at implementation head e2a8381e023e9466b55bcd4eca9e054fd7a09988; repository CI is the executable validation source.
+    evidence: replacement AI Platform CI, Freqtrade CI, zizmor and Experimental Model Runtime Smoke runs were created; Pre-commit Types is skipped, not failed.
 blockers: []
-next_action: Inspect PR #151 CI and review results; fix the first concrete failure if any, otherwise squash-merge the PR and close the task checkpoint without performing model execution.
+next_action: Inspect the latest PR #151 CI and review results; fix the first concrete failure if any, otherwise squash-merge the PR and close the task checkpoint without performing model execution.
 ```

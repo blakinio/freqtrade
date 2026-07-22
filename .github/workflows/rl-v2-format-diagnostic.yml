@@ -34,7 +34,7 @@ jobs:
             ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py \
             ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py \
             tests/ai_platform/test_rl_v2_runtime_integration.py \
-            > ruff-format-diagnostic/ruff-format.diff
+            > ruff-format-diagnostic/ruff-format.diff || true
       - name: Upload formatter diff
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

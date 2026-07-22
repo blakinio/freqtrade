@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-portal-p2-control-plane-core
-status: active
+status: ready
 branch: feat/portal-p2-control-plane-core
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: null
+related_pr: "#116"
 owned_paths:
   - ai_platform/portal/control_plane/
   - tests/ai_platform/portal/control_plane/
@@ -79,17 +79,17 @@ Implement the smallest modular FastAPI control-plane boundary that persists tena
 
 ## Validation
 
-Run targeted control-plane tests first, then AI Platform tests, compile validation, Ruff lint and format. After push verify AI Platform CI, Freqtrade CI, zizmor, documentation build and CI Gate; optional skipped jobs are not failures.
+P2 was validated on PR #116. The AI Platform workflow permanently adds only lightweight dependencies already present in repository runtime/development requirements so control-plane tests can exercise FastAPI, Pydantic and SQLAlchemy without starting production infrastructure.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T13:45:00+02:00
-head: 4ea0f9c5f2c8fbd206d7b29f0487135ec875ac22
+updated_at: 2026-07-22T13:18:49+02:00
+head: 473124c61e966bd5fbd01e6fc5933bc81d9af567
 branch: feat/portal-p2-control-plane-core
-pr: null
-status: implementing
+pr: "#116"
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
@@ -105,17 +105,25 @@ owned_paths:
   - .github/workflows/ai-platform.yml
 proven:
   - P1 PR #114 was squash-merged to develop as 1a6bb11f0eb6257c90c92dc43dffb3317c7149a8 before P2 started.
-  - Shared-contract PR #115 was squash-merged as 4ea0f9c5f2c8fbd206d7b29f0487135ec875ac22 after AI Platform CI, Freqtrade CI and zizmor passed.
-  - Develop is identical to 4ea0f9c5f2c8fbd206d7b29f0487135ec875ac22 and the P2 branch was reset to that exact commit before implementation resumed.
-  - Open unrelated PRs do not own ai_platform/portal/control_plane or P2 test/documentation paths.
-  - Repository dependencies already include FastAPI, Pydantic v2 and SQLAlchemy 2.
-  - P1 plus PR #115 now provide truthful event/audit vocabulary for creation, immutable config revision and start/pause/stop requested commands.
+  - Shared-contract PR #115 was squash-merged as 4ea0f9c5f2c8fbd206d7b29f0487135ec875ac22 after required CI passed, resolving the first P2 semantic blocker.
+  - P2 provides a fail-closed trusted identity-context dependency; no configured provider returns 401 and arbitrary browser identity headers are not trusted.
+  - Bot repository, service and HTTP boundaries scope every resource lookup and mutation by trusted tenant_id and do not disclose cross-tenant bots.
+  - Server-side P1 permissions gate bot create/read and start/pause/stop desired-state requests; missing permissions deny access.
+  - Bot creation atomically persists BotInstance, immutable revision 1, AuditEvent and outbox EventEnvelope; outbox failure rolls the transaction back.
+  - Configuration revisions append monotonically and prior revision rows remain unchanged; duplicate or skipped identities are rejected.
+  - Desired state commands emit requested semantics and never mutate observed runtime state; concrete runtime reconciliation remains outside P2.
+  - PostgreSQL-compatible migration defines tenant-scoped bot/revision metadata plus append-oriented audit and outbox tables with identity constraints.
+  - Browser-facing OpenAPI and bot responses expose no raw exchange credentials, Freqtrade credentials, private runtime addresses or direct Freqtrade routes.
+  - Frozen thresholds, protected final holdout, completed Phase 6 and selected_model = null were not changed or evaluated.
+  - AI Platform CI run 29914226566 passed on implementation head 473124c61e966bd5fbd01e6fc5933bc81d9af567.
+  - Freqtrade CI run 29914226561 and zizmor run 29914226587 passed on implementation head 473124c61e966bd5fbd01e6fc5933bc81d9af567; optional types run 29914226540 was skipped.
 derived:
-  - P2 can remain entirely outside upstream freqtrade core and defer real runtime/exchange behavior to P3.
-  - A trusted request-context provider abstraction avoids creating a fake authentication mechanism while allowing deterministic application authorization tests.
+  - P2 now supplies a stable tenant-scoped desired-state and persistence boundary that P3 can consume without exposing Freqtrade directly to the portal.
+  - P4 can consume durable outbox rows later without changing P2 transactional domain semantics.
+  - Final production identity/session provider and production database migration runner remain replaceable deployment decisions.
 unknown:
   - Final production identity/session provider remains intentionally deferred.
-  - Final PostgreSQL deployment configuration and migration runner remain intentionally deferred; P2 provides portable SQLAlchemy metadata plus a PostgreSQL-compatible initial migration.
+  - Final PostgreSQL deployment configuration and migration runner remain intentionally deferred.
 conflicts: []
 first_failure:
   marker: shared-contract-gap
@@ -124,12 +132,56 @@ rejected_hypotheses:
   - P2 may emit observed bot.paused or bot.stopped events for desired-state requests.
   - P2 may define private duplicate event or audit enums.
   - P2 requires direct Freqtrade API calls.
+  - Outbox query order is causal operation order when occurred_at values are identical.
 changed_paths:
+  - .github/workflows/ai-platform.yml
+  - ai_platform/portal/control_plane/__init__.py
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/context.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/control_plane/migrations/0001_control_plane.sql
+  - ai_platform/portal/control_plane/models.py
+  - ai_platform/portal/control_plane/repository.py
+  - ai_platform/portal/control_plane/service.py
   - docs/agents/tasks/FTAI-20260722-portal-p2-control-plane-core.md
+  - docs/ai_platform/portal/CONTROL_PLANE_CORE.md
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/control_plane/test_migration.py
+  - tests/ai_platform/portal/control_plane/test_service.py
 validation:
   - command: P2 resume preflight
     result: PASS
-    evidence: Contract blocker resolved by merged PR #115 and P2 branch rebased cleanly by ref reset to current develop.
+    evidence: Contract blocker resolved by merged PR #115 and P2 branch reset to current develop before implementation resumed.
+  - command: python -m compileall -q ai_platform tests/ai_platform
+    result: PASS
+    evidence: AI Platform CI run 29914226566 passed compile validation.
+  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform
+    result: PASS
+    evidence: AI Platform CI run 29914226566 passed all AI Platform tests including P2 service API migration and negative security cases.
+  - command: ruff check ai_platform tests/ai_platform
+    result: PASS
+    evidence: AI Platform CI run 29914226566 and Freqtrade quality job passed Ruff.
+  - command: ruff format --check ai_platform tests/ai_platform
+    result: PASS
+    evidence: AI Platform CI run 29914226566 and Freqtrade quality job passed Ruff format.
+  - command: pre-commit checks
+    result: PASS
+    evidence: Freqtrade CI run 29914226561 Pre-commit checks job passed after mypy test typing fixes.
+  - command: mypy
+    result: PASS
+    evidence: Freqtrade CI run 29914226561 Ubuntu 3.13 quality job passed mypy.
+  - command: documentation build
+    result: PASS
+    evidence: Freqtrade CI run 29914226561 Documentation build job passed.
+  - command: Freqtrade CI and CI Gate
+    result: PASS
+    evidence: Freqtrade CI run 29914226561 completed successfully with required matrix and gate outcomes.
+  - command: zizmor
+    result: PASS
+    evidence: GitHub Actions Security Analysis run 29914226587 completed successfully.
+  - command: Pre-commit Types update
+    result: NOT_RUN
+    evidence: Optional workflow run 29914226540 was skipped and is not a failure.
 blockers: []
-next_action: Implement the fail-closed control-plane application, persistence, bot service, transactional audit/outbox and targeted tests within the declared P2 owned paths.
+next_action: Review and squash-merge PR #116; after merge, start P3 Execution Adapter, P4 Data / Observability, P5 Model Lifecycle Control and P10a Exchange Simulator Core as separate disjoint bounded tasks from current develop.
 ```

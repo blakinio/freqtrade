@@ -51,7 +51,10 @@ def create_app(
     context_dependency = identity_dependency(identity_context_provider)
 
     @app.exception_handler(PermissionDeniedError)
-    async def permission_denied_handler(_request: object, exc: PermissionDeniedError) -> JSONResponse:
+    async def permission_denied_handler(
+        _request: object,
+        exc: PermissionDeniedError,
+    ) -> JSONResponse:
         return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={"detail": str(exc)})
 
     @app.exception_handler(BotNotFoundError)

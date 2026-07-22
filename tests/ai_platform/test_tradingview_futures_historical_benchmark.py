@@ -91,7 +91,9 @@ def _stats(strategy: str, *, pair: str = "BTC/USD:USD") -> dict:
                 "starting_balance": 10000.0,
                 "profit_total": 0.0008,
                 "profit_total_abs": 8.0,
-                "max_drawdown": 0.001,
+                "max_drawdown": None,
+                "max_drawdown_account": 0.001,
+                "max_relative_drawdown": 0.001,
                 "max_drawdown_abs": 10.0,
             }
         },
@@ -186,6 +188,7 @@ def test_extract_backtest_emits_common_evidence_schema(monkeypatch: pytest.Monke
     assert result["strategy"] == strategy
     assert result["metrics"]["total_trades"] == 2
     assert result["metrics"]["trade_profit_abs_sum"] == 8.0
+    assert result["metrics"]["max_drawdown"] == 0.001
     assert result["pair_breakdown"] == [
         {"pair": "BTC/USD:USD", "trades": 1, "profit_abs_sum": 10.0},
         {"pair": "ETH/USD:USD", "trades": 1, "profit_abs_sum": -2.0},
@@ -193,6 +196,25 @@ def test_extract_backtest_emits_common_evidence_schema(monkeypatch: pytest.Monke
     assert result["direction_breakdown"]["long"]["trades"] == 1
     assert result["direction_breakdown"]["short"]["trades"] == 1
     assert result["authorization"]["automatic_promotion_allowed"] is False
+
+
+def test_extract_backtest_rejects_conflicting_drawdown_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy = EXPECTED_CANDIDATES[0]
+    stats = _stats(strategy)
+    stats["strategy"][strategy]["max_relative_drawdown"] = 0.002
+
+    def fake_loader(_path: Path):
+        return stats, "backtest-result.json", "a" * 64
+
+    monkeypatch.setattr(
+        "ai_platform.scripts.model_comparison_oos_result_extractor._load_backtest_stats",
+        fake_loader,
+    )
+
+    with pytest.raises(TradingViewHistoricalBenchmarkError, match="drawdown fields disagree"):
+        extract_backtest(Path("unused.zip"), strategy)
 
 
 def test_extract_backtest_rejects_trade_from_unfrozen_pair(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import Decimal
 
 from fastapi import Depends, FastAPI, status
@@ -57,19 +58,7 @@ class TerminalIntentRequest(BaseModel):
     amount: Decimal
 
 
-def create_app(
-    session_factory: SessionFactory,
-    identity_context_provider: IdentityContextProvider | None = None,
-    terminal_service: TerminalService | None = None,
-) -> FastAPI:
-    app = FastAPI(
-        title="AI Trading Portal Control Plane",
-        version="0.1.0",
-    )
-    service = ControlPlaneService(session_factory)
-    terminal = terminal_service or TerminalService(session_factory)
-    context_dependency = identity_dependency(identity_context_provider)
-
+def _register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(PermissionDeniedError)
     async def permission_denied_handler(
         _request: object,
@@ -113,6 +102,41 @@ def create_app(
             content={"detail": str(exc)},
         )
 
+
+def _register_terminal_route(
+    app: FastAPI,
+    terminal: TerminalService,
+    context_dependency: Callable[..., RequestContext],
+) -> None:
+    @app.post("/v1/terminal/intents", response_model=TerminalIntentResult)
+    def submit_terminal_intent(
+        request: TerminalIntentRequest,
+        context: RequestContext = Depends(context_dependency),
+    ) -> TerminalIntentResult:
+        return terminal.submit_manual_intent(
+            context,
+            bot_id=request.bot_id,
+            pair=request.pair,
+            side=request.side,
+            amount=request.amount,
+        )
+
+
+def create_app(
+    session_factory: SessionFactory,
+    identity_context_provider: IdentityContextProvider | None = None,
+    terminal_service: TerminalService | None = None,
+) -> FastAPI:
+    app = FastAPI(
+        title="AI Trading Portal Control Plane",
+        version="0.1.0",
+    )
+    service = ControlPlaneService(session_factory)
+    terminal = terminal_service or TerminalService(session_factory)
+    context_dependency = identity_dependency(identity_context_provider)
+    _register_exception_handlers(app)
+    _register_terminal_route(app, terminal, context_dependency)
+
     @app.post("/v1/bots", response_model=BotInstance, status_code=status.HTTP_201_CREATED)
     def create_bot(
         request: CreateBotRequest,
@@ -148,18 +172,5 @@ def create_app(
         context: RequestContext = Depends(context_dependency),
     ) -> BotInstance:
         return service.set_desired_state(context, bot_id, request.desired_state)
-
-    @app.post("/v1/terminal/intents", response_model=TerminalIntentResult)
-    def submit_terminal_intent(
-        request: TerminalIntentRequest,
-        context: RequestContext = Depends(context_dependency),
-    ) -> TerminalIntentResult:
-        return terminal.submit_manual_intent(
-            context,
-            bot_id=request.bot_id,
-            pair=request.pair,
-            side=request.side,
-            amount=request.amount,
-        )
 
     return app

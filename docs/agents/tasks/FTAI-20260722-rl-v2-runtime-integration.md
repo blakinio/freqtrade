@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-rl-v2-runtime-integration
 status: active
-branch: develop
+branch: feat/rl-v2-runtime-integration
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "142"
+related_pr: "151"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
   - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
@@ -105,11 +105,11 @@ This task does not authorize a training config, experiment manifest, run request
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:30:00+02:00
-head: feb018cb3c1b99fa3b4ee8039e1ecef189316a34
-branch: develop
-pr: 142
-status: ready
+updated_at: 2026-07-22T23:38:00+02:00
+head: e2a8381e023e9466b55bcd4eca9e054fd7a09988
+branch: feat/rl-v2-runtime-integration
+pr: 151
+status: review
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-synthetic-implementation.md
   - docs/ai_platform/RL_V2_SYNTHETIC_IMPLEMENTATION.md
@@ -122,39 +122,54 @@ owned_paths:
   - ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py
   - tests/ai_platform/test_rl_v2_runtime_integration.py
 proven:
-  - RL-v2 design contract PR #102 and synthetic implementation PR #107 are merged and their task checkpoints are done.
-  - Canonical synthetic implementation uses position_independent_action_semantics with desired-position actions target_flat/target_long and frozen prospective reward constants.
-  - Synthetic implementation PR #107 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431 before squash merge d66b3e8d9381563556d7bdf37fe0bafbb3b87881.
-  - Duplicate PR #139 was closed without merge after canonical PR #107 was discovered on develop.
-  - Runtime-integration task declaration PR #142 passed Freqtrade CI 29958123208 and zizmor 29958123243; Pre-commit Types was skipped, not failed.
-  - PR #142 was squash-merged as 5ad498e6a2538690ff371fd7b061bdd363820bf5.
-  - Current develop at checkpoint time is feb018cb3c1b99fa3b4ee8039e1ecef189316a34 after unrelated TradingView lookahead repair trigger #141; no RL-v2 owned path changed.
+  - RL-v2 design contract PR #102 and synthetic implementation PR #107 are merged and frozen as the canonical parent semantics.
+  - Canonical synthetic implementation uses position_independent_action_semantics with stable desired-position actions target_flat/target_long and prospectively frozen reward constants.
+  - Runtime-integration task declaration PR #142 was squash-merged as 5ad498e6a2538690ff371fd7b061bdd363820bf5.
+  - Live develop advanced from the prior checkpoint to 02e580d3a0ef8892ab57539ac833e5a4066d082a only through unrelated checkpoint/lookahead work before this implementation branch was created.
+  - No open PR found during the live preflight overlapped the declared RL-v2 model/strategy owned paths.
+  - Branch feat/rl-v2-runtime-integration was created from develop 02e580d3a0ef8892ab57539ac833e5a4066d082a and PR #151 targets develop.
+  - DesiredPositionEnvironment exposes exactly two policy-facing desired-position actions and delegates transition and reward behavior to ai_platform.scripts.rl_v2_synthetic_reference.
+  - AiDesiredPositionRLResearchStrategy maps do_predict-gated target_long to entry intent and target_flat to exit intent without introducing short semantics.
+  - Runtime observability binding reuses RLV2ObservabilityAccumulator for action, do_predict and pre-trade signal layers and does not fabricate raw-trade or strict-OOS counts.
+  - Runtime descriptor freezes Stable-Baselines3/FreqAI, PPO and MlpPolicy integration metadata while authorizing no config, manifest, run request, training, backtest or historical evaluation.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
-  - The next smallest safe step is runtime adapter code plus synthetic/static binding tests, not model execution.
-  - Reusing the merged pure synthetic reference prevents a second independent definition of RL-v2 action and reward semantics.
+  - Static/AST tests can prove runtime source binding to the canonical synthetic reference without importing the heavy freqai_rl dependency profile.
+  - Any concrete runtime import/construction or execution remains a separately declared later task after this integration is frozen.
 unknown:
-  - Whether the heavy freqai_rl dependency profile can import the new adapter in repository CI without additional test isolation.
-  - Whether a later separately declared execution-preflight task will need a dedicated config/manifest; those artifacts are intentionally out of scope here.
+  - Whether the heavy freqai_rl dependency profile can import the new adapter in repository CI without additional isolation; PR #151 CI is the current executable evidence source.
+  - Whether a later separately declared execution-preflight task will need a dedicated config/manifest; those artifacts remain intentionally out of scope here.
 conflicts: []
 first_failure:
   marker: none
-  evidence: Task declaration and repository governance validation completed without an unresolved failure; runtime integration code has not been added yet.
+  evidence: No implementation failure is known yet; local executable validation was unavailable because the task checkpoint checkout path is not mounted in this sandbox, and PR #151 CI is pending.
 rejected_hypotheses:
   - Train or backtest while implementing the runtime adapter.
   - Add a run request, historical timerange, or evaluation window to the integration task.
   - Retune frozen synthetic reward constants using consumed OOS evidence.
   - Modify the completed Phase 6 comparison or frozen Phase 5 thresholds.
+  - Import the heavy RL runtime from lightweight static tests when source/AST binding is sufficient.
 changed_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
+  - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
+  - ai_platform/experimental_model_research/rl-v2-runtime-integration-v1.json
+  - ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py
+  - ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py
+  - tests/ai_platform/test_rl_v2_runtime_integration.py
 validation:
-  - command: live repository and overlap preflight
+  - command: live develop/open-PR/overlap preflight
     result: PASS
-    evidence: No open PR overlapped declared RL-v2 model/strategy ownership; duplicate PR #139 was closed without merge.
-  - command: task declaration PR #142 repository gates
+    evidence: develop was 02e580d3a0ef8892ab57539ac833e5a4066d082a before branch creation and no open PR overlapped the declared RL-v2 model/strategy owned paths.
+  - command: required reads plus concrete BaseEnvironment/ReinforcementLearner API compatibility read
     result: PASS
-    evidence: Freqtrade CI 29958123208 and zizmor 29958123243 completed successfully before squash merge 5ad498e6a2538690ff371fd7b061bdd363820bf5; Pre-commit Types was skipped, not failed.
+    evidence: all required reads were inspected; optional core files were opened only to resolve the concrete runtime adapter API binding.
+  - command: local targeted pytest/compile/Ruff
+    result: NOT_RUN
+    evidence: /tmp/handoff_repo is not mounted in the current sandbox; no training, backtest or historical execution was substituted for missing local validation.
+  - command: PR #151 repository CI
+    result: PENDING
+    evidence: PR #151 was opened from feat/rl-v2-runtime-integration at implementation head e2a8381e023e9466b55bcd4eca9e054fd7a09988; repository CI is the executable validation source.
 blockers: []
-next_action: Create a dedicated implementation branch from current develop and implement only the RL-v2 model/environment and strategy adapters, runtime-integration descriptor, observability binding, synthetic/static tests and documentation without any training, backtest, historical evaluation, evaluation-window declaration or protected-final-holdout access.
+next_action: Inspect PR #151 CI and review results; fix the first concrete failure if any, otherwise squash-merge the PR and close the task checkpoint without performing model execution.
 ```

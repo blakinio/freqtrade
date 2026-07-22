@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Self
+
+from pydantic import model_validator
 
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr
 
@@ -71,4 +74,13 @@ class Role(ContractModel):
     role_id: NonEmptyStr
     tenant_id: NonEmptyStr
     name: RoleName
-    permissions: frozenset[Permission]
+    permissions: tuple[Permission, ...]
+
+    @model_validator(mode="after")
+    def validate_permissions(self) -> Self:
+        values = [permission.value for permission in self.permissions]
+        if len(set(values)) != len(values):
+            raise ValueError("role permissions must be unique")
+        if values != sorted(values):
+            raise ValueError("role permissions must use deterministic sorted order")
+        return self

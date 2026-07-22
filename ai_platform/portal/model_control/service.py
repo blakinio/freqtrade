@@ -172,7 +172,9 @@ class ModelControlService:
                         "model version is already promoted in this slot"
                     )
 
-                previous_model_version_id = current.model_version_id if current is not None else None
+                previous_model_version_id = (
+                    current.model_version_id if current is not None else None
+                )
                 slot = self._repository.set_slot(
                     session,
                     context.tenant_id,

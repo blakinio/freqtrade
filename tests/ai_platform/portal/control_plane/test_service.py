@@ -229,7 +229,7 @@ def test_created_is_not_a_valid_desired_state_command(session_factory: SessionFa
 
 
 class _FailingOutboxRepository(BotRepository):
-    def add_outbox_event(self, session, event) -> None:  # type: ignore[no-untyped-def]
+    def add_outbox_event(self, session, event) -> None:
         raise RuntimeError("simulated outbox failure")
 
 

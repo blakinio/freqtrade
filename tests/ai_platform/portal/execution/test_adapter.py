@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import cast
 from uuid import uuid4
 
@@ -141,7 +142,9 @@ def _context() -> CorrelationContext:
     )
 
 
-def _adapter(tmp_path):  # type: ignore[no-untyped-def]
+def _adapter(
+    tmp_path: Path,
+) -> tuple[ExecutionAdapter, _FakeDriver, _Resolver, RuntimeWorkspaceStore]:
     driver = _FakeDriver()
     resolver = _Resolver()
     store = RuntimeWorkspaceStore(tmp_path)
@@ -150,7 +153,7 @@ def _adapter(tmp_path):  # type: ignore[no-untyped-def]
     return protocol_adapter, driver, resolver, store
 
 
-def test_provisioning_is_deterministic_isolated_and_correlation_labeled(tmp_path) -> None:
+def test_provisioning_is_deterministic_isolated_and_correlation_labeled(tmp_path: Path) -> None:
     adapter, driver, _resolver, store = _adapter(tmp_path)
     context = _context()
 
@@ -173,7 +176,7 @@ def test_provisioning_is_deterministic_isolated_and_correlation_labeled(tmp_path
     assert config["api_server"] == {"enabled": False}
 
 
-def test_runtime_operations_are_tenant_scoped(tmp_path) -> None:
+def test_runtime_operations_are_tenant_scoped(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
     adapter.provision_bot(_bot(tenant_id="tenant-a", bot_id="shared"), _context())
 
@@ -181,14 +184,14 @@ def test_runtime_operations_are_tenant_scoped(tmp_path) -> None:
         adapter.pause_bot("tenant-b", "shared", _context())
 
 
-def test_simulated_mode_is_rejected_by_p3(tmp_path) -> None:
+def test_simulated_mode_is_rejected_by_p3(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
 
     with pytest.raises(UnsupportedExecutionModeError, match="dry_run"):
         adapter.provision_bot(_bot(execution_mode=ExecutionMode.SIMULATED), _context())
 
 
-def test_config_revision_change_requires_explicit_reprovision_boundary(tmp_path) -> None:
+def test_config_revision_change_requires_explicit_reprovision_boundary(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
     adapter.provision_bot(_bot(revision=1), _context())
 
@@ -196,7 +199,7 @@ def test_config_revision_change_requires_explicit_reprovision_boundary(tmp_path)
         adapter.provision_bot(_bot(revision=2), _context())
 
 
-def test_artifact_change_cannot_mutate_existing_revision_config(tmp_path) -> None:
+def test_artifact_change_cannot_mutate_existing_revision_config(tmp_path: Path) -> None:
     adapter, _driver, resolver, store = _adapter(tmp_path)
     bot = _bot(revision=1)
     status = adapter.provision_bot(bot, _context())
@@ -214,20 +217,24 @@ def test_artifact_change_cannot_mutate_existing_revision_config(tmp_path) -> Non
     assert config_path.read_text(encoding="utf-8") == original
 
 
-def test_lifecycle_operations_are_idempotent_and_truthful(tmp_path) -> None:
+def test_lifecycle_operations_are_idempotent_and_truthful(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
     bot = _bot()
     adapter.provision_bot(bot, _context())
 
     assert adapter.start_bot(bot, _context()).observed_state is BotObservedState.RUNNING
     assert adapter.start_bot(bot, _context()).observed_state is BotObservedState.RUNNING
-    assert adapter.pause_bot(bot.tenant_id, bot.bot_id, _context()).observed_state is BotObservedState.PAUSED
-    assert adapter.pause_bot(bot.tenant_id, bot.bot_id, _context()).observed_state is BotObservedState.PAUSED
-    assert adapter.stop_bot(bot.tenant_id, bot.bot_id, _context()).observed_state is BotObservedState.STOPPED
-    assert adapter.stop_bot(bot.tenant_id, bot.bot_id, _context()).observed_state is BotObservedState.STOPPED
+    first_pause = adapter.pause_bot(bot.tenant_id, bot.bot_id, _context())
+    second_pause = adapter.pause_bot(bot.tenant_id, bot.bot_id, _context())
+    first_stop = adapter.stop_bot(bot.tenant_id, bot.bot_id, _context())
+    second_stop = adapter.stop_bot(bot.tenant_id, bot.bot_id, _context())
+    assert first_pause.observed_state is BotObservedState.PAUSED
+    assert second_pause.observed_state is BotObservedState.PAUSED
+    assert first_stop.observed_state is BotObservedState.STOPPED
+    assert second_stop.observed_state is BotObservedState.STOPPED
 
 
-def test_driver_failure_returns_error_and_persists_unhealthy_reason(tmp_path) -> None:
+def test_driver_failure_returns_error_and_persists_unhealthy_reason(tmp_path: Path) -> None:
     adapter, driver, _resolver, store = _adapter(tmp_path)
     bot = _bot()
     provisioned = adapter.provision_bot(bot, _context())
@@ -244,11 +251,14 @@ def test_driver_failure_returns_error_and_persists_unhealthy_reason(tmp_path) ->
     assert record.last_error_code == "DOCKER_START_FAILED"
 
     recovered = adapter.get_runtime_status(bot.tenant_id, bot.bot_id, _context())
+    recovered_health = adapter.get_health(bot.tenant_id, bot.bot_id, _context())
     assert recovered.observed_state is BotObservedState.CREATED
-    assert adapter.get_health(bot.tenant_id, bot.bot_id, _context()).reason_code == "RUNTIME_NOT_READY"
+    assert recovered_health.reason_code == "RUNTIME_NOT_READY"
 
 
-def test_trade_and_portfolio_methods_fail_closed_until_private_transport_exists(tmp_path) -> None:
+def test_trade_and_portfolio_methods_fail_closed_until_private_transport_exists(
+    tmp_path: Path,
+) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
     context = _context()
     intent = cast(ApprovedExecutionIntent, object())

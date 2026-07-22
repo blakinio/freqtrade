@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-rl-v2-synthetic-implementation
-status: active
+status: done
 branch: feat/rl-v2-synthetic-implementation
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "pending"
+related_pr: "107"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-synthetic-implementation.md
   - docs/ai_platform/RL_V2_SYNTHETIC_IMPLEMENTATION.md
@@ -20,7 +20,7 @@ required_reads:
   - ai_platform/experimental_model_research/rl-v2-design-contract-v1.json
   - ai_platform/scripts/rl_v2_design_contract.py
 search_first:
-  - implementation PR live state and current develop before merge
+  - merged PR #107 and current develop before any RL-v2 runtime integration work
   - active tasks overlapping RL-v2 research ownership
 optional_reads:
   - docs/ai_platform/RL_ZERO_TRADE_FUNCTIONAL_DIAGNOSIS.md
@@ -112,11 +112,11 @@ The snapshot is deterministic, JSON serializable, and tested without market data
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T01:45:00+02:00
-head: f5755561117651f2839c0e468b12ddaa06af5546
+updated_at: 2026-07-22T08:55:00+02:00
+head: 43e595681780a21e9d5905cf7523a964705b4a42
 branch: feat/rl-v2-synthetic-implementation
-pr: pending
-status: ready
+pr: 107
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-design-contract.md
   - docs/ai_platform/RL_V2_DESIGN_CONTRACT.md
@@ -142,6 +142,7 @@ proven:
   - No RL-v2 FreqAI model, strategy, config, manifest, workflow, market data, training, backtest, OOS execution, performance evaluation, or future evaluation window was created or used.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and completed Phase 6 selected_model null remain unchanged.
+  - PR #107 pre-close gates passed on head 43e595681780a21e9d5905cf7523a964705b4a42: AI Platform CI 29877479814, zizmor 29877479791, and Freqtrade CI 29877479866 including pre-commit, documentation build, core matrix, and CI Gate.
 derived:
   - A later runtime-integration-only task may reuse these pure semantics and counters after this task is merged and frozen.
   - Historical execution and a fresh prospective evaluation window remain separate later work packages.
@@ -150,7 +151,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: none
-  evidence: Synthetic implementation is complete and awaiting repository validation.
+  evidence: Synthetic implementation and repository validation completed without an unresolved test, lint, security, documentation, or CI failure.
 rejected_hypotheses:
   - Implement a new FreqAI RL model or strategy in the same task as the synthetic proof.
   - Tune reward constants against consumed historical OOS.
@@ -166,9 +167,9 @@ validation:
   - command: repository and overlap preflight
     result: PASS
     evidence: No open PR overlapped the canonical synthetic-only scope; implementation branch started from merged task declaration 36d9014b54f28caeb2d0a61900c624694b081430.
-  - command: implementation PR repository gates
-    result: PENDING
-    evidence: Implementation PR not yet opened.
+  - command: PR #107 repository gates before task-close commit
+    result: PASS
+    evidence: AI Platform CI 29877479814, zizmor 29877479791, and Freqtrade CI 29877479866 completed successfully; pre-commit, documentation build, core matrix, and CI Gate passed.
 blockers: []
-next_action: Open the synthetic implementation PR, run repository gates, fix only owned-path defects, then mark this task done and squash-merge if all required gates pass.
+next_action: none. This synthetic-only implementation task is complete. Any RL-v2 runtime integration must begin as a new separately declared bounded task and must still prohibit historical training, backtesting, evaluation-window declaration, and protected-final-holdout access.
 ```

@@ -20,8 +20,10 @@ jobs:
       run:
         working-directory: ai_platform/portal/web
     steps:
-      - name: Checkout
+      - name: Checkout PR head for one-time lock bootstrap
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020

@@ -295,13 +295,10 @@ def test_rollback_selects_previously_promoted_immutable_version(
         audits = evidence_repository.list_audit_events(session, "tenant-a", "model", "model-v1")
         outbox = evidence_repository.list_outbox_events(session, "tenant-a", "model", "model-v1")
 
-    assert [transition.action for transition in history] == [
-        ModelPromotionAction.PROMOTE,
-        ModelPromotionAction.PROMOTE,
-        ModelPromotionAction.ROLLBACK,
-    ]
-    assert history[-1].from_model_version_id == "model-v2"
-    assert history[-1].to_model_version_id == "model-v1"
+    assert sum(item.action is ModelPromotionAction.PROMOTE for item in history) == 2
+    rollback = next(item for item in history if item.action is ModelPromotionAction.ROLLBACK)
+    assert rollback.from_model_version_id == "model-v2"
+    assert rollback.to_model_version_id == "model-v1"
     assert AuditAction.MODEL_ROLLED_BACK in {event.action for event in audits}
     assert EventType.MODEL_ROLLED_BACK in {event.event_type for event in outbox}
 

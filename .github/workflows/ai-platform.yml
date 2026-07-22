@@ -50,21 +50,23 @@ jobs:
         run: python -m compileall -q ai_platform tests/ai_platform
 
       - name: Run AI platform tests
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform tests/ai_platform
+
+      - name: Ruff
         run: |
           set -o pipefail
-          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform 2>&1 | tee pytest-output.txt
+          ruff check ai_platform tests/ai_platform 2>&1 | tee ruff-output.txt
 
-      - name: Upload pytest diagnostics
+      - name: Upload Ruff diagnostics
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: portal-p2-pytest-${{ github.event.pull_request.number }}
-          path: pytest-output.txt
+          name: portal-p2-ruff-${{ github.event.pull_request.number }}
+          path: ruff-output.txt
           if-no-files-found: ignore
           retention-days: 1
-
-      - name: Ruff
-        run: ruff check ai_platform tests/ai_platform
 
       - name: Ruff format
         run: ruff format --check ai_platform tests/ai_platform

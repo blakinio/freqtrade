@@ -168,7 +168,9 @@ class ModelControlService:
                     environment,
                 )
                 if current is not None and current.model_version_id == model.model_version_id:
-                    raise ModelControlConflictError("model version is already promoted in this slot")
+                    raise ModelControlConflictError(
+                        "model version is already promoted in this slot"
+                    )
 
                 previous_model_version_id = current.model_version_id if current is not None else None
                 slot = self._repository.set_slot(
@@ -255,7 +257,9 @@ class ModelControlService:
                 if target is None:
                     raise ModelNotFoundError("rollback target model version not found")
                 if target.model_family_id != model_family_id:
-                    raise ModelControlConflictError("rollback target belongs to a different model family")
+                    raise ModelControlConflictError(
+                        "rollback target belongs to a different model family"
+                    )
                 self._require_assignable_state(target)
                 if not self._repository.was_previously_promoted(
                     session,

@@ -133,6 +133,8 @@ A rejected decision cannot construct an approved execution intent.
 - `get_orders`;
 - `get_trades`.
 
+Provisioning receives the complete `BotInstance`, not only `BotSpec`, so tenant and bot identity are explicit before a one-bot-one-runtime identity is created. This protocol-level refinement does not change any serialized v1 model fields.
+
 The submit operation accepts `ApprovedExecutionIntent`, not `TradeIntent`. No Freqtrade REST/WebSocket address, credential or browser-facing control contract is present.
 
 The concrete Freqtrade adapter belongs to P3.

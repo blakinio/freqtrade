@@ -4,7 +4,7 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Protocol
 
-from ai_platform.portal.contracts.bots import BotInstance, BotObservedState, BotSpec
+from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.common import (
     ContractModel,
     CorrelationContext,
@@ -87,7 +87,7 @@ class TradeRecord(ContractModel):
 class ExecutionAdapter(Protocol):
     """Private execution boundary; never implemented directly by browser-facing code."""
 
-    def provision_bot(self, spec: BotSpec, context: CorrelationContext) -> RuntimeStatus: ...
+    def provision_bot(self, bot: BotInstance, context: CorrelationContext) -> RuntimeStatus: ...
 
     def start_bot(self, bot: BotInstance, context: CorrelationContext) -> RuntimeStatus: ...
 

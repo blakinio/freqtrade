@@ -5,7 +5,12 @@ from enum import StrEnum
 from typing import Protocol
 
 from ai_platform.portal.contracts.bots import BotInstance, BotObservedState, BotSpec
-from ai_platform.portal.contracts.common import ContractModel, CorrelationContext, NonEmptyStr, UtcDateTime
+from ai_platform.portal.contracts.common import (
+    ContractModel,
+    CorrelationContext,
+    NonEmptyStr,
+    UtcDateTime,
+)
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent, TradeSide
 
 
@@ -80,7 +85,7 @@ class TradeRecord(ContractModel):
 
 
 class ExecutionAdapter(Protocol):
-    """Private execution boundary. Browser-facing code must never implement this protocol directly."""
+    """Private execution boundary; never implemented directly by browser-facing code."""
 
     def provision_bot(self, spec: BotSpec, context: CorrelationContext) -> RuntimeStatus: ...
 

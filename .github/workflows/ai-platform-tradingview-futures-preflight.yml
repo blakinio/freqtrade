@@ -48,17 +48,30 @@ jobs:
       - name: Validate active bounded checkpoint
         run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
 
-      - name: Validate contract without network or market data
+      - name: Validate contract without market-data access
         run: |
           mkdir -p "$EVIDENCE_DIR"
           python -m ai_platform.scripts.tradingview_futures_historical_preflight contract \
             > "$EVIDENCE_DIR/contract-report.json"
 
+      - name: Capture canonical Ruff formatter diff
+        run: |
+          python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
+          ruff format \
+            ai_platform/scripts/tradingview_futures_historical_preflight.py \
+            tests/ai_platform/test_tradingview_futures_historical_preflight.py
+          git diff -- \
+            ai_platform/scripts/tradingview_futures_historical_preflight.py \
+            tests/ai_platform/test_tradingview_futures_historical_preflight.py \
+            > "$EVIDENCE_DIR/ruff-format.diff"
+
       - name: Upload static contract evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tradingview-futures-contract-${{ github.event.pull_request.number }}
-          path: ${{ env.EVIDENCE_DIR }}/contract-report.json
+          path: |
+            ${{ env.EVIDENCE_DIR }}/contract-report.json
+            ${{ env.EVIDENCE_DIR }}/ruff-format.diff
           if-no-files-found: error
           retention-days: 90
 

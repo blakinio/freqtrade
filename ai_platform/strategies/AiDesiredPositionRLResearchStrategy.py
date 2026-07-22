@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# Runtime intent mapping remains position-independent at the policy-facing action boundary.
 from collections.abc import Iterable
 
 from pandas import DataFrame
@@ -14,7 +13,7 @@ from ai_platform.strategies.AiLongOnlyRLResearchStrategy import AiLongOnlyRLRese
 
 
 class AiDesiredPositionRLResearchStrategy(AiLongOnlyRLResearchStrategy):
-    """Research-only RL-v2 strategy using position-independent desired-position actions."""
+    """Research-only RL-v2 strategy with position-independent desired-position actions."""
 
     @staticmethod
     def new_observability_accumulator(pairs: Iterable[str]) -> RLV2ObservabilityAccumulator:

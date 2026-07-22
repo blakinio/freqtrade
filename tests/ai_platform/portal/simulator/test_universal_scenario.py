@@ -63,6 +63,20 @@ def test_universal_scenario_requires_explicit_portal_permissions() -> None:
         UniversalScenarioRunner(_session_factory()).run(_context(Permission.BOT_READ), manifest)
 
 
+def test_first_failure_evidence_is_preserved_without_retry_or_sleep() -> None:
+    manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
+    context = _context(Permission.BOT_READ)
+
+    report = UniversalScenarioRunner(_session_factory()).run_captured(context, manifest)
+
+    assert report.passed is False
+    assert report.evidence is None
+    assert report.failure is not None
+    assert report.failure.correlation_id == context.correlation_id
+    assert report.failure.stage == "scenario_assertion"
+    assert report.failure.reason_code == "scenario context lacks required portal permissions"
+
+
 def test_scenario_manifest_is_deterministic_and_uses_explicit_readiness_not_sleep() -> None:
     manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
 

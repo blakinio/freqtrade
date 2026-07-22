@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-ai-trading-portal-architecture-foundation
-status: active
+status: ready
 branch: docs/ai-trading-portal-architecture
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: null
+related_pr: "113"
 owned_paths:
   - AGENTS.md
   - ai_platform/portal/README.md
@@ -100,17 +100,20 @@ It freezes shared domain/security/event contracts. P2 Control Plane, P3 Executio
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T10:30:00+02:00
-head: c5901e960ea83cd0f63fc9c3377d805c1be09d4b
+updated_at: 2026-07-22T10:52:00+02:00
+head: 04610788ce5964396f99be177a0fbb51173e7a80
 branch: docs/ai-trading-portal-architecture
-pr: null
-status: active
+pr: 113
+status: ready
 context_routes:
   - docs/ai_platform/portal/README.md
   - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
   - docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
   - docs/ai_platform/portal/AI_ML_AND_LEARNING_ARCHITECTURE.md
+  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
   - docs/ai_platform/portal/QUALITY_AND_AUTONOMOUS_E2E.md
+  - docs/ai_platform/portal/UI_INFORMATION_ARCHITECTURE.md
+  - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
   - docs/ai_platform/portal/DELIVERY_ROADMAP.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -129,6 +132,8 @@ proven:
   - Freqtrade is defined as private execution behind ExecutionAdapter, not a public portal API.
   - Continual learning is separated from promotion; post-trade analysis cannot directly mutate active production behavior.
   - Full-platform E2E is based on deterministic exchange simulation and production-like protected ingress.
+  - PR #113 is open and mergeable against develop; develop advanced after branch creation only with unrelated TradingView futures-preflight task ownership.
+  - Validated portal architecture head 04610788ce5964396f99be177a0fbb51173e7a80 passed AI Platform CI 29905426868, zizmor 29905426865 and Freqtrade CI 29905426877 including pre-commit, documentation build and CI Gate.
 derived:
   - Contract-first P1 should be the next implementation task because parallel backend/execution/data agents require stable shared identity, event, secret and lifecycle contracts.
   - A modular-monolith control plane minimizes initial operational complexity while preserving future service extraction.
@@ -139,7 +144,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: none
-  evidence: No unresolved implementation/test failure exists yet; this is an architecture-only work package pending PR/CI validation.
+  evidence: Validated architecture head passed AI Platform CI, Freqtrade CI and zizmor without unresolved failures.
 rejected_hypotheses:
   - Expose Freqtrade directly as the public backend for the web portal.
   - Allow a losing trade to directly mutate/redeploy the active model.
@@ -155,7 +160,16 @@ changed_paths:
 validation:
   - command: repository/AI-boundary preflight
     result: PASS
-    evidence: Current canonical AGENTS/AI architecture/roadmap were read before design; only unrelated open PR #109 was found and portal architecture was placed on a separate branch.
+    evidence: Canonical AGENTS/AI architecture/roadmap were read before design; unrelated portal-reference and later TradingView task ownership do not overlap this architecture scope.
+  - command: AI Platform CI on architecture head 04610788ce5964396f99be177a0fbb51173e7a80
+    result: PASS
+    evidence: Workflow run 29905426868 completed successfully including compile, AI platform tests, Ruff, Ruff format, Codespell and JSON validation.
+  - command: Freqtrade CI on architecture head 04610788ce5964396f99be177a0fbb51173e7a80
+    result: PASS
+    evidence: Workflow run 29905426877 completed successfully including pre-commit checks, documentation syntax/build and CI Gate; core/runtime matrices were correctly skipped for documentation scope.
+  - command: GitHub Actions Security Analysis with zizmor on architecture head 04610788ce5964396f99be177a0fbb51173e7a80
+    result: PASS
+    evidence: Workflow run 29905426865 completed successfully.
 blockers: []
-next_action: Open a documentation-only PR against develop, verify AI Platform CI, Freqtrade documentation/pre-commit gates and zizmor, then update this checkpoint with final head/PR/CI evidence.
+next_action: After PR #113 is reviewed and merged, verify current develop and declare FTAI-YYYYMMDD-portal-p1-contracts-security from the merged portal architecture, freezing shared tenant/actor/bot/event/secret/audit/environment contracts before downstream implementation.
 ```

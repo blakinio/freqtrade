@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -16,7 +16,7 @@ ContractVersion = Literal["v1"]
 def _normalize_utc(value: datetime) -> datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("timestamp must include timezone information")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 UtcDateTime = Annotated[datetime, AfterValidator(_normalize_utc)]

@@ -69,9 +69,8 @@ class AiDesiredPositionRLResearchStrategy(AiLongOnlyRLResearchStrategy):
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        condition = (
-            (dataframe["do_predict"] == 1)
-            & (dataframe["&-action"] == DesiredPosition.TARGET_FLAT.value)
+        condition = (dataframe["do_predict"] == 1) & (
+            dataframe["&-action"] == DesiredPosition.TARGET_FLAT.value
         )
         dataframe.loc[condition, ["exit_long", "exit_tag"]] = (
             1,

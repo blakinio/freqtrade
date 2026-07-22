@@ -5,7 +5,7 @@ branch: feat/portal-p6-web-shell
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: null
+related_pr: "#135"
 owned_paths:
   - ai_platform/portal/web/
   - .github/workflows/portal-web.yml
@@ -47,7 +47,7 @@ Implement the first production-oriented Next.js/React portal shell and core dry-
 - designed loading, empty, error and authorization-denied states;
 - no browser-visible direct Freqtrade URL or API path;
 - critical Chromium Playwright E2E for shell navigation and dry-run create-bot flow;
-- dedicated web CI workflow for install, typecheck, lint/build and Chromium E2E;
+- dedicated web CI workflow for locked install, typecheck, lint/build and Chromium E2E;
 - implementation documentation.
 
 ## Non-negotiable boundaries
@@ -72,12 +72,12 @@ Implement the first production-oriented Next.js/React portal shell and core dry-
 6. API mode fails closed when server-side portal API configuration is absent or unavailable.
 7. Fixture mode is explicit and isolated to deterministic development/E2E use.
 8. Loading, empty, error and denied states are intentional and testable.
-9. Critical Chromium E2E covers shell navigation and create-bot success in fixture mode.
+9. Critical Chromium E2E covers shell navigation, create-bot success and rejection of non-dry-run creation.
 10. Dedicated web CI, required repository CI and security analysis pass before merge.
 
 ## Validation
 
-- Node dependency install from lockfile.
+- Node dependency install from committed lockfile.
 - TypeScript/typecheck and production build.
 - Chromium Playwright E2E in explicit fixture mode.
 - Repository CI and zizmor before merge.
@@ -86,10 +86,10 @@ Implement the first production-oriented Next.js/React portal shell and core dry-
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T21:15:38+02:00
-head: b2811eac7d977eb880a80dd10ef094d48dbc2e45
+updated_at: 2026-07-22T21:40:00+02:00
+head: c1e7070c51dcaf0309c717eb3ce1ddbd08796c8d
 branch: feat/portal-p6-web-shell
-pr: null
+pr: "#135"
 status: active
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -102,26 +102,36 @@ owned_paths:
   - docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md
 proven:
-  - P2 PR #116, P3 PR #118, P4 PR #119 and P5 PR #124 are merged to develop.
-  - P5 durable closeout PR #134 merged as b2811eac7d977eb880a80dd10ef094d48dbc2e45.
-  - No existing package.json, Playwright configuration or ai_platform/portal/web implementation was found in repository search.
-  - Canonical P2 API exposes POST/GET /v1/bots, GET /v1/bots/{bot_id}, POST revisions and POST desired-state operations behind a fail-closed identity dependency.
-  - Canonical BotSpec requires tenant, strategy/model/risk/exchange references, pair universe, timeframe, capital allocation/currency, runtime version, config revision, environment and execution mode.
-  - Portal architecture requires browser -> portal boundary only; browser -> Freqtrade and browser -> data plane are denied.
-  - UI architecture requires persistent environment visibility and designed loading/empty/error/denied states.
-  - Next.js 16.2 is the active LTS line after the July 2026 security release; React latest stable major is 19.2; Playwright current release line is 1.61.
+  - P2 PR #116, P3 PR #118, P4 PR #119 and P5 PR #124 are merged to develop; P5 closeout PR #134 merged as b2811eac7d977eb880a80dd10ef094d48dbc2e45.
+  - No prior package.json, Playwright configuration or ai_platform/portal/web implementation existed before P6.
+  - P6 implements a responsive Next.js/React shell, Dashboard, Bots, Create Bot, explicit loading/error/denied/empty states and persistent environment visibility.
+  - Browser mutations use same-origin /api/bots; private PORTAL_CONTROL_PLANE_URL is consumed only by server-side code.
+  - API mode is the default and fails closed when private portal API configuration is missing; fixture mode requires explicit PORTAL_WEB_DATA_MODE=fixture.
+  - Create-bot runtime validation accepts only a canonical non-empty P2-shaped request with execution_mode=dry_run and positive config/capital values.
+  - Chromium E2E covers shell navigation, environment visibility, deterministic create-bot success, denied state and rejection of non-dry-run creation.
+  - Initial Portal Web CI 29951461671 passed dependency resolution, generated package-lock v3, npm ci, typecheck, lint, Next production build, Chromium installation and all Playwright E2E.
+  - Generated package-lock.json was committed by a bounded one-time bootstrap after checking out the exact PR head; the final workflow removed bootstrap writes and now uses permissions contents: read with npm ci only.
+  - Local sandbox npm validation was unavailable because the internal npm mirror returned HTTP 503 and direct public registry DNS returned EAI_AGAIN; GitHub hosted runner validation is therefore the executable source of truth.
 derived:
-  - P6 can use explicit fixture mode for deterministic E2E while keeping production API mode fail-closed and server-side.
-  - A same-origin BFF route is required for browser mutations so private portal API origins are not embedded in client bundles.
-unknown:
-  - Final package-manager lockfile resolution until executable Node install runs in CI or local runtime.
+  - The server-side BFF preserves the private execution boundary while allowing later application session propagation without coupling browser bundles to private origins.
+  - Fixture mode can support deterministic P6/P10 E2E without becoming an authentication or production-data fallback.
+unknown: []
 conflicts: []
 first_failure:
-  marker: none
-  evidence: No P6 executable validation has run yet.
+  marker: lock-bootstrap-merge-ref
+  evidence: Portal Web CI run 29951609305 generated the lockfile successfully but the temporary auto-commit step failed because the default pull_request checkout used the synthetic merge ref; targeting github.event.pull_request.head.sha resolved the bootstrap commit.
 changed_paths:
+  - .github/workflows/portal-web.yml
+  - ai_platform/portal/web/
+  - docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md
-validation: []
+validation:
+  - command: Portal Web CI 29951461671
+    result: PASS
+    evidence: lock generation, npm ci, typecheck, lint, production build, Chromium install and Playwright E2E all passed.
+  - command: Lockfile bootstrap
+    result: PASS
+    evidence: package-lock.json v3 is committed on PR #135 and final workflow is read-only npm ci.
 blockers: []
-next_action: Scaffold the isolated Next.js web application with server-only API boundary, explicit fixture mode, responsive shell and Dashboard/Bots/Create Bot MVP routes before adding Chromium E2E and web CI.
+next_action: Verify final read-only Portal Web CI, AI Platform CI, Freqtrade CI, zizmor and review state on PR #135; fix only concrete failures, then synchronize current develop and squash-merge P6 when all gates are green.
 ```

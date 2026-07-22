@@ -67,6 +67,8 @@ jobs:
     needs: contract
     runs-on: ubuntu-24.04
     timeout-minutes: 240
+    env:
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -147,7 +149,6 @@ jobs:
         with:
           name: tradingview-futures-preflight-${{ github.event.pull_request.number }}
           path: |
-            ${{ env.EVIDENCE_DIR }}/contract-report.json
             ${{ env.EVIDENCE_DIR }}/strategy-listing.txt
             ${{ env.EVIDENCE_DIR }}/discovery-report.json
             ${{ env.EVIDENCE_DIR }}/resolved-markets.json

@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260722-tradingview-futures-historical-preflight
-status: ready
-branch: docs/tradingview-futures-historical-preflight-task
+status: implementing
+branch: feat/tradingview-futures-historical-preflight-v1
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
@@ -12,7 +12,7 @@ owned_paths:
   - ai_platform/scripts/tradingview_futures_historical_preflight.py
   - tests/ai_platform/test_tradingview_futures_historical_preflight.py
   - .github/workflows/ai-platform-tradingview-futures-preflight.yml
-  - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-preflight.md
 required_reads:
   - AGENTS.md
@@ -80,13 +80,14 @@ The implementation task must fail closed unless it can prove all of the followin
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T10:30:00+02:00
-head: db38831df4115df35249227dd2db754d7c000793
-branch: docs/tradingview-futures-historical-preflight-task
+updated_at: 2026-07-22T10:48:00+02:00
+head: 3084d25032bc4526648ba331beacb8a91ef94c18
+branch: feat/tradingview-futures-historical-preflight-v1
 pr: none
-status: ready
+status: implementing
 context_routes:
   - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - .github/workflows/experimental-model-historical-backtest-execution.yml
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-preflight-v1.json
@@ -94,20 +95,21 @@ owned_paths:
   - ai_platform/scripts/tradingview_futures_historical_preflight.py
   - tests/ai_platform/test_tradingview_futures_historical_preflight.py
   - .github/workflows/ai-platform-tradingview-futures-preflight.yml
-  - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-preflight.md
 proven:
-  - develop is verified at db38831df4115df35249227dd2db754d7c000793 at task declaration time.
-  - PR #55 merged the isolated TradingView strategy research foundation.
-  - The three candle-only TradingView candidates are long/short research strategies intended for futures testing.
-  - No separate TradingView historical benchmark or preflight PR exists in the current repository state.
-  - Existing one-shot historical research infrastructure establishes fail-closed request, data-coverage, execution-boundary, and evidence patterns.
-  - The protected final holdout remains 20260801-20260930 and is outside this task.
+  - Task declaration PR #111 merged to develop as 60715d85739800bcae20b0c3c30cf395acb48cda after Freqtrade CI and zizmor succeeded.
+  - The implementation contract fixes exactly three candle-only TradingView candidates and keeps Wick Hunter excluded pending historical liquidation data.
+  - The tracked config template is krakenfutures futures isolated USD and dry_run=true with an intentionally empty pair whitelist before discovery.
+  - The validator discovers exactly one active contract swap with quote USD and settle USD for each BTC and ETH base and fails closed on missing or ambiguous matches.
+  - The validator materializes the runtime config only from discovered symbols and checks the protected final holdout does not overlap execution or download ranges.
+  - The data verifier uses CandleType.FUTURES and requires 15m warmup coverage plus the final 2026-06-30 23:45 UTC candle.
+  - The dedicated workflow performs strategy loading, public market discovery, config materialization, bounded historical download and coverage verification only; it contains no strategy backtest step.
 derived:
-  - A futures-specific data preflight is required before comparing the long/short candidates because the existing historical model execution path used Kraken spot data.
+  - Successful workflow evidence will be sufficient to declare the futures data path ready for a separately authorized benchmark, but not to rank or promote any strategy.
 unknown:
-  - Exact active Kraken Futures unified symbols for the BTC and ETH USD-settled perpetual markets in the repository runtime.
-  - Whether GitHub Actions can obtain complete 15m Kraken Futures history for both resolved markets through the exclusive 20260701 stop.
+  - Exact active Kraken Futures unified symbols for BTC and ETH in the GitHub Actions runtime.
+  - Whether Kraken Futures historical 15m download reaches the complete declared window in GitHub Actions.
 conflicts: []
 first_failure:
   marker: none
@@ -117,11 +119,17 @@ rejected_hypotheses:
   - Guess Kraken Futures market symbols without runtime discovery.
   - Run the three strategy backtests before data mode and coverage are proven.
 changed_paths:
+  - ai_platform/research/tradingview/futures-historical-preflight-v1.json
+  - ai_platform/configs/tradingview-futures-research.example.json
+  - ai_platform/scripts/tradingview_futures_historical_preflight.py
+  - tests/ai_platform/test_tradingview_futures_historical_preflight.py
+  - .github/workflows/ai-platform-tradingview-futures-preflight.yml
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-preflight.md
 validation:
-  - command: not-run
+  - command: GitHub Actions on implementation PR
     result: NOT_RUN
-    evidence: Task declaration only; repository CI will validate the declaration PR.
+    evidence: Implementation branch is ready to open for CI and data-only preflight validation.
 blockers: []
-next_action: Implement the fail-closed TradingView futures historical preflight from current develop, including runtime symbol discovery, dry-run futures config materialization, protected-holdout guards, strategy-loading checks, 15m historical coverage verification, targeted tests, and a data-only GitHub Actions preflight that performs no strategy backtest.
+next_action: Open the implementation pull request against develop and use AI Platform CI, Freqtrade CI, zizmor, checkpoint validation, and the dedicated TradingView Futures Preflight workflow to fix any contract, lint, strategy-loading, market-discovery, or historical-data coverage failure before merge.
 ```

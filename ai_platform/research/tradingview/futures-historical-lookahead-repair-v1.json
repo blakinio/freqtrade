@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "repair_id": "tradingview-futures-historical-lookahead-repair-v1",
+  "source_benchmark_id": "tradingview-futures-historical-benchmark-v1",
+  "source_execution_head_sha": "9c03faedea870cea78b46672545fb4a4ba371e6f",
+  "source_workflow_run_id": 29947929886,
+  "source_artifact_id": 8541078835,
+  "source_artifact_digest": "sha256:9cb7c603d6c1f612a783907aa6ca112c7f946efff80abdd38ad283bed1ad822c",
+  "candidates": [
+    "TVDonchianBreakoutStrategy",
+    "TVSupertrendStrategy",
+    "TVBollingerMeanReversionStrategy"
+  ],
+  "exchange": "krakenfutures",
+  "trading_mode": "futures",
+  "margin_mode": "isolated",
+  "stake_currency": "USD",
+  "pairs": [
+    "BTC/USD:USD",
+    "ETH/USD:USD"
+  ],
+  "timeframe": "15m",
+  "download_timerange": "20260201-20260701",
+  "analysis_timerange": "20260301-20260701",
+  "fee": 0.002,
+  "analysis_scope": "lookahead_only",
+  "backtest_rerun_allowed": false,
+  "ranking_change_allowed": false,
+  "retuning_allowed": false,
+  "strategy_mutation_allowed": false,
+  "automatic_promotion_allowed": false,
+  "profitability_claim_allowed": false,
+  "superiority_claim_allowed": false,
+  "protected_final_holdout": "20260801-20260930",
+  "protected_final_holdout_used": false,
+  "compatibility_override": {
+    "path": "entry_pricing.price_side",
+    "from": "same",
+    "to": "other",
+    "reason": "Freqtrade lookahead-analysis forces market entry orders, which require entry_pricing.price_side=other; the frozen benchmark config remains unchanged for backtest provenance."
+  }
+}

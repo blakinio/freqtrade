@@ -67,9 +67,7 @@ def _git_blob_sha(path: str) -> str:
     try:
         payload = candidate.read_bytes()
     except OSError as exc:
-        raise TradingViewHistoricalBenchmarkError(
-            f"Unable to read frozen source {path}"
-        ) from exc
+        raise TradingViewHistoricalBenchmarkError(f"Unable to read frozen source {path}") from exc
     header = f"blob {len(payload)}\0".encode()
     return hashlib.sha1(header + payload, usedforsecurity=False).hexdigest()
 

@@ -1,4 +1,3 @@
-# ruff: noqa
 from __future__ import annotations
 
 from sqlalchemy import Engine

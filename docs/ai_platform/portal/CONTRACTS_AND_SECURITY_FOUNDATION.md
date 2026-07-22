@@ -148,7 +148,7 @@ The concrete Freqtrade adapter belongs to P3.
 - aggregate type/ID;
 - payload.
 
-Defined event types include bot lifecycle, prediction, trade intent, risk decision, order/trade lifecycle, model lifecycle and insight creation events required by P1.
+Defined event types include bot lifecycle, prediction, trade intent, risk decision, order/trade lifecycle, model lifecycle and insight creation events required by P1. The additive P2 contract change also distinguishes control-plane command intent from observed runtime outcomes with `bot.config_revised`, `bot.start_requested`, `bot.pause_requested` and `bot.stop_requested`; these request/configuration events must not be interpreted as proof that a runtime already started, paused or stopped.
 
 The envelope is suitable for later outbox, idempotency, replay and observability work. P1 does not implement the event bus. Public event payload validation fails closed on keys representing raw secret/password/token/key values.
 
@@ -159,7 +159,8 @@ The envelope is suitable for later outbox, idempotency, replay and observability
 The privileged action vocabulary covers:
 
 - exchange connection changes;
-- bot start/stop;
+- bot creation and immutable configuration revision;
+- bot start/pause/stop requests separately from observed start/stop outcomes;
 - manual trade intent;
 - risk policy changes;
 - model promotion;

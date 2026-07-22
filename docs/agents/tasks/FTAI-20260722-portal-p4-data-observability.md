@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-portal-p4-data-observability
-status: active
+status: ready
 branch: feat/portal-p4-data-observability
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: null
+related_pr: "#119"
 owned_paths:
   - ai_platform/portal/events/
   - ai_platform/portal/observability/
@@ -22,7 +22,7 @@ required_reads:
   - ai_platform/portal/contracts/events.py
   - ai_platform/portal/control_plane/models.py
 search_first:
-  - current develop and merged P3 state
+  - current develop and PR #119 merged/final-head state
   - open PRs overlapping events or observability ownership
   - canonical P1 EventEnvelope and P2 transactional outbox
 optional_reads:
@@ -74,11 +74,11 @@ Implement durable at-least-once outbox publication, idempotent consumer referenc
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T15:30:00+02:00
-head: 4ccbfcdcc4b18a69b352679793d4028bcbc6f120
+updated_at: 2026-07-22T16:30:36+02:00
+head: 0327c75159cdd70d754051383304646c192cc92a
 branch: feat/portal-p4-data-observability
-pr: null
-status: implementing
+pr: "#119"
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
@@ -91,28 +91,55 @@ owned_paths:
   - docs/ai_platform/portal/DATA_OBSERVABILITY_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-p4-data-observability.md
 proven:
-  - P3 PR #118 was squash-merged to develop as 4ccbfcdcc4b18a69b352679793d4028bcbc6f120 after final-head required CI passed.
-  - Current develop is identical to 4ccbfcdcc4b18a69b352679793d4028bcbc6f120 and P4 branch was created from that exact commit.
-  - Open PR #112 and #109 do not own events or observability paths.
-  - P1 EventEnvelope is frozen and already rejects sensitive payload keys.
-  - P2 persists canonical EventEnvelope JSON in portal_outbox_events with published_at nullable until publication.
-  - Architecture requires at-least-once delivery, idempotent consumers and correlation IDs distinct from trace/span IDs.
+  - P3 PR #118 was squash-merged to develop as 4ccbfcdcc4b18a69b352679793d4028bcbc6f120 and P4 was based on that exact state.
+  - P4 implements replaceable at-least-once outbox publication over P2 portal_outbox_events and marks published_at only after a successful transport call.
+  - P4 adds durable portal_event_inbox deduplication keyed by consumer_name and event_id with handler side effects in the same transaction.
+  - P4 propagates canonical request, correlation and causation identifiers without changing the P1 EventEnvelope schema.
+  - P4 structured telemetry recursively redacts secret/token/password/private-key/cookie fields and records exception types without exception messages.
+  - PR #119 implementation head 0327c75159cdd70d754051383304646c192cc92a passed AI Platform CI 29925402251, Freqtrade CI 29925401946 and zizmor 29925401950.
 derived:
-  - P4 can implement publication and consumer deduplication without modifying P1 event schemas or P2 bot business logic.
+  - P4 acceptance criteria are satisfied without deploying an external event bus or observability backend and without owning bot business logic.
 unknown:
-  - Final external event bus and telemetry backends remain intentionally replaceable deployment decisions.
+  - Final event bus and telemetry backend implementations remain intentionally replaceable deployment decisions outside P4.
 conflicts: []
-first_failure: null
+first_failure:
+  marker: pytest-module-name-collision
+  evidence: Initial P4 AI Platform CI failed collection because two non-package test_migration.py modules collided; renaming the P4 test to test_event_inbox_migration.py resolved collection.
 rejected_hypotheses:
   - Claim exactly-once delivery from the transactional outbox alone.
-  - Store Redis as authoritative inbox/audit state.
-  - Log full request bodies for convenience.
+  - Store Redis as authoritative inbox or audit state.
+  - Treat any handler IntegrityError as duplicate delivery.
+  - Emit exception messages or full credential-bearing request bodies into telemetry.
 changed_paths:
+  - ai_platform/portal/events/__init__.py
+  - ai_platform/portal/events/consumer.py
+  - ai_platform/portal/events/migrations/0001_event_inbox.sql
+  - ai_platform/portal/events/models.py
+  - ai_platform/portal/events/outbox.py
+  - ai_platform/portal/events/schema.py
+  - ai_platform/portal/observability/__init__.py
+  - ai_platform/portal/observability/redaction.py
+  - ai_platform/portal/observability/telemetry.py
   - docs/agents/tasks/FTAI-20260722-portal-p4-data-observability.md
+  - docs/ai_platform/portal/DATA_OBSERVABILITY_FOUNDATION.md
+  - tests/ai_platform/portal/events/test_consumer.py
+  - tests/ai_platform/portal/events/test_event_inbox_migration.py
+  - tests/ai_platform/portal/events/test_outbox.py
+  - tests/ai_platform/portal/observability/test_redaction.py
+  - tests/ai_platform/portal/observability/test_telemetry.py
 validation:
-  - command: live-state P4 preflight
+  - command: AI Platform CI run 29925402251
     result: PASS
-    evidence: develop verified after P3 merge; P4 ownership is disjoint; canonical event/outbox contracts reviewed.
+    evidence: Compile, AI Platform tests, Ruff, Ruff format, Codespell and JSON validation succeeded on implementation head 0327c75159cdd70d754051383304646c192cc92a.
+  - command: Freqtrade CI run 29925401946
+    result: PASS
+    evidence: Pre-commit, docs, full platform matrix, coverage, smoke tests, Ruff, formatter, mypy and final CI Gate succeeded on the implementation head.
+  - command: zizmor run 29925401950
+    result: PASS
+    evidence: GitHub Actions security analysis succeeded on the implementation head.
+  - command: Pre-commit Types update run 29925401282
+    result: NOT_RUN
+    evidence: Workflow concluded skipped and is not a failure gate.
 blockers: []
-next_action: Implement outbox publication, durable idempotent consumer reference and correlation-safe telemetry under P4-owned paths.
+next_action: Verify PR #119 final checkpoint-only head CI and review state, squash-merge it to develop, then verify develop equals the merge SHA before starting a separate P5 Model Lifecycle Control task.
 ```

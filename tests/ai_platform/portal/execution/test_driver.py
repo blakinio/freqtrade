@@ -47,10 +47,7 @@ def test_docker_provision_creates_private_container_without_published_ports(tmp_
     assert "-p" not in create
     assert "--publish" not in create
     assert "--publish-all" not in create
-    assert (
-        f"type=bind,source={tmp_path / 'runtime-1'},target=/freqtrade/user_data"
-        in create
-    )
+    assert f"type=bind,source={tmp_path / 'runtime-1'},target=/freqtrade/user_data" in create
     assert "ai.portal.correlation_id=correlation-1" in create
     assert create[-5:] == (
         "trade",

@@ -32,7 +32,7 @@ class AiDesiredPositionRLResearchStrategy(AiLongOnlyRLResearchStrategy):
         if missing:
             missing_columns = ", ".join(sorted(missing))
             raise RLV2SyntheticReferenceError(
-                f"Missing RL-v2 observability columns: {missing_columns}"
+                f"Missing RL-v2 observability columns: {missing_columns}",
             )
 
         for action_value, do_predict_value in dataframe[["&-action", "do_predict"]].itertuples(
@@ -43,7 +43,7 @@ class AiDesiredPositionRLResearchStrategy(AiLongOnlyRLResearchStrategy):
                 action = int(action_value)
             except (TypeError, ValueError, OverflowError) as exc:
                 raise RLV2SyntheticReferenceError(
-                    f"Unsupported desired-position action value: {action_value}"
+                    f"Unsupported desired-position action value: {action_value}",
                 ) from exc
 
             accumulator.record_action(pair, action)

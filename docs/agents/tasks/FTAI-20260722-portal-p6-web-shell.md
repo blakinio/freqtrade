@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260722-portal-p6-web-shell
-status: active
+status: done
 branch: feat/portal-p6-web-shell
 base_branch: develop
 created: 2026-07-22
@@ -15,20 +15,12 @@ required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
-  - docs/ai_platform/portal/README.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
   - docs/ai_platform/portal/UI_INFORMATION_ARCHITECTURE.md
   - docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
-  - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/contracts/bots.py
   - ai_platform/portal/contracts/environment.py
-search_first:
-  - current develop and open PRs or active tasks overlapping portal web ownership
-  - existing frontend package/toolchain and Playwright configuration
-  - canonical P1/P2 bot/environment API shapes
-optional_reads:
-  - only web-shell implementation-adjacent architecture files when a concrete blocker requires them
 ---
 
 # AI Trading Portal P6 — Web Shell
@@ -37,122 +29,72 @@ optional_reads:
 
 Implement the first production-oriented Next.js/React portal shell and core dry-run operations UX on top of canonical portal APIs without exposing Freqtrade or private control-plane origins to browser code.
 
-## Deliverables
+## Delivered
 
-- isolated Next.js/React/TypeScript application under `ai_platform/portal/web/`;
-- responsive application shell with primary navigation, topbar and explicit environment badge;
-- Dashboard, Bots and Create Bot MVP routes;
-- typed portal API/BFF client boundary aligned to canonical P1/P2 bot contracts;
-- fail-closed API mode plus deterministic fixture mode for UI/E2E only;
-- designed loading, empty, error and authorization-denied states;
-- no browser-visible direct Freqtrade URL or API path;
-- critical Chromium Playwright E2E for shell navigation and dry-run create-bot flow;
-- dedicated web CI workflow for locked install, typecheck, lint/build and Chromium E2E;
-- implementation documentation.
+- isolated Next.js/React/TypeScript application with committed dependency lockfile;
+- responsive shell with persistent environment visibility;
+- Dashboard, Bots, Create Bot and explicit loading/error/empty/denied states;
+- same-origin bot BFF with server-only private control-plane origin;
+- existing session-cookie propagation for server-side reads and BFF mutations without invented identity headers;
+- API mode that fails closed and explicit fixture mode for deterministic development/E2E;
+- dry-run-only create-bot runtime validation;
+- Chromium Playwright critical journey and non-dry-run rejection coverage;
+- read-only pinned-action Portal Web CI using deterministic `npm ci`.
 
-## Non-negotiable boundaries
+## Preserved boundaries
 
-- Browser code must never call Freqtrade REST/WebSocket or exchanges directly.
-- Private control-plane origin stays server-side; browser calls only same-origin portal/BFF routes.
-- Fixture mode is test/development evidence only and must not silently become the production default.
-- Do not invent authentication headers that bypass the fail-closed P2 identity provider.
-- Do not return or render exchange secrets.
-- All initial bot creation remains `dry_run`/non-live; no live-capital authorization is added.
-- Do not alter P1/P2/P3/P4/P5 contracts or implementation paths in P6.
-- Do not copy third-party proprietary assets or private UI captures.
-- Preserve frozen thresholds, completed Phase 6, protected final holdout and PyTorch/RL evidence boundaries.
-
-## Acceptance criteria
-
-1. Responsive shell exposes current environment clearly on every MVP route.
-2. Dashboard renders health/attention summary with freshness semantics and deterministic state handling.
-3. Bots view shows desired vs observed state and immutable strategy/model/config context.
-4. Create Bot flow produces a canonical P2-compatible request and defaults to `dry_run`.
-5. Browser source contains no Freqtrade endpoint or exchange-direct call path.
-6. API mode fails closed when server-side portal API configuration is absent or unavailable.
-7. Fixture mode is explicit and isolated to deterministic development/E2E use.
-8. Loading, empty, error and denied states are intentional and testable.
-9. Critical Chromium E2E covers shell navigation, create-bot success and rejection of non-dry-run creation.
-10. Dedicated web CI, required repository CI and security analysis pass before merge.
-
-## Validation
-
-- Node dependency install from committed lockfile.
-- TypeScript/typecheck and production build.
-- Chromium Playwright E2E in explicit fixture mode.
-- Repository CI and zizmor before merge.
+- browser never calls Freqtrade or exchanges directly;
+- private `PORTAL_CONTROL_PLANE_URL` is not embedded in browser code;
+- no exchange secrets are rendered or persisted by P6;
+- no live-capital authorization was added;
+- P1-P5 implementation/contracts were not changed by P6;
+- frozen AI thresholds, completed research Phase 6, protected final holdout and PyTorch/RL evidence remain unchanged.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T21:55:00+02:00
-head: 2bf352a7ff36ebecdc27133a0fa9a20c57f7856c
-branch: feat/portal-p6-web-shell
+updated_at: 2026-07-22T22:05:00+02:00
+head: 80d9236d719790038c746a82b08d3aca9d2ddaad
+branch: develop
 pr: "#135"
-status: active
+status: done
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
+  - docs/ai_platform/portal/DELIVERY_ROADMAP.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
-  - docs/ai_platform/portal/UI_INFORMATION_ARCHITECTURE.md
   - docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
-owned_paths:
-  - ai_platform/portal/web/
-  - .github/workflows/portal-web.yml
-  - docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md
-  - docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md
 proven:
-  - P2 PR #116, P3 PR #118, P4 PR #119 and P5 PR #124 are merged to develop; P5 closeout PR #134 merged as b2811eac7d977eb880a80dd10ef094d48dbc2e45.
-  - No prior package.json, Playwright configuration or ai_platform/portal/web implementation existed before P6.
-  - P6 implements a responsive Next.js/React shell, Dashboard, Bots, Create Bot, explicit loading/error/denied/empty states and persistent environment visibility.
-  - Browser mutations use same-origin /api/bots; private PORTAL_CONTROL_PLANE_URL is consumed only by server-side code.
-  - Server-rendered Dashboard and Bots reads propagate only the existing request cookie to the private portal API; P6 does not invent identity headers or expose the private origin to browser bundles.
-  - API mode is the default and fails closed when private portal API configuration is missing; fixture mode requires explicit PORTAL_WEB_DATA_MODE=fixture.
-  - Create-bot runtime validation accepts only a canonical non-empty P2-shaped request with execution_mode=dry_run and positive config/capital values.
-  - Chromium E2E covers shell navigation, environment visibility, deterministic create-bot success, denied state and rejection of non-dry-run creation.
-  - Initial Portal Web CI 29951461671 passed dependency resolution, generated package-lock v3, npm ci, typecheck, lint, Next production build, Chromium installation and all Playwright E2E.
-  - Generated package-lock.json was committed by a bounded one-time bootstrap after checking out the exact PR head; the final workflow removed bootstrap writes and uses permissions contents: read with npm ci only.
-  - Freqtrade CI initially failed only because pre-commit zizmor reported artipacked on actions/checkout without persist-credentials: false; full diagnostic evidence confirmed every other pre-commit hook passed.
-  - The final Portal Web workflow sets persist-credentials: false and the temporary diagnostic job/artifact upload were removed.
-  - Final implementation head 2bf352a7ff36ebecdc27133a0fa9a20c57f7856c passed Portal Web CI 29952492510, AI Platform CI 29952492491, Freqtrade CI 29952492385 and zizmor 29952492520; Pre-commit Types update 29952492411 was skipped and is not a failure gate.
-  - PR #135 review threads contain only resolved/outdated GitHub Advanced Security zizmor findings from earlier checkout revisions; no active unresolved review thread remains.
-  - Live compare reports feat/portal-p6-web-shell ahead of and 0 commits behind develop; the diff is limited to the declared P6 web/workflow/docs/task paths.
-  - Local sandbox npm validation was unavailable because the internal npm mirror returned HTTP 503 and direct public registry DNS returned EAI_AGAIN; GitHub hosted runner validation is therefore the executable source of truth.
+  - P6 implements the first portal web shell and core dry-run operations UX under ai_platform/portal/web/.
+  - Browser traffic uses same-origin portal/BFF routes; Freqtrade and private control-plane origins remain outside browser reach.
+  - API mode fails closed and fixture mode is explicit rather than an implicit production fallback.
+  - Create Bot accepts only dry_run at the P6 BFF boundary and the E2E suite verifies rejection of non-dry-run creation.
+  - package-lock.json v3 is committed; final Portal Web CI uses contents: read, persist-credentials: false and npm ci.
+  - A full pre-commit diagnostic proved the only Freqtrade CI blocker was zizmor artipacked on persisted checkout credentials; adding persist-credentials: false resolved it and the temporary diagnostic workflow was removed.
+  - PR #135 final checkpoint head 18ace738836e58016e117b5578ec8eaf41792a7d passed Portal Web CI 29952688663, AI Platform CI 29952688763, Freqtrade CI 29952689166 and zizmor 29952689043; Pre-commit Types update 29952688785 was skipped and not a failure gate.
+  - All GitHub Advanced Security review threads on PR #135 are resolved/outdated and no active unresolved review thread remained before merge.
+  - PR #135 was squash-merged to develop as 80d9236d719790038c746a82b08d3aca9d2ddaad.
+  - Post-merge comparison reports develop identical to 80d9236d719790038c746a82b08d3aca9d2ddaad.
+  - Canonical Delivery Roadmap identifies P7 Risk Engine and Trading Terminal as the next stage after the P3 execution foundation dependency is available.
 derived:
-  - The server-side BFF preserves the private execution boundary while allowing application session propagation without coupling browser bundles to private origins.
-  - Fixture mode can support deterministic P6/P10 E2E without becoming an authentication or production-data fallback.
+  - P6 provides a safe UX/BFF surface on which later risk-terminal and broader portal workflows can be added without exposing execution runtimes.
 unknown: []
 conflicts: []
 first_failure:
   marker: lock-bootstrap-merge-ref
-  evidence: Portal Web CI run 29951609305 generated the lockfile successfully but the temporary auto-commit step failed because the default pull_request checkout used the synthetic merge ref; targeting github.event.pull_request.head.sha resolved the bootstrap commit.
-rejected_hypotheses:
-  - Treat package-lock.json, codespell, Ruff, mypy or whitespace hooks as the Freqtrade CI failure source; full pre-commit diagnostic showed they all passed.
-  - Keep checkout credentials persisted in the final Portal Web workflow.
-  - Expose PORTAL_CONTROL_PLANE_URL or a Freqtrade runtime address to browser code.
-  - Use fixture mode as an implicit production fallback.
-changed_paths:
-  - .github/workflows/portal-web.yml
-  - ai_platform/portal/web/
-  - docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md
-  - docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md
+  evidence: The one-time lockfile auto-commit initially targeted the synthetic pull-request merge ref; exact PR-head checkout fixed the bounded bootstrap.
 validation:
-  - command: Portal Web CI 29952492510
+  - command: PR #135 final Portal Web CI 29952688663
     result: PASS
-    evidence: committed-lock npm ci, typecheck, lint, production build, Chromium install and Playwright E2E passed.
-  - command: AI Platform CI 29952492491
+  - command: PR #135 final AI Platform CI 29952688763
     result: PASS
-  - command: Freqtrade CI 29952492385
+  - command: PR #135 final Freqtrade CI 29952689166
     result: PASS
-    evidence: CI scope, pre-commit checks and documentation build passed; core/compatibility jobs were correctly skipped for the classified P6 scope.
-  - command: GitHub Actions Security Analysis with zizmor 29952492520
+  - command: PR #135 final zizmor 29952689043
     result: PASS
-  - command: PR #135 review state
+  - command: Post-merge develop verification
     result: PASS
-    evidence: only resolved/outdated automated zizmor threads remain; no active unresolved review thread.
-  - command: P6 live base verification
-    result: PASS
-    evidence: feature branch is 0 commits behind develop and changed files remain limited to declared P6 ownership.
+    evidence: develop is identical to squash merge SHA 80d9236d719790038c746a82b08d3aca9d2ddaad.
 blockers: []
-next_action: Verify required CI on this checkpoint-only PR #135 head, then squash-merge P6 if green and verify develop before durable P6 closeout with exactly one successor action.
+next_action: Declare and execute FTAI-20260722-portal-p7-risk-terminal from current develop after verifying no open PR or active task overlaps the P7 risk-engine/trading-terminal ownership.
 ```

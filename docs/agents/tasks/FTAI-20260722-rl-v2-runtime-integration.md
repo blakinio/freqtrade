@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-rl-v2-runtime-integration
 status: active
-branch: docs/rl-v2-runtime-integration-task
+branch: develop
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: "pending"
+related_pr: "142"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
   - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
@@ -105,10 +105,10 @@ This task does not authorize a training config, experiment manifest, run request
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:15:00+02:00
-head: 73f612557fd2a14d2ab3f8d413a32853b1e7f554
-branch: docs/rl-v2-runtime-integration-task
-pr: pending
+updated_at: 2026-07-22T23:30:00+02:00
+head: feb018cb3c1b99fa3b4ee8039e1ecef189316a34
+branch: develop
+pr: 142
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-synthetic-implementation.md
@@ -125,20 +125,22 @@ proven:
   - RL-v2 design contract PR #102 and synthetic implementation PR #107 are merged and their task checkpoints are done.
   - Canonical synthetic implementation uses position_independent_action_semantics with desired-position actions target_flat/target_long and frozen prospective reward constants.
   - Synthetic implementation PR #107 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431 before squash merge d66b3e8d9381563556d7bdf37fe0bafbb3b87881.
-  - Duplicate local work PR #139 was closed without merge after canonical PR #107 was discovered on current develop.
-  - Current develop at task declaration is 73f612557fd2a14d2ab3f8d413a32853b1e7f554; open PRs #140 and draft #109 do not overlap RL-v2 model/strategy ownership.
+  - Duplicate PR #139 was closed without merge after canonical PR #107 was discovered on develop.
+  - Runtime-integration task declaration PR #142 passed Freqtrade CI 29958123208 and zizmor 29958123243; Pre-commit Types was skipped, not failed.
+  - PR #142 was squash-merged as 5ad498e6a2538690ff371fd7b061bdd363820bf5.
+  - Current develop at checkpoint time is feb018cb3c1b99fa3b4ee8039e1ecef189316a34 after unrelated TradingView lookahead repair trigger #141; no RL-v2 owned path changed.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
   - The next smallest safe step is runtime adapter code plus synthetic/static binding tests, not model execution.
   - Reusing the merged pure synthetic reference prevents a second independent definition of RL-v2 action and reward semantics.
 unknown:
-  - Whether the heavy `freqai_rl` dependency profile can import the new adapter in repository CI without additional test isolation.
+  - Whether the heavy freqai_rl dependency profile can import the new adapter in repository CI without additional test isolation.
   - Whether a later separately declared execution-preflight task will need a dedicated config/manifest; those artifacts are intentionally out of scope here.
 conflicts: []
 first_failure:
   marker: none
-  evidence: This task is newly declared from the completed synthetic implementation checkpoint; no runtime integration code has been added yet.
+  evidence: Task declaration and repository governance validation completed without an unresolved failure; runtime integration code has not been added yet.
 rejected_hypotheses:
   - Train or backtest while implementing the runtime adapter.
   - Add a run request, historical timerange, or evaluation window to the integration task.
@@ -149,7 +151,10 @@ changed_paths:
 validation:
   - command: live repository and overlap preflight
     result: PASS
-    evidence: Current develop is 73f612557fd2a14d2ab3f8d413a32853b1e7f554; no open PR overlaps the declared RL-v2 model/strategy owned paths, and duplicate PR #139 is closed without merge.
+    evidence: No open PR overlapped declared RL-v2 model/strategy ownership; duplicate PR #139 was closed without merge.
+  - command: task declaration PR #142 repository gates
+    result: PASS
+    evidence: Freqtrade CI 29958123208 and zizmor 29958123243 completed successfully before squash merge 5ad498e6a2538690ff371fd7b061bdd363820bf5; Pre-commit Types was skipped, not failed.
 blockers: []
-next_action: Merge this bounded task declaration, then implement only the RL-v2 model/environment and strategy adapters, runtime-integration descriptor, observability binding, synthetic/static tests and documentation on a dedicated branch without any training, backtest, historical evaluation, evaluation-window declaration or protected-final-holdout access.
+next_action: Create a dedicated implementation branch from current develop and implement only the RL-v2 model/environment and strategy adapters, runtime-integration descriptor, observability binding, synthetic/static tests and documentation without any training, backtest, historical evaluation, evaluation-window declaration or protected-final-holdout access.
 ```

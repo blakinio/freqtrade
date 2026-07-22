@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "request_id": "tradingview-futures-historical-lookahead-repair-v1-one-shot",
+  "repair_id": "tradingview-futures-historical-lookahead-repair-v1",
+  "requested_action": "execute_one_shot_lookahead_repair",
+  "source_benchmark_execution_head_sha": "9c03faedea870cea78b46672545fb4a4ba371e6f",
+  "acknowledgements": {
+    "backtest_rerun_allowed": false,
+    "ranking_change_allowed": false,
+    "protected_final_holdout_used": false,
+    "retuning_allowed": false,
+    "strategy_mutation_allowed": false,
+    "automatic_promotion_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false
+  }
+}

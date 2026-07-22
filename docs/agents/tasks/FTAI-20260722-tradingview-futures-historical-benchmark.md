@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260722-tradingview-futures-historical-benchmark
-status: declared
-branch: feat/tradingview-futures-historical-benchmark-v1
+status: implementing
+branch: feat/tradingview-futures-historical-benchmark-implementation-v1
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
@@ -114,14 +114,15 @@ The benchmark may produce an ordering for research review, but it must explicitl
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T11:30:00+02:00
-head: 0dd4a1b79cd5794bddb06f339c526e4b8685c9eb
-branch: feat/tradingview-futures-historical-benchmark-v1
+updated_at: 2026-07-22T19:25:00+02:00
+head: 8ff495ed829527883c811f0b773362ff36a47c58
+branch: feat/tradingview-futures-historical-benchmark-implementation-v1
 pr: none
-status: declared
+status: implementing
 context_routes:
   - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
   - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
   - .github/workflows/experimental-model-historical-backtest-execution.yml
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-benchmark-v1.json
@@ -132,17 +133,21 @@ owned_paths:
   - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md
 proven:
-  - TradingView futures preflight PR #112 merged to develop as 0dd4a1b79cd5794bddb06f339c526e4b8685c9eb after AI Platform CI, Freqtrade CI, zizmor and the dedicated runtime preflight succeeded.
-  - Preflight resolved BTC/USD:USD as PF_XBTUSD and ETH/USD:USD as PF_ETHUSD under krakenfutures futures isolated USD mode.
-  - Preflight evidence verified 15m historical coverage sufficient for the declared 20260301-20260630 research window and strategy warmup.
-  - The three canonical strategy classes are loadable through Freqtrade and are ready for controlled historical OOS research backtesting.
+  - TradingView futures preflight PR #112 merged to develop as 0dd4a1b79cd5794bddb06f339c526e4b8685c9eb after all required CI and the dedicated runtime preflight succeeded.
+  - Benchmark declaration PR #121 merged to develop as 23724dff8674da37bcdfa4d7c8e363d1afd2629d after Freqtrade CI and zizmor succeeded.
+  - Preflight resolved BTC/USD:USD as PF_XBTUSD and ETH/USD:USD as PF_ETHUSD under krakenfutures futures isolated USD mode with sufficient 15m coverage.
+  - The implementation contract freezes the three candidate identities, source Git blob identities, pairs, 15m timeframe, 20260301-20260701 execution timerange, fee 0.002 and common wallet/stake semantics.
+  - The implementation validator rejects source, authorization, request, market and materialized-config drift and extracts every backtest into one common evidence schema.
+  - The workflow executes no benchmark on the implementation PR; result execution requires a later PR that adds exactly the canonical run-request file.
+  - The result workflow is designed to run all three candidates sequentially on one runtime/data/config, retain backtest archives, run lookahead and recursive analyses, and emit historical ordering with selected_candidate=null.
   - Wick Hunter remains excluded because no trustworthy historical liquidation feed has been bound to the research track.
 derived:
-  - A one-shot benchmark can now be implemented without changing candidate logic or touching the protected final holdout.
-  - Historical benchmark results may support later research prioritization but cannot by themselves authorize promotion.
+  - After implementation CI succeeds and merges, a scope-limited one-file run-request PR can safely authorize the one-shot historical benchmark without changing candidate code.
+  - Historical ordering may guide research review but cannot authorize retuning, validation, promotion or a profitability/superiority claim.
 unknown:
-  - Whether each candidate completes backtesting successfully under the common futures execution contract.
-  - Whether lookahead-analysis and recursive-analysis are directly compatible with all three futures strategies in the current repository runtime.
+  - Whether all three candidates complete the frozen futures backtest in the current runtime.
+  - Whether lookahead-analysis produces a complete CSV row for every candidate and whether any bias is detected.
+  - Whether recursive-analysis completes for every candidate and what indicator variance requires manual review.
   - Comparative historical performance of the three candidates under identical assumptions.
 conflicts: []
 first_failure:
@@ -153,12 +158,18 @@ rejected_hypotheses:
   - Retune candidate parameters after observing this benchmark.
   - Use protected final holdout data for the benchmark.
   - Reuse spot BTC/USDT and ETH/USDT instead of the preflight-proven futures markets.
+  - Execute benchmark results in the same PR that introduces or changes the execution contract.
 changed_paths:
+  - ai_platform/research/tradingview/futures-historical-benchmark-v1.json
+  - ai_platform/scripts/tradingview_futures_historical_benchmark.py
+  - tests/ai_platform/test_tradingview_futures_historical_benchmark.py
+  - .github/workflows/ai-platform-tradingview-futures-historical-benchmark.yml
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md
 validation:
-  - command: GitHub Actions on declaration PR
+  - command: GitHub Actions on implementation PR
     result: NOT_RUN
-    evidence: Declaration branch created from merged preflight commit; no benchmark execution authorized yet.
+    evidence: Implementation branch prepared; canonical result-producing run-request file intentionally absent.
 blockers: []
-next_action: Open the declaration pull request against develop, merge it only after required CI succeeds, then implement the frozen benchmark contract and one-shot execution workflow on a fresh branch from updated develop without creating the result-producing run-request yet.
+next_action: Open the implementation pull request against develop, use AI Platform CI, Freqtrade CI, zizmor and the benchmark contract job to fix any contract, test, lint, workflow or checkpoint failure, merge only when green, then create a separate branch that adds exactly the canonical run-request file and observe the one-shot benchmark evidence.
 ```

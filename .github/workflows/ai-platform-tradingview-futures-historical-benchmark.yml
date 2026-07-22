@@ -1,0 +1,459 @@
+name: AI Platform TradingView Futures Historical Benchmark
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/ai-platform-tradingview-futures-historical-benchmark.yml"
+      - "ai_platform/research/tradingview/futures-historical-benchmark-v1.json"
+      - "ai_platform/scripts/tradingview_futures_historical_benchmark.py"
+      - "tests/ai_platform/test_tradingview_futures_historical_benchmark.py"
+      - "docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_BENCHMARK.md"
+      - "docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md"
+      - "ai_platform/research/tradingview/run-requests/futures-historical-benchmark-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tradingview-futures-historical-benchmark-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/research/tradingview/run-requests/futures-historical-benchmark-v1.json
+  CONTRACT_PATH: ai_platform/research/tradingview/futures-historical-benchmark-v1.json
+  TASK_PATH: docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-benchmark.md
+  DATA_DIR: user_data/data/krakenfutures
+  EVIDENCE_ROOT: tradingview-futures-historical-benchmark-evidence
+  SYMBOLS_PATH: tradingview-futures-historical-benchmark-evidence/resolved-markets.json
+  MATERIALIZED_CONFIG: tradingview-futures-historical-benchmark-evidence/research-config.json
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  contract:
+    name: Validate frozen benchmark contract and optional one-shot request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      request_present: ${{ steps.request.outputs.present }}
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Validate active bounded checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Validate frozen benchmark contract
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/request"
+          python -m ai_platform.scripts.tradingview_futures_historical_benchmark contract \
+            > "$EVIDENCE_ROOT/request/contract-report.json"
+          cp "$CONTRACT_PATH" "$EVIDENCE_ROOT/request/execution-contract.json"
+
+      - name: Validate optional one-shot request and exact trigger scope
+        id: request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$REQUEST_PATH" ]]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          expected=$'A\t'"$REQUEST_PATH"
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Benchmark execution PR must add exactly the canonical run-request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+          python -m ai_platform.scripts.tradingview_futures_historical_benchmark \
+            validate-request "$REQUEST_PATH" \
+            > "$EVIDENCE_ROOT/request/validated-run-request.json"
+          cp "$REQUEST_PATH" "$EVIDENCE_ROOT/request/run-request.json"
+          echo "present=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload contract and request validation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tradingview-futures-historical-benchmark-contract-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/request/
+          if-no-files-found: error
+          retention-days: 90
+
+  runtime-strategy-load:
+    name: Prove frozen TradingView strategies resolve in futures mode
+    needs: contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install repository runtime
+        run: python -m pip install --disable-pip-version-check --quiet -e .
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Materialize no-network frozen futures config
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/runtime-load"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          source = Path("ai_platform/configs/tradingview-futures-research.example.json")
+          config = json.loads(source.read_text(encoding="utf-8"))
+          config["exchange"]["pair_whitelist"] = ["BTC/USD:USD", "ETH/USD:USD"]
+          output = Path(os.environ["MATERIALIZED_CONFIG"])
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+          python -m ai_platform.scripts.tradingview_futures_historical_benchmark \
+            validate-config "$MATERIALIZED_CONFIG" \
+            > "$EVIDENCE_ROOT/runtime-load/validated-config.json"
+
+      - name: Resolve all three strategies through Freqtrade
+        run: |
+          freqtrade list-strategies \
+            --config "$MATERIALIZED_CONFIG" \
+            --strategy-path "$GITHUB_WORKSPACE/ai_platform/strategies" \
+            -1 \
+            > "$EVIDENCE_ROOT/runtime-load/strategy-listing.txt"
+          grep -F "TVDonchianBreakoutStrategy" "$EVIDENCE_ROOT/runtime-load/strategy-listing.txt"
+          grep -F "TVSupertrendStrategy" "$EVIDENCE_ROOT/runtime-load/strategy-listing.txt"
+          grep -F "TVBollingerMeanReversionStrategy" "$EVIDENCE_ROOT/runtime-load/strategy-listing.txt"
+
+      - name: Upload strategy resolver preflight evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tradingview-futures-strategy-load-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/runtime-load/
+          if-no-files-found: error
+          retention-days: 90
+
+  execute:
+    name: Execute frozen one-shot historical benchmark
+    needs: [contract, runtime-strategy-load]
+    if: needs.contract.outputs.request_present == 'true' && github.event.action == 'opened'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      EXECUTION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout exact one-shot request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Validate active bounded checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Re-validate canonical request and frozen contract
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/request"
+          python -m ai_platform.scripts.tradingview_futures_historical_benchmark \
+            validate-request "$REQUEST_PATH" \
+            > "$EVIDENCE_ROOT/request/validated-run-request.json"
+          python -m ai_platform.scripts.tradingview_futures_historical_benchmark contract \
+            > "$EVIDENCE_ROOT/request/contract-report.json"
+          cp "$REQUEST_PATH" "$EVIDENCE_ROOT/request/run-request.json"
+          cp "$CONTRACT_PATH" "$EVIDENCE_ROOT/request/execution-contract.json"
+          printf '%s\n' "$EXECUTION_HEAD_SHA" > "$EVIDENCE_ROOT/request/execution-head.txt"
+
+      - name: Install repository runtime
+        run: python -m pip install --disable-pip-version-check --quiet -e .
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Re-discover and bind exact Kraken Futures markets
+        run: |
+          python -m ai_platform.scripts.tradingview_futures_historical_preflight \
+            discover-markets --output "$SYMBOLS_PATH" \
+            > "$EVIDENCE_ROOT/discovery-report.json"
+          python -m ai_platform.scripts.tradingview_futures_historical_benchmark \
+            validate-markets "$SYMBOLS_PATH" \
+            > "$EVIDENCE_ROOT/validated-markets.json"
+
+      - name: Materialize and validate common dry-run futures config
+        run: |
+          python -m ai_platform.scripts.tradingview_futures_historical_preflight \
+            materialize-config --symbols "$SYMBOLS_PATH" --output "$MATERIALIZED_CONFIG" \
+            > "$EVIDENCE_ROOT/materialized-config-report.json"
+          python -m ai_platform.scripts.tradingview_futures_historical_benchmark \
+            validate-config "$MATERIALIZED_CONFIG" \
+            > "$EVIDENCE_ROOT/validated-config.json"
+
+      - name: Prove canonical strategies load with frozen futures config
+        run: |
+          freqtrade list-strategies \
+            --config "$MATERIALIZED_CONFIG" \
+            --strategy-path "$GITHUB_WORKSPACE/ai_platform/strategies" \
+            -1 \
+            > "$EVIDENCE_ROOT/strategy-listing.txt"
+          grep -F "TVDonchianBreakoutStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
+          grep -F "TVSupertrendStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
+          grep -F "TVBollingerMeanReversionStrategy" "$EVIDENCE_ROOT/strategy-listing.txt"
+
+      - name: Download bounded 15m futures history
+        run: |
+          freqtrade download-data \
+            --config "$MATERIALIZED_CONFIG" \
+            --datadir "$DATA_DIR" \
+            --pairs "BTC/USD:USD" "ETH/USD:USD" \
+            --timeframes 15m \
+            --timerange 20260201-20260701
+
+      - name: Verify data coverage immediately before execution
+        run: |
+          python -m ai_platform.scripts.tradingview_futures_historical_preflight \
+            verify-data --symbols "$SYMBOLS_PATH" --datadir "$DATA_DIR" \
+            > "$EVIDENCE_ROOT/data-coverage.json"
+
+      - name: Execute three frozen candidates and validation analyses
+        shell: bash
+        run: |
+          set -euo pipefail
+          strategies=(
+            "TVDonchianBreakoutStrategy"
+            "TVSupertrendStrategy"
+            "TVBollingerMeanReversionStrategy"
+          )
+          slugs=("donchian" "supertrend" "bollinger")
+
+          for index in "${!strategies[@]}"; do
+            strategy="${strategies[$index]}"
+            slug="${slugs[$index]}"
+            evidence_dir="$EVIDENCE_ROOT/$slug"
+            backtest_dir="$evidence_dir/backtest"
+            mkdir -p "$backtest_dir"
+
+            cat > "$evidence_dir/backtest-command.txt" <<EOF
+          freqtrade backtesting --strategy $strategy --strategy-path $GITHUB_WORKSPACE/ai_platform/strategies --config $MATERIALIZED_CONFIG --datadir $DATA_DIR --timerange 20260301-20260701 --fee 0.002 --max-open-trades 2 --stake-amount 100 --dry-run-wallet 10000 --export trades --backtest-directory $backtest_dir
+          EOF
+
+            freqtrade backtesting \
+              --strategy "$strategy" \
+              --strategy-path "$GITHUB_WORKSPACE/ai_platform/strategies" \
+              --config "$MATERIALIZED_CONFIG" \
+              --datadir "$DATA_DIR" \
+              --timerange 20260301-20260701 \
+              --fee 0.002 \
+              --max-open-trades 2 \
+              --stake-amount 100 \
+              --dry-run-wallet 10000 \
+              --export trades \
+              --backtest-directory "$backtest_dir" \
+              > "$evidence_dir/backtest.log" 2>&1
+
+            mapfile -t archives < <(find "$backtest_dir" -maxdepth 1 -type f -name '*.zip' -print)
+            if [[ "${#archives[@]}" -ne 1 ]]; then
+              echo "Expected exactly one backtest ZIP for $strategy, found ${#archives[@]}" >&2
+              exit 1
+            fi
+            archive="${archives[0]}"
+            cp "$archive" "$evidence_dir/backtest-result.zip"
+
+            python -m ai_platform.scripts.tradingview_futures_historical_benchmark \
+              extract-backtest "$evidence_dir/backtest-result.zip" \
+              --strategy "$strategy" \
+              --output "$evidence_dir/backtest-summary.json" \
+              > "$evidence_dir/backtest-extraction.log"
+
+            set +e
+            freqtrade lookahead-analysis \
+              --strategy "$strategy" \
+              --strategy-path "$GITHUB_WORKSPACE/ai_platform/strategies" \
+              --config "$MATERIALIZED_CONFIG" \
+              --datadir "$DATA_DIR" \
+              --timerange 20260301-20260701 \
+              --fee 0.002 \
+              --minimum-trade-amount 1 \
+              --targeted-trade-amount 20 \
+              --lookahead-analysis-exportfilename "$PWD/$evidence_dir/lookahead.csv" \
+              > "$evidence_dir/lookahead.log" 2>&1
+            lookahead_status=$?
+
+            freqtrade recursive-analysis \
+              --strategy "$strategy" \
+              --strategy-path "$GITHUB_WORKSPACE/ai_platform/strategies" \
+              --config "$MATERIALIZED_CONFIG" \
+              --datadir "$DATA_DIR" \
+              --timerange 20260301-20260701 \
+              -p "BTC/USD:USD" \
+              --startup-candle 49 99 119 199 499 999 \
+              > "$evidence_dir/recursive-analysis.log" 2>&1
+            recursive_status=$?
+            set -e
+
+            python - "$strategy" "$evidence_dir" "$lookahead_status" "$recursive_status" <<'PY'
+          import csv
+          import json
+          import sys
+          from pathlib import Path
+
+          strategy = sys.argv[1]
+          evidence_dir = Path(sys.argv[2])
+          lookahead_exit = int(sys.argv[3])
+          recursive_exit = int(sys.argv[4])
+          csv_path = evidence_dir / "lookahead.csv"
+          bias_value = None
+          row_found = False
+          if csv_path.is_file():
+              with csv_path.open(newline="", encoding="utf-8-sig") as handle:
+                  for row in csv.DictReader(handle):
+                      if row.get("strategy") == strategy:
+                          row_found = True
+                          raw = str(row.get("has_bias", "")).strip().lower()
+                          if raw in {"yes", "true", "1"}:
+                              bias_value = True
+                          elif raw in {"no", "false", "0"}:
+                              bias_value = False
+                          break
+
+          payload = {
+              "schema_version": 1,
+              "strategy": strategy,
+              "lookahead": {
+                  "exit_code": lookahead_exit,
+                  "csv_present": csv_path.is_file(),
+                  "strategy_row_found": row_found,
+                  "bias_detected": bias_value,
+                  "status": (
+                      "pass"
+                      if lookahead_exit == 0 and row_found and bias_value is False
+                      else "fail"
+                      if lookahead_exit == 0 and row_found and bias_value is True
+                      else "incomplete"
+                  ),
+              },
+              "recursive": {
+                  "exit_code": recursive_exit,
+                  "log_present": (evidence_dir / "recursive-analysis.log").is_file(),
+                  "status": "completed_review_required" if recursive_exit == 0 else "incomplete",
+              },
+              "automatic_validation_claim_allowed": False,
+              "promotion_allowed": False,
+          }
+          (evidence_dir / "analysis-status.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          done
+
+      - name: Assemble historical comparison evidence without promotion
+        run: |
+          python - "$EVIDENCE_ROOT" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          candidates = [
+              ("TVDonchianBreakoutStrategy", "donchian"),
+              ("TVSupertrendStrategy", "supertrend"),
+              ("TVBollingerMeanReversionStrategy", "bollinger"),
+          ]
+          rows = []
+          for strategy, slug in candidates:
+              summary = json.loads((root / slug / "backtest-summary.json").read_text(encoding="utf-8"))
+              analysis = json.loads((root / slug / "analysis-status.json").read_text(encoding="utf-8"))
+              if summary["strategy"] != strategy or analysis["strategy"] != strategy:
+                  raise SystemExit("Benchmark evidence strategy identity drifted")
+              rows.append(
+                  {
+                      "strategy": strategy,
+                      "metrics": summary["metrics"],
+                      "pair_breakdown": summary["pair_breakdown"],
+                      "direction_breakdown": summary["direction_breakdown"],
+                      "analysis": analysis,
+                      "archive_sha256": summary["source"]["archive_sha256"],
+                  }
+              )
+
+          ordering = [
+              row["strategy"]
+              for row in sorted(
+                  rows,
+                  key=lambda row: (
+                      -row["metrics"]["profit_total"],
+                      row["metrics"]["max_drawdown"],
+                      -row["metrics"]["total_trades"],
+                      row["strategy"],
+                  ),
+              )
+          ]
+          result = {
+              "schema_version": 1,
+              "benchmark_id": "tradingview-futures-historical-benchmark-v1",
+              "execution_head_sha": (root / "request" / "execution-head.txt").read_text().strip(),
+              "evidence_classification": "historical_research_evidence_only",
+              "ranking_basis": [
+                  "profit_total_desc",
+                  "max_drawdown_asc",
+                  "total_trades_desc",
+                  "strategy_name_asc",
+              ],
+              "historical_ordering": ordering,
+              "candidates": rows,
+              "selected_candidate": None,
+              "automatic_validation_claim_allowed": False,
+              "retuning_allowed": False,
+              "promotion_allowed": False,
+              "profitability_claim_allowed": False,
+              "superiority_claim_allowed": False,
+              "protected_final_holdout_used": False,
+          }
+          (root / "benchmark-summary.json").write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload immutable benchmark evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: tradingview-futures-historical-benchmark-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/
+          if-no-files-found: error
+          retention-days: 90

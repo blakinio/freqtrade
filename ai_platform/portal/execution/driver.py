@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from ai_platform.portal.execution.errors import RuntimeDriverError
 from ai_platform.portal.execution.runtime import DriverRuntimeState, RuntimeContainerSpec

@@ -85,8 +85,8 @@ Implement portal-side immutable model metadata and controlled registration, prom
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T20:45:00+02:00
-head: 7c8e881567644a3a1f80f4eb78b4f84177e04ec8
+updated_at: 2026-07-22T20:50:00+02:00
+head: 6032c00d2114c6f64ac1c75214b83c4be5988ed9
 branch: feat/portal-p5-model-control
 pr: "#124"
 status: active
@@ -108,21 +108,24 @@ proven:
   - Rollback targets must have prior explicit PROMOTE history in the same slot and must remain in an assignable non-live lifecycle state.
   - New-assignment validation is read-only and requires the BotConfigRevision pinned model to equal the current promoted slot target.
   - Targeted tests cover immutable duplicate rejection, tenant isolation, permissions, lifecycle eligibility, no silent activation, promotion, rollback provenance, assignment validation and transaction rollback on outbox failure.
-  - The historical pytest module-name collision class was avoided by using unique test module names test_model_control_service.py and test_model_control_migration.py.
-  - Live develop remained 9a47f21e5a2c3b124ed2a24ecc0fad61bb8149c5 and no open model_control/P5 overlap was found before PR #124 opened.
+  - SQLite test persistence returns timezone-aware columns as naive datetimes; repository read adapters normalize those values to UTC before rebuilding strict P1 contracts.
+  - P5 package import ordering follows repository Ruff policy including two blank lines after imports; all temporary lint diagnostics and suppressions were removed before final validation.
+  - Sync PR #131 merged current develop 7c8ced80b2b445144a26112e69f8c1cbd475b13e into feat/portal-p5-model-control as merge commit 6032c00d2114c6f64ac1c75214b83c4be5988ed9.
+  - After synchronization, develop is the merge base and the PR #124 diff is limited to the 11 declared P5 model_control/test/docs/task files.
 derived:
   - P5 controls future assignment policy without creating a mutable per-bot model pointer that can diverge from BotConfigRevision.
   - Applying a changed promoted model to a bot remains a future explicit immutable P2 revision workflow, not an in-place P5 mutation.
 unknown: []
 conflicts: []
 first_failure:
-  marker: none
-  evidence: No executable validation failure has been observed yet; PR #124 CI is the first runtime validation gate in this connector-only session.
+  marker: sqlite-timezone-roundtrip
+  evidence: Initial P5 AI Platform tests failed because SQLite returned DateTime(timezone=True) slot/history values without tzinfo and strict P1 UtcDateTime rejected them; repository read normalization to UTC resolved the failure.
 rejected_hypotheses:
   - Mutate ModelVersion lifecycle/artifact fields in place.
   - Treat research registry promotion_status as automatic runtime activation authority.
   - Maintain a second mutable bot model pointer that can diverge from BotConfigRevision.
   - Use model.promoted to ambiguously encode rollback.
+  - Persist temporary nested Ruff configuration or file-wide lint suppression as a production fix.
 changed_paths:
   - ai_platform/portal/model_control/__init__.py
   - ai_platform/portal/model_control/database.py
@@ -139,12 +142,12 @@ validation:
   - command: PR #123 required CI
     result: PASS
     evidence: AI Platform CI 29942106177, Freqtrade CI 29942106185 and zizmor 29942109186 passed before the prerequisite contract change merged.
-  - command: P5 live scope/base verification
+  - command: P5 clean implementation AI Platform CI 29947726640
     result: PASS
-    evidence: feat/portal-p5-model-control was 14 commits ahead and 0 behind develop before PR #124; diff was limited to the declared P5 owned paths.
-  - command: Focused/local P5 validation
-    result: NOT_RUN
-    evidence: Local repository execution is unavailable in this connector-only session; PR #124 CI is the executable validation gate.
+    evidence: Compile, AI Platform tests, Ruff, Ruff format, Codespell and JSON validation passed with temporary diagnostics removed before develop synchronization.
+  - command: P5 live base synchronization
+    result: PASS
+    evidence: PR #131 merged develop 7c8ced80b2b445144a26112e69f8c1cbd475b13e into the P5 feature branch; compare now reports the feature branch ahead and 0 behind develop with only P5 paths in the diff.
 blockers: []
-next_action: Verify PR #124 final checkpoint head CI and review state, fix the first concrete failure if any, then squash-merge when all required gates pass and verify develop before closing P5 with exactly one successor next_action.
+next_action: Verify required CI and review state on the synchronized final checkpoint head of PR #124, fix any concrete failure, then squash-merge when green and verify develop before closing P5 with one successor next_action.
 ```

@@ -119,10 +119,13 @@ def test_api_rejects_undeclared_raw_exchange_secret_fields(
 ) -> None:
     context = _context("tenant-a", Permission.BOT_CREATE)
     client = TestClient(create_app(session_factory, lambda: context))
-    payload = _create_payload("tenant-a")
-    spec = dict(payload["spec"])  # type: ignore[arg-type]
+    spec = _spec("tenant-a").model_dump(mode="json")
     spec["api_key"] = "not-accepted"
-    payload["spec"] = spec
+    payload: dict[str, object] = {
+        "bot_id": "bot-1",
+        "name": "Portal bot",
+        "spec": spec,
+    }
 
     response = client.post("/v1/bots", json=payload)
 

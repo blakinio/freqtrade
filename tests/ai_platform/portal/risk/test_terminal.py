@@ -14,7 +14,11 @@ from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent, TradeSide
 from ai_platform.portal.control_plane.api import create_app
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.control_plane.database import SessionFactory, build_engine, build_session_factory
+from ai_platform.portal.control_plane.database import (
+    SessionFactory,
+    build_engine,
+    build_session_factory,
+)
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.portal.risk.database import create_risk_schema
 from ai_platform.portal.risk.schema import RiskEvaluationSnapshot, RiskPolicyLimits

@@ -34,7 +34,6 @@ EXPECTED_FINAL_HOLDOUT = "20260801-20260930"
 EXPECTED_CONSUMED_OOS = "20260501-20260630"
 EXPECTED_FEE = 0.002
 MAXIMUM_STARTUP_CANDLES = 120
-TIMEFRAME_SECONDS = 15 * 60
 
 
 class TradingViewFuturesPreflightError(RuntimeError):
@@ -71,32 +70,16 @@ def _split_timerange(value: str) -> tuple[datetime, datetime]:
 
 def _validate_no_holdout_overlap(timerange: str) -> None:
     start, stop = _split_timerange(timerange)
-    holdout_start, holdout_stop_inclusive = _split_timerange(EXPECTED_FINAL_HOLDOUT)
-    holdout_stop = holdout_stop_inclusive + timedelta(days=1)
+    holdout_start, holdout_end = _split_timerange(EXPECTED_FINAL_HOLDOUT)
+    holdout_stop = holdout_end + timedelta(days=1)
     if start < holdout_stop and stop > holdout_start:
         raise TradingViewFuturesPreflightError(
             f"Timerange {timerange} overlaps protected final holdout {EXPECTED_FINAL_HOLDOUT}"
         )
 
 
-def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C901
-    """Validate the tracked preflight contract and all research-safety invariants."""
-    contract = _read_json_object(path)
-    if contract.get("schema_version") != 1 or contract.get("preflight_id") != PREFLIGHT_ID:
-        raise TradingViewFuturesPreflightError("TradingView futures preflight identity drifted")
-    if contract.get("status") != "preflight_only":
-        raise TradingViewFuturesPreflightError("Preflight status must remain preflight_only")
-    if contract.get("research_track") != "tradingview-strategy-research-v1":
-        raise TradingViewFuturesPreflightError("TradingView research-track identity drifted")
-    if contract.get("candidates") != EXPECTED_CANDIDATES:
-        raise TradingViewFuturesPreflightError("Canonical TradingView candidate set drifted")
-    if contract.get("excluded_candidates") != {
-        "wickhunter-multi-vwap": "blocked_on_historical_liquidation_feed"
-    }:
-        raise TradingViewFuturesPreflightError("Wick Hunter exclusion boundary drifted")
-
-    exchange = contract.get("exchange", {})
-    expected_exchange = {
+def _validate_exchange_contract(contract: dict[str, Any]) -> None:
+    expected = {
         "name": EXPECTED_EXCHANGE,
         "trading_mode": "futures",
         "margin_mode": "isolated",
@@ -111,11 +94,12 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
         },
         "resolved_symbols": "runtime_preflight_required",
     }
-    if exchange != expected_exchange:
+    if contract.get("exchange") != expected:
         raise TradingViewFuturesPreflightError("Kraken Futures market contract drifted")
 
-    data = contract.get("data", {})
-    expected_data = {
+
+def _validate_data_contract(contract: dict[str, Any]) -> None:
+    expected = {
         "timeframe": EXPECTED_TIMEFRAME,
         "semantic_research_window": EXPECTED_SEMANTIC_WINDOW,
         "execution_timerange": EXPECTED_EXECUTION_TIMERANGE,
@@ -124,7 +108,7 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
         "maximum_startup_candle_count": MAXIMUM_STARTUP_CANDLES,
         "minimum_warmup_start_utc": "2026-02-27T18:00:00Z",
     }
-    if data != expected_data:
+    if contract.get("data") != expected:
         raise TradingViewFuturesPreflightError("Historical data geometry drifted")
     semantic_start, semantic_end = _split_timerange(EXPECTED_SEMANTIC_WINDOW)
     execution_start, execution_stop = _split_timerange(EXPECTED_EXECUTION_TIMERANGE)
@@ -133,45 +117,47 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
     _validate_no_holdout_overlap(EXPECTED_EXECUTION_TIMERANGE)
     _validate_no_holdout_overlap(EXPECTED_DOWNLOAD_TIMERANGE)
 
+
+def _validate_comparison_contract(contract: dict[str, Any]) -> None:
     assumptions = contract.get("comparison_assumptions", {})
     if assumptions.get("fee") != EXPECTED_FEE or assumptions.get("ranking_allowed") is not False:
         raise TradingViewFuturesPreflightError("Comparison fee or ranking boundary drifted")
-    for field in (
+    required_true = (
         "same_pairs_required",
         "same_timeframe_required",
         "same_timerange_required",
         "same_execution_semantics_required",
-    ):
-        if assumptions.get(field) is not True:
-            raise TradingViewFuturesPreflightError(f"Comparison fairness invariant drifted: {field}")
-
-    historical = contract.get("historical_evidence", {})
-    if historical != {
+    )
+    if any(assumptions.get(field) is not True for field in required_true):
+        raise TradingViewFuturesPreflightError("A comparison fairness invariant drifted")
+    expected_historical = {
         "consumed_platform_oos": EXPECTED_CONSUMED_OOS,
         "unseen_final_evidence": False,
         "retuning_from_reported_results_allowed": False,
-    }:
+    }
+    if contract.get("historical_evidence") != expected_historical:
         raise TradingViewFuturesPreflightError("Historical evidence classification drifted")
 
-    protected = contract.get("protected_final_holdout", {})
-    if protected != {
+
+def _validate_safety_contract(contract: dict[str, Any]) -> None:
+    expected_holdout = {
         "timerange": EXPECTED_FINAL_HOLDOUT,
         "usage": "forbidden",
         "used": False,
         "earliest_final_evaluation_utc": "2026-10-01T00:00:00Z",
-    }:
+    }
+    if contract.get("protected_final_holdout") != expected_holdout:
         raise TradingViewFuturesPreflightError("Protected final holdout contract drifted")
-
     authorization = contract.get("authorization", {})
-    for field in (
+    required_true = (
         "market_discovery_allowed",
         "historical_data_download_allowed",
         "data_coverage_verification_allowed",
         "strategy_loading_check_allowed",
-    ):
-        if authorization.get(field) is not True:
-            raise TradingViewFuturesPreflightError(f"Required preflight authorization drifted: {field}")
-    forbidden = {
+    )
+    if any(authorization.get(field) is not True for field in required_true):
+        raise TradingViewFuturesPreflightError("A required preflight authorization drifted")
+    forbidden = (
         "strategy_backtest_allowed",
         "hyperopt_allowed",
         "parameter_search_allowed",
@@ -182,9 +168,30 @@ def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:  # noqa: C9
         "profitability_claim_allowed",
         "superiority_claim_allowed",
         "final_holdout_access_allowed",
-    }
+    )
     if any(authorization.get(field) is not False for field in forbidden):
         raise TradingViewFuturesPreflightError("A forbidden preflight authorization became enabled")
+
+
+def validate_contract(path: Path = CONTRACT_PATH) -> dict[str, Any]:
+    """Validate the tracked preflight contract and all research-safety invariants."""
+    contract = _read_json_object(path)
+    if contract.get("schema_version") != 1 or contract.get("preflight_id") != PREFLIGHT_ID:
+        raise TradingViewFuturesPreflightError("TradingView futures preflight identity drifted")
+    if contract.get("status") != "preflight_only":
+        raise TradingViewFuturesPreflightError("Preflight status must remain preflight_only")
+    if contract.get("research_track") != "tradingview-strategy-research-v1":
+        raise TradingViewFuturesPreflightError("TradingView research-track identity drifted")
+    if contract.get("candidates") != EXPECTED_CANDIDATES:
+        raise TradingViewFuturesPreflightError("Canonical TradingView candidate set drifted")
+    if contract.get("excluded_candidates") != {
+        "wickhunter-multi-vwap": "blocked_on_historical_liquidation_feed"
+    }:
+        raise TradingViewFuturesPreflightError("Wick Hunter exclusion boundary drifted")
+    _validate_exchange_contract(contract)
+    _validate_data_contract(contract)
+    _validate_comparison_contract(contract)
+    _validate_safety_contract(contract)
     return contract
 
 
@@ -216,12 +223,11 @@ def validate_config_template(path: Path = CONFIG_TEMPLATE_PATH) -> dict[str, Any
 
 
 def validate_strategy_classes(path: Path = STRATEGY_PATH) -> dict[str, Any]:
-    """Statically prove the three canonical strategy classes remain long/short 15m strategies."""
+    """Statically prove the canonical classes remain short-capable 15m strategies."""
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (OSError, SyntaxError) as exc:
         raise TradingViewFuturesPreflightError(f"Unable to parse strategy source: {exc}") from exc
-
     classes = {node.name: node for node in tree.body if isinstance(node, ast.ClassDef)}
     evidence: dict[str, Any] = {}
     for class_name in EXPECTED_CANDIDATES:
@@ -230,13 +236,15 @@ def validate_strategy_classes(path: Path = STRATEGY_PATH) -> dict[str, Any]:
             raise TradingViewFuturesPreflightError(f"Missing canonical strategy class: {class_name}")
         assignments: dict[str, Any] = {}
         for statement in node.body:
-            if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
-                target = statement.targets[0]
-                if isinstance(target, ast.Name):
-                    try:
-                        assignments[target.id] = ast.literal_eval(statement.value)
-                    except (ValueError, TypeError):
-                        continue
+            if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+                continue
+            target = statement.targets[0]
+            if not isinstance(target, ast.Name):
+                continue
+            try:
+                assignments[target.id] = ast.literal_eval(statement.value)
+            except (ValueError, TypeError):
+                continue
         if assignments.get("can_short") is not True:
             raise TradingViewFuturesPreflightError(f"{class_name} must remain can_short=True")
         if assignments.get("timeframe") != EXPECTED_TIMEFRAME:
@@ -308,12 +316,7 @@ def discover_live_markets() -> dict[str, Any]:
     except ImportError as exc:
         raise TradingViewFuturesPreflightError("CCXT is required for live market discovery") from exc
     exchange = ccxt.krakenfutures({"enableRateLimit": True})
-    try:
-        markets = exchange.load_markets()
-    finally:
-        close = getattr(exchange, "close", None)
-        if callable(close):
-            close()
+    markets = exchange.load_markets()
     if not isinstance(markets, dict):
         raise TradingViewFuturesPreflightError("CCXT load_markets did not return a market mapping")
     return discover_markets([market for market in markets.values() if isinstance(market, dict)])
@@ -376,19 +379,17 @@ def build_contract_report() -> dict[str, Any]:
 
 
 def verify_downloaded_data(datadir: Path, symbol_report: dict[str, Any]) -> dict[str, Any]:
-    """Verify downloaded 15m futures candles cover warmup and the complete research window."""
+    """Verify 15m futures candles cover warmup and the complete research window."""
     from freqtrade.configuration import TimeRange
-    from freqtrade.enums import CandleType
     from freqtrade.data.history.history_utils import load_pair_history
+    from freqtrade.enums import CandleType
 
     pairs = _validate_symbol_report(symbol_report)
     timerange = TimeRange.parse_timerange(EXPECTED_DOWNLOAD_TIMERANGE)
-    stopdt = timerange.stopdt
-    if stopdt != datetime(2026, 7, 1, tzinfo=UTC):
+    if timerange.stopdt != datetime(2026, 7, 1, tzinfo=UTC):
         raise TradingViewFuturesPreflightError("Freqtrade exclusive stop boundary drifted")
     warmup_start = datetime(2026, 2, 27, 18, 0, tzinfo=UTC)
     minimum_last = datetime(2026, 6, 30, 23, 45, tzinfo=UTC)
-
     coverage: dict[str, Any] = {}
     for pair in pairs:
         frame = load_pair_history(
@@ -420,7 +421,6 @@ def verify_downloaded_data(datadir: Path, symbol_report: dict[str, Any]) -> dict
             "last": last_date.isoformat(),
             "maximum_observed_gap_seconds": maximum_gap,
         }
-
     report = build_contract_report()
     report.update(
         {
@@ -438,20 +438,15 @@ def verify_downloaded_data(datadir: Path, symbol_report: dict[str, Any]) -> dict
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="mode", required=False)
-
     subparsers.add_parser("contract")
-
     discover = subparsers.add_parser("discover-markets")
     discover.add_argument("--output", type=Path)
-
     materialize = subparsers.add_parser("materialize-config")
     materialize.add_argument("--symbols", type=Path, required=True)
     materialize.add_argument("--output", type=Path, required=True)
-
     verify = subparsers.add_parser("verify-data")
     verify.add_argument("--symbols", type=Path, required=True)
     verify.add_argument("--datadir", type=Path, required=True)
-
     return parser.parse_args(argv)
 
 

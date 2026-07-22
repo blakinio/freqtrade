@@ -143,8 +143,9 @@ def test_model_adapter_statically_reuses_canonical_transition_and_reward() -> No
 
     imported_reference_names: set[str] = set()
     for node in tree.body:
-        if isinstance(node, ast.ImportFrom) and node.module == (
-            "ai_platform.scripts.rl_v2_synthetic_reference"
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.module == "ai_platform.scripts.rl_v2_synthetic_reference"
         ):
             imported_reference_names.update(alias.name for alias in node.names)
 

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "request_id": "tradingview-futures-historical-benchmark-v1-one-shot",
+  "benchmark_id": "tradingview-futures-historical-benchmark-v1",
+  "requested_action": "execute_one_shot_historical_benchmark",
+  "evidence_classification": "historical_research_evidence_only",
+  "acknowledgements": {
+    "protected_final_holdout_used": false,
+    "retuning_allowed": false,
+    "strategy_mutation_allowed": false,
+    "automatic_promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false
+  }
+}

@@ -133,7 +133,10 @@ def test_operation_propagates_correlation_and_redacts_all_sink_attributes() -> N
     assert all(record["fields"]["api_key"] == REDACTED for record in logs.records)
 
     all_metric_attributes = [item[2] for item in metrics.increments + metrics.observations]
-    assert all(item["correlation_id"] == str(context.correlation_id) for item in all_metric_attributes)
+    assert all(
+        item["correlation_id"] == str(context.correlation_id)
+        for item in all_metric_attributes
+    )
     assert all(item["api_key"] == REDACTED for item in all_metric_attributes)
 
 

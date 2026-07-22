@@ -86,8 +86,8 @@ Implement the first production-oriented Next.js/React portal shell and core dry-
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T21:40:00+02:00
-head: c1e7070c51dcaf0309c717eb3ce1ddbd08796c8d
+updated_at: 2026-07-22T21:55:00+02:00
+head: 2bf352a7ff36ebecdc27133a0fa9a20c57f7856c
 branch: feat/portal-p6-web-shell
 pr: "#135"
 status: active
@@ -106,32 +106,53 @@ proven:
   - No prior package.json, Playwright configuration or ai_platform/portal/web implementation existed before P6.
   - P6 implements a responsive Next.js/React shell, Dashboard, Bots, Create Bot, explicit loading/error/denied/empty states and persistent environment visibility.
   - Browser mutations use same-origin /api/bots; private PORTAL_CONTROL_PLANE_URL is consumed only by server-side code.
+  - Server-rendered Dashboard and Bots reads propagate only the existing request cookie to the private portal API; P6 does not invent identity headers or expose the private origin to browser bundles.
   - API mode is the default and fails closed when private portal API configuration is missing; fixture mode requires explicit PORTAL_WEB_DATA_MODE=fixture.
   - Create-bot runtime validation accepts only a canonical non-empty P2-shaped request with execution_mode=dry_run and positive config/capital values.
   - Chromium E2E covers shell navigation, environment visibility, deterministic create-bot success, denied state and rejection of non-dry-run creation.
   - Initial Portal Web CI 29951461671 passed dependency resolution, generated package-lock v3, npm ci, typecheck, lint, Next production build, Chromium installation and all Playwright E2E.
-  - Generated package-lock.json was committed by a bounded one-time bootstrap after checking out the exact PR head; the final workflow removed bootstrap writes and now uses permissions contents: read with npm ci only.
+  - Generated package-lock.json was committed by a bounded one-time bootstrap after checking out the exact PR head; the final workflow removed bootstrap writes and uses permissions contents: read with npm ci only.
+  - Freqtrade CI initially failed only because pre-commit zizmor reported artipacked on actions/checkout without persist-credentials: false; full diagnostic evidence confirmed every other pre-commit hook passed.
+  - The final Portal Web workflow sets persist-credentials: false and the temporary diagnostic job/artifact upload were removed.
+  - Final implementation head 2bf352a7ff36ebecdc27133a0fa9a20c57f7856c passed Portal Web CI 29952492510, AI Platform CI 29952492491, Freqtrade CI 29952492385 and zizmor 29952492520; Pre-commit Types update 29952492411 was skipped and is not a failure gate.
+  - PR #135 review threads contain only resolved/outdated GitHub Advanced Security zizmor findings from earlier checkout revisions; no active unresolved review thread remains.
+  - Live compare reports feat/portal-p6-web-shell ahead of and 0 commits behind develop; the diff is limited to the declared P6 web/workflow/docs/task paths.
   - Local sandbox npm validation was unavailable because the internal npm mirror returned HTTP 503 and direct public registry DNS returned EAI_AGAIN; GitHub hosted runner validation is therefore the executable source of truth.
 derived:
-  - The server-side BFF preserves the private execution boundary while allowing later application session propagation without coupling browser bundles to private origins.
+  - The server-side BFF preserves the private execution boundary while allowing application session propagation without coupling browser bundles to private origins.
   - Fixture mode can support deterministic P6/P10 E2E without becoming an authentication or production-data fallback.
 unknown: []
 conflicts: []
 first_failure:
   marker: lock-bootstrap-merge-ref
   evidence: Portal Web CI run 29951609305 generated the lockfile successfully but the temporary auto-commit step failed because the default pull_request checkout used the synthetic merge ref; targeting github.event.pull_request.head.sha resolved the bootstrap commit.
+rejected_hypotheses:
+  - Treat package-lock.json, codespell, Ruff, mypy or whitespace hooks as the Freqtrade CI failure source; full pre-commit diagnostic showed they all passed.
+  - Keep checkout credentials persisted in the final Portal Web workflow.
+  - Expose PORTAL_CONTROL_PLANE_URL or a Freqtrade runtime address to browser code.
+  - Use fixture mode as an implicit production fallback.
 changed_paths:
   - .github/workflows/portal-web.yml
   - ai_platform/portal/web/
   - docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md
 validation:
-  - command: Portal Web CI 29951461671
+  - command: Portal Web CI 29952492510
     result: PASS
-    evidence: lock generation, npm ci, typecheck, lint, production build, Chromium install and Playwright E2E all passed.
-  - command: Lockfile bootstrap
+    evidence: committed-lock npm ci, typecheck, lint, production build, Chromium install and Playwright E2E passed.
+  - command: AI Platform CI 29952492491
     result: PASS
-    evidence: package-lock.json v3 is committed on PR #135 and final workflow is read-only npm ci.
+  - command: Freqtrade CI 29952492385
+    result: PASS
+    evidence: CI scope, pre-commit checks and documentation build passed; core/compatibility jobs were correctly skipped for the classified P6 scope.
+  - command: GitHub Actions Security Analysis with zizmor 29952492520
+    result: PASS
+  - command: PR #135 review state
+    result: PASS
+    evidence: only resolved/outdated automated zizmor threads remain; no active unresolved review thread.
+  - command: P6 live base verification
+    result: PASS
+    evidence: feature branch is 0 commits behind develop and changed files remain limited to declared P6 ownership.
 blockers: []
-next_action: Verify final read-only Portal Web CI, AI Platform CI, Freqtrade CI, zizmor and review state on PR #135; fix only concrete failures, then synchronize current develop and squash-merge P6 when all gates are green.
+next_action: Verify required CI on this checkpoint-only PR #135 head, then squash-merge P6 if green and verify develop before durable P6 closeout with exactly one successor action.
 ```

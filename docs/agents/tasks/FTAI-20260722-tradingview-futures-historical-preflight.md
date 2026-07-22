@@ -1,18 +1,18 @@
 ---
 task_id: FTAI-20260722-tradingview-futures-historical-preflight
-status: ready
-branch: docs/tradingview-futures-historical-preflight-task
+status: implementing
+branch: feat/tradingview-futures-historical-preflight-v1
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: ""
+related_pr: "#112"
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-preflight-v1.json
   - ai_platform/configs/tradingview-futures-research.example.json
   - ai_platform/scripts/tradingview_futures_historical_preflight.py
   - tests/ai_platform/test_tradingview_futures_historical_preflight.py
   - .github/workflows/ai-platform-tradingview-futures-preflight.yml
-  - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-preflight.md
 required_reads:
   - AGENTS.md
@@ -47,7 +47,7 @@ The preflight must resolve and freeze the exact BTC and ETH USD-settled perpetua
 - strategy timeframe: `15m`;
 - historical research semantic window: `20260301-20260630`;
 - technical Freqtrade execution stop: exclusive `20260701`;
-- historical download ceiling: exclusive `20260701`;
+- historical download request: `20260201-20260701`;
 - common fee assumption for later comparison: `0.002`;
 - `dry_run: true` required;
 - no leverage optimization or parameter tuning;
@@ -80,13 +80,14 @@ The implementation task must fail closed unless it can prove all of the followin
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T10:30:00+02:00
-head: db38831df4115df35249227dd2db754d7c000793
-branch: docs/tradingview-futures-historical-preflight-task
-pr: none
-status: ready
+updated_at: 2026-07-22T11:10:00+02:00
+head: fd7065fe8d3780f36269c813a6ddf8d73c68abc5
+branch: feat/tradingview-futures-historical-preflight-v1
+pr: "#112"
+status: implementing
 context_routes:
   - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - .github/workflows/experimental-model-historical-backtest-execution.yml
 owned_paths:
   - ai_platform/research/tradingview/futures-historical-preflight-v1.json
@@ -94,34 +95,52 @@ owned_paths:
   - ai_platform/scripts/tradingview_futures_historical_preflight.py
   - tests/ai_platform/test_tradingview_futures_historical_preflight.py
   - .github/workflows/ai-platform-tradingview-futures-preflight.yml
-  - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-preflight.md
 proven:
-  - develop is verified at db38831df4115df35249227dd2db754d7c000793 at task declaration time.
-  - PR #55 merged the isolated TradingView strategy research foundation.
-  - The three candle-only TradingView candidates are long/short research strategies intended for futures testing.
-  - No separate TradingView historical benchmark or preflight PR exists in the current repository state.
-  - Existing one-shot historical research infrastructure establishes fail-closed request, data-coverage, execution-boundary, and evidence patterns.
-  - The protected final holdout remains 20260801-20260930 and is outside this task.
+  - Task declaration PR #111 merged to develop as 60715d85739800bcae20b0c3c30cf395acb48cda after Freqtrade CI and zizmor succeeded.
+  - The implementation contract fixes exactly three candle-only TradingView candidates and keeps Wick Hunter excluded pending historical liquidation data.
+  - The tracked config template is krakenfutures futures isolated USD and dry_run=true with an intentionally empty pair whitelist before discovery.
+  - The validator resolves runtime markets fail-closed and materializes the config only from validated discovered symbols.
+  - Dedicated preflight workflow run 29906078000 succeeded through strategy loading, market discovery, config materialization, bounded 15m futures download, coverage verification, and evidence upload without running a strategy backtest.
+  - Runtime discovery resolved BTC/USD:USD with Kraken Futures market id PF_XBTUSD and ETH/USD:USD with market id PF_ETHUSD; both were active USD-quoted USD-settled swap contracts.
+  - Evidence artifact 8523923560 has digest sha256:1b4ce3ea3e68d9f74de9908f88798a94209766215c33c8c0f146074805d633fa and records 14401 15m rows for each resolved pair from 2026-02-01T00:00:00Z through 2026-07-01T00:00:00Z with maximum observed gap 900 seconds.
+  - The semantic research window remains 20260301-20260630 and the later benchmark execution timerange remains 20260301-20260701 with the stop treated as the evaluation boundary; the downloaded source file may contain the boundary candle and therefore must not define scoring membership by itself.
+  - The generated runtime config remained futures/isolated/USD, dry_run=true, and used only BTC/USD:USD and ETH/USD:USD.
+  - Protected final holdout 20260801-20260930 was not accessed; no strategy backtest, ranking, promotion, profitability claim, or superiority claim was produced.
+  - AI Platform CI run 29906606278 and zizmor run 29906606163 succeeded on implementation head fd7065fe8d3780f36269c813a6ddf8d73c68abc5.
 derived:
-  - A futures-specific data preflight is required before comparing the long/short candidates because the existing historical model execution path used Kraken spot data.
+  - The Kraken Futures 15m data path is proven ready for a separately authorized historical benchmark of the three fixed candle-only candidates under common execution assumptions.
+  - Later benchmark scoring must filter by the declared execution timerange rather than assume the downloaded file excludes a candle exactly at the request stop boundary.
 unknown:
-  - Exact active Kraken Futures unified symbols for the BTC and ETH USD-settled perpetual markets in the repository runtime.
-  - Whether GitHub Actions can obtain complete 15m Kraken Futures history for both resolved markets through the exclusive 20260701 stop.
+  - Final-head CI outcome after this durable checkpoint update.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: none
+  marker: strategy-loader-project-path
+  evidence: Dedicated preflight run 29905329735 initially failed while loading ai_platform strategy dependencies through the Freqtrade console entry point; setting PYTHONPATH to the checked-out repository root fixed the loader and later run 29906078000 passed the full data-only preflight.
 rejected_hypotheses:
   - Reuse Kraken spot BTC/USDT and ETH/USDT for strategies with short entries.
   - Guess Kraken Futures market symbols without runtime discovery.
   - Run the three strategy backtests before data mode and coverage are proven.
+  - Treat the downloaded file boundary as the benchmark scoring boundary without applying the declared execution timerange.
 changed_paths:
+  - ai_platform/research/tradingview/futures-historical-preflight-v1.json
+  - ai_platform/configs/tradingview-futures-research.example.json
+  - ai_platform/scripts/tradingview_futures_historical_preflight.py
+  - tests/ai_platform/test_tradingview_futures_historical_preflight.py
+  - .github/workflows/ai-platform-tradingview-futures-preflight.yml
+  - docs/ai_platform/TRADINGVIEW_FUTURES_HISTORICAL_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260722-tradingview-futures-historical-preflight.md
 validation:
-  - command: not-run
-    result: NOT_RUN
-    evidence: Task declaration only; repository CI will validate the declaration PR.
+  - command: AI Platform TradingView Futures Preflight run 29906078000
+    result: PASS
+    evidence: Contract, checkpoint, strategy loading, Kraken Futures market discovery, config materialization, 15m download, coverage verification, and artifact upload all succeeded; no backtest step exists.
+  - command: AI Platform CI run 29906606278
+    result: PASS
+    evidence: Compile, AI-platform tests, Ruff, Ruff format, codespell, and JSON validation succeeded on head fd7065fe8d3780f36269c813a6ddf8d73c68abc5.
+  - command: GitHub Actions Security Analysis with zizmor run 29906606163
+    result: PASS
+    evidence: Workflow completed successfully on head fd7065fe8d3780f36269c813a6ddf8d73c68abc5.
 blockers: []
-next_action: Implement the fail-closed TradingView futures historical preflight from current develop, including runtime symbol discovery, dry-run futures config materialization, protected-holdout guards, strategy-loading checks, 15m historical coverage verification, targeted tests, and a data-only GitHub Actions preflight that performs no strategy backtest.
+next_action: Merge PR #112 only after the required workflows on the final checkpoint head complete successfully.
 ```

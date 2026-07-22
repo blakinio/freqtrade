@@ -60,7 +60,7 @@ from ai_platform.portal.contracts.risk import (
     TradeIntent,
     TradeSide,
 )
-from ai_platform.portal.contracts.secrets import ExchangeConnection, SecretKind, SecretRef
+from ai_platform.portal.contracts.secret_refs import ExchangeConnection, SecretKind, SecretRef
 
 __all__ = [
     "Actor",

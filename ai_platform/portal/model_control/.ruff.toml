@@ -6,4 +6,4 @@ extend = "../../../pyproject.toml"
 "models.py" = ["ALL"]
 "repository.py" = ["ALL"]
 "schema.py" = ["ALL"]
-"service.py" = ["C90", "B", "F", "E", "I", "A"]
+"service.py" = ["C90", "B", "F", "E", "I"]

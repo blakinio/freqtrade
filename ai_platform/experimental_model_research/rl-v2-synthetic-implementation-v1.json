@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "implementation_id": "rl-v2-synthetic-implementation-v1",
+  "status": "synthetic_only",
+  "task": "docs/agents/tasks/FTAI-20260722-rl-v2-synthetic-implementation.md",
+  "design_contract": {
+    "path": "ai_platform/experimental_model_research/rl-v2-design-contract-v1.json",
+    "contract_id": "rl-v2-design-contract-v1"
+  },
+  "selected_design_mode": "position_independent_action_semantics",
+  "action_semantics": {
+    "type": "desired_position",
+    "actions": {
+      "0": "target_flat",
+      "1": "target_long"
+    },
+    "training_inference_meaning_identical": true,
+    "policy_requires_hidden_current_position": false
+  },
+  "reward_reference": {
+    "selection": "prospective_fixed_not_tuned",
+    "flat_neutral_reward": -0.01,
+    "valid_long_entry_reward": 0.0,
+    "holding_profit_clip_abs": 0.02,
+    "holding_duration_penalty_per_step": 0.0001,
+    "holding_duration_penalty_cap": 0.01,
+    "exit_profit_clip_abs": 0.05,
+    "invalid_action_penalty": -1.0,
+    "future_market_information_used": false
+  },
+  "observability_reference": {
+    "action_counts_by_pair_and_action": true,
+    "action_histogram_includes_zero_count_actions": true,
+    "do_predict_accepted_rejected_by_pair": true,
+    "pre_trade_entry_exit_signals_by_pair": true,
+    "raw_backtest_trade_count": true,
+    "strict_oos_input_included_excluded_counts": true,
+    "snapshot_json_serializable": true
+  },
+  "scope": {
+    "pure_reference_implementation_allowed": true,
+    "unit_tests_allowed": true,
+    "synthetic_tests_allowed": true,
+    "rl_v2_freqai_model_allowed": false,
+    "rl_v2_strategy_allowed": false,
+    "rl_v2_config_allowed": false,
+    "experiment_manifest_allowed": false,
+    "training_allowed": false,
+    "backtest_allowed": false,
+    "market_data_download_allowed": false,
+    "hyperopt_allowed": false,
+    "performance_evaluation_allowed": false,
+    "future_evaluation_window_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "frozen_entry_prediction_threshold": 0.006,
+    "frozen_exit_prediction_threshold": -0.009,
+    "phase6_authoritative_selected_model": null,
+    "phase6_member": false
+  }
+}

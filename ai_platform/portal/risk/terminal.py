@@ -5,7 +5,7 @@ from enum import StrEnum
 from typing import Protocol
 
 from ai_platform.portal.contracts.bots import BotInstance
-from ai_platform.portal.contracts.common import ContractModel
+from ai_platform.portal.contracts.common import ContractModel, CorrelationContext
 from ai_platform.portal.contracts.execution import OrderRecord
 from ai_platform.portal.contracts.risk import (
     ApprovedExecutionIntent,
@@ -54,7 +54,7 @@ class ApprovedIntentSubmitter(Protocol):
     def submit_approved_intent(
         self,
         intent: ApprovedExecutionIntent,
-        context,
+        context: CorrelationContext,
     ) -> OrderRecord: ...
 
 
@@ -73,7 +73,11 @@ class UnavailableRiskSnapshotProvider:
 
 
 class UnavailableApprovedIntentSubmitter:
-    def submit_approved_intent(self, intent: ApprovedExecutionIntent, context) -> OrderRecord:
+    def submit_approved_intent(
+        self,
+        intent: ApprovedExecutionIntent,
+        context: CorrelationContext,
+    ) -> OrderRecord:
         del intent, context
         raise UnsupportedExecutionOperationError("ORDER_SUBMISSION_NOT_IMPLEMENTED")
 

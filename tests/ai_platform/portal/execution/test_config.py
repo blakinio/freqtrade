@@ -62,19 +62,23 @@ def test_runtime_config_forces_dry_run_and_disables_control_surfaces() -> None:
     assert config["exchange"]["pair_whitelist"] == ["BTC/USDT", "ETH/USDT"]
 
 
-def test_runtime_config_rejects_credential_fields() -> None:
+@pytest.mark.parametrize(
+    "field_name",
+    ["api_key", "client_secret", "access_token", "apiKey"],
+)
+def test_runtime_config_rejects_credential_fields(field_name: str) -> None:
     artifacts = ResolvedRuntimeArtifacts(
         image="freqtradeorg/freqtrade:stable",
         strategy_name="PortalStrategy",
         base_config={
             "exchange": {
                 "name": "binance",
-                "api_key": "must-not-be-present",
+                field_name: "must-not-be-present",
             }
         },
     )
 
-    with pytest.raises(UnsafeRuntimeConfigurationError, match="credential field"):
+    with pytest.raises(UnsafeRuntimeConfigurationError, match="forbidden"):
         build_safe_dry_run_config(_bot(), artifacts)
 
 

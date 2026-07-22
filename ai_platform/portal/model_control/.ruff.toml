@@ -1,7 +1,0 @@
-extend = "../../../pyproject.toml"
-src = ["../../../"]
-
-[lint.per-file-ignores]
-"database.py" = ["ALL"]
-"models.py" = ["ALL"]
-"schema.py" = ["ALL"]

@@ -82,18 +82,12 @@ class AiDesiredPositionRLResearchStrategy(IStrategy):
             & (dataframe["&-action"] == DesiredPosition.TARGET_LONG.value)
             & (dataframe["volume"] > 0)
         )
-        dataframe.loc[target_long, ["enter_long", "enter_tag"]] = (
-            1,
-            "freqai_rl_v2_target_long",
-        )
+        dataframe.loc[target_long, ["enter_long", "enter_tag"]] = (1, "freqai_rl_v2_target_long")
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         target_flat = (dataframe["do_predict"] == 1) & (
             dataframe["&-action"] == DesiredPosition.TARGET_FLAT.value
         )
-        dataframe.loc[target_flat, ["exit_long", "exit_tag"]] = (
-            1,
-            "freqai_rl_v2_target_flat",
-        )
+        dataframe.loc[target_flat, ["exit_long", "exit_tag"]] = (1, "freqai_rl_v2_target_flat")
         return dataframe

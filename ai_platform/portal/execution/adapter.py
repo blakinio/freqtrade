@@ -60,7 +60,7 @@ class FreqtradeExecutionAdapter:
 
         artifacts = self._artifact_resolver.resolve(bot)
         config = build_safe_dry_run_config(bot, artifacts)
-        config_sha256 = self._workspace_store.write_config(runtime_id, config)
+        config_sha256 = self._workspace_store.config_sha256(config)
         if existing is not None and (
             existing.config_sha256 != config_sha256
             or existing.image != artifacts.image
@@ -69,6 +69,7 @@ class FreqtradeExecutionAdapter:
             raise RuntimeRevisionConflictError(
                 "runtime artifacts changed without a new immutable config revision"
             )
+        self._workspace_store.write_config(runtime_id, config)
 
         record = RuntimeRecord(
             tenant_id=bot.tenant_id,
@@ -133,6 +134,15 @@ class FreqtradeExecutionAdapter:
         context: CorrelationContext,
     ) -> ExecutionHealth:
         record = self._require_record(tenant_id, bot_id)
+        if record.last_error_code is not None:
+            return ExecutionHealth(
+                tenant_id=tenant_id,
+                bot_id=bot_id,
+                runtime_id=record.runtime_id,
+                health=RuntimeHealthState.UNHEALTHY,
+                observed_at=self._clock(),
+                reason_code=record.last_error_code,
+            )
         try:
             state = self._driver.inspect(record.runtime_id)
         except RuntimeDriverError as exc:

@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-portal-contract-change-p3-provision-identity
-status: active
+status: ready
 branch: fix/portal-contracts-p3-provision-identity
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-22
-related_pr: null
+related_pr: "#117"
 owned_paths:
   - ai_platform/portal/contracts/execution.py
   - tests/ai_platform/portal/test_execution_contracts.py
@@ -55,17 +55,17 @@ Make the canonical `ExecutionAdapter.provision_bot` input carry explicit BotInst
 
 ## Validation
 
-Run focused execution contract tests, compile, Ruff lint/format, then required PR CI.
+The implementation head `440640ba50e4697d111e672f6ceab6e6721fb7a5` passed AI Platform CI, full Freqtrade CI/CI Gate, repository pre-commit, documentation build and zizmor. The optional Pre-commit Types update workflow was skipped and is not a failure.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T13:45:00+02:00
-head: f7beae36e93cc584c521f6225d0eda43fd4b03d3
+updated_at: 2026-07-22T14:18:00+02:00
+head: 440640ba50e4697d111e672f6ceab6e6721fb7a5
 branch: fix/portal-contracts-p3-provision-identity
-pr: null
-status: implementing
+pr: "#117"
+status: ready
 context_routes:
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
   - docs/ai_platform/portal/CONTRACTS_AND_SECURITY_FOUNDATION.md
@@ -76,25 +76,53 @@ owned_paths:
   - docs/ai_platform/portal/CONTRACTS_AND_SECURITY_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-contract-change-p3-provision-identity.md
 proven:
-  - ExecutionAdapter.provision_bot currently receives BotSpec but RuntimeStatus requires bot_id.
-  - BotSpec contains tenant_id but no bot_id, while BotInstance contains both and remains the canonical tenant-scoped bot resource.
-  - P3 architecture requires one BotInstance to one isolated runtime.
+  - P2 PR #116 was squash-merged to develop as f7beae36e93cc584c521f6225d0eda43fd4b03d3 before this contract change started.
+  - ExecutionAdapter.provision_bot previously received BotSpec while RuntimeStatus requires bot_id and P3 requires one BotInstance to one runtime.
+  - BotSpec contains tenant_id but no bot_id; BotInstance contains both and remains the canonical tenant-scoped bot resource.
+  - ExecutionAdapter.provision_bot now receives BotInstance plus CorrelationContext and all other protocol methods remain unchanged.
+  - No serialized BotSpec, BotInstance or RuntimeStatus v1 field shape or contract_version changed.
+  - Focused type-hint regression coverage requires explicit BotInstance provisioning identity.
+  - No runtime lifecycle, Docker/Freqtrade integration, public port, raw secret, live-capital, holdout evaluation, Phase 6 or selected_model change was introduced.
+  - AI Platform CI run 29916726824 passed on implementation head 440640ba50e4697d111e672f6ceab6e6721fb7a5.
+  - Freqtrade CI run 29916726795 and zizmor run 29916726858 passed on implementation head 440640ba50e4697d111e672f6ceab6e6721fb7a5; optional types run 29916726903 was skipped.
 derived:
-  - Replacing the protocol input type with BotInstance is the smallest explicit-identity change and leaves serialized v1 field contracts unchanged.
+  - P3 can now implement deterministic tenant-scoped one-bot-one-runtime provisioning through the canonical ExecutionAdapter without a side channel.
 unknown: []
 conflicts: []
 first_failure:
   marker: p3-provision-identity-gap
-  evidence: P3 cannot implement canonical provisioning without explicit bot_id in provision_bot input.
+  evidence: P3 preflight proved that the previous provision_bot input lacked bot_id required for truthful RuntimeStatus and deterministic runtime identity.
 rejected_hypotheses:
   - Derive bot_id from correlation or request identifiers.
+  - Derive bot_id from exchange_connection_ref or mutable model/strategy fields.
   - Add a P3-only side-channel provisioning method.
 changed_paths:
+  - ai_platform/portal/contracts/execution.py
+  - tests/ai_platform/portal/test_execution_contracts.py
+  - docs/ai_platform/portal/CONTRACTS_AND_SECURITY_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-contract-change-p3-provision-identity.md
 validation:
   - command: execution contract compatibility analysis
     result: PASS
-    evidence: Gap is isolated to the Python Protocol provisioning argument; no serialized schema migration is required.
+    evidence: Gap was isolated to the Python Protocol provisioning argument; no serialized schema migration was required.
+  - command: focused execution contract regression test
+    result: PASS
+    evidence: AI Platform CI run 29916726824 passed the added explicit BotInstance type-hint regression test.
+  - command: AI Platform CI
+    result: PASS
+    evidence: Workflow run 29916726824 completed successfully.
+  - command: repository pre-commit and documentation build
+    result: PASS
+    evidence: Freqtrade CI run 29916726795 completed pre-commit and documentation jobs successfully.
+  - command: Freqtrade CI and CI Gate
+    result: PASS
+    evidence: Freqtrade CI run 29916726795 completed successfully.
+  - command: zizmor
+    result: PASS
+    evidence: GitHub Actions Security Analysis run 29916726858 completed successfully.
+  - command: Pre-commit Types update
+    result: NOT_RUN
+    evidence: Optional workflow run 29916726903 was skipped and is not a failure.
 blockers: []
-next_action: Change ExecutionAdapter.provision_bot to BotInstance, add focused regression coverage, validate, and open a dedicated PR to develop.
+next_action: Review and squash-merge PR #117, then reset the P3 Execution Adapter branch to current develop and resume implementation from the updated canonical contract.
 ```

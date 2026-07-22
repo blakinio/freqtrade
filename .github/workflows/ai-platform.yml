@@ -58,7 +58,18 @@ jobs:
         run: ruff check ai_platform tests/ai_platform
 
       - name: Ruff format
-        run: ruff format --check ai_platform tests/ai_platform
+        run: |
+          set -o pipefail
+          ruff format --check --diff ai_platform tests/ai_platform 2>&1 | tee ruff-format-output.txt
+
+      - name: Upload Ruff format diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-p4-ruff-format-${{ github.event.pull_request.number }}
+          path: ruff-format-output.txt
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform

@@ -57,22 +57,10 @@ jobs:
       - name: Install FreqAI and freqai_rl runtime dependencies
         run: >-
           python -m pip install --disable-pip-version-check --quiet
-          -e ".[freqai,freqai_rl]" pytest
+          -e ".[freqai,freqai_rl]" pytest pytest-xdist pytest-asyncio
 
-      - name: Test descriptor boundaries
-        run: >-
-          python -m pytest -q tests/ai_platform/test_rl_v2_execution_preflight.py
-          -k "descriptor_freezes or descriptor_validation"
-
-      - name: Test ephemeral configuration boundaries
-        run: >-
-          python -m pytest -q tests/ai_platform/test_rl_v2_execution_preflight.py
-          -k "ephemeral_config"
-
-      - name: Test source non-execution boundary
-        run: >-
-          python -m pytest -q tests/ai_platform/test_rl_v2_execution_preflight.py
-          -k "preflight_source"
+      - name: Run targeted execution-preflight tests
+        run: python -m pytest -q tests/ai_platform/test_rl_v2_execution_preflight.py
 
       - name: Run bounded RL-v2 execution preflight
         run: python -m ai_platform.scripts.rl_v2_execution_preflight

@@ -53,10 +53,10 @@ Establish the repository-side fail-closed contract and validation path for produ
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T16:45:00+02:00
-head: f7c3d14c87da91686950c1925dfe227c7668e3bf
+updated_at: 2026-07-23T17:30:00+02:00
+head: 1fe1c680297ec0ec8bfb6b4929183fd435cd6240
 branch: develop
-pr: "#205"
+pr: pending
 status: blocked
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -76,23 +76,23 @@ owned_paths:
 proven:
   - Repository-side P11 was squash-merged from PR #180 to develop as 99c659242d8c59d85c6d23182a928d323d617f72.
   - PR #181 durably recorded the external staging blocker after the P11 implementation merge and is merged.
-  - Live-state refresh before PR #203 verified develop at d158e759b968419dfef39da809cdd48e4571e4b9; comparison from PR #180 merge showed no P11 implementation-owned path changed afterward except this task record.
-  - PR #203 refreshed this blocker checkpoint and squash-merged as cc617105a75b4a1089de578b42e74964a569fc4a after Freqtrade CI and zizmor passed.
-  - PR #204 stabilized the P11 post-merge handoff and squash-merged as f7c3d14c87da91686950c1925dfe227c7668e3bf after required checkpoint CI passed.
+  - PR #203 refreshed the external blocker checkpoint and PR #204 stabilized its post-merge handoff.
+  - PR #205 merged as 5ff78a32459ed560fa3089b4bdbbd2a589f148e1 and authorizes P12 simulation-first sequencing without waiving real P11 External E2E acceptance.
   - The merged staging contract requires Tunnel ingress, forbids public origin/Freqtrade ingress and fixes execution to simulated mode.
   - The merged external verifier checks public portal reachability, Access anonymous denial, Access service identity, direct-origin denial and direct-Freqtrade denial without printing endpoint or token secrets.
   - The owner explicitly decided on 2026-07-23 to defer real Cloudflare and protected GitHub staging infrastructure until the software platform is otherwise ready.
+  - P12 simulation-first implementation is active in PR #207 and its dedicated Portal P12 Simulation-First Validation passed on head b3a5c280fdc14238a54bfe0f35736d8a2aa3e145.
   - The current GitHub connector exposes workflow run read/rerun actions but no workflow-dispatch or GitHub environment-inspection action; no Cloudflare connector/plugin is installed in this execution context.
 derived:
-  - Repository-side autonomous work for P11 is complete; real P11 external acceptance remains blocked and must not be inferred from simulation.
-  - Owner-approved sequencing allows P12 to proceed simulation-first against deterministic P10/local/CI evidence once PR #205 merges, while real P11 External E2E remains mandatory for production-like staging acceptance.
+  - Repository-side autonomous work for P11 is complete; real P11 external acceptance remains deliberately deferred and must not be inferred from simulation.
+  - P12 can proceed independently in simulation-first mode while P11 stays blocked only for its future real production-like staging acceptance.
 unknown:
   - Whether owner-approved Cloudflare staging Tunnel, DNS, Access, WAF/rate-limit and origin firewall resources currently exist.
   - Whether the repository GitHub staging environment currently has all required protected variables and secrets.
 conflicts: []
 first_failure:
   marker: external-infrastructure-deferred
-  evidence: The repository-side P11 foundation is merged and green, but the owner has intentionally deferred real Cloudflare/protected GitHub staging provisioning and verification until the software platform is otherwise ready.
+  evidence: The repository-side P11 foundation is merged and green, but the owner intentionally deferred real Cloudflare/protected GitHub staging provisioning and verification until the software platform is otherwise ready.
 rejected_hypotheses:
   - Treat repository CI, mocks or simulated Cloudflare probes as proof of real P11 staging acceptance.
   - Add a test-only Access bypass or expose origin/Freqtrade directly to make external E2E easier.
@@ -125,17 +125,14 @@ validation:
   - command: GitHub Actions Security Analysis with zizmor 30000167234
     result: PASS
     evidence: Final checkpoint-only workflow security analysis passed before PR #180 merge.
-  - command: Freqtrade CI 30014255383
+  - command: Portal P12 Simulation-First Validation 30020009304
     result: PASS
-    evidence: PR #203 checkpoint refresh passed CI scope, pre-commit, documentation build and CI Gate; unrelated core/platform matrices were skipped by scope.
-  - command: GitHub Actions Security Analysis with zizmor 30014253478
-    result: PASS
-    evidence: PR #203 checkpoint refresh workflow security analysis passed.
+    evidence: Simulation-first P12 checkpoint, targeted tests, full AI Platform compatibility, Ruff, Ruff format and codespell passed; this is not evidence of real P11 external staging acceptance.
   - command: Portal Staging External E2E
     result: BLOCKED
-    evidence: Real Cloudflare resources and protected GitHub staging variables/secrets are intentionally deferred and remain unavailable or unverifiable from this execution context; this does not block simulation-first P12 implementation after PR #205 merges.
+    evidence: Real Cloudflare resources and protected GitHub staging variables/secrets are intentionally deferred until the owner starts the physical/external infrastructure phase.
 blockers:
   - Real P11 production-like staging acceptance remains deferred until owner-approved Cloudflare Tunnel, DNS, Access, WAF/rate-limit and origin firewall resources are provisioned or confirmed.
   - Protected GitHub staging variables and secrets required by Portal Staging External E2E remain deferred until the real infrastructure phase.
-next_action: Merge PR #205 after required CI passes, then declare and execute P12 in simulation-first mode using deterministic P10/local/CI evidence while preserving real P11 External E2E as the later mandatory production-like staging acceptance gate.
+next_action: Resume P11 only when the owner starts the real infrastructure phase, then provision or confirm the Cloudflare staging resources and protected GitHub staging environment and run Portal Staging External E2E until all five real ingress, Access and direct-denial probes pass.
 ```

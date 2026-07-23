@@ -5,7 +5,7 @@ branch: docs/portal-p13-scale-no-go-20260723
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: null
+related_pr: "#224"
 owned_paths:
   - docs/agents/tasks/FTAI-20260723-portal-p13-scale-need-assessment.md
 required_reads:
@@ -35,7 +35,7 @@ P13 is **not declared**. No measured requirement currently justifies Kubernetes 
 ## Evidence reviewed
 
 - Current `develop` contains completed P12 simulation-first acceptance and retains P11 as a deliberately deferred real-infrastructure gate.
-- No open portal pull requests were found.
+- No open portal pull requests were found before this assessment PR was opened.
 - Repository search found no current portal latency, throughput, saturation, capacity, error-budget or SLO evidence demonstrating a scale bottleneck.
 - Repository search found no existing P13 task or approved service-extraction decision.
 - The delivery roadmap requires P13 acceptance to be defined prospectively from observed bottlenecks/SLOs and forbids implementation for architectural fashion.
@@ -58,10 +58,10 @@ Real P11 infrastructure provisioning by itself is not evidence that P13 is neede
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T20:00:00+02:00
-head: 17ea7905f4c9cb92295757ba05f636e25fa7829b
+updated_at: 2026-07-23T20:12:00+02:00
+head: 9026d96f23f1d1715fecfd3a54fbb90c7f45e9da
 branch: docs/portal-p13-scale-no-go-20260723
-pr: pending
+pr: "#224"
 status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -73,7 +73,7 @@ owned_paths:
 proven:
   - P12 simulation-first acceptance is complete on develop.
   - P11 real Cloudflare and protected GitHub staging infrastructure remains intentionally deferred by the owner.
-  - No open portal pull requests were found during the assessment.
+  - No open portal pull requests were found before PR #224 was opened.
   - No repository evidence of portal latency, throughput, saturation, capacity, error-budget or SLO breach was found.
   - No existing P13 task or approved service-extraction decision was found.
   - The delivery roadmap permits P13 only after measured need and rejects architecture-for-fashion implementation.
@@ -96,7 +96,7 @@ changed_paths:
 validation:
   - command: repository search for open portal PRs
     result: PASS
-    evidence: No open portal PR was returned.
+    evidence: No open portal PR was returned before this assessment PR was opened.
   - command: repository search for P13 tasks and measured portal bottleneck or SLO evidence
     result: PASS
     evidence: No current P13 declaration or qualifying measurement evidence was found.

@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260723-portal-operational-read-models
-status: ready
+status: done
 branch: feat/portal-operational-read-models-20260723
 base_branch: develop
 created: 2026-07-23
@@ -71,26 +71,23 @@ Close the remaining bounded operational UI read-model gaps that can be backed by
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T23:00:00+02:00
-validated_implementation_head: c88909895999610c5d0da8622a7e961a07405c44
+updated_at: 2026-07-23T23:20:00+02:00
+implementation_merge: cc41e2a61439abf94a4dee2733c3d1e09005b448
 branch: feat/portal-operational-read-models-20260723
 pr: 229
-status: ready
+status: done
 proven:
-  - develop base remains 26a3f10fa5a2ad964b99448a2b48d3898b6c63b0 and the branch was behind_by=0 before this documentation-only checkpoint.
+  - PR #229 merged the operational read-model implementation into develop as cc41e2a61439abf94a4dee2733c3d1e09005b448.
   - FreqtradeExecutionAdapter query methods remain fail closed with POSITION_QUERY_NOT_IMPLEMENTED, ORDER_QUERY_NOT_IMPLEMENTED and TRADE_QUERY_NOT_IMPLEMENTED.
-  - a tenant-scoped operational mirror now persists normalized order and open-position lifecycle evidence without exposing private Freqtrade endpoints.
+  - a tenant-scoped operational mirror persists normalized order and open-position lifecycle evidence without exposing private Freqtrade endpoints.
   - Trade History and realized Performance are read from persisted attributable TradeOutcome/TradeAnalysis evidence.
   - Risk Events read persisted RiskDecision evidence; Audit Events and Execution Activity require AUDIT_READ and remain tenant scoped.
   - API mode returns canonical records or truthful empty results; fixture rows remain development/E2E-only evidence.
   - raw runtime stdout/stderr and Signal Logs remain explicit future read-model gaps.
-  - AI Platform CI 30043229611 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - Portal Web CI 30043229614 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - Portal Universal E2E 30043229670 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - Freqtrade CI 30043229604 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - zizmor security analysis 30043229472 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
+  - AI Platform CI 30043229611, Portal Web CI 30043229614, Portal Universal E2E 30043229670, Freqtrade CI 30043229604 and zizmor 30043229472 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
+  - after the ready checkpoint commit, AI Platform CI 30044473807, Portal Web CI 30044473863, Portal Universal E2E 30044473652, Freqtrade CI 30044473716 and zizmor 30044473661 also passed on final PR head 9b96d3b3af4417947bf66d99d8afb0771526ac1f.
 unknown: []
 conflicts: []
 blockers: []
-next_action: Complete final documentation-only CI for this checkpoint, then mark PR #229 ready for human review and merge.
+next_action: Merge the documentation-only closure PR after its CI passes; no further implementation work remains in this task.
 ```

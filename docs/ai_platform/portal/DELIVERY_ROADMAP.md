@@ -21,9 +21,11 @@ Status values:
 - `blocked`
 - `done`
 
+A merged foundation slice does not automatically make the parent stage `done`. Stage status is evaluated against all deliverables and acceptance criteria below. Per-surface UI status is tracked in `UI_DELIVERY_STATUS.md`.
+
 ## P0 — Architecture and governance foundation
 
-Status: `active`
+Status: `done`
 
 Goal: freeze architectural boundaries and agent work ownership before implementation.
 
@@ -46,9 +48,11 @@ Acceptance:
 - boundaries are linked from canonical AI Platform docs;
 - first implementation work packages have disjoint ownership.
 
+Delivery evidence: architecture/governance package merged through PR #113 and became the contract for later portal workstreams.
+
 ## P1 — Domain contracts and security foundation
 
-Status: `planned`
+Status: `done`
 
 Goal: establish fail-closed domain/API/event/security contracts before building product workflows.
 
@@ -71,9 +75,11 @@ Acceptance:
 - Freqtrade is explicitly private in network/deployment contracts;
 - live-capital state cannot be selected by default.
 
+Delivery evidence: P1 contracts/security foundation merged through PR #114.
+
 ## P2 — Control Plane core
 
-Status: `planned`
+Status: `done`
 
 Goal: implement the first modular backend control plane without public Freqtrade coupling.
 
@@ -96,9 +102,11 @@ Acceptance:
 - privileged operations are capability-gated;
 - no direct exchange or Freqtrade credentials are exposed to API consumers.
 
+Delivery evidence: P2 control-plane core merged through PR #116.
+
 ## P3 — Freqtrade execution adapter and bot orchestrator
 
-Status: `planned`
+Status: `done`
 
 Goal: safely manage isolated dry-run Freqtrade runtimes through a private adapter.
 
@@ -121,9 +129,11 @@ Acceptance:
 - readiness uses explicit health/state, not fixed sleeps;
 - failure produces machine-readable observed state.
 
+Delivery evidence: P3 dry-run runtime lifecycle adapter merged through PR #118. Risk-approved order submission and execution read models are separate follow-up boundaries and must not be inferred from P3 completion.
+
 ## P4 — Data, events and observability
 
-Status: `planned`
+Status: `active`
 
 Goal: make cross-plane activity attributable and queryable.
 
@@ -145,9 +155,11 @@ Acceptance:
 - secrets are absent from telemetry;
 - mirrored trade data exposes staleness/reconciliation state.
 
+Progress: PR #119 merged the event/outbox/idempotency/correlation and observability **foundation**. The full stage remains active because production-grade event transport/backends and several canonical query/read-model integrations are not all delivered. UI gaps for execution/signal/risk/audit logs are tracked in `UI_DELIVERY_STATUS.md`.
+
 ## P5 — AI/model lifecycle control integration
 
-Status: `planned`
+Status: `active`
 
 Goal: connect the portal to immutable research/model lifecycle metadata without creating a shortcut around validation.
 
@@ -168,9 +180,11 @@ Acceptance:
 - promotion is audited and capability-gated;
 - protected holdout and completed Phase 6 boundaries remain unchanged.
 
+Progress: PR #124 merged the model-control foundation with immutable model metadata, assignment validation and audited promotion/rollback semantics. The stage remains active until the remaining training-job/validation/model-health integrations declared above are complete. `FTAI-20260723-portal-ui-completion` adds a read-only model list and lifecycle-oriented Model Health UI without claiming drift telemetry that does not exist.
+
 ## P6 — Portal web shell and core operations UI
 
-Status: `planned`
+Status: `active`
 
 Goal: deliver the first modern user-facing control surface.
 
@@ -194,9 +208,11 @@ Acceptance:
 - critical user journey passes Chromium E2E;
 - tenant/RBAC denial states are rendered correctly.
 
+Progress: PR #135 completed **P6.1 Web Shell Foundation**, not the entire stage. `FTAI-20260723-portal-ui-completion` adds full target navigation, Bot Detail, exchange metadata, Runtime Health, Profile/Security and Notifications shells, wide-display readability and additional browser journeys. The stage remains `active` until that completion package passes required CI and the remaining runtime/log integration acceptance is truthfully satisfied.
+
 ## P7 — Risk Engine and Trading Terminal
 
-Status: `planned`
+Status: `done`
 
 Goal: put deterministic policy between every manual/AI trade intent and execution.
 
@@ -217,9 +233,11 @@ Acceptance:
 - terminal has no direct exchange/Freqtrade path;
 - security E2E covers unauthorized terminal actions.
 
+Delivery evidence: deterministic risk core landed through PR #137 and terminal API/UI integration through PR #143. Current execution submission remains fail-closed where the private order transport is not implemented; this does not authorize bypassing P7 risk decisions.
+
 ## P8 — Post-Trade Intelligence
 
-Status: `planned`
+Status: `active`
 
 Goal: capture decision black-box evidence and explain trade outcomes without overclaiming causality.
 
@@ -243,9 +261,11 @@ Acceptance:
 - analysis failure cannot affect execution;
 - no analysis automatically mutates production bot/model configuration.
 
+Progress: PR #147 merged the P8.1 backend foundation for immutable decision/outcome evidence, reconciliation, deterministic diagnosis and bounded synthesis. `FTAI-20260723-portal-ui-completion` adds the missing Trade Analysis and Insights read-only UI. P8 remains active until the counterfactual offline framework and Trading Knowledge Base deliverables are implemented and the UI completion package is validated.
+
 ## P9 — Safe continual-learning workflow
 
-Status: `planned`
+Status: `active`
 
 Goal: allow live/dry-run evidence to create reproducible learning candidates.
 
@@ -266,9 +286,11 @@ Acceptance:
 - evidence windows are declared and protected-boundary aware;
 - negative experiments remain durable.
 
+Progress: PR #158 merged the P9.1 provenance/candidate backend foundation and protected-holdout guards. `FTAI-20260723-portal-ui-completion` adds aggregate Learning History read-only API/UI. P9 remains active because curated dataset production, scheduled/triggered training policy and champion/challenger workflow are still separate missing deliverables.
+
 ## P10 — Deterministic exchange simulator and universal E2E
 
-Status: `planned`
+Status: `done`
 
 Goal: test the complete system with realistic user and exchange behavior without real capital.
 
@@ -289,6 +311,8 @@ Acceptance:
 - candidate training test proves active model does not change automatically;
 - first failure evidence is preserved;
 - test system uses explicit readiness gates.
+
+Delivery evidence: clean P10 deterministic simulator/universal E2E implementation merged through PR #171.
 
 ## P11 — Cloudflare production-like staging
 
@@ -314,7 +338,7 @@ Acceptance:
 - automated staging E2E authenticates without a security bypass endpoint;
 - exchange execution remains simulated by default.
 
-Repository-side P11 contracts, verifier, workflow and runbooks may be complete while this stage remains blocked on real owner-approved external infrastructure. The owner explicitly deferred provisioning/verification of the real Cloudflare and protected GitHub staging environment until the software platform is otherwise ready. This deferral does not waive any P11 acceptance criterion.
+Repository-side P11 contracts, verifier, workflow and runbooks are implemented, but the stage remains blocked on real owner-approved external infrastructure. The owner explicitly deferred provisioning/verification of the real Cloudflare and protected GitHub staging environment until the software platform is otherwise ready. This deferral does not waive any P11 acceptance criterion.
 
 ## P12 — Autonomous diagnosis and bounded repair
 
@@ -361,6 +385,8 @@ Possible work:
 
 Acceptance is defined prospectively from observed bottlenecks/SLOs. This stage must not be implemented merely for architectural fashion.
 
+Current decision: PR #224 recorded a no-go assessment because there is no measured portal latency, throughput, saturation, capacity, error-budget or SLO evidence justifying extraction. P13 therefore remains planned/undeclared rather than being implemented pre-emptively.
+
 ## P14 — Live-small readiness
 
 Status: `blocked`
@@ -405,4 +431,4 @@ P13 only after measured need
 P14 remains separately blocked/authorized
 ```
 
-Parallel work is allowed only where owned paths and contracts are disjoint and dependencies are satisfied. Simulation-first P12 does not satisfy or replace the later real P11 external acceptance gate.
+Parallel work is allowed only where owned paths and contracts are disjoint and dependencies are satisfied. Simulation-first P12 does not satisfy or replace the later real P11 external acceptance gate. UI completion does not close backend/read-model stages whose non-UI deliverables remain missing.

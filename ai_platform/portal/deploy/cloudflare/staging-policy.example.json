@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "environment": "staging",
+  "tunnel_required": true,
+  "origin_public_ingress_allowed": false,
+  "freqtrade_public_ingress_allowed": false,
+  "execution_mode": "simulated",
+  "managed_waf_enabled": true,
+  "privileged_surfaces": [
+    "admin",
+    "research",
+    "model_promotion",
+    "infrastructure",
+    "e2e"
+  ],
+  "rate_limit_families": [
+    "authentication",
+    "password_recovery",
+    "mfa",
+    "exchange_credentials",
+    "bot_lifecycle",
+    "terminal_intent",
+    "model_promotion",
+    "admin"
+  ],
+  "public_base_url_env": "PORTAL_STAGING_BASE_URL",
+  "privileged_path_env": "PORTAL_STAGING_PRIVILEGED_PATH",
+  "origin_probe_url_env": "PORTAL_STAGING_ORIGIN_PROBE_URL",
+  "freqtrade_probe_url_env": "PORTAL_STAGING_FREQTRADE_PROBE_URL",
+  "access_client_id_env": "PORTAL_STAGING_CF_ACCESS_CLIENT_ID",
+  "access_client_secret_env": "PORTAL_STAGING_CF_ACCESS_CLIENT_SECRET"
+}

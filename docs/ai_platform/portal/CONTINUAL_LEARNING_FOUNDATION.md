@@ -43,3 +43,7 @@ Negative and inconclusive experiments are durable history. Only an explicitly po
 - no live-capital authorization;
 - source insight tenant must match trusted request tenant;
 - negative experiments remain queryable and cannot be silently discarded.
+
+## Merge-state validation
+
+The clean P9 branch is synchronized with the current `develop` before final merge. Required CI must validate this synchronized tree; synchronization does not authorize protected-holdout access, model promotion, bot reassignment, or live-capital execution.

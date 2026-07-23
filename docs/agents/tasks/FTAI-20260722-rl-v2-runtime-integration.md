@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-rl-v2-runtime-integration
-status: active
+status: done
 branch: develop
 base_branch: develop
 created: 2026-07-22
-updated: 2026-07-22
-related_pr: "142"
+updated: 2026-07-23
+related_pr: "151"
 owned_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
   - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
@@ -105,11 +105,11 @@ This task does not authorize a training config, experiment manifest, run request
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:30:00+02:00
-head: feb018cb3c1b99fa3b4ee8039e1ecef189316a34
+updated_at: 2026-07-23T00:52:00+02:00
+head: 251fa56aeaaa8fb95c7cdf73015da0c1142dc978
 branch: develop
-pr: 142
-status: ready
+pr: 151
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-synthetic-implementation.md
   - docs/ai_platform/RL_V2_SYNTHETIC_IMPLEMENTATION.md
@@ -122,39 +122,52 @@ owned_paths:
   - ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py
   - tests/ai_platform/test_rl_v2_runtime_integration.py
 proven:
-  - RL-v2 design contract PR #102 and synthetic implementation PR #107 are merged and their task checkpoints are done.
-  - Canonical synthetic implementation uses position_independent_action_semantics with desired-position actions target_flat/target_long and frozen prospective reward constants.
-  - Synthetic implementation PR #107 passed AI Platform CI 29898244424, zizmor 29898244427, and Freqtrade CI 29898244431 before squash merge d66b3e8d9381563556d7bdf37fe0bafbb3b87881.
-  - Duplicate PR #139 was closed without merge after canonical PR #107 was discovered on develop.
-  - Runtime-integration task declaration PR #142 passed Freqtrade CI 29958123208 and zizmor 29958123243; Pre-commit Types was skipped, not failed.
-  - PR #142 was squash-merged as 5ad498e6a2538690ff371fd7b061bdd363820bf5.
-  - Current develop at checkpoint time is feb018cb3c1b99fa3b4ee8039e1ecef189316a34 after unrelated TradingView lookahead repair trigger #141; no RL-v2 owned path changed.
-  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
+  - RL-v2 design contract PR #102 and synthetic implementation PR #107 remain the frozen canonical parent semantics.
+  - PR #151 implemented a two-action desired-position environment and strategy adapter that reuse the canonical synthetic transition, reward and observability primitives without adding short semantics.
+  - PR #151 added only the bounded runtime adapter surface, descriptor, observability binding, static/synthetic tests and documentation; no training config, experiment manifest, run request or evaluation window was added.
+  - Final PR #151 head 01b1e51cff09f0f0c91e41aca5cd975af403af8a passed AI Platform CI 29962856917, Experimental Model Runtime Smoke 29962856904, zizmor 29962857057 and Freqtrade CI 29962856870; Pre-commit Types 29962856867 was skipped, not failed.
+  - The heavy freqai_rl dependency profile successfully installed and the bounded canonical experimental-model runtime smoke passed, resolving the prior runtime-import uncertainty for this adapter surface.
+  - PR #151 was squash-merged to develop as 251fa56aeaaa8fb95c7cdf73015da0c1142dc978.
+  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 were not accessed and remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
-  - The next smallest safe step is runtime adapter code plus synthetic/static binding tests, not model execution.
-  - Reusing the merged pure synthetic reference prevents a second independent definition of RL-v2 action and reward semantics.
+  - The runtime integration is frozen and ready only for a separately declared execution-preflight work package.
+  - Any future training configuration, run request, historical execution or evaluation-window declaration must remain outside this completed task.
 unknown:
-  - Whether the heavy freqai_rl dependency profile can import the new adapter in repository CI without additional test isolation.
-  - Whether a later separately declared execution-preflight task will need a dedicated config/manifest; those artifacts are intentionally out of scope here.
+  - Whether a later separately declared execution-preflight task will need a dedicated config/manifest; those artifacts remain intentionally out of scope here.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: Task declaration and repository governance validation completed without an unresolved failure; runtime integration code has not been added yet.
+  marker: resolved_ai_platform_ci_formatting
+  evidence: Early PR #151 CI first failed at Ruff/Ruff format after compile and tests passed; exact Ruff 0.15.21 formatting was applied, the temporary diagnostic workflow was removed, and final AI Platform CI 29962856917 passed lint and format checks.
 rejected_hypotheses:
   - Train or backtest while implementing the runtime adapter.
   - Add a run request, historical timerange, or evaluation window to the integration task.
   - Retune frozen synthetic reward constants using consumed OOS evidence.
   - Modify the completed Phase 6 comparison or frozen Phase 5 thresholds.
+  - Treat a temporary formatting diagnostic workflow as part of the deliverable.
 changed_paths:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
+  - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
+  - ai_platform/experimental_model_research/rl-v2-runtime-integration-v1.json
+  - ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py
+  - ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py
+  - tests/ai_platform/test_rl_v2_runtime_integration.py
 validation:
-  - command: live repository and overlap preflight
+  - command: PR #151 final AI Platform CI
     result: PASS
-    evidence: No open PR overlapped declared RL-v2 model/strategy ownership; duplicate PR #139 was closed without merge.
-  - command: task declaration PR #142 repository gates
+    evidence: Run 29962856917 passed compile, AI Platform tests, Ruff lint, Ruff format, Codespell and JSON validation.
+  - command: PR #151 Experimental Model Runtime Smoke
     result: PASS
-    evidence: Freqtrade CI 29958123208 and zizmor 29958123243 completed successfully before squash merge 5ad498e6a2538690ff371fd7b061bdd363820bf5; Pre-commit Types was skipped, not failed.
+    evidence: Run 29962856904 installed FreqAI/freqai_rl runtime dependencies and passed the bounded canonical experimental-model runtime smoke without training or historical execution.
+  - command: PR #151 zizmor
+    result: PASS
+    evidence: Run 29962857057 completed successfully after the temporary diagnostic workflow had been removed from the final PR diff.
+  - command: PR #151 Freqtrade CI
+    result: PASS
+    evidence: Run 29962856870 completed successfully, including pre-commit checks, documentation build and the applicable core test matrix.
+  - command: local targeted pytest/compile/Ruff
+    result: NOT_RUN
+    evidence: The repository checkout from the handoff path was not mounted in this sandbox; repository CI provided executable validation instead.
 blockers: []
-next_action: Create a dedicated implementation branch from current develop and implement only the RL-v2 model/environment and strategy adapters, runtime-integration descriptor, observability binding, synthetic/static tests and documentation without any training, backtest, historical evaluation, evaluation-window declaration or protected-final-holdout access.
+next_action: Declare a separate bounded RL-v2 execution-preflight task before adding any training config, run request, historical evaluation window, or model execution.
 ```

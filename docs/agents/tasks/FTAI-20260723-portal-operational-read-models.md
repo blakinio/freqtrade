@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260723-portal-operational-read-models
-status: ready
+status: done
 branch: feat/portal-operational-read-models-20260723
 base_branch: develop
 created: 2026-07-23
@@ -71,26 +71,91 @@ Close the remaining bounded operational UI read-model gaps that can be backed by
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T23:00:00+02:00
-validated_implementation_head: c88909895999610c5d0da8622a7e961a07405c44
-branch: feat/portal-operational-read-models-20260723
-pr: 229
+updated_at: 2026-07-23T23:20:00+02:00
+head: cc41e2a61439abf94a4dee2733c3d1e09005b448
+branch: develop
+pr: "#229"
 status: ready
+context_routes:
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
+  - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+  - docs/ai_platform/portal/DELIVERY_ROADMAP.md
+owned_paths:
+  - ai_platform/portal/operations/
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/intelligence/repository.py
+  - ai_platform/portal/intelligence/service.py
+  - ai_platform/portal/simulator/runner.py
+  - ai_platform/portal/web/
+  - tests/ai_platform/portal/
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+  - docs/agents/tasks/FTAI-20260723-portal-operational-read-models.md
 proven:
-  - develop base remains 26a3f10fa5a2ad964b99448a2b48d3898b6c63b0 and the branch was behind_by=0 before this documentation-only checkpoint.
-  - FreqtradeExecutionAdapter query methods remain fail closed with POSITION_QUERY_NOT_IMPLEMENTED, ORDER_QUERY_NOT_IMPLEMENTED and TRADE_QUERY_NOT_IMPLEMENTED.
-  - a tenant-scoped operational mirror now persists normalized order and open-position lifecycle evidence without exposing private Freqtrade endpoints.
-  - Trade History and realized Performance are read from persisted attributable TradeOutcome/TradeAnalysis evidence.
+  - PR #229 was squash-merged to develop as cc41e2a61439abf94a4dee2733c3d1e09005b448.
+  - The final PR branch was behind_by=0 against develop before merge.
+  - The tenant-scoped operational mirror persists normalized order and open-position lifecycle evidence without exposing private Freqtrade endpoints.
+  - Trade History and realized Performance are derived from persisted attributable TradeOutcome and TradeAnalysis evidence.
   - Risk Events read persisted RiskDecision evidence; Audit Events and Execution Activity require AUDIT_READ and remain tenant scoped.
-  - API mode returns canonical records or truthful empty results; fixture rows remain development/E2E-only evidence.
-  - raw runtime stdout/stderr and Signal Logs remain explicit future read-model gaps.
-  - AI Platform CI 30043229611 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - Portal Web CI 30043229614 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - Portal Universal E2E 30043229670 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - Freqtrade CI 30043229604 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
-  - zizmor security analysis 30043229472 passed on validated implementation head c88909895999610c5d0da8622a7e961a07405c44.
+  - API mode returns canonical records or truthful empty results; fixture rows remain development and E2E-only evidence.
+  - FreqtradeExecutionAdapter position, order and trade query methods remain deliberately fail-closed.
+  - Raw runtime stdout and stderr plus Signal Logs remain explicit future read-model gaps.
+  - Final checkpoint-only AI Platform CI, Portal Web CI, Portal Universal E2E, Freqtrade CI and zizmor all passed on head 9b96d3b3af4417947bf66d99d8afb0771526ac1f.
+derived:
+  - The bounded operational read-model task is complete without broadening execution authority or live-capital capability.
+  - Remaining UI gaps require separate authoritative data sources or separately reviewed integration work and are not part of this completed task.
 unknown: []
 conflicts: []
+first_failure:
+  marker: no-final-blocking-failure
+  evidence: The final documentation-only checkpoint completed all required CI successfully; no unresolved blocking failure remained at merge.
+rejected_hypotheses:
+  - Treat fixture-only rows as canonical API-mode operational evidence.
+  - Expose Freqtrade query endpoints directly to the browser to fill portal read-model gaps.
+  - Implement live order submission or live-capital authorization as part of this read-only task.
+changed_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/operations/__init__.py
+  - ai_platform/portal/operations/migrations/0001_operational_read_models.sql
+  - ai_platform/portal/operations/models.py
+  - ai_platform/portal/operations/repository.py
+  - ai_platform/portal/operations/schema.py
+  - ai_platform/portal/operations/service.py
+  - ai_platform/portal/simulator/runner.py
+  - ai_platform/portal/web/app/operations/audit/page.tsx
+  - ai_platform/portal/web/app/operations/execution-logs/page.tsx
+  - ai_platform/portal/web/app/operations/risk-events/page.tsx
+  - ai_platform/portal/web/app/orders/page.tsx
+  - ai_platform/portal/web/app/performance/page.tsx
+  - ai_platform/portal/web/app/positions/page.tsx
+  - ai_platform/portal/web/app/trades/page.tsx
+  - ai_platform/portal/web/e2e/shell.spec.ts
+  - ai_platform/portal/web/lib/contracts.ts
+  - ai_platform/portal/web/lib/fixtures.ts
+  - ai_platform/portal/web/lib/portal-api.ts
+  - docs/agents/tasks/FTAI-20260723-portal-operational-read-models.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/operations/test_operational_read_models.py
+  - tests/ai_platform/portal/simulator/test_universal_scenario.py
+validation:
+  - command: AI Platform CI 30044473807
+    result: PASS
+    evidence: Final checkpoint-only AI Platform validation passed on PR #229 head 9b96d3b3af4417947bf66d99d8afb0771526ac1f.
+  - command: Portal Web CI 30044473863
+    result: PASS
+    evidence: Final checkpoint-only portal web validation passed on PR #229 head 9b96d3b3af4417947bf66d99d8afb0771526ac1f.
+  - command: Portal Universal E2E 30044473652
+    result: PASS
+    evidence: Final checkpoint-only universal portal E2E passed on PR #229 head 9b96d3b3af4417947bf66d99d8afb0771526ac1f.
+  - command: Freqtrade CI 30044473716
+    result: PASS
+    evidence: Final checkpoint-only pre-commit, docs and required Freqtrade matrix passed on PR #229 head 9b96d3b3af4417947bf66d99d8afb0771526ac1f.
+  - command: zizmor 30044473661
+    result: PASS
+    evidence: Final checkpoint-only GitHub Actions security analysis passed on PR #229 head 9b96d3b3af4417947bf66d99d8afb0771526ac1f.
 blockers: []
-next_action: Complete final documentation-only CI for this checkpoint, then mark PR #229 ready for human review and merge.
+next_action: Do not reopen this completed task; declare a separate bounded task only when implementing a remaining authoritative read-model gap, while program-level P11 stays deferred until the owner starts the real infrastructure phase.
 ```

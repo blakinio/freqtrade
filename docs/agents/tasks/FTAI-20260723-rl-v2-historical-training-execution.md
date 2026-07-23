@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260723-rl-v2-historical-training-execution
 status: active
-branch: feat/rl-v2-historical-training-execution
+branch: develop
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
@@ -125,11 +125,11 @@ This task may add only:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T14:16:00+02:00
-head: d209de1ee26e6aaeb7792544f65b50af2108aeb0
-branch: feat/rl-v2-historical-training-execution
+updated_at: 2026-07-23T14:39:00+02:00
+head: aa974bb16d8724d171c5ebc45e26a3a8cfc63841
+branch: develop
 pr: 188
-status: active
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md
   - docs/ai_platform/RL_V2_TRAINING_CONFIGURATION.md
@@ -144,24 +144,26 @@ owned_paths:
 proven:
   - PR #184 merged the frozen non-executing RL-v2 training configuration as da1d5b8abe86ec2ac57dc2293d913fdcf1c286ae and PR #186 closed its task as a42858a6b6b2accdf47f78fa71cee557b3352448.
   - Declaration PR #187 changed only the new bounded task record and was squash-merged to develop as c663626ea8581fe82c107f959873d8c260927881 before implementation began.
-  - The committed RL-v2 config is dry-run, stopped by default, contains no credentials and has no execution geometry.
-  - PR #188 adds only the declared execution contract, canonical request validator/materializer, guarded request-triggered workflow, fail-closed tests, documentation and this task checkpoint.
-  - PR #188 does not add ai_platform/experimental_model_research/run-requests/rl-v2-historical-training-execution-v1.json, so its result-producing workflow cannot trigger from the infrastructure implementation PR.
+  - PR #188 added only the declared execution contract, canonical request validator/materializer, guarded request-triggered workflow, fail-closed tests, documentation and task checkpoint; it did not add the canonical run-request file.
   - The frozen geometry uses download 20250801-20260501 and execution 20260301-20260501 with exclusive May 1 stop, train_period_days 90 and backtest_period_days 61; consumed historical OOS 20260501-20260630 is outside all declared execution/data geometry.
   - The workflow uses a dedicated rl-v2-historical-training-pre-oos-v1 cache namespace with no restore-keys fallback and does not call the strict-OOS extractor.
   - Existing experimental historical execution infrastructure is hard-bound to pytorch-research-v1/rl-research-v1 and May-June strict-OOS extraction, so PR #188 uses a separate RL-v2-specific guard rather than weakening the frozen older contract.
+  - Initial PR #188 validation exposed only 11 Ruff E501 formatting violations and later 13 mypy inference errors for heterogeneous frozen dictionaries; diagnostic PRs #189 and #190 isolated those exact markers and closed without merge, and both were resolved without changing contract values, execution geometry or workflow semantics.
+  - Final PR #188 head 3a565198c317fae9f1a49236bb9696c46f1f388f passed AI Platform CI run 30006965475 and zizmor run 30006965476.
+  - Freqtrade CI run 30006965504 completed every applicable job successfully on final head 3a565198c317fae9f1a49236bb9696c46f1f388f, including CI scope, pre-commit, documentation, Ubuntu Python 3.11-3.14, macOS and Windows; the connector aggregate status remained stale after job completion.
+  - PR #188 was squash-merged to develop as aa974bb16d8724d171c5ebc45e26a3a8cfc63841.
+  - No RL-v2 model training, backtest, market-data download or historical evidence execution occurred during infrastructure implementation.
   - The protected final holdout 20260801-20260930 remains unused and forbidden.
   - Frozen thresholds 0.006/-0.009 and Phase 6 selected_model null remain unchanged.
 derived:
-  - Infrastructure PR #188 is inert without a separately opened exact-one-file canonical request PR.
-  - March-April output from a later trigger is historical development evidence only and must not be treated as strict OOS, protected final validation or promotion evidence.
+  - Merged infrastructure remains inert until a separately opened exact-one-file canonical request PR is created.
+  - March-April output from the later trigger is historical development evidence only and must not be treated as strict OOS, protected final validation or promotion evidence.
 unknown:
-  - Whether repository CI will expose lint, typing, formatting or workflow-security issues in the new infrastructure.
-  - Whether a later real FreqAI RL execution accepts the direct frozen freqtrade backtesting surface without an additional runtime adapter; infrastructure validation does not execute the model.
+  - Whether the first real FreqAI RL execution accepts the direct frozen freqtrade backtesting surface without an additional runtime adapter; the infrastructure validation intentionally did not execute the model.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: No infrastructure validation failure has been observed yet; PR #188 CI is pending and no model or market-data execution has occurred.
+  marker: resolved_infrastructure_static_validation
+  evidence: Initial validation exposed 11 Ruff E501 line-length errors and 13 mypy object-inference errors in the new validator; both were isolated by diagnostic PRs #189/#190 and resolved on final head without training, backtesting, market-data access, consumed-OOS access or protected-final-holdout access.
 rejected_hypotheses:
   - Reuse consumed OOS 20260501-20260630 as RL-v2 evaluation evidence.
   - Access protected final holdout 20260801-20260930.
@@ -178,12 +180,15 @@ changed_paths:
   - tests/ai_platform/test_rl_v2_historical_training_execution.py
   - .github/workflows/ai-platform-rl-v2-historical-training-execution.yml
 validation:
-  - command: repository live-state and overlap preflight
+  - command: PR #188 final AI Platform CI
     result: PASS
-    evidence: Current develop and open PR/branch state were checked before declaration and implementation; no active RL-v2 training-execution work overlapped this task.
-  - command: PR #188 targeted tests and repository CI
-    result: NOT_RUN
-    evidence: PR #188 was opened before this checkpoint update; final-head CI results are pending.
+    evidence: Run 30006965475 passed compile, all AI Platform tests, Ruff lint, Ruff format, Codespell and JSON validation on final head 3a565198c317fae9f1a49236bb9696c46f1f388f.
+  - command: PR #188 final zizmor
+    result: PASS
+    evidence: Run 30006965476 completed successfully on final head 3a565198c317fae9f1a49236bb9696c46f1f388f.
+  - command: PR #188 final Freqtrade CI
+    result: PASS
+    evidence: Run 30006965504 completed every applicable job successfully, including CI scope, pre-commit, documentation and the full core-platform matrix; the connector aggregate status remained stale after successful job completion.
 blockers: []
-next_action: Validate PR #188 on its latest head, fix only infrastructure-contract issues if checks fail, merge only when required CI is green, then update the checkpoint to leave exactly one successor action for generating and opening the canonical one-file run-request PR without modifying any other file.
+next_action: Generate the canonical request from merged infrastructure and open a separate PR that adds exactly ai_platform/experimental_model_research/run-requests/rl-v2-historical-training-execution-v1.json; do not modify any other file and do not merge the trigger PR after one-shot execution.
 ```

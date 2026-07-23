@@ -5,7 +5,7 @@ branch: test/portal-p12-seeded-close-time-repair-final-20260723
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: null
+related_pr: "#220"
 owned_paths:
   - tests/ai_platform/portal/simulator/test_seeded_close_time_regression.py
   - docs/agents/tasks/FTAI-20260723-portal-p12-seeded-close-time-repair.md
@@ -45,7 +45,9 @@ Prove the simulation-first P12 repair loop on a deliberately seeded, non-securit
 
 The isolated provenance branch in draft PR #217 intentionally changed `TradeOutcome.closed_at` from the exit tick to the entry tick. A direct regression test was committed before repair. The seeded head failed both full AI Platform tests and the deterministic Universal E2E backend scenario. The minimal repair restored only the exit-tick timestamp and preserved the existing close-time assertion plus the new regression test.
 
-Because P12 foundation PR #216 was squash-merged, retargeting the provenance branch would reintroduce foundation history into the final diff. The final acceptance branch therefore replays only the two durable outputs from exact merge SHA `26c9c9e2ec41797c9fdc180cad7f89a7ad5f6b7c`: this evidence record and the regression test. PR #217 remains provenance for the seed/failure/repair commit history and must not be merged.
+Because P12 foundation PR #216 was squash-merged, retargeting the provenance branch would reintroduce foundation history into the final diff. The final acceptance branch therefore replays only the two durable outputs from exact merge SHA `26c9c9e2ec41797c9fdc180cad7f89a7ad5f6b7c`: this evidence record and the regression test. PR #217 remains provenance for the seed/failure/repair commit history and is closed unmerged.
+
+PR #220 is a temporary validation PR against `integration/p12-foundation-26c9-20260723`, whose base SHA is exactly `26c9c9e2ec41797c9fdc180cad7f89a7ad5f6b7c`. It exists only because the GitHub connector's `develop` ref is temporarily stale after the squash merge. PR #220 must be retargeted to `develop`, not merged into the integration branch, once the live `develop` ref visibly contains the P12 foundation.
 
 ## Non-negotiable boundaries
 
@@ -58,10 +60,10 @@ Because P12 foundation PR #216 was squash-merged, retargeting the provenance bra
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T18:25:00+02:00
-head: 46996ecc7a0daddf81ec54bd62de8a1cbbea4588
+updated_at: 2026-07-23T18:35:00+02:00
+head: f6f784c1150c7f524d83e11eaa0906b583fa4743
 branch: test/portal-p12-seeded-close-time-repair-final-20260723
-pr: pending
+pr: "#220"
 status: validating
 context_routes:
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
@@ -82,10 +84,12 @@ proven:
   - Repaired Portal Universal E2E 30022275787 passed.
   - Repaired AI Platform CI 30022275563 passed after the regression-test signature was formatted in commit 98bb20e08f30fcabe52c5bf0e74c7af076397032.
   - Final branch starts from exact P12 foundation merge SHA 26c9c9e2ec41797c9fdc180cad7f89a7ad5f6b7c and contains no simulator product-code modification.
+  - Temporary validation PR #220 reports base_sha 26c9c9e2ec41797c9fdc180cad7f89a7ad5f6b7c and exactly two changed files.
 derived:
   - The seeded non-security defect was reproduced, diagnosed and minimally repaired without weakening a safety assertion or touching production paths.
-  - PR #217 is evidence provenance, while this exact-merge-SHA branch is the only merge candidate for durable acceptance artifacts.
-unknown: []
+  - PR #217 is evidence provenance, while PR #220 validates the exact two-file durable acceptance output until it can be retargeted to develop.
+unknown:
+  - When the GitHub connector's develop ref will reflect the already-confirmed squash merge #216.
 conflicts: []
 first_failure:
   marker: simulated-trade-did-not-close-after-opening
@@ -94,6 +98,7 @@ rejected_hypotheses:
   - Weaken or delete the existing close-time assertion.
   - Merge the intentionally defective provenance branch.
   - Reintroduce squash-merged P12 foundation files into the final acceptance diff.
+  - Merge PR #220 into the temporary integration base instead of retargeting it to develop.
   - Treat simulated evidence as real P11 staging acceptance.
 changed_paths:
   - tests/ai_platform/portal/simulator/test_seeded_close_time_regression.py
@@ -111,9 +116,10 @@ validation:
   - command: repaired Portal Universal E2E 30022275787
     result: PASS
     evidence: Deterministic backend and Chromium journey passed after repair.
-  - command: clean final acceptance validation
-    result: NOT_RUN
-    evidence: Final clean PR has not yet been opened.
-blockers: []
-next_action: Open the exact-merge-SHA final acceptance PR against develop, validate required CI, merge only the durable regression/evidence outputs, then close provenance PR #217 unmerged.
+  - command: final two-file validation PR #220
+    result: PENDING
+    evidence: PR #220 targets exact foundation merge SHA through the temporary integration base; required CI is pending before retargeting to develop.
+blockers:
+  - Final merge is blocked only until PR #220 can be retargeted to a develop ref that visibly includes foundation merge 26c9c9e2ec41797c9fdc180cad7f89a7ad5f6b7c.
+next_action: Validate PR #220 on the exact foundation base, then retarget the same PR to develop once develop visibly includes 26c9c9e2ec41797c9fdc180cad7f89a7ad5f6b7c; verify the diff remains exactly two files and merge only after final required CI passes.
 ```

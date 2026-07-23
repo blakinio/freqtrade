@@ -228,7 +228,7 @@ def _register_operational_routes(
         return operations.list_execution_activity(context)
 
 
-def _register_product_capability_routes(
+def _register_signal_strategy_routes(
     app: FastAPI,
     product: ProductCapabilityService,
     context_dependency: Callable[..., RequestContext],
@@ -281,6 +281,12 @@ def _register_product_capability_routes(
             quote_allocation=request.quote_allocation,
         )
 
+
+def _register_platform_capability_routes(
+    app: FastAPI,
+    product: ProductCapabilityService,
+    context_dependency: Callable[..., RequestContext],
+) -> None:
     @app.get("/v1/notifications", response_model=list[NotificationEntry])
     def list_notifications(
         context: RequestContext = Depends(context_dependency),
@@ -362,7 +368,8 @@ def create_app(
     _register_exception_handlers(app)
     _register_terminal_route(app, terminal, context_dependency)
     _register_operational_routes(app, operations, context_dependency)
-    _register_product_capability_routes(app, product, context_dependency)
+    _register_signal_strategy_routes(app, product, context_dependency)
+    _register_platform_capability_routes(app, product, context_dependency)
 
     @app.post("/v1/bots", response_model=BotInstance, status_code=status.HTTP_201_CREATED)
     def create_bot(

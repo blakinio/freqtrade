@@ -95,6 +95,8 @@ def test_api_enforces_tenant_isolation_without_resource_disclosure(
     assert client.get("/v1/orders").json() == []
     assert client.get("/v1/positions").json() == []
     assert client.get("/v1/trades").json() == []
+    assert client.get("/v1/signals").json() == []
+    assert client.get("/v1/grid-bots").json() == []
 
 
 def test_api_enforces_server_side_permissions(session_factory: SessionFactory) -> None:
@@ -163,6 +165,7 @@ def test_read_only_portal_data_routes_fail_closed_through_trusted_context(
     assert client.get("/v1/trade-analysis").json() == []
     assert client.get("/v1/insights").json() == []
     assert client.get("/v1/learning/history").json() == []
+    assert client.get("/v1/model-health").json() == []
 
 
 def test_operational_routes_return_truthful_empty_state_and_protect_audit_reads(
@@ -178,10 +181,12 @@ def test_operational_routes_return_truthful_empty_state_and_protect_audit_reads(
 
     assert client.get("/v1/audit-events").status_code == 403
     assert client.get("/v1/execution-activity").status_code == 403
+    assert client.get("/v1/runtime-log-availability").status_code == 403
 
     holder["context"] = _context("tenant-a", Permission.AUDIT_READ)
     assert client.get("/v1/audit-events").json() == []
     assert client.get("/v1/execution-activity").json() == []
+    assert client.get("/v1/runtime-log-availability").json()["available"] is False
 
 
 def test_audit_route_reads_only_current_tenant_with_explicit_permission(
@@ -207,7 +212,6 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
     client = TestClient(create_app(session_factory))
 
     schema = client.get("/openapi.json").json()
-
     assert set(schema["paths"]) == {
         "/v1/bots",
         "/v1/bots/{bot_id}",
@@ -225,6 +229,15 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/risk-events",
         "/v1/audit-events",
         "/v1/execution-activity",
+        "/v1/signals",
+        "/v1/strategies",
+        "/v1/grid-bots",
+        "/v1/notifications",
+        "/v1/notifications/preferences",
+        "/v1/profile",
+        "/v1/admin/overview",
+        "/v1/model-health",
+        "/v1/runtime-log-availability",
     }
     serialized = str(schema).lower()
     for forbidden in ("api_key", "api_secret", "passphrase", "websocket_token"):

@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
+from sqlalchemy.orm import Session
+
 from ai_platform.portal.contracts.audit import AuditAction, AuditResult
 from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.contracts.identity import Permission, RoleName
@@ -228,6 +230,96 @@ class ProductCapabilityService:
             self._repository.upsert_notification_preference(session, preference)
         return preference
 
+    def _signal_notifications(
+        self,
+        session: Session,
+        context: RequestContext,
+    ) -> tuple[NotificationEntry, ...]:
+        entries: list[NotificationEntry] = []
+        for signal in self._repository.list_signals(session, context.tenant_id):
+            summary = (
+                f"{signal.side.value} signal recorded for "
+                f"{signal.pair} on {signal.bot_id}"
+            )
+            entries.append(
+                NotificationEntry(
+                    notification_id=f"signal:{signal.signal_id}",
+                    tenant_id=context.tenant_id,
+                    category=NotificationCategory.SIGNAL,
+                    severity=NotificationSeverity.INFO,
+                    summary=summary,
+                    resource_type="signal",
+                    resource_id=str(signal.signal_id),
+                    occurred_at=signal.occurred_at,
+                )
+            )
+        return tuple(entries)
+
+    def _risk_notifications(
+        self,
+        session: Session,
+        context: RequestContext,
+    ) -> tuple[NotificationEntry, ...]:
+        entries: list[NotificationEntry] = []
+        decisions = self._risk_repository.list_risk_decisions(
+            session,
+            context.tenant_id,
+        )
+        for decision in decisions:
+            rejected = decision.decision is RiskDecisionOutcome.REJECTED
+            severity = (
+                NotificationSeverity.ATTENTION
+                if rejected
+                else NotificationSeverity.INFO
+            )
+            reason = ", ".join(decision.reason_codes)
+            if not reason:
+                reason = "no reason code"
+            entries.append(
+                NotificationEntry(
+                    notification_id=f"risk:{decision.risk_decision_id}",
+                    tenant_id=context.tenant_id,
+                    category=NotificationCategory.RISK,
+                    severity=severity,
+                    summary=f"Risk decision {decision.decision.value}: {reason}",
+                    resource_type="risk_decision",
+                    resource_id=str(decision.risk_decision_id),
+                    occurred_at=decision.occurred_at,
+                )
+            )
+        return tuple(entries)
+
+    def _execution_notifications(
+        self,
+        session: Session,
+        context: RequestContext,
+    ) -> tuple[NotificationEntry, ...]:
+        entries: list[NotificationEntry] = []
+        events = self._bot_repository.list_audit_events(session, context.tenant_id)
+        for event in events:
+            if event.actor_id != context.actor_id:
+                continue
+            if event.action not in _EXECUTION_NOTIFICATION_ACTIONS:
+                continue
+            severity = (
+                NotificationSeverity.INFO
+                if event.result is AuditResult.SUCCEEDED
+                else NotificationSeverity.ATTENTION
+            )
+            entries.append(
+                NotificationEntry(
+                    notification_id=f"execution:{event.audit_id}",
+                    tenant_id=context.tenant_id,
+                    category=NotificationCategory.EXECUTION,
+                    severity=severity,
+                    summary=f"{event.action.value}: {event.result.value}",
+                    resource_type=event.resource_type,
+                    resource_id=event.resource_id,
+                    occurred_at=event.occurred_at,
+                )
+            )
+        return tuple(entries)
+
     def list_notifications(self, context: RequestContext) -> tuple[NotificationEntry, ...]:
         require_permission(context.permissions, Permission.BOT_READ)
         preference = self.get_notification_preference(context)
@@ -237,77 +329,11 @@ class ProductCapabilityService:
         entries: list[NotificationEntry] = []
         with self._session_factory() as session:
             if preference.signal_events:
-                for signal in self._repository.list_signals(session, context.tenant_id):
-                    summary = (
-                        f"{signal.side.value} signal recorded for "
-                        f"{signal.pair} on {signal.bot_id}"
-                    )
-                    entries.append(
-                        NotificationEntry(
-                            notification_id=f"signal:{signal.signal_id}",
-                            tenant_id=context.tenant_id,
-                            category=NotificationCategory.SIGNAL,
-                            severity=NotificationSeverity.INFO,
-                            summary=summary,
-                            resource_type="signal",
-                            resource_id=str(signal.signal_id),
-                            occurred_at=signal.occurred_at,
-                        )
-                    )
+                entries.extend(self._signal_notifications(session, context))
             if preference.risk_events:
-                decisions = self._risk_repository.list_risk_decisions(
-                    session,
-                    context.tenant_id,
-                )
-                for decision in decisions:
-                    rejected = decision.decision is RiskDecisionOutcome.REJECTED
-                    severity = (
-                        NotificationSeverity.ATTENTION
-                        if rejected
-                        else NotificationSeverity.INFO
-                    )
-                    entries.append(
-                        NotificationEntry(
-                            notification_id=f"risk:{decision.risk_decision_id}",
-                            tenant_id=context.tenant_id,
-                            category=NotificationCategory.RISK,
-                            severity=severity,
-                            summary=(
-                                f"Risk decision {decision.decision.value}: "
-                                f"{', '.join(decision.reason_codes) or 'no reason code'}"
-                            ),
-                            resource_type="risk_decision",
-                            resource_id=str(decision.risk_decision_id),
-                            occurred_at=decision.occurred_at,
-                        )
-                    )
+                entries.extend(self._risk_notifications(session, context))
             if preference.execution_events:
-                events = self._bot_repository.list_audit_events(
-                    session,
-                    context.tenant_id,
-                )
-                for event in events:
-                    is_other_actor = event.actor_id != context.actor_id
-                    is_other_action = event.action not in _EXECUTION_NOTIFICATION_ACTIONS
-                    if is_other_actor or is_other_action:
-                        continue
-                    severity = (
-                        NotificationSeverity.INFO
-                        if event.result is AuditResult.SUCCEEDED
-                        else NotificationSeverity.ATTENTION
-                    )
-                    entries.append(
-                        NotificationEntry(
-                            notification_id=f"execution:{event.audit_id}",
-                            tenant_id=context.tenant_id,
-                            category=NotificationCategory.EXECUTION,
-                            severity=severity,
-                            summary=f"{event.action.value}: {event.result.value}",
-                            resource_type=event.resource_type,
-                            resource_id=event.resource_id,
-                            occurred_at=event.occurred_at,
-                        )
-                    )
+                entries.extend(self._execution_notifications(session, context))
         entries.sort(
             key=lambda item: (item.occurred_at, item.notification_id),
             reverse=True,

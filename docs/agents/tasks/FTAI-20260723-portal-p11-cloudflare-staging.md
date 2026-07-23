@@ -53,8 +53,8 @@ Establish the repository-side fail-closed contract and validation path for produ
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T16:05:37+02:00
-head: d158e759b968419dfef39da809cdd48e4571e4b9
+updated_at: 2026-07-23T16:08:45+02:00
+head: cc617105a75b4a1089de578b42e74964a569fc4a
 branch: develop
 pr: "#203"
 status: blocked
@@ -76,10 +76,10 @@ owned_paths:
 proven:
   - Repository-side P11 was squash-merged from PR #180 to develop as 99c659242d8c59d85c6d23182a928d323d617f72.
   - PR #181 durably recorded the external staging blocker after the P11 implementation merge and is merged.
-  - Current develop HEAD is d158e759b968419dfef39da809cdd48e4571e4b9; comparison from PR #180 merge shows no P11 implementation-owned path changed afterward except this task record.
+  - Live-state refresh before PR #203 verified develop at d158e759b968419dfef39da809cdd48e4571e4b9; comparison from PR #180 merge showed no P11 implementation-owned path changed afterward except this task record.
+  - PR #203 refreshed this blocker checkpoint and squash-merged as cc617105a75b4a1089de578b42e74964a569fc4a after Freqtrade CI and zizmor passed.
   - The merged staging contract requires Tunnel ingress, forbids public origin/Freqtrade ingress and fixes execution to simulated mode.
   - The merged external verifier checks public portal reachability, Access anonymous denial, Access service identity, direct-origin denial and direct-Freqtrade denial without printing endpoint or token secrets.
-  - Portal Staging Policy, AI Platform, Freqtrade and zizmor validation passed on both the implementation and final checkpoint merge-state heads before merge.
   - The current GitHub connector exposes workflow run read/rerun actions but no workflow-dispatch or GitHub environment-inspection action; no Cloudflare connector/plugin is installed in this execution context.
 derived:
   - Repository-side autonomous work for P11 is complete.
@@ -123,6 +123,12 @@ validation:
   - command: GitHub Actions Security Analysis with zizmor 30000167234
     result: PASS
     evidence: Final checkpoint-only workflow security analysis passed before PR #180 merge.
+  - command: Freqtrade CI 30014255383
+    result: PASS
+    evidence: PR #203 checkpoint refresh passed CI scope, pre-commit, documentation build and CI Gate; unrelated core/platform matrices were skipped by scope.
+  - command: GitHub Actions Security Analysis with zizmor 30014253478
+    result: PASS
+    evidence: PR #203 checkpoint refresh workflow security analysis passed.
   - command: Portal Staging External E2E
     result: BLOCKED
     evidence: Real Cloudflare resources and protected GitHub staging variables/secrets remain unavailable or unverifiable from this execution context; the available GitHub connector still cannot dispatch the workflow or inspect the staging environment.

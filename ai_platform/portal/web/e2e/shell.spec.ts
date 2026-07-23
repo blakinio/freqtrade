@@ -41,6 +41,11 @@ test("renders AI intelligence surfaces from deterministic fixture read models", 
   await page.goto("/ai/learning");
   await expect(page.getByRole("heading", { name: "Learning History" })).toBeVisible();
   await expect(page.getByText(/Validate whether the observed BTC setup/)).toBeVisible();
+
+  await page.goto("/ai/model-health");
+  await expect(page.getByRole("heading", { name: "Model Health" })).toBeVisible();
+  await expect(page.getByText("UNAVAILABLE", { exact: true })).toBeVisible();
+  await expect(page.getByText("CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED")).toBeVisible();
 });
 
 test("renders canonical operational read-model surfaces in fixture mode", async ({ page }) => {
@@ -71,13 +76,45 @@ test("renders canonical operational read-model surfaces in fixture mode", async 
   await page.goto("/operations/execution-logs");
   await expect(page.getByRole("heading", { name: "Execution Activity" })).toBeVisible();
   await expect(page.getByText("trade.manual_intent", { exact: true })).toBeVisible();
-  await expect(page.getByText("Not raw runtime stdout/stderr")).toBeVisible();
+  await expect(page.getByText("Raw runtime logs: unavailable")).toBeVisible();
 });
 
-test("keeps presentation-only platform routes explicitly shell-bound", async ({ page }) => {
+test("renders integrated signal, strategy, notification and security surfaces", async ({ page }) => {
+  await page.goto("/bots/signals");
+  await expect(page.getByRole("heading", { name: "Signal Wizard" })).toBeVisible();
+  await expect(page.getByText("Advisory evidence only")).toBeVisible();
+  await expect(page.getByText("BTC/USDT", { exact: true }).first()).toBeVisible();
+
+  await page.goto("/operations/signal-logs");
+  await expect(page.getByRole("heading", { name: "Signal Logs" })).toBeVisible();
+  await expect(page.getByText("Deterministic fixture signal for browser acceptance only.")).toBeVisible();
+
+  await page.goto("/bots/strategies");
+  await expect(page.getByRole("heading", { name: "Strategy Catalog" })).toBeVisible();
+  await expect(page.getByText("AI Directional", { exact: true })).toBeVisible();
+  await expect(page.getByText("Grid Dry Run", { exact: true })).toBeVisible();
+
+  await page.goto("/bots/grid");
+  await expect(page.getByRole("heading", { name: "Grid Bots" })).toBeVisible();
+  await expect(page.getByText("grid-dry-run-v1", { exact: true }).first()).toBeVisible();
+
+  await page.goto("/platform/notifications");
+  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
+  await expect(page.getByText(/BUY signal recorded for BTC\/USDT/)).toBeVisible();
+
   await page.goto("/platform/profile");
   await expect(page.getByRole("heading", { name: "Profile & Security" })).toBeVisible();
-  await expect(page.getByText("Interface shell available")).toBeVisible();
+  await expect(page.getByText("Identity-provider boundary")).toBeVisible();
+
+  await page.goto("/platform/admin");
+  await expect(page.getByRole("heading", { name: "Administration" })).toBeVisible();
+  await expect(page.getByText("Built-in RBAC")).toBeVisible();
+});
+
+test("records advisory signal through the same-origin BFF without execution authority", async ({ page }) => {
+  await page.goto("/bots/signals");
+  await page.getByRole("button", { name: "Record advisory signal" }).click();
+  await expect(page.getByRole("status")).toContainText("No execution was triggered.");
 });
 
 test("creates a canonical dry-run bot through the same-origin BFF", async ({ page }) => {

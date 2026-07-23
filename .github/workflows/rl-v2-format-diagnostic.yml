@@ -5,7 +5,7 @@ on:
     branches:
       - develop
     paths:
-      - "ai_platform/scripts/rl_v2_execution_preflight.py"
+      - "tests/ai_platform/test_rl_v2_execution_preflight.py"
       - ".github/workflows/rl-v2-format-diagnostic.yml"
 
 permissions:
@@ -31,13 +31,13 @@ jobs:
 
       - name: Capture Ruff format diff
         run: >-
-          python -m ruff format --diff ai_platform/scripts/rl_v2_execution_preflight.py
-          > rl-v2-ruff-format.diff || true
+          python -m ruff format --diff tests/ai_platform/test_rl_v2_execution_preflight.py
+          > rl-v2-ruff-format-test.diff || true
 
       - name: Upload Ruff format diff
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: rl-v2-ruff-format-diff
-          path: rl-v2-ruff-format.diff
+          name: rl-v2-ruff-format-test-diff
+          path: rl-v2-ruff-format-test.diff
           if-no-files-found: error
           retention-days: 1

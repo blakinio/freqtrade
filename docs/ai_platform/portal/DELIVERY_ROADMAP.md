@@ -109,16 +109,16 @@ Status: `done`
 
 Goal: safely manage isolated dry-run Freqtrade runtimes through a private adapter.
 
-Deliverables:
+Delivered bounded scope:
 
-- `ExecutionAdapter` interface;
-- Freqtrade adapter;
-- runtime provision/start/pause/stop/health reconciliation;
-- private runtime addressing;
-- readiness gates;
-- runtime credential injection abstraction;
-- per-runtime correlation/log identity;
-- dry-run-only initial policy.
+- `ExecutionAdapter` contract implementation for private runtime lifecycle;
+- deterministic one-bot/one-runtime identity and isolated workspaces;
+- Freqtrade Docker provision/start/pause/stop/inspect lifecycle;
+- private runtime addressing with no published Freqtrade control port;
+- explicit health/readiness and machine-readable failure mapping;
+- non-secret artifact/config resolver boundary;
+- per-runtime correlation identity;
+- dry-run-only policy.
 
 Acceptance:
 
@@ -130,33 +130,37 @@ Acceptance:
 
 Merged evidence: the declared P3 dry-run runtime-lifecycle scope landed in PR #118.
 
-Current boundary: P3 completion does not mean real order submission exists. `FreqtradeExecutionAdapter.submit_approved_intent`, position queries, order queries and trade queries remain fail-closed; `submit_approved_intent` raises `ORDER_SUBMISSION_NOT_IMPLEMENTED`.
+Current boundary: P3 completion does not mean real order submission exists. Runtime exchange-credential retrieval/injection was not implemented by P3. `FreqtradeExecutionAdapter.submit_approved_intent`, position queries, order queries and trade queries remain fail-closed; `submit_approved_intent` raises `ORDER_SUBMISSION_NOT_IMPLEMENTED`.
 
 ## P4 — Data, events and observability
 
 Status: `done`
 
-Goal: make cross-plane activity attributable and queryable.
+Goal: make cross-plane activity attributable and safely consumable through the bounded P4 foundation.
 
-Deliverables:
+Delivered bounded scope:
 
-- NATS JetStream event transport;
-- transactional outbox/inbox patterns;
-- correlation/causation IDs;
-- OpenTelemetry instrumentation;
-- structured log/redaction policy;
-- normalized trade mirror/reconciliation;
-- object-storage artifact interface;
-- baseline metrics/dashboards.
+- outbox publisher abstraction consuming P2 `portal_outbox_events`;
+- replaceable at-least-once event transport contract;
+- durable tenant-aware inbox/deduplication reference;
+- transactional consumer side-effect plus inbox-marker behavior;
+- correlation/request/causation propagation;
+- structured log, metric and trace abstractions;
+- recursive telemetry secret redaction;
+- targeted publish-failure, duplicate-delivery, correlation and redaction tests.
 
 Acceptance:
 
-- a bot lifecycle flow is traceable end-to-end by correlation ID;
-- duplicate event delivery is safe;
-- secrets are absent from telemetry;
-- mirrored trade data exposes staleness/reconciliation state.
+- outbox rows are marked published only after successful transport send;
+- failed publication remains retryable and duplicate delivery is safe;
+- consumer deduplication is durable per `(consumer_name, event_id)` and tenant-aware;
+- handler side effects and the inbox marker are transactional;
+- canonical correlation/request/causation IDs propagate unchanged;
+- logs and trace/metric attributes redact sensitive fields;
+- basic operation instrumentation emits correlated start/success/failure evidence;
+- no external event/telemetry infrastructure or bot business logic is introduced.
 
-Merged evidence: P4 data/observability foundation landed in PR #119 and its durable handoff was finalized in PR #120.
+Merged evidence: P4 data/observability foundation landed in PR #119 and its durable handoff was finalized in PR #120. Deployment of NATS, Redis, Prometheus, Grafana, external trace backends, normalized trade-mirror/reconciliation infrastructure and dashboards remains outside the completed bounded P4 foundation and must not be inferred from its `done` status.
 
 ## P5 — AI/model lifecycle control integration
 
@@ -189,27 +193,27 @@ Status: `done`
 
 Goal: deliver the first modern user-facing control surface.
 
-Deliverables:
+Delivered bounded scope:
 
-- Next.js/React application shell;
-- authentication/session integration;
-- dashboard;
-- bot list/detail;
-- Create Bot wizard for dry-run-supported templates;
-- exchange connection metadata management;
-- runtime health/log views;
-- profile/security/notifications shell;
-- responsive design system.
+- isolated Next.js/React/TypeScript application shell;
+- responsive shell with persistent environment visibility;
+- Dashboard, Bots and Create Bot surfaces;
+- explicit loading/error/empty/denied states;
+- same-origin bot BFF with server-only private control-plane origin;
+- existing session-cookie propagation for server-side reads and mutations;
+- fail-closed API mode and explicit fixture mode for deterministic development/E2E;
+- dry-run-only create-bot validation;
+- Chromium Playwright critical journey.
 
 Acceptance:
 
-- browser communicates only with portal API;
+- browser communicates only with portal/BFF routes and never directly with Freqtrade;
 - environment badge is always visible;
 - dry-run is the only deployable trading state in this stage;
 - critical user journey passes Chromium E2E;
-- tenant/RBAC denial states are rendered correctly.
+- denied/error/empty/loading states are explicitly rendered in the bounded shell scope.
 
-Merged evidence: P6 web shell landed in PR #135 and its durable closeout landed in PR #136.
+Merged evidence: P6 web shell landed in PR #135 and its durable closeout landed in PR #136. Broader exchange-management, runtime-log and profile/security/notification product surfaces remain separate later UI work and are not implied by P6 completion.
 
 ## P7 — Risk Engine and Trading Terminal
 
@@ -220,7 +224,7 @@ Goal: put deterministic policy between every manual/AI trade intent and executio
 Deliverables:
 
 - versioned risk policy model;
-- TradeIntent/ApprovedTradeIntent/RejectedTradeIntent contracts;
+- `TradeIntent` -> `ApprovedExecutionIntent` / `RejectedExecutionIntent` contracts;
 - initial exposure/loss/drawdown/health gates;
 - terminal intent API/UI;
 - kill switches;
@@ -244,52 +248,50 @@ Status: `done`
 
 Goal: capture decision black-box evidence and explain trade outcomes without overclaiming causality.
 
-Deliverables:
+Delivered bounded scope:
 
-- DecisionSnapshot;
-- TradeOutcome normalization;
-- evidence assembler;
-- deterministic diagnosis layer;
-- AI-assisted synthesis boundary;
-- Trade Analysis UI;
-- Insights UI;
-- counterfactual offline analysis framework;
-- Trading Knowledge Base schema.
+- immutable `DecisionSnapshot` evidence separated from `TradeOutcome`;
+- tenant-scoped persistence for snapshots, outcomes and analyses;
+- exact config/strategy/model/risk/runtime evidence attribution;
+- deterministic diagnosis before optional AI synthesis;
+- explicit reconciliation-gap handling;
+- fail-closed tenant/bot/pair/runtime attribution;
+- append-only optional AI narrative that cannot overwrite deterministic evidence.
 
 Acceptance:
 
 - loss is not automatically classified as model error;
 - every diagnosis links evidence and versions;
-- LLM output cannot overwrite deterministic evidence;
+- AI synthesis cannot overwrite deterministic evidence;
 - analysis failure cannot affect execution;
 - no analysis automatically mutates production bot/model configuration.
 
-Merged evidence: bounded P8 trade-intelligence foundation landed in PR #147.
+Merged evidence: bounded P8 trade-intelligence foundation landed in PR #147 with green required CI. Trade Analysis/Insights UI, counterfactual framework and a broader Trading Knowledge Base remain future product work and are not implied by P8 foundation completion.
 
 ## P9 — Safe continual-learning workflow
 
 Status: `done`
 
-Goal: allow live/dry-run evidence to create reproducible learning candidates.
+Goal: turn durable P8 insight evidence into reproducible learning candidates without automatic promotion.
 
-Deliverables:
+Delivered bounded scope:
 
-- curated learning dataset pipeline;
-- insight -> hypothesis -> experiment workflow;
-- scheduled/triggered training request policy;
-- champion/challenger comparison workflow;
-- candidate registration;
-- explicit autonomy levels L0-L4;
-- Learning History UI.
+- durable Insight -> Hypothesis -> Experiment -> Candidate provenance;
+- explicit evidence windows and autonomy levels;
+- protected final-holdout exclusion for iterative evidence windows;
+- durable negative and inconclusive experiment outcomes;
+- candidate metadata registration only from positive experiments;
+- candidates created with `promoted=false` and `assigned_to_bot=false`;
+- fail-closed tenant provenance.
 
 Acceptance:
 
 - bad trade can trigger experiment proposal, not direct model mutation;
-- candidate creation never implies promotion;
+- candidate creation never implies promotion or BotConfigRevision mutation;
 - evidence windows are declared and protected-boundary aware;
 - negative experiments remain durable.
 
-Merged evidence: bounded P9 safe continual-learning workflow landed in PR #158.
+Merged evidence: bounded P9 safe continual-learning workflow landed in PR #158. Scheduled training orchestration, champion/challenger automation and Learning History UI remain separate future work and are not implied by P9 foundation completion.
 
 ## P10 — Deterministic exchange simulator and universal E2E
 

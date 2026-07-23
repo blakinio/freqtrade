@@ -150,6 +150,18 @@ def test_api_desired_state_changes_intent_without_claiming_observed_execution(
     assert response.json()["observed_state"] == created["observed_state"] == "CREATED"
 
 
+def test_read_only_portal_data_routes_fail_closed_through_trusted_context(
+    session_factory: SessionFactory,
+) -> None:
+    context = _context("tenant-a", Permission.MODEL_READ)
+    client = TestClient(create_app(session_factory, lambda: context))
+
+    assert client.get("/v1/models").json() == []
+    assert client.get("/v1/trade-analysis").json() == []
+    assert client.get("/v1/insights").json() == []
+    assert client.get("/v1/learning/history").json() == []
+
+
 def test_openapi_surface_contains_only_control_plane_business_routes(
     session_factory: SessionFactory,
 ) -> None:
@@ -163,6 +175,10 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/bots/{bot_id}/revisions",
         "/v1/bots/{bot_id}/desired-state",
         "/v1/terminal/intents",
+        "/v1/models",
+        "/v1/trade-analysis",
+        "/v1/insights",
+        "/v1/learning/history",
     }
     serialized = str(schema).lower()
     for forbidden in ("api_key", "api_secret", "passphrase", "websocket_token"):

@@ -35,6 +35,18 @@ from ai_platform.portal.operations.schema import (
     TradeHistoryEntry,
 )
 from ai_platform.portal.operations.service import OperationalReadService
+from ai_platform.portal.product.schema import (
+    AdministrationOverview,
+    GridBotConfig,
+    ModelHealthRecord,
+    NotificationEntry,
+    NotificationPreference,
+    ProfileSecurityView,
+    RuntimeLogAvailability,
+    SignalEvent,
+    StrategyCatalogEntry,
+)
+from ai_platform.portal.product.service import ProductCapabilityService
 from ai_platform.portal.risk.service import RiskConflictError, RiskPolicyNotFoundError
 from ai_platform.portal.risk.terminal import (
     RiskSnapshotUnavailableError,
@@ -71,6 +83,37 @@ class TerminalIntentRequest(BaseModel):
     pair: str
     side: TradeSide
     amount: Decimal
+
+
+class SubmitSignalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    bot_id: str
+    pair: str
+    side: TradeSide
+    timeframe: str
+    confidence: Decimal
+    rationale: str
+
+
+class CreateGridBotConfigRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    bot_id: str
+    pair: str
+    lower_price: Decimal
+    upper_price: Decimal
+    levels: int
+    quote_allocation: Decimal
+
+
+class UpdateNotificationPreferenceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    in_app_enabled: bool
+    signal_events: bool
+    risk_events: bool
+    execution_events: bool
 
 
 def _register_exception_handlers(app: FastAPI) -> None:
@@ -185,6 +228,115 @@ def _register_operational_routes(
         return operations.list_execution_activity(context)
 
 
+def _register_signal_strategy_routes(
+    app: FastAPI,
+    product: ProductCapabilityService,
+    context_dependency: Callable[..., RequestContext],
+) -> None:
+    @app.get("/v1/signals", response_model=list[SignalEvent])
+    def list_signals(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[SignalEvent, ...]:
+        return product.list_signals(context)
+
+    @app.post("/v1/signals", response_model=SignalEvent, status_code=status.HTTP_201_CREATED)
+    def submit_signal(
+        request: SubmitSignalRequest,
+        context: RequestContext = Depends(context_dependency),
+    ) -> SignalEvent:
+        return product.submit_signal(
+            context,
+            bot_id=request.bot_id,
+            pair=request.pair,
+            side=request.side,
+            timeframe=request.timeframe,
+            confidence=request.confidence,
+            rationale=request.rationale,
+        )
+
+    @app.get("/v1/strategies", response_model=list[StrategyCatalogEntry])
+    def list_strategies(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[StrategyCatalogEntry, ...]:
+        return product.list_strategies(context)
+
+    @app.get("/v1/grid-bots", response_model=list[GridBotConfig])
+    def list_grid_bots(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[GridBotConfig, ...]:
+        return product.list_grid_configs(context)
+
+    @app.post("/v1/grid-bots", response_model=GridBotConfig, status_code=status.HTTP_201_CREATED)
+    def create_grid_bot(
+        request: CreateGridBotConfigRequest,
+        context: RequestContext = Depends(context_dependency),
+    ) -> GridBotConfig:
+        return product.create_grid_config(
+            context,
+            bot_id=request.bot_id,
+            pair=request.pair,
+            lower_price=request.lower_price,
+            upper_price=request.upper_price,
+            levels=request.levels,
+            quote_allocation=request.quote_allocation,
+        )
+
+
+def _register_platform_capability_routes(
+    app: FastAPI,
+    product: ProductCapabilityService,
+    context_dependency: Callable[..., RequestContext],
+) -> None:
+    @app.get("/v1/notifications", response_model=list[NotificationEntry])
+    def list_notifications(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[NotificationEntry, ...]:
+        return product.list_notifications(context)
+
+    @app.get("/v1/notifications/preferences", response_model=NotificationPreference)
+    def get_notification_preferences(
+        context: RequestContext = Depends(context_dependency),
+    ) -> NotificationPreference:
+        return product.get_notification_preference(context)
+
+    @app.put("/v1/notifications/preferences", response_model=NotificationPreference)
+    def update_notification_preferences(
+        request: UpdateNotificationPreferenceRequest,
+        context: RequestContext = Depends(context_dependency),
+    ) -> NotificationPreference:
+        return product.update_notification_preference(
+            context,
+            in_app_enabled=request.in_app_enabled,
+            signal_events=request.signal_events,
+            risk_events=request.risk_events,
+            execution_events=request.execution_events,
+        )
+
+    @app.get("/v1/profile", response_model=ProfileSecurityView)
+    def profile_security(
+        context: RequestContext = Depends(context_dependency),
+    ) -> ProfileSecurityView:
+        return product.profile_security(context)
+
+    @app.get("/v1/admin/overview", response_model=AdministrationOverview)
+    def administration_overview(
+        context: RequestContext = Depends(context_dependency),
+    ) -> AdministrationOverview:
+        return product.administration_overview(context)
+
+    @app.get("/v1/model-health", response_model=list[ModelHealthRecord])
+    def model_health(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[ModelHealthRecord, ...]:
+        return product.model_health(context)
+
+    @app.get("/v1/runtime-log-availability", response_model=RuntimeLogAvailability)
+    def runtime_log_availability(
+        context: RequestContext = Depends(context_dependency),
+    ) -> RuntimeLogAvailability:
+        return product.runtime_log_availability(context)
+
+
 def create_app(
     session_factory: SessionFactory,
     identity_context_provider: IdentityContextProvider | None = None,
@@ -193,6 +345,7 @@ def create_app(
     trade_intelligence_service: TradeIntelligenceService | None = None,
     learning_service: LearningService | None = None,
     operational_read_service: OperationalReadService | None = None,
+    product_capability_service: ProductCapabilityService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -207,10 +360,16 @@ def create_app(
         session_factory,
         intelligence_service=trade_intelligence,
     )
+    product = product_capability_service or ProductCapabilityService(
+        session_factory,
+        model_control_service=model_control,
+    )
     context_dependency = identity_dependency(identity_context_provider)
     _register_exception_handlers(app)
     _register_terminal_route(app, terminal, context_dependency)
     _register_operational_routes(app, operations, context_dependency)
+    _register_signal_strategy_routes(app, product, context_dependency)
+    _register_platform_capability_routes(app, product, context_dependency)
 
     @app.post("/v1/bots", response_model=BotInstance, status_code=status.HTTP_201_CREATED)
     def create_bot(

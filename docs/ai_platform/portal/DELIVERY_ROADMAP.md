@@ -318,7 +318,7 @@ Repository-side P11 contracts, verifier, workflow and runbooks may be complete w
 
 ## P12 — Autonomous diagnosis and bounded repair
 
-Status: `planned`
+Status: `done`
 
 Goal: let agents diagnose reproducible failures and prepare safe fixes autonomously.
 
@@ -341,6 +341,8 @@ Acceptance:
 - agent cannot weaken a mandatory safety assertion;
 - agent cannot deploy production or access production exchange secrets;
 - all actions are attributable to task/agent identity.
+
+Simulation-first P12 acceptance completed through the recovered fail-closed foundation and a seeded deterministic simulator repair exercise. The temporary defect was reproduced, diagnosed, regression-tested before repair, minimally fixed and validated through required CI; only durable regression/evidence artifacts were merged. This completion does not satisfy or replace the deferred real P11 External E2E gate.
 
 ## P13 — Scale and service extraction
 

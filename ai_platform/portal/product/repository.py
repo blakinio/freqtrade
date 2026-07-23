@@ -3,8 +3,16 @@ from __future__ import annotations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ai_platform.portal.product.models import GridBotConfigRow, NotificationPreferenceRow, SignalEventRow
-from ai_platform.portal.product.schema import GridBotConfig, NotificationPreference, SignalEvent
+from ai_platform.portal.product.models import (
+    GridBotConfigRow,
+    NotificationPreferenceRow,
+    SignalEventRow,
+)
+from ai_platform.portal.product.schema import (
+    GridBotConfig,
+    NotificationPreference,
+    SignalEvent,
+)
 
 
 class ProductCapabilityRepository:
@@ -19,11 +27,18 @@ class ProductCapabilityRepository:
             )
         )
 
-    def list_signals(self, session: Session, tenant_id: str) -> tuple[SignalEvent, ...]:
+    def list_signals(
+        self,
+        session: Session,
+        tenant_id: str,
+    ) -> tuple[SignalEvent, ...]:
         rows = session.scalars(
             select(SignalEventRow)
             .where(SignalEventRow.tenant_id == tenant_id)
-            .order_by(SignalEventRow.occurred_at.desc(), SignalEventRow.signal_id.desc())
+            .order_by(
+                SignalEventRow.occurred_at.desc(),
+                SignalEventRow.signal_id.desc(),
+            )
         ).all()
         return tuple(SignalEvent.model_validate_json(row.signal_json) for row in rows)
 
@@ -38,11 +53,18 @@ class ProductCapabilityRepository:
             )
         )
 
-    def list_grid_configs(self, session: Session, tenant_id: str) -> tuple[GridBotConfig, ...]:
+    def list_grid_configs(
+        self,
+        session: Session,
+        tenant_id: str,
+    ) -> tuple[GridBotConfig, ...]:
         rows = session.scalars(
             select(GridBotConfigRow)
             .where(GridBotConfigRow.tenant_id == tenant_id)
-            .order_by(GridBotConfigRow.created_at.desc(), GridBotConfigRow.grid_config_id.desc())
+            .order_by(
+                GridBotConfigRow.created_at.desc(),
+                GridBotConfigRow.grid_config_id.desc(),
+            )
         ).all()
         return tuple(GridBotConfig.model_validate_json(row.config_json) for row in rows)
 

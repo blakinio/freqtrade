@@ -237,10 +237,7 @@ class ProductCapabilityService:
     ) -> tuple[NotificationEntry, ...]:
         entries: list[NotificationEntry] = []
         for signal in self._repository.list_signals(session, context.tenant_id):
-            summary = (
-                f"{signal.side.value} signal recorded for "
-                f"{signal.pair} on {signal.bot_id}"
-            )
+            summary = f"{signal.side.value} signal recorded for {signal.pair} on {signal.bot_id}"
             entries.append(
                 NotificationEntry(
                     notification_id=f"signal:{signal.signal_id}",
@@ -267,11 +264,7 @@ class ProductCapabilityService:
         )
         for decision in decisions:
             rejected = decision.decision is RiskDecisionOutcome.REJECTED
-            severity = (
-                NotificationSeverity.ATTENTION
-                if rejected
-                else NotificationSeverity.INFO
-            )
+            severity = NotificationSeverity.ATTENTION if rejected else NotificationSeverity.INFO
             reason = ", ".join(decision.reason_codes)
             if not reason:
                 reason = "no reason code"

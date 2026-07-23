@@ -24,10 +24,11 @@ export default async function GridBotsPage() {
           <div className="empty-state"><strong>No grid configurations</strong><span>No canonical dry-run grid config exists for this tenant.</span></div>
         ) : (
           <div className="table-wrap"><table>
-            <thead><tr><th>Created</th><th>Bot</th><th>Pair</th><th>Range</th><th>Levels</th><th>Allocation</th><th>Mode</th></tr></thead>
+            <thead><tr><th>Created</th><th>Bot</th><th>Strategy</th><th>Pair</th><th>Range</th><th>Levels</th><th>Allocation</th><th>Mode</th></tr></thead>
             <tbody>{configs.map((config) => <tr key={config.grid_config_id}>
               <td>{new Date(config.created_at).toLocaleString()}</td>
               <td>{config.bot_id}</td>
+              <td>{config.strategy_version}</td>
               <td>{config.pair}</td>
               <td>{config.lower_price} – {config.upper_price}</td>
               <td>{config.levels}</td>

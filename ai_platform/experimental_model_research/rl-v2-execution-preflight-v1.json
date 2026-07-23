@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "preflight_id": "rl-v2-execution-preflight-v1",
+  "status": "non_result_producing_preflight",
+  "task": "docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md",
+  "parent_runtime_integration": {
+    "path": "ai_platform/experimental_model_research/rl-v2-runtime-integration-v1.json",
+    "integration_id": "rl-v2-runtime-integration-v1",
+    "merge_commit": "251fa56aeaaa8fb95c7cdf73015da0c1142dc978"
+  },
+  "runtime_resolution": {
+    "freqai_model": "DesiredPositionReinforcementLearner",
+    "freqai_model_path": "ai_platform/freqaimodels",
+    "strategy": "AiDesiredPositionRLResearchStrategy",
+    "strategy_path": "ai_platform/strategies",
+    "backend_family": "stable_baselines3_via_freqai_reinforcement_learner",
+    "model_type": "PPO",
+    "policy_type": "MlpPolicy",
+    "trading_mode": "spot",
+    "dry_run": true,
+    "can_short": false
+  },
+  "ephemeral_configuration_surface": {
+    "top_level_required": [
+      "dry_run",
+      "exchange.pair_whitelist",
+      "freqai",
+      "freqaimodel",
+      "freqaimodel_path",
+      "stake_amount",
+      "strategy",
+      "strategy_path",
+      "timeframe",
+      "trading_mode",
+      "user_data_dir"
+    ],
+    "freqai_required": [
+      "data_split_parameters",
+      "feature_parameters",
+      "identifier",
+      "model_training_parameters",
+      "rl_config"
+    ],
+    "rl_config_required": [
+      "model_reward_parameters",
+      "model_type",
+      "policy_type"
+    ],
+    "forbidden_execution_geometry": [
+      "timerange",
+      "freqai.train_period_days",
+      "freqai.backtest_period_days",
+      "freqai.live_retrain_hours"
+    ],
+    "committed_training_config_added": false
+  },
+  "semantic_binding": {
+    "action_space": {
+      "0": "target_flat",
+      "1": "target_long"
+    },
+    "action_space_size": 2,
+    "long_only": true,
+    "short_actions_present": false,
+    "policy_requires_hidden_current_position": false,
+    "transition_reference": "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_transition",
+    "reward_reference": "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward",
+    "action_label_reference": "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_label"
+  },
+  "observability_binding": {
+    "accumulator": "ai_platform.scripts.rl_v2_synthetic_reference.RLV2ObservabilityAccumulator",
+    "zero_count_action_buckets_required": true,
+    "prediction_gate_layer_separate": true,
+    "pre_trade_signal_layer_separate": true,
+    "raw_trade_layer_separate": true,
+    "strict_oos_layer_separate": true,
+    "runtime_counts_fabricated": false
+  },
+  "scope": {
+    "runtime_symbol_resolution_allowed": true,
+    "strategy_resolution_allowed": true,
+    "ephemeral_in_memory_config_allowed": true,
+    "synthetic_environment_construction_allowed": true,
+    "training_config_commit_allowed": false,
+    "experiment_manifest_allowed": false,
+    "run_request_allowed": false,
+    "training_allowed": false,
+    "model_fitting_allowed": false,
+    "backtest_allowed": false,
+    "market_data_download_allowed": false,
+    "exchange_data_access_allowed": false,
+    "historical_evaluation_window_selection_allowed": false,
+    "future_evaluation_window_selection_allowed": false,
+    "strict_oos_execution_allowed": false,
+    "performance_evaluation_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "future_evaluation_window_selected": false,
+    "frozen_entry_prediction_threshold": 0.006,
+    "frozen_exit_prediction_threshold": -0.009,
+    "phase6_authoritative_selected_model": null,
+    "phase6_member": false,
+    "pytorch_rl_ranking_allowed": false
+  }
+}

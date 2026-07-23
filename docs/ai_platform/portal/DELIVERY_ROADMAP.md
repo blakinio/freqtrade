@@ -385,7 +385,7 @@ Possible work:
 
 Acceptance is defined prospectively from observed bottlenecks/SLOs. This stage must not be implemented merely for architectural fashion.
 
-Current decision: PR #224 recorded a no-go assessment because there is no measured portal latency, throughput, saturation, capacity, error-budget or SLO evidence justifying extraction. P13 therefore remains planned/undeclared rather than being implemented pre-emptively.
+Current decision: PR #224 recorded a no-go assessment because there is no measured portal latency, throughput, saturation, capacity, error-budget or SLO evidence justifying extraction. P13 therefore remains planned/undeclared rather than being implemented preemptively.
 
 ## P14 — Live-small readiness
 

@@ -1,13 +1,20 @@
 import type {
+  AuditEvent,
   BotInstance,
   CreateBotRequest,
   DashboardSnapshot,
+  ExecutionActivityEntry,
   LearningHistoryEntry,
   ModelVersion,
+  OperationalOrder,
+  OperationalPosition,
+  PerformanceSummary,
   PortalEnvironment,
+  RiskDecisionRecord,
   TerminalIntentRequest,
   TerminalIntentResult,
   TradeAnalysis,
+  TradeHistoryEntry,
   TradeInsight,
 } from "./contracts";
 
@@ -191,6 +198,94 @@ const fixtureLearningHistory: LearningHistoryEntry[] = [
   },
 ];
 
+const fixtureOrders: OperationalOrder[] = [
+  {
+    tenant_id: "tenant-demo",
+    bot_id: "bot-btc-dryrun-01",
+    source_runtime_id: "runtime-btc-01",
+    order_id: "fixture-order-1",
+    execution_intent_id: "fixture-execution-intent-1",
+    pair: "BTC/USDT",
+    side: "BUY",
+    state: "FILLED",
+    amount: "0.01",
+    created_at: "2026-07-22T12:00:00Z",
+  },
+];
+
+const fixturePositions: OperationalPosition[] = [
+  {
+    tenant_id: "tenant-demo",
+    bot_id: "bot-eth-dryrun-02",
+    source_runtime_id: "runtime-eth-02",
+    position_id: "fixture-position-1",
+    pair: "ETH/USDT",
+    side: "BUY",
+    amount: "0.10",
+    opened_at: "2026-07-23T10:00:00Z",
+  },
+];
+
+const fixtureRiskEvents: RiskDecisionRecord[] = [
+  {
+    risk_decision_id: "44444444-4444-4444-8444-444444444444",
+    tenant_id: "tenant-demo",
+    trade_intent_id: "33333333-3333-4333-8333-333333333333",
+    risk_policy_version: "risk-default-v1",
+    decision: "APPROVED",
+    reason_codes: ["RISK_APPROVED"],
+    evaluated_limits: [
+      {
+        limit_name: "max_order_notional",
+        configured_value: "1000",
+        observed_value: "250",
+        passed: true,
+      },
+    ],
+    occurred_at: "2026-07-22T12:00:00Z",
+    context: {
+      request_id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      correlation_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+      causation_id: null,
+    },
+  },
+];
+
+const fixtureAuditEvents: AuditEvent[] = [
+  {
+    audit_id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    occurred_at: "2026-07-22T11:59:00Z",
+    actor_type: "user",
+    actor_id: "actor-fixture",
+    tenant_id: "tenant-demo",
+    resource_type: "bot",
+    resource_id: "bot-btc-dryrun-01",
+    action: "bot.created",
+    result: "SUCCEEDED",
+    request_id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+    correlation_id: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    causation_id: null,
+    reason_code: null,
+    details: { config_revision: 1 },
+  },
+  {
+    audit_id: "12121212-1212-4212-8212-121212121212",
+    occurred_at: "2026-07-22T12:00:00Z",
+    actor_type: "user",
+    actor_id: "actor-fixture",
+    tenant_id: "tenant-demo",
+    resource_type: "bot",
+    resource_id: "bot-btc-dryrun-01",
+    action: "trade.manual_intent",
+    result: "SUCCEEDED",
+    request_id: "13131313-1313-4313-8313-131313131313",
+    correlation_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+    causation_id: null,
+    reason_code: null,
+    details: { pair: "BTC/USDT" },
+  },
+];
+
 export function listFixtureBots(): BotInstance[] {
   return structuredClone(fixtureBots);
 }
@@ -234,6 +329,63 @@ export function listFixtureInsights(): TradeInsight[] {
 
 export function listFixtureLearningHistory(): LearningHistoryEntry[] {
   return structuredClone(fixtureLearningHistory);
+}
+
+export function listFixtureOrders(): OperationalOrder[] {
+  return structuredClone(fixtureOrders);
+}
+
+export function listFixturePositions(): OperationalPosition[] {
+  return structuredClone(fixturePositions);
+}
+
+export function listFixtureTrades(): TradeHistoryEntry[] {
+  return listFixtureTradeAnalyses().map((analysis) => ({
+    tenant_id: analysis.tenant_id,
+    bot_id: analysis.outcome.bot_id,
+    trade_id: analysis.outcome.trade_id,
+    source_runtime_id: analysis.outcome.source_runtime_id,
+    pair: analysis.outcome.pair,
+    side: analysis.snapshot.side,
+    amount: analysis.snapshot.amount,
+    realized_pnl: analysis.outcome.realized_pnl,
+    fees: analysis.outcome.fees,
+    exit_reason: analysis.outcome.exit_reason,
+    opened_at: analysis.outcome.opened_at,
+    closed_at: analysis.outcome.closed_at,
+    reconciliation_status: analysis.outcome.reconciliation_status,
+    analysis_id: analysis.analysis_id,
+  }));
+}
+
+export function listFixturePerformance(): PerformanceSummary[] {
+  return [
+    {
+      tenant_id: "tenant-demo",
+      bot_id: "bot-btc-dryrun-01",
+      realized_pnl: "12.40",
+      fees: "0.80",
+      net_pnl: "11.60",
+      trade_count: 1,
+      winning_trades: 1,
+      losing_trades: 0,
+      reconciliation_gaps: 0,
+    },
+  ];
+}
+
+export function listFixtureRiskEvents(): RiskDecisionRecord[] {
+  return structuredClone(fixtureRiskEvents);
+}
+
+export function listFixtureAuditEvents(): AuditEvent[] {
+  return structuredClone(fixtureAuditEvents);
+}
+
+export function listFixtureExecutionActivity(): ExecutionActivityEntry[] {
+  return listFixtureAuditEvents()
+    .filter((event) => event.action === "trade.manual_intent")
+    .map((audit) => ({ audit }));
 }
 
 export function submitFixtureTerminalIntent(request: TerminalIntentRequest): TerminalIntentResult {

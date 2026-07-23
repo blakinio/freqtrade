@@ -62,7 +62,7 @@ updated_at: 2026-07-23T19:15:00+02:00
 head: 1e724be35ce856d93b590415b9bb3860634d8993
 branch: develop
 pr: "#222"
-status: done
+status: ready
 context_routes:
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
   - docs/ai_platform/portal/DETERMINISTIC_SIMULATOR_E2E.md
@@ -99,11 +99,11 @@ changed_paths:
   - docs/agents/tasks/FTAI-20260723-portal-p12-seeded-close-time-repair.md
 validation:
   - command: seeded AI Platform CI 30021875591
-    result: FAIL_EXPECTED
-    evidence: Intentionally seeded head failed full AI Platform tests before repair.
+    result: FAIL
+    evidence: Intentionally seeded head failed full AI Platform tests before repair as expected by the acceptance exercise.
   - command: seeded Portal Universal E2E 30021875771
-    result: FAIL_EXPECTED
-    evidence: Intentionally seeded deterministic backend scenario failed before repair.
+    result: FAIL
+    evidence: Intentionally seeded deterministic backend scenario failed before repair as expected by the acceptance exercise.
   - command: repaired AI Platform CI 30022275563
     result: PASS
     evidence: Full AI Platform tests and lint passed after repair.

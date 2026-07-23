@@ -47,7 +47,7 @@ def test_external_probe_proves_cloudflare_access_and_direct_path_denials(monkeyp
     results = run_probes(policy, transport=httpx.MockTransport(handler))
 
     assert results
-    assert all(result.outcome is ProbeOutcome.PASS for result in results)
+    assert all(result.outcome is ProbeOutcome.SUCCESS for result in results)
     assert {result.name for result in results} == {
         "cloudflare-public-ingress",
         "access-anonymous-denial",
@@ -71,7 +71,7 @@ def test_external_probe_fails_when_service_identity_is_not_authorized(monkeypatc
     results = run_probes(policy, transport=httpx.MockTransport(handler))
     by_name = {result.name: result for result in results}
 
-    assert by_name["access-service-identity"].outcome is ProbeOutcome.FAIL
+    assert by_name["access-service-identity"].outcome is ProbeOutcome.FAILURE
 
 
 def test_probe_evidence_never_contains_endpoint_or_service_secret(monkeypatch) -> None:

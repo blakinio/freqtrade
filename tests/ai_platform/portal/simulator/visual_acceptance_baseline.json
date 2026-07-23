@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "data_mode": "fixture",
+  "environment": "test",
+  "routes": [
+    "/",
+    "/bots",
+    "/bots/new",
+    "/terminal",
+    "/denied"
+  ],
+  "viewports": [
+    {"name": "desktop", "width": 1440, "height": 1000},
+    {"name": "mobile", "width": 390, "height": 844}
+  ],
+  "required_invariants": [
+    "environment-badge-visible",
+    "no-browser-runtime-origin",
+    "authorization-denied-state",
+    "terminal-risk-gate-visible"
+  ]
+}

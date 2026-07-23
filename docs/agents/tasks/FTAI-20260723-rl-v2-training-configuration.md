@@ -5,7 +5,7 @@ branch: docs/rl-v2-training-configuration-task
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: null
+related_pr: "182"
 owned_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md
   - docs/ai_platform/RL_V2_TRAINING_CONFIGURATION.md
@@ -111,10 +111,10 @@ The committed configuration may define construction/training parameters needed t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T18:00:00+02:00
-head: bc58d74bd48d9df551dbddfb24866c0261394ccf
+updated_at: 2026-07-23T13:10:00+02:00
+head: 5327c0fe79f654d0c2605a0f344fba8f6c006bd5
 branch: docs/rl-v2-training-configuration-task
-pr: null
+pr: 182
 status: active
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
@@ -130,7 +130,8 @@ proven:
   - PR #168 merged the bounded RL-v2 execution preflight as ae28c4fe9d1e94313e0b232b1bcd99d6f4ba59bc and PR #177 closed its task as 4cb93b94b1b18baa3b9469ebd52fb5182ec80d03.
   - The execution preflight proved current heavy-runtime resolver, construction, semantic and observability compatibility without training, backtesting, market-data access or evaluation geometry.
   - Current develop advanced beyond the supplied checkpoint; the latest repository work is unrelated Portal staging work and does not overlap RL-v2 ownership.
-  - The only currently open PR found during preflight is draft PR #109, a documentation/design-reference change with no RL-v2 overlap.
+  - The only currently open PR found during preflight before this declaration was draft PR #109, a documentation/design-reference change with no RL-v2 overlap.
+  - PR #182 now contains only this prospective RL-v2 training-configuration task declaration.
   - The previously recorded zero-trade historical RL evidence belongs to the older rl-research-v1 track and does not constitute RL-v2 execution evidence.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.

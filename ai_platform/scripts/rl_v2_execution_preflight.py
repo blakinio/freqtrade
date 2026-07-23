@@ -29,7 +29,9 @@ def _read_descriptor(path: Path = DESCRIPTOR_PATH) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RLV2ExecutionPreflightError(f"Unable to read preflight descriptor: {exc}") from exc
+        raise RLV2ExecutionPreflightError(
+            f"Unable to read preflight descriptor: {exc}"
+        ) from exc
     if not isinstance(payload, dict):
         raise RLV2ExecutionPreflightError("Preflight descriptor must contain a JSON object")
     return payload
@@ -144,7 +146,9 @@ def _lookup(config: dict[str, Any], dotted_path: str) -> Any:
     value: Any = config
     for part in dotted_path.split("."):
         if not isinstance(value, dict) or part not in value:
-            raise RLV2ExecutionPreflightError(f"Missing required configuration key: {dotted_path}")
+            raise RLV2ExecutionPreflightError(
+                f"Missing required configuration key: {dotted_path}"
+            )
         value = value[part]
     return value
 
@@ -212,7 +216,12 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
     if learner.MyRLEnv is not DesiredPositionEnvironment:
         raise RLV2ExecutionPreflightError("Resolved RL-v2 environment binding drifted")
 
-    features = pd.DataFrame({"%feature_a": [0.0, 0.1, 0.2, 0.3], "%feature_b": [0.3, 0.2, 0.1, 0.0]})
+    features = pd.DataFrame(
+        {
+            "%feature_a": [0.0, 0.1, 0.2, 0.3],
+            "%feature_b": [0.3, 0.2, 0.1, 0.0],
+        }
+    )
     prices = pd.DataFrame(
         {
             "open": [100.0, 100.1, 100.2, 100.3],
@@ -234,7 +243,9 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
     if expected_actions != {0: "target_flat", 1: "target_long"}:
         raise RLV2ExecutionPreflightError("Runtime desired-position enum drifted")
     if environment.action_space.n != 2 or environment.action_masks() != [True, True]:
-        raise RLV2ExecutionPreflightError("Runtime environment action space is not exactly two actions")
+        raise RLV2ExecutionPreflightError(
+            "Runtime environment action space is not exactly two actions"
+        )
 
     transition_matrix = {
         (PositionState.FLAT, 0): Transition.HOLD_FLAT,
@@ -244,7 +255,9 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
     }
     for key, expected in transition_matrix.items():
         if desired_position_transition(*key) is not expected:
-            raise RLV2ExecutionPreflightError("Canonical desired-position transition binding drifted")
+            raise RLV2ExecutionPreflightError(
+                "Canonical desired-position transition binding drifted"
+            )
 
     strategy = StrategyResolver.load_strategy(copy.deepcopy(config))
     if strategy.__class__.__name__ != "AiDesiredPositionRLResearchStrategy" or strategy.can_short:
@@ -268,7 +281,9 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
     snapshot = accumulator.snapshot()
     expected_zero_actions = {"target_flat": 0, "target_long": 0}
     if snapshot["pairs"][PAIR]["actions"] != expected_zero_actions:
-        raise RLV2ExecutionPreflightError("Zero-count desired-position observability buckets drifted")
+        raise RLV2ExecutionPreflightError(
+            "Zero-count desired-position observability buckets drifted"
+        )
     if snapshot["raw_backtest_trades"] != 0 or snapshot["strict_oos"] != {
         "input": 0,
         "included": 0,

@@ -53,10 +53,10 @@ Establish the repository-side fail-closed contract and validation path for produ
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T12:55:00+02:00
-head: 99c659242d8c59d85c6d23182a928d323d617f72
+updated_at: 2026-07-23T15:42:10+02:00
+head: 4735a90366b1eafcf67a5938696b575d1959cb59
 branch: develop
-pr: "#180"
+pr: "#181"
 status: blocked
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -75,6 +75,8 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260723-portal-p11-cloudflare-staging.md
 proven:
   - Repository-side P11 was squash-merged from PR #180 to develop as 99c659242d8c59d85c6d23182a928d323d617f72.
+  - PR #181 durably recorded the external staging blocker after the P11 implementation merge.
+  - Current develop checkpoint 4735a90366b1eafcf67a5938696b575d1959cb59 contains later unrelated RL-v2 work; no P11 implementation-owned path changed after PR #180 except this task record.
   - The merged staging contract requires Tunnel ingress, forbids public origin/Freqtrade ingress and fixes execution to simulated mode.
   - The merged external verifier checks public portal reachability, Access anonymous denial, Access service identity, direct-origin denial and direct-Freqtrade denial without printing endpoint or token secrets.
   - Portal Staging Policy, AI Platform, Freqtrade and zizmor validation passed on both the implementation and final checkpoint merge-state heads before merge.

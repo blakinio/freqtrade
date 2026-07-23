@@ -13,10 +13,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DESCRIPTOR_PATH = (
-    REPO_ROOT
-    / "ai_platform"
-    / "experimental_model_research"
-    / "rl-v2-execution-preflight-v1.json"
+    REPO_ROOT / "ai_platform" / "experimental_model_research" / "rl-v2-execution-preflight-v1.json"
 )
 PAIR = "BTC/USDT"
 
@@ -29,9 +26,7 @@ def _read_descriptor(path: Path = DESCRIPTOR_PATH) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RLV2ExecutionPreflightError(
-            f"Unable to read preflight descriptor: {exc}"
-        ) from exc
+        raise RLV2ExecutionPreflightError(f"Unable to read preflight descriptor: {exc}") from exc
     if not isinstance(payload, dict):
         raise RLV2ExecutionPreflightError("Preflight descriptor must contain a JSON object")
     return payload
@@ -146,9 +141,7 @@ def _lookup(config: dict[str, Any], dotted_path: str) -> Any:
     value: Any = config
     for part in dotted_path.split("."):
         if not isinstance(value, dict) or part not in value:
-            raise RLV2ExecutionPreflightError(
-                f"Missing required configuration key: {dotted_path}"
-            )
+            raise RLV2ExecutionPreflightError(f"Missing required configuration key: {dotted_path}")
         value = value[part]
     return value
 

@@ -1,0 +1,20 @@
+{
+  "scenario_id": "profitable-btc-001",
+  "tenant_id": "tenant-e2e",
+  "bot_id": "bot-e2e-btc",
+  "pair": "BTC/USDT",
+  "side": "BUY",
+  "amount": "0.01",
+  "environment": "test",
+  "initial_equity": "10000",
+  "entry_tick": {
+    "occurred_at": "2026-07-22T12:00:00Z",
+    "pair": "BTC/USDT",
+    "price": "100000"
+  },
+  "exit_tick": {
+    "occurred_at": "2026-07-22T12:05:00Z",
+    "pair": "BTC/USDT",
+    "price": "101000"
+  }
+}

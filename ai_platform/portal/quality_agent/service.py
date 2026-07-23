@@ -82,9 +82,7 @@ class SimulationFirstRepairService:
             classification = FailureClassification.TEST_DEFECT
             likely_layer = "test_harness"
             confidence = DiagnosisConfidence.HIGH
-        elif "dependency" in stage or any(
-            fragment in reason for fragment in _DEPENDENCY_FRAGMENTS
-        ):
+        elif "dependency" in stage or any(fragment in reason for fragment in _DEPENDENCY_FRAGMENTS):
             classification = FailureClassification.DEPENDENCY_OUTAGE
             likely_layer = "dependency"
             confidence = DiagnosisConfidence.MEDIUM

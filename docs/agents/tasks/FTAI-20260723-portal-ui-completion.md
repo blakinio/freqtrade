@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260723-portal-ui-completion
-status: active
+status: done
 branch: feat/portal-ui-completion-20260723
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: null
+related_pr: "#227"
 owned_paths:
   - ai_platform/portal/web/
   - ai_platform/portal/control_plane/api.py
@@ -37,12 +37,12 @@ search_first:
 
 ## Goal
 
-Correct the roadmap/task-state mismatch that treated the P6 web-shell foundation as the complete target UI, then deliver the missing product navigation and bounded read-only UI integrations without exposing Freqtrade, exchange secrets or live-capital authority.
+Correct the delivery-state mismatch that treated the historical P6 web-shell foundation as evidence of a complete target product UI, then deliver the missing navigation and bounded read-only UI integrations without exposing Freqtrade, exchange secrets or live-capital authority.
 
 ## Deliverables
 
-- distinguish historical `P6.1 Web Shell Foundation` from complete P6 delivery;
-- correct canonical roadmap status from live repository evidence;
+- distinguish historical `P6.1 Web Shell Foundation` from the broader target UI inventory;
+- preserve the canonical P0-P14 roadmap semantics synchronized by PR #226;
 - expose full product navigation from `UI_INFORMATION_ARCHITECTURE.md`;
 - add immutable Bot Detail, Exchange Connection metadata and Runtime Health surfaces;
 - expose read-only ModelVersion, TradeAnalysis, TradeInsight and LearningHistory control-plane APIs;
@@ -63,8 +63,8 @@ Correct the roadmap/task-state mismatch that treated the P6 web-shell foundation
 
 ## Acceptance criteria
 
-1. P6 is no longer represented as fully complete merely because PR #135 merged.
-2. P6.1 remains historically complete while the canonical roadmap reflects the actual full-stage status.
+1. Historical P6.1 completion is no longer used as evidence that every target UI surface is functionally integrated.
+2. Canonical bounded-stage roadmap status remains aligned with merged PR #226 while per-surface delivery truth is tracked in `UI_DELIVERY_STATUS.md`.
 3. Every primary navigation item from the target IA resolves to an intentional UI route.
 4. Bot detail, runtime health and exchange metadata use existing canonical bot data.
 5. P8/P9 read-only data reaches the portal through trusted server-side control-plane APIs.
@@ -77,34 +77,38 @@ Correct the roadmap/task-state mismatch that treated the P6 web-shell foundation
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T20:00:00+02:00
-head: 5ccaa5a316b1a1cc3fdc179f4d425991da4cbb87
-branch: feat/portal-ui-completion-20260723
-pr: none
-status: active
+updated_at: 2026-07-23T21:20:00+02:00
+head: a4b01fdb14b3572f601cab3658867d7246ec2b29
+branch: develop
+pr: "#227"
+status: done
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/UI_INFORMATION_ARCHITECTURE.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - docs/ai_platform/portal/DELIVERY_ROADMAP.md
   - docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md
 proven:
-  - Live develop before this task is d3e29ac9ceb7bd55aa0cc53ac515a5b184e685ba.
-  - The only open repository PR found during preflight is #109 and it does not overlap portal implementation paths.
-  - Historical P6 PR #135 delivered only Dashboard, Bots, Create Bot, denied/error/loading states and the bot BFF foundation.
-  - P8 PR #147 merged the trade-intelligence backend without its roadmap-declared Trade Analysis and Insights UI.
-  - P9 PR #158 merged the learning backend without its roadmap-declared Learning History UI.
-  - Current task adds full IA navigation, explicit generic surfaces, bot detail, runtime/exchange views and AI read-model UIs.
-  - Control-plane read-only routes now expose models, trade analyses, insights and aggregate learning history through trusted identity context.
-  - API mode remains fail-closed for product areas that still lack canonical read models; fixture previews are explicitly labeled.
+  - PR #226 synchronized the canonical roadmap and architecture to bounded live-state semantics before final PR #227 convergence.
+  - Historical P6 PR #135 delivered the web-shell foundation rather than every target product UI integration.
+  - Historical P8 PR #147 delivered the trade-intelligence backend before its Trade Analysis and Insights UI surfaces.
+  - Historical P9 PR #158 delivered the learning backend before its Learning History UI surface.
+  - PR #227 added full target navigation and explicit per-surface delivery status without redefining the canonical P0-P14 roadmap.
+  - PR #227 added Bot Detail, structured dry-run Create Bot, Runtime Health and opaque Exchange Connection metadata surfaces.
+  - PR #227 added trusted read-only model, trade-analysis, insight and aggregate learning-history APIs plus corresponding AI UI surfaces.
+  - API mode remains fail-closed for PNL, positions, orders, trade-history and operational-log areas whose canonical read models remain absent.
+  - Explicit fixture previews remain development/E2E-only and cannot authorize execution or model promotion.
+  - Playwright validation passed 10 of 10 portal browser journeys including a 3440x1440 wide-desktop case.
+  - Final PR #227 Portal Web CI, Portal Universal E2E, AI Platform CI, Freqtrade CI and zizmor all passed; Pre-commit Types was skipped and not a failure gate.
+  - PR #227 was squash-merged to develop as a4b01fdb14b3572f601cab3658867d7246ec2b29.
 derived:
-  - P6 can be closed only after its originally declared core operations surfaces are represented truthfully, not when the initial shell alone is merged.
-  - P8/P9 backend foundation tasks may be historically complete while canonical stage completion depends on their UI deliverables.
-unknown:
-  - repository CI result for the current branch
+  - Remaining read-model gaps are explicit future bounded backend/product work and are not hidden by placeholder data in API mode.
+  - This task can close without claiming that live capital, real Cloudflare staging or every future product capability is complete.
+unknown: []
 conflicts: []
 first_failure:
-  marker: local-sandbox-github-dns
-  evidence: Local git clone could not resolve github.com; repository writes continue through the authorized GitHub connector and CI is the executable validation gate.
+  marker: playwright-open-link-selector
+  evidence: The bot-detail E2E locator matched the Open Positions navigation link by partial accessible name; exact-link selection fixed the test without changing the product route contract.
 changed_paths:
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
@@ -112,11 +116,23 @@ changed_paths:
   - ai_platform/portal/learning/service.py
   - ai_platform/portal/web/
   - tests/ai_platform/portal/control_plane/test_api.py
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+  - docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md
+  - docs/ai_platform/portal/README.md
+  - docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md
+  - docs/agents/tasks/FTAI-20260722-portal-p8-trade-intelligence.md
+  - docs/agents/tasks/FTAI-20260722-portal-p9-continual-learning.md
 validation:
-  - command: compare develop...feat/portal-ui-completion-20260723
+  - command: Portal Web CI 30036028750
     result: PASS
-    evidence: branch is ahead of develop and behind_by=0 after implementation writes
-blockers:
-  - local sandbox cannot reach github.com, so local npm/python validation is unavailable
-next_action: Correct canonical roadmap and historical task records, open a draft PR against develop, then use repository CI as the executable gate and fix only concrete failures until all required checks are green.
+  - command: Portal Universal E2E 30036028910
+    result: PASS
+  - command: AI Platform CI 30036028844
+    result: PASS
+  - command: Freqtrade CI 30036028786
+    result: PASS
+  - command: zizmor 30036028801
+    result: PASS
+blockers: []
+next_action: Declare separate bounded tasks from UI_DELIVERY_STATUS.md only when implementing the remaining canonical read-model gaps; do not reopen this completed UI delivery task.
 ```

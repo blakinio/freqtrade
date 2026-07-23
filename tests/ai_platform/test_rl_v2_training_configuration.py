@@ -35,10 +35,10 @@ def _collect_keys(value: Any) -> set[str]:
             keys.update(_collect_keys(child))
         return keys
     if isinstance(value, list):
-        keys: set[str] = set()
+        list_keys: set[str] = set()
         for child in value:
-            keys.update(_collect_keys(child))
-        return keys
+            list_keys.update(_collect_keys(child))
+        return list_keys
     return set()
 
 

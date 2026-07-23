@@ -1,11 +1,15 @@
 import { cookies } from "next/headers";
 
 import { StatusPill } from "@/components/status-pill";
+import { getRuntimeLogAvailability } from "@/lib/product-api";
 import { listExecutionActivity } from "@/lib/portal-api";
 
 export default async function ExecutionLogsPage() {
   const cookieHeader = (await cookies()).toString();
-  const entries = await listExecutionActivity(cookieHeader);
+  const [entries, runtimeLogs] = await Promise.all([
+    listExecutionActivity(cookieHeader),
+    getRuntimeLogAvailability(cookieHeader),
+  ]);
 
   return (
     <section className="page-stack">
@@ -14,8 +18,8 @@ export default async function ExecutionLogsPage() {
         <span className="freshness">Audited correlation-aware activity</span>
       </div>
       <div className="status-banner status-info">
-        <strong>Not raw runtime stdout/stderr</strong>
-        <span>This surface shows durable, permission-gated execution-related audit activity. Centralized container logs remain a separate read-model gap.</span>
+        <strong>Raw runtime logs: {runtimeLogs.available ? "available" : "unavailable"}</strong>
+        <span>{runtimeLogs.available ? runtimeLogs.source : `${runtimeLogs.reason_code}. This surface therefore shows durable execution-related audit evidence only.`}</span>
       </div>
       <article className="panel">
         {entries.length === 0 ? (

@@ -42,9 +42,7 @@ def _session_factory():
     return build_session_factory(engine)
 
 
-def test_universal_scenario_executes_simulated_trade_and_learning_candidate_without_model_mutation() -> (
-    None
-):
+def test_universal_scenario_creates_candidate_without_model_mutation() -> None:
     manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
     context = _context(
         Permission.BOT_CREATE,

@@ -19,7 +19,7 @@ export default async function BotsPage() {
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Bot</th><th>Desired</th><th>Observed</th><th>Strategy / model</th><th>Markets</th><th>Mode</th></tr></thead>
+              <thead><tr><th>Bot</th><th>Desired</th><th>Observed</th><th>Strategy / model</th><th>Markets</th><th>Mode</th><th>Details</th></tr></thead>
               <tbody>
                 {bots.map((bot) => (
                   <tr key={bot.bot_id}>
@@ -29,6 +29,7 @@ export default async function BotsPage() {
                     <td><strong>{bot.spec.strategy_version}</strong><span>{bot.spec.model_version}</span></td>
                     <td>{bot.spec.pair_universe.join(", ")}</td>
                     <td><StatusPill value={bot.spec.execution_mode} /></td>
+                    <td><Link className="text-link" href={`/bots/${encodeURIComponent(bot.bot_id)}`}>Open</Link></td>
                   </tr>
                 ))}
               </tbody>

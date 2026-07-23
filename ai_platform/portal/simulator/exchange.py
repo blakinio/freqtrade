@@ -116,7 +116,7 @@ class DeterministicExchangeSimulator:
             fees=Decimal("0"),
             exit_reason="scenario_exit",
             opened_at=self.manifest.entry_tick.occurred_at,
-            closed_at=self.manifest.entry_tick.occurred_at,
+            closed_at=self.manifest.exit_tick.occurred_at,
             reconciliation_status=ReconciliationStatus.SYNCED,
             loss_exceeded_risk_budget=False,
         )

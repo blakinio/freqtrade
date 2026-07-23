@@ -68,7 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <aside className="sidebar" aria-label="Primary navigation">
+      <aside className="sidebar">
         <div className="brand-block">
           <span className="brand-mark" aria-hidden="true">FT</span>
           <div>
@@ -76,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span>Operations console</span>
           </div>
         </div>
-        <nav className="primary-nav">
+        <nav className="primary-nav" aria-label="Primary navigation">
           {navigationGroups.map((group) => (
             <div className="nav-group" key={group.label}>
               <span className="nav-group-title">{group.label}</span>

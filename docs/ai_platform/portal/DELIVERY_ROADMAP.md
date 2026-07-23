@@ -292,7 +292,7 @@ Acceptance:
 
 ## P11 — Cloudflare production-like staging
 
-Status: `planned`
+Status: `blocked`
 
 Goal: validate the platform through the real protected external ingress path.
 
@@ -314,6 +314,8 @@ Acceptance:
 - automated staging E2E authenticates without a security bypass endpoint;
 - exchange execution remains simulated by default.
 
+Repository-side P11 contracts, verifier, workflow and runbooks may be complete while this stage remains blocked on real owner-approved external infrastructure. The owner explicitly deferred provisioning/verification of the real Cloudflare and protected GitHub staging environment until the software platform is otherwise ready. This deferral does not waive any P11 acceptance criterion.
+
 ## P12 — Autonomous diagnosis and bounded repair
 
 Status: `planned`
@@ -330,6 +332,8 @@ Deliverables:
 - targeted/full validation routing;
 - PR generation with evidence;
 - unsafe repair detection.
+
+Simulation-first sequencing is authorized once deterministic P10 failure evidence bundles and repository-side P11 staging/security contracts are stable. This mode may use local, simulator and CI evidence, but it must label that evidence as simulated/non-production and cannot claim that real Cloudflare ingress or production-like staging acceptance has been proven.
 
 Acceptance:
 
@@ -391,10 +395,12 @@ P1 -----> P2 -----> P3 -----> P4
  |
  +-----------------------------------> P10
 
-P3 + P4 + P6 + P7 + P8 + P10 ----> P11 ----> P12
+P3 + P4 + P6 + P7 + P8 + P10 ----> P11 repository-side staging contract
+P10 deterministic evidence + P11 repository-side contract ----> P12 simulation-first
+P11 real External E2E ------------------------------------------> production-like staging acceptance
 
 P13 only after measured need
 P14 remains separately blocked/authorized
 ```
 
-Parallel work is allowed only where owned paths and contracts are disjoint and dependencies are satisfied.
+Parallel work is allowed only where owned paths and contracts are disjoint and dependencies are satisfied. Simulation-first P12 does not satisfy or replace the later real P11 external acceptance gate.

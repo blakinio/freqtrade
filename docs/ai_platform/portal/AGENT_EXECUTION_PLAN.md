@@ -46,7 +46,7 @@ All agents inherit these protected boundaries:
 | Learning loop | `FTAI-portal-p9-learning-loop` | `ai_platform/portal/learning/**` | P5, P8 | P5/P8 contracts |
 | Simulator + universal E2E | `FTAI-portal-p10-universal-e2e` | `ai_platform/portal/simulator/**`, `ai_platform/portal/e2e/**` | P1; expands with P2-P9 | simulator can start early |
 | Cloudflare staging | `FTAI-portal-p11-cloudflare-staging` | `ai_platform/portal/deploy/cloudflare/**`, staging runbooks | P3, P6, P10 | core portal deployable |
-| Autonomous repair | `FTAI-portal-p12-autonomous-repair` | `ai_platform/portal/quality_agent/**`, bounded agent tooling | P10, P11 | evidence bundle stable |
+| Autonomous repair | `FTAI-portal-p12-autonomous-repair` | `ai_platform/portal/quality_agent/**`, bounded agent tooling | P10 deterministic evidence bundles, P11 repository-side contracts | deterministic evidence bundle stable |
 
 Task IDs in individual task records should add a date prefix when declared, e.g. `FTAI-20260722-portal-p1-contracts-security`.
 
@@ -99,7 +99,9 @@ P6 may use generated/mock API clients before all backend endpoints are complete,
 
 ### Wave E — autonomous repair
 
-P12 begins only after failure evidence bundles and staging E2E are stable. Otherwise the agent will diagnose test-environment noise rather than product defects.
+Owner-approved sequencing exception (2026-07-23): P12 may begin in **simulation-first mode** once deterministic P10 failure evidence bundles and the repository-side P11 staging/security contracts are stable. Simulation-first P12 may diagnose seeded or reproducible local/CI defects and prepare bounded regression-test-first fixes, but simulated Cloudflare behavior is not evidence that real P11 staging acceptance passed.
+
+Real `Portal Staging External E2E` against owner-approved Cloudflare resources remains mandatory before production-like staging can be declared complete or used as real-environment promotion evidence. P12 simulation-first work must not deploy production, mutate real external infrastructure, access production exchange secrets or enable live capital.
 
 ## 5. Agent task template
 
@@ -321,6 +323,8 @@ Infrastructure changes require explicit owner approval where they affect a real 
 Goal:
 
 Use E2E evidence to reproduce defects and prepare regression-test-first fixes.
+
+Simulation-first execution is authorized before real P11 external infrastructure is provisioned, provided the input is deterministic P10/local/CI evidence and every result is labeled as simulated/non-production evidence. This mode cannot claim real Cloudflare ingress validation or production-like staging acceptance.
 
 Acceptance:
 

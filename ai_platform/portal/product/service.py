@@ -8,7 +8,7 @@ from uuid import uuid4
 from ai_platform.portal.contracts.audit import AuditAction, AuditResult
 from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.contracts.identity import Permission, RoleName
-from ai_platform.portal.contracts.risk import RiskDecisionCode, TradeSide
+from ai_platform.portal.contracts.risk import RiskDecisionOutcome, TradeSide
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.control_plane.repository import BotRepository
@@ -251,7 +251,7 @@ class ProductCapabilityService:
                     )
             if preference.risk_events:
                 for decision in self._risk_repository.list_risk_decisions(session, context.tenant_id):
-                    rejected = decision.decision is RiskDecisionCode.REJECTED
+                    rejected = decision.decision is RiskDecisionOutcome.REJECTED
                     entries.append(
                         NotificationEntry(
                             notification_id=f"risk:{decision.risk_decision_id}",

@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "integration_id": "rl-v2-runtime-integration-v1",
+  "status": "runtime_integration_only",
+  "task": "docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md",
+  "synthetic_reference": {
+    "path": "ai_platform/experimental_model_research/rl-v2-synthetic-implementation-v1.json",
+    "implementation_id": "rl-v2-synthetic-implementation-v1"
+  },
+  "runtime_binding": {
+    "backend_family": "stable_baselines3_via_freqai_reinforcement_learner",
+    "algorithm_family": "PPO",
+    "policy_family": "MlpPolicy",
+    "model_path": "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py",
+    "model_class": "DesiredPositionReinforcementLearner",
+    "environment_class": "DesiredPositionEnvironment",
+    "strategy_path": "ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py",
+    "strategy_class": "AiDesiredPositionRLResearchStrategy"
+  },
+  "action_semantics": {
+    "type": "desired_position",
+    "actions": {
+      "0": "target_flat",
+      "1": "target_long"
+    },
+    "action_space_size": 2,
+    "long_only": true,
+    "short_actions_present": false,
+    "policy_requires_hidden_current_position": false,
+    "training_inference_meaning_identical": true,
+    "transition_reference": "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_transition"
+  },
+  "reward_binding": {
+    "reference": "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward",
+    "constants_source": "ai_platform.scripts.rl_v2_synthetic_reference.REWARD_REFERENCE",
+    "redefines_reward_constants": false,
+    "future_market_information_used": false
+  },
+  "strategy_binding": {
+    "entry_requires_do_predict": 1,
+    "entry_action": "target_long",
+    "exit_requires_do_predict": 1,
+    "exit_action": "target_flat",
+    "current_position_required_to_interpret_policy_action": false,
+    "short_entry_supported": false,
+    "short_exit_supported": false
+  },
+  "observability_binding": {
+    "accumulator": "ai_platform.scripts.rl_v2_synthetic_reference.RLV2ObservabilityAccumulator",
+    "action_counts_by_pair_and_action": true,
+    "action_histogram_includes_zero_count_actions": true,
+    "do_predict_accepted_rejected_by_pair": true,
+    "pre_trade_entry_exit_signals_by_pair": true,
+    "raw_backtest_trade_count": true,
+    "strict_oos_input_included_excluded_counts": true,
+    "runtime_counts_fabricated_without_execution": false
+  },
+  "scope": {
+    "runtime_adapter_implementation_allowed": true,
+    "static_binding_tests_allowed": true,
+    "synthetic_binding_tests_allowed": true,
+    "training_config_allowed": false,
+    "experiment_manifest_allowed": false,
+    "run_request_allowed": false,
+    "training_allowed": false,
+    "model_fitting_allowed": false,
+    "backtest_allowed": false,
+    "historical_evaluation_allowed": false,
+    "market_data_download_allowed": false,
+    "hyperopt_allowed": false,
+    "reward_parameter_search_allowed": false,
+    "feature_search_allowed": false,
+    "hyperparameter_search_allowed": false,
+    "strict_oos_execution_allowed": false,
+    "performance_evaluation_allowed": false,
+    "future_evaluation_window_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false
+  },
+  "heavy_runtime_safety": {
+    "freqai_rl_import_required_for_static_tests": false,
+    "training_required_for_validation": false,
+    "backtest_required_for_validation": false,
+    "market_data_required_for_validation": false
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "future_evaluation_window_selected": false,
+    "frozen_entry_prediction_threshold": 0.006,
+    "frozen_exit_prediction_threshold": -0.009,
+    "phase6_authoritative_selected_model": null,
+    "phase6_member": false
+  }
+}

@@ -1,22 +1,16 @@
 ---
 task_id: FTAI-20260723-portal-remaining-product-capabilities
-status: active
+status: done
 branch: feat/portal-remaining-product-capabilities-20260723
 base_branch: develop
 created: 2026-07-23
-updated: 2026-07-23
-related_pr: null
+updated: 2026-07-24
+related_pr: "#232"
 owned_paths:
-  - ai_platform/portal/control_plane/
-  - ai_platform/portal/operations/
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/product/
   - ai_platform/portal/web/
-  - ai_platform/portal/contracts/
-  - ai_platform/portal/notifications/
-  - ai_platform/portal/signals/
-  - ai_platform/portal/strategies/
-  - ai_platform/portal/identity/
-  - ai_platform/portal/admin/
-  - ai_platform/portal/observability/
   - tests/ai_platform/portal/
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - docs/agents/tasks/FTAI-20260723-portal-remaining-product-capabilities.md
@@ -43,10 +37,10 @@ Close the remaining software-addressable portal product gaps after PRs #227 and 
 - Grid Bot configuration as a dry-run strategy template only; no live-capital authority.
 - Notification preferences and durable in-app notification read model.
 - Profile/security self-service read model for the authenticated portal identity; no credential secret exposure.
-- Permission-gated administration read model for tenant membership/roles using existing authorization contracts where available.
-- Model Health drift-status read model derived only from authoritative persisted evidence available in-repository.
+- Permission-gated administration read model using existing authorization contracts where available.
+- Model Health status derived only from authoritative persisted evidence available in-repository; unavailable drift telemetry remains explicit.
 - Bounded runtime/execution log evidence where authoritative events already exist; do not fabricate raw stdout/stderr.
-- Unrealized performance only if it can be derived from authoritative operational position evidence without introducing market-price fabrication.
+- Unrealized performance only if it can be derived from authoritative operational position/valuation evidence without introducing market-price fabrication.
 - Browser/API tests and delivery-status documentation.
 
 ## Explicitly out of scope
@@ -56,7 +50,7 @@ Close the remaining software-addressable portal product gaps after PRs #227 and 
 - Implementing real order submission merely to make UI appear complete.
 - Weakening deliberately fail-closed private execution adapter boundaries without a separately reviewed runtime-integration contract.
 - Protected final-holdout access, Phase 6 changes, frozen-threshold changes or model auto-promotion.
-- Fabricating drift, PNL, signal, runtime-log, security or admin records when no authoritative source exists.
+- Fabricating drift, unrealized PNL, runtime logs, identity lifecycle or external delivery evidence when no authoritative source exists.
 
 ## Acceptance criteria
 
@@ -73,11 +67,11 @@ Close the remaining software-addressable portal product gaps after PRs #227 and 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T23:40:00+02:00
-head: pending-first-task-commit
+updated_at: 2026-07-24T00:37:00+02:00
+head: e3d0fbf48632a449ce5b1e3aad1de46d95dad43b
 branch: feat/portal-remaining-product-capabilities-20260723
-pr: null
-status: active
+pr: "#232"
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
@@ -85,19 +79,43 @@ context_routes:
 proven:
   - PR #227 completed the broad portal UI/navigation foundation and trusted P8/P9 read-only integrations.
   - PR #229 added bounded operational read models for orders, positions, trades, realized performance, risk events, audit events and execution activity.
-  - Remaining documented gaps include signals, strategy catalog/grid implementation, notifications, profile/security, administration, model drift telemetry and raw runtime/signal logs.
-  - Freqtrade execution/query boundaries remain private and deliberately fail-closed where not separately implemented.
+  - This task added tenant-scoped advisory SignalEvent persistence shared by Signal Wizard and Signal Logs; SignalEvent cannot grant execution authority.
+  - This task added immutable Strategy Catalog metadata and persisted Grid Bot configuration constrained to dry_run and grid-dry-run-v1.
+  - This task added actor-scoped notification preferences and in-app notification views derived from canonical signal, risk-decision and own execution-audit evidence.
+  - This task added trusted Profile and Security context plus ADMIN_MANAGE-gated built-in RBAC overview without exposing credential or exchange secrets.
+  - Model Health now exposes canonical immutable model metadata while drift telemetry truthfully remains UNAVAILABLE until a canonical telemetry source exists.
+  - Execution Activity now exposes an explicit raw-runtime-log availability contract; centralized stdout/stderr remains unavailable rather than fabricated.
+  - Browser mutations use same-origin BFF routes; browser code has no direct Freqtrade, exchange or secret-store path.
+  - Direct Freqtrade order submission and private order/position/trade query paths remain deliberately fail-closed.
+  - AI Platform CI run 30050408641 passed compile, tests, Ruff, Ruff format, Codespell and schema validations on the implementation head.
+  - zizmor run 30050408648 passed on the implementation head.
+  - deterministic Universal E2E backend scenario passed on run 30050408646.
+  - temporary diagnostic Chromium validation on run 30050408701 passed all 12 portal browser journeys after locator fixes.
 derived:
-  - Remaining work must be split by authoritative data ownership rather than solved with fixture data in API mode.
-unknown:
-  - Exact current reusable identity/admin/strategy/signal contracts available on develop; inspect before implementation.
+  - Remaining partial product states are hard external/private-integration dependencies, not hidden UI shells: canonical drift telemetry, centralized raw runtime logs, authoritative unrealized valuation, reviewed private Freqtrade runtime queries, external notification delivery and external-IdP MFA/session/membership lifecycle.
+  - Real P11 External E2E remains a separate blocked infrastructure gate and this task provides no evidence that it passed.
+unknown: []
 conflicts: []
 first_failure:
-  marker: none-yet
-  evidence: Task declared after live preflight; no implementation validation has run yet.
+  marker: lint-and-browser-acceptance-fixes
+  evidence: Initial validation found Ruff route/notification complexity, an ESLint server-component catch/render issue and two ambiguous Playwright locators; implementation was refactored and the latest diagnostic browser suite passed 12 of 12.
 changed_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/product/
+  - ai_platform/portal/web/
+  - tests/ai_platform/portal/
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - docs/agents/tasks/FTAI-20260723-portal-remaining-product-capabilities.md
-validation: []
+validation:
+  - command: AI Platform CI 30050408641
+    result: PASS
+  - command: zizmor 30050408648
+    result: PASS
+  - command: Portal Universal E2E backend scenario 30050408646
+    result: PASS
+  - command: temporary Chromium diagnostic 30050408701
+    result: PASS 12/12
 blockers: []
-next_action: Inspect current develop contracts and route implementations for signals, strategies, identity, authorization, notifications and model-health evidence, then implement the smallest authoritative services without weakening execution or staging boundaries.
+next_action: Remove the temporary diagnostic workflow, require the standard repository CI suite to pass on the final cleanup head, then merge PR #232. Resume remaining hard external/private integrations only as separately authorized bounded tasks; do not claim P11 or enable live capital.
 ```

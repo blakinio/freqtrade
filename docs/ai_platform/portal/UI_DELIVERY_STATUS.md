@@ -37,7 +37,7 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 | Orders | `/orders` | read-model gap + fixture preview | private execution order query not yet exposed |
 | Trade History | `/trades` | read-model gap + fixture preview | normalized trade mirror query not yet exposed |
 | View Bots | `/bots` | integrated | control-plane bot API |
-| Bot Detail | `/bots/[botId]` | integrated | control-plane bot API |
+| Bot Detail | `/bots/detail/[botId]` | integrated | control-plane bot API |
 | Create Bot | `/bots/new` | integrated for dry-run | same-origin BFF -> control plane |
 | Signal Wizard | `/bots/signals` | shell | signal ingestion contract pending |
 | Strategy Catalog | `/bots/strategies` | shell / fixture preview | catalog query contract pending |

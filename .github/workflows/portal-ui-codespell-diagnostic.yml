@@ -1,4 +1,4 @@
-name: Portal UI Codespell Diagnostic
+name: Portal UI Diagnostics
 
 on:
   pull_request:
@@ -27,7 +27,36 @@ jobs:
           python-version: "3.12"
 
       - name: Install codespell
-        run: python -m pip install --disable-pip-version-check codespell==2.4.2
+        run: python -m pip install --disable-pip-version-check --quiet codespell==2.4.2
 
       - name: Codespell only
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform
+
+  web-e2e:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          package-manager-cache: false
+
+      - name: Install dependencies quietly
+        run: npm ci --silent
+
+      - name: Install Chromium quietly
+        run: npx playwright install --with-deps chromium >/dev/null 2>&1
+
+      - name: Chromium E2E only
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+        run: npx playwright test --reporter=line

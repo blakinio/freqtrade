@@ -163,6 +163,14 @@ def test_workflow_uses_dedicated_pre_oos_cache_without_restore_fallbacks() -> No
     assert "--cache none" in source
 
 
+def test_workflow_uses_runner_temp_only_inside_shell_steps() -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    runtime_config = "$RUNNER_TEMP/rl-v2-historical-training-execution.json"
+
+    assert "RUN_CONFIG: ${{ runner.temp }}" not in source
+    assert source.count(runtime_config) == 3
+
+
 def test_workflow_runs_exactly_one_rl_v2_backtest_surface() -> None:
     source = WORKFLOW_PATH.read_text(encoding="utf-8")
 

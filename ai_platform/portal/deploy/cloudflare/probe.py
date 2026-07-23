@@ -15,8 +15,8 @@ from ai_platform.portal.deploy.cloudflare.schema import StagingIngressPolicy
 
 
 class ProbeOutcome(StrEnum):
-    PASS = "PASS"
-    FAIL = "FAIL"
+    SUCCESS = "success"
+    FAILURE = "failure"
 
 
 @dataclass(frozen=True)
@@ -73,19 +73,23 @@ def _request_result(
     try:
         return client.get(url, headers=headers), None
     except httpx.RequestError as exc:
-        return None, ProbeResult(name, ProbeOutcome.FAIL, f"unreachable:{type(exc).__name__}")
+        return None, ProbeResult(name, ProbeOutcome.FAILURE, f"unreachable:{type(exc).__name__}")
+
+
+def _missing_response(name: str) -> ProbeResult:
+    return ProbeResult(name, ProbeOutcome.FAILURE, "missing-response")
 
 
 def _deny_probe(client: httpx.Client, name: str, url: str) -> ProbeResult:
     try:
         response = client.get(url)
     except httpx.RequestError as exc:
-        return ProbeResult(name, ProbeOutcome.PASS, f"unreachable:{type(exc).__name__}")
+        return ProbeResult(name, ProbeOutcome.SUCCESS, f"unreachable:{type(exc).__name__}")
     if response.status_code in {401, 403, 421, 451}:
-        return ProbeResult(name, ProbeOutcome.PASS, f"denied:http-{response.status_code}")
+        return ProbeResult(name, ProbeOutcome.SUCCESS, f"denied:http-{response.status_code}")
     return ProbeResult(
         name,
-        ProbeOutcome.FAIL,
+        ProbeOutcome.FAILURE,
         f"unexpected-public-response:http-{response.status_code}",
     )
 
@@ -111,13 +115,14 @@ def run_probes(
         public, public_error = _request_result(client, "cloudflare-public-ingress", base_url)
         if public_error is not None:
             results.append(public_error)
+        elif public is None:
+            results.append(_missing_response("cloudflare-public-ingress"))
         else:
-            assert public is not None
             public_ok = 200 <= public.status_code < 400
             results.append(
                 ProbeResult(
                     "cloudflare-public-ingress",
-                    ProbeOutcome.PASS if public_ok else ProbeOutcome.FAIL,
+                    ProbeOutcome.SUCCESS if public_ok else ProbeOutcome.FAILURE,
                     f"http-{public.status_code}",
                 )
             )
@@ -129,13 +134,14 @@ def run_probes(
         )
         if anonymous_error is not None:
             results.append(anonymous_error)
+        elif anonymous is None:
+            results.append(_missing_response("access-anonymous-denial"))
         else:
-            assert anonymous is not None
             anonymous_denied = anonymous.status_code in {401, 403} or _is_access_redirect(anonymous)
             results.append(
                 ProbeResult(
                     "access-anonymous-denial",
-                    ProbeOutcome.PASS if anonymous_denied else ProbeOutcome.FAIL,
+                    ProbeOutcome.SUCCESS if anonymous_denied else ProbeOutcome.FAILURE,
                     f"http-{anonymous.status_code}",
                 )
             )
@@ -151,13 +157,14 @@ def run_probes(
         )
         if service_error is not None:
             results.append(service_error)
+        elif service is None:
+            results.append(_missing_response("access-service-identity"))
         else:
-            assert service is not None
             service_allowed = 200 <= service.status_code < 400 and not _is_access_redirect(service)
             results.append(
                 ProbeResult(
                     "access-service-identity",
-                    ProbeOutcome.PASS if service_allowed else ProbeOutcome.FAIL,
+                    ProbeOutcome.SUCCESS if service_allowed else ProbeOutcome.FAILURE,
                     f"http-{service.status_code}",
                 )
             )
@@ -179,7 +186,7 @@ def main() -> int:
         print(json.dumps({"passed": False, "error": str(exc)}, indent=2))
         return 2
     payload = {
-        "passed": all(result.outcome is ProbeOutcome.PASS for result in results),
+        "passed": all(result.outcome is ProbeOutcome.SUCCESS for result in results),
         "results": [asdict(result) for result in results],
     }
     print(json.dumps(payload, indent=2))

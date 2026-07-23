@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260723-rl-v2-historical-training-execution
-status: active
+status: done
 branch: develop
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: "200"
+related_pr: "218"
 owned_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-execution.md
   - docs/ai_platform/RL_V2_HISTORICAL_TRAINING_EXECUTION.md
@@ -125,11 +125,11 @@ This task may add only:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T15:39:05+02:00
-head: 3268d391312a549b84acd282f0f29fc4df391908
+updated_at: 2026-07-23T19:31:00+02:00
+head: d5d8fc583f9d5da980a0fec8f24c46966f4e2c8b
 branch: develop
-pr: 200
-status: ready
+pr: 218
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md
   - docs/ai_platform/RL_V2_TRAINING_CONFIGURATION.md
@@ -142,52 +142,42 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_historical_training_execution.py
   - .github/workflows/ai-platform-rl-v2-historical-training-execution.yml
 proven:
-  - PR #184 merged the frozen non-executing RL-v2 training configuration and PR #186 closed that configuration task; declaration PR #187 then created this bounded execution task before implementation.
-  - PR #188 added the separate RL-v2 execution contract, canonical request validator/materializer, request-triggered workflow, tests and documentation without adding a run request or executing a model.
-  - Frozen geometry is download 20250801-20260501, execution 20260301-20260501, train_period_days 90, backtest_period_days 61, BTC/USDT plus ETH/USDT, 15m plus 1h plus 4h, Kraken spot and fee 0.002.
-  - PR #188 final head passed AI Platform CI, zizmor and every applicable Freqtrade CI platform job, then squash-merged as aa974bb16d8724d171c5ebc45e26a3a8cfc63841.
-  - Trigger PRs #193 and #195 produced zero dedicated workflow runs and were closed without merge, so neither consumed the one-shot execution or accessed market data.
-  - Diagnostic PR #194 plus actionlint isolated the zero-run cause to job-level env use of unavailable runner context for RUN_CONFIG.
-  - Repair PR #196 moved runtime config path construction to step-level $RUNNER_TEMP, added a regression test, passed actionlint and repository CI, and squash-merged as a1910dcc934b0d185a1e3378b61fee90ada0bfba.
-  - Checkpoint PR #198 recorded the repair state and squash-merged as 3268d391312a549b84acd282f0f29fc4df391908.
-  - Diagnostic PR #199 regenerated and validated the post-repair canonical request; its repaired workflow_sha256 is 7311fe6cd53e5e9a0ecec6b923a13265a0308a4c1175170774b8765c060bd74b.
-  - Trigger PR #200 changed exactly the canonical run-request file and successfully created dedicated workflow run 30011986442, proving the repaired workflow now starts.
-  - Run 30011986442 passed exact-one-file scope validation and then failed closed at bounded checkpoint validation before Python setup; data preparation and backtest jobs were skipped.
-  - No RL-v2 market-data download, model training, backtest, consumed historical OOS access or protected final holdout access has occurred yet; the one-shot execution remains unconsumed.
-  - Protected final holdout 20260801-20260930 remains unused, frozen thresholds 0.006/-0.009 remain unchanged and Phase 6 selected_model remains null.
+  - PR #188 merged the guarded RL-v2 historical execution infrastructure and later repair PRs #196 and #208 fixed workflow registration and repository-package visibility without changing frozen model, strategy, reward, features or execution geometry.
+  - Trigger PR #218 changed exactly the canonical run-request file and was closed without merge after dedicated workflow run 30022863894 reached terminal success.
+  - Run 30022863894 passed exact-one-file scope, bounded checkpoint and fresh canonical request validation before runtime or data access.
+  - BTC/USDT and ETH/USDT data jobs downloaded or restored only the declared 20250801-20260501 Kraken spot history for 15m, 1h and 4h, then passed fail-closed pre-OOS coverage verification.
+  - Combined data were re-verified before execution; evidence metadata records consumed_historical_oos_accessed=false and protected_final_holdout_accessed=false.
+  - Exactly one frozen `freqtrade backtesting` command executed on trigger head 36f175477c848ae2ecfc92dbd335d7573af4933d with execution timerange 20260301-20260501 and semantic evidence window 20260301-20260430.
+  - FreqAI trained the frozen PPO/MlpPolicy RL-v2 model once per pair for BTC/USDT and ETH/USDT using the declared 90-day trailing training geometry, then completed the 61-day historical backtest successfully.
+  - Historical-development result: 174 trades, final balance 9952.148 USDT from 10000 USDT, absolute profit -47.852 USDT, total profit -0.48%, profit factor 0.65, with 89 wins and 85 losses.
+  - Result classification is historical_development_evidence with strict_oos=false and protected_final_validation=false; it is negative development evidence only and creates no ranking, promotion, profitability or superiority claim.
+  - Immutable execution artifact `rl-v2-historical-training-execution-218` was uploaded with digest sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55 and contains raw backtest, effective runtime config, coverage and provenance metadata.
+  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain unused; frozen thresholds remain 0.006/-0.009 and Phase 6 selected_model remains null.
 derived:
-  - The post-repair canonical request from PR #199 remains canonical across a checkpoint-only repair because the request hashes contract, descriptor, config, model, strategy, validator and workflow, not the task checkpoint file.
-  - A fresh trigger must branch from develop after the checkpoint compactness fix so the exact trigger head contains a governance-valid task checkpoint while still differing from develop by only the canonical request file.
-  - March-April output remains historical development evidence only and cannot be treated as strict OOS, protected final validation or promotion evidence.
-unknown:
-  - Whether the first execution that passes checkpoint validation will accept the direct frozen FreqAI backtesting surface without an additional runtime adapter.
+  - The bounded RL-v2 historical training/execution objective is complete because the declared one-shot run reached terminal success and immutable historical-development evidence was captured.
+  - The observed negative March-April result cannot be used as strict-OOS, protected-final-validation, cross-track selection or promotion evidence.
+  - Any further RL-v2 execution, evaluation, tuning, comparison or holdout work requires a new prospectively bounded task rather than reusing this completed trigger path.
+unknown: []
 conflicts: []
 first_failure:
-  marker: checkpoint_compactness_gate
-  evidence: Dedicated run 30011986442 started on trigger PR #200 and passed exact-one-file scope validation, then tools/agents/checkpoint.py rejected the task checkpoint before Python or data access because the PR #198 checkpoint recorded 18 proven facts while governance compactness permits at most 16.
+  marker: resolved_freqtrade_dynamic_strategy_import_path
+  evidence: The prior #202 runtime import failure was repaired by PR #208; run 30022863894 subsequently resolved both AiDesiredPositionRLResearchStrategy and DesiredPositionReinforcementLearner and completed training/backtesting successfully.
 rejected_hypotheses:
-  - Treat PR #193, #195 or #200 as consumed one-shot executions despite no market-data or model execution.
-  - Reuse consumed OOS 20260501-20260630 as RL-v2 evaluation evidence.
-  - Access protected final holdout 20260801-20260930.
-  - Call March-April evidence strict OOS or final validation.
-  - Restore older historical caches that may contain May-June or later data.
-  - Retune PPO, policy, reward, features or thresholds from this execution package.
-  - Rank RL-v2 against PyTorch or completed Phase 6 candidates.
+  - Treat March-April 2026 evidence as strict OOS or protected final validation.
+  - Reuse consumed OOS 20260501-20260630 for tuning, validation or scoring.
+  - Access protected final holdout 20260801-20260930 before its separately governed one-shot evaluation.
+  - Retune PPO, policy, reward, features or thresholds based on this run.
+  - Rank RL-v2 against PyTorch or completed Phase 6 candidates from this task.
+  - Infer profitability, superiority or promotion eligibility from the completed historical-development run.
 changed_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-execution.md
 validation:
-  - command: PR #196 actionlint and repository CI
+  - command: dedicated workflow run 30022863894
     result: PASS
-    evidence: Exact repair head 612beb0060171df2fb85b203763590d3a2d7af62 passed actionlint v1.7.7, AI Platform CI, zizmor, pre-commit and all applicable Freqtrade CI platform jobs.
-  - command: PR #199 canonical request generation and self-validation
+    evidence: Request validation, both pair data jobs, combined coverage re-verification, exactly one frozen historical training/backtest, provenance recording and immutable artifact upload all completed successfully.
+  - command: execution artifact inspection
     result: PASS
-    evidence: Canonical generator produced and validator accepted the post-repair request with workflow_sha256 7311fe6cd53e5e9a0ecec6b923a13265a0308a4c1175170774b8765c060bd74b.
-  - command: PR #200 exact trigger scope
-    result: PASS
-    evidence: Dedicated workflow run 30011986442 passed Validate trigger PR scope before runtime or data access.
-  - command: PR #200 bounded checkpoint validation
-    result: FAIL
-    evidence: Dedicated workflow run 30011986442 failed at Validate bounded execution checkpoint before Python setup; data and backtest jobs were skipped.
+    evidence: Metadata confirms historical_development_evidence, strict_oos=false, protected_final_validation=false, consumed_historical_oos_accessed=false and protected_final_holdout_accessed=false; raw result reports 174 trades and -0.48% total profit.
 blockers: []
-next_action: Merge this compact checkpoint repair, then open a new separate PR from updated develop that adds only ai_platform/experimental_model_research/run-requests/rl-v2-historical-training-execution-v1.json using the already validated post-repair canonical payload; do not merge that trigger PR after the one-shot execution.
+next_action: Do not run another historical execution from this completed task; any further RL-v2 evaluation, retuning, comparison, promotion or final-holdout work must start as a separate prospectively bounded task that preserves consumed-OOS and protected-final-holdout boundaries.
 ```

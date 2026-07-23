@@ -4,8 +4,8 @@ status: active
 branch: feat/portal-p9-learning-loop-clean
 base_branch: develop
 created: 2026-07-22
-updated: 2026-07-22
-related_pr: null
+updated: 2026-07-23
+related_pr: "#158"
 owned_paths:
   - ai_platform/portal/learning/
   - tests/ai_platform/portal/learning/
@@ -48,11 +48,11 @@ Turn durable P8 insights into reproducible hypothesis/experiment/candidate histo
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T23:35:00+02:00
-head: 43d27ec0cd892f42fcd6876302280e3fbc155a0f
+updated_at: 2026-07-23T09:48:00+02:00
+head: cb272ae7bc86f1687cb728f4af436693c240cb9a
 branch: feat/portal-p9-learning-loop-clean
-pr: none
-status: active
+pr: 158
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
@@ -65,8 +65,12 @@ proven:
   - LearningCandidate pins source experiment, model family/version, dataset and feature-schema identities and is always created unpromoted/unassigned.
   - Protected final holdout v2 is represented as 2026-08-01T00:00:00Z through 2026-10-01T00:00:00Z exclusive-end and overlapping iterative windows are rejected.
   - Negative experiment history remains durable and cannot produce a candidate.
+  - Clean P9 PR #158 contains only the 11 declared P9-owned files after replacing obsolete stacked PR #149.
+  - Clean P9 implementation head 5f911b8185c10bcf8eb97e3aaade8c37756142e4 passed AI Platform CI 29962706629, Freqtrade CI 29962706531 and zizmor 29962706515.
+  - Sync PR #165 merged current develop into the P9 branch as cb272ae7bc86f1687cb728f4af436693c240cb9a; compare now reports behind_by=0 and only P9-owned files differ from develop.
 derived:
   - P10 can consume P9 candidate provenance without changing active model assignment.
+  - The final checkpoint-only head must pass required merge-state CI before P9 squash-merge.
 unknown: []
 conflicts: []
 first_failure:
@@ -84,7 +88,16 @@ changed_paths:
   - tests/ai_platform/portal/learning/test_learning_service.py
   - docs/ai_platform/portal/CONTINUAL_LEARNING_FOUNDATION.md
   - docs/agents/tasks/FTAI-20260722-portal-p9-continual-learning.md
-validation: []
+validation:
+  - command: AI Platform CI 29962706629
+    result: PASS
+  - command: Freqtrade CI 29962706531
+    result: PASS
+  - command: GitHub Actions Security Analysis with zizmor 29962706515
+    result: PASS
+  - command: compare develop...feat/portal-p9-learning-loop-clean after sync PR #165
+    result: PASS
+    evidence: behind_by=0; diff remains limited to 11 P9-owned files.
 blockers: []
-next_action: Open the clean P9 PR against develop, validate required CI, merge when green, then recreate/synchronize P10 on the merged P9 develop state.
+next_action: Verify required CI on this checkpoint-only synchronized P9 head, squash-merge PR #158 when green, then retarget and validate clean P10 PR #159 against merged develop.
 ```

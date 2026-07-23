@@ -53,10 +53,10 @@ Establish the repository-side fail-closed contract and validation path for produ
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T16:08:45+02:00
+updated_at: 2026-07-23T16:09:32+02:00
 head: cc617105a75b4a1089de578b42e74964a569fc4a
 branch: develop
-pr: "#203"
+pr: "#204"
 status: blocked
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md

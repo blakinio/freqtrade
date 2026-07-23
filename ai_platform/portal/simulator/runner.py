@@ -14,6 +14,7 @@ from ai_platform.portal.intelligence.schema import DecisionSnapshot
 from ai_platform.portal.intelligence.service import TradeIntelligenceService
 from ai_platform.portal.learning.schema import AutonomyLevel, EvidenceWindow, ExperimentOutcome
 from ai_platform.portal.learning.service import LearningService
+from ai_platform.portal.operations.service import OperationalReadService
 from ai_platform.portal.risk.schema import RiskPolicyLimits
 from ai_platform.portal.risk.service import RiskService
 from ai_platform.portal.simulator.exchange import DeterministicExchangeSimulator
@@ -35,6 +36,7 @@ class UniversalScenarioRunner:
         self._risk = RiskService(session_factory)
         self._intelligence = TradeIntelligenceService(session_factory)
         self._learning = LearningService(session_factory)
+        self._operations = OperationalReadService(session_factory)
 
     def run_captured(
         self, context: RequestContext, manifest: ScenarioManifest
@@ -123,7 +125,13 @@ class UniversalScenarioRunner:
                 f"scenario risk gate rejected intent: {risk_result.risk_decision.reason_codes}"
             )
         order = simulator.submit_approved_intent(risk_result, context.correlation_context())
+        position = self._operations.record_filled_order(
+            context,
+            order,
+            source_runtime_id=simulator.runtime_id,
+        )
         outcome = simulator.close_position()
+        self._operations.close_position(context, position.position_id)
 
         decision_snapshot = self._intelligence.record_decision_snapshot(
             context,

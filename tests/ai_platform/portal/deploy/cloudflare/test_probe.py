@@ -36,9 +36,7 @@ def test_external_probe_proves_cloudflare_access_and_direct_path_denials(monkeyp
                 return httpx.Response(200)
             return httpx.Response(
                 302,
-                headers={
-                    "location": "https://example.cloudflareaccess.com/cdn-cgi/access/login"
-                },
+                headers={"location": "https://example.cloudflareaccess.com/cdn-cgi/access/login"},
             )
         if host in {"origin.example.test", "freqtrade.example.test"}:
             return httpx.Response(403)

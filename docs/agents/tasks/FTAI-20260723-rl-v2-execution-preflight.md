@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260723-rl-v2-execution-preflight
 status: active
-branch: feat/rl-v2-execution-preflight-v1
+branch: feat/rl-v2-execution-preflight-final
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: "162"
+related_pr: "163"
 owned_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
   - docs/ai_platform/RL_V2_EXECUTION_PREFLIGHT.md
@@ -105,10 +105,10 @@ A later implementation under this task may add only:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T09:38:00+02:00
-head: 0986d078b3fe109ca5369a971b6fb515b084e597
-branch: feat/rl-v2-execution-preflight-v1
-pr: 162
+updated_at: 2026-07-23T09:44:00+02:00
+head: e25d2293c95c32a232a013bfdb3f4f99b4af8419
+branch: feat/rl-v2-execution-preflight-final
+pr: 163
 status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
@@ -125,9 +125,10 @@ proven:
   - PR #151 merged the frozen RL-v2 desired-position runtime integration as 251fa56aeaaa8fb95c7cdf73015da0c1142dc978 and PR #160 closed its task as 9a5abdf3ce4fcbe0feb5b9a278f237796c8bcd92.
   - Declaration PR #161 passed Freqtrade CI 29965391425 and zizmor 29965391458, then merged to develop as f3d486068110491a302872ecc4e668939ba72930.
   - Current develop was identical to f3d486068110491a302872ecc4e668939ba72930 before implementation branch creation and no open PR overlapped RL-v2 execution-preflight ownership.
-  - PR #162 contains only the declared preflight descriptor, ephemeral config builder, resolver/construction checks, fail-closed tests, dedicated preflight workflow, documentation, and this task checkpoint.
+  - PR #163 contains only the declared preflight descriptor, ephemeral config builder, resolver/construction checks, fail-closed tests, dedicated preflight workflow, documentation, and this task checkpoint.
   - Ephemeral config declares no timerange, train_period_days, backtest_period_days, or live_retrain_hours and rejects those execution-geometry keys if introduced.
   - The heavy preflight path resolves the exact model and strategy, constructs only synthetic in-memory environment frames, checks the two-action desired-position surface and zero-count observability, and contains no fit, learn, train, backtest, or download call.
+  - Stale PR #162 was closed without merge after it failed to synchronize later branch commits into GitHub Actions; PR #163 was recreated from exact head e25d2293c95c32a232a013bfdb3f4f99b4af8419.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden and unreachable from the preflight configuration surface.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
@@ -135,11 +136,11 @@ derived:
   - Successful dedicated heavy-runtime CI would prove runtime resolvability only and would not be model-performance evidence.
 unknown:
   - Whether current FreqAI and StrategyResolver accept the declared minimal ephemeral config without additional construction-only keys.
-  - Whether Ruff formatting or repository-wide CI requires mechanical changes before merge.
+  - Whether Ruff formatting or repository-wide CI requires further mechanical changes before merge.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: PR #162 is open for executable validation; no concrete CI failure has been observed yet.
+  marker: superseded_pr_synchronization
+  evidence: PR #162 did not expose commits later than 0986d078b3fe109ca5369a971b6fb515b084e597 to Actions despite the source branch advancing; it was closed without merge and replaced by PR #163 from exact final implementation head e25d2293c95c32a232a013bfdb3f4f99b4af8419.
 rejected_hypotheses:
   - Add a committed training config, experiment manifest, or run request in this task.
   - Select a historical or future evaluation window during preflight.
@@ -161,5 +162,5 @@ validation:
     result: NOT_RUN
     evidence: No repository checkout is mounted in the current sandbox; executable validation is delegated to repository CI and the dedicated preflight workflow without substituting model execution.
 blockers: []
-next_action: Inspect PR #162 checkpoint, AI Platform CI, Freqtrade CI, zizmor and dedicated RL-v2 execution-preflight workflow on the latest head; fix only the first concrete failure, otherwise squash-merge and close this task checkpoint without adding training, backtest, data access, or evaluation geometry.
+next_action: Inspect PR #163 checkpoint, AI Platform CI, Freqtrade CI, zizmor and dedicated RL-v2 execution-preflight workflow on the latest head; fix only the first concrete failure, otherwise squash-merge and close this task checkpoint without adding training, backtest, data access, or evaluation geometry.
 ```

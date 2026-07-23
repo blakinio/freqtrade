@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260723-rl-v2-execution-preflight
 status: active
-branch: docs/rl-v2-execution-preflight-task
+branch: feat/rl-v2-execution-preflight-v1
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
@@ -105,11 +105,11 @@ A later implementation under this task may add only:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T01:12:00+02:00
-head: 9a5abdf3ce4fcbe0feb5b9a278f237796c8bcd92
-branch: docs/rl-v2-execution-preflight-task
+updated_at: 2026-07-23T01:28:00+02:00
+head: 2278392ff27c3cac459db9b5d472835852dc39f7
+branch: feat/rl-v2-execution-preflight-v1
 pr: none
-status: investigating
+status: implementing
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
   - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
@@ -122,39 +122,44 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_execution_preflight.py
   - .github/workflows/ai-platform-rl-v2-execution-preflight.yml
 proven:
-  - PR #151 merged the frozen RL-v2 desired-position runtime integration as 251fa56aeaaa8fb95c7cdf73015da0c1142dc978.
-  - PR #160 closed the RL-v2 runtime integration task on develop as 9a5abdf3ce4fcbe0feb5b9a278f237796c8bcd92.
-  - Final PR #151 AI Platform CI 29962856917, runtime smoke 29962856904, zizmor 29962857057 and Freqtrade CI 29962856870 succeeded.
-  - The merged runtime exposes exactly target_flat and target_long desired-position actions with canonical synthetic transition, reward and observability bindings.
-  - No current open PR overlaps the declared RL-v2 execution-preflight owned paths.
-  - Stale duplicate runtime-integration PR #154 was closed without merge after the authoritative PR #151/#160 state was discovered.
-  - Consumed historical OOS 20260501-20260630 remains forbidden.
-  - Protected final holdout 20260801-20260930 remains unused and forbidden.
+  - PR #151 merged the frozen RL-v2 desired-position runtime integration as 251fa56aeaaa8fb95c7cdf73015da0c1142dc978 and PR #160 closed its task as 9a5abdf3ce4fcbe0feb5b9a278f237796c8bcd92.
+  - Declaration PR #161 passed Freqtrade CI 29965391425 and zizmor 29965391458, then merged to develop as f3d486068110491a302872ecc4e668939ba72930.
+  - Current develop was identical to f3d486068110491a302872ecc4e668939ba72930 before implementation branch creation and no open PR overlapped RL-v2 execution-preflight ownership.
+  - The implementation adds only a preflight descriptor, ephemeral config builder, resolver/construction checks, fail-closed tests, dedicated preflight workflow, documentation, and this task checkpoint.
+  - Ephemeral config declares no timerange, train_period_days, backtest_period_days, or live_retrain_hours and rejects those execution-geometry keys if introduced.
+  - The heavy preflight path resolves the exact model and strategy, constructs only synthetic in-memory environment frames, checks the two-action desired-position surface and zero-count observability, and contains no fit, learn, train, backtest, or download call.
+  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden and unreachable from the preflight configuration surface.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
-  - The next safe RL-v2 work is a non-result-producing execution preflight only.
-  - No evaluation window may be selected or declared by this task.
-  - Any later training or historical execution requires a separate prospectively declared task after this preflight is merged and frozen.
+  - The explicit minimal construction surface is sufficient in principle for current resolver checks without committing a training configuration or evaluation geometry.
+  - Successful dedicated heavy-runtime CI would prove runtime resolvability only and would not be model-performance evidence.
 unknown:
-  - Exact minimal configuration keys required for safe current-runtime model construction and resolver checks.
-  - Whether current FreqAI resolution requires a dedicated ephemeral in-memory config shape beyond the merged runtime-smoke construction path.
+  - Whether current FreqAI and StrategyResolver accept the declared minimal ephemeral config without additional construction-only keys.
+  - Whether Ruff formatting or repository-wide CI requires mechanical changes before merge.
 conflicts: []
 first_failure:
   marker: none
-  evidence: Declaration-only task; no preflight implementation, model execution, data access, training, or backtest has occurred.
+  evidence: Implementation is prepared but repository CI and the dedicated heavy-runtime preflight have not yet run on the feature branch.
 rejected_hypotheses:
   - Add a committed training config, experiment manifest, or run request in this task.
   - Select a historical or future evaluation window during preflight.
-  - Reuse consumed historical OOS 20260501-20260630.
-  - Access protected final holdout 20260801-20260930.
-  - Train, fit, download data, or backtest during preflight.
+  - Reuse consumed historical OOS 20260501-20260630 or access protected final holdout 20260801-20260930.
+  - Train, fit, download data, backtest, or score performance during preflight.
   - Rank or promote RL-v2 against PyTorch from this task.
 changed_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
+  - docs/ai_platform/RL_V2_EXECUTION_PREFLIGHT.md
+  - ai_platform/experimental_model_research/rl-v2-execution-preflight-v1.json
+  - ai_platform/scripts/rl_v2_execution_preflight.py
+  - tests/ai_platform/test_rl_v2_execution_preflight.py
+  - .github/workflows/ai-platform-rl-v2-execution-preflight.yml
 validation:
-  - command: live develop and overlap preflight
+  - command: required reads and incremental live-state verification
     result: PASS
-    evidence: develop is 9a5abdf3ce4fcbe0feb5b9a278f237796c8bcd92; open PRs #158, #159 and #109 do not overlap RL-v2 preflight paths, and duplicate #154 is closed without merge.
+    evidence: AGENTS.md, CONTEXT_HANDOFF.md, architecture/roadmap, frozen runtime descriptor/model/strategy, resolver bases and existing runtime-smoke construction path were inspected; develop remained f3d486068110491a302872ecc4e668939ba72930 and no overlapping RL-v2 preflight PR was open.
+  - command: local targeted pytest/compile/Ruff
+    result: NOT_RUN
+    evidence: No repository checkout is mounted in the current sandbox; executable validation is delegated to repository CI and the dedicated preflight workflow without substituting model execution.
 blockers: []
-next_action: Implement the bounded RL-v2 execution preflight from current develop using only non-result-producing resolver and configuration-surface checks, then merge it only after checkpoint, AI Platform CI, Freqtrade CI, zizmor and any dedicated preflight workflow are green.
+next_action: Open the RL-v2 execution-preflight implementation PR against develop, update this checkpoint with the PR and exact head, then fix only concrete checkpoint/AI Platform CI/Freqtrade CI/zizmor/dedicated-preflight failures and merge only when all required gates are green.
 ```

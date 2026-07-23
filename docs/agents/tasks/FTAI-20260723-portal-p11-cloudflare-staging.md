@@ -56,7 +56,7 @@ checkpoint_version: 1
 updated_at: 2026-07-23T17:30:00+02:00
 head: 1fe1c680297ec0ec8bfb6b4929183fd435cd6240
 branch: develop
-pr: pending
+pr: "#215"
 status: blocked
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md

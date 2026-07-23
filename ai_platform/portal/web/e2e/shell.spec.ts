@@ -83,7 +83,7 @@ test("renders integrated signal, strategy, notification and security surfaces", 
   await page.goto("/bots/signals");
   await expect(page.getByRole("heading", { name: "Signal Wizard" })).toBeVisible();
   await expect(page.getByText("Advisory evidence only")).toBeVisible();
-  await expect(page.getByText("BTC/USDT", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Pair" })).toHaveValue("BTC/USDT");
 
   await page.goto("/operations/signal-logs");
   await expect(page.getByRole("heading", { name: "Signal Logs" })).toBeVisible();

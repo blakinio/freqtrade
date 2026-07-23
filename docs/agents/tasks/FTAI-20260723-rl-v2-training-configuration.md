@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260723-rl-v2-training-configuration
-status: active
-branch: feat/rl-v2-training-configuration
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
@@ -111,11 +111,11 @@ The committed configuration may define construction/training parameters needed t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T13:37:00+02:00
-head: 6e538d33f34eec30d7d84e1931b5154e7aadf563
-branch: feat/rl-v2-training-configuration
+updated_at: 2026-07-23T14:03:00+02:00
+head: da1d5b8abe86ec2ac57dc2293d913fdcf1c286ae
+branch: develop
 pr: 184
-status: active
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
   - docs/ai_platform/RL_V2_EXECUTION_PREFLIGHT.md
@@ -128,23 +128,25 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_training_configuration.py
 proven:
   - PR #168 merged the bounded RL-v2 execution preflight as ae28c4fe9d1e94313e0b232b1bcd99d6f4ba59bc and PR #177 closed its task as 4cb93b94b1b18baa3b9469ebd52fb5182ec80d03.
-  - The execution preflight proved current heavy-runtime resolver, construction, semantic and observability compatibility without training, backtesting, market-data access or evaluation geometry.
   - Declaration PR #182 changed only this task record and was squash-merged to develop as 960251d5534e0921e5a71b661bd4664df0deeac3.
-  - Live overlap preflight found no active RL-v2 training/configuration PR before implementation; unrelated draft PR #109 does not overlap task ownership.
-  - PR #184 adds only the declared research-only config, descriptor, dependency-light fail-closed tests and documentation before this checkpoint update.
+  - PR #184 added exactly the declared research-only config, descriptor, dependency-light fail-closed tests, documentation and this task checkpoint; it added no run request, workflow or execution artifact.
   - The committed config is dry_run true, spot-only, initial_state stopped, uses empty exchange credentials and contains no timerange, train_period_days, backtest_period_days or live_retrain_hours.
   - The config keeps PPO/MlpPolicy and exact DesiredPositionReinforcementLearner/AiDesiredPositionRLResearchStrategy bindings; model_reward_parameters is empty so reward constants remain owned by the canonical synthetic reference.
+  - Initial PR #184 head exposed one mypy no-redef failure in a test-only recursive key collector; diagnostic PR #185 isolated the exact failure and closed without merge, and the fix only renamed the list-branch accumulator.
+  - Final PR #184 head 3650654e23869ee52344ef1bee91049aedbe3dbd passed AI Platform CI run 30004318561, zizmor run 30004318602 and Freqtrade CI run 30004318584, including pre-commit, documentation and all applicable core-platform jobs.
+  - PR #184 was squash-merged to develop as da1d5b8abe86ec2ac57dc2293d913fdcf1c286ae.
+  - No model training, fitting, backtest, market-data access, strict-OOS scoring, evaluation-window declaration or protected-final-holdout access occurred in this task.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
   - The committed configuration is a versioned non-executing input contract; its presence does not authorize or trigger model execution.
   - Fixed training-surface values are compatibility defaults only and are not performance-tuned or supported by RL-v2 result evidence.
-unknown:
-  - Whether repository CI will expose formatting, schema or test issues in the newly added configuration contract.
+  - Any future model training or historical execution now requires a new prospective bounded task that separately declares execution geometry and evidence boundaries before any run request is added.
+unknown: []
 conflicts: []
 first_failure:
-  marker: none
-  evidence: No implementation validation failure has been observed yet; PR #184 CI is pending.
+  marker: resolved_test_helper_mypy_no_redef
+  evidence: Initial Freqtrade CI pre-commit failed only because tests/ai_platform/test_rl_v2_training_configuration.py reused the local name keys in two branches of _collect_keys; diagnostic PR #185 proved the marker and final head 3650654e23869ee52344ef1bee91049aedbe3dbd passed pre-commit after renaming the list accumulator to list_keys.
 rejected_hypotheses:
   - Add a run request or execution manifest in the training-configuration task.
   - Add timerange, train_period_days, backtest_period_days or live_retrain_hours to make the config executable.
@@ -159,12 +161,15 @@ changed_paths:
   - ai_platform/configs/rl_v2_training_research.json
   - tests/ai_platform/test_rl_v2_training_configuration.py
 validation:
-  - command: repository live-state and overlap preflight
+  - command: PR #184 final AI Platform CI
     result: PASS
-    evidence: Current develop and open PR state were checked before implementation; no active RL-v2 training/configuration work overlapped this task.
-  - command: PR #184 targeted tests and repository CI
-    result: NOT_RUN
-    evidence: PR #184 was opened at head 6e538d33f34eec30d7d84e1931b5154e7aadf563; CI results were not yet available at checkpoint time.
+    evidence: Run 30004318561 passed compile, AI Platform tests, Ruff lint, Ruff format, Codespell and JSON validation on final head 3650654e23869ee52344ef1bee91049aedbe3dbd.
+  - command: PR #184 final zizmor
+    result: PASS
+    evidence: Run 30004318602 completed successfully on final head 3650654e23869ee52344ef1bee91049aedbe3dbd.
+  - command: PR #184 final Freqtrade CI
+    result: PASS
+    evidence: Run 30004318584 completed successfully, including CI scope, pre-commit, documentation and all applicable core-platform jobs on final head 3650654e23869ee52344ef1bee91049aedbe3dbd.
 blockers: []
-next_action: Validate PR #184 on its latest head, fix only training-configuration contract issues if any checks fail, then merge only after required CI is green and update this checkpoint to leave one successor action without adding any execution geometry or model execution.
+next_action: Declare a separate bounded RL-v2 training-execution work package that prospectively defines execution geometry and evidence boundaries before adding any run request, model training, historical execution or strict-OOS scoring; consumed OOS 20260501-20260630 and protected final holdout 20260801-20260930 must remain forbidden.
 ```

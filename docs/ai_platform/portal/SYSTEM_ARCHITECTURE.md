@@ -244,26 +244,25 @@ A running bot is always attributable to one exact revision.
 
 ### 5.3 Execution adapter
 
-Define a stable internal interface:
+The canonical private internal interface is versioned by the portal contracts and currently exposes:
 
 ```text
 ExecutionAdapter
-  provision(spec)
-  start(runtime)
-  pause(runtime)
-  stop(runtime)
-  health(runtime)
-  balances(runtime)
-  positions(runtime)
-  trades(runtime)
-  force_entry(command)
-  force_exit(command)
-  subscribe_events(runtime)
+  provision_bot(bot, context)
+  start_bot(bot, context)
+  pause_bot(tenant_id, bot_id, context)
+  stop_bot(tenant_id, bot_id, context)
+  get_health(tenant_id, bot_id, context)
+  get_runtime_status(tenant_id, bot_id, context)
+  submit_approved_intent(ApprovedExecutionIntent, context)
+  get_open_positions(tenant_id, bot_id, context)
+  get_orders(tenant_id, bot_id, context)
+  get_trades(tenant_id, bot_id, context)
 ```
 
-The first implementation is `FreqtradeExecutionAdapter`.
+The first implementation is `FreqtradeExecutionAdapter`. It implements private dry-run runtime lifecycle and health, but current order submission and portfolio/order/trade queries deliberately fail closed. `submit_approved_intent` raises `ORDER_SUBMISSION_NOT_IMPLEMENTED`; the P10 deterministic simulator is the only implemented `ApprovedExecutionIntent` submitter used for simulated trade acceptance.
 
-This prevents portal API contracts from becoming coupled to Freqtrade endpoint details and leaves room for future paper/simulation or alternative execution engines.
+This prevents portal API contracts from becoming coupled to Freqtrade endpoint details and leaves room for future bounded private Freqtrade submission integration or alternative execution engines without creating a browser-to-runtime path.
 
 ## 6. Execution Plane
 
@@ -300,7 +299,7 @@ Each runtime must:
 
 ## 7. Risk Plane
 
-AI and strategy output a `TradeIntent`. The deterministic risk layer produces `ApprovedTradeIntent` or `RejectedTradeIntent`.
+AI and strategy output a `TradeIntent`. The deterministic risk layer produces an `ApprovedExecutionIntent` or `RejectedExecutionIntent`.
 
 ```text
 Prediction / strategy signal
@@ -311,10 +310,14 @@ Prediction / strategy signal
           v
        Risk Engine
       /           \
- approved         rejected
+approved           rejected
     |                |
     v                v
- execution       audit/reason
+ApprovedExecutionIntent   RejectedExecutionIntent
+    |                |
+    v                v
+private execution    audit/reason
+submitter boundary
 ```
 
 Initial policy families:
@@ -421,6 +424,8 @@ Docker Compose
 - centralized observability;
 - Playwright E2E through the external protected route.
 
+Production-like staging acceptance requires real protected external ingress validation. Repository-side P11 policy/verifier/workflow evidence and simulation-first P12 evidence do not satisfy this requirement by themselves.
+
 ### Stage C — production execution
 
 Requires a separate explicit work package and lifecycle approval. Deployment may remain container-based or move to Kubernetes. Architecture contracts must not require public container ports or direct browser-to-runtime access.
@@ -457,9 +462,11 @@ Examples:
 
 1. No public path reaches Freqtrade directly.
 2. No AI model has unrestricted execution authority.
-3. No research job can directly mutate production configuration.
-4. No model is identified only by a mutable filename.
-5. No trade is unattributable to strategy/model/config/risk versions.
-6. No autonomous repair bypasses branch/CI/PR controls.
-7. No live-capital state is entered implicitly.
-8. No completed research contract is retroactively rewritten by portal implementation.
+3. No execution intent bypasses deterministic risk approval before reaching a private submitter boundary.
+4. No research job can directly mutate production configuration or access production exchange credentials.
+5. No model is identified only by a mutable filename.
+6. No trade is unattributable to strategy/model/config/risk versions.
+7. No autonomous repair bypasses branch/CI/PR controls or patches production directly.
+8. No live-capital state is entered implicitly.
+9. No completed research contract or protected holdout boundary is retroactively rewritten by portal implementation.
+10. No simulated or repository-only evidence is represented as real production-like staging acceptance.

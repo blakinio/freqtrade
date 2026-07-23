@@ -99,7 +99,7 @@ test("renders integrated signal, strategy, notification and security surfaces", 
   await expect(page.getByText("grid-dry-run-v1", { exact: true }).first()).toBeVisible();
 
   await page.goto("/platform/notifications");
-  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
   await expect(page.getByText(/BUY signal recorded for BTC\/USDT/)).toBeVisible();
 
   await page.goto("/platform/profile");

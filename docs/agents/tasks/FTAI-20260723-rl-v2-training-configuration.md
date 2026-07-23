@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260723-rl-v2-training-configuration
 status: active
-branch: docs/rl-v2-training-configuration-task
+branch: develop
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
@@ -111,11 +111,11 @@ The committed configuration may define construction/training parameters needed t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T13:10:00+02:00
-head: 5327c0fe79f654d0c2605a0f344fba8f6c006bd5
-branch: docs/rl-v2-training-configuration-task
+updated_at: 2026-07-23T13:14:00+02:00
+head: 960251d5534e0921e5a71b661bd4664df0deeac3
+branch: develop
 pr: 182
-status: active
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
   - docs/ai_platform/RL_V2_EXECUTION_PREFLIGHT.md
@@ -129,9 +129,9 @@ owned_paths:
 proven:
   - PR #168 merged the bounded RL-v2 execution preflight as ae28c4fe9d1e94313e0b232b1bcd99d6f4ba59bc and PR #177 closed its task as 4cb93b94b1b18baa3b9469ebd52fb5182ec80d03.
   - The execution preflight proved current heavy-runtime resolver, construction, semantic and observability compatibility without training, backtesting, market-data access or evaluation geometry.
-  - Current develop advanced beyond the supplied checkpoint; the latest repository work is unrelated Portal staging work and does not overlap RL-v2 ownership.
-  - The only currently open PR found during preflight before this declaration was draft PR #109, a documentation/design-reference change with no RL-v2 overlap.
-  - PR #182 now contains only this prospective RL-v2 training-configuration task declaration.
+  - Current develop advanced beyond the supplied checkpoint; the latest unrelated Portal staging work does not overlap RL-v2 ownership.
+  - The only open PR found before this declaration was draft PR #109, a documentation/design-reference change with no RL-v2 overlap.
+  - PR #182 changed only this task record and was squash-merged to develop as 960251d5534e0921e5a71b661bd4664df0deeac3.
   - The previously recorded zero-trade historical RL evidence belongs to the older rl-research-v1 track and does not constitute RL-v2 execution evidence.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
@@ -142,7 +142,7 @@ unknown: []
 conflicts: []
 first_failure:
   marker: none
-  evidence: No implementation or validation failure has occurred; this declaration performs no model execution.
+  evidence: No implementation or validation failure has occurred; the declaration performed no model execution.
 rejected_hypotheses:
   - Execute RL-v2 training or backtesting in the declaration task.
   - Reuse consumed historical OOS 20260501-20260630 for RL-v2 tuning or validation.
@@ -155,6 +155,9 @@ validation:
   - command: repository live-state and overlap preflight
     result: PASS
     evidence: Current develop and open PR state were checked before declaration; no active RL-v2 training/configuration PR or overlapping branch was found.
+  - command: PR #182 declaration scope and merge
+    result: PASS
+    evidence: PR #182 contained only docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md and squash-merged as 960251d5534e0921e5a71b661bd4664df0deeac3 without training or execution artifacts.
 blockers: []
 next_action: Implement the declared RL-v2 training-configuration package by adding only the research-only dry-run configuration, machine-readable descriptor, fail-closed tests and documentation; do not add a run request, execution geometry, training, backtest, market-data access, strict-OOS scoring or final-holdout access.
 ```

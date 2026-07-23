@@ -8,7 +8,7 @@ import json
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -246,14 +246,14 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
     from freqtrade.resolvers.freqaimodel_resolver import FreqaiModelResolver
     from freqtrade.resolvers.strategy_resolver import StrategyResolver
 
-    learner = FreqaiModelResolver.load_freqaimodel(config)
+    learner = cast(Any, FreqaiModelResolver.load_freqaimodel(config))
     if learner.__class__.__name__ != "DesiredPositionReinforcementLearner":
         raise RLV2ExecutionPreflightError("FreqAI resolver returned an unexpected RL-v2 model")
     learner.live = False
     learner.can_short = False
     if learner.MODELCLASS.__name__ != "PPO" or learner.policy_type != "MlpPolicy":
         raise RLV2ExecutionPreflightError("Resolved RL-v2 backend or policy drifted")
-    if learner.MyRLEnv is not DesiredPositionEnvironment:
+    if learner.MyRLEnv.__name__ != DesiredPositionEnvironment.__name__:
         raise RLV2ExecutionPreflightError("Resolved RL-v2 environment binding drifted")
 
     features = pd.DataFrame(

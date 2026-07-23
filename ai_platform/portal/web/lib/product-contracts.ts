@@ -1,0 +1,130 @@
+import type { ExecutionMode, TradeSide } from "./contracts";
+
+export interface SignalEvent {
+  signal_id: string;
+  tenant_id: string;
+  bot_id: string;
+  pair: string;
+  side: TradeSide;
+  timeframe: string;
+  confidence: string;
+  rationale: string;
+  source: "MANUAL";
+  created_by_actor_id: string;
+  occurred_at: string;
+  context: {
+    request_id: string;
+    correlation_id: string;
+    causation_id: string | null;
+  };
+  execution_authority: false;
+}
+
+export interface SubmitSignalRequest {
+  bot_id: string;
+  pair: string;
+  side: TradeSide;
+  timeframe: string;
+  confidence: string;
+  rationale: string;
+}
+
+export interface StrategyCatalogEntry {
+  strategy_version: string;
+  display_name: string;
+  description: string;
+  kind: "DIRECTIONAL" | "GRID";
+  allowed_execution_modes: ExecutionMode[];
+  runtime_status: "BOT_REFERENCE" | "PORTAL_CONFIG_ONLY";
+  immutable: boolean;
+}
+
+export interface GridBotConfig {
+  grid_config_id: string;
+  tenant_id: string;
+  bot_id: string;
+  pair: string;
+  strategy_version: string;
+  lower_price: string;
+  upper_price: string;
+  levels: number;
+  quote_allocation: string;
+  execution_mode: "dry_run";
+  created_by_actor_id: string;
+  created_at: string;
+}
+
+export interface CreateGridBotConfigRequest {
+  bot_id: string;
+  pair: string;
+  lower_price: string;
+  upper_price: string;
+  levels: number;
+  quote_allocation: string;
+}
+
+export interface NotificationPreference {
+  tenant_id: string;
+  actor_id: string;
+  in_app_enabled: boolean;
+  signal_events: boolean;
+  risk_events: boolean;
+  execution_events: boolean;
+  updated_at: string;
+}
+
+export interface NotificationEntry {
+  notification_id: string;
+  tenant_id: string;
+  category: "SIGNAL" | "RISK" | "EXECUTION";
+  severity: "INFO" | "ATTENTION";
+  summary: string;
+  resource_type: string;
+  resource_id: string;
+  occurred_at: string;
+}
+
+export interface ProfileSecurityView {
+  tenant_id: string;
+  actor_id: string;
+  actor_type: "user" | "service" | "agent" | "system";
+  permissions: string[];
+  authentication_boundary: string;
+  mfa_status: string;
+  session_management: string;
+  secrets_exposed: false;
+}
+
+export interface RoleView {
+  role_id: string;
+  tenant_id: string;
+  name: string;
+  permissions: string[];
+}
+
+export interface AdministrationOverview {
+  tenant_id: string;
+  current_actor_id: string;
+  current_permissions: string[];
+  builtin_roles: RoleView[];
+  membership_source: string;
+}
+
+export interface ModelHealthRecord {
+  model_version_id: string;
+  tenant_id: string;
+  model_family_id: string;
+  lifecycle_state: string;
+  created_at: string;
+  training_window_end: string;
+  metadata_age_days: number;
+  drift_status: "AVAILABLE" | "UNAVAILABLE";
+  drift_reason: string;
+}
+
+export interface RuntimeLogAvailability {
+  available: boolean;
+  source: string;
+  reason_code: string;
+  checked_at: string;
+}

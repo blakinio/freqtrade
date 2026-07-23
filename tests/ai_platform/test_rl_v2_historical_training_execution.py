@@ -171,6 +171,18 @@ def test_workflow_uses_runner_temp_only_inside_shell_steps() -> None:
     assert source.count(runtime_config) == 3
 
 
+def test_workflow_exposes_repository_package_to_freqtrade_resolver() -> None:
+    source = WORKFLOW_PATH.read_text(encoding="utf-8")
+    backtest_step = source.split(
+        "- name: Run exactly one frozen historical training/backtest",
+        maxsplit=1,
+    )[1]
+    pythonpath_export = 'export PYTHONPATH="$GITHUB_WORKSPACE"'
+
+    assert source.count(pythonpath_export) == 1
+    assert backtest_step.index(pythonpath_export) < backtest_step.index("freqtrade backtesting")
+
+
 def test_workflow_runs_exactly_one_rl_v2_backtest_surface() -> None:
     source = WORKFLOW_PATH.read_text(encoding="utf-8")
 

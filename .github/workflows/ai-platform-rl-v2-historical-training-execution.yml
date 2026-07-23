@@ -226,6 +226,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export PYTHONPATH="$GITHUB_WORKSPACE"
           rm -rf user_data/backtest_results
           mkdir -p user_data/backtest_results "$EVIDENCE_ROOT/run"
           set +e

@@ -61,6 +61,10 @@ The scenario uses explicit state and timestamps rather than fixed sleeps.
 - deterministic scenario inputs and evidence IDs remain attributable;
 - failure evidence is preserved with the correlation ID.
 
+## Validation scope
+
+Final P10 validation runs from a clean branch based directly on merged P9 `develop`. The permanent `Portal Universal E2E` gate covers the deterministic backend scenario and the critical Chromium portal journey, while the existing AI Platform, Freqtrade and security workflows remain authoritative merge gates.
+
 ## Current boundary
 
 The simulator proves the universal platform workflow without requiring production Freqtrade order submission. The existing production `FreqtradeExecutionAdapter.submit_approved_intent` remains independently fail-closed until a separate execution implementation is authorized.

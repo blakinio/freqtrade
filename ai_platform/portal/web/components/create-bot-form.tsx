@@ -4,6 +4,14 @@ import { FormEvent, useState } from "react";
 
 import type { CreateBotRequest, PortalEnvironment } from "@/lib/contracts";
 
+const wizardSteps = [
+  "Identity & template",
+  "Exchange & market",
+  "AI & risk",
+  "Capital & runtime",
+  "Review & deploy",
+];
+
 export function CreateBotForm({ environment }: { environment: PortalEnvironment }) {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -64,25 +72,62 @@ export function CreateBotForm({ environment }: { environment: PortalEnvironment 
 
   return (
     <form className="bot-form" onSubmit={submit}>
-      <div className="form-grid">
-        <label>Bot ID<input name="bot_id" defaultValue="bot-new-01" required /></label>
-        <label>Name<input name="name" defaultValue="New Dry Run Bot" required /></label>
-        <label>Tenant ID<input name="tenant_id" defaultValue="tenant-demo" required /></label>
-        <label>Strategy version<input name="strategy_version" defaultValue="ai-directional-v1" required /></label>
-        <label>Model version<input name="model_version" defaultValue="model-validated-2026-07" required /></label>
-        <label>Risk policy<input name="risk_policy_version" defaultValue="risk-default-v1" required /></label>
-        <label>Exchange connection ref<input name="exchange_connection_ref" defaultValue="exchange-simulated-kraken" required /></label>
-        <label>Pairs<input name="pair_universe" defaultValue="BTC/USDT" required /></label>
-        <label>Timeframe<input name="timeframe" defaultValue="5m" required /></label>
-        <label>Capital allocation<input name="capital_allocation" type="number" min="1" step="0.01" defaultValue="1000" required /></label>
-        <label>Capital currency<input name="capital_currency" defaultValue="USDT" required /></label>
-        <label>Runtime version<input name="runtime_version" defaultValue="freqtrade-2026.7" required /></label>
-        <label>Config revision<input name="config_revision" type="number" min="1" defaultValue="1" required /></label>
-      </div>
-      <div className="form-safety">
-        <strong>Execution mode: DRY RUN</strong>
-        <span>Creation records desired configuration only. Browser code does not contact a trading runtime.</span>
-      </div>
+      <ol className="wizard-steps" aria-label="Create bot steps">
+        {wizardSteps.map((step, index) => (
+          <li key={step}><span>{index + 1}</span>{step}</li>
+        ))}
+      </ol>
+
+      <fieldset className="form-step">
+        <legend><span>1</span>Identity & template</legend>
+        <p>Choose the portal resource identity and immutable strategy template reference.</p>
+        <div className="form-grid">
+          <label>Bot ID<input name="bot_id" defaultValue="bot-new-01" required /></label>
+          <label>Name<input name="name" defaultValue="New Dry Run Bot" required /></label>
+          <label>Tenant ID<input name="tenant_id" defaultValue="tenant-demo" required /></label>
+          <label>Strategy version<input name="strategy_version" defaultValue="ai-directional-v1" required /></label>
+        </div>
+      </fieldset>
+
+      <fieldset className="form-step">
+        <legend><span>2</span>Exchange & market</legend>
+        <p>Only an opaque connection reference reaches the browser. Exchange credentials stay behind the secret boundary.</p>
+        <div className="form-grid">
+          <label>Exchange connection ref<input name="exchange_connection_ref" defaultValue="exchange-simulated-kraken" required /></label>
+          <label>Pairs<input name="pair_universe" defaultValue="BTC/USDT" required /></label>
+          <label>Timeframe<input name="timeframe" defaultValue="5m" required /></label>
+        </div>
+      </fieldset>
+
+      <fieldset className="form-step">
+        <legend><span>3</span>AI & risk</legend>
+        <p>The bot pins exact model and deterministic risk-policy versions. A model prediction never bypasses the risk layer.</p>
+        <div className="form-grid">
+          <label>Model version<input name="model_version" defaultValue="model-validated-2026-07" required /></label>
+          <label>Risk policy<input name="risk_policy_version" defaultValue="risk-default-v1" required /></label>
+        </div>
+      </fieldset>
+
+      <fieldset className="form-step">
+        <legend><span>4</span>Capital & runtime</legend>
+        <p>Current portal creation is constrained to dry-run. Unsupported DCA/exit-specific parameters are not fabricated by the UI.</p>
+        <div className="form-grid">
+          <label>Capital allocation<input name="capital_allocation" type="number" min="1" step="0.01" defaultValue="1000" required /></label>
+          <label>Capital currency<input name="capital_currency" defaultValue="USDT" required /></label>
+          <label>Runtime version<input name="runtime_version" defaultValue="freqtrade-2026.7" required /></label>
+          <label>Config revision<input name="config_revision" type="number" min="1" defaultValue="1" required /></label>
+        </div>
+      </fieldset>
+
+      <fieldset className="form-step review-step">
+        <legend><span>5</span>Review & deploy</legend>
+        <div className="form-safety">
+          <strong>Execution mode: DRY RUN · Environment: {environment.toUpperCase()}</strong>
+          <span>Creation records desired configuration only. Browser code does not contact a trading runtime, exchange or secret store.</span>
+        </div>
+        <p className="freshness">Submitting creates the canonical bot resource. Runtime reconciliation remains a private server-side operation.</p>
+      </fieldset>
+
       <button className="primary-button" type="submit" disabled={submitting}>
         {submitting ? "Creating…" : "Create dry-run bot"}
       </button>

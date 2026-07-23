@@ -1,0 +1,40 @@
+name: RL-v2 Historical Canonical Request Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/rl-v2-historical-canonical-request-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-canonical-request:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact diagnostic head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Generate canonical request from merged infrastructure
+        run: |
+          python -m ai_platform.scripts.rl_v2_historical_training_execution_run_request \
+            --print-canonical > canonical-request.json
+          python -m json.tool canonical-request.json > /dev/null
+
+      - name: Upload canonical request
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rl-v2-historical-canonical-request
+          path: canonical-request.json
+          if-no-files-found: error
+          retention-days: 1

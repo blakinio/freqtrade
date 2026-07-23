@@ -5,7 +5,7 @@ branch: develop
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: "196"
+related_pr: "200"
 owned_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-execution.md
   - docs/ai_platform/RL_V2_HISTORICAL_TRAINING_EXECUTION.md
@@ -125,10 +125,10 @@ This task may add only:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T15:30:43+02:00
-head: a1910dcc934b0d185a1e3378b61fee90ada0bfba
+updated_at: 2026-07-23T15:39:05+02:00
+head: 3268d391312a549b84acd282f0f29fc4df391908
 branch: develop
-pr: 196
+pr: 200
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md
@@ -142,37 +142,31 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_historical_training_execution.py
   - .github/workflows/ai-platform-rl-v2-historical-training-execution.yml
 proven:
-  - PR #184 merged the frozen non-executing RL-v2 training configuration as da1d5b8abe86ec2ac57dc2293d913fdcf1c286ae and PR #186 closed its task as a42858a6b6b2accdf47f78fa71cee557b3352448.
-  - Declaration PR #187 changed only the new bounded task record and was squash-merged to develop as c663626ea8581fe82c107f959873d8c260927881 before implementation began.
-  - PR #188 added only the declared execution contract, canonical request validator/materializer, guarded request-triggered workflow, fail-closed tests, documentation and task checkpoint; it did not add the canonical run-request file.
-  - The frozen geometry uses download 20250801-20260501 and execution 20260301-20260501 with exclusive May 1 stop, train_period_days 90 and backtest_period_days 61; consumed historical OOS 20260501-20260630 is outside all declared execution/data geometry.
-  - The workflow uses a dedicated rl-v2-historical-training-pre-oos-v1 cache namespace with no restore-keys fallback and does not call the strict-OOS extractor.
-  - Existing experimental historical execution infrastructure is hard-bound to pytorch-research-v1/rl-research-v1 and May-June strict-OOS extraction, so PR #188 uses a separate RL-v2-specific guard rather than weakening the frozen older contract.
-  - Initial PR #188 validation exposed only 11 Ruff E501 formatting violations and later 13 mypy inference errors for heterogeneous frozen dictionaries; diagnostic PRs #189 and #190 isolated those exact markers and closed without merge, and both were resolved without changing contract values, execution geometry or workflow semantics.
-  - Final PR #188 head 3a565198c317fae9f1a49236bb9696c46f1f388f passed AI Platform CI run 30006965475 and zizmor run 30006965476.
-  - Freqtrade CI run 30006965504 completed every applicable job successfully on final head 3a565198c317fae9f1a49236bb9696c46f1f388f, including CI scope, pre-commit, documentation, Ubuntu Python 3.11-3.14, macOS and Windows; the connector aggregate status remained stale after job completion.
-  - PR #188 was squash-merged to develop as aa974bb16d8724d171c5ebc45e26a3a8cfc63841.
-  - Canonical trigger PRs #193 and #195 each added exactly the run-request file but produced zero dedicated RL-v2 workflow runs; both were closed without merge and consumed no one-shot execution.
-  - Read-only Actions API diagnostics in PR #194 proved the dedicated workflow was registered but had zero pull-request runs; actionlint isolated the cause to job-level env use of the unavailable runner context in RUN_CONFIG.
-  - Repair PR #196 removed job-level `${{ runner.temp }}`, uses `$RUNNER_TEMP` only inside execution steps, and added a fail-closed regression test without changing frozen execution geometry, model, strategy, config, cache policy, OOS boundary or holdout boundary.
-  - Exact repair head 612beb0060171df2fb85b203763590d3a2d7af62 passed actionlint v1.7.7, AI Platform CI, zizmor, pre-commit and every applicable Freqtrade CI platform job.
-  - PR #196 was squash-merged to develop as a1910dcc934b0d185a1e3378b61fee90ada0bfba.
-  - No RL-v2 model training, backtest, market-data download or historical evidence execution has occurred yet; the one-shot execution remains unconsumed.
-  - The protected final holdout 20260801-20260930 remains unused and forbidden.
-  - Frozen thresholds 0.006/-0.009 and Phase 6 selected_model null remain unchanged.
+  - PR #184 merged the frozen non-executing RL-v2 training configuration and PR #186 closed that configuration task; declaration PR #187 then created this bounded execution task before implementation.
+  - PR #188 added the separate RL-v2 execution contract, canonical request validator/materializer, request-triggered workflow, tests and documentation without adding a run request or executing a model.
+  - Frozen geometry is download 20250801-20260501, execution 20260301-20260501, train_period_days 90, backtest_period_days 61, BTC/USDT plus ETH/USDT, 15m plus 1h plus 4h, Kraken spot and fee 0.002.
+  - PR #188 final head passed AI Platform CI, zizmor and every applicable Freqtrade CI platform job, then squash-merged as aa974bb16d8724d171c5ebc45e26a3a8cfc63841.
+  - Trigger PRs #193 and #195 produced zero dedicated workflow runs and were closed without merge, so neither consumed the one-shot execution or accessed market data.
+  - Diagnostic PR #194 plus actionlint isolated the zero-run cause to job-level env use of unavailable runner context for RUN_CONFIG.
+  - Repair PR #196 moved runtime config path construction to step-level $RUNNER_TEMP, added a regression test, passed actionlint and repository CI, and squash-merged as a1910dcc934b0d185a1e3378b61fee90ada0bfba.
+  - Checkpoint PR #198 recorded the repair state and squash-merged as 3268d391312a549b84acd282f0f29fc4df391908.
+  - Diagnostic PR #199 regenerated and validated the post-repair canonical request; its repaired workflow_sha256 is 7311fe6cd53e5e9a0ecec6b923a13265a0308a4c1175170774b8765c060bd74b.
+  - Trigger PR #200 changed exactly the canonical run-request file and successfully created dedicated workflow run 30011986442, proving the repaired workflow now starts.
+  - Run 30011986442 passed exact-one-file scope validation and then failed closed at bounded checkpoint validation before Python setup; data preparation and backtest jobs were skipped.
+  - No RL-v2 market-data download, model training, backtest, consumed historical OOS access or protected final holdout access has occurred yet; the one-shot execution remains unconsumed.
+  - Protected final holdout 20260801-20260930 remains unused, frozen thresholds 0.006/-0.009 remain unchanged and Phase 6 selected_model remains null.
 derived:
-  - Because PR #196 changed the workflow bytes, the pre-repair canonical request is stale by design and must not be reused.
-  - A new canonical request must be generated from develop after a1910dcc934b0d185a1e3378b61fee90ada0bfba so its workflow_sha256 binds the repaired workflow.
-  - March-April output from the later trigger is historical development evidence only and must not be treated as strict OOS, protected final validation or promotion evidence.
+  - The post-repair canonical request from PR #199 remains canonical across a checkpoint-only repair because the request hashes contract, descriptor, config, model, strategy, validator and workflow, not the task checkpoint file.
+  - A fresh trigger must branch from develop after the checkpoint compactness fix so the exact trigger head contains a governance-valid task checkpoint while still differing from develop by only the canonical request file.
+  - March-April output remains historical development evidence only and cannot be treated as strict OOS, protected final validation or promotion evidence.
 unknown:
-  - Whether the first real FreqAI RL execution accepts the direct frozen freqtrade backtesting surface without an additional runtime adapter; no dedicated RL-v2 execution workflow has run yet.
+  - Whether the first execution that passes checkpoint validation will accept the direct frozen FreqAI backtesting surface without an additional runtime adapter.
 conflicts: []
 first_failure:
-  marker: resolved_workflow_registration_context
-  evidence: Trigger PRs #193 and #195 created zero dedicated workflow runs. Read-only Actions API plus actionlint isolated the exact defect to job-level env use of `${{ runner.temp }}`. PR #196 moved runtime-config path construction to step-level shell use of `$RUNNER_TEMP`, passed actionlint and repository CI, and merged without executing the model.
+  marker: checkpoint_compactness_gate
+  evidence: Dedicated run 30011986442 started on trigger PR #200 and passed exact-one-file scope validation, then tools/agents/checkpoint.py rejected the task checkpoint before Python or data access because the PR #198 checkpoint recorded 18 proven facts while governance compactness permits at most 16.
 rejected_hypotheses:
-  - Treat PR #193 or #195 as consumed one-shot executions despite zero dedicated workflow runs.
-  - Reuse the pre-repair canonical request after workflow bytes changed.
+  - Treat PR #193, #195 or #200 as consumed one-shot executions despite no market-data or model execution.
   - Reuse consumed OOS 20260501-20260630 as RL-v2 evaluation evidence.
   - Access protected final holdout 20260801-20260930.
   - Call March-April evidence strict OOS or final validation.
@@ -180,18 +174,20 @@ rejected_hypotheses:
   - Retune PPO, policy, reward, features or thresholds from this execution package.
   - Rank RL-v2 against PyTorch or completed Phase 6 candidates.
 changed_paths:
-  - .github/workflows/ai-platform-rl-v2-historical-training-execution.yml
-  - tests/ai_platform/test_rl_v2_historical_training_execution.py
+  - docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-execution.md
 validation:
-  - command: actionlint v1.7.7 on exact PR #196 head
+  - command: PR #196 actionlint and repository CI
     result: PASS
-    evidence: Diagnostic PR #197 validated .github/workflows/ai-platform-rl-v2-historical-training-execution.yml from exact repair head 612beb0060171df2fb85b203763590d3a2d7af62 successfully and was closed without merge.
-  - command: PR #196 AI Platform CI and zizmor
+    evidence: Exact repair head 612beb0060171df2fb85b203763590d3a2d7af62 passed actionlint v1.7.7, AI Platform CI, zizmor, pre-commit and all applicable Freqtrade CI platform jobs.
+  - command: PR #199 canonical request generation and self-validation
     result: PASS
-    evidence: AI Platform CI run 30009223919 and zizmor run 30009223948 completed successfully on exact repair head 612beb0060171df2fb85b203763590d3a2d7af62.
-  - command: PR #196 Freqtrade CI platform jobs
+    evidence: Canonical generator produced and validator accepted the post-repair request with workflow_sha256 7311fe6cd53e5e9a0ecec6b923a13265a0308a4c1175170774b8765c060bd74b.
+  - command: PR #200 exact trigger scope
     result: PASS
-    evidence: Run 30009223862 completed every applicable individual job successfully, including pre-commit and Ubuntu, macOS and Windows platform jobs; the connector aggregate status remained stale after job completion.
+    evidence: Dedicated workflow run 30011986442 passed Validate trigger PR scope before runtime or data access.
+  - command: PR #200 bounded checkpoint validation
+    result: FAIL
+    evidence: Dedicated workflow run 30011986442 failed at Validate bounded execution checkpoint before Python setup; data and backtest jobs were skipped.
 blockers: []
-next_action: Generate a fresh canonical request from develop after repair merge a1910dcc934b0d185a1e3378b61fee90ada0bfba, open a separate PR adding exactly ai_platform/experimental_model_research/run-requests/rl-v2-historical-training-execution-v1.json, verify the repaired dedicated workflow actually starts, and do not merge the trigger PR after one-shot execution.
+next_action: Merge this compact checkpoint repair, then open a new separate PR from updated develop that adds only ai_platform/experimental_model_research/run-requests/rl-v2-historical-training-execution-v1.json using the already validated post-repair canonical payload; do not merge that trigger PR after the one-shot execution.
 ```

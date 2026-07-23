@@ -8,7 +8,12 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from ai_platform.portal.contracts.common import ContractModel, CorrelationContext, NonEmptyStr, UtcDateTime
+from ai_platform.portal.contracts.common import (
+    ContractModel,
+    CorrelationContext,
+    NonEmptyStr,
+    UtcDateTime,
+)
 from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.contracts.identity import ActorType, Permission, Role
 from ai_platform.portal.contracts.risk import TradeSide
@@ -78,7 +83,7 @@ class GridBotConfig(ContractModel):
     def validate_grid_bounds(self) -> Self:
         if self.lower_price >= self.upper_price:
             raise ValueError("grid lower_price must be below upper_price")
-        if self.execution_mode is not ExecutionMode.DRY_RUN:
+        if self.execution_mode != ExecutionMode.DRY_RUN:
             raise ValueError("grid bot configuration is restricted to dry_run")
         return self
 

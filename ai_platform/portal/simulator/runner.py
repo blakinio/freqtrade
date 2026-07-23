@@ -165,7 +165,10 @@ class UniversalScenarioRunner:
             ),
             autonomy_level=AutonomyLevel.L3_EXECUTE_RESEARCH,
             outcome=ExperimentOutcome.POSITIVE,
-            result_summary="Deterministic simulator scenario produced a bounded candidate proposal.",
+            result_summary=(
+                "Deterministic simulator scenario produced a bounded "
+                "candidate proposal."
+            ),
         )
         candidate = self._learning.register_candidate(
             context,

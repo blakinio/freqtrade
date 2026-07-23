@@ -4,7 +4,7 @@ status: done
 branch: feat/portal-p6-web-shell
 base_branch: develop
 created: 2026-07-22
-updated: 2026-07-22
+updated: 2026-07-23
 related_pr: "#135"
 owned_paths:
   - ai_platform/portal/web/
@@ -23,11 +23,13 @@ required_reads:
   - ai_platform/portal/contracts/environment.py
 ---
 
-# AI Trading Portal P6 — Web Shell
+# AI Trading Portal P6.1 — Web Shell Foundation
 
 ## Goal
 
-Implement the first production-oriented Next.js/React portal shell and core dry-run operations UX on top of canonical portal APIs without exposing Freqtrade or private control-plane origins to browser code.
+Implement the first production-oriented Next.js/React portal shell and core dry-run operations foundation on top of canonical portal APIs without exposing Freqtrade or private control-plane origins to browser code.
+
+This bounded historical task completed **P6.1 foundation scope only**. It did not complete every deliverable listed under the canonical `P6 — Portal web shell and core operations UI` roadmap stage.
 
 ## Delivered
 
@@ -41,20 +43,31 @@ Implement the first production-oriented Next.js/React portal shell and core dry-
 - Chromium Playwright critical journey and non-dry-run rejection coverage;
 - read-only pinned-action Portal Web CI using deterministic `npm ci`.
 
+## Stage-completion clarification
+
+PR #135 and this task proved the web-shell foundation, but the full P6 roadmap stage still lacked several declared surfaces, including Bot Detail, exchange connection metadata, runtime health/log views, profile/security/notifications shells and the wider product navigation contract.
+
+The truthful full-stage status is tracked by:
+
+- `docs/ai_platform/portal/UI_DELIVERY_STATUS.md`;
+- `docs/agents/tasks/FTAI-20260723-portal-ui-completion.md`.
+
+Historical task status remains `done` because its bounded foundation scope was completed. That status must not be interpreted as evidence that all P6 roadmap deliverables were complete on 2026-07-22.
+
 ## Preserved boundaries
 
 - browser never calls Freqtrade or exchanges directly;
 - private `PORTAL_CONTROL_PLANE_URL` is not embedded in browser code;
-- no exchange secrets are rendered or persisted by P6;
+- no exchange secrets are rendered or persisted by P6.1;
 - no live-capital authorization was added;
-- P1-P5 implementation/contracts were not changed by P6;
+- P1-P5 implementation/contracts were not changed by P6.1;
 - frozen AI thresholds, completed research Phase 6, protected final holdout and PyTorch/RL evidence remain unchanged.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-22T22:05:00+02:00
+updated_at: 2026-07-23T20:10:00+02:00
 head: 80d9236d719790038c746a82b08d3aca9d2ddaad
 branch: develop
 pr: "#135"
@@ -64,20 +77,19 @@ context_routes:
   - docs/ai_platform/portal/DELIVERY_ROADMAP.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
   - docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
 proven:
-  - P6 implements the first portal web shell and core dry-run operations UX under ai_platform/portal/web/.
+  - P6.1 implemented the first portal web shell and core dry-run operations foundation under ai_platform/portal/web/.
   - Browser traffic uses same-origin portal/BFF routes; Freqtrade and private control-plane origins remain outside browser reach.
   - API mode fails closed and fixture mode is explicit rather than an implicit production fallback.
-  - Create Bot accepts only dry_run at the P6 BFF boundary and the E2E suite verifies rejection of non-dry-run creation.
+  - Create Bot accepts only dry_run at the P6.1 BFF boundary and the E2E suite verifies rejection of non-dry-run creation.
   - package-lock.json v3 is committed; final Portal Web CI uses contents: read, persist-credentials: false and npm ci.
-  - A full pre-commit diagnostic proved the only Freqtrade CI blocker was zizmor artipacked on persisted checkout credentials; adding persist-credentials: false resolved it and the temporary diagnostic workflow was removed.
   - PR #135 final checkpoint head 18ace738836e58016e117b5578ec8eaf41792a7d passed Portal Web CI 29952688663, AI Platform CI 29952688763, Freqtrade CI 29952689166 and zizmor 29952689043; Pre-commit Types update 29952688785 was skipped and not a failure gate.
-  - All GitHub Advanced Security review threads on PR #135 are resolved/outdated and no active unresolved review thread remained before merge.
   - PR #135 was squash-merged to develop as 80d9236d719790038c746a82b08d3aca9d2ddaad.
-  - Post-merge comparison reports develop identical to 80d9236d719790038c746a82b08d3aca9d2ddaad.
-  - Canonical Delivery Roadmap identifies P7 Risk Engine and Trading Terminal as the next stage after the P3 execution foundation dependency is available.
+  - Post-merge comparison reported develop identical to 80d9236d719790038c746a82b08d3aca9d2ddaad at historical closure time.
+  - The original bounded task did not deliver the complete target P6 UI information architecture.
 derived:
-  - P6 provides a safe UX/BFF surface on which later risk-terminal and broader portal workflows can be added without exposing execution runtimes.
+  - Full P6 completion must be evaluated separately from this foundation task.
 unknown: []
 conflicts: []
 first_failure:
@@ -92,9 +104,6 @@ validation:
     result: PASS
   - command: PR #135 final zizmor 29952689043
     result: PASS
-  - command: Post-merge develop verification
-    result: PASS
-    evidence: develop is identical to squash merge SHA 80d9236d719790038c746a82b08d3aca9d2ddaad.
 blockers: []
-next_action: Declare and execute FTAI-20260722-portal-p7-risk-terminal from current develop after verifying no open PR or active task overlaps the P7 risk-engine/trading-terminal ownership.
+next_action: Continue the remaining full-stage UI deliverables only through FTAI-20260723-portal-ui-completion and keep P6.1 recorded as foundation-only historical completion.
 ```

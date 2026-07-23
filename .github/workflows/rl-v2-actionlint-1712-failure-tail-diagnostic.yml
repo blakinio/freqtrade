@@ -1,0 +1,39 @@
+name: RL-v2 Actionlint 1.7.12 Failure Tail
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/rl-v2-actionlint-1712-failure-tail-diagnostic.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inspect-failure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Fetch actionlint 1.7.12 job log tail
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/actions/jobs/89245005055/logs" \
+            > full-job.log
+          tail -n 80 full-job.log > failure-tail.log
+          cat failure-tail.log
+
+      - name: Upload failure tail
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-actionlint-1712-failure-tail
+          path: failure-tail.log
+          if-no-files-found: error
+          retention-days: 1

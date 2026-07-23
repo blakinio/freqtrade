@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr
 
 
-class FailureClassification(str, Enum):
+class FailureClassification(StrEnum):
     PRODUCT_DEFECT = "product_defect"
     TEST_DEFECT = "test_defect"
     ENVIRONMENT_DEFECT = "environment_defect"
@@ -15,13 +15,13 @@ class FailureClassification(str, Enum):
     FLAKY_OR_AMBIGUOUS = "flaky_or_ambiguous"
 
 
-class DiagnosisConfidence(str, Enum):
+class DiagnosisConfidence(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
 
 
-class RepairRejectionReason(str, Enum):
+class RepairRejectionReason(StrEnum):
     EVIDENCE_NOT_REPRODUCED = "evidence_not_reproduced"
     MISSING_REGRESSION_TEST = "missing_regression_test"
     PATH_OUTSIDE_OWNERSHIP = "path_outside_ownership"
@@ -29,7 +29,7 @@ class RepairRejectionReason(str, Enum):
     MISSING_VALIDATION = "missing_validation"
     SAFETY_ASSERTION_WEAKENING = "safety_assertion_weakening"
     PRODUCTION_DEPLOYMENT = "production_deployment"
-    PRODUCTION_SECRET_ACCESS = "production_secret_access"
+    PRODUCTION_CREDENTIAL_ACCESS = "production_credential_access"
     LIVE_CAPITAL_ENABLEMENT = "live_capital_enablement"
     REAL_P11_ACCEPTANCE_CLAIM = "real_p11_acceptance_claim"
 

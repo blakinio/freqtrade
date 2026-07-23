@@ -14,6 +14,7 @@ from ai_platform.portal.control_plane.database import (
 )
 from ai_platform.portal.intelligence.database import create_intelligence_schema
 from ai_platform.portal.learning.database import create_learning_schema
+from ai_platform.portal.operations.service import OperationalReadService
 from ai_platform.portal.risk.database import create_risk_schema
 from ai_platform.portal.simulator.runner import ScenarioAssertionError, UniversalScenarioRunner
 from ai_platform.portal.simulator.schema import ScenarioManifest
@@ -50,14 +51,40 @@ def test_universal_scenario_creates_candidate_without_model_mutation() -> None:
         Permission.RISK_MANAGE,
         Permission.TRADE_MANUAL_EXECUTE,
     )
+    session_factory = _session_factory()
 
-    evidence = UniversalScenarioRunner(_session_factory()).run(context, manifest)
+    evidence = UniversalScenarioRunner(session_factory).run(context, manifest)
+    operations = OperationalReadService(session_factory)
 
     assert evidence.realized_pnl == 10
     assert evidence.order_id.startswith("sim-order-")
     assert evidence.trade_id.startswith("sim-trade-")
     assert evidence.active_model_before == evidence.active_model_after
     assert evidence.candidate_model_version_id != evidence.active_model_after
+
+    assert operations.list_positions(context) == ()
+    orders = operations.list_orders(context)
+    assert len(orders) == 1
+    assert orders[0].order_id == evidence.order_id
+    assert orders[0].source_runtime_id == f"sim-{manifest.bot_id}"
+
+    trades = operations.list_trades(context)
+    assert len(trades) == 1
+    assert trades[0].trade_id == evidence.trade_id
+    assert trades[0].realized_pnl == 10
+    assert trades[0].analysis_id == str(evidence.analysis_id)
+
+    performance = operations.list_performance(context)
+    assert len(performance) == 1
+    assert performance[0].bot_id == manifest.bot_id
+    assert performance[0].realized_pnl == 10
+    assert performance[0].net_pnl == 10
+    assert performance[0].winning_trades == 1
+    assert performance[0].reconciliation_gaps == 0
+
+    risk_events = operations.list_risk_events(context)
+    assert len(risk_events) == 1
+    assert risk_events[0].decision.value == "APPROVED"
 
 
 def test_universal_scenario_requires_explicit_portal_permissions() -> None:

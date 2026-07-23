@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "contract_id": "rl-v2-historical-training-execution-v1",
+  "task": "docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-execution.md",
+  "task_declaration_merge": "c663626ea8581fe82c107f959873d8c260927881",
+  "request_path": "ai_platform/experimental_model_research/run-requests/rl-v2-historical-training-execution-v1.json",
+  "trigger": {
+    "event": "pull_request_opened",
+    "base_branch": "develop",
+    "exact_one_file": true
+  },
+  "parent_training_configuration": {
+    "descriptor_path": "ai_platform/experimental_model_research/rl-v2-training-configuration-v1.json",
+    "configuration_id": "rl-v2-training-configuration-v1",
+    "config_path": "ai_platform/configs/rl_v2_training_research.json",
+    "merge_commit": "da1d5b8abe86ec2ac57dc2293d913fdcf1c286ae"
+  },
+  "runtime_binding": {
+    "freqai_model": "DesiredPositionReinforcementLearner",
+    "freqai_model_path": "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py",
+    "strategy": "AiDesiredPositionRLResearchStrategy",
+    "strategy_path": "ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py",
+    "backend_family": "stable_baselines3_via_freqai_reinforcement_learner",
+    "model_type": "PPO",
+    "policy_type": "MlpPolicy",
+    "action_space": {
+      "0": "target_flat",
+      "1": "target_long"
+    },
+    "action_space_size": 2,
+    "long_only": true,
+    "transition_reference": "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_transition",
+    "reward_reference": "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward",
+    "reward_constants_source": "ai_platform.scripts.rl_v2_synthetic_reference.REWARD_REFERENCE"
+  },
+  "execution_geometry": {
+    "mode": "one_shot_trigger_pr",
+    "executions": 1,
+    "download_timerange": "20250801-20260501",
+    "execution_timerange": "20260301-20260501",
+    "semantic_evidence_window": "20260301-20260430",
+    "freqtrade_stop_semantics": "end_exclusive",
+    "train_period_days": 90,
+    "backtest_period_days": 61,
+    "live_retrain_hours_present": false
+  },
+  "configuration_materialization": {
+    "base_config_immutable": true,
+    "temporary_runtime_config": true,
+    "allowed_added_freqai_keys": {
+      "train_period_days": 90,
+      "backtest_period_days": 61
+    },
+    "timerange_added_to_config": false,
+    "live_retrain_hours_added": false
+  },
+  "market_data": {
+    "exchange": "kraken",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "fee": 0.002,
+    "verification_module": "ai_platform.scripts.rl_v2_historical_training_execution_run_request",
+    "cache_namespace": "rl-v2-historical-training-pre-oos-v1",
+    "restore_from_post_20260501_cache_allowed": false
+  },
+  "evidence": {
+    "classification": "historical_development_evidence",
+    "strict_oos": false,
+    "protected_final_validation": false,
+    "automatic_ranking": false,
+    "automatic_promotion": false,
+    "negative_or_zero_trade_result_is_valid_evidence": true
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "start_inclusive": "2026-05-01T00:00:00Z",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "frozen_entry_prediction_threshold": 0.006,
+    "frozen_exit_prediction_threshold": -0.009,
+    "thresholds_used_for_rl_tuning": false,
+    "phase6_authoritative_selected_model": null,
+    "phase6_member": false,
+    "pytorch_rl_ranking_allowed": false
+  },
+  "authorization": {
+    "infrastructure_merge_executes_model": false,
+    "canonical_request_required": true,
+    "historical_training_execution_allowed_after_canonical_request": true,
+    "historical_backtest_allowed_after_canonical_request": true,
+    "market_data_download_allowed_after_canonical_request": true,
+    "strict_oos_scoring_allowed": false,
+    "consumed_historical_oos_access_allowed": false,
+    "protected_final_holdout_access_allowed": false,
+    "retuning_allowed": false,
+    "model_parameter_changes_allowed": false,
+    "feature_changes_allowed": false,
+    "reward_changes_allowed": false,
+    "cross_track_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false
+  }
+}

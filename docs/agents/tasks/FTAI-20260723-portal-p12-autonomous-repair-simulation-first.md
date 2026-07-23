@@ -70,7 +70,7 @@ updated_at: 2026-07-23T19:15:00+02:00
 head: 1e724be35ce856d93b590415b9bb3860634d8993
 branch: develop
 pr: "#221"
-status: done
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/QUALITY_AND_AUTONOMOUS_E2E.md

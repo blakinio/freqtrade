@@ -53,8 +53,8 @@ Establish the repository-side fail-closed contract and validation path for produ
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T15:42:10+02:00
-head: 4735a90366b1eafcf67a5938696b575d1959cb59
+updated_at: 2026-07-23T16:03:52+02:00
+head: d158e759b968419dfef39da809cdd48e4571e4b9
 branch: develop
 pr: "#181"
 status: blocked
@@ -75,12 +75,12 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260723-portal-p11-cloudflare-staging.md
 proven:
   - Repository-side P11 was squash-merged from PR #180 to develop as 99c659242d8c59d85c6d23182a928d323d617f72.
-  - PR #181 durably recorded the external staging blocker after the P11 implementation merge.
-  - Current develop checkpoint 4735a90366b1eafcf67a5938696b575d1959cb59 contains later unrelated RL-v2 work; no P11 implementation-owned path changed after PR #180 except this task record.
+  - PR #181 durably recorded the external staging blocker after the P11 implementation merge and is merged.
+  - Current develop HEAD is d158e759b968419dfef39da809cdd48e4571e4b9; comparison from PR #180 merge shows no P11 implementation-owned path changed afterward except this task record.
   - The merged staging contract requires Tunnel ingress, forbids public origin/Freqtrade ingress and fixes execution to simulated mode.
   - The merged external verifier checks public portal reachability, Access anonymous denial, Access service identity, direct-origin denial and direct-Freqtrade denial without printing endpoint or token secrets.
   - Portal Staging Policy, AI Platform, Freqtrade and zizmor validation passed on both the implementation and final checkpoint merge-state heads before merge.
-  - No installed Cloudflare connector/plugin, GitHub workflow-dispatch action or GitHub environment-inspection action is available in this execution context.
+  - The current GitHub connector exposes workflow run read/rerun actions but no workflow-dispatch or GitHub environment-inspection action; no Cloudflare connector/plugin is installed in this execution context.
 derived:
   - Repository-side autonomous work for P11 is complete.
   - P12 cannot start until real production-like staging External E2E is stable because the execution plan makes P11 staging E2E a prerequisite.
@@ -125,7 +125,7 @@ validation:
     evidence: Final checkpoint-only workflow security analysis passed before PR #180 merge.
   - command: Portal Staging External E2E
     result: BLOCKED
-    evidence: Owner-approved real Cloudflare resources and protected GitHub staging variables/secrets are unavailable or unverifiable from the current execution context, and no workflow-dispatch tool is available.
+    evidence: Real Cloudflare resources and protected GitHub staging variables/secrets remain unavailable or unverifiable from this execution context; the available GitHub connector still cannot dispatch the workflow or inspect the staging environment.
 blockers:
   - Owner-approved real Cloudflare staging Tunnel, DNS, Access, WAF/rate-limit and origin firewall resources are unavailable or unverified in the current execution context.
   - Protected GitHub staging environment variables and secrets required by Portal Staging External E2E are unavailable or unverified in the current execution context.

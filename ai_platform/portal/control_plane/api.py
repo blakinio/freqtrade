@@ -7,9 +7,10 @@ from fastapi import Depends, FastAPI, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
+from ai_platform.portal.contracts.audit import AuditEvent
 from ai_platform.portal.contracts.bots import BotDesiredState, BotInstance, BotSpec
 from ai_platform.portal.contracts.models import ModelVersion
-from ai_platform.portal.contracts.risk import TradeSide
+from ai_platform.portal.contracts.risk import RiskDecision, TradeSide
 from ai_platform.portal.control_plane.context import (
     IdentityContextProvider,
     RequestContext,
@@ -26,6 +27,14 @@ from ai_platform.portal.intelligence.service import TradeIntelligenceService
 from ai_platform.portal.learning.schema import LearningHistoryEntry
 from ai_platform.portal.learning.service import LearningService
 from ai_platform.portal.model_control.service import ModelControlService
+from ai_platform.portal.operations.schema import (
+    ExecutionActivityEntry,
+    OperationalOrder,
+    OperationalPosition,
+    PerformanceSummary,
+    TradeHistoryEntry,
+)
+from ai_platform.portal.operations.service import OperationalReadService
 from ai_platform.portal.risk.service import RiskConflictError, RiskPolicyNotFoundError
 from ai_platform.portal.risk.terminal import (
     RiskSnapshotUnavailableError,
@@ -135,6 +144,7 @@ def create_app(
     model_control_service: ModelControlService | None = None,
     trade_intelligence_service: TradeIntelligenceService | None = None,
     learning_service: LearningService | None = None,
+    operational_read_service: OperationalReadService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -145,6 +155,10 @@ def create_app(
     model_control = model_control_service or ModelControlService(session_factory)
     trade_intelligence = trade_intelligence_service or TradeIntelligenceService(session_factory)
     learning = learning_service or LearningService(session_factory)
+    operations = operational_read_service or OperationalReadService(
+        session_factory,
+        intelligence_service=trade_intelligence,
+    )
     context_dependency = identity_dependency(identity_context_provider)
     _register_exception_handlers(app)
     _register_terminal_route(app, terminal, context_dependency)
@@ -208,5 +222,47 @@ def create_app(
         context: RequestContext = Depends(context_dependency),
     ) -> tuple[LearningHistoryEntry, ...]:
         return learning.history_all(context)
+
+    @app.get("/v1/positions", response_model=list[OperationalPosition])
+    def list_positions(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[OperationalPosition, ...]:
+        return operations.list_positions(context)
+
+    @app.get("/v1/orders", response_model=list[OperationalOrder])
+    def list_orders(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[OperationalOrder, ...]:
+        return operations.list_orders(context)
+
+    @app.get("/v1/trades", response_model=list[TradeHistoryEntry])
+    def list_trades(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[TradeHistoryEntry, ...]:
+        return operations.list_trades(context)
+
+    @app.get("/v1/performance", response_model=list[PerformanceSummary])
+    def list_performance(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[PerformanceSummary, ...]:
+        return operations.list_performance(context)
+
+    @app.get("/v1/risk-events", response_model=list[RiskDecision])
+    def list_risk_events(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[RiskDecision, ...]:
+        return operations.list_risk_events(context)
+
+    @app.get("/v1/audit-events", response_model=list[AuditEvent])
+    def list_audit_events(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[AuditEvent, ...]:
+        return operations.list_audit_events(context)
+
+    @app.get("/v1/execution-activity", response_model=list[ExecutionActivityEntry])
+    def list_execution_activity(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[ExecutionActivityEntry, ...]:
+        return operations.list_execution_activity(context)
 
     return app

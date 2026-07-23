@@ -167,7 +167,6 @@ jobs:
     timeout-minutes: 360
     env:
       EXECUTION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      RUN_CONFIG: ${{ runner.temp }}/rl-v2-historical-training-execution.json
 
     steps:
       - name: Checkout exact execution request commit
@@ -221,7 +220,7 @@ jobs:
       - name: Materialize frozen temporary execution config
         run: >-
           python -m ai_platform.scripts.rl_v2_historical_training_execution_run_request
-          --materialize-config "$RUN_CONFIG"
+          --materialize-config "$RUNNER_TEMP/rl-v2-historical-training-execution.json"
 
       - name: Run exactly one frozen historical training/backtest
         shell: bash
@@ -231,7 +230,7 @@ jobs:
           mkdir -p user_data/backtest_results "$EVIDENCE_ROOT/run"
           set +e
           freqtrade backtesting \
-            --config "$RUN_CONFIG" \
+            --config "$RUNNER_TEMP/rl-v2-historical-training-execution.json" \
             --timerange "$EXECUTION_TIMERANGE" \
             --fee 0.002 \
             --cache none \
@@ -253,7 +252,8 @@ jobs:
             exit 1
           fi
           cp "${archives[0]}" "$EVIDENCE_ROOT/run/raw-backtest.zip"
-          cp "$RUN_CONFIG" "$EVIDENCE_ROOT/run/effective-runtime-config.json"
+          cp "$RUNNER_TEMP/rl-v2-historical-training-execution.json" \
+            "$EVIDENCE_ROOT/run/effective-runtime-config.json"
 
       - name: Record non-OOS evidence provenance
         shell: bash

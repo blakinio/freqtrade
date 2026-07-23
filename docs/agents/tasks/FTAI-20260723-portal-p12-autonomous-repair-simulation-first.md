@@ -5,7 +5,7 @@ branch: feat/portal-p12-simulation-first-repair-clean-20260723
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: null
+related_pr: "#216"
 owned_paths:
   - ai_platform/portal/quality_agent/
   - tests/ai_platform/portal/quality_agent/
@@ -67,10 +67,10 @@ Implement the first deterministic P12 diagnosis and repair-planning boundary usi
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T17:40:00+02:00
+updated_at: 2026-07-23T17:45:00+02:00
 head: d47d20c426ed65391337187ee6b0d744a37c46e4
 branch: feat/portal-p12-simulation-first-repair-clean-20260723
-pr: pending
+pr: "#216"
 status: validating
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -89,6 +89,7 @@ proven:
   - P10 exposes ScenarioFailureEvidence with scenario_id, correlation_id, stage and reason_code and preserves first failure without retry or sleep.
   - The original PR #207 implementation passed its dedicated P12 validation, AI Platform CI and zizmor; its first full-suite failure was a pytest module-name collision that was repaired by renaming the test module.
   - The original PR #207 became stale/non-mergeable after unrelated develop changes, so the exact seven P12-owned files were replayed on this clean branch from current develop instead of forcing an obsolete merge-ref.
+  - PR #216 is the authoritative clean current-develop replacement; stale PR #207 is closed as superseded.
 derived:
   - P12 can evaluate bounded repair proposals from deterministic P10/local/CI evidence without requiring real external infrastructure.
   - A clean current-develop replay is safer than merging the stale #207 branch because intervening changes are incorporated before final CI.
@@ -123,7 +124,7 @@ validation:
     evidence: Original #207 final-head workflow security analysis passed before develop advanced.
   - command: clean current-develop replay validation
     result: NOT_RUN
-    evidence: Replacement PR has not yet been opened.
+    evidence: PR #216 has been opened and final-head CI is pending.
 blockers: []
-next_action: Open the clean replacement PR from current develop, validate dedicated P12, AI Platform, Freqtrade and zizmor gates on the replacement head, then merge it and close stale PR #207.
+next_action: Verify PR #216 dedicated P12, AI Platform, Freqtrade and zizmor gates on the clean current-develop head, then merge it and proceed to the seeded non-security repair acceptance exercise.
 ```

@@ -1,0 +1,42 @@
+name: RL-v2 Runtime After Binding Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/rl-v2-runtime-after-binding-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Install runtime dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check --quiet
+          -e ".[freqai,freqai_rl]"
+
+      - name: Capture bounded runtime preflight output
+        run: python -m ai_platform.scripts.rl_v2_execution_preflight > runtime-preflight.txt 2>&1 || true
+
+      - name: Upload runtime diagnostic
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rl-v2-runtime-after-binding-output
+          path: runtime-preflight.txt
+          if-no-files-found: error
+          retention-days: 1

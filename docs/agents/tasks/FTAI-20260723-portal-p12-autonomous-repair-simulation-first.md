@@ -9,6 +9,7 @@ related_pr: "#207"
 owned_paths:
   - ai_platform/portal/quality_agent/
   - tests/ai_platform/portal/quality_agent/
+  - .github/workflows/portal-p12-simulation-first.yml
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
   - docs/agents/tasks/FTAI-20260723-portal-p12-autonomous-repair-simulation-first.md
 required_reads:
@@ -66,7 +67,7 @@ Implement the first deterministic P12 diagnosis and repair-planning boundary usi
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T17:15:00+02:00
+updated_at: 2026-07-23T17:25:00+02:00
 head: 5ff78a32459ed560fa3089b4bdbbd2a589f148e1
 branch: feat/portal-p12-simulation-first-repair-20260723
 pr: "#207"
@@ -79,21 +80,23 @@ context_routes:
 owned_paths:
   - ai_platform/portal/quality_agent/
   - tests/ai_platform/portal/quality_agent/
+  - .github/workflows/portal-p12-simulation-first.yml
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
   - docs/agents/tasks/FTAI-20260723-portal-p12-autonomous-repair-simulation-first.md
 proven:
   - PR #205 merged as 5ff78a32459ed560fa3089b4bdbbd2a589f148e1 and authorizes P12 simulation-first sequencing while retaining real P11 External E2E as the production-like staging acceptance gate.
   - P10 exposes ScenarioFailureEvidence with scenario_id, correlation_id, stage and reason_code and preserves first failure without retry or sleep.
   - Current develop had no ai_platform/portal/quality_agent implementation before this task.
-  - PR #207 adds typed diagnosis/repair contracts, deterministic classification, fail-closed repair policy, targeted tests and simulation-first documentation only within declared P12 paths.
+  - PR #207 adds typed diagnosis/repair contracts, deterministic classification, fail-closed repair policy, targeted tests, a bounded evidence-capture workflow and simulation-first documentation within declared P12 paths.
+  - The first full-suite failure was a pytest module-name collision between quality_agent/test_service.py and control_plane/test_service.py; targeted P12 tests passed and the test file was renamed to a unique module name.
 derived:
-  - P12 can now evaluate bounded repair proposals from deterministic P10/local/CI evidence without requiring real external infrastructure.
-  - Actual product-code repairs remain separately scoped by owned paths; the quality-agent service enforces rather than expands ownership.
+  - P12 can evaluate bounded repair proposals from deterministic P10/local/CI evidence without requiring real external infrastructure.
+  - The module-name failure was a test-collection defect rather than a product defect; renaming the P12 test module preserves test semantics and removes the collision.
 unknown: []
 conflicts: []
 first_failure:
-  marker: p12-validation-pending
-  evidence: The simulation-first quality-agent foundation is implemented in PR #207, but final acceptance depends on targeted tests and required CI passing on the final PR head.
+  marker: pytest-module-name-collision
+  evidence: Full AI Platform pytest collection imported tests/ai_platform/portal/control_plane/test_service.py as test_service before reaching the P12 file with the same basename; the bounded fix renames only the P12 test module.
 rejected_hypotheses:
   - Treat simulated P10 evidence as proof that real P11 Cloudflare staging passed.
   - Give the diagnosis module direct production deployment authority.
@@ -103,22 +106,26 @@ changed_paths:
   - ai_platform/portal/quality_agent/__init__.py
   - ai_platform/portal/quality_agent/schema.py
   - ai_platform/portal/quality_agent/service.py
-  - tests/ai_platform/portal/quality_agent/test_service.py
+  - tests/ai_platform/portal/quality_agent/test_quality_agent_service.py
+  - .github/workflows/portal-p12-simulation-first.yml
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
   - docs/agents/tasks/FTAI-20260723-portal-p12-autonomous-repair-simulation-first.md
 validation:
-  - command: P12 targeted quality-agent tests
-    result: NOT_RUN
-    evidence: Targeted tests are committed and will execute through AI Platform CI on the final PR head.
+  - command: Portal P12 Simulation-First Validation targeted tests 30018431416
+    result: PASS
+    evidence: Targeted P12 tests and bounded checkpoint validation passed before the full-suite compatibility gate exposed the pytest module-name collision.
+  - command: Portal P12 Simulation-First Validation full AI suite 30018431416
+    result: FAIL
+    evidence: First full-suite failure was pytest import-file mismatch caused by duplicate test_service.py basenames; no product assertion ran before collection failed.
   - command: AI Platform CI
     result: NOT_RUN
-    evidence: PR #207 final-head result is pending.
+    evidence: Final-head validation after the unique test-module rename is pending.
   - command: Freqtrade CI
     result: NOT_RUN
-    evidence: PR #207 final-head result is pending.
+    evidence: Final-head validation after the unique test-module rename is pending.
   - command: GitHub Actions Security Analysis with zizmor
     result: NOT_RUN
-    evidence: PR #207 final-head result is pending.
+    evidence: Final-head validation after the unique test-module rename is pending.
 blockers: []
-next_action: Verify PR #207 targeted tests and required CI on the final head, fix any deterministic failures within declared P12 paths, then merge the PR when all required gates are green.
+next_action: Verify PR #207 targeted P12 validation, full AI Platform compatibility, AI Platform CI, Freqtrade CI and zizmor on the final renamed-test head, then merge the PR if all required gates are green.
 ```

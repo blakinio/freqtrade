@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260722-portal-p10-simulator-e2e
-status: ready_to_merge
+status: active
 branch: feat/portal-p10-simulator-e2e-final
 base_branch: develop
 created: 2026-07-22
@@ -50,11 +50,11 @@ Deliver deterministic no-capital exchange simulation and a universal scenario th
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T11:31:00+02:00
+updated_at: 2026-07-23T11:37:00+02:00
 head: cdf254ea80f75da2aa4e7ae252cbd8d176570f46
 branch: feat/portal-p10-simulator-e2e-final
 pr: "#171"
-status: ready_to_merge
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md

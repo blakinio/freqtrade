@@ -294,7 +294,10 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
         raise RLV2HistoricalTrainingExecutionError("Training configuration identity drifted")
     if descriptor.get("config_path") != BASE_CONFIG_REPO_PATH:
         raise RLV2HistoricalTrainingExecutionError("Training config path binding drifted")
-    if descriptor.get("runtime_binding", {}).get("freqai_model") != EXPECTED_RUNTIME["freqai_model"]:
+    if (
+        descriptor.get("runtime_binding", {}).get("freqai_model")
+        != EXPECTED_RUNTIME["freqai_model"]
+    ):
         raise RLV2HistoricalTrainingExecutionError("Descriptor FreqAI model binding drifted")
     if descriptor.get("runtime_binding", {}).get("strategy") != EXPECTED_RUNTIME["strategy"]:
         raise RLV2HistoricalTrainingExecutionError("Descriptor strategy binding drifted")
@@ -302,11 +305,22 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
         raise RLV2HistoricalTrainingExecutionError("Descriptor PPO binding drifted")
     if descriptor.get("runtime_binding", {}).get("policy_type") != EXPECTED_RUNTIME["policy_type"]:
         raise RLV2HistoricalTrainingExecutionError("Descriptor policy binding drifted")
-    if descriptor.get("semantic_binding", {}).get("action_space") != EXPECTED_RUNTIME["action_space"]:
-        raise RLV2HistoricalTrainingExecutionError("Descriptor desired-position action space drifted")
-    if descriptor.get("isolation", {}).get("consumed_historical_oos", {}).get("usage") != "forbidden":
+    if (
+        descriptor.get("semantic_binding", {}).get("action_space")
+        != EXPECTED_RUNTIME["action_space"]
+    ):
+        raise RLV2HistoricalTrainingExecutionError(
+            "Descriptor desired-position action space drifted"
+        )
+    if (
+        descriptor.get("isolation", {}).get("consumed_historical_oos", {}).get("usage")
+        != "forbidden"
+    ):
         raise RLV2HistoricalTrainingExecutionError("Consumed historical OOS isolation drifted")
-    if descriptor.get("isolation", {}).get("protected_final_holdout", {}).get("usage") != "forbidden":
+    if (
+        descriptor.get("isolation", {}).get("protected_final_holdout", {}).get("usage")
+        != "forbidden"
+    ):
         raise RLV2HistoricalTrainingExecutionError("Protected final holdout isolation drifted")
 
     if FORBIDDEN_BASE_CONFIG_KEYS.intersection(_collect_keys(base_config)):
@@ -326,12 +340,16 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
     if base_config.get("exchange", {}).get("pair_whitelist") != EXPECTED_MARKET_DATA["pairs"]:
         raise RLV2HistoricalTrainingExecutionError("Base config pair whitelist drifted")
     if base_config.get("exchange", {}).get("key") or base_config.get("exchange", {}).get("secret"):
-        raise RLV2HistoricalTrainingExecutionError("Base config must not contain exchange credentials")
+        raise RLV2HistoricalTrainingExecutionError(
+            "Base config must not contain exchange credentials"
+        )
     rl_config = base_config.get("freqai", {}).get("rl_config", {})
     if rl_config.get("model_type") != "PPO" or rl_config.get("policy_type") != "MlpPolicy":
         raise RLV2HistoricalTrainingExecutionError("Base config PPO/MlpPolicy binding drifted")
     if rl_config.get("model_reward_parameters") != {}:
-        raise RLV2HistoricalTrainingExecutionError("Base config must not redefine reward parameters")
+        raise RLV2HistoricalTrainingExecutionError(
+            "Base config must not redefine reward parameters"
+        )
 
     return contract, descriptor, base_config
 
@@ -414,7 +432,9 @@ def materialize_runtime_config(output: Path) -> Path:
     _, _, base_config = _validate_contract()
     output = output.resolve()
     if output == _repo_path(BASE_CONFIG_REPO_PATH):
-        raise RLV2HistoricalTrainingExecutionError("Refusing to overwrite the immutable base config")
+        raise RLV2HistoricalTrainingExecutionError(
+            "Refusing to overwrite the immutable base config"
+        )
 
     runtime_config = deepcopy(base_config)
     freqai = runtime_config.setdefault("freqai", {})
@@ -437,7 +457,9 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
 
     _validate_contract()
     selected_pairs = pairs or EXPECTED_MARKET_DATA["pairs"]
-    if not selected_pairs or any(pair not in EXPECTED_MARKET_DATA["pairs"] for pair in selected_pairs):
+    if not selected_pairs or any(
+        pair not in EXPECTED_MARKET_DATA["pairs"] for pair in selected_pairs
+    ):
         raise RLV2HistoricalTrainingExecutionError("Data verification requested an unknown pair")
 
     timerange = TimeRange.parse_timerange(EXPECTED_EXECUTION["download_timerange"])
@@ -469,12 +491,14 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
             last_date = frame["date"].max().to_pydatetime()
             if first_date > startdt:
                 raise RLV2HistoricalTrainingExecutionError(
-                    f"Downloaded data starts too late for {pair} {timeframe}: {first_date.isoformat()}"
+                    "Downloaded data starts too late for "
+                    f"{pair} {timeframe}: {first_date.isoformat()}"
                 )
             minimum_last_ts = timerange.stopts - TIMEFRAME_SECONDS[timeframe]
             if int(last_date.timestamp()) < minimum_last_ts:
                 raise RLV2HistoricalTrainingExecutionError(
-                    f"Downloaded data ends too early for {pair} {timeframe}: {last_date.isoformat()}"
+                    "Downloaded data ends too early for "
+                    f"{pair} {timeframe}: {last_date.isoformat()}"
                 )
             coverage[f"{pair}:{timeframe}"] = {
                 "rows": len(frame),

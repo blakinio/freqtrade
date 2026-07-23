@@ -1,0 +1,29 @@
+name: RL-v2 Workflow Context Repair Actionlint
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/rl-v2-workflow-context-repair-actionlint.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact repair head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Validate repaired workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          "$(go env GOPATH)/bin/actionlint" \
+            .github/workflows/ai-platform-rl-v2-historical-training-execution.yml

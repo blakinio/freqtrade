@@ -241,9 +241,7 @@ def test_model_health_reports_drift_unavailable_without_inventing_telemetry(
     health = client.get("/v1/model-health")
     assert health.status_code == 200
     assert health.json()[0]["drift_status"] == "UNAVAILABLE"
-    assert health.json()[0]["drift_reason"] == (
-        "CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED"
-    )
+    assert health.json()[0]["drift_reason"] == ("CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED")
 
 
 def test_runtime_log_availability_is_permission_gated_and_truthful(

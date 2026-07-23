@@ -294,12 +294,14 @@ Create a deterministic exchange/market simulator and full user-journey E2E harne
 Acceptance:
 
 - browser creates and starts a dry-run AI bot;
-- deterministic simulated trade executes through Freqtrade;
+- deterministic simulated trade executes through the `ApprovedExecutionIntent` simulator submitter boundary;
 - portal PNL reconciles;
 - post-trade analysis appears;
 - audit trail exists;
 - failure bundle contains cross-layer evidence;
 - no arbitrary sleep-based readiness.
+
+P10 simulation does not prove or require a functional `FreqtradeExecutionAdapter.submit_approved_intent` order-submission path. Real private Freqtrade submission remains a separate bounded integration concern.
 
 ## 16. P11 agent brief — Cloudflare staging
 

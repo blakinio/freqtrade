@@ -20,10 +20,11 @@ Status values:
 - `active`
 - `blocked`
 - `done`
+- `deferred`
 
 ## P0 — Architecture and governance foundation
 
-Status: `active`
+Status: `done`
 
 Goal: freeze architectural boundaries and agent work ownership before implementation.
 
@@ -46,9 +47,11 @@ Acceptance:
 - boundaries are linked from canonical AI Platform docs;
 - first implementation work packages have disjoint ownership.
 
+Merged evidence: architecture and agent-program foundation landed in PR #113.
+
 ## P1 — Domain contracts and security foundation
 
-Status: `planned`
+Status: `done`
 
 Goal: establish fail-closed domain/API/event/security contracts before building product workflows.
 
@@ -71,9 +74,11 @@ Acceptance:
 - Freqtrade is explicitly private in network/deployment contracts;
 - live-capital state cannot be selected by default.
 
+Merged evidence: P1 contracts and security foundation landed in PR #114.
+
 ## P2 — Control Plane core
 
-Status: `planned`
+Status: `done`
 
 Goal: implement the first modular backend control plane without public Freqtrade coupling.
 
@@ -96,22 +101,24 @@ Acceptance:
 - privileged operations are capability-gated;
 - no direct exchange or Freqtrade credentials are exposed to API consumers.
 
+Merged evidence: bounded P2 Control Plane core landed in PR #116.
+
 ## P3 — Freqtrade execution adapter and bot orchestrator
 
-Status: `planned`
+Status: `done`
 
 Goal: safely manage isolated dry-run Freqtrade runtimes through a private adapter.
 
-Deliverables:
+Delivered bounded scope:
 
-- `ExecutionAdapter` interface;
-- Freqtrade adapter;
-- runtime provision/start/pause/stop/health reconciliation;
-- private runtime addressing;
-- readiness gates;
-- runtime credential injection abstraction;
-- per-runtime correlation/log identity;
-- dry-run-only initial policy.
+- `ExecutionAdapter` contract implementation for private runtime lifecycle;
+- deterministic one-bot/one-runtime identity and isolated workspaces;
+- Freqtrade Docker provision/start/pause/stop/inspect lifecycle;
+- private runtime addressing with no published Freqtrade control port;
+- explicit health/readiness and machine-readable failure mapping;
+- non-secret artifact/config resolver boundary;
+- per-runtime correlation identity;
+- dry-run-only policy.
 
 Acceptance:
 
@@ -121,33 +128,43 @@ Acceptance:
 - readiness uses explicit health/state, not fixed sleeps;
 - failure produces machine-readable observed state.
 
+Merged evidence: the declared P3 dry-run runtime-lifecycle scope landed in PR #118.
+
+Current boundary: P3 completion does not mean real order submission exists. Runtime exchange-credential retrieval/injection was not implemented by P3. `FreqtradeExecutionAdapter.submit_approved_intent`, position queries, order queries and trade queries remain fail-closed; `submit_approved_intent` raises `ORDER_SUBMISSION_NOT_IMPLEMENTED`.
+
 ## P4 — Data, events and observability
 
-Status: `planned`
+Status: `done`
 
-Goal: make cross-plane activity attributable and queryable.
+Goal: make cross-plane activity attributable and safely consumable through the bounded P4 foundation.
 
-Deliverables:
+Delivered bounded scope:
 
-- NATS JetStream event transport;
-- transactional outbox/inbox patterns;
-- correlation/causation IDs;
-- OpenTelemetry instrumentation;
-- structured log/redaction policy;
-- normalized trade mirror/reconciliation;
-- object-storage artifact interface;
-- baseline metrics/dashboards.
+- outbox publisher abstraction consuming P2 `portal_outbox_events`;
+- replaceable at-least-once event transport contract;
+- durable tenant-aware inbox/deduplication reference;
+- transactional consumer side-effect plus inbox-marker behavior;
+- correlation/request/causation propagation;
+- structured log, metric and trace abstractions;
+- recursive telemetry secret redaction;
+- targeted publish-failure, duplicate-delivery, correlation and redaction tests.
 
 Acceptance:
 
-- a bot lifecycle flow is traceable end-to-end by correlation ID;
-- duplicate event delivery is safe;
-- secrets are absent from telemetry;
-- mirrored trade data exposes staleness/reconciliation state.
+- outbox rows are marked published only after successful transport send;
+- failed publication remains retryable and duplicate delivery is safe;
+- consumer deduplication is durable per `(consumer_name, event_id)` and tenant-aware;
+- handler side effects and the inbox marker are transactional;
+- canonical correlation/request/causation IDs propagate unchanged;
+- logs and trace/metric attributes redact sensitive fields;
+- basic operation instrumentation emits correlated start/success/failure evidence;
+- no external event/telemetry infrastructure or bot business logic is introduced.
+
+Merged evidence: P4 data/observability foundation landed in PR #119 and its durable handoff was finalized in PR #120. Deployment of NATS, Redis, Prometheus, Grafana, external trace backends, normalized trade-mirror/reconciliation infrastructure and dashboards remains outside the completed bounded P4 foundation and must not be inferred from its `done` status.
 
 ## P5 — AI/model lifecycle control integration
 
-Status: `planned`
+Status: `done`
 
 Goal: connect the portal to immutable research/model lifecycle metadata without creating a shortcut around validation.
 
@@ -168,42 +185,46 @@ Acceptance:
 - promotion is audited and capability-gated;
 - protected holdout and completed Phase 6 boundaries remain unchanged.
 
+Merged evidence: P5 model lifecycle control landed in PR #124 without changing authoritative Phase 6 `selected_model = null` or protected research boundaries.
+
 ## P6 — Portal web shell and core operations UI
 
-Status: `planned`
+Status: `done`
 
 Goal: deliver the first modern user-facing control surface.
 
-Deliverables:
+Delivered bounded scope:
 
-- Next.js/React application shell;
-- authentication/session integration;
-- dashboard;
-- bot list/detail;
-- Create Bot wizard for dry-run-supported templates;
-- exchange connection metadata management;
-- runtime health/log views;
-- profile/security/notifications shell;
-- responsive design system.
+- isolated Next.js/React/TypeScript application shell;
+- responsive shell with persistent environment visibility;
+- Dashboard, Bots and Create Bot surfaces;
+- explicit loading/error/empty/denied states;
+- same-origin bot BFF with server-only private control-plane origin;
+- existing session-cookie propagation for server-side reads and mutations;
+- fail-closed API mode and explicit fixture mode for deterministic development/E2E;
+- dry-run-only create-bot validation;
+- Chromium Playwright critical journey.
 
 Acceptance:
 
-- browser communicates only with portal API;
+- browser communicates only with portal/BFF routes and never directly with Freqtrade;
 - environment badge is always visible;
 - dry-run is the only deployable trading state in this stage;
 - critical user journey passes Chromium E2E;
-- tenant/RBAC denial states are rendered correctly.
+- denied/error/empty/loading states are explicitly rendered in the bounded shell scope.
+
+Merged evidence: P6 web shell landed in PR #135 and its durable closeout landed in PR #136. Broader exchange-management, runtime-log and profile/security/notification product surfaces remain separate later UI work and are not implied by P6 completion.
 
 ## P7 — Risk Engine and Trading Terminal
 
-Status: `planned`
+Status: `done`
 
 Goal: put deterministic policy between every manual/AI trade intent and execution.
 
 Deliverables:
 
 - versioned risk policy model;
-- TradeIntent/ApprovedTradeIntent/RejectedTradeIntent contracts;
+- `TradeIntent` -> `ApprovedExecutionIntent` / `RejectedExecutionIntent` contracts;
 - initial exposure/loss/drawdown/health gates;
 - terminal intent API/UI;
 - kill switches;
@@ -217,58 +238,64 @@ Acceptance:
 - terminal has no direct exchange/Freqtrade path;
 - security E2E covers unauthorized terminal actions.
 
+Merged evidence: P7 deterministic risk core landed in PR #137 and the fail-closed terminal integration landed in PR #143.
+
+Current boundary: the terminal sends approved decisions only to an injected `ApprovedExecutionIntent` submitter. The default concrete Freqtrade submitter still returns `ORDER_SUBMISSION_NOT_IMPLEMENTED`, surfaced as terminal state `BLOCKED`; P7 therefore proves the deterministic risk-gated terminal flow, not real Freqtrade/exchange order submission.
+
 ## P8 — Post-Trade Intelligence
 
-Status: `planned`
+Status: `done`
 
 Goal: capture decision black-box evidence and explain trade outcomes without overclaiming causality.
 
-Deliverables:
+Delivered bounded scope:
 
-- DecisionSnapshot;
-- TradeOutcome normalization;
-- evidence assembler;
-- deterministic diagnosis layer;
-- AI-assisted synthesis boundary;
-- Trade Analysis UI;
-- Insights UI;
-- counterfactual offline analysis framework;
-- Trading Knowledge Base schema.
+- immutable `DecisionSnapshot` evidence separated from `TradeOutcome`;
+- tenant-scoped persistence for snapshots, outcomes and analyses;
+- exact config/strategy/model/risk/runtime evidence attribution;
+- deterministic diagnosis before optional AI synthesis;
+- explicit reconciliation-gap handling;
+- fail-closed tenant/bot/pair/runtime attribution;
+- append-only optional AI narrative that cannot overwrite deterministic evidence.
 
 Acceptance:
 
 - loss is not automatically classified as model error;
 - every diagnosis links evidence and versions;
-- LLM output cannot overwrite deterministic evidence;
+- AI synthesis cannot overwrite deterministic evidence;
 - analysis failure cannot affect execution;
 - no analysis automatically mutates production bot/model configuration.
 
+Merged evidence: bounded P8 trade-intelligence foundation landed in PR #147 with green required CI. Trade Analysis/Insights UI, counterfactual framework and a broader Trading Knowledge Base remain future product work and are not implied by P8 foundation completion.
+
 ## P9 — Safe continual-learning workflow
 
-Status: `planned`
+Status: `done`
 
-Goal: allow live/dry-run evidence to create reproducible learning candidates.
+Goal: turn durable P8 insight evidence into reproducible learning candidates without automatic promotion.
 
-Deliverables:
+Delivered bounded scope:
 
-- curated learning dataset pipeline;
-- insight -> hypothesis -> experiment workflow;
-- scheduled/triggered training request policy;
-- champion/challenger comparison workflow;
-- candidate registration;
-- explicit autonomy levels L0-L4;
-- Learning History UI.
+- durable Insight -> Hypothesis -> Experiment -> Candidate provenance;
+- explicit evidence windows and autonomy levels;
+- protected final-holdout exclusion for iterative evidence windows;
+- durable negative and inconclusive experiment outcomes;
+- candidate metadata registration only from positive experiments;
+- candidates created with `promoted=false` and `assigned_to_bot=false`;
+- fail-closed tenant provenance.
 
 Acceptance:
 
 - bad trade can trigger experiment proposal, not direct model mutation;
-- candidate creation never implies promotion;
+- candidate creation never implies promotion or BotConfigRevision mutation;
 - evidence windows are declared and protected-boundary aware;
 - negative experiments remain durable.
 
+Merged evidence: bounded P9 safe continual-learning workflow landed in PR #158. Scheduled training orchestration, champion/challenger automation and Learning History UI remain separate future work and are not implied by P9 foundation completion.
+
 ## P10 — Deterministic exchange simulator and universal E2E
 
-Status: `planned`
+Status: `done`
 
 Goal: test the complete system with realistic user and exchange behavior without real capital.
 
@@ -289,6 +316,10 @@ Acceptance:
 - candidate training test proves active model does not change automatically;
 - first failure evidence is preserved;
 - test system uses explicit readiness gates.
+
+Merged evidence: P10 deterministic simulator/universal E2E landed in PR #171 and its closeout landed in PR #176.
+
+Current boundary: P10's deterministic simulator implements the approved-intent submitter for simulated orders. It does not make `FreqtradeExecutionAdapter.submit_approved_intent` functional and is not evidence of real Freqtrade order submission.
 
 ## P11 — Cloudflare production-like staging
 
@@ -314,7 +345,11 @@ Acceptance:
 - automated staging E2E authenticates without a security bypass endpoint;
 - exchange execution remains simulated by default.
 
-Repository-side P11 contracts, verifier, workflow and runbooks may be complete while this stage remains blocked on real owner-approved external infrastructure. The owner explicitly deferred provisioning/verification of the real Cloudflare and protected GitHub staging environment until the software platform is otherwise ready. This deferral does not waive any P11 acceptance criterion.
+Repository-side P11 contracts, verifier, workflow and runbooks are complete while this stage remains blocked on real owner-approved external infrastructure. The owner explicitly deferred provisioning/verification of the real Cloudflare and protected GitHub staging environment until the software platform is otherwise ready. This deferral does not waive any P11 acceptance criterion.
+
+Repository-side evidence: PR #180 merged the fail-closed staging policy, five-probe external verifier, protected staging workflow and runbooks. Durable P11 blocker/handoff records were subsequently maintained through PRs #181, #203, #204, #205 and #215.
+
+Exact remaining external gate: provision or confirm the owner-approved Cloudflare Tunnel, proxied DNS, WAF, rate limiting, Access/Zero Trust, staging service identity and direct-origin network denial; configure the protected GitHub staging environment variables/secrets; then pass real `Portal Staging External E2E` for public portal reachability, anonymous Access denial, service-identity access, direct-origin denial and direct-Freqtrade denial.
 
 ## P12 — Autonomous diagnosis and bounded repair
 
@@ -346,7 +381,7 @@ Simulation-first P12 acceptance completed through the recovered fail-closed foun
 
 ## P13 — Scale and service extraction
 
-Status: `planned`
+Status: `deferred`
 
 Goal: scale only where measured requirements justify complexity.
 
@@ -360,6 +395,8 @@ Possible work:
 - multi-region design.
 
 Acceptance is defined prospectively from observed bottlenecks/SLOs. This stage must not be implemented merely for architectural fashion.
+
+The measured-need assessment completed in PR #224 with a NO-GO decision: current repository evidence contains no qualifying latency, throughput, saturation, capacity, error-budget or SLO bottleneck that justifies service extraction or additional scale infrastructure. P13 remains deferred until a durable measurement bundle identifies a specific bottleneck or unmet SLO, quantified impact, alternatives, the smallest justified change, and validation/rollback criteria.
 
 ## P14 — Live-small readiness
 
@@ -406,3 +443,7 @@ P14 remains separately blocked/authorized
 ```
 
 Parallel work is allowed only where owned paths and contracts are disjoint and dependencies are satisfied. Simulation-first P12 does not satisfy or replace the later real P11 external acceptance gate.
+
+## Next program-level action
+
+When the owner intentionally starts the real infrastructure phase, resume P11 and run the real protected `Portal Staging External E2E` path until all five ingress, Access and direct-denial probes pass. Do not start P14 or enable live capital as part of that work.

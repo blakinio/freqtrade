@@ -18,23 +18,43 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Query dedicated workflow runs
+      - name: Query dedicated workflow registration and runs
         shell: bash
         run: |
           set -euo pipefail
           gh api \
             --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ai-platform-rl-v2-historical-training-execution.yml" \
+            > rl-v2-workflow.json
+          gh api \
+            --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows" \
+            -f per_page=100 \
+            > workflows.json
+          gh api \
+            --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ai-platform-rl-v2-historical-training-execution.yml/runs" \
+            -f event=pull_request \
+            -f per_page=100 \
+            > rl-v2-all-pr-runs.json
+          gh api \
+            --method GET \
             "repos/${GITHUB_REPOSITORY}/actions/workflows/ai-platform-rl-v2-historical-training-execution.yml/runs" \
             -f event=pull_request \
             -f branch=run/rl-v2-historical-training-execution-v1 \
-            -f per_page=20 \
+            -f per_page=100 \
             > rl-v2-trigger-runs.json
+          python -m json.tool rl-v2-workflow.json
           python -m json.tool rl-v2-trigger-runs.json
 
       - name: Upload run discovery
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: rl-v2-trigger-run-discovery
-          path: rl-v2-trigger-runs.json
+          path: |
+            rl-v2-workflow.json
+            workflows.json
+            rl-v2-all-pr-runs.json
+            rl-v2-trigger-runs.json
           if-no-files-found: error
           retention-days: 1

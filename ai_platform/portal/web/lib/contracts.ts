@@ -12,6 +12,26 @@ export type BotObservedState =
   | "ERROR";
 export type TradeSide = "BUY" | "SELL";
 export type TerminalExecutionState = "REJECTED" | "BLOCKED" | "SUBMITTED";
+export type ModelLifecycleState =
+  | "EXPERIMENTAL"
+  | "CANDIDATE"
+  | "VALIDATED"
+  | "PROMOTED"
+  | "DRY_RUN"
+  | "SHADOW"
+  | "LIVE_SMALL"
+  | "PRODUCTION"
+  | "DEPRECATED"
+  | "REJECTED";
+export type ReconciliationStatus = "SYNCED" | "PENDING" | "SOURCE_UNAVAILABLE" | "MISMATCH";
+export type DiagnosisCode =
+  | "PROFITABLE"
+  | "LOSS_WITHIN_EXPECTED_RISK"
+  | "LOSS_REQUIRES_REVIEW"
+  | "DATA_GAP";
+export type InsightSeverity = "INFO" | "ATTENTION" | "SEVERE";
+export type AutonomyLevel = "L0" | "L1" | "L2" | "L3" | "L4";
+export type ExperimentOutcome = "PENDING" | "POSITIVE" | "NEGATIVE" | "INCONCLUSIVE";
 
 export interface BotSpec {
   tenant_id: string;
@@ -83,4 +103,152 @@ export interface TerminalIntentResult {
   execution_state: TerminalExecutionState;
   execution_reason_code: string;
   order: TerminalOrder | null;
+}
+
+export interface TrainingWindow {
+  start_at: string;
+  end_at: string;
+}
+
+export interface ModelParameter {
+  name: string;
+  value_json: string;
+}
+
+export interface ExperimentReference {
+  experiment_id: string;
+  tenant_id: string;
+  run_id: string;
+}
+
+export interface ModelVersion {
+  model_version_id: string;
+  tenant_id: string;
+  model_family_id: string;
+  artifact_id: string;
+  artifact_sha256: string;
+  feature_schema_version_id: string;
+  dataset_version_id: string;
+  training_window: TrainingWindow;
+  training_pipeline_version_id: string;
+  parameters: ModelParameter[];
+  git_revision: string;
+  created_at: string;
+  lifecycle_state: ModelLifecycleState;
+  experiment_reference: ExperimentReference | null;
+}
+
+export interface DecisionSnapshot {
+  snapshot_id: string;
+  tenant_id: string;
+  bot_id: string;
+  trade_intent_id: string;
+  risk_decision_id: string;
+  config_revision: number;
+  strategy_version: string;
+  model_version: string;
+  risk_policy_version: string;
+  source_runtime_id: string;
+  pair: string;
+  side: TradeSide;
+  amount: string;
+  decision_at: string;
+  evidence_ref: string;
+  evidence_sha256: string;
+}
+
+export interface TradeOutcome {
+  outcome_id: string;
+  tenant_id: string;
+  trade_id: string;
+  bot_id: string;
+  source_runtime_id: string;
+  pair: string;
+  realized_pnl: string;
+  fees: string;
+  exit_reason: string;
+  opened_at: string;
+  closed_at: string;
+  reconciliation_status: ReconciliationStatus;
+  loss_exceeded_risk_budget: boolean;
+}
+
+export interface DeterministicDiagnosis {
+  diagnosis_id: string;
+  tenant_id: string;
+  snapshot_id: string;
+  outcome_id: string;
+  code: DiagnosisCode;
+  reason_codes: string[];
+  evidence_links: string[];
+  created_at: string;
+}
+
+export interface TradeInsight {
+  insight_id: string;
+  tenant_id: string;
+  diagnosis_id: string;
+  severity: InsightSeverity;
+  summary: string;
+  synthesis_source: string;
+  evidence_links: string[];
+  created_at: string;
+}
+
+export interface TradeAnalysis {
+  analysis_id: string;
+  tenant_id: string;
+  snapshot: DecisionSnapshot;
+  outcome: TradeOutcome;
+  diagnosis: DeterministicDiagnosis;
+  insight: TradeInsight;
+  created_at: string;
+}
+
+export interface EvidenceWindow {
+  start_at: string;
+  end_at: string;
+}
+
+export interface LearningHypothesis {
+  hypothesis_id: string;
+  tenant_id: string;
+  source_insight_id: string;
+  statement: string;
+  evidence_links: string[];
+  created_by_actor_id: string;
+  created_at: string;
+}
+
+export interface LearningExperiment {
+  experiment_id: string;
+  tenant_id: string;
+  hypothesis_id: string;
+  evidence_window: EvidenceWindow;
+  autonomy_level: AutonomyLevel;
+  outcome: ExperimentOutcome;
+  result_summary: string;
+  created_by_actor_id: string;
+  created_at: string;
+}
+
+export interface LearningCandidate {
+  candidate_id: string;
+  tenant_id: string;
+  experiment_id: string;
+  model_family_id: string;
+  candidate_model_version_id: string;
+  dataset_version_id: string;
+  feature_schema_version_id: string;
+  autonomy_level: AutonomyLevel;
+  promoted: boolean;
+  assigned_to_bot: boolean;
+  created_by_actor_id: string;
+  created_at: string;
+}
+
+export interface LearningHistoryEntry {
+  hypothesis: LearningHypothesis;
+  experiments: LearningExperiment[];
+  candidates: LearningCandidate[];
 }

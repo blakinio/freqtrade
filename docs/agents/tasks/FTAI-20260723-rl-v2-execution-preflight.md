@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260723-rl-v2-execution-preflight
-status: active
-branch: fix/rl-v2-execution-preflight-ruff
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
@@ -105,11 +105,11 @@ This task may add only:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T10:48:00+02:00
-head: d52c0649130d2b37a6b0980e3d84f31a16021e49
-branch: fix/rl-v2-execution-preflight-ruff
+updated_at: 2026-07-23T12:04:00+02:00
+head: ae28c4fe9d1e94313e0b232b1bcd99d6f4ba59bc
+branch: develop
 pr: 168
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260722-rl-v2-runtime-integration.md
   - docs/ai_platform/RL_V2_RUNTIME_INTEGRATION.md
@@ -123,31 +123,31 @@ owned_paths:
   - .github/workflows/ai-platform-rl-v2-execution-preflight.yml
 proven:
   - PR #151 merged the frozen RL-v2 desired-position runtime integration as 251fa56aeaaa8fb95c7cdf73015da0c1142dc978 and PR #160 closed its task as 9a5abdf3ce4fcbe0feb5b9a278f237796c8bcd92.
-  - Declaration PR #161 passed Freqtrade CI 29965391425 and zizmor 29965391458, then merged to develop as f3d486068110491a302872ecc4e668939ba72930.
-  - The implementation contains only the declared descriptor, ephemeral config builder, resolver/construction checks, fail-closed tests, dedicated preflight workflow, documentation, and this task record.
-  - Ephemeral config declares no timerange, train_period_days, backtest_period_days, or live_retrain_hours and rejects those execution-geometry keys if introduced.
-  - The preflight source contains no fit, learn, train, backtest, or download invocation and constructs only synthetic in-memory frames.
-  - AI Platform CI proved compile and lightweight tests pass; its initial Ruff McCabe failure was isolated to _runtime_checks complexity 13 and resolved by splitting bounded helper checks.
-  - Dedicated preflight CI initially failed before assertions because repository pytest addopts require xdist; pytest-xdist and pytest-asyncio were added to the dedicated validation environment.
-  - Exact Ruff 0.15.21 format diffs were captured by temporary read-only diagnostics; the script diff was empty and the sole test diff was applied exactly, after which diagnostic workflows were removed from the final deliverable.
-  - Stale/superseded PRs #162, #163, #164 and #166 were closed without merge; PR #168 is the sole implementation candidate.
-  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden and unreachable from the preflight configuration surface.
+  - Declaration PR #161 merged to develop as f3d486068110491a302872ecc4e668939ba72930 before implementation work began.
+  - PR #168 added only the declared descriptor, ephemeral configuration builder, resolver and construction checks, fail-closed tests, dedicated preflight workflow and documentation; it added no training config, experiment manifest, run request or evaluation window.
+  - The ephemeral configuration declares no timerange, train_period_days, backtest_period_days or live_retrain_hours and rejects those execution-geometry keys if introduced.
+  - The preflight source contains no fit, learn, train, backtest or download invocation and constructs only synthetic in-memory frames.
+  - Final AI Platform CI run 29996056913 completed successfully on PR #168 head e262687e7900bc1ddd9e6e3b537c5a93d1635e68.
+  - Final dedicated RL-v2 execution-preflight run 29996057022 installed heavy freqai_rl dependencies, passed targeted tests and completed bounded resolver, construction, semantic and observability validation successfully.
+  - Final zizmor run 29996056962 completed successfully on the exact final PR #168 head.
+  - Freqtrade CI run 29996057493 had all applicable jobs complete successfully, including pre-commit, documentation and the Python 3.11-3.14, macOS and Windows core matrix; the connector aggregate status remained stale after job completion.
+  - PR #168 was squash-merged to develop as ae28c4fe9d1e94313e0b232b1bcd99d6f4ba59bc.
+  - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 were not accessed and remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
-  - The explicit minimal construction surface is sufficient in principle for current resolver checks without committing a training configuration or evaluation geometry.
-  - Successful dedicated heavy-runtime CI would prove runtime resolvability only and would not be model-performance evidence.
-unknown:
-  - Whether current FreqAI and StrategyResolver accept the declared minimal ephemeral config without additional construction-only keys.
-  - Whether current develop advancement requires replaying the six final owned implementation paths onto a fresh base before merge.
+  - The minimal ephemeral configuration is sufficient for current resolver and synthetic construction preflight only; it is not a committed training configuration.
+  - Successful bounded preflight is runtime-resolvability evidence only and is not model-performance, profitability or superiority evidence.
+  - Any future training configuration, run request, model execution or evaluation-window declaration requires a separate prospectively declared bounded task.
+unknown: []
 conflicts: []
 first_failure:
-  marker: resolved_validation_infrastructure_and_formatting
-  evidence: Early validation exposed three non-performance blockers: Ruff McCabe complexity 13, pytest --dist without pytest-xdist, and one Ruff test-format diff; each was remediated without training, backtesting, market data, evaluation geometry, or holdout access.
+  marker: resolved_preflight_validation_chain
+  evidence: Validation exposed Ruff McCabe and format issues, missing pytest plugins, dynamic resolver class identity, static IFreqaiModel typing and NumPy JSON scalar serialization; all were resolved without training, backtesting, market data, evaluation geometry, OOS scoring or holdout access.
 rejected_hypotheses:
-  - Add a committed training config, experiment manifest, or run request in this task.
+  - Add a committed training config, experiment manifest or run request in this task.
   - Select a historical or future evaluation window during preflight.
   - Reuse consumed historical OOS 20260501-20260630 or access protected final holdout 20260801-20260930.
-  - Train, fit, download data, backtest, or score performance during preflight.
+  - Train, fit, download data, backtest or score performance during preflight.
   - Rank or promote RL-v2 against PyTorch from this task.
 changed_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
@@ -157,18 +157,18 @@ changed_paths:
   - tests/ai_platform/test_rl_v2_execution_preflight.py
   - .github/workflows/ai-platform-rl-v2-execution-preflight.yml
 validation:
-  - command: required reads and incremental live-state verification
+  - command: PR #168 final AI Platform CI
     result: PASS
-    evidence: Required governance, architecture, frozen runtime integration, resolver, and existing heavy-runtime construction surfaces were inspected before implementation.
-  - command: AI Platform CI diagnostic validation
-    result: FAIL
-    evidence: Compile and lightweight AI tests passed; early runs isolated McCabe complexity and then Ruff formatting as the first failures, which were remediated without expanding execution scope.
-  - command: dedicated RL-v2 execution-preflight diagnostic validation
-    result: FAIL
-    evidence: Heavy dependencies installed successfully; early pytest failed because pyproject addopts require pytest-xdist, which is now installed by the final dedicated workflow.
-  - command: local targeted pytest/compile/Ruff
-    result: NOT_RUN
-    evidence: No repository checkout is mounted in the current sandbox; executable validation is delegated to repository CI and the dedicated preflight workflow without substituting model execution.
+    evidence: Run 29996056913 passed compile, AI Platform tests, Ruff lint, Ruff format, Codespell and JSON validation on final head e262687e7900bc1ddd9e6e3b537c5a93d1635e68.
+  - command: PR #168 final RL-v2 execution preflight
+    result: PASS
+    evidence: Run 29996057022 passed checkpoint validation, heavy dependency installation, targeted tests and the bounded runtime preflight without training or historical execution.
+  - command: PR #168 final zizmor
+    result: PASS
+    evidence: Run 29996056962 completed successfully on the exact final head.
+  - command: PR #168 final Freqtrade CI
+    result: PASS
+    evidence: Run 29996057493 completed all applicable jobs successfully, including pre-commit, documentation and the core platform matrix; the connector aggregate status remained stale after successful job completion.
 blockers: []
-next_action: Synchronize PR #168 to this final checkpoint head, run AI Platform CI, Freqtrade CI, zizmor and the dedicated RL-v2 execution-preflight workflow on the exact latest head, fix only the first concrete failure if any, otherwise merge after verifying compatibility with current develop and close the task checkpoint.
+next_action: Declare a separate bounded RL-v2 training or execution work package before adding any committed training config, experiment manifest, run request, historical or future evaluation window, model training, backtest, strict-OOS scoring or final-holdout access.
 ```

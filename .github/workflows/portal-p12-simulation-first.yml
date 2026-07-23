@@ -1,0 +1,86 @@
+name: Portal P12 Simulation-First Validation
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/quality_agent/**"
+      - "tests/ai_platform/portal/quality_agent/**"
+      - "docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md"
+      - "docs/agents/tasks/FTAI-20260723-portal-p12-autonomous-repair-simulation-first.md"
+      - ".github/workflows/portal-p12-simulation-first.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "portal-p12-simulation-first-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: P12 simulation-first tests and evidence
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install lightweight validation dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          "httpx>=0.24.1" fastapi ruff==0.15.21 codespell==2.4.2
+
+      - name: Validate bounded P12 checkpoint
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260723-portal-p12-autonomous-repair-simulation-first.md
+          --require-checkpoint
+
+      - name: Run targeted P12 tests
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform
+          tests/ai_platform/portal/quality_agent
+
+      - name: Run full AI Platform tests and capture evidence
+        id: full-tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform tests/ai_platform \
+            > p12-full-ai-tests.log 2>&1
+
+      - name: Upload full-suite evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-p12-full-ai-tests-${{ github.run_id }}
+          path: p12-full-ai-tests.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Fail when full AI Platform tests fail
+        if: steps.full-tests.outcome == 'failure'
+        run: exit 1
+
+      - name: Ruff
+        run: ruff check ai_platform/portal/quality_agent tests/ai_platform/portal/quality_agent
+
+      - name: Ruff format
+        run: ruff format --check ai_platform/portal/quality_agent tests/ai_platform/portal/quality_agent
+
+      - name: Codespell
+        run: >-
+          codespell ai_platform/portal/quality_agent
+          tests/ai_platform/portal/quality_agent
+          docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md

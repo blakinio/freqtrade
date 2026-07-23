@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260723-portal-p12-autonomous-repair-simulation-first
-status: active
-branch: feat/portal-p12-simulation-first-repair-clean-20260723
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: "#216"
+related_pr: "#221"
 owned_paths:
   - ai_platform/portal/quality_agent/
   - tests/ai_platform/portal/quality_agent/
@@ -22,8 +22,8 @@ required_reads:
   - ai_platform/portal/simulator/schema.py
   - ai_platform/portal/simulator/runner.py
 search_first:
-  - existing P12 quality-agent implementation
-  - P10 deterministic failure evidence contracts
+  - current develop and P12 quality-agent implementation
+  - P12 seeded repair acceptance evidence
 optional_reads: []
 ---
 
@@ -31,47 +31,46 @@ optional_reads: []
 
 ## Goal
 
-Implement the first deterministic P12 diagnosis and repair-planning boundary using P10 simulated/local/CI failure evidence, without claiming real P11 Cloudflare acceptance and without granting production deployment authority.
+Implement deterministic simulation-first diagnosis and bounded repair from P10/local/CI evidence without claiming real P11 Cloudflare acceptance or granting production deployment authority.
 
-## Deliverables
+## Delivered
 
 - typed diagnosis records for P10 first-failure evidence;
-- deterministic failure classification;
-- simulation-first repair-plan contract;
-- regression-test-first enforcement;
-- owned-path enforcement;
-- explicit rejection of security weakening, production deployment, secret access and live-capital actions;
-- isolated branch naming and validation routing metadata;
-- tests for safe and unsafe repair proposals;
-- simulation-first operational documentation.
+- deterministic product/test/environment/dependency/ambiguous classification;
+- explicit reproducibility state;
+- regression-test-first repair policy;
+- owned-path and path-traversal enforcement;
+- isolated `agent/...` repair branch metadata;
+- explicit validation routing metadata;
+- fail-closed rejection of safety weakening, production deployment, production credential access, live-capital enablement and false real-P11 acceptance claims;
+- dedicated P12 validation workflow and simulation-first operational documentation.
 
 ## Non-negotiable boundaries
 
-- Input evidence is simulated/local/CI only for this work package.
-- P12 output may propose bounded fixes and PR metadata; it does not deploy production.
-- Simulated evidence cannot prove real Cloudflare Tunnel, Access, WAF, origin firewall or direct-Freqtrade denial.
+- Simulation/local/CI evidence remains labeled non-production.
+- P12 does not deploy production or access production exchange credentials.
 - Mandatory safety assertions cannot be weakened merely to make a test pass.
-- A repair proposal without a regression test or outside declared owned paths is rejected.
-- No live capital, production exchange secrets or protected final holdout access.
+- Real P11 External E2E remains a separate deferred production-like staging gate.
+- Protected final holdout and frozen research boundaries remain unchanged.
 
 ## Acceptance criteria
 
-1. P10 `ScenarioFailureEvidence` can be deterministically converted into a typed diagnosis record.
-2. A safe simulation-first repair proposal requires reproducible evidence, at least one regression test, owned changed paths and explicit validation commands.
-3. Unsafe proposals are rejected for path escape, missing regression tests, security weakening, production deployment, secret access or live-capital enablement.
-4. Repair metadata includes an isolated task branch name and PR evidence summary without performing deployment.
-5. Tests cover product/test/environment/dependency/ambiguous classification and repair-policy denial paths.
-6. Real P11 External E2E remains explicitly outside the evidence claims of this task.
+1. P10 `ScenarioFailureEvidence` is converted into typed deterministic diagnosis.
+2. Repair authorization requires reproduced evidence, regression coverage, owned paths and validation commands.
+3. Unsafe repair proposals fail closed.
+4. Repair metadata is attributable to task/branch/correlation evidence.
+5. Product/test/environment/dependency/ambiguous classification and denial paths are tested.
+6. A seeded non-security simulator defect was reproduced, diagnosed, regression-tested before repair, minimally repaired and validated without weakening safety assertions.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T17:45:00+02:00
-head: d47d20c426ed65391337187ee6b0d744a37c46e4
-branch: feat/portal-p12-simulation-first-repair-clean-20260723
-pr: "#216"
-status: validating
+updated_at: 2026-07-23T19:15:00+02:00
+head: 1e724be35ce856d93b590415b9bb3860634d8993
+branch: develop
+pr: "#221"
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/QUALITY_AND_AUTONOMOUS_E2E.md
@@ -84,26 +83,29 @@ owned_paths:
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
   - docs/agents/tasks/FTAI-20260723-portal-p12-autonomous-repair-simulation-first.md
 proven:
-  - PR #205 merged as 5ff78a32459ed560fa3089b4bdbbd2a589f148e1 and authorizes P12 simulation-first sequencing while retaining real P11 External E2E as the production-like staging acceptance gate.
-  - PR #215 merged as d47d20c426ed65391337187ee6b0d744a37c46e4 and records P11 as a durable deferred real-infrastructure gate rather than a simulation-first P12 blocker.
-  - P10 exposes ScenarioFailureEvidence with scenario_id, correlation_id, stage and reason_code and preserves first failure without retry or sleep.
-  - The original PR #207 implementation passed its dedicated P12 validation, AI Platform CI and zizmor; its first full-suite failure was a pytest module-name collision that was repaired by renaming the test module.
-  - The original PR #207 became stale/non-mergeable after unrelated develop changes, so the exact seven P12-owned files were replayed on this clean branch from current develop instead of forcing an obsolete merge-ref.
-  - PR #216 is the authoritative clean current-develop replacement; stale PR #207 is closed as superseded.
+  - PR #205 authorized simulation-first P12 while retaining real P11 External E2E as a later mandatory gate.
+  - PR #215 durably recorded the owner-approved P11 infrastructure deferral.
+  - Stale foundation PR #207 was closed and replaced rather than force-merged.
+  - Foundation recovery PR #221 restored the exact seven bounded P12 files to live develop and squash-merged as 4f4389c103eb51de2a63f368815b6dea2d38546d.
+  - PR #221 passed Portal P12 Simulation-First Validation 30024638442, AI Platform CI 30024638754, zizmor 30024638500 and Freqtrade CI 30024638000.
+  - Seeded provenance PR #217 preserved the intentional defect, expected failing evidence, diagnosis and minimal repair history and was closed unmerged.
+  - Final clean acceptance PR #222 contained exactly the durable regression test and attributable evidence record and squash-merged as 1e724be35ce856d93b590415b9bb3860634d8993.
+  - PR #222 passed AI Platform CI 30025621176, Portal Universal E2E 30025621171, zizmor 30025621161 and Freqtrade CI 30025621399.
+  - The seeded failure reason `simulated trade did not close after opening` was classified as high-confidence product_defect in the simulator layer.
+  - The minimal repair restored only the declared exit timestamp; the existing safety assertion and new regression test remained intact.
 derived:
-  - P12 can evaluate bounded repair proposals from deterministic P10/local/CI evidence without requiring real external infrastructure.
-  - A clean current-develop replay is safer than merging the stale #207 branch because intervening changes are incorporated before final CI.
+  - P12 simulation-first acceptance criteria are satisfied.
+  - P12 completion does not satisfy or replace deferred real P11 external staging acceptance.
 unknown: []
 conflicts: []
 first_failure:
-  marker: stale-p12-merge-ref
-  evidence: GitHub reported the original PR #207 as non-mergeable after develop advanced with unrelated work; the bounded response is a clean replay of only P12-owned files from current develop.
+  marker: simulated-trade-did-not-close-after-opening
+  evidence: Seeded PR #217 failed AI Platform CI 30021875591 and Portal Universal E2E backend scenario 30021875771 before repair; repaired validation later passed.
 rejected_hypotheses:
-  - Force-merge stale PR #207 without validating against current develop.
-  - Treat simulated P10 evidence as proof that real P11 Cloudflare staging passed.
-  - Give the diagnosis module direct production deployment authority.
-  - Permit repairs outside the declared task-owned paths.
-  - Permit assertion weakening without an intentional separately reviewed contract change.
+  - Treat simulated evidence as proof of real P11 Cloudflare acceptance.
+  - Weaken or delete mandatory safety assertions.
+  - Merge the intentionally defective provenance branch.
+  - Force stale/divergent branches into develop instead of replaying bounded outputs through CI.
 changed_paths:
   - ai_platform/portal/quality_agent/__init__.py
   - ai_platform/portal/quality_agent/schema.py
@@ -113,18 +115,30 @@ changed_paths:
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
   - docs/agents/tasks/FTAI-20260723-portal-p12-autonomous-repair-simulation-first.md
 validation:
-  - command: Portal P12 Simulation-First Validation 30020009304
+  - command: Portal P12 Simulation-First Validation 30024638442
     result: PASS
-    evidence: Original #207 final-head checkpoint, targeted tests, full AI Platform compatibility, Ruff, Ruff format and codespell passed before develop advanced.
-  - command: AI Platform CI 30020009145
+    evidence: Bounded checkpoint, targeted P12 tests, full AI Platform compatibility, Ruff, Ruff format and codespell passed on the recovered foundation.
+  - command: AI Platform CI 30024638754
     result: PASS
-    evidence: Original #207 final-head full AI Platform tests and lint passed before develop advanced.
-  - command: GitHub Actions Security Analysis with zizmor 30020009233
+    evidence: Foundation full AI Platform tests and lint passed.
+  - command: GitHub Actions Security Analysis with zizmor 30024638500
     result: PASS
-    evidence: Original #207 final-head workflow security analysis passed before develop advanced.
-  - command: clean current-develop replay validation
-    result: NOT_RUN
-    evidence: PR #216 has been opened and final-head CI is pending.
+    evidence: Foundation workflow security analysis passed.
+  - command: Freqtrade CI 30024638000
+    result: PASS
+    evidence: Foundation required repository CI gate passed.
+  - command: AI Platform CI 30025621176
+    result: PASS
+    evidence: Final clean seeded-repair acceptance head passed full AI Platform tests and lint.
+  - command: Portal Universal E2E 30025621171
+    result: PASS
+    evidence: Final clean seeded-repair acceptance passed deterministic backend and Chromium journey.
+  - command: GitHub Actions Security Analysis with zizmor 30025621161
+    result: PASS
+    evidence: Final acceptance workflow security analysis passed.
+  - command: Freqtrade CI 30025621399
+    result: PASS
+    evidence: Final acceptance required repository CI gate passed.
 blockers: []
-next_action: Verify PR #216 dedicated P12, AI Platform, Freqtrade and zizmor gates on the clean current-develop head, then merge it and proceed to the seeded non-security repair acceptance exercise.
+next_action: Keep P11 deferred until the owner starts the real infrastructure phase, and declare P13 only if measured requirements justify scale/service extraction.
 ```

@@ -1,0 +1,40 @@
+name: RL-v2 Trigger Run Discovery
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/rl-v2-trigger-run-discovery.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inspect-runs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Query dedicated workflow runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api \
+            --method GET \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/ai-platform-rl-v2-historical-training-execution.yml/runs" \
+            -f event=pull_request \
+            -f branch=run/rl-v2-historical-training-execution-v1 \
+            -f per_page=20 \
+            > rl-v2-trigger-runs.json
+          python -m json.tool rl-v2-trigger-runs.json
+
+      - name: Upload run discovery
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: rl-v2-trigger-run-discovery
+          path: rl-v2-trigger-runs.json
+          if-no-files-found: error
+          retention-days: 1

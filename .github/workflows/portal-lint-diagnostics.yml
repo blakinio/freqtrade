@@ -32,6 +32,7 @@ jobs:
         run: |
           ruff check ai_platform tests/ai_platform > ruff-report.txt 2>&1 || true
           ruff format --check ai_platform tests/ai_platform >> ruff-report.txt 2>&1 || true
+          ruff format --diff ai_platform/portal/product/service.py tests/ai_platform/portal/product/test_product_capabilities.py >> ruff-report.txt 2>&1 || true
       - name: Upload Ruff report
         uses: actions/upload-artifact@v7.0.1
         with:

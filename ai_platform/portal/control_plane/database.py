@@ -29,6 +29,13 @@ def build_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def create_schema(engine: Engine) -> None:
-    from ai_platform.portal.control_plane import models  # noqa: F401
+    # Import every portal module that contributes SQLAlchemy tables to the shared
+    # metadata before creating the development/test schema. Production continues
+    # to use the versioned migrations owned by each module.
+    from ai_platform.portal.control_plane import models as control_plane_models  # noqa: F401
+    from ai_platform.portal.intelligence import models as intelligence_models  # noqa: F401
+    from ai_platform.portal.learning import models as learning_models  # noqa: F401
+    from ai_platform.portal.model_control import models as model_control_models  # noqa: F401
+    from ai_platform.portal.risk import models as risk_models  # noqa: F401
 
     Base.metadata.create_all(engine)

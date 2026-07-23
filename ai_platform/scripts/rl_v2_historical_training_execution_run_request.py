@@ -34,18 +34,18 @@ TASK_REPO_PATH = "docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-exec
 
 EXPECTED_REQUEST_ID = "rl-v2-historical-training-execution-v1"
 EXPECTED_ACTION = "execute_rl_v2_historical_training_backtest"
-EXPECTED_TRIGGER = {
+EXPECTED_TRIGGER: dict[str, Any] = {
     "event": "pull_request_opened",
     "base_branch": "develop",
     "exact_one_file": True,
 }
-EXPECTED_PARENT = {
+EXPECTED_PARENT: dict[str, Any] = {
     "descriptor_path": DESCRIPTOR_REPO_PATH,
     "configuration_id": "rl-v2-training-configuration-v1",
     "config_path": BASE_CONFIG_REPO_PATH,
     "merge_commit": "da1d5b8abe86ec2ac57dc2293d913fdcf1c286ae",
 }
-EXPECTED_RUNTIME = {
+EXPECTED_RUNTIME: dict[str, Any] = {
     "freqai_model": "DesiredPositionReinforcementLearner",
     "freqai_model_path": MODEL_REPO_PATH,
     "strategy": "AiDesiredPositionRLResearchStrategy",
@@ -62,7 +62,7 @@ EXPECTED_RUNTIME = {
     "reward_reference": "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward",
     "reward_constants_source": "ai_platform.scripts.rl_v2_synthetic_reference.REWARD_REFERENCE",
 }
-EXPECTED_EXECUTION = {
+EXPECTED_EXECUTION: dict[str, Any] = {
     "mode": "one_shot_trigger_pr",
     "executions": 1,
     "download_timerange": "20250801-20260501",
@@ -73,7 +73,7 @@ EXPECTED_EXECUTION = {
     "backtest_period_days": 61,
     "live_retrain_hours_present": False,
 }
-EXPECTED_MATERIALIZATION = {
+EXPECTED_MATERIALIZATION: dict[str, Any] = {
     "base_config_immutable": True,
     "temporary_runtime_config": True,
     "allowed_added_freqai_keys": {
@@ -83,7 +83,7 @@ EXPECTED_MATERIALIZATION = {
     "timerange_added_to_config": False,
     "live_retrain_hours_added": False,
 }
-EXPECTED_MARKET_DATA = {
+EXPECTED_MARKET_DATA: dict[str, Any] = {
     "exchange": "kraken",
     "pairs": ["BTC/USDT", "ETH/USDT"],
     "timeframes": ["15m", "1h", "4h"],
@@ -92,7 +92,7 @@ EXPECTED_MARKET_DATA = {
     "cache_namespace": "rl-v2-historical-training-pre-oos-v1",
     "restore_from_post_20260501_cache_allowed": False,
 }
-EXPECTED_EVIDENCE = {
+EXPECTED_EVIDENCE: dict[str, Any] = {
     "classification": "historical_development_evidence",
     "strict_oos": False,
     "protected_final_validation": False,
@@ -100,7 +100,7 @@ EXPECTED_EVIDENCE = {
     "automatic_promotion": False,
     "negative_or_zero_trade_result_is_valid_evidence": True,
 }
-EXPECTED_ISOLATION = {
+EXPECTED_ISOLATION: dict[str, Any] = {
     "consumed_historical_oos": {
         "timerange": "20260501-20260630",
         "start_inclusive": "2026-05-01T00:00:00Z",
@@ -117,7 +117,7 @@ EXPECTED_ISOLATION = {
     "phase6_member": False,
     "pytorch_rl_ranking_allowed": False,
 }
-EXPECTED_AUTHORIZATION = {
+EXPECTED_AUTHORIZATION: dict[str, Any] = {
     "infrastructure_merge_executes_model": False,
     "canonical_request_required": True,
     "historical_training_execution_allowed_after_canonical_request": True,

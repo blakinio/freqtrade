@@ -4,17 +4,70 @@ import type { ReactNode } from "react";
 import { portalEnvironment } from "@/lib/portal-api";
 import { EnvironmentBadge } from "./environment-badge";
 
-const navigation = [
-  { href: "/", label: "Dashboard" },
-  { href: "/bots", label: "Bots" },
-  { href: "/bots/new", label: "Create Bot" },
-  { href: "/terminal", label: "Trading Terminal" },
+const navigationGroups = [
+  {
+    label: "Overview",
+    items: [
+      { href: "/", label: "Dashboard" },
+      { href: "/performance", label: "PNL & Performance" },
+      { href: "/positions", label: "Open Positions" },
+    ],
+  },
+  {
+    label: "Trading",
+    items: [
+      { href: "/terminal", label: "Trading Terminal" },
+      { href: "/orders", label: "Orders" },
+      { href: "/trades", label: "Trade History" },
+    ],
+  },
+  {
+    label: "Bots",
+    items: [
+      { href: "/bots", label: "View Bots" },
+      { href: "/bots/new", label: "Create Bot" },
+      { href: "/bots/signals", label: "Signal Wizard" },
+      { href: "/bots/strategies", label: "Strategy Catalog" },
+      { href: "/bots/grid", label: "Grid Bots" },
+    ],
+  },
+  {
+    label: "AI Intelligence",
+    items: [
+      { href: "/ai", label: "AI Overview" },
+      { href: "/ai/trade-analysis", label: "Trade Analysis" },
+      { href: "/ai/insights", label: "Insights" },
+      { href: "/ai/model-health", label: "Model Health" },
+      { href: "/ai/experiments", label: "Experiments" },
+      { href: "/ai/learning", label: "Learning History" },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { href: "/operations/execution-logs", label: "Execution Logs" },
+      { href: "/operations/signal-logs", label: "Signal Logs" },
+      { href: "/operations/risk-events", label: "Risk Events" },
+      { href: "/operations/runtime-health", label: "Runtime Health" },
+      { href: "/operations/audit", label: "Audit Events" },
+    ],
+  },
+  {
+    label: "Platform",
+    items: [
+      { href: "/platform/exchanges", label: "Exchange Connections" },
+      { href: "/platform/notifications", label: "Notifications" },
+      { href: "/platform/profile", label: "Profile & Security" },
+      { href: "/platform/admin", label: "Administration" },
+    ],
+  },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const environment = portalEnvironment();
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">Skip to content</a>
       <aside className="sidebar" aria-label="Primary navigation">
         <div className="brand-block">
           <span className="brand-mark" aria-hidden="true">FT</span>
@@ -24,29 +77,36 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
         <nav className="primary-nav">
-          {navigation.map((item) => (
-            <Link key={item.href} href={item.href}>
-              {item.label}
-            </Link>
+          {navigationGroups.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <span className="nav-group-title">{group.label}</span>
+              <div className="nav-group-links">
+                {group.items.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
         <div className="sidebar-note">
           <strong>Private execution boundary</strong>
-          <span>Trading runtimes are never browser-addressable.</span>
+          <span>Trading runtimes and exchange credentials are never browser-addressable.</span>
         </div>
       </aside>
       <div className="shell-main">
         <header className="topbar">
-          <div>
+          <div className="topbar-context">
             <span className="eyebrow">Environment</span>
             <EnvironmentBadge environment={environment} />
           </div>
           <div className="topbar-health" aria-label="System health summary">
             <span className="health-dot" aria-hidden="true" />
-            Portal boundary active
+            Protected portal boundary active
           </div>
         </header>
-        <main className="page-content">{children}</main>
+        <main className="page-content" id="main-content">{children}</main>
       </div>
     </div>
   );

@@ -6,11 +6,25 @@
 
 ## Status
 
-`architecture-foundation-active`
+`production-like-staging-blocked`
 
 ## Mission
 
 Build a secure, modern and extensible portal above the existing Freqtrade AI Platform that can manage dry-run bot runtimes, model lifecycle, deterministic risk, post-trade intelligence, safe continual learning, Cloudflare-protected access and autonomous full-platform validation.
+
+## Current program state
+
+Repository-backed implementation has progressed through P12 simulation-first acceptance.
+
+Canonical status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
+
+- P0-P10 are complete for their declared bounded acceptance criteria;
+- P11 repository-side staging contracts, verifier, workflows and runbooks are complete, but real Cloudflare/protected GitHub External E2E remains blocked/deferred and production-like staging is not accepted;
+- P12 simulation-first autonomous diagnosis/repair acceptance is complete and is not a substitute for P11;
+- P13 measured-need assessment completed with NO-GO, so scale/service extraction is deferred until evidence demonstrates a need;
+- P14 remains separately blocked and this program does not authorize live capital.
+
+Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
 
 ## Source of truth
 
@@ -42,15 +56,17 @@ Task-specific agents read additional portal documents only when relevant.
 
 - Freqtrade is an internal execution engine, not a public portal backend.
 - Browser traffic never talks directly to Freqtrade or exchanges.
+- Portal execution reaches Freqtrade only through a controlled private adapter boundary.
 - AI predictions are not unrestricted execution authority.
-- Deterministic risk gates can veto trade intent.
+- Every execution intent is subject to deterministic risk gates before it may reach an execution submitter.
 - Exchange credentials are stored behind a secret boundary and never committed.
 - Withdrawal permission remains disabled.
 - Research workers cannot access production exchange credentials.
-- Models/configs/risk policies used for decisions are immutable and attributable.
+- Models/configs/strategies/risk policies used for decisions are immutable and attributable.
 - Post-trade analysis may create insights/experiments/candidates, not immediate production mutation.
 - Autonomous repair creates regression tests, branches and PRs; it does not patch production.
 - Live capital requires a separate explicit reviewed work package.
+- Repository or simulated P11 evidence cannot be represented as real Cloudflare production-like staging acceptance.
 
 ## Protected existing AI boundaries
 
@@ -84,23 +100,19 @@ Cross-cutting:
 
 ## Delivery sequence
 
-Canonical stage order is defined in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`.
+Canonical stage order, current statuses and acceptance boundaries are defined in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`.
 
-First implementation task after architecture merge:
-
-`FTAI-YYYYMMDD-portal-p1-contracts-security`
-
-It must freeze machine-readable domain/security contracts before downstream control/execution implementation.
+The historical first implementation task after architecture merge was `FTAI-20260722-portal-p1-contracts-security`. That sequence has now progressed through completed P12 simulation-first acceptance; it is no longer the program's next action.
 
 ## Parallelization policy
 
-After P1 contracts merge, P2/P3/P4/P5 and simulator-core work may proceed in parallel if owned paths remain disjoint.
+Shared contract changes are serialized through a dedicated contract-change task. New work must inspect current `develop`, open PRs and active task ownership before editing shared paths.
 
-Shared contract changes are serialized through a dedicated contract-change task.
+P13 scale/service extraction remains deferred unless measured bottleneck/SLO evidence justifies a separately declared work package.
 
 ## Quality policy
 
-Every implementation workstream adds tests at its layer. Full-platform acceptance eventually includes:
+Every implementation workstream adds tests at its layer. Full-platform acceptance includes, as applicable:
 
 - unit/contract/integration;
 - security E2E;
@@ -110,6 +122,8 @@ Every implementation workstream adds tests at its layer. Full-platform acceptanc
 - visual/responsive acceptance;
 - chaos/recovery scenarios;
 - bounded autonomous diagnosis/repair.
+
+Simulation/local/CI evidence must remain labeled as such. Real production-like staging acceptance requires the real protected external ingress path.
 
 ## Security posture
 
@@ -121,7 +135,9 @@ Internet -> Cloudflare -> Tunnel -> Portal
 
 Privileged surfaces add Zero Trust/Access policy. Freqtrade remains private.
 
-Staging E2E traverses the real protected ingress path without a hidden security bypass and uses simulated capital by default.
+Staging E2E must traverse the real protected ingress path without a hidden security bypass and uses simulated capital by default.
+
+The current P11 blocker is external: owner-approved Cloudflare Tunnel/DNS/Access/WAF/rate-limit/origin-denial state plus protected GitHub staging variables/secrets must be provisioned or confirmed and the real External E2E workflow must pass. Repository-side P11 implementation alone is not acceptance.
 
 ## Product surface
 
@@ -153,6 +169,8 @@ The program reaches its first major completion milestone when a production-like 
 9. generate an autonomous evidence-based repair PR for a seeded defect;
 10. prove no public Freqtrade exposure and no live-capital authorization.
 
+Repository-side and simulation-first evidence already cover many of these software boundaries, but the milestone is **not complete** until real P11 protected external ingress acceptance passes.
+
 ## Next action
 
-After this architecture package is reviewed and merged, declare and execute `FTAI-YYYYMMDD-portal-p1-contracts-security` from current `develop`, using the ownership and boundaries in `AGENT_EXECUTION_PLAN.md`.
+When the owner intentionally starts the real infrastructure phase, resume P11: provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.

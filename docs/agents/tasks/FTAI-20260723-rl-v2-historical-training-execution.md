@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260723-rl-v2-historical-training-execution
 status: active
-branch: docs/rl-v2-historical-training-execution-task
+branch: feat/rl-v2-historical-training-execution
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: null
+related_pr: "188"
 owned_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-execution.md
   - docs/ai_platform/RL_V2_HISTORICAL_TRAINING_EXECUTION.md
@@ -125,10 +125,10 @@ This task may add only:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T14:05:00+02:00
-head: a42858a6b6b2accdf47f78fa71cee557b3352448
-branch: docs/rl-v2-historical-training-execution-task
-pr: null
+updated_at: 2026-07-23T14:16:00+02:00
+head: d209de1ee26e6aaeb7792544f65b50af2108aeb0
+branch: feat/rl-v2-historical-training-execution
+pr: 188
 status: active
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md
@@ -143,34 +143,47 @@ owned_paths:
   - .github/workflows/ai-platform-rl-v2-historical-training-execution.yml
 proven:
   - PR #184 merged the frozen non-executing RL-v2 training configuration as da1d5b8abe86ec2ac57dc2293d913fdcf1c286ae and PR #186 closed its task as a42858a6b6b2accdf47f78fa71cee557b3352448.
+  - Declaration PR #187 changed only the new bounded task record and was squash-merged to develop as c663626ea8581fe82c107f959873d8c260927881 before implementation began.
   - The committed RL-v2 config is dry-run, stopped by default, contains no credentials and has no execution geometry.
-  - The consumed historical OOS 20260501-20260630 is not reusable as unseen evidence and remains forbidden for this track.
+  - PR #188 adds only the declared execution contract, canonical request validator/materializer, guarded request-triggered workflow, fail-closed tests, documentation and this task checkpoint.
+  - PR #188 does not add ai_platform/experimental_model_research/run-requests/rl-v2-historical-training-execution-v1.json, so its result-producing workflow cannot trigger from the infrastructure implementation PR.
+  - The frozen geometry uses download 20250801-20260501 and execution 20260301-20260501 with exclusive May 1 stop, train_period_days 90 and backtest_period_days 61; consumed historical OOS 20260501-20260630 is outside all declared execution/data geometry.
+  - The workflow uses a dedicated rl-v2-historical-training-pre-oos-v1 cache namespace with no restore-keys fallback and does not call the strict-OOS extractor.
+  - Existing experimental historical execution infrastructure is hard-bound to pytorch-research-v1/rl-research-v1 and May-June strict-OOS extraction, so PR #188 uses a separate RL-v2-specific guard rather than weakening the frozen older contract.
   - The protected final holdout 20260801-20260930 remains unused and forbidden.
-  - Baseline source-of-truth declares training 20251201-20260228 and tuning 20260301-20260430; this task may use March-April only as explicitly labeled historical development evidence, not strict OOS.
-  - No open RL-v2 training-execution PR or overlapping branch was found before this declaration.
   - Frozen thresholds 0.006/-0.009 and Phase 6 selected_model null remain unchanged.
 derived:
-  - Ending all execution/data geometry at the exclusive 2026-05-01 boundary prevents access to the consumed May-June OOS while allowing a bounded historical RL-v2 execution using already available pre-OOS history.
-  - A separate one-file trigger after infrastructure merge preserves the same one-shot separation used by prior guarded experimental execution workflows.
+  - Infrastructure PR #188 is inert without a separately opened exact-one-file canonical request PR.
+  - March-April output from a later trigger is historical development evidence only and must not be treated as strict OOS, protected final validation or promotion evidence.
 unknown:
-  - Whether the existing historical backtest runner can be reused directly for RL-v2 or requires a small RL-v2-specific adapter without weakening one-shot guards.
+  - Whether repository CI will expose lint, typing, formatting or workflow-security issues in the new infrastructure.
+  - Whether a later real FreqAI RL execution accepts the direct frozen freqtrade backtesting surface without an additional runtime adapter; infrastructure validation does not execute the model.
 conflicts: []
 first_failure:
   marker: none
-  evidence: No implementation failure has occurred; this declaration executes no model and accesses no market data.
+  evidence: No infrastructure validation failure has been observed yet; PR #188 CI is pending and no model or market-data execution has occurred.
 rejected_hypotheses:
   - Reuse consumed OOS 20260501-20260630 as RL-v2 evaluation evidence.
   - Access protected final holdout 20260801-20260930.
   - Call March-April evidence strict OOS or final validation.
   - Add the canonical run request in the same PR as execution infrastructure.
+  - Restore older historical caches that may contain May-June or later data.
   - Retune PPO, policy, reward, features or thresholds from this execution package.
   - Rank RL-v2 against PyTorch or completed Phase 6 candidates.
 changed_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-historical-training-execution.md
+  - docs/ai_platform/RL_V2_HISTORICAL_TRAINING_EXECUTION.md
+  - ai_platform/experimental_model_research/rl-v2-historical-training-execution-contract-v1.json
+  - ai_platform/scripts/rl_v2_historical_training_execution_run_request.py
+  - tests/ai_platform/test_rl_v2_historical_training_execution.py
+  - .github/workflows/ai-platform-rl-v2-historical-training-execution.yml
 validation:
   - command: repository live-state and overlap preflight
     result: PASS
-    evidence: Current develop and open PR/branch state were checked before declaration; no active RL-v2 training-execution work overlapped this task.
+    evidence: Current develop and open PR/branch state were checked before declaration and implementation; no active RL-v2 training-execution work overlapped this task.
+  - command: PR #188 targeted tests and repository CI
+    result: NOT_RUN
+    evidence: PR #188 was opened before this checkpoint update; final-head CI results are pending.
 blockers: []
-next_action: Implement the declared RL-v2 historical training-execution infrastructure contract, canonical request validator, guarded request-triggered workflow, fail-closed tests and documentation without adding the canonical run-request file or executing training, backtesting, market-data download, strict-OOS scoring or protected-final-holdout access.
+next_action: Validate PR #188 on its latest head, fix only infrastructure-contract issues if checks fail, merge only when required CI is green, then update the checkpoint to leave exactly one successor action for generating and opening the canonical one-file run-request PR without modifying any other file.
 ```

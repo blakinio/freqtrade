@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260722-portal-p10-simulator-e2e
-status: active
+status: ready_to_merge
 branch: feat/portal-p10-simulator-e2e-final
 base_branch: develop
 created: 2026-07-22
 updated: 2026-07-23
-related_pr: "#170"
+related_pr: "#171"
 owned_paths:
   - ai_platform/portal/simulator/
   - tests/ai_platform/portal/simulator/
@@ -50,11 +50,11 @@ Deliver deterministic no-capital exchange simulation and a universal scenario th
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T10:45:00+02:00
-head: 65c2a48b6113e1d475c2277cdd0bd9e9d7358201
+updated_at: 2026-07-23T11:31:00+02:00
+head: cdf254ea80f75da2aa4e7ae252cbd8d176570f46
 branch: feat/portal-p10-simulator-e2e-final
-pr: "#170"
-status: validating
+pr: "#171"
+status: ready_to_merge
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
@@ -70,19 +70,21 @@ proven:
   - P7.2 risk-gated trading terminal is merged to develop as 0e4c4f1ff3ac574efaba218d4fb78fd2e2944a8b.
   - P8 trade intelligence is merged to develop as 0c0a9e28598f60d61bf4e75bbd4d5c8bba8dc456.
   - P9 safe continual learning is merged to develop as 41857e7d4eb9ce72f74ca99941fff6e292308569.
-  - Final PR #170 is recreated directly from merged P9 develop and its diff contains only the 11 declared P10 paths.
+  - Final clean PR #171 differs from develop only in the 11 declared P10 paths and was 0 commits behind develop before this checkpoint-only update.
   - DeterministicExchangeSimulator derives trusted risk snapshot exposure from explicit market ticks and accepts ApprovedExecutionIntent only.
   - UniversalScenarioRunner creates a dry-run bot and risk policy, executes simulated trade, records P8 analysis, creates a bounded P9 candidate and asserts active model immutability.
-  - Portal Universal E2E uses read-only workflow permissions and runs backend deterministic scenario plus Chromium Playwright journeys.
+  - Portal Universal E2E uses read-only workflow permissions and validates the deterministic backend scenario plus Chromium Playwright journeys.
+  - No live exchange credentials, live capital, protected final holdout evaluation, model promotion or production order-submission bypass is introduced.
 derived:
-  - Final merge is allowed only after required CI validates the clean PR #170 merge-state and the branch remains current with develop.
+  - This checkpoint-only task-record change must be revalidated on PR #171 merge-state before squash-merge.
 unknown: []
 conflicts: []
 first_failure:
-  marker: ruff-e501
-  evidence: The earlier stacked P10 validation passed simulator tests and Universal E2E but Ruff rejected an overlong result_summary line; the line was wrapped before recreating final PR #170.
+  marker: resolved-ruff-format
+  evidence: Earlier clean P10 runs exposed one E501 test-name violation and then Ruff format drift; the test name was shortened and canonical Ruff formatting was applied before final implementation validation.
 rejected_hypotheses:
   - Merge stacked PR #159 after retargeting even though its diff duplicated already-merged P9 files.
+  - Merge superseded PR #170 after GitHub failed to generate required check-runs for that PR.
   - Use live exchange credentials or production order submission to validate P10.
 changed_paths:
   - .github/workflows/portal-universal-e2e.yml
@@ -97,15 +99,21 @@ changed_paths:
   - docs/ai_platform/portal/DETERMINISTIC_SIMULATOR_E2E.md
   - docs/agents/tasks/FTAI-20260722-portal-p10-simulator-e2e.md
 validation:
-  - command: P9 PR #158 required CI
+  - command: AI Platform CI 29994058848
     result: PASS
-    evidence: AI Platform CI 29990377687, Freqtrade CI 29990377694 and zizmor 29990377697 passed before squash-merge.
-  - command: compare develop...feat/portal-p10-simulator-e2e-final before PR #170 validation
+    evidence: Full AI Platform tests, Ruff, Ruff format and remaining validation steps passed on implementation head cdf254ea80f75da2aa4e7ae252cbd8d176570f46.
+  - command: Freqtrade CI 29994058839
     result: PASS
-    evidence: behind_by=0 and exactly 11 P10-owned files differ from develop.
-  - command: Earlier stacked P10 Portal Universal E2E 29963597670
+    evidence: Pre-commit, CI scope, documentation and full required platform matrix passed on implementation head cdf254ea80f75da2aa4e7ae252cbd8d176570f46.
+  - command: Portal Universal E2E 29994058988
     result: PASS
-    evidence: Backend deterministic scenario and Chromium journey passed before clean-branch recreation.
+    evidence: Deterministic backend universal scenario and Chromium journey passed on implementation head cdf254ea80f75da2aa4e7ae252cbd8d176570f46.
+  - command: GitHub Actions Security Analysis with zizmor 29994059019
+    result: PASS
+    evidence: Workflow security analysis passed on implementation head cdf254ea80f75da2aa4e7ae252cbd8d176570f46.
+  - command: compare develop...feat/portal-p10-simulator-e2e-final
+    result: PASS
+    evidence: Before the checkpoint-only update, behind_by=0 and exactly 11 P10-owned files differed from develop.
 blockers: []
-next_action: Validate all required AI Platform, Freqtrade, Portal Universal E2E and zizmor gates on clean PR #170, fix only evidence-backed failures, verify current develop and review state, then squash-merge P10 and write the final validated compact checkpoint with exactly one P11 next_action.
+next_action: Verify required CI and review/base state on this checkpoint-only PR #171 head, squash-merge P10 if green, then start the P11 Cloudflare production-like staging preflight from current develop without enabling live capital.
 ```

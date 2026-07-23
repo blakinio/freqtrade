@@ -100,7 +100,9 @@ def test_safe_simulation_first_repair_proposal_is_allowed() -> None:
         validation_commands=(
             "pytest -q tests/ai_platform/portal/simulator/test_universal_scenario.py",
         ),
-        pr_summary="Repair the seeded deterministic simulator close-order defect with regression coverage.",
+        pr_summary=(
+            "Repair the seeded deterministic simulator close-order defect with regression coverage."
+        ),
         evidence_refs=("e2e-artifacts/scenario-seeded-repair/first-failure.json",),
     )
 
@@ -164,7 +166,7 @@ def test_repair_outside_declared_ownership_is_rejected() -> None:
     [
         ("weakens_safety_assertion", RepairRejectionReason.SAFETY_ASSERTION_WEAKENING),
         ("deploys_production", RepairRejectionReason.PRODUCTION_DEPLOYMENT),
-        ("requires_production_secret", RepairRejectionReason.PRODUCTION_SECRET_ACCESS),
+        ("requires_production_secret", RepairRejectionReason.PRODUCTION_CREDENTIAL_ACCESS),
         ("enables_live_capital", RepairRejectionReason.LIVE_CAPITAL_ENABLEMENT),
         ("claims_real_p11_acceptance", RepairRejectionReason.REAL_P11_ACCEPTANCE_CLAIM),
     ],

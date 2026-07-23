@@ -59,10 +59,15 @@ jobs:
           python -m pip install --disable-pip-version-check --quiet
           -e ".[freqai,freqai_rl]" pytest
 
-      - name: Test descriptor boundaries
+      - name: Test frozen descriptor contract
         run: >-
-          python -m pytest -q tests/ai_platform/test_rl_v2_execution_preflight.py
-          -k "descriptor_freezes or descriptor_validation"
+          python -m pytest -q
+          tests/ai_platform/test_rl_v2_execution_preflight.py::test_descriptor_freezes_non_result_producing_scope
+
+      - name: Test descriptor fail-closed drift
+        run: >-
+          python -m pytest -q
+          tests/ai_platform/test_rl_v2_execution_preflight.py::test_descriptor_validation_fails_closed_on_runtime_drift
 
       - name: Test ephemeral configuration boundaries
         run: >-

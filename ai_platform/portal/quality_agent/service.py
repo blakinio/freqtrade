@@ -82,11 +82,15 @@ class SimulationFirstRepairService:
             classification = FailureClassification.TEST_DEFECT
             likely_layer = "test_harness"
             confidence = DiagnosisConfidence.HIGH
-        elif "dependency" in stage or any(fragment in reason for fragment in _DEPENDENCY_FRAGMENTS):
+        elif "dependency" in stage or any(
+            fragment in reason for fragment in _DEPENDENCY_FRAGMENTS
+        ):
             classification = FailureClassification.DEPENDENCY_OUTAGE
             likely_layer = "dependency"
             confidence = DiagnosisConfidence.MEDIUM
-        elif "environment" in stage or any(fragment in reason for fragment in _ENVIRONMENT_FRAGMENTS):
+        elif "environment" in stage or any(
+            fragment in reason for fragment in _ENVIRONMENT_FRAGMENTS
+        ):
             classification = FailureClassification.ENVIRONMENT_DEFECT
             likely_layer = "environment"
             confidence = DiagnosisConfidence.MEDIUM
@@ -176,7 +180,7 @@ class SimulationFirstRepairService:
         if plan.deploys_production:
             reasons.append(RepairRejectionReason.PRODUCTION_DEPLOYMENT)
         if plan.requires_production_secret:
-            reasons.append(RepairRejectionReason.PRODUCTION_SECRET_ACCESS)
+            reasons.append(RepairRejectionReason.PRODUCTION_CREDENTIAL_ACCESS)
         if plan.enables_live_capital:
             reasons.append(RepairRejectionReason.LIVE_CAPITAL_ENABLEMENT)
         if plan.claims_real_p11_acceptance:

@@ -14,7 +14,7 @@ permissions:
 jobs:
   inspect-runs:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -47,6 +47,19 @@ jobs:
           python -m json.tool rl-v2-workflow.json
           python -m json.tool rl-v2-trigger-runs.json
 
+      - name: Run actionlint against merged RL-v2 workflow
+        shell: bash
+        run: |
+          set +e
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          "$(go env GOPATH)/bin/actionlint" \
+            .github/workflows/ai-platform-rl-v2-historical-training-execution.yml \
+            > actionlint-output.txt 2>&1
+          status=$?
+          cat actionlint-output.txt
+          printf '%s\n' "$status" > actionlint-status.txt
+          exit 0
+
       - name: Upload run discovery
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -56,5 +69,11 @@ jobs:
             workflows.json
             rl-v2-all-pr-runs.json
             rl-v2-trigger-runs.json
+            actionlint-output.txt
+            actionlint-status.txt
           if-no-files-found: error
           retention-days: 1
+
+      - name: Preserve actionlint result
+        shell: bash
+        run: test "$(cat actionlint-status.txt)" -eq 0

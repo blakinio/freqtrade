@@ -9,6 +9,7 @@ from ai_platform.portal.quality_agent.schema import (
 )
 from ai_platform.portal.quality_agent.service import SimulationFirstRepairService
 
+
 __all__ = [
     "DiagnosisConfidence",
     "DiagnosisRecord",

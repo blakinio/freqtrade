@@ -61,7 +61,7 @@ def validate_descriptor(path: Path = DESCRIPTOR_PATH) -> dict[str, Any]:
         raise RLV2ExecutionPreflightError("Desired-position action contract drifted")
 
     scope = descriptor.get("scope", {})
-    forbidden_true = (
+    required_false = (
         "training_config_commit_allowed",
         "experiment_manifest_allowed",
         "run_request_allowed",
@@ -77,7 +77,7 @@ def validate_descriptor(path: Path = DESCRIPTOR_PATH) -> dict[str, Any]:
         "promotion_allowed",
         "live_trading_allowed",
     )
-    if any(scope.get(key) is not False for key in forbidden_true):
+    if any(scope.get(key) is not False for key in required_false):
         raise RLV2ExecutionPreflightError("Preflight descriptor authorizes result-producing work")
     return descriptor
 
@@ -191,6 +191,53 @@ def validate_ephemeral_config(
         raise RLV2ExecutionPreflightError("RL-v2 execution preflight requires MlpPolicy")
 
 
+def _check_transition_binding(position_state: Any, transition: Any, transition_fn: Any) -> None:
+    expected = {
+        (position_state.FLAT, 0): transition.HOLD_FLAT,
+        (position_state.FLAT, 1): transition.ENTER_LONG,
+        (position_state.LONG, 0): transition.EXIT_LONG,
+        (position_state.LONG, 1): transition.HOLD_LONG,
+    }
+    for key, expected_transition in expected.items():
+        if transition_fn(*key) is not expected_transition:
+            raise RLV2ExecutionPreflightError(
+                "Canonical desired-position transition binding drifted"
+            )
+
+
+def _check_strategy_mapping(config: dict[str, Any], pandas: Any, resolver: Any) -> Any:
+    strategy = resolver.load_strategy(copy.deepcopy(config))
+    if strategy.__class__.__name__ != "AiDesiredPositionRLResearchStrategy" or strategy.can_short:
+        raise RLV2ExecutionPreflightError("Resolved RL-v2 strategy or long-only binding drifted")
+
+    frame = pandas.DataFrame(
+        {
+            "do_predict": [1, 1, 0],
+            "&-action": [1, 0, 1],
+            "volume": [1.0, 1.0, 1.0],
+        }
+    )
+    frame = strategy.populate_entry_trend(frame, metadata={"pair": PAIR})
+    frame = strategy.populate_exit_trend(frame, metadata={"pair": PAIR})
+    if frame["enter_long"].fillna(0).tolist() != [1, 0, 0]:
+        raise RLV2ExecutionPreflightError("target_long strategy mapping drifted")
+    if frame["exit_long"].fillna(0).tolist() != [0, 1, 0]:
+        raise RLV2ExecutionPreflightError("target_flat strategy mapping drifted")
+    return strategy
+
+
+def _check_observability(strategy: Any) -> None:
+    snapshot = strategy.new_observability_accumulator([PAIR]).snapshot()
+    expected_actions = {"target_flat": 0, "target_long": 0}
+    if snapshot["pairs"][PAIR]["actions"] != expected_actions:
+        raise RLV2ExecutionPreflightError(
+            "Zero-count desired-position observability buckets drifted"
+        )
+    expected_oos = {"input": 0, "included": 0, "excluded": 0}
+    if snapshot["raw_backtest_trades"] != 0 or snapshot["strict_oos"] != expected_oos:
+        raise RLV2ExecutionPreflightError("Preflight fabricated trade or strict-OOS counts")
+
+
 def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
     import pandas as pd
 
@@ -236,67 +283,27 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
         prices=prices,
         **copy.deepcopy(learner.pack_env_dict(PAIR)),
     )
-    expected_actions = {
+    actions = {
         DesiredPositionActions.Target_flat.value: "target_flat",
         DesiredPositionActions.Target_long.value: "target_long",
     }
-    if expected_actions != {0: "target_flat", 1: "target_long"}:
+    if actions != {0: "target_flat", 1: "target_long"}:
         raise RLV2ExecutionPreflightError("Runtime desired-position enum drifted")
     if environment.action_space.n != 2 or environment.action_masks() != [True, True]:
         raise RLV2ExecutionPreflightError(
             "Runtime environment action space is not exactly two actions"
         )
 
-    transition_matrix = {
-        (PositionState.FLAT, 0): Transition.HOLD_FLAT,
-        (PositionState.FLAT, 1): Transition.ENTER_LONG,
-        (PositionState.LONG, 0): Transition.EXIT_LONG,
-        (PositionState.LONG, 1): Transition.HOLD_LONG,
-    }
-    for key, expected in transition_matrix.items():
-        if desired_position_transition(*key) is not expected:
-            raise RLV2ExecutionPreflightError(
-                "Canonical desired-position transition binding drifted"
-            )
-
-    strategy = StrategyResolver.load_strategy(copy.deepcopy(config))
-    if strategy.__class__.__name__ != "AiDesiredPositionRLResearchStrategy" or strategy.can_short:
-        raise RLV2ExecutionPreflightError("Resolved RL-v2 strategy or long-only binding drifted")
-
-    signal_frame = pd.DataFrame(
-        {
-            "do_predict": [1, 1, 0],
-            "&-action": [1, 0, 1],
-            "volume": [1.0, 1.0, 1.0],
-        }
-    )
-    signal_frame = strategy.populate_entry_trend(signal_frame, metadata={"pair": PAIR})
-    signal_frame = strategy.populate_exit_trend(signal_frame, metadata={"pair": PAIR})
-    if signal_frame["enter_long"].fillna(0).tolist() != [1, 0, 0]:
-        raise RLV2ExecutionPreflightError("target_long strategy mapping drifted")
-    if signal_frame["exit_long"].fillna(0).tolist() != [0, 1, 0]:
-        raise RLV2ExecutionPreflightError("target_flat strategy mapping drifted")
-
-    accumulator = strategy.new_observability_accumulator([PAIR])
-    snapshot = accumulator.snapshot()
-    expected_zero_actions = {"target_flat": 0, "target_long": 0}
-    if snapshot["pairs"][PAIR]["actions"] != expected_zero_actions:
-        raise RLV2ExecutionPreflightError(
-            "Zero-count desired-position observability buckets drifted"
-        )
-    if snapshot["raw_backtest_trades"] != 0 or snapshot["strict_oos"] != {
-        "input": 0,
-        "included": 0,
-        "excluded": 0,
-    }:
-        raise RLV2ExecutionPreflightError("Preflight fabricated trade or strict-OOS counts")
+    _check_transition_binding(PositionState, Transition, desired_position_transition)
+    strategy = _check_strategy_mapping(config, pd, StrategyResolver)
+    _check_observability(strategy)
 
     return {
         "model": learner.__class__.__name__,
         "strategy": strategy.__class__.__name__,
         "backend": learner.MODELCLASS.__name__,
         "policy": learner.policy_type,
-        "actions": expected_actions,
+        "actions": actions,
         "action_space_size": environment.action_space.n,
         "dry_run": True,
         "trading_mode": "spot",

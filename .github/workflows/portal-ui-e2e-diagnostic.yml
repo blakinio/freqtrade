@@ -39,3 +39,9 @@ jobs:
         with:
           name: portal-ui-e2e-current
           path: /tmp/e2e.txt
+      - name: Upload E2E failure context
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-ui-e2e-test-results
+          path: ai_platform/portal/web/test-results
+          if-no-files-found: ignore

@@ -73,8 +73,27 @@ jobs:
         if: steps.full-tests.outcome == 'failure'
         run: exit 1
 
-      - name: Ruff
-        run: ruff check ai_platform/portal/quality_agent tests/ai_platform/portal/quality_agent
+      - name: Run Ruff and capture evidence
+        id: ruff
+        continue-on-error: true
+        shell: bash
+        run: >-
+          ruff check ai_platform/portal/quality_agent
+          tests/ai_platform/portal/quality_agent
+          > p12-ruff.log 2>&1
+
+      - name: Upload Ruff evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-p12-ruff-${{ github.run_id }}
+          path: p12-ruff.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Fail when Ruff fails
+        if: steps.ruff.outcome == 'failure'
+        run: exit 1
 
       - name: Ruff format
         run: ruff format --check ai_platform/portal/quality_agent tests/ai_platform/portal/quality_agent

@@ -120,11 +120,7 @@ def test_ephemeral_config_rejects_execution_geometry(
 def test_preflight_source_contains_no_training_or_backtest_invocation() -> None:
     tree = ast.parse(SCRIPT_PATH.read_text(encoding="utf-8"))
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
-    called_attributes = {
-        node.func.attr
-        for node in calls
-        if isinstance(node.func, ast.Attribute)
-    }
+    called_attributes = {node.func.attr for node in calls if isinstance(node.func, ast.Attribute)}
 
     assert "fit" not in called_attributes
     assert "learn" not in called_attributes

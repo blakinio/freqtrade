@@ -5,7 +5,7 @@ branch: test/portal-p12-seeded-close-time-repair-final-clean-20260723
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: null
+related_pr: "#222"
 owned_paths:
   - tests/ai_platform/portal/simulator/test_seeded_close_time_regression.py
   - docs/agents/tasks/FTAI-20260723-portal-p12-seeded-close-time-repair.md
@@ -45,7 +45,7 @@ Prove the simulation-first P12 repair loop on a deliberately seeded, non-securit
 
 Closed provenance PR #217 intentionally changed `TradeOutcome.closed_at` from the exit tick to the entry tick. A direct regression test was committed before repair. The seeded head failed both full AI Platform tests and the deterministic Universal E2E backend scenario. The minimal repair restored only the exit-tick timestamp and preserved the existing close-time assertion plus the new regression test.
 
-P12 foundation recovery PR #221 restored the seven foundation files to live `develop` and squash-merged as `4f4389c103eb51de2a63f368815b6dea2d38546d` after all required CI passed. This final clean branch starts directly from that live merge SHA and contains only the regression test plus this evidence record.
+P12 foundation recovery PR #221 restored the seven foundation files to live `develop` and squash-merged as `4f4389c103eb51de2a63f368815b6dea2d38546d` after all required CI passed. Final clean PR #222 starts directly from that live merge SHA and contains only the regression test plus this evidence record.
 
 ## Non-negotiable boundaries
 
@@ -58,10 +58,10 @@ P12 foundation recovery PR #221 restored the seven foundation files to live `dev
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T18:50:00+02:00
-head: 4f4389c103eb51de2a63f368815b6dea2d38546d
+updated_at: 2026-07-23T19:00:00+02:00
+head: 5fe398764ecede5a8ba279ea6f4ba8ae80ed78b1
 branch: test/portal-p12-seeded-close-time-repair-final-clean-20260723
-pr: pending
+pr: "#222"
 status: validating
 context_routes:
   - docs/ai_platform/portal/AUTONOMOUS_REPAIR_SIMULATION_FIRST.md
@@ -80,7 +80,7 @@ proven:
   - Repair commit 5343139caeb223858454df8b68c622753b98dabc restored only closed_at = manifest.exit_tick.occurred_at.
   - Repaired AI Platform CI 30022275563 and Portal Universal E2E 30022275787 passed.
   - Exact-foundation two-file validation PR #220 passed AI Platform CI 30023367750, Portal Universal E2E 30023368191 and Freqtrade CI 30023367919 but is superseded because squash ancestry made its develop diff expand beyond the intended two files.
-  - This final clean branch starts directly from live develop merge SHA 4f4389c103eb51de2a63f368815b6dea2d38546d.
+  - Final clean PR #222 has live develop base SHA 4f4389c103eb51de2a63f368815b6dea2d38546d and exactly two changed files.
 derived:
   - The seeded non-security defect was reproduced, diagnosed and minimally repaired without weakening a safety assertion or touching production paths.
   - Only the durable regression test and attributable evidence record should merge.
@@ -114,8 +114,8 @@ validation:
     result: PASS
     evidence: PR #220 passed AI Platform CI 30023367750, Portal Universal E2E 30023368191 and Freqtrade CI 30023367919 before being superseded for ancestry-only diff expansion.
   - command: live-develop clean final validation
-    result: NOT_RUN
-    evidence: Final clean PR has not yet been opened.
+    result: PENDING
+    evidence: PR #222 is open against live develop with exactly two changed files; required CI is running on the final head.
 blockers: []
-next_action: Open the final clean two-file PR against live develop, verify the diff is exactly two files, run required CI on that head and merge only after all gates pass.
+next_action: Verify PR #222 remains exactly two files and all required final-head CI passes, then merge it to develop and close superseded validation PR #220 unmerged.
 ```

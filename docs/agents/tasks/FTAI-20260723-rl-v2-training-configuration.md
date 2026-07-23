@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260723-rl-v2-training-configuration
 status: active
-branch: develop
+branch: feat/rl-v2-training-configuration
 base_branch: develop
 created: 2026-07-23
 updated: 2026-07-23
-related_pr: "182"
+related_pr: "184"
 owned_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md
   - docs/ai_platform/RL_V2_TRAINING_CONFIGURATION.md
@@ -111,11 +111,11 @@ The committed configuration may define construction/training parameters needed t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-23T13:14:00+02:00
-head: 960251d5534e0921e5a71b661bd4664df0deeac3
-branch: develop
-pr: 182
-status: ready
+updated_at: 2026-07-23T13:37:00+02:00
+head: 6e538d33f34eec30d7d84e1931b5154e7aadf563
+branch: feat/rl-v2-training-configuration
+pr: 184
+status: active
 context_routes:
   - docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
   - docs/ai_platform/RL_V2_EXECUTION_PREFLIGHT.md
@@ -129,35 +129,42 @@ owned_paths:
 proven:
   - PR #168 merged the bounded RL-v2 execution preflight as ae28c4fe9d1e94313e0b232b1bcd99d6f4ba59bc and PR #177 closed its task as 4cb93b94b1b18baa3b9469ebd52fb5182ec80d03.
   - The execution preflight proved current heavy-runtime resolver, construction, semantic and observability compatibility without training, backtesting, market-data access or evaluation geometry.
-  - Current develop advanced beyond the supplied checkpoint; the latest unrelated Portal staging work does not overlap RL-v2 ownership.
-  - The only open PR found before this declaration was draft PR #109, a documentation/design-reference change with no RL-v2 overlap.
-  - PR #182 changed only this task record and was squash-merged to develop as 960251d5534e0921e5a71b661bd4664df0deeac3.
-  - The previously recorded zero-trade historical RL evidence belongs to the older rl-research-v1 track and does not constitute RL-v2 execution evidence.
+  - Declaration PR #182 changed only this task record and was squash-merged to develop as 960251d5534e0921e5a71b661bd4664df0deeac3.
+  - Live overlap preflight found no active RL-v2 training/configuration PR before implementation; unrelated draft PR #109 does not overlap task ownership.
+  - PR #184 adds only the declared research-only config, descriptor, dependency-light fail-closed tests and documentation before this checkpoint update.
+  - The committed config is dry_run true, spot-only, initial_state stopped, uses empty exchange credentials and contains no timerange, train_period_days, backtest_period_days or live_retrain_hours.
+  - The config keeps PPO/MlpPolicy and exact DesiredPositionReinforcementLearner/AiDesiredPositionRLResearchStrategy bindings; model_reward_parameters is empty so reward constants remain owned by the canonical synthetic reference.
   - Consumed historical OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
   - Frozen thresholds 0.006/-0.009 and authoritative Phase 6 selected_model null remain unchanged.
 derived:
-  - A non-executing committed RL-v2 training-configuration contract is the smallest safe successor package before any real training or historical execution can be prospectively declared.
-  - Execution geometry and model execution should remain a later independent work package so configuration review cannot silently trigger or preselect evaluation evidence.
-unknown: []
+  - The committed configuration is a versioned non-executing input contract; its presence does not authorize or trigger model execution.
+  - Fixed training-surface values are compatibility defaults only and are not performance-tuned or supported by RL-v2 result evidence.
+unknown:
+  - Whether repository CI will expose formatting, schema or test issues in the newly added configuration contract.
 conflicts: []
 first_failure:
   marker: none
-  evidence: No implementation or validation failure has occurred; the declaration performed no model execution.
+  evidence: No implementation validation failure has been observed yet; PR #184 CI is pending.
 rejected_hypotheses:
-  - Execute RL-v2 training or backtesting in the declaration task.
+  - Add a run request or execution manifest in the training-configuration task.
+  - Add timerange, train_period_days, backtest_period_days or live_retrain_hours to make the config executable.
   - Reuse consumed historical OOS 20260501-20260630 for RL-v2 tuning or validation.
   - Access protected final holdout 20260801-20260930.
-  - Add an execution timerange or FreqAI training/backtest period geometry before a later execution task.
+  - Define reward constants in model_reward_parameters or retune the frozen reward reference.
   - Rank or promote RL-v2 against PyTorch or completed Phase 6 candidates.
 changed_paths:
   - docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md
+  - docs/ai_platform/RL_V2_TRAINING_CONFIGURATION.md
+  - ai_platform/experimental_model_research/rl-v2-training-configuration-v1.json
+  - ai_platform/configs/rl_v2_training_research.json
+  - tests/ai_platform/test_rl_v2_training_configuration.py
 validation:
   - command: repository live-state and overlap preflight
     result: PASS
-    evidence: Current develop and open PR state were checked before declaration; no active RL-v2 training/configuration PR or overlapping branch was found.
-  - command: PR #182 declaration scope and merge
-    result: PASS
-    evidence: PR #182 contained only docs/agents/tasks/FTAI-20260723-rl-v2-training-configuration.md and squash-merged as 960251d5534e0921e5a71b661bd4664df0deeac3 without training or execution artifacts.
+    evidence: Current develop and open PR state were checked before implementation; no active RL-v2 training/configuration work overlapped this task.
+  - command: PR #184 targeted tests and repository CI
+    result: NOT_RUN
+    evidence: PR #184 was opened at head 6e538d33f34eec30d7d84e1931b5154e7aadf563; CI results were not yet available at checkpoint time.
 blockers: []
-next_action: Implement the declared RL-v2 training-configuration package by adding only the research-only dry-run configuration, machine-readable descriptor, fail-closed tests and documentation; do not add a run request, execution geometry, training, backtest, market-data access, strict-OOS scoring or final-holdout access.
+next_action: Validate PR #184 on its latest head, fix only training-configuration contract issues if any checks fail, then merge only after required CI is green and update this checkpoint to leave one successor action without adding any execution geometry or model execution.
 ```

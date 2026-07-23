@@ -29,7 +29,7 @@ export default async function BotsPage() {
                     <td><strong>{bot.spec.strategy_version}</strong><span>{bot.spec.model_version}</span></td>
                     <td>{bot.spec.pair_universe.join(", ")}</td>
                     <td><StatusPill value={bot.spec.execution_mode} /></td>
-                    <td><Link className="text-link" href={`/bots/${encodeURIComponent(bot.bot_id)}`}>Open</Link></td>
+                    <td><Link className="text-link" href={`/bots/detail/${encodeURIComponent(bot.bot_id)}`}>Open</Link></td>
                   </tr>
                 ))}
               </tbody>

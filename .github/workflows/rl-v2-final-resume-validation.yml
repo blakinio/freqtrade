@@ -1,0 +1,41 @@
+name: RL-v2 Final Resume Validation
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/rl-v2-final-resume-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-resume:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Validate final checkpoint
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
+          --require-checkpoint
+
+      - name: Generate compact resume handoff
+        run: >-
+          python tools/agents/resume.py
+          --task docs/agents/tasks/FTAI-20260723-rl-v2-execution-preflight.md
+          > resume-output.txt
+
+      - name: Upload resume stdout
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rl-v2-final-resume-output
+          path: resume-output.txt
+          if-no-files-found: error
+          retention-days: 1

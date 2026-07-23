@@ -19,7 +19,9 @@ SCENARIO = Path("tests/ai_platform/portal/simulator/scenarios/profitable.json")
 CORRELATION_ID = UUID("11111111-1111-4111-8111-111111111111")
 
 
-def _approved_intent(manifest: ScenarioManifest) -> tuple[ApprovedExecutionIntent, CorrelationContext]:
+def _approved_intent(
+    manifest: ScenarioManifest,
+) -> tuple[ApprovedExecutionIntent, CorrelationContext]:
     context = CorrelationContext(request_id=uuid4(), correlation_id=CORRELATION_ID)
     trade_intent = TradeIntent(
         trade_intent_id=uuid4(),

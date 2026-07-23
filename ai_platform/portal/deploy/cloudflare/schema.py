@@ -20,7 +20,7 @@ class AccessSurface(StrEnum):
 
 class RateLimitFamily(StrEnum):
     AUTHENTICATION = "authentication"
-    PASSWORD_RECOVERY = "password_recovery"
+    CREDENTIAL_RECOVERY = "password_recovery"
     MFA = "mfa"
     EXCHANGE_CREDENTIALS = "exchange_credentials"
     BOT_LIFECYCLE = "bot_lifecycle"

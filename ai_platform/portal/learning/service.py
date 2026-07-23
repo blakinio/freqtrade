@@ -172,6 +172,35 @@ class LearningService:
             candidates=candidates,
         )
 
+    def history_all(self, context: RequestContext) -> tuple[LearningHistoryEntry, ...]:
+        with self._session_factory() as session:
+            hypotheses = self._repository.list_hypotheses(session, context.tenant_id)
+            entries: list[LearningHistoryEntry] = []
+            for hypothesis in hypotheses:
+                hypothesis_id = str(hypothesis.hypothesis_id)
+                experiments = self._repository.list_experiments(
+                    session,
+                    context.tenant_id,
+                    hypothesis_id,
+                )
+                candidates = tuple(
+                    candidate
+                    for experiment in experiments
+                    for candidate in self._repository.list_candidates(
+                        session,
+                        context.tenant_id,
+                        str(experiment.experiment_id),
+                    )
+                )
+                entries.append(
+                    LearningHistoryEntry(
+                        hypothesis=hypothesis,
+                        experiments=experiments,
+                        candidates=candidates,
+                    )
+                )
+        return tuple(entries)
+
     @staticmethod
     def _validate_evidence_window(window: EvidenceWindow) -> None:
         if window.end_at <= window.start_at:

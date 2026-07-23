@@ -36,6 +36,18 @@ class LearningRepository:
         row = session.get(LearningHypothesisRow, (tenant_id, hypothesis_id))
         return LearningHypothesis.model_validate_json(row.hypothesis_json) if row else None
 
+    def list_hypotheses(
+        self,
+        session: Session,
+        tenant_id: str,
+    ) -> tuple[LearningHypothesis, ...]:
+        rows = session.scalars(
+            select(LearningHypothesisRow)
+            .where(LearningHypothesisRow.tenant_id == tenant_id)
+            .order_by(LearningHypothesisRow.created_at, LearningHypothesisRow.hypothesis_id)
+        ).all()
+        return tuple(LearningHypothesis.model_validate_json(row.hypothesis_json) for row in rows)
+
     def add_experiment(self, session: Session, experiment: LearningExperiment) -> None:
         session.add(
             LearningExperimentRow(

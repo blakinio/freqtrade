@@ -37,14 +37,14 @@ Cross-cutting boundaries:
 
 ## Initial implementation posture
 
-Start as a **modular monolith control plane** plus isolated workers/runtimes, not a premature fleet of microservices. Boundaries and contracts must be explicit so modules can later split into services without changing portal-facing APIs.
+The portal remains a **modular monolith control plane** plus isolated workers/runtimes, not a premature fleet of microservices. Boundaries and contracts remain explicit so modules can later split into services without changing portal-facing APIs.
 
-Recommended initial shape:
+Current project-specific shape:
 
 ```text
 ai_platform/portal/
   contracts/       # shared versioned API/event/domain contracts
-  control_plane/   # future FastAPI modular control plane
+  control_plane/   # FastAPI modular control plane
   execution/       # Freqtrade adapter/orchestration boundary
   events/          # event/outbox integration
   observability/   # telemetry contracts/instrumentation
@@ -54,12 +54,12 @@ ai_platform/portal/
   learning/        # insight -> hypothesis -> experiment workflow
   simulator/       # deterministic exchange/market simulator
   e2e/             # full-platform scenario harness
-  web/             # future Next.js/React portal
+  web/             # Next.js/React portal
   deploy/          # production-like deployment boundary
   quality_agent/   # bounded autonomous diagnosis/repair
 ```
 
-The current architecture package defines these boundaries before production code is authorized.
+Implementation work must continue to follow the frozen architecture and safety boundaries rather than treating a merged foundation slice as completion of an entire roadmap stage.
 
 ## Documentation map
 
@@ -68,7 +68,8 @@ The current architecture package defines these boundaries before production code
 - `AI_ML_AND_LEARNING_ARCHITECTURE.md` — training, model registry, continual learning and safe self-improvement.
 - `DATA_AND_OBSERVABILITY_ARCHITECTURE.md` — data ownership, event contracts, decision snapshots, telemetry and retention.
 - `QUALITY_AND_AUTONOMOUS_E2E.md` — full-platform testing, user simulation and bounded agent-assisted repair.
-- `UI_INFORMATION_ARCHITECTURE.md` — portal navigation and major product surfaces.
+- `UI_INFORMATION_ARCHITECTURE.md` — target portal navigation and major product surfaces.
+- `UI_DELIVERY_STATUS.md` — truthful per-surface implementation/integration status and remaining read-model gaps.
 - `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
 - `DELIVERY_ROADMAP.md` — staged delivery plan and gates.
 - `AGENT_EXECUTION_PLAN.md` — bounded agent workstreams, ownership and dependencies.

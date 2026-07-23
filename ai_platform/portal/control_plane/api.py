@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
 from ai_platform.portal.contracts.bots import BotDesiredState, BotInstance, BotSpec
+from ai_platform.portal.contracts.models import ModelVersion
 from ai_platform.portal.contracts.risk import TradeSide
 from ai_platform.portal.control_plane.context import (
     IdentityContextProvider,
@@ -20,6 +21,11 @@ from ai_platform.portal.control_plane.service import (
     ControlPlaneConflictError,
     ControlPlaneService,
 )
+from ai_platform.portal.intelligence.schema import TradeAnalysis, TradeInsight
+from ai_platform.portal.intelligence.service import TradeIntelligenceService
+from ai_platform.portal.learning.schema import LearningHistoryEntry
+from ai_platform.portal.learning.service import LearningService
+from ai_platform.portal.model_control.service import ModelControlService
 from ai_platform.portal.risk.service import RiskConflictError, RiskPolicyNotFoundError
 from ai_platform.portal.risk.terminal import (
     RiskSnapshotUnavailableError,
@@ -126,6 +132,9 @@ def create_app(
     session_factory: SessionFactory,
     identity_context_provider: IdentityContextProvider | None = None,
     terminal_service: TerminalService | None = None,
+    model_control_service: ModelControlService | None = None,
+    trade_intelligence_service: TradeIntelligenceService | None = None,
+    learning_service: LearningService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -133,6 +142,9 @@ def create_app(
     )
     service = ControlPlaneService(session_factory)
     terminal = terminal_service or TerminalService(session_factory)
+    model_control = model_control_service or ModelControlService(session_factory)
+    trade_intelligence = trade_intelligence_service or TradeIntelligenceService(session_factory)
+    learning = learning_service or LearningService(session_factory)
     context_dependency = identity_dependency(identity_context_provider)
     _register_exception_handlers(app)
     _register_terminal_route(app, terminal, context_dependency)
@@ -172,5 +184,29 @@ def create_app(
         context: RequestContext = Depends(context_dependency),
     ) -> BotInstance:
         return service.set_desired_state(context, bot_id, request.desired_state)
+
+    @app.get("/v1/models", response_model=list[ModelVersion])
+    def list_models(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[ModelVersion, ...]:
+        return model_control.list_models(context)
+
+    @app.get("/v1/trade-analysis", response_model=list[TradeAnalysis])
+    def list_trade_analysis(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[TradeAnalysis, ...]:
+        return trade_intelligence.list_analyses(context)
+
+    @app.get("/v1/insights", response_model=list[TradeInsight])
+    def list_trade_insights(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[TradeInsight, ...]:
+        return tuple(analysis.insight for analysis in trade_intelligence.list_analyses(context))
+
+    @app.get("/v1/learning/history", response_model=list[LearningHistoryEntry])
+    def list_learning_history(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[LearningHistoryEntry, ...]:
+        return learning.history_all(context)
 
     return app

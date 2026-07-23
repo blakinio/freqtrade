@@ -2,14 +2,22 @@ import type {
   BotInstance,
   CreateBotRequest,
   DashboardSnapshot,
+  LearningHistoryEntry,
+  ModelVersion,
   PortalEnvironment,
   TerminalIntentRequest,
   TerminalIntentResult,
+  TradeAnalysis,
+  TradeInsight,
 } from "./contracts";
 import {
   createFixtureBot,
   fixtureDashboard,
   listFixtureBots,
+  listFixtureInsights,
+  listFixtureLearningHistory,
+  listFixtureModels,
+  listFixtureTradeAnalyses,
   submitFixtureTerminalIntent,
 } from "./fixtures";
 
@@ -71,13 +79,36 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+function cookieHeaders(cookieHeader?: string | null): HeadersInit | undefined {
+  return cookieHeader ? { cookie: cookieHeader } : undefined;
+}
+
 export async function listBots(cookieHeader?: string | null): Promise<BotInstance[]> {
   if (dataMode() === "fixture") {
     return listFixtureBots();
   }
   return apiFetch<BotInstance[]>("/v1/bots", {
-    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    headers: cookieHeaders(cookieHeader),
   });
+}
+
+export async function getBot(
+  botId: string,
+  cookieHeader?: string | null,
+): Promise<BotInstance | null> {
+  if (dataMode() === "fixture") {
+    return listFixtureBots().find((bot) => bot.bot_id === botId) ?? null;
+  }
+  try {
+    return await apiFetch<BotInstance>(`/v1/bots/${encodeURIComponent(botId)}`, {
+      headers: cookieHeaders(cookieHeader),
+    });
+  } catch (error) {
+    if (error instanceof PortalApiResponseError && error.status === 404) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function createBot(
@@ -89,7 +120,7 @@ export async function createBot(
   }
   return apiFetch<BotInstance>("/v1/bots", {
     method: "POST",
-    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    headers: cookieHeaders(cookieHeader),
     body: JSON.stringify(request),
   });
 }
@@ -103,8 +134,46 @@ export async function submitTerminalIntent(
   }
   return apiFetch<TerminalIntentResult>("/v1/terminal/intents", {
     method: "POST",
-    headers: cookieHeader ? { cookie: cookieHeader } : undefined,
+    headers: cookieHeaders(cookieHeader),
     body: JSON.stringify(request),
+  });
+}
+
+export async function listModels(cookieHeader?: string | null): Promise<ModelVersion[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureModels();
+  }
+  return apiFetch<ModelVersion[]>("/v1/models", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listTradeAnalyses(cookieHeader?: string | null): Promise<TradeAnalysis[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureTradeAnalyses();
+  }
+  return apiFetch<TradeAnalysis[]>("/v1/trade-analysis", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listInsights(cookieHeader?: string | null): Promise<TradeInsight[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureInsights();
+  }
+  return apiFetch<TradeInsight[]>("/v1/insights", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listLearningHistory(
+  cookieHeader?: string | null,
+): Promise<LearningHistoryEntry[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureLearningHistory();
+  }
+  return apiFetch<LearningHistoryEntry[]>("/v1/learning/history", {
+    headers: cookieHeaders(cookieHeader),
   });
 }
 

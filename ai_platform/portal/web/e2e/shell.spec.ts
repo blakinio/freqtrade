@@ -1,13 +1,57 @@
 import { expect, test } from "@playwright/test";
 
-test("renders responsive shell with explicit environment and bot navigation", async ({ page }) => {
+test("renders responsive shell with explicit environment and full product navigation", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByTestId("environment-badge")).toHaveText("TEST");
-  await page.getByRole("link", { name: "Bots", exact: true }).click();
+  await expect(page.getByRole("link", { name: "PNL & Performance" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Trade Analysis" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Runtime Health" })).toBeVisible();
+  await page.getByRole("link", { name: "View Bots", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Bot fleet" })).toBeVisible();
   await expect(page.getByText("BTC AI Dry Run")).toBeVisible();
   await expect(page.getByText("RUNNING", { exact: true }).first()).toBeVisible();
+});
+
+test("renders wide desktop shell without collapsing primary navigation", async ({ page }) => {
+  await page.setViewportSize({ width: 3440, height: 1440 });
+  await page.goto("/");
+  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Profile & Security" })).toBeVisible();
+});
+
+test("opens immutable bot detail from the fleet", async ({ page }) => {
+  await page.goto("/bots");
+  await page.getByRole("link", { name: "Open", exact: true }).first().click();
+  await expect(page.getByRole("heading", { name: "BTC AI Dry Run" })).toBeVisible();
+  await expect(page.getByText("model-validated-2026-07", { exact: true })).toBeVisible();
+  await expect(page.getByText("risk-default-v1", { exact: true })).toBeVisible();
+});
+
+test("renders AI intelligence surfaces from deterministic fixture read models", async ({ page }) => {
+  await page.goto("/ai");
+  await expect(page.getByRole("heading", { name: "AI Overview" })).toBeVisible();
+  await expect(page.getByText("model-validated-2026-07", { exact: true }).first()).toBeVisible();
+
+  await page.goto("/ai/trade-analysis");
+  await expect(page.getByRole("heading", { name: "Trade Analysis" })).toBeVisible();
+  await expect(page.getByText("trade-fixture-1", { exact: true })).toBeVisible();
+
+  await page.goto("/ai/learning");
+  await expect(page.getByRole("heading", { name: "Learning History" })).toBeVisible();
+  await expect(page.getByText(/Validate whether the observed BTC setup/)).toBeVisible();
+});
+
+test("renders declared UI routes with explicit fixture preview instead of hidden navigation", async ({ page }) => {
+  await page.goto("/performance");
+  await expect(page.getByRole("heading", { name: "PNL & Performance" })).toBeVisible();
+  await expect(page.getByText("Deterministic preview data")).toBeVisible();
+  await expect(page.getByText("BTC AI Dry Run")).toBeVisible();
+
+  await page.goto("/platform/profile");
+  await expect(page.getByRole("heading", { name: "Profile & Security" })).toBeVisible();
+  await expect(page.getByText("Interface shell available")).toBeVisible();
 });
 
 test("creates a canonical dry-run bot through the same-origin BFF", async ({ page }) => {

@@ -104,12 +104,22 @@ jobs:
           tests/ai_platform/portal/quality_agent
           > p12-ruff-format.log 2>&1
 
+      - name: Generate Ruff-formatted service preview
+        if: steps.ruff-format.outcome == 'failure'
+        shell: bash
+        run: |
+          mkdir -p p12-format-preview
+          cp ai_platform/portal/quality_agent/service.py p12-format-preview/service.py
+          ruff format --config pyproject.toml p12-format-preview/service.py
+
       - name: Upload Ruff format evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: portal-p12-ruff-format-${{ github.run_id }}
-          path: p12-ruff-format.log
+          path: |
+            p12-ruff-format.log
+            p12-format-preview/service.py
           if-no-files-found: error
           retention-days: 30
 

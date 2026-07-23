@@ -55,8 +55,9 @@ _STRATEGY_CATALOG = (
         strategy_version="ai-directional-v1",
         display_name="AI Directional",
         description=(
-            "Immutable directional strategy reference used by existing dry-run bot configurations. "
-            "Predictions remain subject to deterministic risk controls."
+            "Immutable directional strategy reference used by existing "
+            "dry-run bot configurations. Predictions remain subject to "
+            "deterministic risk controls."
         ),
         kind=StrategyKind.DIRECTIONAL,
         allowed_execution_modes=(ExecutionMode.SIMULATED, ExecutionMode.DRY_RUN),
@@ -66,8 +67,8 @@ _STRATEGY_CATALOG = (
         strategy_version="grid-dry-run-v1",
         display_name="Grid Dry Run",
         description=(
-            "Portal-managed grid configuration contract restricted to dry-run. Runtime activation "
-            "remains behind the private execution boundary."
+            "Portal-managed grid configuration contract restricted to dry-run. "
+            "Runtime activation remains behind the private execution boundary."
         ),
         kind=StrategyKind.GRID,
         allowed_execution_modes=(ExecutionMode.DRY_RUN,),
@@ -158,7 +159,7 @@ class ProductCapabilityService:
             bot = self._bot_repository.get_bot(session, context.tenant_id, bot_id)
         if bot is None:
             raise BotNotFoundError("bot not found")
-        if bot.spec.execution_mode is not ExecutionMode.DRY_RUN:
+        if bot.spec.execution_mode != ExecutionMode.DRY_RUN:
             raise ValueError("grid configuration requires a dry_run bot")
         if bot.spec.strategy_version != "grid-dry-run-v1":
             raise ValueError("grid configuration requires strategy_version grid-dry-run-v1")
@@ -237,29 +238,40 @@ class ProductCapabilityService:
         with self._session_factory() as session:
             if preference.signal_events:
                 for signal in self._repository.list_signals(session, context.tenant_id):
+                    summary = (
+                        f"{signal.side.value} signal recorded for "
+                        f"{signal.pair} on {signal.bot_id}"
+                    )
                     entries.append(
                         NotificationEntry(
                             notification_id=f"signal:{signal.signal_id}",
                             tenant_id=context.tenant_id,
                             category=NotificationCategory.SIGNAL,
                             severity=NotificationSeverity.INFO,
-                            summary=f"{signal.side.value} signal recorded for {signal.pair} on {signal.bot_id}",
+                            summary=summary,
                             resource_type="signal",
                             resource_id=str(signal.signal_id),
                             occurred_at=signal.occurred_at,
                         )
                     )
             if preference.risk_events:
-                for decision in self._risk_repository.list_risk_decisions(session, context.tenant_id):
+                decisions = self._risk_repository.list_risk_decisions(
+                    session,
+                    context.tenant_id,
+                )
+                for decision in decisions:
                     rejected = decision.decision is RiskDecisionOutcome.REJECTED
+                    severity = (
+                        NotificationSeverity.ATTENTION
+                        if rejected
+                        else NotificationSeverity.INFO
+                    )
                     entries.append(
                         NotificationEntry(
                             notification_id=f"risk:{decision.risk_decision_id}",
                             tenant_id=context.tenant_id,
                             category=NotificationCategory.RISK,
-                            severity=(
-                                NotificationSeverity.ATTENTION if rejected else NotificationSeverity.INFO
-                            ),
+                            severity=severity,
                             summary=(
                                 f"Risk decision {decision.decision.value}: "
                                 f"{', '.join(decision.reason_codes) or 'no reason code'}"
@@ -270,34 +282,45 @@ class ProductCapabilityService:
                         )
                     )
             if preference.execution_events:
-                for event in self._bot_repository.list_audit_events(session, context.tenant_id):
-                    if event.actor_id != context.actor_id or event.action not in _EXECUTION_NOTIFICATION_ACTIONS:
+                events = self._bot_repository.list_audit_events(
+                    session,
+                    context.tenant_id,
+                )
+                for event in events:
+                    is_other_actor = event.actor_id != context.actor_id
+                    is_other_action = event.action not in _EXECUTION_NOTIFICATION_ACTIONS
+                    if is_other_actor or is_other_action:
                         continue
+                    severity = (
+                        NotificationSeverity.INFO
+                        if event.result is AuditResult.SUCCEEDED
+                        else NotificationSeverity.ATTENTION
+                    )
                     entries.append(
                         NotificationEntry(
                             notification_id=f"execution:{event.audit_id}",
                             tenant_id=context.tenant_id,
                             category=NotificationCategory.EXECUTION,
-                            severity=(
-                                NotificationSeverity.INFO
-                                if event.result is AuditResult.SUCCEEDED
-                                else NotificationSeverity.ATTENTION
-                            ),
+                            severity=severity,
                             summary=f"{event.action.value}: {event.result.value}",
                             resource_type=event.resource_type,
                             resource_id=event.resource_id,
                             occurred_at=event.occurred_at,
                         )
                     )
-        entries.sort(key=lambda item: (item.occurred_at, item.notification_id), reverse=True)
+        entries.sort(
+            key=lambda item: (item.occurred_at, item.notification_id),
+            reverse=True,
+        )
         return tuple(entries)
 
     def profile_security(self, context: RequestContext) -> ProfileSecurityView:
+        permissions = tuple(sorted(context.permissions, key=lambda item: item.value))
         return ProfileSecurityView(
             tenant_id=context.tenant_id,
             actor_id=context.actor_id,
             actor_type=context.actor_type,
-            permissions=tuple(sorted(context.permissions, key=lambda item: item.value)),
+            permissions=permissions,
             authentication_boundary="trusted-application-identity",
             mfa_status="MANAGED_BY_EXTERNAL_IDENTITY_PROVIDER",
             session_management="MANAGED_BY_EXTERNAL_IDENTITY_PROVIDER",
@@ -307,10 +330,11 @@ class ProductCapabilityService:
     def administration_overview(self, context: RequestContext) -> AdministrationOverview:
         require_permission(context.permissions, Permission.ADMIN_MANAGE)
         roles = tuple(builtin_role(context.tenant_id, role_name) for role_name in RoleName)
+        permissions = tuple(sorted(context.permissions, key=lambda item: item.value))
         return AdministrationOverview(
             tenant_id=context.tenant_id,
             current_actor_id=context.actor_id,
-            current_permissions=tuple(sorted(context.permissions, key=lambda item: item.value)),
+            current_permissions=permissions,
             builtin_roles=roles,
             membership_source="external-identity-provider",
         )
@@ -333,7 +357,10 @@ class ProductCapabilityService:
             for model in models
         )
 
-    def runtime_log_availability(self, context: RequestContext) -> RuntimeLogAvailability:
+    def runtime_log_availability(
+        self,
+        context: RequestContext,
+    ) -> RuntimeLogAvailability:
         require_permission(context.permissions, Permission.AUDIT_READ)
         return RuntimeLogAvailability(
             available=False,

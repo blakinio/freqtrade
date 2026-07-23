@@ -9,7 +9,11 @@ from fastapi.testclient import TestClient
 from ai_platform.portal.contracts.bots import BotSpec
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.identity import ActorType, Permission
-from ai_platform.portal.contracts.models import ModelLifecycleState, ModelVersion, TrainingWindow
+from ai_platform.portal.contracts.models import (
+    ModelLifecycleState,
+    ModelVersion,
+    TrainingWindow,
+)
 from ai_platform.portal.control_plane.api import create_app
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import (
@@ -60,7 +64,11 @@ def _bot_payload(
         environment=Environment.TEST,
         execution_mode=ExecutionMode.DRY_RUN,
     )
-    return {"bot_id": bot_id, "name": "Portal bot", "spec": spec.model_dump(mode="json")}
+    return {
+        "bot_id": bot_id,
+        "name": "Portal bot",
+        "spec": spec.model_dump(mode="json"),
+    }
 
 
 def test_signal_wizard_persists_advisory_evidence_with_tenant_isolation(
@@ -120,7 +128,13 @@ def test_signal_validation_rejects_pair_outside_immutable_bot_config(
 def test_strategy_catalog_and_grid_configs_remain_dry_run_only(
     session_factory: SessionFactory,
 ) -> None:
-    holder = {"context": _context("tenant-a", Permission.BOT_CREATE, Permission.BOT_READ)}
+    holder = {
+        "context": _context(
+            "tenant-a",
+            Permission.BOT_CREATE,
+            Permission.BOT_READ,
+        )
+    }
     client = TestClient(create_app(session_factory, lambda: holder["context"]))
 
     strategies = client.get("/v1/strategies")
@@ -131,10 +145,12 @@ def test_strategy_catalog_and_grid_configs_remain_dry_run_only(
     assert grid_strategy["allowed_execution_modes"] == ["dry_run"]
     assert grid_strategy["runtime_status"] == "PORTAL_CONFIG_ONLY"
 
-    assert client.post(
-        "/v1/bots",
-        json=_bot_payload("tenant-a", bot_id="grid-1", strategy_version="grid-dry-run-v1"),
-    ).status_code == 201
+    bot_payload = _bot_payload(
+        "tenant-a",
+        bot_id="grid-1",
+        strategy_version="grid-dry-run-v1",
+    )
+    assert client.post("/v1/bots", json=bot_payload).status_code == 201
     config = client.post(
         "/v1/grid-bots",
         json={
@@ -225,7 +241,9 @@ def test_model_health_reports_drift_unavailable_without_inventing_telemetry(
     health = client.get("/v1/model-health")
     assert health.status_code == 200
     assert health.json()[0]["drift_status"] == "UNAVAILABLE"
-    assert health.json()[0]["drift_reason"] == "CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED"
+    assert health.json()[0]["drift_reason"] == (
+        "CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED"
+    )
 
 
 def test_runtime_log_availability_is_permission_gated_and_truthful(
@@ -239,4 +257,6 @@ def test_runtime_log_availability_is_permission_gated_and_truthful(
     availability = client.get("/v1/runtime-log-availability")
     assert availability.status_code == 200
     assert availability.json()["available"] is False
-    assert availability.json()["reason_code"] == "CENTRALIZED_RUNTIME_STDOUT_STDERR_SOURCE_NOT_CONFIGURED"
+    assert availability.json()["reason_code"] == (
+        "CENTRALIZED_RUNTIME_STDOUT_STDERR_SOURCE_NOT_CONFIGURED"
+    )

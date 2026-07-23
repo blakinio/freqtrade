@@ -277,8 +277,8 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
         **copy.deepcopy(learner.pack_env_dict(PAIR)),
     )
     actions = {
-        DesiredPositionActions.Target_flat.value: "target_flat",
-        DesiredPositionActions.Target_long.value: "target_long",
+        int(DesiredPositionActions.Target_flat.value): "target_flat",
+        int(DesiredPositionActions.Target_long.value): "target_long",
     }
     if actions != {0: "target_flat", 1: "target_long"}:
         raise RLV2ExecutionPreflightError("Runtime desired-position enum drifted")
@@ -297,7 +297,7 @@ def _runtime_checks(config: dict[str, Any]) -> dict[str, Any]:
         "backend": learner.MODELCLASS.__name__,
         "policy": learner.policy_type,
         "actions": actions,
-        "action_space_size": environment.action_space.n,
+        "action_space_size": int(environment.action_space.n),
         "dry_run": True,
         "trading_mode": "spot",
         "training_performed": False,

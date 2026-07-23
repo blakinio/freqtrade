@@ -1,23 +1,37 @@
 import type {
+  AuditEvent,
   BotInstance,
   CreateBotRequest,
   DashboardSnapshot,
+  ExecutionActivityEntry,
   LearningHistoryEntry,
   ModelVersion,
+  OperationalOrder,
+  OperationalPosition,
+  PerformanceSummary,
   PortalEnvironment,
+  RiskDecisionRecord,
   TerminalIntentRequest,
   TerminalIntentResult,
   TradeAnalysis,
+  TradeHistoryEntry,
   TradeInsight,
 } from "./contracts";
 import {
   createFixtureBot,
   fixtureDashboard,
+  listFixtureAuditEvents,
   listFixtureBots,
+  listFixtureExecutionActivity,
   listFixtureInsights,
   listFixtureLearningHistory,
   listFixtureModels,
+  listFixtureOrders,
+  listFixturePerformance,
+  listFixturePositions,
+  listFixtureRiskEvents,
   listFixtureTradeAnalyses,
+  listFixtureTrades,
   submitFixtureTerminalIntent,
 } from "./fixtures";
 
@@ -173,6 +187,71 @@ export async function listLearningHistory(
     return listFixtureLearningHistory();
   }
   return apiFetch<LearningHistoryEntry[]>("/v1/learning/history", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listPositions(cookieHeader?: string | null): Promise<OperationalPosition[]> {
+  if (dataMode() === "fixture") {
+    return listFixturePositions();
+  }
+  return apiFetch<OperationalPosition[]>("/v1/positions", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listOrders(cookieHeader?: string | null): Promise<OperationalOrder[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureOrders();
+  }
+  return apiFetch<OperationalOrder[]>("/v1/orders", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listTrades(cookieHeader?: string | null): Promise<TradeHistoryEntry[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureTrades();
+  }
+  return apiFetch<TradeHistoryEntry[]>("/v1/trades", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listPerformance(cookieHeader?: string | null): Promise<PerformanceSummary[]> {
+  if (dataMode() === "fixture") {
+    return listFixturePerformance();
+  }
+  return apiFetch<PerformanceSummary[]>("/v1/performance", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listRiskEvents(cookieHeader?: string | null): Promise<RiskDecisionRecord[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureRiskEvents();
+  }
+  return apiFetch<RiskDecisionRecord[]>("/v1/risk-events", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listAuditEvents(cookieHeader?: string | null): Promise<AuditEvent[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureAuditEvents();
+  }
+  return apiFetch<AuditEvent[]>("/v1/audit-events", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function listExecutionActivity(
+  cookieHeader?: string | null,
+): Promise<ExecutionActivityEntry[]> {
+  if (dataMode() === "fixture") {
+    return listFixtureExecutionActivity();
+  }
+  return apiFetch<ExecutionActivityEntry[]>("/v1/execution-activity", {
     headers: cookieHeaders(cookieHeader),
   });
 }

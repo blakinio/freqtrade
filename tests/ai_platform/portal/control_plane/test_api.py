@@ -92,6 +92,9 @@ def test_api_enforces_tenant_isolation_without_resource_disclosure(
     holder["context"] = _context("tenant-b", Permission.BOT_READ)
     assert client.get("/v1/bots/bot-1").status_code == 404
     assert client.get("/v1/bots").json() == []
+    assert client.get("/v1/orders").json() == []
+    assert client.get("/v1/positions").json() == []
+    assert client.get("/v1/trades").json() == []
 
 
 def test_api_enforces_server_side_permissions(session_factory: SessionFactory) -> None:
@@ -162,6 +165,42 @@ def test_read_only_portal_data_routes_fail_closed_through_trusted_context(
     assert client.get("/v1/learning/history").json() == []
 
 
+def test_operational_routes_return_truthful_empty_state_and_protect_audit_reads(
+    session_factory: SessionFactory,
+) -> None:
+    holder = {"context": _context("tenant-a", Permission.BOT_READ)}
+    client = TestClient(create_app(session_factory, lambda: holder["context"]))
+
+    for path in ("/v1/positions", "/v1/orders", "/v1/trades", "/v1/performance", "/v1/risk-events"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.json() == []
+
+    assert client.get("/v1/audit-events").status_code == 403
+    assert client.get("/v1/execution-activity").status_code == 403
+
+    holder["context"] = _context("tenant-a", Permission.AUDIT_READ)
+    assert client.get("/v1/audit-events").json() == []
+    assert client.get("/v1/execution-activity").json() == []
+
+
+def test_audit_route_reads_only_current_tenant_with_explicit_permission(
+    session_factory: SessionFactory,
+) -> None:
+    holder = {"context": _context("tenant-a", Permission.BOT_CREATE)}
+    client = TestClient(create_app(session_factory, lambda: holder["context"]))
+    assert client.post("/v1/bots", json=_create_payload("tenant-a")).status_code == 201
+
+    holder["context"] = _context("tenant-a", Permission.AUDIT_READ)
+    events = client.get("/v1/audit-events").json()
+    assert len(events) == 1
+    assert events[0]["tenant_id"] == "tenant-a"
+    assert events[0]["action"] == "bot.created"
+
+    holder["context"] = _context("tenant-b", Permission.AUDIT_READ)
+    assert client.get("/v1/audit-events").json() == []
+
+
 def test_openapi_surface_contains_only_control_plane_business_routes(
     session_factory: SessionFactory,
 ) -> None:
@@ -179,6 +218,13 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/trade-analysis",
         "/v1/insights",
         "/v1/learning/history",
+        "/v1/positions",
+        "/v1/orders",
+        "/v1/trades",
+        "/v1/performance",
+        "/v1/risk-events",
+        "/v1/audit-events",
+        "/v1/execution-activity",
     }
     serialized = str(schema).lower()
     for forbidden in ("api_key", "api_secret", "passphrase", "websocket_token"):

@@ -1,0 +1,41 @@
+name: Portal UI E2E Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/web/**"
+      - ".github/workflows/portal-ui-e2e-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci --silent
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium >/dev/null 2>&1
+      - name: Capture E2E output
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+        run: npx playwright test --reporter=line > /tmp/e2e.txt 2>&1 || true
+      - name: Upload E2E output
+        uses: actions/upload-artifact@v4
+        with:
+          name: portal-ui-e2e-current
+          path: /tmp/e2e.txt

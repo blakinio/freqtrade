@@ -41,7 +41,7 @@ No status in this document authorizes production deployment, real exchange crede
 |---:|---|---|---|---|
 | 1 | `PI-01` Private Runtime Read and Reconciliation | `done` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |
 | 2 | `PI-03` Canonical Inference and Drift Telemetry | `done` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
-| 3 | `PI-04` Centralized Runtime Observability | `active` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
+| 3 | `PI-04` Centralized Runtime Observability | `done` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
 | 4 | `PI-06` Product Identity and Session Lifecycle | `planned` | real product authentication, MFA, revocation and tenant membership lifecycle | P1 security contracts, external IdP decision |
 | 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `planned` | attributable current valuation with freshness and reconciliation | PI-01 plus authoritative price source |
 | 6 | `PI-05` External Notification Delivery | `planned` | auditable email/webhook/push delivery without secret leakage | current in-app notification model; PI-06 where user identity/contact data is required |
@@ -51,7 +51,7 @@ No status in this document authorizes production deployment, real exchange crede
 | Conditional | P13 Scale and Service Extraction | `deferred` | smallest measured response to a proven bottleneck/SLO failure | durable measurement bundle |
 | Capital gate | P14 Live-Small Readiness | `blocked` | separately approved minimal-capital readiness | P11, lifecycle evidence, security/operations evidence and explicit owner approval |
 
-The numeric order is the recommended software sequencing. PI-04 is active; PI-06 may run in parallel when ownership is disjoint and shared contract changes are serialized. PI-02 may begin once its authoritative price-source, currency-conversion and staleness entry gates are satisfied.
+The numeric order is the recommended software sequencing. PI-01, PI-03 and PI-04 are complete. No other PI package is active; PI-06 requires an explicit product IdP decision, while PI-02 requires authoritative price-source, currency-conversion and staleness decisions before declaration.
 
 ## 5. Dependency graph
 
@@ -233,9 +233,9 @@ Completed task ID:
 
 ### PI-04 — Centralized Runtime Observability
 
-Status: `active`
+Status: `done`
 
-Implementation evidence: task `FTAI-20260724-portal-pi04-central-runtime-observability`, draft PR #261.
+Completion evidence: task `FTAI-20260724-portal-pi04-central-runtime-observability`, PR #261, squash merge `57a48de41daf98fd0360eaecd841b257947e2559` after AI Platform CI 1111, Portal Web CI 178, Portal Universal E2E 183, Freqtrade CI 1298 and zizmor 1228 passed on the final owner head.
 
 Selected repository target: private OpenTelemetry Collector fan-out to Loki-compatible logs, Tempo-compatible traces and Prometheus-compatible metrics. Repository and CI use injected deterministic sources; target-environment endpoints and credentials remain server-side and unavailable by default until configured.
 
@@ -278,7 +278,7 @@ Non-goals:
 - committing private endpoints or credentials;
 - premature service extraction.
 
-Active task ID:
+Completed task ID:
 
 `FTAI-20260724-portal-pi04-central-runtime-observability`
 
@@ -533,7 +533,7 @@ Required before declaration:
 
 ### Wave PI-A — Truthful operational evidence
 
-PI-01 and PI-03 are complete. PI-04 is active. PI-06 may begin independently when the product IdP decision is available and ownership remains disjoint.
+PI-01, PI-03 and PI-04 are complete. PI-06 may begin only when the product IdP, membership source and session/MFA policies are explicitly selected.
 
 Exit condition:
 
@@ -591,9 +591,9 @@ A package must not be broadened mid-implementation to include the next package m
 
 ## 10. Priority decision
 
-The active software package is **PI-04 Centralized Runtime Observability**. Its bounded task and draft PR implement private OpenTelemetry-compatible routing, tenant-scoped runtime-log search, explicit source availability, bounded retention/query policy and strict separation from append-only audit evidence.
+There is no active software PI package. PI-01, PI-03 and PI-04 are durably complete. The next package must be selected and declared separately only after its authoritative external source and policy entry gates are explicitly resolved.
 
-PI-01 and PI-03 are durably complete. PI-02 is dependency-ready from the runtime-position side, but still requires explicit authoritative price, conversion and staleness decisions before declaration.
+PI-02 is dependency-ready from the runtime-position side but still requires explicit authoritative price, conversion and staleness decisions. PI-06 requires the product IdP, membership source and session/MFA policy. PI-05 requires a channel/provider decision, and PI-07 requires a secret-store/KMS decision before PI-08 can be considered.
 
 The recommended next external action remains **P11**, but only when the owner intentionally starts the Cloudflare/protected GitHub infrastructure phase.
 

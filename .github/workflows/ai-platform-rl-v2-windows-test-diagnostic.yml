@@ -1,0 +1,79 @@
+name: AI Platform RL-v2 Windows Test Diagnostic
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/ai-platform-rl-v2-windows-test-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-windows-tests:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure'
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      EXPECTED_PARENT: aa68b358537735977b74f717e90f9f70f9abc6b4
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact guarded parent
+        shell: pwsh
+        run: |
+          $actual = git rev-parse HEAD^
+          if ($actual -ne $env:EXPECTED_PARENT) {
+            throw "Expected guarded parent $env:EXPECTED_PARENT, got $actual"
+          }
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: true # zizmor: ignore[cache-poisoning] - temporary test-only diagnostic
+          python-version: "3.13"
+          cache-dependency-glob: "requirements**.txt"
+          cache-suffix: "rl-v2-windows-diagnostic"
+
+      - name: Install test environment
+        shell: pwsh
+        run: |
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+          python build_helpers/freqtrade_client_version_align.py
+
+      - name: Capture exact Windows pytest result
+        id: pytest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Continue"
+          pytest --random-order --durations 20 -n auto *> windows-pytest.log
+          $status = $LASTEXITCODE
+          "status=$status" >> $env:GITHUB_OUTPUT
+          Get-Content windows-pytest.log -Tail 300
+          exit 0
+
+      - name: Upload complete Windows pytest log
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-windows-test-diagnostic-${{ github.event.pull_request.number }}
+          path: windows-pytest.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Report pytest status
+        shell: pwsh
+        run: |
+          Write-Host "Windows pytest exit status: ${{ steps.pytest.outputs.status }}"

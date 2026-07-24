@@ -1,0 +1,170 @@
+name: PI-03 Documentation Patch
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-clean:
+    if: github.event.pull_request.head.ref == 'feat/portal-pi03-inference-drift-telemetry-20260724'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/portal-pi03-inference-drift-telemetry-20260724
+          persist-credentials: true
+      - name: Apply exact PI-03 documentation updates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              if old not in text:
+                  if new in text:
+                      return
+                  raise SystemExit(f"missing expected documentation block in {path}")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          backlog = "docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md"
+          replace(
+              backlog,
+              "| 2 | `PI-03` Canonical Inference and Drift Telemetry | `planned` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |",
+              "| 2 | `PI-03` Canonical Inference and Drift Telemetry | `active` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |",
+          )
+          replace(
+              backlog,
+              "### PI-03 — Canonical Inference and Drift Telemetry\n\nStatus: `planned`\n\nGoal:",
+              "### PI-03 — Canonical Inference and Drift Telemetry\n\nStatus: `active`\n\nImplementation evidence: task `FTAI-20260724-portal-pi03-inference-drift-telemetry`, draft PR #239. Merge evidence remains pending until required CI is green.\n\nGoal:",
+          )
+          replace(
+              backlog,
+              "The recommended next software package is **PI-03 Canonical Inference and Drift Telemetry** because it:\n\n- remains read-only and does not introduce execution authority;\n- replaces the current model-health telemetry gap with attributable inference and distribution evidence;\n- makes drift status reproducible without automatic retraining or promotion;\n- can proceed independently of PI-02 valuation and PI-07/PI-08 credential/execution work.\n",
+              "The active software package is **PI-03 Canonical Inference and Drift Telemetry**. Its bounded task and PR implement aggregate-only, attributable inference windows and reproducible PSI-v1 evidence without execution authority, automatic retraining or model promotion. The next software package is selected only after PI-03 merges and this backlog records durable completion evidence.\n",
+          )
+
+          architecture = "docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md"
+          section = '''## 10. Canonical inference telemetry and drift
+
+PI-03 stores durable aggregate inference evidence in PostgreSQL without retaining raw feature vectors or individual prediction values.
+
+Every telemetry scope pins:
+
+```text
+tenant_id
+model_version_id
+feature_schema_version_id
+bot_id
+bot_config_revision_id
+runtime_id
+source_id
+```
+
+A versioned window contains accepted/rejected prediction counts, bounded rejection-reason counts, feature present/missing/invalid counts and named distribution buckets. Reference and observation windows must match the exact scope and bucket identities before comparison.
+
+The durable boundary consists of:
+
+- `portal_inference_telemetry_windows` for immutable aggregate reference/observation envelopes;
+- `portal_inference_telemetry_source_status` for explicit source availability and checked time;
+- `portal_inference_drift_assessments` for reproducible policy, window identities and scores.
+
+The initial `psi-v1` policy records minimum samples, attention/degraded thresholds, feature-quality thresholds and smoothing epsilon. It produces only:
+
+```text
+HEALTHY
+ATTENTION
+DEGRADED
+INSUFFICIENT_EVIDENCE
+UNAVAILABLE
+```
+
+Missing source status, stale/unavailable source evidence, missing windows, insufficient samples or incompatible buckets never produce `HEALTHY`. Drift evidence is read-only: it cannot mutate ModelVersion lifecycle, promotion slots, training state, risk policy or execution authority. Protected final-holdout data `20260801-20260930` is forbidden as iterative telemetry/reference evidence.
+
+'''
+          replace(
+              architecture,
+              "## 10. Observability stack\n",
+              section + "## 11. Observability stack\n",
+          )
+          for old, new in (
+              ("## 11. Structured logging", "## 12. Structured logging"),
+              ("## 12. Metrics", "## 13. Metrics"),
+              ("## 13. Alerts", "## 14. Alerts"),
+              ("## 14. Audit vs operational logs", "## 15. Audit vs operational logs"),
+              ("## 15. Retention classes", "## 16. Retention classes"),
+              ("## 16. Privacy", "## 17. Privacy"),
+              ("## 17. Observability invariants", "## 18. Observability invariants"),
+          ):
+              replace(architecture, old, new)
+
+          ui = "docs/ai_platform/portal/UI_DELIVERY_STATUS.md"
+          replace(
+              ui,
+              "`FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.\n",
+              "`FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.\n\n`FTAI-20260724-portal-pi03-inference-drift-telemetry` adds aggregate-only inference windows, explicit source status and reproducible PSI-v1 drift assessments attributed to the exact model, feature schema, bot configuration and runtime. It stores no raw feature values or individual predictions and cannot mutate model lifecycle or promotion state.\n",
+          )
+          replace(
+              ui,
+              "| Model Health | `/ai/model-health` | partially integrated | immutable model metadata and age are canonical; drift status truthfully reports unavailable until telemetry source exists |",
+              "| Model Health | `/ai/model-health` | integrated | tenant-scoped aggregate inference telemetry, source availability, exact model/feature-schema/bot-config/runtime attribution and reproducible PSI-v1 reference/observation evidence |",
+          )
+          replace(
+              ui,
+              "Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.\n\n## Remaining hard boundaries",
+              '''Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.
+
+## PI-03 inference and drift semantics
+
+Model Health reads canonical `/v1/model-health` evidence derived from persisted aggregate telemetry windows.
+
+- `HEALTHY` means the latest compatible reference/observation pair satisfies the versioned PSI-v1 and feature-quality bounds.
+- `ATTENTION` and `DEGRADED` identify threshold crossings without triggering retraining, promotion or lifecycle mutation.
+- `INSUFFICIENT_EVIDENCE` covers minimum-sample and incompatible distribution evidence.
+- `UNAVAILABLE` covers missing, stale or explicitly unavailable telemetry source/window/assessment evidence.
+- every measured row exposes exact model, feature-schema, bot-config, runtime and source attribution plus window identities and sample counts.
+
+Raw feature values and individual predictions are not returned to the browser or persisted in this PI-03 boundary. Protected final-holdout observations are rejected from iterative telemetry evidence.
+
+## Remaining hard boundaries''',
+          )
+          replace(
+              ui,
+              "| canonical model/feature/prediction drift evidence | `PI-03` Canonical Inference and Drift Telemetry |\n",
+              "",
+          )
+          replace(
+              ui,
+              "API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise.",
+              "API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status.",
+          )
+
+          program = "docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md"
+          replace(
+              program,
+              "The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. Those packages do not renumber P0-P14 and remain planning-only until separately declared.",
+              "The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01 is complete; PI-03 is the active bounded package. Other packages remain planning-only until separately declared.",
+          )
+          replace(
+              program,
+              "Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. The recommended first software package is read-only PI-01 Private Runtime Read and Reconciliation. PI-03, PI-04 and PI-06 may run in parallel only when ownership is disjoint and shared contract changes are serialized. PI-07 must precede PI-08; neither authorizes live capital.",
+              "Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. Read-only PI-01 Private Runtime Read and Reconciliation is complete. PI-03 Canonical Inference and Drift Telemetry is active; PI-04 and PI-06 may run in parallel only when ownership is disjoint and shared contract changes are serialized. PI-07 must precede PI-08; neither authorizes live capital.",
+          )
+          replace(
+              program,
+              "Next autonomous software action: declare PI-01 Private Runtime Read and Reconciliation as a separate bounded task from current `develop`; keep it read-only and do not include credential brokering or order submission.",
+              "Next autonomous software action: complete and merge the active PI-03 Canonical Inference and Drift Telemetry task with aggregate-only evidence, explicit unavailable/insufficient states and no automatic lifecycle or promotion mutation. Select the next package only after PI-03 durable completion evidence is merged.",
+          )
+          PY
+          git rm -f .github/workflows/pi03-docs-patch.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A docs .github/workflows/pi03-docs-patch.yml
+          git commit -m "docs(portal): activate PI-03 inference telemetry package"
+          git push origin HEAD:feat/portal-pi03-inference-drift-telemetry-20260724

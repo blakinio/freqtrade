@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260724-portal-pi02-authoritative-valuation
-status: ready
-branch: feat/portal-pi02-authoritative-valuation-20260724
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
@@ -81,11 +81,11 @@ Provide attributable current position valuation and unrealized PNL from reconcil
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T23:19:04+02:00
-head: bae1bc9e0ab1d43601abb1984c9baa26e4c40175
-branch: feat/portal-pi02-authoritative-valuation-20260724
+updated_at: 2026-07-24T23:31:00+02:00
+head: 0c8fdfe6fb50ff635403ae963484bf4e6883e1e1
+branch: develop
 pr: 267
-status: ready
+status: done
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -105,7 +105,7 @@ owned_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi02-authoritative-valuation.md
 proven:
-  - develop head 5afb797f389bd4eb90cf189804cba26d8249ba07 durably closes PI-04 and provided the clean base for PI-02.
+  - PR 267 was squash-merged to develop as 0c8fdfe6fb50ff635403ae963484bf4e6883e1e1 after all required workflows passed on final owner head 77380469a03dc873fcbee9e518d9f331607828db.
   - PR 267 adds versioned runtime mark, source-result and immutable valuation snapshot contracts without changing PI-01 reconciliation records.
   - The dedicated private source adapter validates HTTP or HTTPS endpoints, rejects embedded credentials and sensitive payload keys, bounds timeout to five seconds by default and bounds responses to one MiB by default.
   - Source envelopes fail closed on protocol, authentication, timeout, availability or tenant, bot and runtime scope mismatch.
@@ -116,11 +116,12 @@ proven:
   - PNL and Performance displays realized performance and open-position valuation as independent evidence tables with source identity and availability state.
   - Focused math, provenance, tenant-isolation, transport-boundary, sensitive-data, API and browser tests pass.
   - Temporary patch, diagnostic, autofix and documentation-sync workflows and scripts were removed from the final candidate.
-  - AI Platform CI 1142, Portal Web CI 206, Portal Universal E2E 211, zizmor 1259 and Freqtrade CI 1329 passed on head bae1bc9e0ab1d43601abb1984c9baa26e4c40175; Freqtrade CI 1328 was cancelled only because the later checkpoint commit superseded it.
-  - All PR review threads are resolved and outdated.
+  - AI Platform CI 1142, Portal Web CI 206, Portal Universal E2E 211, zizmor 1259 and Freqtrade CI 1329 passed on final owner head bae1bc9e0ab1d43601abb1984c9baa26e4c40175; the final checkpoint-only owner commit 77380469a03dc873fcbee9e518d9f331607828db changed only this task record.
+  - Freqtrade CI 1328 was cancelled only because a later checkpoint commit superseded it.
+  - All PR review threads were resolved and outdated before merge.
 derived:
-  - PI-02 satisfies its bounded repository-side acceptance without selecting a public price provider or adding currency conversion, execution or live-capital authority.
-  - Exact-runtime mark provenance is the narrowest source consistent with PI-01 runtime attribution and fail-closed portal architecture.
+  - PI-02 satisfies its declared repository-side acceptance and is durably complete.
+  - The next portal integration package must be declared as a separate bounded task and must not reopen PI-02.
 unknown: []
 conflicts: []
 first_failure:
@@ -150,19 +151,22 @@ changed_paths:
 validation:
   - command: AI Platform CI 30126369470 / run 1142
     result: PASS
-    evidence: Tests, compile, Ruff, Ruff format, codespell and contract validation passed on head bae1bc9e0ab1d43601abb1984c9baa26e4c40175.
+    evidence: Tests, compile, Ruff, Ruff format, codespell and contract validation passed on implementation head bae1bc9e0ab1d43601abb1984c9baa26e4c40175.
   - command: Portal Web CI 30126369498 / run 206
     result: PASS
-    evidence: Typecheck, lint, production build and Chromium browser E2E passed on the current head.
+    evidence: Typecheck, lint, production build and Chromium browser E2E passed on the implementation head.
   - command: Portal Universal E2E 30126369510 / run 211
     result: PASS
-    evidence: Backend universal scenario and critical Chromium path passed on the current head.
+    evidence: Backend universal scenario and critical Chromium path passed on the implementation head.
   - command: GitHub Actions Security Analysis with zizmor 30126369503 / run 1259
     result: PASS
-    evidence: Required workflow security analysis passed on the current head.
+    evidence: Required workflow security analysis passed on the implementation head.
   - command: Freqtrade CI 30126369494 / run 1329
     result: PASS
-    evidence: Pre-commit, documentation, full multi-platform core matrix, coverage, smoke checks, Ruff, formatter, mypy and CI gate passed on the current head.
+    evidence: Pre-commit, documentation, full multi-platform core matrix, coverage, smoke checks, Ruff, formatter, mypy and CI gate passed on the implementation head.
+  - command: squash merge PR 267
+    result: PASS
+    evidence: GitHub merged the reviewed owner head to develop as 0c8fdfe6fb50ff635403ae963484bf4e6883e1e1.
 blockers: []
-next_action: After durable merge evidence exists on develop, select the next authorized package from current repository and open-PR state.
+next_action: Do not reopen this completed task; declare a separate bounded task for the next integration package only after its authoritative external source and policy entry gates are resolved, while P11, P13 and P14 retain their existing gates.
 ```

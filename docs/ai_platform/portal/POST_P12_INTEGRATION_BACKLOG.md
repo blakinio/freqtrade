@@ -39,7 +39,7 @@ No status in this document authorizes production deployment, real exchange crede
 
 | Order | Package | Status | Primary outcome | Depends on |
 |---:|---|---|---|---|
-| 1 | `PI-01` Private Runtime Read and Reconciliation | `active` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |
+| 1 | `PI-01` Private Runtime Read and Reconciliation | `done` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |
 | 2 | `PI-03` Canonical Inference and Drift Telemetry | `planned` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
 | 3 | `PI-04` Centralized Runtime Observability | `planned` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
 | 4 | `PI-06` Product Identity and Session Lifecycle | `planned` | real product authentication, MFA, revocation and tenant membership lifecycle | P1 security contracts, external IdP decision |
@@ -51,7 +51,7 @@ No status in this document authorizes production deployment, real exchange crede
 | Conditional | P13 Scale and Service Extraction | `deferred` | smallest measured response to a proven bottleneck/SLO failure | durable measurement bundle |
 | Capital gate | P14 Live-Small Readiness | `blocked` | separately approved minimal-capital readiness | P11, lifecycle evidence, security/operations evidence and explicit owner approval |
 
-The numeric order is the recommended software sequencing. PI-03, PI-04 and PI-06 may run in parallel with PI-01 when ownership is disjoint and shared contract changes are serialized.
+The numeric order is the recommended software sequencing. PI-03, PI-04 and PI-06 may run in parallel when ownership is disjoint and shared contract changes are serialized. PI-02 may now begin once its authoritative price-source, currency-conversion and staleness entry gates are satisfied.
 
 ## 5. Dependency graph
 
@@ -88,9 +88,9 @@ P11 may be resumed earlier when the owner intentionally starts the external infr
 
 ### PI-01 — Private Runtime Read and Reconciliation
 
-Status: `active`
+Status: `done`
 
-Implementation evidence: task `FTAI-20260724-portal-pi01-runtime-read-reconciliation`, PR #234. Merge evidence remains pending until required CI is green.
+Completion evidence: task `FTAI-20260724-portal-pi01-runtime-read-reconciliation`, PR #234, squash merge `00c50b4340945cb71e149f269de33f75f9d84a3c` after all required CI passed.
 
 Goal: replace portal-only operational evidence gaps with authenticated private reads from the runtime boundary while preserving source-runtime identity, tenant scope, staleness and reconciliation state.
 
@@ -131,9 +131,9 @@ Non-goals:
 - live capital;
 - unrealized valuation without PI-02.
 
-Recommended next task ID:
+Completed task ID:
 
-`FTAI-YYYYMMDD-portal-pi01-runtime-read-reconciliation`
+`FTAI-20260724-portal-pi01-runtime-read-reconciliation`
 
 ### PI-02 — Authoritative Valuation and Unrealized PNL
 
@@ -527,7 +527,7 @@ Required before declaration:
 
 ### Wave PI-A — Truthful operational evidence
 
-Declare PI-01 first.
+PI-01 is complete.
 
 PI-03 and PI-04 may run in parallel after checking shared event/observability contract ownership. PI-06 may also begin independently when the product IdP decision is available.
 
@@ -538,7 +538,7 @@ Exit condition:
 
 ### Wave PI-B — Product completeness from authoritative sources
 
-Declare PI-02 after PI-01. Declare PI-05 after channel/provider and identity/destination ownership are clear.
+PI-02 may now be declared once its authoritative price, conversion and staleness policies are selected. Declare PI-05 after channel/provider and identity/destination ownership are clear.
 
 Exit condition:
 
@@ -587,13 +587,14 @@ A package must not be broadened mid-implementation to include the next package m
 
 ## 10. Priority decision
 
-The recommended next software package is **PI-01 Private Runtime Read and Reconciliation** because it:
+The recommended next software package is **PI-03 Canonical Inference and Drift Telemetry** because it:
 
-- is read-only and lower risk than execution submission;
-- closes the authoritative positions/orders/trades gap;
-- enables PI-02 valuation;
-- provides reconciliation evidence required before PI-08;
-- improves operational truth without introducing live-capital authority.
+- remains read-only and does not introduce execution authority;
+- replaces the current model-health telemetry gap with attributable inference and distribution evidence;
+- makes drift status reproducible without automatic retraining or promotion;
+- can proceed independently of PI-02 valuation and PI-07/PI-08 credential/execution work.
+
+PI-02 is now dependency-ready from the runtime-position side, but still requires explicit authoritative price, conversion and staleness decisions before declaration.
 
 The recommended next external action remains **P11**, but only when the owner intentionally starts the Cloudflare/protected GitHub infrastructure phase.
 

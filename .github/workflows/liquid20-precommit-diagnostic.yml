@@ -1,0 +1,30 @@
+name: Liquid20 pre-commit diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquid20-precommit-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Print pre-commit failure
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquid20-multi-source-acceptance-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python -m pip install -q pre-commit
+          if ! pre-commit run --all-files > precommit.log 2>&1; then
+            tail -n 120 precommit.log
+            exit 1
+          fi
+          cat precommit.log

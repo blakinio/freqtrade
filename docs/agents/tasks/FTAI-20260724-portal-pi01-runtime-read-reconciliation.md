@@ -69,7 +69,7 @@ Implement authoritative, read-only private runtime ingestion for open positions,
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T09:25:00+02:00
+updated_at: 2026-07-24T09:36:00+02:00
 head: 00c50b4340945cb71e149f269de33f75f9d84a3c
 branch: develop
 pr: 234
@@ -106,6 +106,7 @@ proven:
   - Targeted AI Platform tests reached 487 passed and 1 skipped before final documentation refresh.
   - Full repository pre-commit passed after the final mypy corrections.
   - Final PR checks AI Platform CI, Portal Web CI, Portal Universal E2E, Freqtrade CI and zizmor all passed on head 7ae14137a569877cfce24f776963d044b5a0fdbf.
+  - Closure PR #235 first head c689b7a4c620cdee6635f8ef499fe8aa2194d372 passed AI Platform CI, documentation/pre-commit Freqtrade CI and zizmor.
 derived:
   - PI-01 acceptance is complete without adding execution submission, credential brokering, valuation or live-capital authority.
   - PI-02 may now consume attributable open-position evidence, while authoritative price and conversion evidence remain separate entry gates.
@@ -156,9 +157,18 @@ validation:
   - command: zizmor 30074526201
     result: PASS
     evidence: Final GitHub Actions security analysis passed on PR #234 head 7ae14137a569877cfce24f776963d044b5a0fdbf.
+  - command: AI Platform CI 30075806446
+    result: PASS
+    evidence: Closure task and canonical backlog changes passed AI Platform CI on PR #235 head c689b7a4c620cdee6635f8ef499fe8aa2194d372.
+  - command: Freqtrade CI 30075806379
+    result: PASS
+    evidence: Closure pre-commit, CI scope, documentation build and CI gate passed on PR #235 head c689b7a4c620cdee6635f8ef499fe8aa2194d372; core and exhaustive matrices were correctly skipped for the documentation-only diff.
+  - command: zizmor 30075806442
+    result: PASS
+    evidence: Closure GitHub Actions security analysis passed on PR #235 head c689b7a4c620cdee6635f8ef499fe8aa2194d372.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md --require-checkpoint
     result: PASS
-    evidence: The implementation branch checkpoint passed the repository governance contract before merge.
+    evidence: The implementation branch checkpoint passed the repository governance contract before merge; the closure edit preserves the same required checkpoint structure and allowed values.
 blockers: []
 next_action: Do not reopen this completed task; declare a separate bounded task for the next integration package while P11, P13 and P14 retain their existing gates.
 ```

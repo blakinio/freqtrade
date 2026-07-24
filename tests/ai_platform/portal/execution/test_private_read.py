@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from email.message import Message
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -372,7 +373,7 @@ def test_http_transport_maps_authentication_without_leaking_endpoint() -> None:
             "https://private-runtime.invalid/read",
             401,
             "Unauthorized private-token",
-            hdrs=None,
+            hdrs=Message(),
             fp=None,
         )
 
@@ -518,7 +519,7 @@ def test_adapter_read_success_and_submission_remains_fail_closed(tmp_path: Path)
     assert trades[0].state is TradeState.CLOSED
     with pytest.raises(UnsupportedExecutionOperationError) as exc_info:
         adapter.submit_approved_intent(
-            object(),  # type: ignore[arg-type]
+            object(),
             _context(),
         )
     assert exc_info.value.reason_code == "ORDER_SUBMISSION_NOT_IMPLEMENTED"

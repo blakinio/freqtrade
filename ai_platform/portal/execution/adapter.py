@@ -214,9 +214,9 @@ class FreqtradeExecutionAdapter:
         record = self._require_record(tenant_id, bot_id)
         collector = self._private_read_collector
         if collector is None:
-            reason_code = "PRIVATE_RUNTIME_COLLECTOR_NOT_CONFIGURED"
-            self._write_failure(record, context, reason_code)
-            return self._unavailable_snapshot(record, reason_code)
+            collector_reason_code = "PRIVATE_RUNTIME_COLLECTOR_NOT_CONFIGURED"
+            self._write_failure(record, context, collector_reason_code)
+            return self._unavailable_snapshot(record, collector_reason_code)
 
         reason_code = self._runtime_read_unavailable_reason(record, context)
         if reason_code is not None:

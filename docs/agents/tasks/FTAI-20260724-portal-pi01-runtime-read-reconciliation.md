@@ -5,7 +5,7 @@ branch: feat/portal-pi01-runtime-read-reconciliation-20260724
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
-related_pr: null
+related_pr: 234
 owned_paths:
   - ai_platform/portal/execution/**
   - ai_platform/portal/operations/**
@@ -69,37 +69,96 @@ Implement authoritative, read-only private runtime ingestion for open positions,
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T07:38:00+02:00
-head: 6296a4472d80e32d1f67dcfe258c70f1ce3f4f1e
+updated_at: 2026-07-24T09:05:00+02:00
+head: 117387233d66dba018fc3d8500be37ccb14cd109
 branch: feat/portal-pi01-runtime-read-reconciliation-20260724
-pr: null
-status: active
+pr: 234
+status: validating
 context_routes:
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
   - docs/ai_platform/portal/EXECUTION_ADAPTER.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+owned_paths:
+  - ai_platform/portal/execution/**
+  - ai_platform/portal/operations/**
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/web/app/positions/page.tsx
+  - ai_platform/portal/web/app/orders/page.tsx
+  - ai_platform/portal/web/app/trades/page.tsx
+  - ai_platform/portal/web/lib/runtime-evidence.ts
+  - tests/ai_platform/portal/execution/**
+  - tests/ai_platform/portal/operations/**
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+  - docs/ai_platform/portal/EXECUTION_ADAPTER.md
+  - docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md
 proven:
-  - develop is 6296a4472d80e32d1f67dcfe258c70f1ce3f4f1e and PR 233 is merged.
-  - Open PR 109 is documentation/design-only and does not overlap PI-01.
-  - No open PR owns execution or operational reconciliation paths.
-  - ExecutionAdapter v1 read methods return tuples and cannot encode completeness, freshness or source availability.
-  - FreqtradeExecutionAdapter read methods currently fail closed with query-not-implemented reason codes.
-  - The operational mirror stores tenant, bot, runtime and source records but lacks observation/freshness/reconciliation metadata and a canonical trade mirror.
-  - ReconciliationStatus already defines SYNCED, PENDING, SOURCE_UNAVAILABLE and MISMATCH.
-  - PR 233 recorded passing AI Platform CI, Freqtrade CI and zizmor for the current develop content.
+  - develop preflight head was 6296a4472d80e32d1f67dcfe258c70f1ce3f4f1e and PR 233 was merged.
+  - Open PR 109 was documentation-only and did not overlap PI-01 ownership.
+  - Shared ExecutionAdapter v1 remains unchanged; PI-01 uses a separately versioned private collector/read-batch interface.
+  - Private runtime reads preserve tenant, bot, runtime, source identity and source/observed/reconciled timestamps.
+  - Collector behavior is bounded for timeout, retry, pagination, body size, duplicate handling, partial pages and stale source.
+  - Reconciliation is idempotent and represents SYNCED, PENDING, SOURCE_UNAVAILABLE and MISMATCH explicitly.
+  - The operational mirror remains the only portal-facing read boundary through GET /v1/runtime-evidence.
+  - Browser serialization excludes private runtime endpoints, authorization headers and credentials.
+  - submit_approved_intent remains fail-closed with ORDER_SUBMISSION_NOT_IMPLEMENTED.
+  - Targeted AI Platform tests reached 487 passed and 1 skipped before final documentation refresh.
+  - Portal Web CI and Portal Universal E2E passed after the runtime-evidence UI integration fix.
 derived:
-  - A versioned private collector/read-batch interface avoids an incompatible shared-contract change while preserving ExecutionAdapter v1.
-  - Portal-facing reads must remain operational-mirror reads and must serialize status metadata without private transport details.
-unknown:
-  - Exact Freqtrade private transport payload variants must be normalized behind deterministic fake-covered parsing.
+  - Complete current synced batches may pass through ExecutionAdapter v1; stale, partial, unavailable or mismatched batches fail closed there.
+  - Degraded evidence may remain visible only with explicit freshness and reconciliation metadata in the operational mirror.
+unknown: []
 conflicts: []
 first_failure:
-  marker: none
-  evidence: No implementation or validation failure has occurred yet.
+  marker: resolved
+  evidence: Initial OpenAPI expectation, response-envelope and Ruff formatting failures were fixed; no unresolved implementation failure is known.
+rejected_hypotheses:
+  - Browser clients require direct Freqtrade access; rejected because the operational mirror is the sole portal-facing boundary.
+  - ExecutionAdapter v1 must be incompatibly changed; rejected because a versioned private collector carries batch metadata.
 changed_paths:
+  - ai_platform/portal/execution/adapter.py
+  - ai_platform/portal/execution/errors.py
+  - ai_platform/portal/execution/private_read.py
+  - ai_platform/portal/operations/models.py
+  - ai_platform/portal/operations/repository.py
+  - ai_platform/portal/operations/schema.py
+  - ai_platform/portal/operations/service.py
+  - ai_platform/portal/operations/migrations/0002_private_runtime_reconciliation.sql
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/web/lib/runtime-evidence.ts
+  - ai_platform/portal/web/app/positions/page.tsx
+  - ai_platform/portal/web/app/orders/page.tsx
+  - ai_platform/portal/web/app/trades/page.tsx
+  - tests/ai_platform/portal/execution/test_private_read.py
+  - tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
+  - tests/ai_platform/portal/operations/test_private_runtime_migration.py
+  - tests/ai_platform/portal/execution/test_adapter.py
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - docs/ai_platform/portal/EXECUTION_ADAPTER.md
+  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md
-validation: []
+validation:
+  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform
+    result: PASS
+    evidence: 487 passed and 1 skipped on PR 234 before final documentation refresh.
+  - command: ruff check ai_platform tests/ai_platform
+    result: PASS
+    evidence: Ruff lint passed after the private collector refactor.
+  - command: ruff format --check ai_platform tests/ai_platform
+    result: PASS
+    evidence: Exact Ruff formatter output was applied to all reported files.
+  - command: Portal Web CI
+    result: PASS
+    evidence: Typecheck, lint, build and browser tests passed after runtime-evidence page integration.
+  - command: Portal Universal E2E
+    result: PASS
+    evidence: Universal E2E passed after the strict-locator correction.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md --require-checkpoint
+    result: PASS
+    evidence: Executed by the current branch-scoped validation job before commit.
 blockers: []
-next_action: Implement the versioned private runtime collector models and deterministic transport/error mapping in ai_platform/portal/execution/.
+next_action: Restore the standard AI Platform workflow, complete required repository CI, resolve review findings and merge PR 234.
 ```

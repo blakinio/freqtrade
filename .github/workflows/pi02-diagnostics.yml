@@ -13,8 +13,8 @@ jobs:
     if: github.event.pull_request.head.ref == 'feat/portal-pi02-authoritative-valuation-20260724'
     runs-on: ubuntu-24.04
     outputs:
-      log_b64: ${{ steps.test.outputs.log_b64 }}
-      exit_code: ${{ steps.test.outputs.exit_code }}
+      log_b64: ${{ steps.check.outputs.log_b64 }}
+      exit_code: ${{ steps.check.outputs.exit_code }}
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -24,28 +24,27 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - name: Install dependencies
-        run: >-
-          python -m pip install -q --disable-pip-version-check
-          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
-          "httpx>=0.24.1" fastapi
-      - name: Capture first failing AI platform test
-        id: test
+      - name: Install Ruff
+        run: python -m pip install -q --disable-pip-version-check ruff==0.15.21
+      - name: Capture Ruff findings
+        id: check
         shell: bash
         run: |
           set +e
-          python -m pytest -q --tb=short --maxfail=1 -o addopts='' \
-            --confcutdir=tests/ai_platform tests/ai_platform > /tmp/pi02-pytest.log 2>&1
+          {
+            ruff check ai_platform tests/ai_platform
+            ruff format --check ai_platform tests/ai_platform
+          } > /tmp/pi02-ruff.log 2>&1
           code=$?
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
-          echo "log_b64=$(base64 -w0 /tmp/pi02-pytest.log)" >> "$GITHUB_OUTPUT"
+          echo "log_b64=$(base64 -w0 /tmp/pi02-ruff.log)" >> "$GITHUB_OUTPUT"
           exit 0
 
   report:
     needs: validate
     runs-on: ubuntu-24.04
     steps:
-      - name: Report first failure
+      - name: Report Ruff findings
         env:
           LOG_B64: ${{ needs.validate.outputs.log_b64 }}
           EXIT_CODE: ${{ needs.validate.outputs.exit_code }}

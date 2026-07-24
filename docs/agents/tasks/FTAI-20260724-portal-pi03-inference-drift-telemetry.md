@@ -16,6 +16,7 @@ owned_paths:
   - ai_platform/portal/web/e2e/shell.spec.ts
   - tests/ai_platform/portal/telemetry/**
   - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform_integration/test_liquidation_symbol_universe.py
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
@@ -82,11 +83,11 @@ Add a tenant-scoped, aggregate-only inference telemetry boundary and determinist
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T13:31:18+02:00
-head: 9b9b138d62244711ab8fc148514cce576f415bab
+updated_at: 2026-07-24T13:51:39+02:00
+head: 50dfa88048ba00e30cb44843ac297221ae4f2be6
 branch: feat/portal-pi03-inference-drift-telemetry-20260724
 pr: 239
-status: ready
+status: validating
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -102,6 +103,7 @@ owned_paths:
   - ai_platform/portal/web/e2e/shell.spec.ts
   - tests/ai_platform/portal/telemetry/**
   - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform_integration/test_liquidation_symbol_universe.py
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
@@ -119,22 +121,25 @@ proven:
   - Ruff auto-fix and format resolved the import, line-length and formatting findings; the remaining C901 was removed by splitting the validator into bounded helpers without changing validation order or error semantics.
   - Every intended PI-03 backlog, architecture, UI-status and program documentation replacement is already present, so cleanup is idempotent and no temporary patch runner is required.
   - The temporary documentation workflow, patch script, trigger and diagnostic files are removed from the merge candidate.
-  - The cleanup tree is synchronized with develop bb8dc9189db954a1c8da8f45448e7e875a3af690 and PR 239 is mergeable.
-  - Required AI Platform, Portal Web, Portal Universal E2E, zizmor and Freqtrade CI passed on synchronized head 9b9b138d62244711ab8fc148514cce576f415bab.
+  - Required AI Platform, Portal Web, Portal Universal E2E, zizmor and Freqtrade CI passed on synchronized PI-03 head 9b9b138d62244711ab8fc148514cce576f415bab.
+  - Develop advanced to 9fdacb856cc9a26bc0783d567f7f919e9e053013 and introduced test_require_new_output_checks_every_multi_source_target, whose mkdir call deterministically failed on an already-created pytest tmp_path across all six core-test jobs.
+  - Commit 50dfa88048ba00e30cb44843ac297221ae4f2be6 applies the minimal test-only correction by using exist_ok=True; no PI-03 production or browser contract changed.
 derived:
-  - The final cleanup changes are mechanical code-quality and handover cleanup; PI-03 behavioral contracts remain unchanged.
-  - No concrete implementation, quality, documentation or mergeability blocker remains for review.
-unknown: []
+  - The PI-03 implementation and Ruff cleanup remain behaviorally unchanged after synchronization with current develop.
+  - The new required-CI blocker is an external base-test regression rather than a telemetry implementation failure.
+unknown:
+  - Final required CI result on the synchronized test-fix head.
 conflicts: []
 first_failure:
-  marker: NONE
-  evidence: Required CI is green on the synchronized cleanup head and no remaining failure is known.
+  marker: LIQUIDATION_TMP_PATH_ALREADY_EXISTS
+  evidence: Freqtrade CI run 1174 failed tests/ai_platform_integration/test_liquidation_symbol_universe.py:99 with FileExistsError because tmp_path already existed and mkdir used exist_ok=False.
 rejected_hypotheses:
   - Infer drift from model metadata age or training-window age.
   - Persist raw feature vectors or individual prediction values in the portal database.
   - Let drift status automatically promote, rollback or retrain a model.
   - Reuse protected final-holdout observations as iterative reference telemetry.
   - Combine reference and observation windows across runtime, config or source identities.
+  - Treat Freqtrade CI run 1174 as an intermittent runner or xdist-only failure; the same test also failed in the single-process coverage job.
 changed_paths:
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
@@ -156,28 +161,24 @@ changed_paths:
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - tests/ai_platform/portal/control_plane/test_api.py
   - tests/ai_platform/portal/telemetry/test_inference_telemetry.py
+  - tests/ai_platform_integration/test_liquidation_symbol_universe.py
 validation:
   - command: focused PI-03 telemetry and control-plane API pytest
     result: PASS
     evidence: 18 tests passed after timezone and compatibility fixes.
-  - command: AI Platform CI test step on owner head 3947cea196018d1113c2087278bfa0275d56033e
+  - command: Ruff 0.15.21 diagnostic and cleanup
     result: PASS
-    evidence: Full AI Platform pytest completed successfully before Ruff.
-  - command: Ruff 0.15.21 diagnostic on head 2d480a42585cff99f9ee4d201253b004d72e112c
-    result: PASS
-    evidence: Three exact lint findings and five format targets were captured; auto-fix and format left only C901, which is resolved in the cleanup commit.
-  - command: Portal Web CI on owner head 3947cea196018d1113c2087278bfa0275d56033e
-    result: PASS
-    evidence: Workflow run 124 completed successfully.
-  - command: Portal Universal E2E on owner head 3947cea196018d1113c2087278bfa0275d56033e
-    result: PASS
-    evidence: Workflow run 129 completed successfully.
-  - command: GitHub Actions Security Analysis on owner head 3947cea196018d1113c2087278bfa0275d56033e
-    result: PASS
-    evidence: Workflow run 1045 completed successfully.
+    evidence: I001, E501 and formatting were auto-fixed; C901 was removed by bounded validator helpers and exact Ruff plus format checks passed.
   - command: required repository CI on synchronized head 9b9b138d62244711ab8fc148514cce576f415bab
     result: PASS
     evidence: AI Platform CI 996, Portal Web CI 133, Portal Universal E2E 138, zizmor 1093 and Freqtrade CI 1163 completed successfully.
-blockers: []
-next_action: Review and merge PR 239 into develop after repository approval; select the next integration package only after merge evidence is durable.
+  - command: Freqtrade CI run 1174 on merge ref 3e5a4278f3db9cc7e16c5af4e08019300dcfa4ef
+    result: FAIL
+    evidence: All six core-test jobs failed the same newly merged liquidation-universe test because pathlib.mkdir used exist_ok=False on pytest tmp_path.
+  - command: required repository CI on owner head after base-test correction
+    result: NOT_RUN
+    evidence: Pending on the current checkpoint commit.
+blockers:
+  - Required repository CI has not completed on the synchronized test-fix head.
+next_action: Complete required CI on the synchronized test-fix head; if green, update the checkpoint to ready and mark PR 239 ready for review.
 ```

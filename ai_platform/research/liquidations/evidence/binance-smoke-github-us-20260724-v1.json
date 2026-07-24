@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "evidence_id": "binance-smoke-github-us-20260724-v1",
+  "observed_at_utc": "2026-07-24T10:40:03Z",
+  "environment": {
+    "provider": "github-actions",
+    "runner": "ubuntu-24.04",
+    "region_observed": "westus3",
+    "intended_use": "bounded public-endpoint smoke only"
+  },
+  "source": "binance-usdm",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "websocket": {
+    "endpoint": "wss://fstream.binance.com/market/ws",
+    "duration_ms": 35269,
+    "availability_ratio": 0.9873543338342454,
+    "messages_received": 2,
+    "control_messages": 1,
+    "liquidation_messages": 1,
+    "events_written": 1,
+    "parse_failures": 0,
+    "disconnects": 0,
+    "output_sha256": "ce31dd74fb7694247f833d142a4f5eef4b702e36b0d4e7287f591acccd86b174",
+    "result": "pass"
+  },
+  "clock_probe": {
+    "endpoint": "https://fapi.binance.com/fapi/v1/time",
+    "round_trip_ms": 82,
+    "synchronized": null,
+    "absolute_skew_ms": null,
+    "error": "HTTPError: HTTP Error 451",
+    "result": "blocked"
+  },
+  "credentials_present": false,
+  "workflow_runs": {
+    "collector_smoke": 30086906301,
+    "clock_diagnostic": 30087047452
+  },
+  "overall_result": "blocked",
+  "failed_checks": [
+    "clock_synchronized"
+  ],
+  "interpretation": "The public Binance liquidation WebSocket transport, subscription acknowledgement, parser, canonical write path, and integrity hash worked on the GitHub-hosted runner. The public REST clock endpoint was unavailable from that runner with HTTP 451, so the fail-closed clock gate could not pass.",
+  "policy_response": "Do not remove or weaken clock synchronization. Repeat the unchanged smoke on the intended non-restricted staging host before declaring the Binance source operationally accepted.",
+  "promotion_boundary": "This evidence authorizes no replay, strategy execution, DCA, leverage, live capital, or profitability claim."
+}

@@ -122,8 +122,8 @@ PR #248 adds:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T17:00:29+02:00
-head: 383ca937086955d5b096f8f3d138c9b8992f9f25
+updated_at: 2026-07-24T17:43:57+02:00
+head: fce3b60be82843a0411825486f3e61a24d1138eb
 branch: feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure
 pr: 248
 status: validating
@@ -148,31 +148,37 @@ proven:
   - Contract v1 freezes baseline identity, variant/model/config hashes, geometry, attribution definitions, isolation, authorization, and zero baseline executions.
   - The workflow remains inert until a future exact-one-file trigger and contains exactly one variant backtesting command with no baseline execution command.
   - Guarded Ruff repair produced ce492702825b4fa68347a675768a4fda6b07d3dc after exact Ruff 0.15.21 check and format passed.
-  - Pre-commit diagnostic run 30102235674 identified one actual infrastructure failure: mypy no-redef in _collect_keys at run-request line 150; all non-temporary repository hooks otherwise passed.
-  - Guarded repair run 30102941491 renamed only the list accumulator keys to list_keys, passed full pre-commit across the repository, verified the bounded staged scope, pushed a6cc5167d318003750958f695afd99a8fffe9cf6, and self-removed the temporary repair workflow.
-  - The diagnostic and repair workflows are absent from the repaired branch and the net PR compare contains only the seven owned infrastructure paths.
-  - Current develop ee6c8c36272e5b565515692ddb1c834c4ff6a88c is an ancestor of integrated head 383ca937086955d5b096f8f3d138c9b8992f9f25.
-  - Compare current develop to integrated head reports behind_by=0 and exactly the seven owned infrastructure paths.
+  - Pre-commit diagnostic run 30102235674 identified mypy no-redef in _collect_keys; guarded repair run 30102941491 renamed only the list accumulator to list_keys and passed full pre-commit.
+  - Owner-authored checkpoint head aa68b358537735977b74f717e90f9f70f9abc6b4 passed AI Platform CI, Portal Web CI, Portal Universal E2E, zizmor, pre-commit, documentation, coverage, Ubuntu 3.11/3.12/3.13/3.14, and macOS 3.13 jobs.
+  - Windows 2025/Python 3.13 failed twice on the same aa68b358537735977b74f717e90f9f70f9abc6b4 merge ref, so the failure was not treated as a runner flake.
+  - Read-only diagnostic run 30105449519 reproduced exactly five owned tests failing because Windows checkout converted the immutable JSON config from LF to CRLF, changing the working-tree byte hash from expected 5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de to 4e436cdd8a09ca5e268372e982d042a999ca757d643cb2625bfb7348dfb991ea.
+  - Diagnostic artifact rl-v2-windows-test-diagnostic-248 had digest sha256:d39e36bc77071e8670ac101dacc80ff20a62123aed5784312f318dafea914a00 and contained 4979 passing tests, 24 skips, and only the five cross-platform hash failures.
+  - Guarded repair run 30106178646 normalized only CRLF to canonical LF before hashing text inputs, added a regression test proving LF/CRLF equivalence and substantive-content distinction, passed targeted Windows tests, targeted Linux tests, full pre-commit, bounded staged-scope verification, and pushed fce3b60be82843a0411825486f3e61a24d1138eb.
+  - The Windows hash repair preserves all frozen expected digests and contract identities; it changes checkout portability only, not config, model, strategy, geometry, attribution, authorization, or experiment semantics.
+  - All temporary diagnostic and repair workflows are absent from repaired head fce3b60be82843a0411825486f3e61a24d1138eb.
+  - Current develop ee6c8c36272e5b565515692ddb1c834c4ff6a88c is the merge base of repaired head fce3b60be82843a0411825486f3e61a24d1138eb; compare reports behind_by=0 and exactly the seven owned infrastructure paths.
   - No current open PR other than #248 overlaps RL-v2 execution, lifecycle attribution, model, strategy, config, or experimental-research ownership.
   - Standard workflows create normal runs and jobs rather than action_required runs with zero jobs.
   - No canonical request, training, backtest, cache restore, market-data access, consumed OOS access, or protected final-holdout access occurred during diagnosis, repair, or integration.
   - Frozen thresholds remain 0.006/-0.009 and Phase 6 selected_model remains null.
 derived:
-  - The original action_required, behind-develop, Ruff, and pre-commit mypy blockers are resolved.
+  - The original action_required, behind-develop, Ruff, pre-commit mypy, and Windows checkout-EOL hash blockers are resolved.
+  - Canonical LF hashing is invariant to Git checkout EOL conversion while remaining sensitive to substantive text changes.
   - The current-develop integration preserves the seven-path infrastructure scope and frozen semantics.
-  - The keys-to-list_keys change is local name disambiguation only and does not change recursive key collection behavior.
   - No variant trigger may be created until the infrastructure PR is fully validated and merged.
 unknown:
-  - Whether all standard CI jobs pass on the owner-authored checkpoint head after the final develop integration.
+  - Whether every standard CI job passes on the owner-authored checkpoint head after the Windows portability repair.
   - Whether the later one-shot variant run reduces both frozen primary lifecycle metrics.
 conflicts: []
 first_failure:
-  marker: pr248_final_standard_ci_pending_after_mypy_repair
-  evidence: Full pre-commit passed in guarded repair run 30102941491 and current develop is integrated, but standard PR CI has not yet reached terminal green on the owner-authored checkpoint head.
+  marker: pr248_final_standard_ci_pending_after_windows_hash_repair
+  evidence: Guarded repair run 30106178646 passed Windows targeted tests and full pre-commit, but standard PR CI has not yet reached terminal green on the owner-authored checkpoint head.
 rejected_hypotheses:
   - Merge PR #248 without terminal green standard CI.
+  - Treat the repeated Windows failure as a transient runner flake.
+  - Change the frozen config content or expected SHA-256 digest.
+  - Add a repository-wide JSON EOL policy outside the seven owned paths.
   - Treat the earlier action_required state as a code or test failure.
-  - Treat EOF, line-ending, Ruff, codespell, generated-output, or zizmor checks as the source of the original pre-commit failure.
   - Add the canonical run request before infrastructure merge.
   - Rerun baseline training or backtest.
   - Combine lifecycle alignment with any other tuning.
@@ -188,18 +194,21 @@ changed_paths:
   - tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
   - .github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml
 validation:
-  - command: pre-commit run --all-files --show-diff-on-failure --verbose
+  - command: pytest --random-order --durations 20 -n auto on Windows 2025/Python 3.13 before repair
+    result: FAIL
+    evidence: Diagnostic run 30105449519 produced five owned failures, all caused by config working-tree CRLF hash drift; 4979 tests passed and 24 skipped.
+  - command: targeted paired-attribution tests on Windows 2025/Python 3.13 after canonical text hash repair
     result: PASS
-    evidence: Guarded repair run 30102941491 passed every configured hook after the bounded keys-to-list_keys repair and before committing.
-  - command: compare current develop with integrated PR #248 head
+    evidence: validate-windows-repair job in guarded run 30106178646 completed successfully.
+  - command: targeted paired-attribution tests plus pre-commit run --all-files --show-diff-on-failure --verbose
+    result: PASS
+    evidence: commit-repair job in guarded run 30106178646 completed successfully before bounded commit and push.
+  - command: compare current develop with repaired PR #248 head
     result: PASS
     evidence: develop ee6c8c36272e5b565515692ddb1c834c4ff6a88c is the merge base, branch behind_by=0, and the compare contains exactly seven owned paths.
-  - command: verify repaired _collect_keys branch
-    result: PASS
-    evidence: Repaired head uses list_keys only inside the list branch while preserving dict-branch keys and identical recursive behavior.
   - command: verify temporary diagnostic and repair workflow removal
     result: PASS
-    evidence: Both temporary workflow paths are absent from the repaired and integrated branch.
+    evidence: Net compare contains no temporary workflow path and only the seven owned infrastructure paths.
 blockers:
   - Full standard CI on the owner-authored checkpoint head is not yet terminal green.
 next_action: Validate the checkpoint and full standard CI on the new checkpoint head; if every required check is green and the compare still contains exactly the seven owned infrastructure paths, merge PR #248 without adding a run request or executing any model or data path; otherwise repair only the first bounded infrastructure failure.

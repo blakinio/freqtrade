@@ -6,4 +6,5 @@ from ai_platform.research.liquidations.contracts import (
     LiquidationEvent,
 )
 
+
 __all__ = ["CounterTradeAction", "LiquidatedPositionSide", "LiquidationEvent"]

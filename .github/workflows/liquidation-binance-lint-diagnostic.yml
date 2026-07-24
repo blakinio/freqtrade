@@ -1,9 +1,9 @@
 name: Binance liquidation lint diagnostic
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/liquidation-binance-source-v1
+      - develop
     paths:
       - ".github/workflows/liquidation-binance-lint-diagnostic.yml"
 

@@ -1,0 +1,60 @@
+name: Liquid20 pre-commit autofix
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquid20-precommit-autofix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  autofix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/liquid20-multi-source-acceptance-v1
+          persist-credentials: true
+      - name: Apply exact fixes
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          acceptance = Path("ai_platform/research/liquidations/multi_source_acceptance.py")
+          text = acceptance.read_text(encoding="utf-8")
+          text = text.replace("  # noqa: PLR0124", "")
+          acceptance.write_text(text, encoding="utf-8")
+
+          runner = Path("ai_platform/scripts/liquidation_multi_source_runner.py")
+          text = runner.read_text(encoding="utf-8")
+          text = text.replace("from typing import Any\n", "from typing import Any, cast\n")
+          text = text.replace(
+              "    bybit_result, binance_result = await asyncio.gather(\n",
+              "    collection_results = await asyncio.gather(\n",
+          )
+          marker = "        return_exceptions=True,\n    )\n\n    bybit_normalization, binance_normalization = await asyncio.gather(\n"
+          replacement = (
+              "        return_exceptions=True,\n"
+              "    )\n"
+              "    bybit_result = cast(CollectorRunStats | BaseException, collection_results[0])\n"
+              "    binance_result = cast(CollectorRunStats | BaseException, collection_results[1])\n\n"
+              "    bybit_normalization, binance_normalization = await asyncio.gather(\n"
+          )
+          if marker not in text:
+              raise SystemExit("collection result marker not found")
+          text = text.replace(marker, replacement, 1)
+          runner.write_text(text, encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/research/liquidations/multi_source_acceptance.py \
+            ai_platform/scripts/liquidation_multi_source_runner.py
+          git commit -m "fix(ai-platform): type multi-source collection results"
+          git push origin HEAD:feat/liquid20-multi-source-acceptance-v1

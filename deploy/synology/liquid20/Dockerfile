@@ -17,7 +17,10 @@ RUN python -m pip install --no-cache-dir "websockets==16.0"
 COPY ai_platform /app/ai_platform
 COPY deploy/synology/liquid20/entrypoint.sh /usr/local/bin/liquid20-entrypoint
 
-RUN chmod 0555 /usr/local/bin/liquid20-entrypoint \
+RUN printf '%s' "$COLLECTOR_COMMIT" | grep -Eq '^[0-9a-fA-F]{40}$' \
+    && printf '%s\n' "$COLLECTOR_COMMIT" > /app/COLLECTOR_COMMIT \
+    && chmod 0444 /app/COLLECTOR_COMMIT \
+    && chmod 0555 /usr/local/bin/liquid20-entrypoint \
     && chmod -R a-w /app
 
 ENTRYPOINT ["/usr/local/bin/liquid20-entrypoint"]

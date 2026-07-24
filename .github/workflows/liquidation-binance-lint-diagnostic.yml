@@ -15,13 +15,15 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Checkout candidate branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          ref: feat/liquidation-binance-source-v1
       - name: Apply exact Ruff findings
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquidation-binance-source-v1 \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/blakinio/freqtrade.git" repo
+          cd repo
           python - <<'PY'
           from pathlib import Path
 
@@ -45,10 +47,12 @@ jobs:
           tests.write_text(text, encoding="utf-8")
           PY
           python -m pip install -q "ruff==0.16.0"
+          echo "RUFF_CHECK_START"
           ruff check \
             ai_platform/research/liquidations/binance.py \
             ai_platform/scripts/liquidation_binance_collector.py \
             tests/ai_platform_integration/test_liquidation_binance_source.py
+          echo "RUFF_FORMAT_START"
           ruff format \
             ai_platform/research/liquidations/binance.py \
             ai_platform/scripts/liquidation_binance_collector.py \
@@ -61,4 +65,5 @@ jobs:
             ai_platform/scripts/liquidation_binance_collector.py \
             tests/ai_platform_integration/test_liquidation_binance_source.py
           git commit -m "style(ai-platform): satisfy Binance source lint"
+          echo "PUSH_START"
           git push origin HEAD:feat/liquidation-binance-source-v1

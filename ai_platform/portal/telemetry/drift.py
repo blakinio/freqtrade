@@ -121,6 +121,79 @@ def _base_assessment(
     )
 
 
+def _incompatibility_reason(
+    reference: InferenceTelemetryEnvelope,
+    observation: InferenceTelemetryEnvelope,
+    policy: DriftPolicy,
+) -> str | None:
+    if (
+        reference.prediction_count < policy.minimum_samples
+        or observation.prediction_count < policy.minimum_samples
+    ):
+        return "MINIMUM_SAMPLE_COUNT_NOT_MET"
+    if reference.prediction_distribution.bucket_ids != (
+        observation.prediction_distribution.bucket_ids
+    ):
+        return "PREDICTION_DISTRIBUTION_BUCKETS_INCOMPATIBLE"
+
+    reference_features = {feature.feature_name: feature for feature in reference.feature_quality}
+    observation_features = {
+        feature.feature_name: feature for feature in observation.feature_quality
+    }
+    if set(reference_features) != set(observation_features):
+        return "FEATURE_AGGREGATES_INCOMPATIBLE"
+
+    for feature_name in sorted(reference_features):
+        reference_distribution = reference_features[feature_name].distribution
+        observation_distribution = observation_features[feature_name].distribution
+        if reference_distribution is None or observation_distribution is None:
+            return "FEATURE_DISTRIBUTION_UNAVAILABLE"
+        if reference_distribution.bucket_ids != observation_distribution.bucket_ids:
+            return "FEATURE_DISTRIBUTION_BUCKETS_INCOMPATIBLE"
+    return None
+
+
+def _feature_scores(
+    reference: InferenceTelemetryEnvelope,
+    observation: InferenceTelemetryEnvelope,
+    policy: DriftPolicy,
+) -> dict[str, Decimal]:
+    reference_features = {feature.feature_name: feature for feature in reference.feature_quality}
+    observation_features = {
+        feature.feature_name: feature for feature in observation.feature_quality
+    }
+    scores: dict[str, Decimal] = {}
+    for feature_name in sorted(reference_features):
+        reference_distribution = reference_features[feature_name].distribution
+        observation_distribution = observation_features[feature_name].distribution
+        if reference_distribution is None or observation_distribution is None:
+            raise RuntimeError("validated feature distribution is missing")
+        scores[feature_name] = population_stability_index(
+            reference_distribution,
+            observation_distribution,
+            epsilon=policy.smoothing_epsilon,
+        )
+    return scores
+
+
+def _classify(
+    *,
+    prediction_score: Decimal,
+    max_feature_score: Decimal,
+    max_quality_rate: Decimal,
+    policy: DriftPolicy,
+) -> tuple[DriftHealthStatus, str]:
+    if max_quality_rate >= policy.feature_quality_degraded_rate:
+        return DriftHealthStatus.DEGRADED, "FEATURE_QUALITY_DEGRADED"
+    if max(prediction_score, max_feature_score) >= policy.degraded_threshold:
+        return DriftHealthStatus.DEGRADED, "PSI_V1_DEGRADED"
+    if max_quality_rate >= policy.feature_quality_attention_rate:
+        return DriftHealthStatus.ATTENTION, "FEATURE_QUALITY_ATTENTION"
+    if max(prediction_score, max_feature_score) >= policy.attention_threshold:
+        return DriftHealthStatus.ATTENTION, "PSI_V1_ATTENTION"
+    return DriftHealthStatus.HEALTHY, "PSI_V1_WITHIN_LIMITS"
+
+
 def assess_drift(
     reference: InferenceTelemetryEnvelope,
     observation: InferenceTelemetryEnvelope,
@@ -135,105 +208,34 @@ def assess_drift(
     if reference.scope != observation.scope:
         raise ValueError("reference and observation scopes must match exactly")
 
-    if (
-        reference.prediction_count < policy.minimum_samples
-        or observation.prediction_count < policy.minimum_samples
-    ):
+    incompatibility_reason = _incompatibility_reason(reference, observation, policy)
+    if incompatibility_reason is not None:
         return _base_assessment(
             reference,
             observation,
             policy=policy,
             assessed_at=assessed_at,
             status=DriftHealthStatus.INSUFFICIENT_EVIDENCE,
-            reason_code="MINIMUM_SAMPLE_COUNT_NOT_MET",
+            reason_code=incompatibility_reason,
         )
-
-    if reference.prediction_distribution.bucket_ids != (
-        observation.prediction_distribution.bucket_ids
-    ):
-        return _base_assessment(
-            reference,
-            observation,
-            policy=policy,
-            assessed_at=assessed_at,
-            status=DriftHealthStatus.INSUFFICIENT_EVIDENCE,
-            reason_code="PREDICTION_DISTRIBUTION_BUCKETS_INCOMPATIBLE",
-        )
-
-    reference_features = {feature.feature_name: feature for feature in reference.feature_quality}
-    observation_features = {
-        feature.feature_name: feature for feature in observation.feature_quality
-    }
-    if set(reference_features) != set(observation_features):
-        return _base_assessment(
-            reference,
-            observation,
-            policy=policy,
-            assessed_at=assessed_at,
-            status=DriftHealthStatus.INSUFFICIENT_EVIDENCE,
-            reason_code="FEATURE_AGGREGATES_INCOMPATIBLE",
-        )
-
-    for feature_name in sorted(reference_features):
-        reference_distribution = reference_features[feature_name].distribution
-        observation_distribution = observation_features[feature_name].distribution
-        if reference_distribution is None or observation_distribution is None:
-            return _base_assessment(
-                reference,
-                observation,
-                policy=policy,
-                assessed_at=assessed_at,
-                status=DriftHealthStatus.INSUFFICIENT_EVIDENCE,
-                reason_code="FEATURE_DISTRIBUTION_UNAVAILABLE",
-            )
-        if reference_distribution.bucket_ids != observation_distribution.bucket_ids:
-            return _base_assessment(
-                reference,
-                observation,
-                policy=policy,
-                assessed_at=assessed_at,
-                status=DriftHealthStatus.INSUFFICIENT_EVIDENCE,
-                reason_code="FEATURE_DISTRIBUTION_BUCKETS_INCOMPATIBLE",
-            )
 
     prediction_score = population_stability_index(
         reference.prediction_distribution,
         observation.prediction_distribution,
         epsilon=policy.smoothing_epsilon,
     )
-    feature_scores: dict[str, Decimal] = {}
-    for feature_name in sorted(reference_features):
-        reference_distribution = reference_features[feature_name].distribution
-        observation_distribution = observation_features[feature_name].distribution
-        assert reference_distribution is not None
-        assert observation_distribution is not None
-        feature_scores[feature_name] = population_stability_index(
-            reference_distribution,
-            observation_distribution,
-            epsilon=policy.smoothing_epsilon,
-        )
-
+    feature_scores = _feature_scores(reference, observation, policy)
     worst_feature_name = max(feature_scores, key=lambda name: (feature_scores[name], name))
     max_feature_score = feature_scores[worst_feature_name]
     max_quality_rate = max(
         _quality_issue_rate(feature) for feature in observation.feature_quality
     )
-
-    if max_quality_rate >= policy.feature_quality_degraded_rate:
-        status = DriftHealthStatus.DEGRADED
-        reason_code = "FEATURE_QUALITY_DEGRADED"
-    elif max(prediction_score, max_feature_score) >= policy.degraded_threshold:
-        status = DriftHealthStatus.DEGRADED
-        reason_code = "PSI_V1_DEGRADED"
-    elif max_quality_rate >= policy.feature_quality_attention_rate:
-        status = DriftHealthStatus.ATTENTION
-        reason_code = "FEATURE_QUALITY_ATTENTION"
-    elif max(prediction_score, max_feature_score) >= policy.attention_threshold:
-        status = DriftHealthStatus.ATTENTION
-        reason_code = "PSI_V1_ATTENTION"
-    else:
-        status = DriftHealthStatus.HEALTHY
-        reason_code = "PSI_V1_WITHIN_LIMITS"
+    status, reason_code = _classify(
+        prediction_score=prediction_score,
+        max_feature_score=max_feature_score,
+        max_quality_rate=max_quality_rate,
+        policy=policy,
+    )
 
     return _base_assessment(
         reference,

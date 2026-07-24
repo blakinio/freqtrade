@@ -241,6 +241,8 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/inference-telemetry/source-status",
         "/v1/model-health",
         "/v1/runtime-log-availability",
+        "/v1/runtime-observability/availability",
+        "/v1/runtime-observability/logs/search",
     }
     serialized = str(schema).lower()
     for forbidden in ("api_key", "api_secret", "passphrase", "websocket_token"):

@@ -7,6 +7,9 @@ import type {
   NotificationPreference,
   ProfileSecurityView,
   RuntimeLogAvailability,
+  RuntimeLogQuery,
+  RuntimeLogSearchResult,
+  RuntimeObservabilitySourceStatus,
   SignalEvent,
   StrategyCatalogEntry,
   SubmitSignalRequest,
@@ -116,6 +119,19 @@ const fixturePreference: NotificationPreference = {
   risk_events: true,
   execution_events: true,
   updated_at: "2026-07-23T18:10:00Z",
+};
+
+const fixtureRuntimeObservabilityStatus: RuntimeObservabilitySourceStatus = {
+  source_id: "fixture-loki-private",
+  availability: "AVAILABLE",
+  checked_at: "2026-07-24T09:00:00Z",
+  reason_code: "SOURCE_READY",
+  log_retention_days: 14,
+  trace_retention_days: 7,
+  metric_retention_days: 30,
+  trace_source: "fixture-tempo-private",
+  metric_source: "fixture-prometheus-private",
+  runbook_path: "/docs/ai_platform/portal/runbooks/RUNTIME_OBSERVABILITY.md",
 };
 
 export async function listSignals(cookieHeader?: string | null): Promise<SignalEvent[]> {
@@ -256,7 +272,8 @@ export async function listModelHealth(
   if (dataMode() === "fixture") {
     return [
       {
-        health_record_id: "model-validated-2026-07:bot-btc-dryrun-01:runtime-1:revision-1:fixture-source",
+        health_record_id:
+          "model-validated-2026-07:bot-btc-dryrun-01:runtime-1:revision-1:fixture-source",
         model_version_id: "model-validated-2026-07",
         tenant_id: "tenant-demo",
         model_family_id: "directional-lightgbm",
@@ -306,5 +323,53 @@ export async function getRuntimeLogAvailability(
   }
   return apiFetch<RuntimeLogAvailability>("/v1/runtime-log-availability", {
     headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function getRuntimeObservabilityAvailability(
+  cookieHeader?: string | null,
+): Promise<RuntimeObservabilitySourceStatus> {
+  if (dataMode() === "fixture") return structuredClone(fixtureRuntimeObservabilityStatus);
+  return apiFetch<RuntimeObservabilitySourceStatus>("/v1/runtime-observability/availability", {
+    headers: cookieHeaders(cookieHeader),
+  });
+}
+
+export async function searchRuntimeLogs(
+  query: RuntimeLogQuery,
+  cookieHeader?: string | null,
+): Promise<RuntimeLogSearchResult> {
+  if (dataMode() === "fixture") {
+    return {
+      query: { ...structuredClone(query), limit: query.limit ?? 100 },
+      source_status: structuredClone(fixtureRuntimeObservabilityStatus),
+      records: [
+        {
+          record_id: "fixture-runtime-log-1",
+          tenant_id: "tenant-demo",
+          timestamp: "2026-07-24T08:55:00Z",
+          service: "freqtrade-runtime",
+          component: "exchange-loop",
+          environment: "test",
+          runtime_id: "runtime-1",
+          bot_id: "bot-btc-dryrun-01",
+          correlation_id: "43434343-4343-4434-8434-434343434343",
+          trace_id: "fixture-trace-1",
+          span_id: "fixture-span-1",
+          level: "ERROR",
+          message: "Exchange request failed and remained operational evidence only.",
+          fields: { reason_code: "EXCHANGE_REQUEST_TIMEOUT", authorization: "[REDACTED]" },
+          source_id: fixtureRuntimeObservabilityStatus.source_id,
+          retention_expires_at: "2026-08-07T08:55:00Z",
+          audit_evidence: false,
+        },
+      ],
+      truncated: false,
+    };
+  }
+  return apiFetch<RuntimeLogSearchResult>("/v1/runtime-observability/logs/search", {
+    method: "POST",
+    headers: cookieHeaders(cookieHeader),
+    body: JSON.stringify(query),
   });
 }

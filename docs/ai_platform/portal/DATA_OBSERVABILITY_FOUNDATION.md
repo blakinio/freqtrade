@@ -198,12 +198,39 @@ P4 does not deploy external infrastructure. Later deployment work can provide ad
 
 Those adapters must preserve the stable event/correlation/redaction semantics defined here.
 
+## PI-04 private runtime observability extension
+
+PI-04 selects an OpenTelemetry Collector as the private OTLP ingress and fan-out boundary while preserving the P4 sink abstractions. The repository target routes:
+
+```text
+logs -> private Loki-compatible source
+traces -> private Tempo-compatible source
+metrics -> private Prometheus-compatible source
+```
+
+The runtime-log query boundary is separate from event transport and append-only audit storage. It requires `audit.read`, uses trusted tenant context and accepts only bounded filters for correlation, runtime, bot, service, component, level and time.
+
+Repository contracts enforce:
+
+- maximum query range of 24 hours;
+- maximum response size of 200 records;
+- explicit source `AVAILABLE` or `UNAVAILABLE` state;
+- effective retention metadata;
+- recursive redaction before source export and browser serialization;
+- rejection of cross-tenant source records;
+- no private backend endpoint or credential in browser contracts.
+
+Initial retention targets are 14 days for logs, 7 days for traces and 30 days for metrics. Target-environment configuration may be stricter but must remain explicit. The default portal source fails closed as unavailable until private backend configuration is supplied.
+
+`ai_platform/portal/deploy/observability/otel-collector.example.yaml` contains environment placeholders only. It does not provision infrastructure and cannot be represented as real P11 staging acceptance.
+
 ## Security and research invariants preserved
 
 - no upstream `freqtrade/` core modification;
-- no public Freqtrade route;
-- no exchange/Freqtrade credential values in events or telemetry;
+- no public Freqtrade or observability-backend route;
+- no exchange/Freqtrade/observability credential values in events, telemetry or browser responses;
 - no production-secret access;
+- runtime logs do not replace append-only audit evidence;
 - no live-capital activation;
 - no protected final holdout use;
 - no Phase 6 reopening;

@@ -40,8 +40,8 @@ No status in this document authorizes production deployment, real exchange crede
 | Order | Package | Status | Primary outcome | Depends on |
 |---:|---|---|---|---|
 | 1 | `PI-01` Private Runtime Read and Reconciliation | `done` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |
-| 2 | `PI-03` Canonical Inference and Drift Telemetry | `active` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
-| 3 | `PI-04` Centralized Runtime Observability | `planned` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
+| 2 | `PI-03` Canonical Inference and Drift Telemetry | `done` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
+| 3 | `PI-04` Centralized Runtime Observability | `active` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
 | 4 | `PI-06` Product Identity and Session Lifecycle | `planned` | real product authentication, MFA, revocation and tenant membership lifecycle | P1 security contracts, external IdP decision |
 | 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `planned` | attributable current valuation with freshness and reconciliation | PI-01 plus authoritative price source |
 | 6 | `PI-05` External Notification Delivery | `planned` | auditable email/webhook/push delivery without secret leakage | current in-app notification model; PI-06 where user identity/contact data is required |
@@ -51,7 +51,7 @@ No status in this document authorizes production deployment, real exchange crede
 | Conditional | P13 Scale and Service Extraction | `deferred` | smallest measured response to a proven bottleneck/SLO failure | durable measurement bundle |
 | Capital gate | P14 Live-Small Readiness | `blocked` | separately approved minimal-capital readiness | P11, lifecycle evidence, security/operations evidence and explicit owner approval |
 
-The numeric order is the recommended software sequencing. PI-03, PI-04 and PI-06 may run in parallel when ownership is disjoint and shared contract changes are serialized. PI-02 may now begin once its authoritative price-source, currency-conversion and staleness entry gates are satisfied.
+The numeric order is the recommended software sequencing. PI-04 is active; PI-06 may run in parallel when ownership is disjoint and shared contract changes are serialized. PI-02 may begin once its authoritative price-source, currency-conversion and staleness entry gates are satisfied.
 
 ## 5. Dependency graph
 
@@ -183,9 +183,9 @@ Recommended task ID:
 
 ### PI-03 — Canonical Inference and Drift Telemetry
 
-Status: `active`
+Status: `done`
 
-Implementation evidence: task `FTAI-20260724-portal-pi03-inference-drift-telemetry`, draft PR #239. Merge evidence remains pending until required CI is green.
+Completion evidence: task `FTAI-20260724-portal-pi03-inference-drift-telemetry`, PR #239, squash merge `d85ed2c7700a10833aa32d84e7d10cc0a623179c`; closure PR #260 merged as `ee6c8c36272e5b565515692ddb1c834c4ff6a88c` after required CI passed.
 
 Goal: provide canonical inference, feature and prediction-distribution evidence so Model Health can report measured drift rather than only metadata age or `UNAVAILABLE`.
 
@@ -227,13 +227,17 @@ Non-goals:
 - changing frozen thresholds;
 - claiming causality from drift alone.
 
-Recommended task ID:
+Completed task ID:
 
-`FTAI-YYYYMMDD-portal-pi03-inference-drift-telemetry`
+`FTAI-20260724-portal-pi03-inference-drift-telemetry`
 
 ### PI-04 — Centralized Runtime Observability
 
-Status: `planned`
+Status: `active`
+
+Implementation evidence: task `FTAI-20260724-portal-pi04-central-runtime-observability`, draft PR #261.
+
+Selected repository target: private OpenTelemetry Collector fan-out to Loki-compatible logs, Tempo-compatible traces and Prometheus-compatible metrics. Repository and CI use injected deterministic sources; target-environment endpoints and credentials remain server-side and unavailable by default until configured.
 
 Goal: make runtime logs, traces and metrics searchable and attributable without confusing operational telemetry with immutable audit evidence.
 
@@ -274,9 +278,9 @@ Non-goals:
 - committing private endpoints or credentials;
 - premature service extraction.
 
-Recommended task ID:
+Active task ID:
 
-`FTAI-YYYYMMDD-portal-pi04-central-runtime-observability`
+`FTAI-20260724-portal-pi04-central-runtime-observability`
 
 ### PI-05 — External Notification Delivery
 
@@ -529,9 +533,7 @@ Required before declaration:
 
 ### Wave PI-A — Truthful operational evidence
 
-PI-01 is complete.
-
-PI-03 and PI-04 may run in parallel after checking shared event/observability contract ownership. PI-06 may also begin independently when the product IdP decision is available.
+PI-01 and PI-03 are complete. PI-04 is active. PI-06 may begin independently when the product IdP decision is available and ownership remains disjoint.
 
 Exit condition:
 
@@ -589,9 +591,9 @@ A package must not be broadened mid-implementation to include the next package m
 
 ## 10. Priority decision
 
-The active software package is **PI-03 Canonical Inference and Drift Telemetry**. Its bounded task and PR implement aggregate-only, attributable inference windows and reproducible PSI-v1 evidence without execution authority, automatic retraining or model promotion. The next package is selected only after PI-03 durable completion evidence is merged.
+The active software package is **PI-04 Centralized Runtime Observability**. Its bounded task and draft PR implement private OpenTelemetry-compatible routing, tenant-scoped runtime-log search, explicit source availability, bounded retention/query policy and strict separation from append-only audit evidence.
 
-PI-02 is now dependency-ready from the runtime-position side, but still requires explicit authoritative price, conversion and staleness decisions before declaration.
+PI-01 and PI-03 are durably complete. PI-02 is dependency-ready from the runtime-position side, but still requires explicit authoritative price, conversion and staleness decisions before declaration.
 
 The recommended next external action remains **P11**, but only when the owner intentionally starts the Cloudflare/protected GitHub infrastructure phase.
 

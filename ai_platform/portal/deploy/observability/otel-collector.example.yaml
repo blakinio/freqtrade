@@ -1,0 +1,73 @@
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  resource/environment:
+    attributes:
+      - key: deployment.environment
+        action: upsert
+        value: ${env:PORTAL_ENVIRONMENT}
+      - key: service.namespace
+        action: upsert
+        value: ai-trading-portal
+  redaction/sensitive:
+    allow_all_keys: true
+    blocked_key_patterns:
+      - "(?i).*api[_-]?key.*"
+      - "(?i).*authorization.*"
+      - "(?i).*cookie.*"
+      - "(?i).*passphrase.*"
+      - "(?i).*password.*"
+      - "(?i).*private[_-]?key.*"
+      - "(?i).*secret.*"
+      - "(?i).*token.*"
+    summary: silent
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+exporters:
+  otlphttp/logs:
+    endpoint: ${env:PORTAL_OTEL_LOGS_ENDPOINT}
+    headers:
+      Authorization: ${env:PORTAL_OTEL_LOGS_AUTHORIZATION}
+  otlphttp/traces:
+    endpoint: ${env:PORTAL_OTEL_TRACES_ENDPOINT}
+    headers:
+      Authorization: ${env:PORTAL_OTEL_TRACES_AUTHORIZATION}
+  prometheusremotewrite/metrics:
+    endpoint: ${env:PORTAL_OTEL_METRICS_ENDPOINT}
+    headers:
+      Authorization: ${env:PORTAL_OTEL_METRICS_AUTHORIZATION}
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/environment, redaction/sensitive, batch]
+      exporters: [otlphttp/logs]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/environment, redaction/sensitive, batch]
+      exporters: [otlphttp/traces]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource/environment, redaction/sensitive, batch]
+      exporters: [prometheusremotewrite/metrics]

@@ -39,6 +39,7 @@ jobs:
       - name: Focused tests
         run: |
           pytest -q \
+            --confcutdir=tests/ai_platform_integration \
             tests/ai_platform_integration/test_liquidation_multi_source_acceptance.py \
             tests/ai_platform_integration/test_liquidation_symbol_universe.py
       - name: Ruff check

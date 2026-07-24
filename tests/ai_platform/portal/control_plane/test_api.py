@@ -225,6 +225,7 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/positions",
         "/v1/orders",
         "/v1/trades",
+        "/v1/runtime-evidence",
         "/v1/performance",
         "/v1/risk-events",
         "/v1/audit-events",

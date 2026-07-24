@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      EXPECTED_HEAD: da08da3d8f746e49a17e2eea9a68f5177515c890
+      EXPECTED_PARENT: fd4c57c079c0473c3ff5be6a1a26e6581cd4aa8a
       REPAIR_WORKFLOW: .github/workflows/ai-platform-rl-v2-precommit-repair.yml
       TARGET_FILE: ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py
 
@@ -30,13 +30,13 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
-      - name: Verify exact guarded target
+      - name: Verify exact guarded parent
         shell: bash
         run: |
           set -euo pipefail
-          actual="$(git rev-parse HEAD)"
-          if [[ "$actual" != "$EXPECTED_HEAD" ]]; then
-            echo "Expected guarded head $EXPECTED_HEAD, got $actual" >&2
+          actual="$(git rev-parse HEAD^)"
+          if [[ "$actual" != "$EXPECTED_PARENT" ]]; then
+            echo "Expected guarded parent $EXPECTED_PARENT, got $actual" >&2
             exit 1
           fi
 

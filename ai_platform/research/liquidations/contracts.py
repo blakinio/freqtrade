@@ -19,6 +19,15 @@ class CounterTradeAction(StrEnum):
     IGNORE = "ignore"
 
 
+def integer_value(value: object, *, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise TypeError(f"{field} must be an integer or integer string")
+    try:
+        return int(value)
+    except ValueError as exc:
+        raise ValueError(f"{field} must be an integer or integer string") from exc
+
+
 def positive_decimal(value: object, *, field: str) -> Decimal:
     try:
         parsed = Decimal(str(value))
@@ -111,14 +120,15 @@ def deterministic_event_id(
 
 def event_from_json_dict(payload: Mapping[str, object]) -> LiquidationEvent:
     try:
+        schema_version = integer_value(payload["schema_version"], field="schema_version")
         side = LiquidatedPositionSide(str(payload["liquidated_position_side"]))
-        occurred_at_ms = int(payload["occurred_at_ms"])
-        received_at_ms = int(payload["received_at_ms"])
+        occurred_at_ms = integer_value(payload["occurred_at_ms"], field="occurred_at_ms")
+        received_at_ms = integer_value(payload["received_at_ms"], field="received_at_ms")
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("invalid canonical liquidation event") from exc
 
     return LiquidationEvent(
-        schema_version=int(payload.get("schema_version", 0)),
+        schema_version=schema_version,
         source=str(payload.get("source", "")),
         source_event_id=str(payload.get("source_event_id", "")),
         symbol=str(payload.get("symbol", "")),

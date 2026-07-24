@@ -4,4 +4,4 @@ python_exit=1
 tools/agents/pi03_docs_patch.py=TRACKED
 docs/agents/tasks/PI03_DOCS_TRIGGER.txt=TRACKED
 docs/agents/tasks/PI03_DOCS_DIAGNOSTIC.txt=MISSING
-?? docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+ M docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt

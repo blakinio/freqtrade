@@ -1,0 +1,115 @@
+{
+  "baseline": {
+    "config_path": "ai_platform/configs/rl_v2_training_research.json",
+    "config_sha256": "5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de",
+    "minimal_roi": {
+      "0": 0.03,
+      "240": 0.015,
+      "720": 0.0
+    },
+    "model": "DesiredPositionReinforcementLearner",
+    "model_sha256": "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb4624cb79d46",
+    "parent_strategy": "AiLongOnlyRLResearchStrategy",
+    "stoploss": -0.05,
+    "strategy": "AiDesiredPositionRLResearchStrategy",
+    "strategy_path": "ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py",
+    "strategy_sha256": "9318a4d13937d9b572c4bcecfb56f999fd82d8309c6f898d0166c0c71dfd5c19",
+    "use_exit_signal": true
+  },
+  "core_semantics": {
+    "hard_stoploss_remains_evaluated": true,
+    "policy_exit_signal_remains_evaluated": true,
+    "rule": "ROI is not evaluated when enter is true and ignore_roi_if_entry_signal is true",
+    "source": "freqtrade.strategy.interface.IStrategy.should_exit"
+  },
+  "declaration_id": "rl-v2-roi-lifecycle-alignment-v1",
+  "experimental_variant": {
+    "forbidden_overrides": [
+      "minimal_roi",
+      "stoploss",
+      "use_exit_signal",
+      "timeframe",
+      "can_short",
+      "populate_entry_trend",
+      "populate_exit_trend",
+      "feature_engineering_expand_all",
+      "feature_engineering_expand_basic",
+      "feature_engineering_standard",
+      "set_freqai_targets"
+    ],
+    "inherit_from": "AiDesiredPositionRLResearchStrategy",
+    "only_allowed_override": {
+      "ignore_roi_if_entry_signal": true
+    },
+    "strategy": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
+    "strategy_path": "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py"
+  },
+  "frozen_boundaries": {
+    "action_semantics_mutable": false,
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009,
+    "features_mutable": false,
+    "fee_mutable": false,
+    "live_trading_allowed": false,
+    "pairs_mutable": false,
+    "phase6_selected_model": null,
+    "ppo_parameters_mutable": false,
+    "profitability_claim_allowed": false,
+    "promotion_allowed": false,
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "ranking_allowed": false,
+    "reward_mutable": false
+  },
+  "future_attribution": {
+    "baseline_artifact_reused_for_comparison": true,
+    "baseline_evidence_window": "20260301-20260430",
+    "baseline_rerun_required": false,
+    "classification": "paired_historical_development_attribution",
+    "primary_mechanism_metrics": [
+      "roi_exit_count",
+      "roi_exit_followed_by_same_pair_15m_reentry_count",
+      "external_exit_reentry_boundary_fee_usdt"
+    ],
+    "profitability_is_not_success_criterion": true,
+    "proposed_paired_execution_timerange": "20260301-20260501",
+    "protected_final_validation": false,
+    "requires_separate_execution_task": true,
+    "secondary_non_gating_metrics": [
+      "trade_count",
+      "gross_price_pnl_usdt",
+      "fees_usdt",
+      "net_profit_usdt",
+      "target_flat_exit_count",
+      "stop_loss_exit_count"
+    ],
+    "strict_oos": false
+  },
+  "implementation_scope": {
+    "allowed": [
+      "add the versioned lifecycle-aligned strategy subclass",
+      "add unit tests proving the only semantic delta",
+      "add documentation and update this task checkpoint"
+    ],
+    "backtest_allowed": false,
+    "execution_workflow_allowed": false,
+    "market_data_access_allowed": false,
+    "training_allowed": false
+  },
+  "schema_version": 1,
+  "source_diagnosis": {
+    "artifact_digest": "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55",
+    "artifact_name": "rl-v2-historical-training-execution-218",
+    "merge_sha": "49167cdf9ab6fd126de72613101c35fef6cc07e2",
+    "path": "ai_platform/experimental_model_research/rl-v2-historical-evidence-diagnosis-v1.json",
+    "primary_mechanism": "desired_position_lifecycle_conflicts_with_inherited_external_roi_exit"
+  },
+  "status": "declared_not_implemented",
+  "task": "docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-alignment.md"
+}

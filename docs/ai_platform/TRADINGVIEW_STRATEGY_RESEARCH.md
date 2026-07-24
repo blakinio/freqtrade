@@ -76,6 +76,18 @@ This is **not** a complete strategy. A valid entry additionally requires a time-
 liquidation event. The track must not substitute candle volume, wick size, or inferred liquidation
 values for real liquidation observations.
 
+The separate liquidation foundation now provides:
+
+- canonical liquidation event records under `ai_platform/research/liquidations/`;
+- a public Bybit linear collector at `ai_platform/scripts/liquidation_collector.py`;
+- completed-candle-only alignment and counter-trade policy tests;
+- a disabled example profile;
+- the staged deployment process in `docs/ai_platform/LIQUIDATION_REVERSAL_RESEARCH.md`.
+
+These components remove the missing contract/collector blocker, but they do not create a tradable candidate.
+Historical replay remains blocked until an immutable integrity-checked event dataset and a prospectively
+declared replay contract are available.
+
 Public inspiration:
 `https://www.tradingview.com/script/9bDNkZXk-Multi-VWAP-for-Wick-Hunter/`
 
@@ -126,7 +138,7 @@ results are compared.
 - Donchian breakout: ready for controlled historical OOS backtest.
 - Supertrend reversal: ready for controlled historical OOS backtest.
 - Bollinger mean reversion: ready for controlled historical OOS backtest.
-- Wick Hunter liquidation/VWAP: blocked on a trustworthy historical liquidation feed and deterministic
-  data-alignment contract.
+- Wick Hunter liquidation/VWAP: data collection foundation available; strategy replay remains blocked on
+  an immutable integrity-checked liquidation dataset and a prospectively declared replay contract.
 
 No profitability conclusion is made by this foundation work package.

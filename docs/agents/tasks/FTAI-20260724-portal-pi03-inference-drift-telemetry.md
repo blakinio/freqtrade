@@ -82,8 +82,8 @@ Add a tenant-scoped, aggregate-only inference telemetry boundary and determinist
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T11:10:00+02:00
-head: e809738a2dc5076112dac57a3c76278cf306357d
+updated_at: 2026-07-24T11:25:00+02:00
+head: 65ed0b0fccd8e0784d11f1edfeb9c83daa1b987a
 branch: feat/portal-pi03-inference-drift-telemetry-20260724
 pr: 239
 status: validating
@@ -108,27 +108,29 @@ owned_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md
 proven:
-  - develop preflight head was 12383471a0e2d1b3d8278504b5dfc7f7ccab3f38 after PI-01 closure; develop later advanced to 49167cdf9ab6fd126de72613101c35fef6cc07e2 through disjoint RL documentation PR 237.
-  - Open PR 236 owns only liquidation research paths and does not overlap PI-03 portal telemetry ownership.
-  - Versioned aggregate-only telemetry preserves exact tenant, ModelVersion, feature-schema, bot, immutable config revision, runtime and source identity.
-  - Durable reference/observation windows, source availability and drift assessments are stored separately with canonical JSON payloads and indexed attribution fields.
-  - PSI-v1 records minimum samples, attention/degraded thresholds, feature-quality thresholds and smoothing epsilon; incompatible or insufficient evidence never reports HEALTHY.
-  - Ingestion requires service/system identity plus MODEL_TRAIN and rejects tenant, model, feature-schema, bot and config-revision mismatches.
-  - Duplicate telemetry IDs are idempotent only for the same canonical payload; conflicting reuse is rejected.
-  - Model Health API/UI exposes window identities, sample counts, source availability and PSI/feature-quality evidence without raw features or individual predictions.
-  - Telemetry ingestion and reads leave ModelVersion lifecycle and promotion slots unchanged.
-  - Focused telemetry and API validation passed with 18 tests.
-  - Full AI suite reached 493 passed and 1 skipped; its sole compatibility failure was the historical unavailable reason code and that reason code has been restored.
+  - PR 239 implements aggregate-only inference windows, source status and deterministic PSI-v1 assessments with exact tenant, model, feature-schema, bot-config, runtime and source attribution.
+  - Raw feature values, individual predictions, credentials and private endpoints are excluded from the PI-03 persistence and browser contracts.
+  - Missing, unavailable, stale, insufficient or bucket-incompatible evidence never produces HEALTHY.
+  - Telemetry ingestion requires service or system identity with MODEL_TRAIN and rejects cross-tenant or mismatched attribution.
+  - Duplicate telemetry identities are idempotent only for the same canonical payload; conflicting reuse is rejected.
+  - Model Health API and UI expose window identities, sample counts, source availability and PSI or feature-quality evidence without lifecycle mutation.
+  - Focused telemetry and control-plane API tests passed with 18 tests.
+  - The latest standard AI Platform CI test step passed; its Ruff step failed.
+  - Portal Web CI, Portal Universal E2E and zizmor passed on owner-authored head cf9521ffc66bdcea187e60872ce7478163454dd5.
+  - Freqtrade documentation build and core test matrix passed except pre-commit and the Python 3.13 Ruff step.
+  - The backlog PI-03 table row is already active; the remaining documentation replacements are partially applied and must be completed idempotently.
+  - PR 239 currently contains four temporary handover or documentation artifacts that are not intended for merge.
 derived:
-  - Exact scope grouping prevents reference and observation evidence from different runtime/config/source identities from being compared or aggregated together.
-  - A separate aggregate-only telemetry module avoids coupling PI-03 to raw runtime logging, PI-04 or product settings.
-  - Drift status remains operational evidence only and cannot authorize promotion, retraining, risk or execution changes.
+  - The remaining code-quality failure is mechanical Ruff or formatting work rather than a failing PI-03 behavioral test.
+  - The documentation patch must treat already-applied replacements as success before cleaning temporary artifacts.
+  - A final owner-authored commit is required after cleanup so normal repository workflows run instead of action_required bot-head checks.
 unknown:
-  - Final repository CI result after the compatibility fix and canonical documentation update.
+  - Exact Ruff findings have not yet been captured in a compact durable file.
+  - PR mergeability must be rechecked after temporary artifacts are removed and the branch is synchronized with current develop.
 conflicts: []
 first_failure:
-  marker: resolved
-  evidence: SQLite returned a naive checked_at column and an existing public unavailable reason code changed; repository comparison now uses canonical JSON timestamps and the historical reason code is preserved.
+  marker: RUFF_PRECOMMIT_AND_TEMP_DOC_PATCH
+  evidence: AI tests pass but Ruff and Freqtrade pre-commit fail; the non-idempotent docs patch stopped after an already-applied backlog replacement and left temporary workflow, script, trigger and diagnostic files.
 rejected_hypotheses:
   - Infer drift from model metadata age or training-window age.
   - Persist raw feature vectors or individual prediction values in the portal database.
@@ -136,6 +138,7 @@ rejected_hypotheses:
   - Reuse protected final-holdout observations as iterative reference telemetry.
   - Combine reference and observation windows across runtime, config or source identities.
 changed_paths:
+  - .github/workflows/pi03-docs-patch.yml
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
   - ai_platform/portal/telemetry/__init__.py
@@ -149,16 +152,40 @@ changed_paths:
   - ai_platform/portal/web/e2e/shell.spec.ts
   - ai_platform/portal/web/lib/product-api.ts
   - ai_platform/portal/web/lib/product-contracts.ts
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
+  - docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md
+  - docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+  - docs/agents/tasks/PI03_DOCS_TRIGGER.txt
+  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - tests/ai_platform/portal/control_plane/test_api.py
   - tests/ai_platform/portal/telemetry/test_inference_telemetry.py
-  - docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md
+  - tools/agents/pi03_docs_patch.py
 validation:
   - command: focused PI-03 telemetry and control-plane API pytest
     result: PASS
-    evidence: 18 passed on the compatibility-fixed implementation path.
-  - command: full AI Platform pytest before final compatibility rerun
+    evidence: 18 tests passed after timezone and compatibility fixes.
+  - command: AI Platform CI test step on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
     result: PASS
-    evidence: 493 tests passed and 1 skipped; the single historical reason-code assertion was identified and fixed before final repository CI.
-blockers: []
-next_action: Run the corrected self-cleaning documentation patch, then resolve only concrete final repository CI findings before marking PR 239 ready.
+    evidence: Full AI Platform pytest completed successfully before Ruff.
+  - command: ruff check ai_platform tests/ai_platform
+    result: FAIL
+    evidence: Standard AI Platform CI run 934 failed at Ruff after tests passed.
+  - command: Portal Web CI on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+    result: PASS
+    evidence: Workflow run 121 completed successfully.
+  - command: Portal Universal E2E on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+    result: PASS
+    evidence: Workflow run 126 completed successfully.
+  - command: GitHub Actions Security Analysis on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+    result: PASS
+    evidence: Workflow run 1023 completed successfully.
+  - command: Freqtrade CI on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+    result: FAIL
+    evidence: Core tests and docs passed; pre-commit and Python 3.13 Ruff failed.
+blockers:
+  - Ruff and pre-commit failures must be fixed before PR 239 can become review-ready.
+  - Temporary documentation workflow, patch script, trigger and diagnostic files must be removed before merge.
+next_action: Capture exact Ruff findings, apply Ruff fix and format, make the documentation patch idempotent, remove all four temporary artifacts, then create one owner-authored commit and rerun required CI.
 ```

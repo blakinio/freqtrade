@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260724-portal-pi02-authoritative-valuation
-status: active
+status: ready
 branch: feat/portal-pi02-authoritative-valuation-20260724
 base_branch: develop
 created: 2026-07-24
@@ -8,16 +8,11 @@ updated: 2026-07-24
 related_pr: 267
 owned_paths:
   - ai_platform/portal/valuation/**
-  - ai_platform/portal/execution/private_read.py
-  - ai_platform/portal/operations/schema.py
-  - ai_platform/portal/operations/service.py
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/web/app/performance/page.tsx
-  - ai_platform/portal/web/lib/contracts.ts
-  - ai_platform/portal/web/lib/fixtures.ts
-  - ai_platform/portal/web/lib/portal-api.ts
+  - ai_platform/portal/web/lib/valuation.ts
+  - ai_platform/portal/web/e2e/valuation.spec.ts
   - tests/ai_platform/portal/valuation/**
-  - tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
   - tests/ai_platform/portal/control_plane/test_api.py
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
@@ -40,27 +35,27 @@ required_reads:
 
 ## Goal
 
-Provide attributable current position valuation and unrealized PNL from reconciled private runtime positions and a timestamped mark price emitted by the exact same pinned Freqtrade runtime, without public market-data access, fabricated conversion or execution authority.
+Provide attributable current position valuation and unrealized PNL from reconciled private runtime positions and a timestamped mark emitted by the exact same pinned Freqtrade runtime, without public market-data access, fabricated conversion or execution authority.
 
 ## Selected authoritative source and policy
 
-- The canonical mark source is the authenticated private Freqtrade open-trade status for the exact `source_runtime_id`, normalized by the existing PI-01 private collector.
-- Source fields are `open_rate`, `current_rate`, base/quote currency, source trade/position identity and collector observation timestamp. `current_rate` is the mark price; `open_rate` is the entry basis.
-- Repository code never exposes the private runtime endpoint or authorization material to the browser.
+- The canonical price evidence is the authenticated private Freqtrade open-trade status for the exact `source_runtime_id`.
+- A dedicated server-side valuation source boundary accepts a versioned normalized envelope derived from that exact runtime. It does not mutate PI-01 operational records or expose the runtime endpoint or authorization material to the browser.
+- Source evidence preserves the source position, pair and side, base and quote currency, entry rate corresponding to Freqtrade `open_rate`, current mark corresponding to `current_rate`, leverage, source-price identity and source observation timestamp.
 - PI-02 v1 supports unleveraged positions whose quote currency exactly matches the bot capital currency.
-- Cross-currency conversion, non-unit leverage, funding, derivatives-specific settlement and missing price provenance produce `UNPRICED`; no fallback rate is used.
-- Unrealized PNL is gross mark-to-entry PNL before hypothetical exit fees. Realized PNL and fees remain sourced from closed trade evidence and are not recomputed.
+- Cross-currency conversion, non-unit leverage, funding, derivatives-specific settlement and missing or conflicting price provenance produce `UNPRICED`; no fallback rate is used.
+- Unrealized PNL is gross mark-to-entry PNL before hypothetical exit fees. Realized PNL and fees remain sourced from closed-trade evidence and are not recomputed.
 - A mark older than the versioned freshness bound produces `STALE`; source failure produces `SOURCE_UNAVAILABLE`.
 
 ## Deliverables
 
 - versioned immutable valuation snapshot contract with position, runtime, price-source and timestamp attribution;
-- optional PI-02 source fields on normalized private positions, preserving PI-01 compatibility;
+- bounded private runtime valuation source adapter with URL, timeout, response-size, sensitive-key and scope validation;
 - deterministic valuation service with `CURRENT`, `STALE`, `SOURCE_UNAVAILABLE` and `UNPRICED` states;
 - tenant-scoped `GET /v1/valuations` API requiring `bot.read`;
 - PNL & Performance UI integration that keeps realized and unrealized evidence separate;
-- deterministic handling of side, unsupported currency conversion, non-unit leverage, stale/missing prices and reconciliation gaps;
-- focused contract, tenant-isolation, provenance, freshness and API/UI tests;
+- deterministic handling of side, unsupported currency conversion, non-unit leverage, stale or missing prices and reconciliation gaps;
+- focused contract, tenant-isolation, provenance, freshness, transport, API and UI tests;
 - backlog, program, architecture and UI status updates.
 
 ## Acceptance criteria
@@ -76,9 +71,9 @@ Provide attributable current position valuation and unrealized PNL from reconcil
 ## Non-goals
 
 - forecasting prices or future PNL;
-- public browser/exchange market-data access;
+- public browser or exchange market-data access;
 - automatic currency conversion without an attributable source;
-- derivatives funding/liquidation valuation in v1;
+- derivatives funding or liquidation valuation in v1;
 - order submission, credential brokering, live capital or P14;
 - modifying frozen thresholds, Phase 6 evidence or protected final-holdout policy.
 
@@ -86,11 +81,11 @@ Provide attributable current position valuation and unrealized PNL from reconcil
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T22:25:00+02:00
-head: e14a200514431010901f866a1277cd08917bdce9
+updated_at: 2026-07-24T22:53:00+02:00
+head: 235fd7713050b445d718e49488efd9555f6484ac
 branch: feat/portal-pi02-authoritative-valuation-20260724
 pr: 267
-status: validating
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -98,16 +93,11 @@ context_routes:
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
 owned_paths:
   - ai_platform/portal/valuation/**
-  - ai_platform/portal/execution/private_read.py
-  - ai_platform/portal/operations/schema.py
-  - ai_platform/portal/operations/service.py
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/web/app/performance/page.tsx
-  - ai_platform/portal/web/lib/contracts.ts
-  - ai_platform/portal/web/lib/fixtures.ts
-  - ai_platform/portal/web/lib/portal-api.ts
+  - ai_platform/portal/web/lib/valuation.ts
+  - ai_platform/portal/web/e2e/valuation.spec.ts
   - tests/ai_platform/portal/valuation/**
-  - tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
   - tests/ai_platform/portal/control_plane/test_api.py
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
@@ -115,25 +105,32 @@ owned_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi02-authoritative-valuation.md
 proven:
-  - develop head 5afb797f389bd4eb90cf189804cba26d8249ba07 durably closes PI-04 and records no active software PI package.
-  - Open PR 265 is a one-shot RL-v2 execution trigger and does not own PI-02 paths; PR 109 is an inert design reference.
-  - PI-01 provides tenant/runtime-scoped reconciled positions and explicit CURRENT, STALE, PARTIAL and SOURCE_UNAVAILABLE evidence.
-  - Freqtrade OpenTradeSchema exposes base_currency, quote_currency, open_rate and current_rate for private open-trade status responses.
-  - Existing performance summaries are realized-only and do not fabricate unrealized PNL.
+  - develop head 5afb797f389bd4eb90cf189804cba26d8249ba07 durably closes PI-04 and provided the clean base for PI-02.
+  - PR 267 adds versioned runtime mark, source-result and immutable valuation snapshot contracts without changing PI-01 reconciliation records.
+  - The dedicated private source adapter validates HTTP or HTTPS endpoints, rejects embedded credentials and sensitive payload keys, bounds timeout to five seconds by default and bounds responses to one MiB by default.
+  - Source envelopes fail closed on protocol, authentication, timeout, availability or tenant, bot and runtime scope mismatch.
+  - Valuation requires a current reconciled position, an exact source-position and pair or side match, a fresh positive mark, unit leverage and quote currency equal to the bot capital currency.
+  - Unsupported or insufficient evidence produces STALE, SOURCE_UNAVAILABLE or UNPRICED with no numeric current valuation and no fixture or public-price fallback in API mode.
+  - mark-to-entry-v1 computes deterministic gross unrealized PNL for long and short positions while realized PNL remains separate closed-trade evidence.
+  - GET /v1/valuations requires BOT_READ, is tenant-scoped server-side and returns no private endpoint, authorization header or credential.
+  - PNL and Performance displays realized performance and open-position valuation as independent evidence tables with source identity and availability state.
+  - Focused math, provenance, tenant-isolation, transport-boundary, sensitive-data, API and browser tests pass.
+  - Temporary patch, diagnostic, autofix and documentation-sync workflows and scripts were removed from the final candidate.
+  - AI Platform CI 1140, Portal Web CI 204, Portal Universal E2E 209, zizmor 1257 and Freqtrade CI 1327 passed on clean implementation head 235fd7713050b445d718e49488efd9555f6484ac.
 derived:
-  - The same pinned private runtime is the narrowest attributable mark source and avoids a new public market-data dependency.
-  - V1 can safely support exact-quote, unit-leverage mark-to-entry valuation while failing closed for conversion and derivatives semantics.
-unknown:
-  - Final required repository CI result on the documentation-synchronized candidate.
+  - PI-02 satisfies its bounded repository-side acceptance without selecting a public price provider or adding currency conversion, execution or live-capital authority.
+  - Exact-runtime mark provenance is the narrowest source consistent with PI-01 runtime attribution and fail-closed portal architecture.
+unknown: []
 conflicts: []
 first_failure:
   marker: RESOLVED
-  evidence: Full pytest initially found a duplicate test_runtime module basename; a valuation test-package marker resolved collection. Ruff then identified import/format findings and one C901 decision method, all fixed without changing valuation semantics.
+  evidence: Full pytest initially found duplicate test module basenames. Temporary package names then conflicted with production modules under mypy. Unique valuation test filenames resolved collection and typing; Ruff import, format and C901 findings were fixed without changing valuation semantics.
 rejected_hypotheses:
   - Select an unaffiliated public price API without an owner decision.
   - Reuse fixture prices in API mode.
-  - Treat stale or cross-currency evidence as a numeric current valuation.
+  - Treat stale, cross-currency or leveraged evidence as a numeric current valuation.
   - Recompute realized PNL from open-position marks.
+  - Mutate PI-01 operational records to carry PI-02-only price semantics.
 changed_paths:
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/valuation/__init__.py
@@ -147,13 +144,24 @@ changed_paths:
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - tests/ai_platform/portal/control_plane/test_api.py
-  - tests/ai_platform/portal/valuation/__init__.py
-  - tests/ai_platform/portal/valuation/test_runtime.py
-  - tests/ai_platform/portal/valuation/test_runtime_api.py
+  - tests/ai_platform/portal/valuation/test_valuation_runtime.py
+  - tests/ai_platform/portal/valuation/test_valuation_runtime_api.py
 validation:
-  - command: AI Platform CI 30123794369 / run 1129
+  - command: AI Platform CI 30124939092 / run 1140
     result: PASS
-    evidence: Tests, compile, Ruff, formatter, codespell and contract validation passed on clean implementation head e14a200514431010901f866a1277cd08917bdce9.
+    evidence: Tests, compile, Ruff, Ruff format, codespell and contract validation passed on clean implementation head 235fd7713050b445d718e49488efd9555f6484ac.
+  - command: Portal Web CI 30124939058 / run 204
+    result: PASS
+    evidence: Typecheck, lint, production build and Chromium E2E passed on the clean implementation head.
+  - command: Portal Universal E2E 30124939090 / run 209
+    result: PASS
+    evidence: Backend universal scenario and critical Chromium path passed on the clean implementation head.
+  - command: GitHub Actions Security Analysis with zizmor 30124939075 / run 1257
+    result: PASS
+    evidence: Required workflow security analysis passed on the clean implementation head.
+  - command: Freqtrade CI 30124939063 / run 1327
+    result: PASS
+    evidence: Pre-commit, documentation, full multi-platform core matrix, coverage, smoke checks, Ruff, formatter, mypy and CI gate passed on the clean implementation head.
 blockers: []
-next_action: Complete final required CI on the documentation-synchronized candidate, then mark PR 267 ready and merge only if the head remains unchanged and all required workflows pass.
+next_action: Review and merge PR 267 after approval; select the next package only after durable merge evidence exists on develop.
 ```

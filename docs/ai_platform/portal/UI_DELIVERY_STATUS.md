@@ -9,7 +9,7 @@ A stage is not complete merely because a first web shell exists. UI status must 
 ## Status vocabulary
 
 - **integrated** — route exists and reads canonical server-side portal data;
-- **partially integrated** — a bounded authoritative read model is integrated, while a broader source such as raw runtime telemetry remains intentionally unavailable;
+- **partially integrated** — a bounded authoritative read model is integrated, while a broader source such as a real target-environment backend remains intentionally unavailable;
 - **shell** — intentional route and safety/authorization UX exist, but the owning mutating capability is not implemented;
 - **read-model gap** — route exists and fails closed in API mode because no canonical query API exists yet;
 - **fixture preview** — deterministic development/E2E data is available only when explicit fixture mode is enabled;
@@ -32,6 +32,8 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 `FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.
 
 `FTAI-20260724-portal-pi03-inference-drift-telemetry` adds aggregate-only inference windows, explicit source status and reproducible PSI-v1 drift assessments attributed to the exact model, feature schema, bot configuration and runtime. It stores no raw feature values or individual predictions and cannot mutate model lifecycle or promotion state.
+
+`FTAI-20260724-portal-pi04-central-runtime-observability` adds a permission-gated, tenant-scoped private runtime-log query boundary, explicit source availability and retention metadata, correlation/trace linkage and OpenTelemetry Collector routing contracts. Runtime telemetry remains separate from append-only audit evidence, and API mode fails closed when the private target-environment source is not configured.
 
 `FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
 
@@ -59,7 +61,7 @@ Remaining authoritative-source and external/private integration work is routed t
 | Model Health | `/ai/model-health` | integrated | tenant-scoped aggregate inference telemetry, source availability, exact model/feature-schema/bot-config/runtime attribution and reproducible PSI-v1 reference/observation evidence |
 | Experiments | `/ai/experiments` | integrated | P9 learning history read API |
 | Learning History | `/ai/learning` | integrated | P9 aggregate history read API |
-| Execution Activity | `/operations/execution-logs` | partially integrated | permission-gated execution-related AuditEvent evidence plus explicit raw-log availability; centralized stdout/stderr source remains unavailable |
+| Execution Activity | `/operations/execution-logs` | partially integrated for private runtime observability | `AUDIT_READ`-gated tenant-scoped runtime-log source with bounded correlation/runtime/bot/time filters and retention-aware availability plus separately rendered append-only AuditEvent evidence; real target-environment Loki/Tempo/Prometheus connectivity remains deployment-owned |
 | Signal Logs | `/operations/signal-logs` | integrated | same tenant-scoped persisted SignalEvent source as Signal Wizard |
 | Risk Events | `/operations/risk-events` | integrated | persisted deterministic RiskDecision evidence |
 | Runtime Health | `/operations/runtime-health` | integrated | bot desired/observed runtime state |
@@ -85,14 +87,18 @@ Explicit fixture mode remains available only for development/E2E. API mode never
 
 Model Health derives `HEALTHY`, `ATTENTION`, `DEGRADED`, `INSUFFICIENT_EVIDENCE` or `UNAVAILABLE` only from persisted aggregate windows and explicit source status. Rows expose exact attribution, window identities, sample counts and PSI/feature-quality evidence. No status triggers retraining, promotion or lifecycle mutation, and raw feature values, individual predictions and protected final-holdout observations are excluded.
 
+## PI-04 runtime observability semantics
+
+Execution Activity presents two independent evidence classes. Runtime logs are operational, retention-bound and queryable only through the private tenant-scoped source using `audit.read`; AuditEvent rows remain append-only business/security evidence. A missing or failed log backend produces explicit `UNAVAILABLE`, never a healthy claim or a fabricated empty success. Browser contracts contain source identity, retention and runbook metadata but no private backend endpoint or credential.
+
 ## Remaining hard boundaries
 
-The remaining partial states are not presentation shells. They depend on authoritative sources or separately reviewed private integrations that do not currently exist in this repository:
+The remaining partial states depend on authoritative sources or separately reviewed private integrations that do not currently exist in this repository or target environment:
 
 | Boundary | Canonical package/stage |
 |---|---|
 | authoritative current valuation and unrealized PNL | `PI-02` Authoritative Valuation and Unrealized PNL |
-| centralized raw runtime logs/traces/metrics | `PI-04` Centralized Runtime Observability |
+| real target-environment Loki/Tempo/Prometheus connectivity and dashboards | `PI-04` deployment configuration; repository query and collector contracts are bounded by the active task |
 | external email/webhook/push delivery | `PI-05` External Notification Delivery |
 | product authentication, MFA, session revocation and tenant membership lifecycle | `PI-06` Product Identity and Session Lifecycle |
 | runtime exchange credential injection/rotation | `PI-07` Runtime Credential Broker and Rotation |
@@ -103,10 +109,10 @@ P13 remains deferred until measured need. P14 remains blocked and separately own
 
 ## Safety behavior
 
-API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status.
+API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status. PI-04 runtime-log absence never changes audit records or runtime-health claims.
 
-The normalized operational mirror is the only portal-facing runtime evidence boundary. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` use the private collector but return records only for complete, current and synced reads; stale, partial, unavailable and mismatched evidence fails closed or remains explicitly degraded in the mirror.
+The normalized operational mirror is the only portal-facing runtime trade evidence boundary. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` use the private collector but return records only for complete, current and synced reads; stale, partial, unavailable and mismatched evidence fails closed or remains explicitly degraded in the mirror.
 
-Signal evidence is advisory and cannot create execution authority. Grid configuration is constrained to `dry_run`. Browser code still has no direct Freqtrade, exchange or secret-store path.
+Signal evidence is advisory and cannot create execution authority. Grid configuration is constrained to `dry_run`. Browser code still has no direct Freqtrade, exchange, secret-store or observability-backend path.
 
 Explicit `PORTAL_WEB_DATA_MODE=fixture` may show deterministic preview rows for development and browser E2E. Those rows are test evidence only and cannot authorize execution or model promotion.

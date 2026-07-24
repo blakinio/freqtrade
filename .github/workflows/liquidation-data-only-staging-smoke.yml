@@ -11,63 +11,23 @@ permissions:
   contents: read
 
 jobs:
-  public-endpoint-smoke:
+  public-clock-diagnostic:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Run compact bounded public collector smoke
+      - name: Diagnose public Bybit server-time probe
         run: |
           set -euo pipefail
           git clone -q --depth 1 \
             --branch feat/liquidation-data-only-staging-v1 \
             https://github.com/blakinio/freqtrade.git repo
           cd repo
-          python -m pip install -q websockets
-          RUN_DIR="$(mktemp -d)"
-          COMMIT="$(git rev-parse HEAD)"
-          PYTHONPATH=. python -m ai_platform.scripts.liquidation_collector \
-            --symbol BTCUSDT \
-            --symbol ETHUSDT \
-            --duration-seconds 30 \
-            --require-new-output \
-            --collector-commit "$COMMIT" \
-            --output "$RUN_DIR/events.ndjson" \
-            --summary "$RUN_DIR/collector-summary.json"
-          PYTHONPATH=. RUN_DIR="$RUN_DIR" python - <<'PY'
+          PYTHONPATH=. python - <<'PY'
           import json
-          import os
-          from pathlib import Path
 
-          from ai_platform.research.liquidations.staging import (
-              StagingPolicy,
-              evaluate_staging_summary,
-          )
+          from ai_platform.research.liquidations.staging import probe_bybit_clock
 
-          run_dir = Path(os.environ["RUN_DIR"])
-          summary = json.loads((run_dir / "collector-summary.json").read_text())
-          policy = StagingPolicy.load(
-              Path("ai_platform/research/liquidations/data-only-staging-policy-v1.json"),
-              mode="smoke",
-          )
-          report = evaluate_staging_summary(summary, policy=policy, mode="smoke")
-          stats = summary["stats"]
-          evidence = {
-              "passed": report["passed"],
-              "failed_gates": report["failed_gates"],
-              "collector_commit": summary["collector_commit"],
-              "clock_synchronized": summary["clock_probe"]["synchronized"],
-              "clock_skew_ms": summary["clock_probe"]["absolute_skew_ms"],
-              "duration_ms": stats["duration_ms"],
-              "connected_duration_ms": stats["connected_duration_ms"],
-              "availability_ratio": stats["availability_ratio"],
-              "messages_received": stats["messages_received"],
-              "control_messages": stats["control_messages"],
-              "liquidation_messages": stats["liquidation_messages"],
-              "events_written": stats["events_written"],
-              "parse_failures": stats["parse_failures"],
-              "disconnects": stats["disconnects"],
-              "output_sha256": summary["output"]["sha256"],
-          }
-          print("SMOKE_EVIDENCE=" + json.dumps(evidence, sort_keys=True))
-          raise SystemExit(0 if report["passed"] else 1)
+          result = probe_bybit_clock()
+          print("CLOCK_PROBE=" + json.dumps(result.as_json_dict(), sort_keys=True))
+          raise SystemExit(0 if result.synchronized is True else 1)
           PY

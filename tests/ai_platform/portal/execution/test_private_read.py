@@ -19,7 +19,6 @@ from ai_platform.portal.contracts.bots import (
 from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.execution import OrderState, TradeState
-from ai_platform.portal.contracts.risk import ApprovedExecutionIntent, TradeSide
 from ai_platform.portal.execution.adapter import FreqtradeExecutionAdapter
 from ai_platform.portal.execution.errors import (
     RuntimeNotProvisionedError,
@@ -126,7 +125,8 @@ class _Transport:
         response = self.responses[(request.kind, request.cursor)]
         if isinstance(response, Exception):
             raise response
-        assert isinstance(response, PrivateRuntimePage)
+        if not isinstance(response, PrivateRuntimePage):
+            raise TypeError("fake transport response must be a private runtime page")
         return response
 
 
@@ -141,7 +141,8 @@ class _SequenceTransport:
         self.calls += 1
         if isinstance(response, Exception):
             raise response
-        assert isinstance(response, PrivateRuntimePage)
+        if not isinstance(response, PrivateRuntimePage):
+            raise TypeError("fake transport response must be a private runtime page")
         return response
 
 
@@ -546,7 +547,7 @@ def test_adapter_missing_collector_and_stopped_runtime_fail_closed(tmp_path: Pat
 
 
 def test_adapter_cross_tenant_read_is_denied_before_transport(tmp_path: Path) -> None:
-    adapter, driver, runtime_id = _adapter(tmp_path, None)
+    _adapter_instance, driver, runtime_id = _adapter(tmp_path, None)
     transport = _all_read_transport(runtime_id)
     collector = PrivateRuntimeCollector(transport, clock=lambda: NOW)
     adapter = FreqtradeExecutionAdapter(

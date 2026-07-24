@@ -2,6 +2,7 @@ import json
 import math
 import zipfile
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,10 +16,10 @@ from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request impo
     REQUEST_REPO_PATH,
     RLV2PairedAttributionError,
     _sha256,
+    _validate_data_coverage_bounds,
     canonical_rl_v2_roi_lifecycle_paired_attribution_request,
     load_rl_v2_roi_lifecycle_paired_attribution_request,
     materialize_runtime_config,
-    verify_downloaded_data,
 )
 
 
@@ -240,25 +241,28 @@ def test_infrastructure_is_inert_and_variant_only() -> None:
         )
 
 
-def test_data_verifier_accepts_exact_stop_boundary(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    import pandas as pd
+def test_data_verifier_accepts_exact_stop_boundary() -> None:
+    startdt = datetime(2025, 8, 1, tzinfo=UTC)
+    stopdt = datetime(2026, 5, 1, tzinfo=UTC)
 
-    dates = pd.to_datetime(["2025-08-01T00:00:00Z", "2026-05-01T00:00:00Z"], utc=True)
-
-    def fake_load_pair_history(**_: object) -> pd.DataFrame:
-        return pd.DataFrame({"date": dates})
-
-    monkeypatch.setattr(
-        "freqtrade.data.history.history_utils.load_pair_history",
-        fake_load_pair_history,
+    _validate_data_coverage_bounds(
+        pair="BTC/USDT",
+        timeframe="15m",
+        first_date=startdt,
+        last_date=stopdt,
+        startdt=startdt,
+        stopdt=stopdt,
     )
 
-    result = verify_downloaded_data(tmp_path, pairs=["BTC/USDT"])
-
-    assert result["status"] == "ready"
-    assert result["coverage"]["BTC/USDT:15m"]["last"] == ("2026-05-01T00:00:00+00:00")
+    with pytest.raises(RLV2PairedAttributionError, match="crosses exclusive stop"):
+        _validate_data_coverage_bounds(
+            pair="BTC/USDT",
+            timeframe="15m",
+            first_date=startdt,
+            last_date=stopdt + timedelta(minutes=15),
+            startdt=startdt,
+            stopdt=stopdt,
+        )
 
 
 def test_synthetic_trade_accounting_fixture_reconciles() -> None:

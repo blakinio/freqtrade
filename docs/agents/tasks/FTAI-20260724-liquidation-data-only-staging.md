@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260724-liquidation-data-only-staging
 status: blocked
-branch: feat/liquidation-data-only-staging-v1
+branch: develop
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
@@ -48,9 +48,9 @@ The policy was frozen before live evidence was judged:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T11:50:00Z
-head: 95404c50e52a50c593fcc03209b510defcb3811f
-branch: feat/liquidation-data-only-staging-v1
+updated_at: 2026-07-24T10:05:00Z
+head: b70f4445b7a323f442a2b9b3a7fbdeb3a5d9e764
+branch: develop
 pr: "#247"
 status: blocked
 context_routes:
@@ -70,11 +70,13 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260724-liquidation-reversal-foundation.md
 proven:
   - Foundation PR #236 merged to develop as 8ab033dd771b3f4695328b22f61c3f6d05a6e1d4.
-  - The branch adds bounded collection, connection intervals, availability, reconnect, parse, duplicate, symbol, latency, clock, output-hash, and line-count evidence.
+  - Stage 1 implementation PR #247 merged to develop as b70f4445b7a323f442a2b9b3a7fbdeb3a5d9e764.
+  - The merged package provides bounded collection, connection intervals, availability, reconnect, parse, duplicate, symbol, latency, clock, output-hash, and line-count evidence.
   - The frozen policy separates a short transport smoke from a 24-hour operational acceptance run.
   - Nine focused local tests pass.
-  - AI Platform CI run 30083325429 passed compile, all tests, Ruff, Ruff format, codespell, and JSON validation.
-  - Freqtrade CI pre-commit job 89449704364 passed, including repository mypy and all configured hooks.
+  - Final AI Platform CI run 30083876114 passed compile, all tests, Ruff, Ruff format, codespell, and JSON validation.
+  - Final Freqtrade CI run 30083876126 passed pre-commit, mypy, documentation, coverage, cross-platform core tests, backtesting, Hyperopt, and lint.
+  - Final GitHub Actions Security Analysis run 30083876256 passed.
   - GitHub-hosted smoke run 30083558225 connected to the public Bybit linear WebSocket for 29.516 seconds, received the subscription acknowledgement, recorded zero disconnects and zero parse failures, and produced an integrity summary.
   - The smoke failed only the clock_synchronized gate because the Bybit REST clock endpoint returned HTTP 403 from the United States-hosted runner.
   - Clock diagnostic run 30083654093 reproduced HTTPError 403 in 73 ms.
@@ -85,7 +87,6 @@ derived:
   - An unchanged smoke must run on the intended non-US staging host before Stage 1 can be accepted.
   - An accepted research interval must remain outside 20260801-20260930 and be frozen separately before replay.
 unknown:
-  - Final full Freqtrade CI conclusion for the final branch head after evidence and checkpoint updates.
   - Smoke result on the intended non-US staging host.
   - Operational 24-hour acceptance evidence from an always-on staging host.
 conflicts: []
@@ -115,12 +116,15 @@ validation:
   - command: PYTHONPATH=. pytest -q tests/ai_platform_integration/test_liquidation_data_only_staging.py
     result: PASS
     evidence: Nine focused staging, policy, integrity, clock, and deduplication tests passed.
-  - command: AI Platform CI run 30083325429
+  - command: AI Platform CI run 30083876114
     result: PASS
-    evidence: Compile, tests, Ruff, formatting, codespell, and JSON validation passed.
-  - command: Freqtrade CI pre-commit job 89449704364
+    evidence: Compile, tests, Ruff, formatting, codespell, and JSON validation passed on the final implementation head.
+  - command: Freqtrade CI run 30083876126
     result: PASS
-    evidence: Repository pre-commit and mypy passed.
+    evidence: Full repository pre-commit, mypy, documentation, coverage, cross-platform tests, and smoke commands passed.
+  - command: GitHub Actions Security Analysis run 30083876256
+    result: PASS
+    evidence: Zizmor completed successfully on the final implementation head.
   - command: Liquidation data-only staging smoke run 30083558225
     result: BLOCKED
     evidence: WebSocket transport passed its observed metrics; only the mandatory clock gate failed.
@@ -130,5 +134,5 @@ validation:
 blockers:
   - The unchanged smoke policy has not passed on a non-US staging host.
   - No 24-hour accepted operational run exists yet.
-next_action: After final PR validation and merge, run the unchanged smoke and then the 24-hour acceptance mode on the intended non-US always-on staging host.
+next_action: Run the unchanged smoke and then the 24-hour acceptance mode on the intended non-US always-on staging host.
 ```

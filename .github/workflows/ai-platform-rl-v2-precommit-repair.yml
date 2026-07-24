@@ -1,0 +1,96 @@
+name: AI Platform RL-v2 Pre-commit Repair
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/ai-platform-rl-v2-precommit-repair.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      EXPECTED_HEAD: da08da3d8f746e49a17e2eea9a68f5177515c890
+      REPAIR_WORKFLOW: .github/workflows/ai-platform-rl-v2-precommit-repair.yml
+      TARGET_FILE: ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Verify exact guarded target
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [[ "$actual" != "$EXPECTED_HEAD" ]]; then
+            echo "Expected guarded head $EXPECTED_HEAD, got $actual" >&2
+            exit 1
+          fi
+
+      - name: Apply bounded mypy no-redef repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["TARGET_FILE"])
+          text = path.read_text(encoding="utf-8")
+          old = """    if isinstance(value, list):
+              keys: set[str] = set()
+              for child in value:
+                  keys.update(_collect_keys(child))
+              return keys
+          """
+          new = """    if isinstance(value, list):
+              list_keys: set[str] = set()
+              for child in value:
+                  list_keys.update(_collect_keys(child))
+              return list_keys
+          """
+          if text.count(old) != 1:
+              raise SystemExit("Expected exactly one bounded _collect_keys list branch")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+          rm "$REPAIR_WORKFLOW"
+
+      - name: Install exact pre-commit runner
+        run: python -m pip install --disable-pip-version-check --quiet pre-commit
+
+      - name: Validate complete repository hooks
+        run: pre-commit run --all-files --show-diff-on-failure --verbose
+
+      - name: Verify bounded staged scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add "$TARGET_FILE" "$REPAIR_WORKFLOW"
+          actual="$(git diff --cached --name-status | sort)"
+          expected="$(printf 'D\t%s\nM\t%s' "$REPAIR_WORKFLOW" "$TARGET_FILE" | sort)"
+          if [[ "$actual" != "$expected" ]]; then
+            printf 'Unexpected repair scope.\nExpected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Commit and push guarded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(ai-platform): resolve paired attribution mypy redeclaration"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"

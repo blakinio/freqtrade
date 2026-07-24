@@ -51,7 +51,7 @@ def test_binance_sell_force_order_is_liquidated_long() -> None:
 
     assert event.source == "binance-usdm"
     assert event.liquidated_position_side is LiquidatedPositionSide.LONG
-    assert event.price == Decimal("70000")
+    assert event.price == Decimal(70000)
     assert event.quantity == Decimal("1.5")
     assert event.notional_usd == Decimal("105000.0")
     assert event.ingest_latency_ms == 600
@@ -78,7 +78,7 @@ def test_binance_parser_prefers_executed_values_and_falls_back() -> None:
         received_at_ms=1_750_000_000_600,
     )[0]
 
-    assert event.price == Decimal("68000")
+    assert event.price == Decimal(68000)
     assert event.quantity == Decimal("0.25")
     assert event.notional_usd == Decimal("17000.00")
 
@@ -94,8 +94,7 @@ def test_binance_combined_stream_wrapper_is_supported() -> None:
 
 def test_binance_subscription_is_explicit_per_symbol() -> None:
     assert _subscription(("BTCUSDT", "ETHUSDT")) == (
-        '{"method":"SUBSCRIBE","params":["btcusdt@forceOrder",'
-        '"ethusdt@forceOrder"],"id":1}'
+        '{"method":"SUBSCRIBE","params":["btcusdt@forceOrder","ethusdt@forceOrder"],"id":1}'
     )
 
 

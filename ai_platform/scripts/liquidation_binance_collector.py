@@ -8,7 +8,6 @@ import time
 import urllib.request
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
 
 import websockets
 from websockets.exceptions import WebSocketException
@@ -130,7 +129,7 @@ def probe_binance_clock(
 ) -> ClockProbeResult:
     request_started_at_ms = time.time_ns() // 1_000_000
     try:
-        request = urllib.request.Request(
+        request = urllib.request.Request(  # noqa: S310
             server_time_url,
             headers={"User-Agent": "freqtrade-liquidation-research/1"},
         )

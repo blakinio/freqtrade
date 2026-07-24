@@ -72,6 +72,17 @@ def _require_unused_targets(paths: dict[str, Path]) -> None:
         raise FileExistsError(f"multi-source output targets already exist: {occupied}")
 
 
+def _prepare_output_root(
+    output_root: Path,
+    paths: dict[str, Path],
+    *,
+    require_new_output: bool,
+) -> None:
+    if require_new_output:
+        _require_unused_targets(paths)
+    output_root.mkdir(parents=True, exist_ok=True)
+
+
 async def run_multi_source_collection(
     *,
     profile: SymbolProfile,
@@ -86,9 +97,12 @@ async def run_multi_source_collection(
     binance_time_url: str = DEFAULT_BINANCE_TIME_URL,
 ) -> dict[str, object]:
     paths = _target_paths(output_root)
-    if require_new_output:
-        _require_unused_targets(paths)
-    output_root.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(
+        _prepare_output_root,
+        output_root,
+        paths,
+        require_new_output=require_new_output,
+    )
 
     generic_credentials_present = trading_credentials_present_in_environment()
     any_binance_credentials_present = binance_credentials_present()

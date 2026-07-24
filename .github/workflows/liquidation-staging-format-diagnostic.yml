@@ -1,0 +1,33 @@
+name: Liquidation staging format diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "ai_platform/research/liquidations/staging.py"
+      - "ai_platform/scripts/liquidation_collector.py"
+      - "ai_platform/scripts/liquidation_staging_evaluator.py"
+      - "tests/ai_platform_integration/test_liquidation_data_only_staging.py"
+      - ".github/workflows/liquidation-staging-format-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  format-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Print exact Ruff format diff
+        run: |
+          git clone -q --depth 1 \
+            --branch feat/liquidation-data-only-staging-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python -m pip install -q "ruff==0.16.0"
+          ruff format --check --diff \
+            ai_platform/research/liquidations/staging.py \
+            ai_platform/scripts/liquidation_collector.py \
+            ai_platform/scripts/liquidation_staging_evaluator.py \
+            tests/ai_platform_integration/test_liquidation_data_only_staging.py

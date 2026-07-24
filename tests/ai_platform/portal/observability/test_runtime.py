@@ -58,7 +58,11 @@ def _status(
         source_id="loki-private",
         availability=availability,
         checked_at=_NOW,
-        reason_code="SOURCE_READY" if availability is RuntimeObservabilityAvailability.AVAILABLE else "DOWN",
+        reason_code=(
+            "SOURCE_READY"
+            if availability is RuntimeObservabilityAvailability.AVAILABLE
+            else "DOWN"
+        ),
         log_retention_days=14,
         trace_retention_days=7,
         metric_retention_days=30,
@@ -68,7 +72,11 @@ def _status(
     )
 
 
-def _record_payload(*, tenant_id: str = "tenant-a", secret: str = "top-secret") -> dict[str, Any]:
+def _record_payload(
+    *,
+    tenant_id: str = "tenant-a",
+    sensitive_value: str = "top-secret",
+) -> dict[str, Any]:
     return {
         "record_id": "record-1",
         "tenant_id": tenant_id,
@@ -83,7 +91,10 @@ def _record_payload(*, tenant_id: str = "tenant-a", secret: str = "top-secret") 
         "span_id": "span-1",
         "level": "ERROR",
         "message": "exchange request failed",
-        "fields": {"api_key": secret, "nested": {"authorization": secret, "safe": "ok"}},
+        "fields": {
+            "api_key": sensitive_value,
+            "nested": {"authorization": sensitive_value, "safe": "ok"},
+        },
         "source_id": "loki-private",
         "retention_expires_at": (_NOW + timedelta(days=14)).isoformat(),
         "audit_evidence": False,
@@ -156,7 +167,9 @@ def test_unavailable_source_is_explicit_and_returns_no_raw_logs() -> None:
     assert result.records == ()
     assert result.truncated is False
     assert result.source_status.availability is RuntimeObservabilityAvailability.UNAVAILABLE
-    assert result.source_status.reason_code == "CENTRALIZED_RUNTIME_OBSERVABILITY_SOURCE_NOT_CONFIGURED"
+    assert result.source_status.reason_code == (
+        "CENTRALIZED_RUNTIME_OBSERVABILITY_SOURCE_NOT_CONFIGURED"
+    )
 
 
 def test_runtime_log_reads_require_audit_permission() -> None:
@@ -170,7 +183,9 @@ def test_runtime_log_reads_require_audit_permission() -> None:
 
 
 def test_loki_source_rejects_cross_tenant_record() -> None:
-    source = LokiRuntimeObservabilitySource(FakeLokiTransport(_record_payload(tenant_id="tenant-b")))
+    source = LokiRuntimeObservabilitySource(
+        FakeLokiTransport(_record_payload(tenant_id="tenant-b"))
+    )
     service = RuntimeObservabilityService(source)
 
     with pytest.raises(RuntimeObservabilityProtocolError, match="TENANT_MISMATCH"):

@@ -6,12 +6,14 @@ import json
 import os
 import time
 from collections import deque
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Iterable
 
 import websockets
+from websockets.exceptions import WebSocketException
 
 from ai_platform.research.liquidations.bybit import parse_bybit_all_liquidation
+from ai_platform.research.liquidations.contracts import LiquidationEvent
 
 
 DEFAULT_BYBIT_ENDPOINT = "wss://stream.bybit.com/v5/public/linear"
@@ -43,6 +45,25 @@ def _subscription(symbols: Iterable[str]) -> str:
     return json.dumps({"op": "subscribe", "args": topics}, separators=(",", ":"))
 
 
+def _prepare_output_path(output_path: Path) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def _append_events(output_path: Path, events: Sequence[LiquidationEvent]) -> None:
+    with output_path.open("a", encoding="utf-8") as output:
+        for event in events:
+            output.write(
+                json.dumps(
+                    event.as_json_dict(),
+                    separators=(",", ":"),
+                    sort_keys=True,
+                )
+            )
+            output.write("\n")
+        output.flush()
+        os.fsync(output.fileno())
+
+
 async def collect_bybit_liquidations(
     *,
     endpoint: str,
@@ -50,7 +71,7 @@ async def collect_bybit_liquidations(
     output_path: Path,
     reconnect_max_seconds: float = 30.0,
 ) -> None:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(_prepare_output_path, output_path)
     subscription = _subscription(symbols)
     recent_ids = RecentEventIds()
     reconnect_delay = 1.0
@@ -66,35 +87,28 @@ async def collect_bybit_liquidations(
             ) as websocket:
                 await websocket.send(subscription)
                 reconnect_delay = 1.0
-                with output_path.open("a", encoding="utf-8") as output:
-                    async for raw_message in websocket:
-                        received_at_ms = time.time_ns() // 1_000_000
-                        payload = json.loads(raw_message)
-                        if not isinstance(payload, dict):
-                            continue
-                        topic = str(payload.get("topic", ""))
-                        if not topic.startswith("allLiquidation."):
-                            continue
-                        events = parse_bybit_all_liquidation(
-                            payload,
-                            received_at_ms=received_at_ms,
-                        )
-                        for event in events:
-                            if not recent_ids.add_if_new(event.source_event_id):
-                                continue
-                            output.write(
-                                json.dumps(
-                                    event.as_json_dict(),
-                                    separators=(",", ":"),
-                                    sort_keys=True,
-                                )
-                            )
-                            output.write("\n")
-                            output.flush()
-                            os.fsync(output.fileno())
+                async for raw_message in websocket:
+                    received_at_ms = time.time_ns() // 1_000_000
+                    payload = json.loads(raw_message)
+                    if not isinstance(payload, dict):
+                        continue
+                    topic = str(payload.get("topic", ""))
+                    if not topic.startswith("allLiquidation."):
+                        continue
+                    events = parse_bybit_all_liquidation(
+                        payload,
+                        received_at_ms=received_at_ms,
+                    )
+                    new_events = tuple(
+                        event
+                        for event in events
+                        if recent_ids.add_if_new(event.source_event_id)
+                    )
+                    if new_events:
+                        await asyncio.to_thread(_append_events, output_path, new_events)
         except asyncio.CancelledError:
             raise
-        except (OSError, ValueError, json.JSONDecodeError, websockets.WebSocketException):
+        except (OSError, ValueError, json.JSONDecodeError, WebSocketException):
             await asyncio.sleep(reconnect_delay)
             reconnect_delay = min(reconnect_delay * 2.0, reconnect_max_seconds)
 

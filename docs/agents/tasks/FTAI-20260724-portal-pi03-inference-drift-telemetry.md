@@ -82,8 +82,8 @@ Add a tenant-scoped, aggregate-only inference telemetry boundary and determinist
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T10:55:00+02:00
-head: 8a747cf05d6affdb21e2d0c5599521c6941450be
+updated_at: 2026-07-24T11:10:00+02:00
+head: e809738a2dc5076112dac57a3c76278cf306357d
 branch: feat/portal-pi03-inference-drift-telemetry-20260724
 pr: 239
 status: validating
@@ -160,5 +160,5 @@ validation:
     result: PASS
     evidence: 493 tests passed and 1 skipped; the single historical reason-code assertion was identified and fixed before final repository CI.
 blockers: []
-next_action: Apply the canonical PI-03 documentation patch, remove its temporary workflow, then resolve only concrete final repository CI findings before marking PR 239 ready.
+next_action: Run the corrected self-cleaning documentation patch, then resolve only concrete final repository CI findings before marking PR 239 ready.
 ```

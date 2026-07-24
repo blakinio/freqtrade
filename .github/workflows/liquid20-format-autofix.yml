@@ -1,0 +1,46 @@
+name: Liquid20 acceptance format autofix
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquid20-format-autofix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/liquid20-multi-source-acceptance-v1
+          persist-credentials: true
+      - name: Format changed Python
+        run: |
+          set -euo pipefail
+          python -m pip install -q "ruff==0.16.0"
+          ruff format \
+            ai_platform/research/liquidations/multi_source_acceptance.py \
+            ai_platform/scripts/liquidation_multi_source_runner.py \
+            ai_platform/scripts/liquidation_multi_source_evaluator.py \
+            tests/ai_platform_integration/test_liquidation_multi_source_acceptance.py \
+            tests/ai_platform_integration/test_liquidation_symbol_universe.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/research/liquidations/multi_source_acceptance.py \
+            ai_platform/scripts/liquidation_multi_source_runner.py \
+            ai_platform/scripts/liquidation_multi_source_evaluator.py \
+            tests/ai_platform_integration/test_liquidation_multi_source_acceptance.py \
+            tests/ai_platform_integration/test_liquidation_symbol_universe.py
+          if git diff --cached --quiet; then
+            echo "No formatting changes required"
+            exit 0
+          fi
+          git commit -m "style(ai-platform): format liquid20 acceptance package"
+          git push origin HEAD:feat/liquid20-multi-source-acceptance-v1

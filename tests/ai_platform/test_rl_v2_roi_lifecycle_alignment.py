@@ -45,14 +45,13 @@ def _runtime_strategy():
     pytest.importorskip("humanize", reason="full Freqtrade runtime dependency is not installed")
     pytest.importorskip("talib", reason="full Freqtrade runtime dependency is not installed")
 
-    from freqtrade.enums import ExitCheckTuple, ExitType
-
     from ai_platform.strategies.AiDesiredPositionRLLifecycleAlignedResearchStrategy import (
         AiDesiredPositionRLLifecycleAlignedResearchStrategy,
     )
     from ai_platform.strategies.AiDesiredPositionRLResearchStrategy import (
         AiDesiredPositionRLResearchStrategy,
     )
+    from freqtrade.enums import ExitCheckTuple, ExitType
 
     strategy = AiDesiredPositionRLLifecycleAlignedResearchStrategy(config={})
     strategy.exit_profit_only = False

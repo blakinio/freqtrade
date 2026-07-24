@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260724-portal-pi02-authoritative-valuation
-status: validating
+status: ready
 branch: feat/portal-pi02-authoritative-valuation-20260724
 base_branch: develop
 created: 2026-07-24
@@ -81,11 +81,11 @@ Provide attributable current position valuation and unrealized PNL from reconcil
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T23:02:22+02:00
-head: 3f49817648af8f225742bb6b7ae30f1a3056841a
+updated_at: 2026-07-24T23:19:04+02:00
+head: bae1bc9e0ab1d43601abb1984c9baa26e4c40175
 branch: feat/portal-pi02-authoritative-valuation-20260724
 pr: 267
-status: validating
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -116,12 +116,12 @@ proven:
   - PNL and Performance displays realized performance and open-position valuation as independent evidence tables with source identity and availability state.
   - Focused math, provenance, tenant-isolation, transport-boundary, sensitive-data, API and browser tests pass.
   - Temporary patch, diagnostic, autofix and documentation-sync workflows and scripts were removed from the final candidate.
-  - AI Platform CI 1141, Portal Web CI 205, Portal Universal E2E 210 and zizmor 1258 passed on head 3f49817648af8f225742bb6b7ae30f1a3056841a; all review threads are resolved and outdated.
+  - AI Platform CI 1142, Portal Web CI 206, Portal Universal E2E 211, zizmor 1259 and Freqtrade CI 1329 passed on head bae1bc9e0ab1d43601abb1984c9baa26e4c40175; Freqtrade CI 1328 was cancelled only because the later checkpoint commit superseded it.
+  - All PR review threads are resolved and outdated.
 derived:
-  - PI-02 satisfies its bounded repository-side acceptance without selecting a public price provider or adding currency conversion, execution or live-capital authority once the current full repository matrix is terminal green.
+  - PI-02 satisfies its bounded repository-side acceptance without selecting a public price provider or adding currency conversion, execution or live-capital authority.
   - Exact-runtime mark provenance is the narrowest source consistent with PI-01 runtime attribution and fail-closed portal architecture.
-unknown:
-  - Terminal result of Freqtrade CI 30125866870 / run 1328 on head 3f49817648af8f225742bb6b7ae30f1a3056841a.
+unknown: []
 conflicts: []
 first_failure:
   marker: RESOLVED
@@ -148,21 +148,21 @@ changed_paths:
   - tests/ai_platform/portal/valuation/test_valuation_runtime.py
   - tests/ai_platform/portal/valuation/test_valuation_runtime_api.py
 validation:
-  - command: AI Platform CI 30125866864 / run 1141
+  - command: AI Platform CI 30126369470 / run 1142
     result: PASS
-    evidence: Tests, compile, Ruff, Ruff format, codespell and contract validation passed on head 3f49817648af8f225742bb6b7ae30f1a3056841a.
-  - command: Portal Web CI 30125866868 / run 205
+    evidence: Tests, compile, Ruff, Ruff format, codespell and contract validation passed on head bae1bc9e0ab1d43601abb1984c9baa26e4c40175.
+  - command: Portal Web CI 30126369498 / run 206
     result: PASS
     evidence: Typecheck, lint, production build and Chromium browser E2E passed on the current head.
-  - command: Portal Universal E2E 30125866874 / run 210
+  - command: Portal Universal E2E 30126369510 / run 211
     result: PASS
     evidence: Backend universal scenario and critical Chromium path passed on the current head.
-  - command: GitHub Actions Security Analysis with zizmor 30125866905 / run 1258
+  - command: GitHub Actions Security Analysis with zizmor 30126369503 / run 1259
     result: PASS
     evidence: Required workflow security analysis passed on the current head.
-  - command: Freqtrade CI 30125866870 / run 1328
-    result: NOT_RUN
-    evidence: Full repository matrix is in progress on head 3f49817648af8f225742bb6b7ae30f1a3056841a; no failure is reported.
+  - command: Freqtrade CI 30126369494 / run 1329
+    result: PASS
+    evidence: Pre-commit, documentation, full multi-platform core matrix, coverage, smoke checks, Ruff, formatter, mypy and CI gate passed on the current head.
 blockers: []
-next_action: Resolve the terminal result of Freqtrade CI 1328 on the latest checkpoint head; on success update the checkpoint to ready, mark PR 267 ready and squash-merge with expected-head protection, otherwise repair the first failing job and rerun required CI.
+next_action: After durable merge evidence exists on develop, select the next authorized package from current repository and open-PR state.
 ```

@@ -1,0 +1,32 @@
+name: PI-02 Apply Patch
+
+on:
+  push:
+    branches:
+      - feat/portal-pi02-authoritative-valuation-20260724
+    paths:
+      - tools/agents/apply_pi02_valuation_patch.py
+      - .github/workflows/pi02-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/portal-pi02-authoritative-valuation-20260724
+          fetch-depth: 0
+      - name: Apply deterministic patch
+        run: python tools/agents/apply_pi02_valuation_patch.py
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform tests docs
+          git diff --cached --check
+          git commit -m "feat(portal): add authoritative position valuation"
+          git push origin HEAD:feat/portal-pi02-authoritative-valuation-20260724

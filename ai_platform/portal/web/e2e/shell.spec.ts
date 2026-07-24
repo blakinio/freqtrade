@@ -77,7 +77,9 @@ test("renders canonical operational read-model surfaces in fixture mode", async 
   await page.goto("/operations/execution-logs");
   await expect(page.getByRole("heading", { name: "Execution Activity" })).toBeVisible();
   await expect(page.getByText("trade.manual_intent", { exact: true })).toBeVisible();
-  await expect(page.getByText("Raw runtime logs: unavailable")).toBeVisible();
+  await expect(page.getByText("Raw runtime logs: available")).toBeVisible();
+  await expect(page.getByText("Exchange request failed and remained operational evidence only.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Execution audit activity" })).toBeVisible();
 });
 
 test("renders integrated signal, strategy, notification and security surfaces", async ({ page }) => {

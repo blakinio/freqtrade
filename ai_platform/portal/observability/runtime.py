@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import timedelta
 from enum import StrEnum
 from typing import Any, Protocol, Self
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode, urlsplit
+from urllib.request import Request, urlopen
 from uuid import UUID
 
 from pydantic import Field, PositiveInt, model_validator
@@ -100,6 +103,10 @@ class RuntimeObservabilityProtocolError(RuntimeError):
     pass
 
 
+class RuntimeObservabilityUnavailableError(RuntimeError):
+    pass
+
+
 class RuntimeObservabilitySource(Protocol):
     def status(self, tenant_id: str) -> RuntimeObservabilitySourceStatus: ...
 
@@ -122,6 +129,142 @@ class LokiQueryTransport(Protocol):
         end_ns: int,
         limit: int,
     ) -> Mapping[str, Any]: ...
+
+
+class HttpResponse(Protocol):
+    def __enter__(self) -> HttpResponse: ...
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...
+
+    def read(self, amount: int = -1) -> bytes: ...
+
+
+HttpOpener = Callable[..., HttpResponse]
+LokiEndpointProvider = Callable[[str], str]
+LokiAuthorizationHeaderProvider = Callable[[str], Mapping[str, str]]
+RuntimeObservabilityStatusProvider = Callable[[str], RuntimeObservabilitySourceStatus]
+
+
+class HttpLokiQueryTransport:
+    """Bounded server-side Loki query-range transport."""
+
+    def __init__(
+        self,
+        endpoint_provider: LokiEndpointProvider,
+        authorization_headers: LokiAuthorizationHeaderProvider,
+        status_provider: RuntimeObservabilityStatusProvider,
+        *,
+        opener: HttpOpener = urlopen,
+        timeout_seconds: int = 5,
+        max_body_bytes: int = 1_048_576,
+    ) -> None:
+        if timeout_seconds < 1:
+            raise ValueError("timeout_seconds must be positive")
+        if max_body_bytes < 1:
+            raise ValueError("max_body_bytes must be positive")
+        self._endpoint_provider = endpoint_provider
+        self._authorization_headers = authorization_headers
+        self._status_provider = status_provider
+        self._opener = opener
+        self._timeout_seconds = timeout_seconds
+        self._max_body_bytes = max_body_bytes
+
+    def status(self, tenant_id: str) -> RuntimeObservabilitySourceStatus:
+        return self._status_provider(tenant_id)
+
+    def query_range(
+        self,
+        *,
+        tenant_id: str,
+        query: str,
+        start_ns: int,
+        end_ns: int,
+        limit: int,
+    ) -> Mapping[str, Any]:
+        if start_ns >= end_ns:
+            raise ValueError("runtime log query start must precede end")
+        if limit < 1 or limit > _MAX_RESULTS:
+            raise ValueError("runtime log query limit is outside the supported range")
+        endpoint = self._validated_endpoint(self._endpoint_provider(tenant_id))
+        request = self._request(
+            endpoint,
+            tenant_id=tenant_id,
+            query=query,
+            start_ns=start_ns,
+            end_ns=end_ns,
+            limit=limit,
+        )
+        body = self._read_body(request)
+        try:
+            payload = json.loads(body)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_INVALID_JSON") from None
+        if not isinstance(payload, Mapping):
+            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_INVALID_RESPONSE")
+        return payload
+
+    @staticmethod
+    def _validated_endpoint(endpoint: str) -> str:
+        parsed = urlsplit(endpoint)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_INVALID_PRIVATE_ENDPOINT")
+        if parsed.username is not None or parsed.password is not None:
+            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_ENDPOINT_EMBEDS_CREDENTIALS")
+        if parsed.fragment:
+            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_INVALID_PRIVATE_ENDPOINT")
+        return endpoint
+
+    def _request(
+        self,
+        endpoint: str,
+        *,
+        tenant_id: str,
+        query: str,
+        start_ns: int,
+        end_ns: int,
+        limit: int,
+    ) -> Request:
+        parameters = urlencode(
+            {
+                "query": query,
+                "start": str(start_ns),
+                "end": str(end_ns),
+                "limit": str(limit),
+                "direction": "backward",
+            }
+        )
+        separator = "&" if urlsplit(endpoint).query else "?"
+        headers = {
+            **dict(self._authorization_headers(tenant_id)),
+            "Accept": "application/json",
+        }
+        return Request(f"{endpoint}{separator}{parameters}", headers=headers, method="GET")
+
+    def _read_body(self, request: Request) -> bytes:
+        try:
+            # S310 is safe here because _validated_endpoint permits only HTTP(S) with a hostname.
+            with self._opener(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+                body = response.read(self._max_body_bytes + 1)
+        except HTTPError as exc:
+            self._raise_http_error(exc.code)
+        except TimeoutError:
+            raise RuntimeObservabilityUnavailableError("RUNTIME_LOG_SOURCE_TIMEOUT") from None
+        except URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise RuntimeObservabilityUnavailableError("RUNTIME_LOG_SOURCE_TIMEOUT") from None
+            raise RuntimeObservabilityUnavailableError("RUNTIME_LOG_SOURCE_UNAVAILABLE") from None
+
+        if len(body) > self._max_body_bytes:
+            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_RESPONSE_TOO_LARGE")
+        return body
+
+    @staticmethod
+    def _raise_http_error(status_code: int) -> None:
+        if status_code in {401, 403}:
+            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_AUTHENTICATION_FAILED")
+        if status_code in {408, 429, 502, 503, 504} or status_code >= 500:
+            raise RuntimeObservabilityUnavailableError("RUNTIME_LOG_SOURCE_UNAVAILABLE")
+        raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_HTTP_REJECTED")
 
 
 class UnavailableRuntimeObservabilitySource:

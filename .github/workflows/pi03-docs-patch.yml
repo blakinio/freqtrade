@@ -1,4 +1,4 @@
-name: PI-03 Documentation Patch Diagnostic
+name: PI-03 Compact Handover
 
 on:
   pull_request:
@@ -8,39 +8,22 @@ on:
       - synchronize
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  diagnose:
+  validate-and-resume:
     if: github.event.pull_request.head.ref == 'feat/portal-pi03-inference-drift-telemetry-20260724'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: feat/portal-pi03-inference-drift-telemetry-20260724
-          persist-credentials: true
-      - name: Capture patch and cleanup statuses
-        run: |
-          set +e
-          : > docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-          python tools/agents/pi03_docs_patch.py >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt 2>&1
-          echo "python_exit=$?" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-          for path in \
-            .github/workflows/pi03-docs-patch.yml \
-            tools/agents/pi03_docs_patch.py \
-            docs/agents/tasks/PI03_DOCS_TRIGGER.txt \
-            docs/agents/tasks/PI03_DOCS_DIAGNOSTIC.txt; do
-            if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
-              echo "$path=TRACKED" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-            elif [ -e "$path" ]; then
-              echo "$path=UNTRACKED" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-            else
-              echo "$path=MISSING" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-            fi
-          done
-          git status --short >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-          git commit -m "chore(ci): capture PI-03 docs patch run diagnostic"
-          git push origin HEAD:feat/portal-pi03-inference-drift-telemetry-20260724
+          persist-credentials: false
+      - name: Validate active task checkpoint
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md
+          --require-checkpoint
+      - name: Generate compact resume prompt
+        run: >-
+          python tools/agents/resume.py --task
+          docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md

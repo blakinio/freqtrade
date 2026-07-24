@@ -122,11 +122,11 @@ PR #248 adds:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T15:45:00+02:00
-head: ce492702825b4fa68347a675768a4fda6b07d3dc
+updated_at: 2026-07-24T16:20:00+02:00
+head: ee35fc596d4fd6b45b41804bdab9981918d6f41f
 branch: feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure
 pr: 248
-status: blocked
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260724-rl-v2-historical-evidence-diagnosis.md
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-alignment.md
@@ -146,30 +146,29 @@ proven:
   - PR #246 declared this variant-only paired attribution task and merged as d26f2221107bb2c0a95753cb2d8ea4bacf3a65f9.
   - PR #248 contains exactly seven owned infrastructure paths and no canonical run-request file.
   - Contract v1 freezes baseline identity, variant/model/config hashes, geometry, attribution definitions, isolation, authorization, and zero baseline executions.
-  - The workflow is inert until a future exact-one-file trigger and contains exactly one variant backtesting command with no baseline execution command.
-  - Initial PR #248 AI Platform compile and targeted tests passed before Ruff stopped that run.
-  - Exact Ruff 0.15.21 diagnosis on original head 6e00a17e8783e978f51fe7efe5823efc27ed3bd9 found centralized _validate_contract C901 plus formatting drift in three new Python files.
-  - Diagnostic PR #251 was based on the exact #248 head, performed no model or data execution, and was closed without merge.
-  - Guarded repair workflow verified the unchanged #248 head, applied canonical Ruff formatting plus a localized C901 waiver, passed exact Ruff check and format, and pushed ce492702825b4fa68347a675768a4fda6b07d3dc.
-  - Standard PR workflows on ce492702825b4fa68347a675768a4fda6b07d3dc concluded action_required and created zero jobs.
-  - Current develop is 902fee5e6f5654b2a8989a4861d729a77fe19747; #248 is eight commits ahead and eight commits behind its merge base d26f2221107bb2c0a95753cb2d8ea4bacf3a65f9.
-  - No canonical request, training, backtest, cache restore, market-data access, consumed OOS access, or protected final-holdout access occurred in PR #248 or #251.
+  - The workflow remains inert until a future exact-one-file trigger and contains exactly one variant backtesting command with no baseline execution command.
+  - Guarded Ruff repair produced ce492702825b4fa68347a675768a4fda6b07d3dc after exact Ruff 0.15.21 check and format passed.
+  - Current develop c00a091c5adc67cf75c46db5805e358ffc72fad7 is an ancestor of integrated head ee35fc596d4fd6b45b41804bdab9981918d6f41f.
+  - Compare current develop to integrated head reports behind_by=0 and exactly the seven owned infrastructure paths.
+  - No current open PR other than #248 overlaps RL-v2 execution, lifecycle attribution, model, strategy, config, or experimental-research ownership.
+  - AI Platform CI run 30100229104 passed compile, project tests, Ruff, Ruff format, codespell, and JSON validation on integrated head ee35fc596d4fd6b45b41804bdab9981918d6f41f.
+  - Standard workflows now create jobs instead of concluding action_required with zero jobs.
+  - No canonical request, training, backtest, cache restore, market-data access, consumed OOS access, or protected final-holdout access occurred during integration.
   - Frozen thresholds remain 0.006/-0.009 and Phase 6 selected_model remains null.
 derived:
-  - The action_required runs with zero jobs followed a workflow-authored repair push, so an owner-authored rebased or checkpoint commit is required to obtain standard PR CI evidence.
-  - The feature branch must be integrated with current develop before merge while preserving the seven-path infrastructure scope and frozen semantics.
-  - No variant trigger may be created until the infrastructure PR is current with develop, fully validated, and merged.
+  - The original action_required and behind-develop blockers are resolved.
+  - The current-develop integration preserved the seven-path infrastructure scope and frozen semantics.
+  - No variant trigger may be created until the infrastructure PR is fully validated and merged.
 unknown:
-  - Whether the eight current develop commits conflict with any #248 owned path.
-  - Whether all standard CI jobs pass after an owner-authored current-develop integration commit.
+  - Whether all remaining standard CI jobs pass on the owner-authored checkpoint head.
   - Whether the later one-shot variant run reduces both frozen primary lifecycle metrics.
 conflicts: []
 first_failure:
-  marker: pr248_checks_action_required_after_automated_repair_push
-  evidence: On head ce492702825b4fa68347a675768a4fda6b07d3dc AI Platform CI, Freqtrade CI, zizmor, and Pre-commit Types all ended action_required with no jobs; PR #248 is also eight commits behind current develop.
+  marker: pr248_final_standard_ci_pending
+  evidence: AI Platform CI passed on the integrated head, while Freqtrade CI and zizmor had not yet reached terminal success before the owner-authored checkpoint commit.
 rejected_hypotheses:
   - Merge PR #248 without terminal green standard CI.
-  - Treat action_required as a code or test failure.
+  - Treat the earlier action_required state as a code or test failure.
   - Add the canonical run request before infrastructure merge.
   - Rerun baseline training or backtest.
   - Combine lifecycle alignment with any other tuning.
@@ -185,23 +184,16 @@ changed_paths:
   - tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
   - .github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml
 validation:
-  - command: PR #248 initial AI Platform compile and targeted tests
+  - command: compare current develop with integrated PR #248 head
     result: PASS
-    evidence: Compile and project tests completed successfully before the Ruff step failed on original head 6e00a17e8783e978f51fe7efe5823efc27ed3bd9.
-  - command: Ruff 0.15.21 exact diagnostic on original #248 Python paths
-    result: FAIL
-    evidence: One C901 marker on centralized _validate_contract and canonical formatting drift in the validator, evidence extractor, and targeted test.
-  - command: guarded PR #248 Ruff repair workflow
+    evidence: develop c00a091c5adc67cf75c46db5805e358ffc72fad7 is the merge base, branch behind_by=0, and the compare contains exactly seven owned paths.
+  - command: PR #248 AI Platform CI run 30100229104
     result: PASS
-    evidence: The workflow verified exact target head, applied the bounded repair, and passed Ruff check plus Ruff format before pushing ce492702825b4fa68347a675768a4fda6b07d3dc.
-  - command: standard PR workflows on ce492702825b4fa68347a675768a4fda6b07d3dc
-    result: BLOCKED
-    evidence: AI Platform CI, Freqtrade CI, zizmor, and Pre-commit Types concluded action_required with zero jobs.
-  - command: compare current develop with PR #248 branch
+    evidence: Compile, project tests, Ruff, Ruff format, codespell, and JSON validation completed successfully on ee35fc596d4fd6b45b41804bdab9981918d6f41f.
+  - command: standard PR workflow creation after owner integration
     result: PASS
-    evidence: develop 902fee5e6f5654b2a8989a4861d729a77fe19747 and #248 are diverged; branch is ahead by eight and behind by eight commits.
+    evidence: AI Platform CI, Freqtrade CI, and zizmor created normal runs and jobs rather than action_required runs with zero jobs.
 blockers:
-  - Standard PR CI did not run on the repaired head because every workflow concluded action_required with zero jobs.
-  - PR #248 is eight commits behind current develop and must be integrated before merge.
-next_action: Rebase or merge current develop 902fee5e6f5654b2a8989a4861d729a77fe19747 into PR #248 with an owner-authored commit, preserve only the seven owned infrastructure paths and frozen semantics, validate the checkpoint and full standard CI, then merge only after every required check is green without adding a run request or executing model/data paths.
+  - Full standard CI on the owner-authored checkpoint head is not yet terminal green.
+next_action: Validate the checkpoint and full standard CI on the new checkpoint head; if every required check is green and the compare still contains exactly the seven owned infrastructure paths, merge PR #248 without adding a run request or executing any model or data path; otherwise repair only the first bounded infrastructure failure.
 ```

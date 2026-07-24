@@ -47,13 +47,15 @@ jobs:
           tests.write_text(text, encoding="utf-8")
           PY
           python -m pip install -q "ruff==0.16.0"
-          echo "RUFF_CHECK_START"
-          ruff check \
+          ruff check --fix \
             ai_platform/research/liquidations/binance.py \
             ai_platform/scripts/liquidation_binance_collector.py \
             tests/ai_platform_integration/test_liquidation_binance_source.py
-          echo "RUFF_FORMAT_START"
           ruff format \
+            ai_platform/research/liquidations/binance.py \
+            ai_platform/scripts/liquidation_binance_collector.py \
+            tests/ai_platform_integration/test_liquidation_binance_source.py
+          ruff check \
             ai_platform/research/liquidations/binance.py \
             ai_platform/scripts/liquidation_binance_collector.py \
             tests/ai_platform_integration/test_liquidation_binance_source.py
@@ -65,5 +67,4 @@ jobs:
             ai_platform/scripts/liquidation_binance_collector.py \
             tests/ai_platform_integration/test_liquidation_binance_source.py
           git commit -m "style(ai-platform): satisfy Binance source lint"
-          echo "PUSH_START"
           git push origin HEAD:feat/liquidation-binance-source-v1

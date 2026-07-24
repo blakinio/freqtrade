@@ -257,6 +257,14 @@ MISMATCH
 
 The portal never silently presents stale mirrored state as strongly current when reconciliation is degraded.
 
+## 9.1 Canonical inference telemetry and drift
+
+PI-03 persists aggregate-only inference evidence, never raw feature vectors or individual predictions. Every window is attributed to tenant, ModelVersion, feature schema, bot, immutable config revision, runtime and source identity.
+
+Durable reference/observation windows, explicit source availability and reproducible drift assessments are stored separately. The versioned `psi-v1` policy records minimum samples, attention/degraded thresholds, feature-quality thresholds and smoothing epsilon.
+
+Only `HEALTHY`, `ATTENTION`, `DEGRADED`, `INSUFFICIENT_EVIDENCE` and `UNAVAILABLE` are valid outcomes. Missing, stale, unavailable, insufficient or bucket-incompatible evidence never produces `HEALTHY`. Drift evidence cannot mutate model lifecycle, promotion, training, risk or execution state, and protected final-holdout data `20260801-20260930` is forbidden as iterative telemetry/reference evidence.
+
 ## 10. Observability stack
 
 Instrument all portal-owned services with OpenTelemetry-compatible traces, metrics and structured logs.

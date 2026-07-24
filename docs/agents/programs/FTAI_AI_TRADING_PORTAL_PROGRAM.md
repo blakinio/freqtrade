@@ -24,7 +24,7 @@ Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMA
 - P13 measured-need assessment completed with NO-GO, so scale/service extraction is deferred until evidence demonstrates a need;
 - P14 remains separately blocked and this program does not authorize live capital.
 
-The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. Those packages do not renumber P0-P14 and remain planning-only until separately declared.
+The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01 is complete; PI-03 is the active bounded package. Other packages remain planning-only until separately declared.
 
 Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
 
@@ -108,7 +108,7 @@ Canonical stage order, current statuses and acceptance boundaries are defined in
 
 The historical first implementation task after architecture merge was `FTAI-20260722-portal-p1-contracts-security`. That sequence has now progressed through completed P12 simulation-first acceptance; it is no longer the program's next software action.
 
-Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. The recommended first software package is read-only PI-01 Private Runtime Read and Reconciliation. PI-03, PI-04 and PI-06 may run in parallel only when ownership is disjoint and shared contract changes are serialized. PI-07 must precede PI-08; neither authorizes live capital.
+Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. Read-only PI-01 is complete. PI-03 Canonical Inference and Drift Telemetry is active; PI-04 and PI-06 may run in parallel only when ownership is disjoint and shared contract changes are serialized. PI-07 must precede PI-08; neither authorizes live capital.
 
 ## Parallelization policy
 
@@ -181,7 +181,7 @@ Repository-side and simulation-first evidence already cover many of these softwa
 
 ## Next actions by authorization lane
 
-Next autonomous software action: declare PI-01 Private Runtime Read and Reconciliation as a separate bounded task from current `develop`; keep it read-only and do not include credential brokering or order submission.
+Next autonomous software action: complete and merge active PI-03 with aggregate-only evidence, explicit unavailable/insufficient states and no automatic lifecycle or promotion mutation. Select the next package only after PI-03 durable completion evidence is merged.
 
 Next owner/external action: when the owner intentionally starts the real infrastructure phase, resume P11, provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.
 

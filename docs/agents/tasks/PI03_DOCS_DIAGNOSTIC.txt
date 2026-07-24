@@ -1,0 +1,12 @@
+backlog-table: PRESENT
+backlog-section: PRESENT
+backlog-priority: PRESENT
+architecture-heading: PRESENT
+ui-pi01-line: PRESENT
+ui-model-health: PRESENT
+ui-section-anchor: PRESENT
+ui-boundary-row: PRESENT
+ui-safety: PRESENT
+program-state: PRESENT
+program-sequence: PRESENT
+program-next-action: PRESENT

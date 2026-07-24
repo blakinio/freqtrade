@@ -1,0 +1,37 @@
+services:
+  liquid20-collector:
+    build:
+      context: ../../..
+      dockerfile: deploy/synology/liquid20/Dockerfile
+      args:
+        COLLECTOR_COMMIT: ${COLLECTOR_COMMIT:-unknown}
+    image: local/liquid20-collector:${IMAGE_TAG:-local}
+    container_name: liquid20-collector
+    restart: "no"
+    init: true
+    user: "${PUID:-1026}:${PGID:-100}"
+    environment:
+      COLLECTOR_COMMIT: ${COLLECTOR_COMMIT:-}
+      LIQUIDATION_STAGING_HOST_ID: ${HOST_ID:-synology-01}
+      LIQUID20_MODE: ${MODE:-smoke}
+      LIQUID20_DURATION_SECONDS: ${SMOKE_DURATION_SECONDS:-60}
+      RUN_ID: ${RUN_ID:-}
+      TZ: UTC
+    volumes:
+      - ./data:/data:rw
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"

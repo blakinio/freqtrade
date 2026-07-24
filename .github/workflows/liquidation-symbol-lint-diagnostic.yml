@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Print exact Ruff findings
+      - name: Print exact Ruff import diff
         run: |
           set -euo pipefail
           git clone -q --depth 1 \
@@ -26,7 +26,7 @@ jobs:
             https://github.com/blakinio/freqtrade.git repo
           cd repo
           python -m pip install -q "ruff==0.16.0"
-          ruff check --output-format concise \
+          ruff check --fix --diff \
             ai_platform/research/liquidations/symbol_universe.py \
             ai_platform/scripts/liquidation_multi_source_runner.py \
             tests/ai_platform_integration/test_liquidation_symbol_universe.py

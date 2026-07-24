@@ -303,7 +303,7 @@ class InferenceTelemetryService:
             training_window_end=model.training_window.end_at,
             metadata_age_days=max((now - model.created_at).days, 0),
             drift_status=DriftHealthStatus.UNAVAILABLE,
-            drift_reason="CANONICAL_INFERENCE_TELEMETRY_SOURCE_NOT_CONFIGURED",
+            drift_reason="CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED",
         )
 
     def _validate_scope(self, session: Session, scope: InferenceTelemetryScope) -> None:

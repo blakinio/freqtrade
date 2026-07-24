@@ -209,7 +209,9 @@ class HttpLokiQueryTransport:
         if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_INVALID_PRIVATE_ENDPOINT")
         if parsed.username is not None or parsed.password is not None:
-            raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_ENDPOINT_EMBEDS_CREDENTIALS")
+            raise RuntimeObservabilityProtocolError(
+                "RUNTIME_LOG_SOURCE_ENDPOINT_EMBEDS_CREDENTIALS"
+            )
         if parsed.fragment:
             raise RuntimeObservabilityProtocolError("RUNTIME_LOG_SOURCE_INVALID_PRIVATE_ENDPOINT")
         return endpoint
@@ -238,12 +240,16 @@ class HttpLokiQueryTransport:
             **dict(self._authorization_headers(tenant_id)),
             "Accept": "application/json",
         }
-        return Request(f"{endpoint}{separator}{parameters}", headers=headers, method="GET")
+        # S310 is safe here because _validated_endpoint permits only HTTP(S) with a hostname.
+        return Request(  # noqa: S310
+            f"{endpoint}{separator}{parameters}",
+            headers=headers,
+            method="GET",
+        )
 
     def _read_body(self, request: Request) -> bytes:
         try:
-            # S310 is safe here because _validated_endpoint permits only HTTP(S) with a hostname.
-            with self._opener(request, timeout=self._timeout_seconds) as response:  # noqa: S310
+            with self._opener(request, timeout=self._timeout_seconds) as response:
                 body = response.read(self._max_body_bytes + 1)
         except HTTPError as exc:
             self._raise_http_error(exc.code)
@@ -412,7 +418,22 @@ class RuntimeObservabilityService:
                 truncated=False,
             )
 
-        records = self._source.search_logs(context.tenant_id, query)
+        try:
+            records = self._source.search_logs(context.tenant_id, query)
+        except RuntimeObservabilityUnavailableError as exc:
+            unavailable_status = status.model_copy(
+                update={
+                    "availability": RuntimeObservabilityAvailability.UNAVAILABLE,
+                    "reason_code": str(exc),
+                }
+            )
+            return RuntimeLogSearchResult(
+                query=query,
+                source_status=unavailable_status,
+                records=(),
+                truncated=False,
+            )
+
         safe_records: list[RuntimeLogRecord] = []
         for record in records:
             if record.tenant_id != context.tenant_id:

@@ -96,7 +96,6 @@ def test_require_new_output_checks_every_multi_source_target(tmp_path: Path) -> 
     paths = _target_paths(tmp_path)
     _require_unused_targets(paths)
 
-    paths["manifest"].parent.mkdir(parents=True, exist_ok=True)
     paths["manifest"].write_text("{}", encoding="utf-8")
 
     with pytest.raises(FileExistsError, match="multi-source output targets"):

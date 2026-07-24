@@ -33,9 +33,8 @@ class RuntimeDriverError(ExecutionAdapterError):
         super().__init__(message)
 
 
-class RuntimeReadError(ExecutionAdapterError):
+class RuntimeReadError(UnsupportedExecutionOperationError):
     def __init__(self, reason_code: str, *, retryable: bool = False) -> None:
-        self.reason_code = reason_code
         self.retryable = retryable
         super().__init__(reason_code)
 

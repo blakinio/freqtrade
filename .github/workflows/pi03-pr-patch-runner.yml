@@ -21,35 +21,23 @@ jobs:
         with:
           ref: feat/portal-pi03-inference-drift-telemetry-20260724
           persist-credentials: true
-      - name: Extract branch patch
+      - name: Record verified extraction diagnostics
         run: |
           sed -n '22,314p' .github/workflows/pi03-branch-patch.yml | cut -c11- > /tmp/pi03-apply.sh
-          test "$(head -n 1 /tmp/pi03-apply.sh)" = "python - <<'PY'"
-          test "$(tail -n 1 /tmp/pi03-apply.sh)" = "PY"
-      - name: Run patch and capture exact failure
-        run: |
-          set +e
-          bash /tmp/pi03-apply.sh > /tmp/pi03-patch.log 2>&1
-          code=$?
-          cat /tmp/pi03-patch.log
-          if [ "$code" -ne 0 ]; then
-            cp /tmp/pi03-patch.log docs/agents/tasks/PI03_PATCH_DIAGNOSTIC.txt
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add docs/agents/tasks/PI03_PATCH_DIAGNOSTIC.txt
-            if ! git diff --cached --quiet; then
-              git commit -m "chore(ci): capture PI-03 patch diagnostic"
-              git push origin HEAD:feat/portal-pi03-inference-drift-telemetry-20260724
-            fi
-            exit "$code"
-          fi
-      - name: Commit integration patch
-        run: |
-          if git diff --quiet; then
-            exit 0
-          fi
+          {
+            echo "source_lines=$(wc -l < .github/workflows/pi03-branch-patch.yml)"
+            echo "extracted_lines=$(wc -l < /tmp/pi03-apply.sh)"
+            echo "first=$(head -n 1 /tmp/pi03-apply.sh)"
+            echo "last=$(tail -n 1 /tmp/pi03-apply.sh)"
+            echo "--- source start ---"
+            nl -ba .github/workflows/pi03-branch-patch.yml | sed -n '17,27p'
+            echo "--- source end ---"
+            nl -ba .github/workflows/pi03-branch-patch.yml | tail -n 25
+          } > docs/agents/tasks/PI03_PATCH_DIAGNOSTIC.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ai_platform tests
-          git commit -m "feat(portal): integrate inference telemetry API and model health UI"
-          git push origin HEAD:feat/portal-pi03-inference-drift-telemetry-20260724
+          git add docs/agents/tasks/PI03_PATCH_DIAGNOSTIC.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(ci): capture PI-03 extraction diagnostic"
+            git push origin HEAD:feat/portal-pi03-inference-drift-telemetry-20260724
+          fi

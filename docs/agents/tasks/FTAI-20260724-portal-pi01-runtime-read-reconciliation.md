@@ -69,8 +69,8 @@ Implement authoritative, read-only private runtime ingestion for open positions,
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T09:05:00+02:00
-head: 117387233d66dba018fc3d8500be37ccb14cd109
+updated_at: 2026-07-24T09:10:00+02:00
+head: 3ec444ad3678a7d1ab738e4f451df8f81517da76
 branch: feat/portal-pi01-runtime-read-reconciliation-20260724
 pr: 234
 status: validating
@@ -105,6 +105,7 @@ proven:
   - Browser serialization excludes private runtime endpoints, authorization headers and credentials.
   - submit_approved_intent remains fail-closed with ORDER_SUBMISSION_NOT_IMPLEMENTED.
   - Targeted AI Platform tests reached 487 passed and 1 skipped before final documentation refresh.
+  - Full repository pre-commit passed after the final mypy corrections.
   - Portal Web CI and Portal Universal E2E passed after the runtime-evidence UI integration fix.
 derived:
   - Complete current synced batches may pass through ExecutionAdapter v1; stale, partial, unavailable or mismatched batches fail closed there.
@@ -113,7 +114,7 @@ unknown: []
 conflicts: []
 first_failure:
   marker: resolved
-  evidence: Initial OpenAPI expectation, response-envelope and Ruff formatting failures were fixed; no unresolved implementation failure is known.
+  evidence: Initial OpenAPI expectation, response-envelope, Ruff formatting and mypy failures were fixed; no unresolved implementation failure is known.
 rejected_hypotheses:
   - Browser clients require direct Freqtrade access; rejected because the operational mirror is the sole portal-facing boundary.
   - ExecutionAdapter v1 must be incompatibly changed; rejected because a versioned private collector carries batch metadata.
@@ -150,6 +151,9 @@ validation:
   - command: ruff format --check ai_platform tests/ai_platform
     result: PASS
     evidence: Exact Ruff formatter output was applied to all reported files.
+  - command: pre-commit run --all-files --show-diff-on-failure
+    result: PASS
+    evidence: Schema extraction, mypy, Ruff, format, file hygiene, EXIF stripping, codespell and zizmor all passed on head 3ec444ad3678a7d1ab738e4f451df8f81517da76.
   - command: Portal Web CI
     result: PASS
     evidence: Typecheck, lint, build and browser tests passed after runtime-evidence page integration.
@@ -158,7 +162,7 @@ validation:
     evidence: Universal E2E passed after the strict-locator correction.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md --require-checkpoint
     result: PASS
-    evidence: Executed by the current branch-scoped validation job before commit.
+    evidence: Executed by the branch-scoped validation job before commit.
 blockers: []
-next_action: Restore the standard AI Platform workflow, complete required repository CI, resolve review findings and merge PR 234.
+next_action: Complete the required repository CI matrix on the owner-authored head, resolve review findings and merge PR 234.
 ```

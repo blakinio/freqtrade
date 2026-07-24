@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from email.message import Message
 from typing import Any
 from urllib.error import HTTPError
 from uuid import uuid4
@@ -311,7 +312,7 @@ def test_http_source_maps_auth_failure_without_leaking_details() -> None:
             "https://private-runtime.invalid/valuation",
             401,
             "Bearer hidden",
-            hdrs=None,
+            hdrs=Message(),
             fp=None,
         )
 

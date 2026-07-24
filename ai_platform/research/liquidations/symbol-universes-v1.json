@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "recommended_default_symbol_count": 20,
+  "broad_universe_review_threshold": 50,
+  "hard_max_symbol_count": 100,
+  "profiles": [
+    {
+      "name": "liquid20-v1",
+      "frozen_at": "2026-07-24",
+      "symbol_count": 20,
+      "selection_basis": "Curated long-lived, high-liquidity USDT perpetual contracts expected to be common to Bybit linear and Binance USD-M. This is a frozen research universe, not a live market-cap or 24-hour-volume ranking.",
+      "symbols": [
+        "BTCUSDT",
+        "ETHUSDT",
+        "SOLUSDT",
+        "XRPUSDT",
+        "DOGEUSDT",
+        "BNBUSDT",
+        "ADAUSDT",
+        "SUIUSDT",
+        "LINKUSDT",
+        "AVAXUSDT",
+        "TRXUSDT",
+        "DOTUSDT",
+        "LTCUSDT",
+        "BCHUSDT",
+        "ETCUSDT",
+        "APTUSDT",
+        "NEARUSDT",
+        "UNIUSDT",
+        "FILUSDT",
+        "ATOMUSDT"
+      ]
+    }
+  ],
+  "policy": {
+    "default_profile": "liquid20-v1",
+    "dynamic_ranking": false,
+    "cross_exchange_intersection_required": true,
+    "source_labels_required": true,
+    "reason": "A frozen symbol identity is required for reproducible collection and acceptance evidence. Universe changes require a new profile version and fresh source-specific validation."
+  }
+}

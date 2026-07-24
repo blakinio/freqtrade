@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "evidence_type": "liquidation_symbol_subscription_smoke",
+  "observed_at": "2026-07-24",
+  "environment": {
+    "provider": "github-actions",
+    "runner": "ubuntu-24.04",
+    "region": "eastus"
+  },
+  "workflow_run_id": 30089322467,
+  "workflow_job_id": 89468775700,
+  "profile": {
+    "name": "liquid20-v1",
+    "frozen_at": "2026-07-24",
+    "symbol_count": 20,
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT",
+      "SOLUSDT",
+      "XRPUSDT",
+      "DOGEUSDT",
+      "BNBUSDT",
+      "ADAUSDT",
+      "SUIUSDT",
+      "LINKUSDT",
+      "AVAXUSDT",
+      "TRXUSDT",
+      "DOTUSDT",
+      "LTCUSDT",
+      "BCHUSDT",
+      "ETCUSDT",
+      "APTUSDT",
+      "NEARUSDT",
+      "UNIUSDT",
+      "FILUSDT",
+      "ATOMUSDT"
+    ]
+  },
+  "sources": {
+    "bybit-linear": {
+      "endpoint": "wss://stream.bybit.com/v5/public/linear",
+      "request_topic_template": "allLiquidation.{SYMBOL}",
+      "required_acknowledgement": {
+        "success": true,
+        "op": "subscribe"
+      },
+      "passed": true
+    },
+    "binance-usdm": {
+      "endpoint": "wss://fstream.binance.com/market/ws",
+      "request_stream_template": "{symbol_lower}@forceOrder",
+      "required_acknowledgement": {
+        "id": 1,
+        "result": null,
+        "error_code_absent": true
+      },
+      "passed": true
+    }
+  },
+  "execution_enabled": false,
+  "trading_credentials_used": false,
+  "passed": true,
+  "interpretation": "Both public exchanges accepted the complete frozen 20-symbol subscription set in one concurrent smoke run. This proves subscription compatibility only; it does not prove 24-hour availability, event frequency, clock acceptance, replay readiness, or profitability."
+}

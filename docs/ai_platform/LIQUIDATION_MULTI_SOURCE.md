@@ -3,7 +3,7 @@
 ## Purpose
 
 Collect liquidation observations from more than one public exchange feed while preserving venue identity,
-source-specific limitations, timestamps, and immutable evidence. This package adds Binance USD-M Futures as a
+source-specific limitations, timestamps, and immutable evidence. This package uses Binance USD-M Futures as a
 second source beside the existing Bybit linear feed.
 
 No exchange credentials, Freqtrade strategy, order adapter, DCA, leverage, or live capital are involved.
@@ -11,6 +11,10 @@ No exchange credentials, Freqtrade strategy, order adapter, DCA, leverage, or li
 Authoritative source catalog:
 
 `ai_platform/research/liquidations/source-catalog-v1.json`
+
+Authoritative symbol-universe catalog:
+
+`ai_platform/research/liquidations/symbol-universes-v1.json`
 
 ## Sources
 
@@ -36,10 +40,39 @@ Authoritative source catalog:
 The Binance feed is useful as an additional venue observation but is not a complete event-by-event feed. Its
 values must not be interpreted as full-market liquidation volume.
 
+## Frozen symbol universe
+
+The default `liquid20-v1` profile contains 20 USDT perpetual symbols:
+
+```text
+BTCUSDT ETHUSDT SOLUSDT XRPUSDT DOGEUSDT
+BNBUSDT ADAUSDT SUIUSDT LINKUSDT AVAXUSDT
+TRXUSDT DOTUSDT LTCUSDT BCHUSDT ETCUSDT
+APTUSDT NEARUSDT UNIUSDT FILUSDT ATOMUSDT
+```
+
+This is a curated, frozen research universe of established and generally liquid contracts expected to be common
+to Bybit linear and Binance USD-M. It is intentionally not described as a live market-cap or 24-hour-volume top
+20, because those rankings change continuously and would make replay and acceptance evidence non-reproducible.
+
+Universe rules:
+
+- a profile name, frozen date, exact ordered symbol list, and declared count are persisted;
+- all symbols must be uppercase alphanumeric USDT contracts;
+- duplicates and count mismatches fail closed;
+- changing membership requires a new profile version and fresh endpoint validation;
+- more than 50 symbols requires the explicit `--allow-broad-universe` capacity acknowledgement;
+- 100 symbols is the hard loader limit, not the recommended starting point.
+
+Starting with 20 increases event frequency substantially relative to BTC and ETH alone while keeping symbol
+availability, storage growth, latency, and source-specific gaps auditable. Expansion to 50 should follow a measured
+20-symbol run. A 100-symbol universe should be a separate work package with symbol lifecycle, delisting, storage,
+and low-liquidity filtering rules.
+
 ## Running both collectors
 
-Use separate immutable files and summaries. This prevents concurrent append races and keeps source outages and
-hashes independently auditable.
+Use the profiled multi-source runner. It loads one frozen universe and passes the identical symbol list to both
+collectors while preserving separate immutable files and summaries.
 
 ```bash
 set -euo pipefail
@@ -47,36 +80,30 @@ set -euo pipefail
 RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 ROOT="/var/lib/freqtrade/liquidations/multi-source/$RUN_ID"
 COMMIT="$(git rev-parse HEAD)"
-mkdir -p "$ROOT"
 
-PYTHONPATH=. python -m ai_platform.scripts.liquidation_collector \
-  --symbol BTCUSDT \
-  --symbol ETHUSDT \
+PYTHONPATH=. python -m ai_platform.scripts.liquidation_multi_source_runner \
+  --profile liquid20-v1 \
   --duration-seconds 86400 \
   --require-new-output \
   --collector-commit "$COMMIT" \
-  --output "$ROOT/bybit-linear.ndjson" \
-  --summary "$ROOT/bybit-linear-summary.json" &
-BYBIT_PID=$!
+  --output-root "$ROOT"
 
-PYTHONPATH=. python -m ai_platform.scripts.liquidation_binance_collector \
-  --symbol BTCUSDT \
-  --symbol ETHUSDT \
-  --duration-seconds 86400 \
-  --require-new-output \
-  --collector-commit "$COMMIT" \
-  --output "$ROOT/binance-usdm.ndjson" \
-  --summary "$ROOT/binance-usdm-summary.json" &
-BINANCE_PID=$!
-
-wait "$BYBIT_PID"
-wait "$BINANCE_PID"
-
-sha256sum "$ROOT"/*.ndjson "$ROOT"/*-summary.json > "$ROOT/artifact-sha256.txt"
+sha256sum "$ROOT"/*.ndjson "$ROOT"/*-summary.json "$ROOT"/multi-source-manifest.json \
+  > "$ROOT/artifact-sha256.txt"
 ```
 
-Both processes must run as an unprivileged service account without exchange credentials. A failure of either
-source is preserved as source-specific evidence; it must not be concealed by availability from the other source.
+The output directory contains:
+
+- `bybit-linear.ndjson` and `bybit-linear-summary.json`;
+- `binance-usdm.ndjson` and `binance-usdm-summary.json`;
+- `multi-source-manifest.json` with the exact profile identity, symbol list, clocks, source statistics, and safety
+  policy.
+
+The runner refuses to start when trading credential environment variables are present. A failure of either source
+is preserved as source-specific evidence; it must not be concealed by availability from the other source.
+
+A custom catalog may be supplied with `--universe-file`, but its exact contents must be committed or preserved with
+the run artifacts. Broad profiles above 50 symbols additionally require `--allow-broad-universe`.
 
 ## Cross-source treatment
 

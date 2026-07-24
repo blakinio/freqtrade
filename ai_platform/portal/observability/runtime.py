@@ -188,7 +188,7 @@ class LokiRuntimeObservabilitySource:
             if value is not None:
                 labels[key] = value
         selector = ",".join(
-            f'{key}={json.dumps(cls._label_value(value))}' for key, value in sorted(labels.items())
+            f"{key}={json.dumps(cls._label_value(value))}" for key, value in sorted(labels.items())
         )
         expression = f"{{{selector}}}"
         if query.correlation_id is not None:

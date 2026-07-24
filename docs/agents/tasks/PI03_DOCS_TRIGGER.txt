@@ -1,1 +1,1 @@
-Trigger the script-based one-shot PI-03 documentation patch. This file is temporary and must be removed by the patch workflow.
+Trigger the one-shot PI-03 documentation run diagnostic. This file is temporary and must be removed with the diagnostic workflow.

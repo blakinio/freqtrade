@@ -325,6 +325,72 @@ class ValuationService:
                 conflicting.add(mark.source_position_id)
         return selected, conflicting
 
+    @staticmethod
+    def _position_blocker(
+        position: OperationalPosition,
+    ) -> tuple[ValuationState, str | None] | None:
+        if position.freshness is RuntimeReadFreshness.SOURCE_UNAVAILABLE:
+            return ValuationState.SOURCE_UNAVAILABLE, position.reason_code
+        if position.freshness in {
+            RuntimeReadFreshness.STALE,
+            RuntimeReadFreshness.PARTIAL,
+        }:
+            return ValuationState.STALE, position.reason_code
+        if position.reconciliation_status is not ReconciliationStatus.SYNCED:
+            return ValuationState.UNPRICED, position.reason_code
+        return None
+
+    @staticmethod
+    def _source_blocker(
+        result: RuntimeValuationSourceResult,
+    ) -> tuple[ValuationState, str | None] | None:
+        if result.state is ValuationState.CURRENT:
+            return None
+        return result.state, result.reason_code
+
+    @staticmethod
+    def _select_mark(
+        position: OperationalPosition,
+        marks: dict[str, RuntimePositionMark],
+        conflicting: set[str],
+    ) -> tuple[RuntimePositionMark | None, str | None]:
+        source_id = position.source_position_id
+        if source_id is None:
+            return None, "VALUATION_POSITION_ID_MISSING"
+        if source_id in conflicting:
+            return None, "VALUATION_CONFLICTING_MARKS"
+        mark = marks.get(source_id)
+        if mark is None:
+            return None, "VALUATION_MARK_MISSING"
+        if mark.pair != position.pair or mark.side is not position.side:
+            return mark, "VALUATION_MARK_ATTRIBUTION_MISMATCH"
+        return mark, None
+
+    def _mark_blocker(
+        self,
+        position: OperationalPosition,
+        capital_currency: str | None,
+        mark: RuntimePositionMark,
+        observed_at: datetime,
+    ) -> tuple[ValuationState, str] | None:
+        if capital_currency is None:
+            return ValuationState.UNPRICED, "VALUATION_BOT_NOT_FOUND"
+        if mark.quote_currency != capital_currency:
+            return (
+                ValuationState.UNPRICED,
+                "VALUATION_CURRENCY_CONVERSION_UNAVAILABLE",
+            )
+        if mark.leverage != Decimal("1"):
+            return ValuationState.UNPRICED, "VALUATION_LEVERAGE_UNSUPPORTED"
+        if position.amount <= 0 or mark.entry_rate <= 0 or mark.mark_rate <= 0:
+            return ValuationState.UNPRICED, "VALUATION_NON_POSITIVE_INPUT"
+        age_seconds = (observed_at - mark.source_observed_at).total_seconds()
+        if age_seconds < -5:
+            return ValuationState.UNPRICED, "VALUATION_SOURCE_TIME_IN_FUTURE"
+        if age_seconds > self._stale_after_seconds:
+            return ValuationState.STALE, "VALUATION_MARK_STALE"
+        return None
+
     def _value_position(
         self,
         position: OperationalPosition,
@@ -334,108 +400,30 @@ class ValuationService:
         conflicting: set[str],
     ) -> ValuationSnapshot:
         observed_at = self._clock()
-        source_id = position.source_position_id
-        if position.freshness is RuntimeReadFreshness.SOURCE_UNAVAILABLE:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.SOURCE_UNAVAILABLE,
-                position.reason_code,
-            )
-        if position.freshness in {RuntimeReadFreshness.STALE, RuntimeReadFreshness.PARTIAL}:
-            return self._empty(position, observed_at, ValuationState.STALE, position.reason_code)
-        if position.reconciliation_status is not ReconciliationStatus.SYNCED:
-            return self._empty(position, observed_at, ValuationState.UNPRICED, position.reason_code)
-        if result.state is ValuationState.SOURCE_UNAVAILABLE:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.SOURCE_UNAVAILABLE,
-                result.reason_code,
-            )
-        if result.state is ValuationState.STALE:
-            return self._empty(position, observed_at, ValuationState.STALE, result.reason_code)
-        if result.state is ValuationState.UNPRICED:
-            return self._empty(position, observed_at, ValuationState.UNPRICED, result.reason_code)
-        if source_id is None:
+        blocker = self._position_blocker(position)
+        if blocker is not None:
+            state, reason_code = blocker
+            return self._empty(position, observed_at, state, reason_code)
+
+        blocker = self._source_blocker(result)
+        if blocker is not None:
+            state, reason_code = blocker
+            return self._empty(position, observed_at, state, reason_code)
+
+        mark, reason_code = self._select_mark(position, marks, conflicting)
+        if reason_code is not None or mark is None:
             return self._empty(
                 position,
                 observed_at,
                 ValuationState.UNPRICED,
-                "VALUATION_POSITION_ID_MISSING",
-            )
-        if source_id in conflicting:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_CONFLICTING_MARKS",
-            )
-        mark = marks.get(source_id)
-        if mark is None:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_MARK_MISSING",
-            )
-        if mark.pair != position.pair or mark.side is not position.side:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_MARK_ATTRIBUTION_MISMATCH",
+                reason_code,
                 mark,
             )
-        if capital_currency is None:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_BOT_NOT_FOUND",
-                mark,
-            )
-        if mark.quote_currency != capital_currency:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_CURRENCY_CONVERSION_UNAVAILABLE",
-                mark,
-            )
-        if mark.leverage != Decimal("1"):
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_LEVERAGE_UNSUPPORTED",
-                mark,
-            )
-        if position.amount <= 0 or mark.entry_rate <= 0 or mark.mark_rate <= 0:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_NON_POSITIVE_INPUT",
-                mark,
-            )
-        age_seconds = (observed_at - mark.source_observed_at).total_seconds()
-        if age_seconds < -5:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.UNPRICED,
-                "VALUATION_SOURCE_TIME_IN_FUTURE",
-                mark,
-            )
-        if age_seconds > self._stale_after_seconds:
-            return self._empty(
-                position,
-                observed_at,
-                ValuationState.STALE,
-                "VALUATION_MARK_STALE",
-                mark,
-            )
+
+        blocker = self._mark_blocker(position, capital_currency, mark, observed_at)
+        if blocker is not None:
+            state, reason_code = blocker
+            return self._empty(position, observed_at, state, reason_code, mark)
 
         cost_basis = position.amount * mark.entry_rate
         market_value = position.amount * mark.mark_rate

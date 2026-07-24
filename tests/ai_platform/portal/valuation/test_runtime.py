@@ -14,7 +14,11 @@ from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.risk import TradeSide
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.control_plane.database import build_engine, build_session_factory, create_schema
+from ai_platform.portal.control_plane.database import (
+    build_engine,
+    build_session_factory,
+    create_schema,
+)
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.portal.execution.private_read import RuntimeReadFreshness
 from ai_platform.portal.intelligence.schema import ReconciliationStatus
@@ -151,9 +155,7 @@ def test_current_long_and_short_mark_to_entry_are_deterministic() -> None:
     _seed(factory)
     source = _Source(_result(_mark()))
 
-    long_value = ValuationService(factory, source, clock=lambda: NOW).list_valuations(
-        _context()
-    )[0]
+    long_value = ValuationService(factory, source, clock=lambda: NOW).list_valuations(_context())[0]
 
     assert source.requests[0].source_runtime_id == RUNTIME
     assert long_value.state is ValuationState.CURRENT

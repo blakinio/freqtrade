@@ -12,7 +12,11 @@ from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.risk import TradeSide
 from ai_platform.portal.control_plane.api import create_app
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.control_plane.database import build_engine, build_session_factory, create_schema
+from ai_platform.portal.control_plane.database import (
+    build_engine,
+    build_session_factory,
+    create_schema,
+)
 from ai_platform.portal.control_plane.service import ControlPlaneService
 from ai_platform.portal.execution.private_read import RuntimeReadFreshness
 from ai_platform.portal.intelligence.schema import ReconciliationStatus

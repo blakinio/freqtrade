@@ -9,6 +9,7 @@ from ai_platform.portal.valuation.runtime import (
     ValuationState,
 )
 
+
 __all__ = [
     "HttpPrivateRuntimeValuationSource",
     "RuntimePositionMark",

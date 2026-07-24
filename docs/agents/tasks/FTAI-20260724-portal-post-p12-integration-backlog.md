@@ -5,12 +5,12 @@ branch: docs/portal-post-p12-integration-backlog-20260724
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
-related_pr: null
+related_pr: "#233"
 owned_paths:
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/README.md
   - docs/ai_platform/portal/DELIVERY_ROADMAP.md
-  - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
+  - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
   - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -64,34 +64,46 @@ Create one canonical, dependency-ordered backlog for the remaining hard external
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T07:00:00+02:00
-head: 0e4e104407b74ddcfe219d6cd1881804b371aa35
+updated_at: 2026-07-24T07:20:00+02:00
+head: af572497ac9578060c725f822b9024bfc927d764
 branch: docs/portal-post-p12-integration-backlog-20260724
-pr: null
+pr: "#233"
 status: active
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/DELIVERY_ROADMAP.md
-  - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
+  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+  - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
 proven:
   - PR #232 merged the remaining software-addressable portal product capabilities into develop as 0e4e104407b74ddcfe219d6cd1881804b371aa35.
-  - develop equals that merge commit at task declaration.
+  - develop equals that merge commit at task declaration and the documentation branch is behind_by=0.
   - P11 is blocked on real owner-approved Cloudflare/protected GitHub staging infrastructure and External E2E.
   - P13 is deferred after a measured-need NO-GO decision.
   - P14 is blocked and the portal program does not authorize live capital.
   - Remaining partial states are authoritative-source/private-integration gaps rather than missing presentation shells.
+  - POST_P12_INTEGRATION_BACKLOG.md defines PI-01 through PI-08 with entry gates, dependencies, deliverables, acceptance criteria and non-goals.
+  - UI delivery boundaries map to exactly one PI package or the existing P11 gate.
+  - ADR-016 preserves P0-P14 semantics and separates runtime reads, credential brokering and approved-intent submission.
+  - Delivery roadmap, portal index, program record and agent execution plan route future work to the same backlog.
 derived:
-  - A cross-cutting integration backlog should use package IDs separate from P0-P14 to avoid changing established roadmap semantics.
-  - Private runtime reads and private approved-intent submission require separate packages because their security and capital risks differ materially.
+  - PI-01 Private Runtime Read and Reconciliation is the lowest-risk next software package and a prerequisite for valuation and reconciled dry-run submission.
+  - PI-03, PI-04 and PI-06 may proceed in parallel only after ownership and shared-contract checks.
 unknown: []
 conflicts: []
 first_failure:
   marker: none
-  evidence: Documentation task declared after live develop/open-PR preflight; no validation has run yet.
+  evidence: No documentation or repository validation failure has been observed yet.
 changed_paths:
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-post-p12-integration-backlog.md
+  - docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md
+  - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
+  - docs/ai_platform/portal/DELIVERY_ROADMAP.md
+  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+  - docs/ai_platform/portal/README.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
 validation: []
 blockers: []
-next_action: Create the canonical post-P12 integration backlog and link it from the portal roadmap, architecture, program, agent plan and UI delivery status.
+next_action: Require standard repository CI to pass on PR #233, then mark the task done and merge the documentation backlog into develop.
 ```

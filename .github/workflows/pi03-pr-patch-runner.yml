@@ -23,21 +23,19 @@ jobs:
           persist-credentials: true
       - name: Extract branch patch
         run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          source = Path('.github/workflows/pi03-branch-patch.yml').read_text(encoding='utf-8')
-          marker = '      - name: Apply exact integration patch\n        run: |\n'
-          start = source.index(marker) + len(marker)
-          end = source.index('      - name: Commit patch\n', start)
-          block = source[start:end]
-          lines = []
-          for line in block.splitlines():
-              if line and not line.startswith('          '):
-                  raise SystemExit(f'unexpected patch indentation: {line!r}')
-              lines.append(line[10:] if line else '')
-          Path('/tmp/pi03-apply.sh').write_text('\n'.join(lines) + '\n', encoding='utf-8')
-          PY
+          awk '
+            /^      - name: Apply exact integration patch$/ { found = 1; next }
+            found && /^        run: \|$/ { capture = 1; next }
+            capture && /^      - name: Commit patch$/ { exit }
+            capture {
+              if ($0 != "" && substr($0, 1, 10) != "          ") {
+                print "unexpected patch indentation: " $0 > "/dev/stderr"
+                exit 1
+              }
+              print substr($0, 11)
+            }
+          ' .github/workflows/pi03-branch-patch.yml > /tmp/pi03-apply.sh
+          test -s /tmp/pi03-apply.sh
       - name: Run patch and capture exact failure
         run: |
           set +e

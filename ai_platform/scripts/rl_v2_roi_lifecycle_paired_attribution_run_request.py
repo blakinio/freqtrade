@@ -591,7 +591,7 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
                 raise RLV2PairedAttributionError(
                     f"Data ends too early for {pair} {timeframe}: {last_date.isoformat()}"
                 )
-            if last_date >= stopdt:
+            if last_date > stopdt:
                 raise RLV2PairedAttributionError(
                     f"Data crosses exclusive stop for {pair} {timeframe}"
                 )

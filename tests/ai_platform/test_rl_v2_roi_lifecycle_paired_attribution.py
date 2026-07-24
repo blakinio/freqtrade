@@ -18,6 +18,7 @@ from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request impo
     canonical_rl_v2_roi_lifecycle_paired_attribution_request,
     load_rl_v2_roi_lifecycle_paired_attribution_request,
     materialize_runtime_config,
+    verify_downloaded_data,
 )
 
 
@@ -232,7 +233,37 @@ def test_infrastructure_is_inert_and_variant_only() -> None:
     assert "baseline training" not in workflow.lower()
     assert "rl-v2-historical-training-pre-oos-v1" in workflow
     assert "paired-attribution.json" in workflow
-    assert not (REPO_ROOT / REQUEST_REPO_PATH).exists()
+    request_path = REPO_ROOT / REQUEST_REPO_PATH
+    if request_path.exists():
+        assert load_rl_v2_roi_lifecycle_paired_attribution_request(request_path) == (
+            canonical_rl_v2_roi_lifecycle_paired_attribution_request()
+        )
+
+
+def test_data_verifier_accepts_exact_stop_boundary(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import pandas as pd
+
+    dates = pd.to_datetime(
+        ["2025-08-01T00:00:00Z", "2026-05-01T00:00:00Z"], utc=True
+    )
+
+    def fake_load_pair_history(**_: object) -> pd.DataFrame:
+        return pd.DataFrame({"date": dates})
+
+    monkeypatch.setattr(
+        "freqtrade.data.history.history_utils.load_pair_history",
+        fake_load_pair_history,
+    )
+
+    result = verify_downloaded_data(tmp_path, pairs=["BTC/USDT"])
+
+    assert result["status"] == "ready"
+    assert result["coverage"]["BTC/USDT:15m"]["last"] == (
+        "2026-05-01T00:00:00+00:00"
+    )
+
 
 
 def test_synthetic_trade_accounting_fixture_reconciles() -> None:

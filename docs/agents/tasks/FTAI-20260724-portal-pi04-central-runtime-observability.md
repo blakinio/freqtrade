@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260724-portal-pi04-central-runtime-observability
-status: ready
+status: done
 branch: feat/portal-pi04-central-runtime-observability-20260724
 base_branch: develop
 created: 2026-07-24
@@ -95,11 +95,11 @@ Provide a private, tenant-scoped runtime observability boundary for searchable s
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T19:39:00+02:00
-head: b5d7e53a95bb12a32edd5834a407850ee241dab2
-branch: feat/portal-pi04-central-runtime-observability-20260724
+updated_at: 2026-07-24T19:55:11+02:00
+head: 57a48de41daf98fd0360eaecd841b257947e2559
+branch: develop
 pr: 261
-status: ready
+status: done
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -124,6 +124,7 @@ owned_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi04-central-runtime-observability.md
 proven:
+  - PR 261 was squash-merged to develop as 57a48de41daf98fd0360eaecd841b257947e2559 after all required workflows passed on final head 5d7f7230c4e9b694bc19126be9fcfca57191d1f6.
   - PR 261 implements versioned tenant-scoped runtime-log query, record, result and source-status contracts without creating a parallel audit model.
   - Runtime log availability and search require trusted tenant context plus AUDIT_READ; cross-tenant source records fail closed.
   - Queries are bounded to a 24-hour window and 200 results and preserve service, component, environment, runtime, bot, correlation, trace/span, timestamp, source and retention identity.
@@ -133,11 +134,12 @@ proven:
   - Collector destination endpoints and authorization values are environment-provided only; no private backend endpoint or credential is committed or returned through portal contracts.
   - Execution Activity displays bounded raw runtime evidence separately from append-only audit evidence and truthfully exposes source availability and retention.
   - Focused runtime observability, API, collector-configuration, redaction, tenant-isolation, transport-boundary and outage tests pass.
-  - Temporary Ruff and formatter diagnostic workflows were removed from the final merge candidate.
-  - AI Platform CI 1110, Portal Web CI 177, Portal Universal E2E 182, zizmor 1227 and Freqtrade CI 1297 passed on implementation head b5d7e53a95bb12a32edd5834a407850ee241dab2.
+  - Temporary Ruff and formatter diagnostic workflows were removed from the merge candidate.
+  - AI Platform CI 1111, Portal Web CI 178, Portal Universal E2E 183, zizmor 1228 and Freqtrade CI 1298 passed on final owner head 5d7f7230c4e9b694bc19126be9fcfca57191d1f6.
 derived:
   - PI-04 satisfies its bounded repository-side acceptance without provisioning external observability infrastructure or satisfying P11.
   - Operational logs, traces and metrics remain independent from immutable audit evidence and cannot authorize execution or live capital.
+  - No remaining PI package can be declared truthfully until its authoritative external source and policy entry gates are explicitly resolved.
 unknown: []
 conflicts: []
 first_failure:
@@ -172,21 +174,21 @@ changed_paths:
   - tests/ai_platform/portal/observability/test_runtime_api.py
   - tests/ai_platform/portal/observability/test_runtime_outage.py
 validation:
-  - command: AI Platform CI 30112758845 / run 1110
+  - command: AI Platform CI 30113885798 / run 1111
     result: PASS
-    evidence: AI platform tests, compile, Ruff, Ruff format, codespell and contract validations passed on implementation head b5d7e53a95bb12a32edd5834a407850ee241dab2.
-  - command: Portal Web CI 30112758870 / run 177
+    evidence: AI platform tests, compile, Ruff, Ruff format, codespell and contract validations passed on final owner head 5d7f7230c4e9b694bc19126be9fcfca57191d1f6.
+  - command: Portal Web CI 30113885741 / run 178
     result: PASS
-    evidence: Typecheck, lint, production build and Chromium browser E2E passed on the implementation head.
-  - command: Portal Universal E2E 30112758851 / run 182
+    evidence: Typecheck, lint, production build and Chromium browser E2E passed on the final owner head.
+  - command: Portal Universal E2E 30113885645 / run 183
     result: PASS
-    evidence: Backend universal scenario and critical Chromium path passed on the implementation head.
-  - command: GitHub Actions Security Analysis with zizmor 30112758838 / run 1227
+    evidence: Backend universal scenario and critical Chromium path passed on the final owner head.
+  - command: GitHub Actions Security Analysis with zizmor 30113885755 / run 1228
     result: PASS
-    evidence: Required workflow security analysis passed on the implementation head.
-  - command: Freqtrade CI 30112758848 / run 1297
+    evidence: Required workflow security analysis passed on the final owner head.
+  - command: Freqtrade CI 30113885732 / run 1298
     result: PASS
-    evidence: Pre-commit, documentation, full multi-platform core matrix, coverage, smoke checks, Ruff, formatter, mypy and CI gate passed on the implementation head.
+    evidence: Pre-commit, documentation, full multi-platform core matrix, coverage, smoke checks, Ruff, formatter, mypy and CI gate passed on the final owner head.
 blockers: []
-next_action: Review and merge PR 261 after approval; select the next package only after durable merge evidence exists on develop.
+next_action: Select and declare the next bounded PI package only after its authoritative external source and policy entry gates are explicitly resolved; P11, P13 and P14 retain their existing gates.
 ```

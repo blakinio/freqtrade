@@ -104,9 +104,7 @@ def test_alignment_uses_only_the_last_completed_candle() -> None:
     assert alignment.timeframe_ms == 60_000
     assert alignment.containing_candle_open_ms <= event.occurred_at_ms
     assert event.occurred_at_ms < alignment.containing_candle_close_ms
-    assert alignment.last_completed_candle_open_ms == (
-        alignment.containing_candle_open_ms - 60_000
-    )
+    assert alignment.last_completed_candle_open_ms == (alignment.containing_candle_open_ms - 60_000)
 
 
 def test_liquidated_long_below_lower_band_enters_long() -> None:
@@ -170,8 +168,7 @@ def test_recent_event_ids_deduplicate_with_bounded_memory() -> None:
 
 def test_subscription_is_explicit_per_symbol() -> None:
     assert _subscription(("BTCUSDT", "ETHUSDT")) == (
-        '{"op":"subscribe","args":'
-        '["allLiquidation.BTCUSDT","allLiquidation.ETHUSDT"]}'
+        '{"op":"subscribe","args":["allLiquidation.BTCUSDT","allLiquidation.ETHUSDT"]}'
     )
 
 

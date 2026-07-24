@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "evidence_id": "liquidation-data-only-smoke-github-us-20260724-v1",
+  "created_at_utc": "2026-07-24T09:44:22Z",
+  "stage": "stage_1_data_only_transport_smoke",
+  "status": "blocked_environment",
+  "candidate": {
+    "branch": "feat/liquidation-data-only-staging-v1",
+    "collector_commit": "dc89b714a55b7d933e7ba9810a76b69c9136541d",
+    "policy_id": "liquidation-data-only-staging-v1",
+    "policy_mode": "smoke"
+  },
+  "safety": {
+    "execution_enabled": false,
+    "trading_credentials_present": false,
+    "freqtrade_started": false,
+    "orders_submitted": false,
+    "protected_final_holdout_used": false,
+    "acceptance_claim_allowed": false,
+    "profitability_claim_allowed": false,
+    "policy_changed_after_observation": false
+  },
+  "source": {
+    "id": "bybit-linear",
+    "websocket_endpoint": "wss://stream.bybit.com/v5/public/linear",
+    "clock_endpoint": "https://api.bybit.com/v5/market/time",
+    "symbols": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ]
+  },
+  "transport_smoke": {
+    "workflow_run_id": 30083558225,
+    "job_id": 89450395859,
+    "duration_ms": 30196,
+    "connected_duration_ms": 29516,
+    "availability_ratio": 0.9774804609882104,
+    "messages_received": 1,
+    "control_messages": 1,
+    "liquidation_messages": 0,
+    "events_written": 0,
+    "parse_failures": 0,
+    "disconnects": 0,
+    "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "failed_gates": [
+      "clock_synchronized"
+    ],
+    "passed": false
+  },
+  "clock_diagnostic": {
+    "workflow_run_id": 30083654093,
+    "job_id": 89450693915,
+    "round_trip_ms": 73,
+    "absolute_skew_ms": null,
+    "synchronized": null,
+    "error": "HTTPError: HTTP Error 403: Forbidden",
+    "official_constraint": "Bybit V5 Integration Guidance states that requests from United States IP addresses are restricted and return HTTP 403.",
+    "official_reference": "https://bybit-exchange.github.io/docs/v5/guide"
+  },
+  "interpretation": {
+    "websocket_transport_proven": true,
+    "subscription_acknowledgement_received": true,
+    "collector_integrity_evidence_generated": true,
+    "authoritative_smoke_passed": false,
+    "blocker": "The GitHub-hosted runner was located in the United States and could not complete the mandatory Bybit REST clock probe.",
+    "required_next_environment": "Run the unchanged smoke policy on the intended non-US staging host with synchronized time."
+  }
+}

@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260724-liquidation-reversal-foundation
-status: validating
+status: done
 branch: feat/liquidation-reversal-foundation-v1
 base_branch: develop
 created: 2026-07-24
@@ -34,11 +34,11 @@ the protected final holdout.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T08:15:25Z
-head: dd232d9ae53a6aeaedcb05d5a33c5bbd7026afb6
-branch: feat/liquidation-reversal-foundation-v1
+updated_at: 2026-07-24T11:10:00Z
+head: 8ab033dd771b3f4695328b22f61c3f6d05a6e1d4
+branch: develop
 pr: "#236"
-status: validating
+status: done
 context_routes:
   - docs/ai_platform/ARCHITECTURE.md
   - docs/ai_platform/ROADMAP.md
@@ -53,32 +53,24 @@ owned_paths:
   - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
   - docs/agents/tasks/FTAI-20260724-liquidation-reversal-foundation.md
 proven:
-  - Existing Wick Hunter research was blocked because the repository had only VWAP gates and no trustworthy liquidation event stream or deterministic alignment contract.
-  - Public Wick Hunter behavior requires a real liquidation event plus a minimum notional and an out-of-band VWAP or VWMA condition before counter-trading the liquidated side.
-  - Bybit documents a public linear allLiquidation topic with source timestamps, symbol, side, size, and bankruptcy price.
-  - The branch provides a canonical event contract, Bybit parser, append-only collector, completed-candle alignment, counter-trade policy, disabled profile, tests, and staged deployment process.
-  - The example profile is research-only, disabled, dry-run, execution-disabled, position-size zero, and has DCA and exits disabled.
-  - Local compile and eleven focused tests pass in the sandbox.
-  - AI Platform CI run 30078204779 passed compile, tests, Ruff, Ruff format, codespell, and JSON validation.
-  - GitHub Actions Security Analysis run 30078204665 completed successfully.
-  - Temporary diagnostic workflows used to expose exact Ruff output were removed and are absent from the final diff.
+  - PR #236 merged to develop as squash commit 8ab033dd771b3f4695328b22f61c3f6d05a6e1d4.
+  - The merged foundation contains the canonical event contract, Bybit parser, append-only collector, closed-candle alignment, counter-trade policy, disabled profile, tests, and staged deployment process.
+  - The profile remains research-only, execution-disabled, dry-run, position-size zero, with DCA and exits disabled.
+  - Final AI Platform CI, full Freqtrade CI, pre-commit, documentation, mypy, Ruff, and zizmor checks passed.
 derived:
-  - The first safe operational step is data-only collection with no exchange credentials or Freqtrade execution adapter.
-  - Completed-candle-only alignment is conservative and prevents use of unfinished candle OHLCV in replay.
-  - Historical replay remains invalid until collected event files and matching candle inputs are frozen with hashes and accepted gap and clock-health evidence.
+  - The next safe work package is data-only staging with no exchange credentials or Freqtrade strategy.
+  - Historical replay remains invalid until an operationally collected interval is accepted and frozen with hashes.
 unknown:
-  - Final conclusion of Freqtrade CI run 30078204811 for the pre-checkpoint implementation head.
-  - Operational event volume, gap rate, and latency distribution for BTCUSDT and ETHUSDT.
-  - Exact volume filter metric, exit policy, and DCA policy for a future replay contract.
+  - Operational availability, parse-failure, reconnect, duplicate, event-volume, and latency evidence.
+  - Exact future volume filter, exit policy, DCA policy, and execution adapter.
 conflicts: []
 first_failure:
-  marker: local-clone-dns
-  evidence: Sandbox git clone could not resolve github.com; changes were written through GitHub API and executable validation relies on focused local files plus repository CI.
+  marker: none
+  evidence: The final merged head had no unresolved validation failure.
 rejected_hypotheses:
   - Treat a VWAP band breach without a real liquidation observation as a valid entry.
-  - Use the current unfinished candle final OHLCV in historical replay.
-  - Enable DCA or real order execution before a frozen replay and dry-run evidence package exists.
-  - Keep temporary diagnostic workflows in the final pull-request scope.
+  - Use unfinished-candle final OHLCV in historical replay.
+  - Enable DCA, execution, or real capital before frozen replay and dry-run evidence.
 changed_paths:
   - ai_platform/research/liquidations/__init__.py
   - ai_platform/research/liquidations/contracts.py
@@ -93,19 +85,15 @@ changed_paths:
   - docs/ai_platform/TRADINGVIEW_STRATEGY_RESEARCH.md
   - docs/agents/tasks/FTAI-20260724-liquidation-reversal-foundation.md
 validation:
-  - command: PYTHONPATH=. python -m compileall -q ai_platform tests
+  - command: AI Platform CI run 30078739837
     result: PASS
-    evidence: New project Python files and focused tests compiled successfully in the sandbox.
-  - command: PYTHONPATH=. pytest -q tests/ai_platform_integration/test_liquidation_research_foundation.py
+    evidence: Compile, tests, Ruff, Ruff format, codespell, and JSON validation passed.
+  - command: Freqtrade CI run 30078739780
     result: PASS
-    evidence: Eleven focused parser, serialization, alignment, deduplication, and signal-policy tests passed.
-  - command: AI Platform CI run 30078204779
+    evidence: Pre-commit, documentation, cross-platform core tests, coverage, smoke tests, Ruff, and mypy passed.
+  - command: GitHub Actions Security Analysis run 30078739728
     result: PASS
-    evidence: Compile, complete AI-platform tests, Ruff, Ruff format, codespell, and JSON validation succeeded.
-  - command: GitHub Actions Security Analysis run 30078204665
-    result: PASS
-    evidence: Zizmor workflow completed successfully with the temporary diagnostics removed.
-blockers:
-  - No collected immutable liquidation dataset exists yet; this blocks historical replay and any profitability conclusion.
-next_action: Inspect Freqtrade CI for the checkpoint update head; if green, leave PR #236 ready for review and declare a separate data-only staging task, otherwise repair only the first branch-local failure without enabling execution.
+    evidence: Zizmor completed successfully.
+blockers: []
+next_action: Continue docs/agents/tasks/FTAI-20260724-liquidation-data-only-staging.md on its dedicated branch.
 ```

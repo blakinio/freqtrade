@@ -14,15 +14,17 @@ Build a secure, modern and extensible portal above the existing Freqtrade AI Pla
 
 ## Current program state
 
-Repository-backed implementation has progressed through P12 simulation-first acceptance.
+Repository-backed implementation has progressed through P12 simulation-first acceptance and the remaining software-addressable portal product surfaces merged in PR #232.
 
-Canonical status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
+Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
 
 - P0-P10 are complete for their declared bounded acceptance criteria;
 - P11 repository-side staging contracts, verifier, workflows and runbooks are complete, but real Cloudflare/protected GitHub External E2E remains blocked/deferred and production-like staging is not accepted;
 - P12 simulation-first autonomous diagnosis/repair acceptance is complete and is not a substitute for P11;
 - P13 measured-need assessment completed with NO-GO, so scale/service extraction is deferred until evidence demonstrates a need;
 - P14 remains separately blocked and this program does not authorize live capital.
+
+The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. Those packages do not renumber P0-P14 and remain planning-only until separately declared.
 
 Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
 
@@ -48,6 +50,7 @@ Chat history and private UI captures are not durable program state.
 - `docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md`
 - `docs/ai_platform/portal/SECURITY_ARCHITECTURE.md`
 - `docs/ai_platform/portal/DELIVERY_ROADMAP.md`
+- `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md`
 - `docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md`
 
 Task-specific agents read additional portal documents only when relevant.
@@ -67,6 +70,7 @@ Task-specific agents read additional portal documents only when relevant.
 - Autonomous repair creates regression tests, branches and PRs; it does not patch production.
 - Live capital requires a separate explicit reviewed work package.
 - Repository or simulated P11 evidence cannot be represented as real Cloudflare production-like staging acceptance.
+- A planned PI package is not active and cannot be used as completion evidence until its separate task and acceptance gates pass.
 
 ## Protected existing AI boundaries
 
@@ -102,11 +106,15 @@ Cross-cutting:
 
 Canonical stage order, current statuses and acceptance boundaries are defined in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`.
 
-The historical first implementation task after architecture merge was `FTAI-20260722-portal-p1-contracts-security`. That sequence has now progressed through completed P12 simulation-first acceptance; it is no longer the program's next action.
+The historical first implementation task after architecture merge was `FTAI-20260722-portal-p1-contracts-security`. That sequence has now progressed through completed P12 simulation-first acceptance; it is no longer the program's next software action.
+
+Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. The recommended first software package is read-only PI-01 Private Runtime Read and Reconciliation. PI-03, PI-04 and PI-06 may run in parallel only when ownership is disjoint and shared contract changes are serialized. PI-07 must precede PI-08; neither authorizes live capital.
 
 ## Parallelization policy
 
 Shared contract changes are serialized through a dedicated contract-change task. New work must inspect current `develop`, open PRs and active task ownership before editing shared paths.
+
+Every PI package requires its own dated task, branch, exact owned paths, authoritative source definition, fail-closed states and acceptance evidence. Adjacent PI packages must not be silently combined because their security and capital risks differ.
 
 P13 scale/service extraction remains deferred unless measured bottleneck/SLO evidence justifies a separately declared work package.
 
@@ -171,6 +179,10 @@ The program reaches its first major completion milestone when a production-like 
 
 Repository-side and simulation-first evidence already cover many of these software boundaries, but the milestone is **not complete** until real P11 protected external ingress acceptance passes.
 
-## Next action
+## Next actions by authorization lane
 
-When the owner intentionally starts the real infrastructure phase, resume P11: provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.
+Next autonomous software action: declare PI-01 Private Runtime Read and Reconciliation as a separate bounded task from current `develop`; keep it read-only and do not include credential brokering or order submission.
+
+Next owner/external action: when the owner intentionally starts the real infrastructure phase, resume P11, provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.
+
+Do not start P14 or enable live capital as part of either action.

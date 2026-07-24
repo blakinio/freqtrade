@@ -447,3 +447,20 @@ Parallel work is allowed only where owned paths and contracts are disjoint and d
 ## Next program-level action
 
 When the owner intentionally starts the real infrastructure phase, resume P11 and run the real protected `Portal Staging External E2E` path until all five ingress, Access and direct-denial probes pass. Do not start P14 or enable live capital as part of that work.
+
+## Post-P12 integration routing
+
+The bounded roadmap stages do not imply that every real data source, external provider or private runtime operation is already integrated. The canonical dependency-ordered continuation is maintained in `POST_P12_INTEGRATION_BACKLOG.md` without renumbering P0-P14.
+
+That backlog defines:
+
+- `PI-01` private runtime reads and reconciliation;
+- `PI-02` authoritative valuation and unrealized PNL;
+- `PI-03` canonical inference/drift telemetry;
+- `PI-04` centralized runtime observability;
+- `PI-05` external notification delivery;
+- `PI-06` product identity, MFA, session and membership lifecycle;
+- `PI-07` runtime credential brokering and rotation;
+- `PI-08` private risk-approved dry-run Freqtrade submission.
+
+Each PI package remains `planned` until a separate dated task, branch, owned paths and acceptance evidence are declared. The recommended next software package is PI-01 because it is read-only, closes the authoritative runtime evidence gap and is a prerequisite for valuation and reconciled dry-run submission. The existing external program action remains P11 when the owner intentionally starts that infrastructure phase. P13 and P14 retain their current deferred/blocked semantics.

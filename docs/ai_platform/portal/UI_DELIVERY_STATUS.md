@@ -31,6 +31,8 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 `FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
 
+Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
+
 ## Current surface matrix
 
 | Product surface | Route | Current delivery | Data boundary |
@@ -67,18 +69,25 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 The remaining partial states are not presentation shells. They depend on authoritative sources or separately reviewed private integrations that do not currently exist in this repository:
 
-- unrealized PNL requires authoritative current-price and position valuation evidence;
-- direct positions/orders/trades require a reviewed private Freqtrade runtime query integration rather than browser exposure;
-- raw runtime stdout/stderr requires a centralized log source;
-- model drift requires a canonical inference/distribution telemetry source;
-- external notification delivery, MFA/session lifecycle and tenant membership mutation remain owned by external infrastructure/identity systems;
-- real Cloudflare staging acceptance remains the separate blocked P11 infrastructure gate.
+| Boundary | Canonical package/stage |
+|---|---|
+| private positions/orders/trades source and reconciliation | `PI-01` Private Runtime Read and Reconciliation |
+| authoritative current valuation and unrealized PNL | `PI-02` Authoritative Valuation and Unrealized PNL |
+| canonical model/feature/prediction drift evidence | `PI-03` Canonical Inference and Drift Telemetry |
+| centralized raw runtime logs/traces/metrics | `PI-04` Centralized Runtime Observability |
+| external email/webhook/push delivery | `PI-05` External Notification Delivery |
+| product authentication, MFA, session revocation and tenant membership lifecycle | `PI-06` Product Identity and Session Lifecycle |
+| runtime exchange credential injection/rotation | `PI-07` Runtime Credential Broker and Rotation |
+| private risk-approved dry-run Freqtrade submission | `PI-08` Private Dry-Run Approved Execution Submission |
+| real protected Cloudflare staging acceptance | P11 external infrastructure gate |
+
+P13 remains deferred until measured need. P14 remains blocked and separately owner-approved; neither is an ordinary UI completion package.
 
 ## Safety behavior
 
 API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise.
 
-The normalized operational mirror is an ingestion/read boundary, not a shortcut around the execution adapter. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` remain fail-closed until a separately reviewed private runtime integration is implemented.
+The normalized operational mirror is an ingestion/read boundary, not a shortcut around the execution adapter. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` remain fail-closed until PI-01 is separately declared, implemented and accepted.
 
 Signal evidence is advisory and cannot create execution authority. Grid configuration is constrained to `dry_run`. Browser code still has no direct Freqtrade, exchange or secret-store path.
 

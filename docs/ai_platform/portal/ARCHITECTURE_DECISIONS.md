@@ -201,3 +201,23 @@ Portal implementation cannot reopen completed Phase 6, alter frozen Phase 5 para
 Reason:
 
 Product implementation and research validity are separate governance concerns.
+
+## ADR-016 — Remaining integrations use separate PI packages
+
+Status: `accepted`
+
+Decision:
+
+- Remaining authoritative-source, private-runtime, identity, observability and provider integrations after the bounded P0-P12 foundation are routed through stable `PI-*` packages in `POST_P12_INTEGRATION_BACKLOG.md`.
+- PI packages do not renumber or replace P0-P14.
+- Private runtime reads/reconciliation, runtime credential brokering and approved-intent submission are separate packages with separate entry and security gates.
+- A `planned` PI package is not active until a dated task, branch, owned paths and acceptance evidence are declared.
+- P11, P13 and P14 retain their existing blocked/deferred/owner-gated semantics.
+
+Reason:
+
+The remaining work crosses several architectural planes and has materially different security and capital risk. A single catch-all implementation task would obscure authoritative data ownership, create unsafe dependency shortcuts and make completion claims ambiguous.
+
+Consequence:
+
+The recommended first software package is read-only `PI-01 Private Runtime Read and Reconciliation`. Higher-risk credential and dry-run submission work follows only after its explicit dependencies pass. No PI package authorizes live capital.

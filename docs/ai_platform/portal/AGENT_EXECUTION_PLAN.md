@@ -367,3 +367,32 @@ Bad:
 ## 20. Program success condition
 
 The architecture program is successfully delegated when a new agent can start any workstream from repository state alone, know its owned paths and non-negotiable boundaries, and complete the task without needing the chat transcript that created this plan.
+
+## 21. Post-P12 integration package routing
+
+After the bounded P0-P12 foundation, agents use `POST_P12_INTEGRATION_BACKLOG.md` for the remaining authoritative-source, private-runtime, identity, observability and external-provider work.
+
+Canonical packages:
+
+| Package | Primary concern | Declaration rule |
+|---|---|---|
+| `PI-01` | private runtime reads and reconciliation | declare first; read-only; no submission |
+| `PI-02` | authoritative valuation/unrealized PNL | requires PI-01 and price-source contract |
+| `PI-03` | inference and drift telemetry | may parallelize after shared telemetry ownership check |
+| `PI-04` | centralized runtime observability | requires deployment source, retention and redaction policy |
+| `PI-05` | external notification delivery | one provider/channel at a time; no execution authority |
+| `PI-06` | product identity/MFA/session/membership | requires external IdP and source-of-truth decision |
+| `PI-07` | runtime credential broker and rotation | security-reviewed; no plaintext exposure or live-capital claim |
+| `PI-08` | private risk-approved dry-run submission | requires PI-01, PI-07, P7 risk/audit/kill switches |
+
+Rules:
+
+1. Each PI package receives a dated task ID such as `FTAI-YYYYMMDD-portal-pi01-runtime-read-reconciliation`.
+2. Copy the package entry gates, deliverables, acceptance criteria and non-goals into the task record.
+3. A package must define its authoritative source and explicit stale/unavailable/fail-closed state before implementation.
+4. Shared contract changes are serialized under section 18.
+5. PI-07 and PI-08 are not merged into PI-01 merely because they touch execution code.
+6. P11 remains a separate owner-approved external gate; P13 remains measured-need-only; P14 remains blocked and separately owner-approved.
+7. A `planned` package is not active and cannot be cited as delivered evidence.
+
+Recommended next software task: PI-01 Private Runtime Read and Reconciliation. Its handoff must leave one concrete next action and must not include credential brokering, order submission or live-capital work.

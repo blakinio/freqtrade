@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "sources": [
+    {
+      "source": "bybit-linear",
+      "exchange": "Bybit",
+      "market": "linear derivatives",
+      "websocket_endpoint": "wss://stream.bybit.com/v5/public/linear",
+      "stream_template": "allLiquidation.{SYMBOL}",
+      "clock_endpoint": "https://api.bybit.com/v5/market/time",
+      "coverage_semantics": "all liquidation events published by the exchange",
+      "documented_push_frequency_ms": 500,
+      "parser": "ai_platform.research.liquidations.bybit.parse_bybit_all_liquidation"
+    },
+    {
+      "source": "binance-usdm",
+      "exchange": "Binance",
+      "market": "USD-M futures",
+      "websocket_endpoint": "wss://fstream.binance.com/market/ws",
+      "stream_template": "{symbol_lower}@forceOrder",
+      "clock_endpoint": "https://fapi.binance.com/fapi/v1/time",
+      "coverage_semantics": "latest liquidation order per symbol within each 1000 ms window",
+      "documented_push_frequency_ms": 1000,
+      "parser": "ai_platform.research.liquidations.binance.parse_binance_force_order"
+    }
+  ],
+  "canonical_symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "cross_source_policy": {
+    "deduplicate_between_exchanges": false,
+    "sum_events_without_source_labels": false,
+    "reason": "An exchange liquidation is a venue-specific event. Cascades can occur at similar times on multiple venues, but they are not duplicate source records."
+  },
+  "promotion_boundary": "Adding a source authorizes data collection only. It does not authorize replay, strategy promotion, order execution, DCA, leverage, or live capital."
+}

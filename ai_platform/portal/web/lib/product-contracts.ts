@@ -148,3 +148,55 @@ export interface RuntimeLogAvailability {
   reason_code: string;
   checked_at: string;
 }
+
+export interface RuntimeObservabilitySourceStatus {
+  source_id: string;
+  availability: "AVAILABLE" | "UNAVAILABLE";
+  checked_at: string;
+  reason_code: string;
+  log_retention_days: number;
+  trace_retention_days: number;
+  metric_retention_days: number;
+  trace_source: string;
+  metric_source: string;
+  runbook_path: string;
+}
+
+export interface RuntimeLogQuery {
+  start_at: string;
+  end_at: string;
+  correlation_id?: string | null;
+  runtime_id?: string | null;
+  bot_id?: string | null;
+  service?: string | null;
+  component?: string | null;
+  level?: string | null;
+  limit?: number;
+}
+
+export interface RuntimeLogRecord {
+  record_id: string;
+  tenant_id: string;
+  timestamp: string;
+  service: string;
+  component: string;
+  environment: "research" | "test" | "staging" | "production";
+  runtime_id: string;
+  bot_id: string;
+  correlation_id: string;
+  trace_id: string | null;
+  span_id: string | null;
+  level: string;
+  message: string;
+  fields: Record<string, unknown>;
+  source_id: string;
+  retention_expires_at: string;
+  audit_evidence: false;
+}
+
+export interface RuntimeLogSearchResult {
+  query: Required<Pick<RuntimeLogQuery, "start_at" | "end_at">> & RuntimeLogQuery;
+  source_status: RuntimeObservabilitySourceStatus;
+  records: RuntimeLogRecord[];
+  truncated: boolean;
+}

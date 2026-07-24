@@ -26,13 +26,13 @@ jobs:
           python-version: "3.12"
       - name: Install Ruff
         run: python -m pip install -q --disable-pip-version-check ruff==0.15.21
-      - name: Capture Ruff findings
+      - name: Capture concise Ruff findings
         id: check
         shell: bash
         run: |
           set +e
           {
-            ruff check ai_platform tests/ai_platform
+            ruff check --output-format concise ai_platform tests/ai_platform
             ruff format --check ai_platform tests/ai_platform
           } > /tmp/pi02-ruff.log 2>&1
           code=$?

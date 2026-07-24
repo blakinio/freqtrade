@@ -23,19 +23,9 @@ jobs:
           persist-credentials: true
       - name: Extract branch patch
         run: |
-          awk '
-            /^      - name: Apply exact integration patch$/ { found = 1; next }
-            found && /^        run: \|$/ { capture = 1; next }
-            capture && /^      - name: Commit patch$/ { exit }
-            capture {
-              if ($0 != "" && substr($0, 1, 10) != "          ") {
-                print "unexpected patch indentation: " $0 > "/dev/stderr"
-                exit 1
-              }
-              print substr($0, 11)
-            }
-          ' .github/workflows/pi03-branch-patch.yml > /tmp/pi03-apply.sh
-          test -s /tmp/pi03-apply.sh
+          sed -n '22,314p' .github/workflows/pi03-branch-patch.yml | cut -c11- > /tmp/pi03-apply.sh
+          test "$(head -n 1 /tmp/pi03-apply.sh)" = "python - <<'PY'"
+          test "$(tail -n 1 /tmp/pi03-apply.sh)" = "PY"
       - name: Run patch and capture exact failure
         run: |
           set +e

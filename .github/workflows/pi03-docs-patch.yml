@@ -1,4 +1,4 @@
-name: PI-03 Documentation Patch
+name: PI-03 Documentation Patch Diagnostic
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  patch-and-clean:
+  diagnose:
     if: github.event.pull_request.head.ref == 'feat/portal-pi03-inference-drift-telemetry-20260724'
     runs-on: ubuntu-24.04
     steps:
@@ -19,16 +19,28 @@ jobs:
         with:
           ref: feat/portal-pi03-inference-drift-telemetry-20260724
           persist-credentials: true
-      - name: Apply canonical PI-03 documentation and clean temporary files
+      - name: Capture patch and cleanup statuses
         run: |
-          set -euo pipefail
-          python tools/agents/pi03_docs_patch.py
-          git rm -f .github/workflows/pi03-docs-patch.yml
-          git rm -f tools/agents/pi03_docs_patch.py
-          git rm -f docs/agents/tasks/PI03_DOCS_TRIGGER.txt
-          git rm -f docs/agents/tasks/PI03_DOCS_DIAGNOSTIC.txt
+          set +e
+          : > docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+          python tools/agents/pi03_docs_patch.py >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt 2>&1
+          echo "python_exit=$?" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+          for path in \
+            .github/workflows/pi03-docs-patch.yml \
+            tools/agents/pi03_docs_patch.py \
+            docs/agents/tasks/PI03_DOCS_TRIGGER.txt \
+            docs/agents/tasks/PI03_DOCS_DIAGNOSTIC.txt; do
+            if git ls-files --error-unmatch "$path" >/dev/null 2>&1; then
+              echo "$path=TRACKED" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+            elif [ -e "$path" ]; then
+              echo "$path=UNTRACKED" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+            else
+              echo "$path=MISSING" >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+            fi
+          done
+          git status --short >> docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "docs(portal): activate PI-03 inference telemetry package"
+          git add docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
+          git commit -m "chore(ci): capture PI-03 docs patch run diagnostic"
           git push origin HEAD:feat/portal-pi03-inference-drift-telemetry-20260724

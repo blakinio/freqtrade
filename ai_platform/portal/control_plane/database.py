@@ -39,5 +39,6 @@ def create_schema(engine: Engine) -> None:
     from ai_platform.portal.operations import models as operations_models  # noqa: F401
     from ai_platform.portal.product import models as product_models  # noqa: F401
     from ai_platform.portal.risk import models as risk_models  # noqa: F401
+    from ai_platform.portal.telemetry import models as telemetry_models  # noqa: F401
 
     Base.metadata.create_all(engine)

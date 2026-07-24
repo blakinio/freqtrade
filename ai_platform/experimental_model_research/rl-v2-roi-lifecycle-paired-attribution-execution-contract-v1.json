@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "contract_id": "rl-v2-roi-lifecycle-paired-attribution-execution-v1",
+  "task": "docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md",
+  "task_declaration_merge": "d26f2221107bb2c0a95753cb2d8ea4bacf3a65f9",
+  "request_path": "ai_platform/experimental_model_research/run-requests/rl-v2-roi-lifecycle-paired-attribution-execution-v1.json",
+  "trigger": {
+    "event": "pull_request_opened",
+    "base_branch": "develop",
+    "exact_one_file": true
+  },
+  "baseline_evidence": {
+    "workflow_run_id": 30022863894,
+    "trigger_pr": 218,
+    "artifact_name": "rl-v2-historical-training-execution-218",
+    "artifact_digest": "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55",
+    "diagnosis_path": "ai_platform/experimental_model_research/rl-v2-historical-evidence-diagnosis-v1.json",
+    "baseline_strategy": "AiDesiredPositionRLResearchStrategy",
+    "baseline_strategy_path": "ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py",
+    "baseline_strategy_sha256": "9318a4d13937d9b572c4bcecfb56f999fd82d8309c6f898d0166c0c71dfd5c19",
+    "rerun_allowed": false,
+    "primary_metrics": {
+      "roi_exit_count": 122,
+      "roi_exit_followed_by_same_pair_15m_reentry_count": 122,
+      "immediate_external_exit_reentry_boundary_count": 131,
+      "external_exit_reentry_boundary_fee_usdt": 52.582123
+    }
+  },
+  "runtime_binding": {
+    "freqai_model": "DesiredPositionReinforcementLearner",
+    "freqai_model_path": "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py",
+    "base_config_path": "ai_platform/configs/rl_v2_training_research.json",
+    "variant_declaration_path": "ai_platform/experimental_model_research/rl-v2-roi-lifecycle-alignment-v1.json",
+    "strategy": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
+    "strategy_path": "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py",
+    "strategy_sha256": "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7",
+    "only_semantic_delta": {
+      "ignore_roi_if_entry_signal": true
+    },
+    "runtime_identifier": "rl-v2-roi-lifecycle-paired-attribution-v1",
+    "backend_family": "stable_baselines3_via_freqai_reinforcement_learner",
+    "model_type": "PPO",
+    "policy_type": "MlpPolicy",
+    "seed": 42,
+    "action_space": {
+      "0": "target_flat",
+      "1": "target_long"
+    },
+    "action_space_size": 2,
+    "long_only": true,
+    "transition_reference": "ai_platform.scripts.rl_v2_synthetic_reference.desired_position_transition",
+    "reward_reference": "ai_platform.scripts.rl_v2_synthetic_reference.reference_reward",
+    "reward_constants_source": "ai_platform.scripts.rl_v2_synthetic_reference.REWARD_REFERENCE"
+  },
+  "execution_geometry": {
+    "mode": "one_shot_variant_trigger_pr",
+    "variant_executions": 1,
+    "baseline_executions": 0,
+    "download_timerange": "20250801-20260501",
+    "execution_timerange": "20260301-20260501",
+    "semantic_evidence_window": "20260301-20260430",
+    "freqtrade_stop_semantics": "end_exclusive",
+    "train_period_days": 90,
+    "backtest_period_days": 61,
+    "live_retrain_hours_present": false
+  },
+  "configuration_materialization": {
+    "base_config_immutable": true,
+    "temporary_runtime_config": true,
+    "allowed_replacements": {
+      "strategy": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
+      "freqai.identifier": "rl-v2-roi-lifecycle-paired-attribution-v1"
+    },
+    "allowed_added_freqai_keys": {
+      "train_period_days": 90,
+      "backtest_period_days": 61
+    },
+    "timerange_added_to_config": false,
+    "live_retrain_hours_added": false
+  },
+  "market_data": {
+    "exchange": "kraken",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "fee": 0.002,
+    "verification_module": "ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request",
+    "cache_namespace": "rl-v2-historical-training-pre-oos-v1",
+    "reuse_verified_baseline_cache": true,
+    "restore_from_post_20260501_cache_allowed": false
+  },
+  "attribution": {
+    "classification": "paired_historical_development_attribution",
+    "strict_oos": false,
+    "protected_final_validation": false,
+    "profitability_is_non_gating": true,
+    "automatic_ranking": false,
+    "automatic_promotion": false,
+    "negative_neutral_zero_trade_or_failure_is_valid_evidence": true,
+    "primary_directional_criteria": {
+      "roi_exit_followed_by_same_pair_15m_reentry_count_lt": 122,
+      "external_exit_reentry_boundary_fee_usdt_lt": 52.582123,
+      "all_required": true
+    },
+    "secondary_descriptive_metrics": [
+      "roi_exit_count",
+      "immediate_external_exit_reentry_boundary_count",
+      "trade_count",
+      "gross_price_pnl_usdt",
+      "fees_usdt",
+      "net_profit_usdt",
+      "profit_factor",
+      "max_drawdown_abs",
+      "target_flat_exit_count",
+      "stop_loss_exit_count"
+    ]
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "start_inclusive": "2026-05-01T00:00:00Z",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "frozen_entry_prediction_threshold": 0.006,
+    "frozen_exit_prediction_threshold": -0.009,
+    "thresholds_used_for_rl_tuning": false,
+    "phase6_authoritative_selected_model": null,
+    "phase6_member": false,
+    "pytorch_rl_ranking_allowed": false
+  },
+  "authorization": {
+    "infrastructure_merge_executes_model": false,
+    "canonical_request_required": true,
+    "variant_historical_training_execution_allowed_after_canonical_request": true,
+    "variant_historical_backtest_allowed_after_canonical_request": true,
+    "baseline_execution_allowed": false,
+    "market_data_download_allowed_after_canonical_request": true,
+    "strict_oos_scoring_allowed": false,
+    "consumed_historical_oos_access_allowed": false,
+    "protected_final_holdout_access_allowed": false,
+    "retuning_allowed": false,
+    "model_parameter_changes_allowed": false,
+    "feature_changes_allowed": false,
+    "reward_changes_allowed": false,
+    "strategy_changes_beyond_declared_variant_allowed": false,
+    "cross_track_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false
+  }
+}

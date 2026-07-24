@@ -1,0 +1,29 @@
+name: Binance liquidation lint diagnostic
+
+on:
+  push:
+    branches:
+      - feat/liquidation-binance-source-v1
+    paths:
+      - ".github/workflows/liquidation-binance-lint-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Print exact Ruff findings
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquidation-binance-source-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python -m pip install -q "ruff==0.16.0"
+          ruff check \
+            ai_platform/research/liquidations/binance.py \
+            ai_platform/scripts/liquidation_binance_collector.py \
+            tests/ai_platform_integration/test_liquidation_binance_source.py

@@ -31,21 +31,14 @@ VARIANT_DECLARATION_REPO_PATH = (
 BASE_CONFIG_REPO_PATH = "ai_platform/configs/rl_v2_training_research.json"
 MODEL_REPO_PATH = "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py"
 BASELINE_STRATEGY_REPO_PATH = "ai_platform/strategies/AiDesiredPositionRLResearchStrategy.py"
-STRATEGY_REPO_PATH = (
-    "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py"
-)
-WORKFLOW_REPO_PATH = (
-    ".github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml"
-)
-VALIDATOR_REPO_PATH = (
-    "ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py"
-)
+STRATEGY_REPO_PATH = "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py"
+WORKFLOW_REPO_PATH = ".github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml"
+VALIDATOR_REPO_PATH = "ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py"
 EVIDENCE_EXTRACTOR_REPO_PATH = (
     "ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_evidence.py"
 )
 TASK_REPO_PATH = (
-    "docs/agents/tasks/"
-    "FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md"
+    "docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md"
 )
 
 CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
@@ -57,9 +50,7 @@ EXPECTED_MODEL_SHA256 = "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb46
 EXPECTED_BASELINE_STRATEGY_SHA256 = (
     "9318a4d13937d9b572c4bcecfb56f999fd82d8309c6f898d0166c0c71dfd5c19"
 )
-EXPECTED_STRATEGY_SHA256 = (
-    "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7"
-)
+EXPECTED_STRATEGY_SHA256 = "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7"
 EXPECTED_RUNTIME_IDENTIFIER = "rl-v2-roi-lifecycle-paired-attribution-v1"
 EXPECTED_BASELINE_METRICS: dict[str, int | float] = {
     "roi_exit_count": 122,
@@ -145,9 +136,7 @@ def _split_timerange(value: str) -> tuple[str, str]:
             f"Expected bounded YYYYMMDD-YYYYMMDD timerange: {value}"
         ) from exc
     if len(start) != 8 or len(stop) != 8:
-        raise RLV2PairedAttributionError(
-            f"Expected bounded YYYYMMDD-YYYYMMDD timerange: {value}"
-        )
+        raise RLV2PairedAttributionError(f"Expected bounded YYYYMMDD-YYYYMMDD timerange: {value}")
     return start, stop
 
 
@@ -174,12 +163,8 @@ def _require_sha(path: str, expected: str, label: str) -> None:
 
 
 def _validate_temporal_boundaries() -> None:
-    download_start, download_stop = _split_timerange(
-        EXPECTED_EXECUTION["download_timerange"]
-    )
-    execution_start, execution_stop = _split_timerange(
-        EXPECTED_EXECUTION["execution_timerange"]
-    )
+    download_start, download_stop = _split_timerange(EXPECTED_EXECUTION["download_timerange"])
+    execution_start, execution_stop = _split_timerange(EXPECTED_EXECUTION["execution_timerange"])
     evidence_start, evidence_end_inclusive = _split_timerange(
         EXPECTED_EXECUTION["semantic_evidence_window"]
     )
@@ -189,14 +174,10 @@ def _validate_temporal_boundaries() -> None:
     if _date_token(execution_stop) > consumed_start:
         raise RLV2PairedAttributionError("Execution geometry crosses consumed OOS")
     if download_stop != "20260501" or execution_stop != "20260501":
-        raise RLV2PairedAttributionError(
-            "Download and execution must stop at exclusive 2026-05-01"
-        )
+        raise RLV2PairedAttributionError("Download and execution must stop at exclusive 2026-05-01")
     if evidence_start != execution_start:
         raise RLV2PairedAttributionError("Semantic evidence start drifted")
-    expected_stop = (
-        _date_token(evidence_end_inclusive) + timedelta(days=1)
-    ).strftime("%Y%m%d")
+    expected_stop = (_date_token(evidence_end_inclusive) + timedelta(days=1)).strftime("%Y%m%d")
     if execution_stop != expected_stop:
         raise RLV2PairedAttributionError(
             "Semantic evidence inclusive end does not map to execution stop"
@@ -205,12 +186,12 @@ def _validate_temporal_boundaries() -> None:
     if execution_days != EXPECTED_EXECUTION["backtest_period_days"]:
         raise RLV2PairedAttributionError("Frozen backtest period drifted")
     if _date_token(download_start) >= _date_token(execution_start):
-        raise RLV2PairedAttributionError(
-            "Download history must begin before execution"
-        )
+        raise RLV2PairedAttributionError("Download history must begin before execution")
 
 
-def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
+# Centralized intentionally: every immutable boundary is checked in one fail-closed guard.
+def _validate_contract(  # noqa: C901
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], dict[str, Any]]:
     contract = _read_json(CONTRACT_PATH, "paired-attribution contract")
     if contract.get("schema_version") != 1:
         raise RLV2PairedAttributionError("Contract schema_version must be 1")
@@ -309,9 +290,7 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
     if attribution.get("strict_oos") is not False:
         raise RLV2PairedAttributionError("Paired attribution cannot be strict OOS")
     if attribution.get("protected_final_validation") is not False:
-        raise RLV2PairedAttributionError(
-            "Paired attribution cannot be protected final validation"
-        )
+        raise RLV2PairedAttributionError("Paired attribution cannot be protected final validation")
     if attribution.get("profitability_is_non_gating") is not True:
         raise RLV2PairedAttributionError("Profitability must remain non-gating")
     if attribution.get("primary_directional_criteria") != {
@@ -409,9 +388,7 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
     if diagnosis_metrics != EXPECTED_BASELINE_METRICS:
         raise RLV2PairedAttributionError("Committed baseline metrics drifted")
 
-    variant = _read_json(
-        _repo_path(VARIANT_DECLARATION_REPO_PATH), "lifecycle variant declaration"
-    )
+    variant = _read_json(_repo_path(VARIANT_DECLARATION_REPO_PATH), "lifecycle variant declaration")
     if variant.get("status") != "implemented_not_executed":
         raise RLV2PairedAttributionError("Variant implementation status drifted")
     experimental_variant = variant.get("experimental_variant", {})
@@ -421,9 +398,7 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
         raise RLV2PairedAttributionError("Variant strategy path drifted")
     if experimental_variant.get("strategy_sha256") != EXPECTED_STRATEGY_SHA256:
         raise RLV2PairedAttributionError("Variant strategy hash binding drifted")
-    if experimental_variant.get("only_allowed_override") != {
-        "ignore_roi_if_entry_signal": True
-    }:
+    if experimental_variant.get("only_allowed_override") != {"ignore_roi_if_entry_signal": True}:
         raise RLV2PairedAttributionError("Variant semantic delta drifted")
     future = variant.get("future_attribution", {})
     if future.get("classification") != EXPECTED_CLASSIFICATION:
@@ -433,9 +408,7 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
 
     base_config = _read_json(_repo_path(BASE_CONFIG_REPO_PATH), "base config")
     if FORBIDDEN_BASE_CONFIG_KEYS.intersection(_collect_keys(base_config)):
-        raise RLV2PairedAttributionError(
-            "Base config must remain free of execution geometry"
-        )
+        raise RLV2PairedAttributionError("Base config must remain free of execution geometry")
     if base_config.get("dry_run") is not True:
         raise RLV2PairedAttributionError("Base config dry_run drifted")
     if base_config.get("trading_mode") != "spot":
@@ -480,9 +453,7 @@ def canonical_rl_v2_roi_lifecycle_paired_attribution_request() -> dict[str, Any]
     }
     for label, path in hash_inputs.items():
         if not _repo_path(path).is_file():
-            raise RLV2PairedAttributionError(
-                f"Canonical {label} input is missing: {path}"
-            )
+            raise RLV2PairedAttributionError(f"Canonical {label} input is missing: {path}")
     return {
         "schema_version": 1,
         "request_id": EXPECTED_REQUEST_ID,
@@ -495,9 +466,7 @@ def canonical_rl_v2_roi_lifecycle_paired_attribution_request() -> dict[str, Any]
         "baseline_artifact_digest": contract["baseline_evidence"]["artifact_digest"],
         "baseline_rerun_allowed": False,
         "variant_declaration_path": VARIANT_DECLARATION_REPO_PATH,
-        "variant_declaration_sha256": _sha256(
-            _repo_path(VARIANT_DECLARATION_REPO_PATH)
-        ),
+        "variant_declaration_sha256": _sha256(_repo_path(VARIANT_DECLARATION_REPO_PATH)),
         "config_path": BASE_CONFIG_REPO_PATH,
         "config_sha256": _sha256(_repo_path(BASE_CONFIG_REPO_PATH)),
         "freqai_model": contract["runtime_binding"]["freqai_model"],
@@ -509,9 +478,7 @@ def canonical_rl_v2_roi_lifecycle_paired_attribution_request() -> dict[str, Any]
         "validator_path": VALIDATOR_REPO_PATH,
         "validator_sha256": _sha256(_repo_path(VALIDATOR_REPO_PATH)),
         "evidence_extractor_path": EVIDENCE_EXTRACTOR_REPO_PATH,
-        "evidence_extractor_sha256": _sha256(
-            _repo_path(EVIDENCE_EXTRACTOR_REPO_PATH)
-        ),
+        "evidence_extractor_sha256": _sha256(_repo_path(EVIDENCE_EXTRACTOR_REPO_PATH)),
         "workflow_path": WORKFLOW_REPO_PATH,
         "workflow_sha256": _sha256(_repo_path(WORKFLOW_REPO_PATH)),
         "runtime_identifier": EXPECTED_RUNTIME_IDENTIFIER,
@@ -566,9 +533,7 @@ def materialize_runtime_config(output: Path) -> Path:
     freqai["train_period_days"] = EXPECTED_EXECUTION["train_period_days"]
     freqai["backtest_period_days"] = EXPECTED_EXECUTION["backtest_period_days"]
     if "timerange" in runtime_config or "live_retrain_hours" in freqai:
-        raise RLV2PairedAttributionError(
-            "Temporary config introduced unauthorized geometry"
-        )
+        raise RLV2PairedAttributionError("Temporary config introduced unauthorized geometry")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(
@@ -578,9 +543,7 @@ def materialize_runtime_config(output: Path) -> Path:
     return output
 
 
-def verify_downloaded_data(
-    datadir: Path, *, pairs: list[str] | None = None
-) -> dict[str, Any]:
+def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> dict[str, Any]:
     """Verify exact pre-May pair/timeframe coverage without model execution."""
     from freqtrade.configuration import TimeRange
     from freqtrade.data.history.history_utils import load_pair_history
@@ -614,9 +577,7 @@ def verify_downloaded_data(
                 drop_incomplete=False,
             )
             if frame.empty:
-                raise RLV2PairedAttributionError(
-                    f"No downloaded data for {pair} {timeframe}"
-                )
+                raise RLV2PairedAttributionError(f"No downloaded data for {pair} {timeframe}")
             first_date = frame["date"].min().to_pydatetime()
             last_date = frame["date"].max().to_pydatetime()
             if first_date > startdt:

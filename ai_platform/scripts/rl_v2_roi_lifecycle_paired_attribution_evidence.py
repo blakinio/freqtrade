@@ -134,9 +134,7 @@ def _validated_trades(result: dict[str, Any]) -> list[dict[str, Any]]:
         if trade.get("is_short") is not False:
             raise RLV2PairedEvidenceError(f"Trade {index} violates long-only scope")
         open_ts = _integer(trade.get("open_timestamp"), f"trade {index} open timestamp")
-        close_ts = _integer(
-            trade.get("close_timestamp"), f"trade {index} close timestamp"
-        )
+        close_ts = _integer(trade.get("close_timestamp"), f"trade {index} close timestamp")
         if close_ts < open_ts:
             raise RLV2PairedEvidenceError(f"Trade {index} closes before it opens")
         open_rate = _finite_number(trade.get("open_rate"), f"trade {index} open rate")
@@ -146,9 +144,7 @@ def _validated_trades(result: dict[str, Any]) -> list[dict[str, Any]]:
         fees = _fee_amount(trade, "open") + _fee_amount(trade, "close")
         net = _finite_number(trade.get("profit_abs"), f"trade {index} profit_abs")
         if not math.isclose(gross - fees, net, rel_tol=1e-8, abs_tol=1e-6):
-            raise RLV2PairedEvidenceError(
-                f"Trade {index} accounting does not reconcile"
-            )
+            raise RLV2PairedEvidenceError(f"Trade {index} accounting does not reconcile")
         if not isinstance(trade.get("exit_reason"), str):
             raise RLV2PairedEvidenceError(f"Trade {index} exit reason is missing")
         validated.append(trade)
@@ -170,9 +166,7 @@ def _next_same_pair_trade(
     return None
 
 
-def _trade_metrics(
-    trades: list[dict[str, Any]], result: dict[str, Any]
-) -> dict[str, Any]:
+def _trade_metrics(trades: list[dict[str, Any]], result: dict[str, Any]) -> dict[str, Any]:
     gross_price_pnl = 0.0
     fees = 0.0
     net_profit = 0.0
@@ -181,9 +175,7 @@ def _trade_metrics(
 
     for trade in trades:
         amount = float(trade["amount"])
-        gross_price_pnl += amount * (
-            float(trade["close_rate"]) - float(trade["open_rate"])
-        )
+        gross_price_pnl += amount * (float(trade["close_rate"]) - float(trade["open_rate"]))
         fees += _fee_amount(trade, "open") + _fee_amount(trade, "close")
         net_profit += float(trade["profit_abs"])
         exit_counts[str(trade["exit_reason"])] += 1
@@ -220,19 +212,11 @@ def _trade_metrics(
     primary_support = {
         "roi_15m_reentry_count_reduced": (
             roi_15m_reentries
-            < int(
-                EXPECTED_BASELINE_METRICS[
-                    "roi_exit_followed_by_same_pair_15m_reentry_count"
-                ]
-            )
+            < int(EXPECTED_BASELINE_METRICS["roi_exit_followed_by_same_pair_15m_reentry_count"])
         ),
         "boundary_fee_reduced": (
             rounded_boundary_fees
-            < float(
-                EXPECTED_BASELINE_METRICS[
-                    "external_exit_reentry_boundary_fee_usdt"
-                ]
-            )
+            < float(EXPECTED_BASELINE_METRICS["external_exit_reentry_boundary_fee_usdt"])
         ),
     }
     primary_support["all_required_criteria_met"] = all(primary_support.values())
@@ -242,9 +226,7 @@ def _trade_metrics(
         "gross_price_pnl_usdt": round(gross_price_pnl, 6),
         "fees_usdt": round(fees, 6),
         "net_profit_usdt": round(net_profit, 6),
-        "profit_factor": round(
-            _finite_number(result.get("profit_factor"), "profit factor"), 6
-        ),
+        "profit_factor": round(_finite_number(result.get("profit_factor"), "profit factor"), 6),
         "max_drawdown_abs": round(
             _finite_number(result.get("max_drawdown_abs"), "max drawdown abs"),
             6,
@@ -273,38 +255,22 @@ def extract_paired_attribution(archive: Path) -> dict[str, Any]:
         "fees_usdt": diagnosis["overall"]["fees_usdt"],
         "net_profit_usdt": diagnosis["overall"]["net_profit_usdt"],
         "roi_exit_count": diagnosis["by_exit_reason"]["roi"]["trades"],
-        "target_flat_exit_count": diagnosis["by_exit_reason"][
-            "freqai_rl_v2_target_flat"
-        ]["trades"],
+        "target_flat_exit_count": diagnosis["by_exit_reason"]["freqai_rl_v2_target_flat"]["trades"],
         "stop_loss_exit_count": diagnosis["by_exit_reason"]["stop_loss"]["trades"],
     }
     variant_primary = variant_metrics["primary_mechanism_metrics"]
     comparison = {
         "roi_exit_followed_by_same_pair_15m_reentry_count_delta": (
-            variant_primary[
-                "roi_exit_followed_by_same_pair_15m_reentry_count"
-            ]
-            - int(
-                baseline_metrics[
-                    "roi_exit_followed_by_same_pair_15m_reentry_count"
-                ]
-            )
+            variant_primary["roi_exit_followed_by_same_pair_15m_reentry_count"]
+            - int(baseline_metrics["roi_exit_followed_by_same_pair_15m_reentry_count"])
         ),
         "immediate_external_exit_reentry_boundary_count_delta": (
             variant_primary["immediate_external_exit_reentry_boundary_count"]
-            - int(
-                baseline_metrics[
-                    "immediate_external_exit_reentry_boundary_count"
-                ]
-            )
+            - int(baseline_metrics["immediate_external_exit_reentry_boundary_count"])
         ),
         "external_exit_reentry_boundary_fee_usdt_delta": round(
             float(variant_primary["external_exit_reentry_boundary_fee_usdt"])
-            - float(
-                baseline_metrics[
-                    "external_exit_reentry_boundary_fee_usdt"
-                ]
-            ),
+            - float(baseline_metrics["external_exit_reentry_boundary_fee_usdt"]),
             6,
         ),
     }
@@ -332,15 +298,13 @@ def extract_paired_attribution(archive: Path) -> dict[str, Any]:
             "runtime_identifier": EXPECTED_RUNTIME_IDENTIFIER,
             "only_semantic_delta": {"ignore_roi_if_entry_signal": True},
             "execution_timerange": EXPECTED_EXECUTION["execution_timerange"],
-            "semantic_evidence_window": EXPECTED_EXECUTION[
-                "semantic_evidence_window"
-            ],
+            "semantic_evidence_window": EXPECTED_EXECUTION["semantic_evidence_window"],
             **variant_metrics,
         },
         "comparison": comparison,
-        "directional_hypothesis_supported": variant_metrics[
-            "primary_directional_support"
-        ]["all_required_criteria_met"],
+        "directional_hypothesis_supported": variant_metrics["primary_directional_support"][
+            "all_required_criteria_met"
+        ],
         "interpretation": (
             "Mechanistic paired historical-development attribution only. "
             "Directional support is based exclusively on both prospectively frozen "

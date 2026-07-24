@@ -23,8 +23,7 @@ from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request impo
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASE_CONFIG_PATH = REPO_ROOT / "ai_platform/configs/rl_v2_training_research.json"
 WORKFLOW_PATH = (
-    REPO_ROOT
-    / ".github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml"
+    REPO_ROOT / ".github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml"
 )
 
 
@@ -129,15 +128,11 @@ def _variant_archive(
 def test_canonical_request_binds_exact_variant_and_baseline() -> None:
     request = canonical_rl_v2_roi_lifecycle_paired_attribution_request()
 
-    assert request["request_id"] == (
-        "rl-v2-roi-lifecycle-paired-attribution-execution-v1"
-    )
+    assert request["request_id"] == ("rl-v2-roi-lifecycle-paired-attribution-execution-v1")
     assert request["strategy"] == "AiDesiredPositionRLLifecycleAlignedResearchStrategy"
     assert request["runtime_identifier"] == EXPECTED_RUNTIME_IDENTIFIER
     assert request["baseline_rerun_allowed"] is False
-    assert request["evidence_classification"] == (
-        "paired_historical_development_attribution"
-    )
+    assert request["evidence_classification"] == ("paired_historical_development_attribution")
     assert request["strict_oos"] is False
     assert request["protected_final_validation"] is False
     assert request["profitability_is_non_gating"] is True

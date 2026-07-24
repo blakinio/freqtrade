@@ -2,8 +2,15 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from pydantic import Field
+
 from ai_platform.portal.contracts.audit import AuditEvent
-from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, UtcDateTime
+from ai_platform.portal.contracts.common import (
+    ContractModel,
+    ContractVersion,
+    NonEmptyStr,
+    UtcDateTime,
+)
 from ai_platform.portal.contracts.execution import OrderState, TradeState
 from ai_platform.portal.contracts.risk import RiskDecision, TradeSide
 from ai_platform.portal.execution.private_read import RuntimeReadFreshness, RuntimeReadKind
@@ -88,6 +95,7 @@ class OperationalSourceStatus(ContractModel):
 
 
 class RuntimeEvidenceSnapshot(ContractModel):
+    contract_version: ContractVersion = Field(default="v1", exclude=True)
     positions: tuple[OperationalPosition, ...]
     orders: tuple[OperationalOrder, ...]
     trades: tuple[OperationalTrade, ...]

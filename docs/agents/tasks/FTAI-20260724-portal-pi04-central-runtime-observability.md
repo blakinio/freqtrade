@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260724-portal-pi04-central-runtime-observability
-status: active
+status: ready
 branch: feat/portal-pi04-central-runtime-observability-20260724
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
-related_pr: null
+related_pr: 261
 owned_paths:
   - ai_platform/portal/observability/**
   - ai_platform/portal/deploy/observability/**
@@ -95,11 +95,11 @@ Provide a private, tenant-scoped runtime observability boundary for searchable s
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T16:31:52+02:00
-head: ee6c8c36272e5b565515692ddb1c834c4ff6a88c
+updated_at: 2026-07-24T19:39:00+02:00
+head: b5d7e53a95bb12a32edd5834a407850ee241dab2
 branch: feat/portal-pi04-central-runtime-observability-20260724
-pr: null
-status: active
+pr: 261
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -124,26 +124,69 @@ owned_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi04-central-runtime-observability.md
 proven:
-  - PI-03 was durably completed and its closure PR 260 was squash-merged to develop as ee6c8c36272e5b565515692ddb1c834c4ff6a88c.
-  - P4 already provides correlation-aware TelemetryContext, structured operation logs, counters, duration observations, trace-sink abstraction and recursive redaction.
-  - The current Execution Activity UI exposes durable audit evidence and truthfully reports centralized runtime stdout/stderr as unavailable.
-  - Open PR 248 owns RL-v2 paired-attribution paths and open draft PR 109 owns a sanitized design reference; neither owns the declared PI-04 implementation paths.
+  - PR 261 implements versioned tenant-scoped runtime-log query, record, result and source-status contracts without creating a parallel audit model.
+  - Runtime log availability and search require trusted tenant context plus AUDIT_READ; cross-tenant source records fail closed.
+  - Queries are bounded to a 24-hour window and 200 results and preserve service, component, environment, runtime, bot, correlation, trace/span, timestamp, source and retention identity.
+  - The private Loki-compatible source includes a concrete server-side HTTP transport with HTTP(S) hostname validation, embedded-credential rejection, a five-second default timeout and a one-MiB default response limit.
+  - Retryable backend failure and timeout are represented as UNAVAILABLE with stable reason evidence rather than a false empty success or unhandled browser-facing backend response.
+  - P4 recursively redacts producer fields, the OpenTelemetry Collector Contrib example applies redaction before every log/trace/metric exporter, and the query service redacts again before browser serialization.
+  - Collector destination endpoints and authorization values are environment-provided only; no private backend endpoint or credential is committed or returned through portal contracts.
+  - Execution Activity displays bounded raw runtime evidence separately from append-only audit evidence and truthfully exposes source availability and retention.
+  - Focused runtime observability, API, collector-configuration, redaction, tenant-isolation, transport-boundary and outage tests pass.
+  - Temporary Ruff and formatter diagnostic workflows were removed from the final merge candidate.
+  - AI Platform CI 1110, Portal Web CI 177, Portal Universal E2E 182, zizmor 1227 and Freqtrade CI 1297 passed on implementation head b5d7e53a95bb12a32edd5834a407850ee241dab2.
 derived:
-  - PI-04 can extend the existing observability abstraction without changing P4 event contracts or creating a parallel audit system.
-  - Real target-environment provisioning remains separate from repository-side contracts and does not satisfy P11.
-unknown:
-  - Final required CI result for the PI-04 implementation branch.
+  - PI-04 satisfies its bounded repository-side acceptance without provisioning external observability infrastructure or satisfying P11.
+  - Operational logs, traces and metrics remain independent from immutable audit evidence and cannot authorize execution or live capital.
+unknown: []
 conflicts: []
 first_failure:
-  marker: NOT_RUN
-  evidence: PI-04 implementation and validation have not run yet.
+  marker: RESOLVED
+  evidence: The initial exact OpenAPI-path assertion omitted the two PI-04 routes; later Ruff E501/S107 and formatter findings were isolated with temporary diagnostics, fixed without behavioral broadening and the diagnostics were removed before the final all-green matrix.
 rejected_hypotheses:
   - Store centralized runtime logs in append-only AuditEvent records.
   - Expose private observability backend URLs directly to browser clients.
   - Treat backend unavailability as an empty successful log result.
+  - Rely only on query-time redaction without producer and collector defense in depth.
+  - Leave the Loki transport as an unbounded injected protocol without timeout or response-size enforcement.
 changed_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/deploy/observability/README.md
+  - ai_platform/portal/deploy/observability/otel-collector.example.yaml
+  - ai_platform/portal/observability/__init__.py
+  - ai_platform/portal/observability/runtime.py
+  - ai_platform/portal/web/app/operations/execution-logs/page.tsx
+  - ai_platform/portal/web/e2e/shell.spec.ts
+  - ai_platform/portal/web/lib/product-api.ts
+  - ai_platform/portal/web/lib/product-contracts.ts
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi04-central-runtime-observability.md
-validation: []
+  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/DATA_OBSERVABILITY_FOUNDATION.md
+  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+  - docs/ai_platform/portal/runbooks/RUNTIME_OBSERVABILITY.md
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/observability/test_collector_config.py
+  - tests/ai_platform/portal/observability/test_runtime.py
+  - tests/ai_platform/portal/observability/test_runtime_api.py
+  - tests/ai_platform/portal/observability/test_runtime_outage.py
+validation:
+  - command: AI Platform CI 30112758845 / run 1110
+    result: PASS
+    evidence: AI platform tests, compile, Ruff, Ruff format, codespell and contract validations passed on implementation head b5d7e53a95bb12a32edd5834a407850ee241dab2.
+  - command: Portal Web CI 30112758870 / run 177
+    result: PASS
+    evidence: Typecheck, lint, production build and Chromium browser E2E passed on the implementation head.
+  - command: Portal Universal E2E 30112758851 / run 182
+    result: PASS
+    evidence: Backend universal scenario and critical Chromium path passed on the implementation head.
+  - command: GitHub Actions Security Analysis with zizmor 30112758838 / run 1227
+    result: PASS
+    evidence: Required workflow security analysis passed on the implementation head.
+  - command: Freqtrade CI 30112758848 / run 1297
+    result: PASS
+    evidence: Pre-commit, documentation, full multi-platform core matrix, coverage, smoke checks, Ruff, formatter, mypy and CI gate passed on the implementation head.
 blockers: []
-next_action: Implement the bounded private runtime-log source, search/availability API, collector configuration, UI integration and focused tests, then run required CI.
+next_action: Review and merge PR 261 after approval; select the next package only after durable merge evidence exists on develop.
 ```

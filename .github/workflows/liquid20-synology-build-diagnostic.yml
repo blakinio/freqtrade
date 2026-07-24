@@ -1,0 +1,36 @@
+name: Synology liquid20 image diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/liquid20/**"
+      - ".github/workflows/liquid20-synology-build-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Build minimal collector image
+        run: |
+          docker build \
+            --build-arg COLLECTOR_COMMIT="$GITHUB_SHA" \
+            --file deploy/synology/liquid20/Dockerfile \
+            --tag liquid20-synology:diagnostic \
+            .
+      - name: Verify embedded commit and unprivileged imports
+        run: |
+          docker run --rm \
+            --read-only \
+            --user 65534:65534 \
+            --entrypoint sh \
+            -e EXPECTED_COMMIT="$GITHUB_SHA" \
+            liquid20-synology:diagnostic \
+            -c 'test "$(cat /app/COLLECTOR_COMMIT)" = "$EXPECTED_COMMIT" && python -c "import websockets; import ai_platform.scripts.liquidation_multi_source_runner"'

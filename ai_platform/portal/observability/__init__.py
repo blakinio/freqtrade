@@ -1,5 +1,6 @@
 from ai_platform.portal.observability.redaction import REDACTED, redact_sensitive
 from ai_platform.portal.observability.runtime import (
+    HttpLokiQueryTransport,
     LokiQueryTransport,
     LokiRuntimeObservabilitySource,
     RuntimeLogQuery,
@@ -10,6 +11,7 @@ from ai_platform.portal.observability.runtime import (
     RuntimeObservabilityService,
     RuntimeObservabilitySource,
     RuntimeObservabilitySourceStatus,
+    RuntimeObservabilityUnavailableError,
     UnavailableRuntimeObservabilitySource,
 )
 from ai_platform.portal.observability.telemetry import (
@@ -24,6 +26,7 @@ from ai_platform.portal.observability.telemetry import (
 
 __all__ = [
     "REDACTED",
+    "HttpLokiQueryTransport",
     "LogSink",
     "LokiQueryTransport",
     "LokiRuntimeObservabilitySource",
@@ -36,6 +39,7 @@ __all__ = [
     "RuntimeObservabilityService",
     "RuntimeObservabilitySource",
     "RuntimeObservabilitySourceStatus",
+    "RuntimeObservabilityUnavailableError",
     "Span",
     "TelemetryContext",
     "TelemetryRecorder",

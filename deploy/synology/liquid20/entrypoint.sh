@@ -56,27 +56,23 @@ printf 'Starting liquid20 mode=%s run_id=%s host_id=%s commit=%s duration=%ss\n'
   "$MODE" "$RUN_ID" "$HOST_ID" "$COLLECTOR_COMMIT" "$DURATION_SECONDS"
 
 collector_rc=0
-if ! LIQUIDATION_STAGING_HOST_ID="$HOST_ID" \
-  python -m ai_platform.scripts.liquidation_multi_source_runner \
-    --profile liquid20-v1 \
-    --duration-seconds "$DURATION_SECONDS" \
-    --require-new-output \
-    --run-id "$RUN_ID" \
-    --host-id "$HOST_ID" \
-    --collector-commit "$COLLECTOR_COMMIT" \
-    --output-root "$RUN_ROOT"; then
-  collector_rc=$?
-fi
+LIQUIDATION_STAGING_HOST_ID="$HOST_ID" \
+python -m ai_platform.scripts.liquidation_multi_source_runner \
+  --profile liquid20-v1 \
+  --duration-seconds "$DURATION_SECONDS" \
+  --require-new-output \
+  --run-id "$RUN_ID" \
+  --host-id "$HOST_ID" \
+  --collector-commit "$COLLECTOR_COMMIT" \
+  --output-root "$RUN_ROOT" || collector_rc=$?
 
 evaluator_rc=0
 if [ "$MODE" = "acceptance" ]; then
   if [ -f "$RUN_ROOT/multi-source-manifest.json" ]; then
-    if ! python -m ai_platform.scripts.liquidation_multi_source_evaluator \
+    python -m ai_platform.scripts.liquidation_multi_source_evaluator \
       --run-root "$RUN_ROOT" \
       --policy "$POLICY" \
-      --output "$REPORT"; then
-      evaluator_rc=$?
-    fi
+      --output "$REPORT" || evaluator_rc=$?
   else
     echo "Acceptance manifest is missing; evaluator cannot run" >&2
     evaluator_rc=66

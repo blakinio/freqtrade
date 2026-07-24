@@ -38,7 +38,7 @@ jobs:
             ai_platform/scripts/liquidation_multi_source_evaluator.py
       - name: Focused tests
         run: |
-          pytest -q \
+          PYTHONPATH=. pytest -q \
             -o addopts='' \
             --confcutdir=tests/ai_platform_integration \
             tests/ai_platform_integration/test_liquidation_multi_source_acceptance.py \

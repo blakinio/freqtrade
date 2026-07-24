@@ -111,6 +111,7 @@ export interface AdministrationOverview {
 }
 
 export interface ModelHealthRecord {
+  health_record_id: string;
   model_version_id: string;
   tenant_id: string;
   model_family_id: string;
@@ -118,8 +119,27 @@ export interface ModelHealthRecord {
   created_at: string;
   training_window_end: string;
   metadata_age_days: number;
-  drift_status: "AVAILABLE" | "UNAVAILABLE";
+  drift_status: "HEALTHY" | "ATTENTION" | "DEGRADED" | "INSUFFICIENT_EVIDENCE" | "UNAVAILABLE";
   drift_reason: string;
+  policy_version: string | null;
+  reference_window_id: string | null;
+  observation_window_id: string | null;
+  reference_sample_count: number;
+  observation_sample_count: number;
+  accepted_predictions: number;
+  rejected_predictions: number;
+  rejection_reasons: Array<{ reason_code: string; count: number }>;
+  prediction_drift_score: string | null;
+  max_feature_drift_score: string | null;
+  worst_feature_name: string | null;
+  max_feature_quality_issue_rate: string | null;
+  feature_schema_version_id: string | null;
+  bot_id: string | null;
+  bot_config_revision_id: string | null;
+  runtime_id: string | null;
+  source_id: string | null;
+  source_availability: "AVAILABLE" | "UNAVAILABLE";
+  source_checked_at: string | null;
 }
 
 export interface RuntimeLogAvailability {

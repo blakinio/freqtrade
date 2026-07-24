@@ -1,4 +1,0 @@
-  File "<stdin>", line 232
-    page.write_text('''import { cookies } from "next/headers";
-                    ^
-SyntaxError: unterminated triple-quoted string literal (detected at line 291)

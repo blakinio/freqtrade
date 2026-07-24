@@ -39,7 +39,6 @@ from ai_platform.portal.operations.service import OperationalReadService
 from ai_platform.portal.product.schema import (
     AdministrationOverview,
     GridBotConfig,
-    ModelHealthRecord,
     NotificationEntry,
     NotificationPreference,
     ProfileSecurityView,
@@ -55,6 +54,15 @@ from ai_platform.portal.risk.terminal import (
     TerminalService,
 )
 from ai_platform.portal.security.authorization import PermissionDeniedError
+from ai_platform.portal.telemetry.schema import (
+    InferenceTelemetryEnvelope,
+    InferenceTelemetrySourceStatus,
+    ModelHealthRecord,
+)
+from ai_platform.portal.telemetry.service import (
+    InferenceTelemetryService,
+    TelemetryConflictError,
+)
 
 
 class CreateBotRequest(BaseModel):
@@ -142,6 +150,13 @@ def _register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RiskConflictError)
     async def risk_conflict_handler(_request: object, exc: RiskConflictError) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
+
+    @app.exception_handler(TelemetryConflictError)
+    async def telemetry_conflict_handler(
+        _request: object,
+        exc: TelemetryConflictError,
+    ) -> JSONResponse:
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
 
     @app.exception_handler(RiskSnapshotUnavailableError)
@@ -292,6 +307,7 @@ def _register_signal_strategy_routes(
 def _register_platform_capability_routes(
     app: FastAPI,
     product: ProductCapabilityService,
+    telemetry: InferenceTelemetryService,
     context_dependency: Callable[..., RequestContext],
 ) -> None:
     @app.get("/v1/notifications", response_model=list[NotificationEntry])
@@ -331,11 +347,42 @@ def _register_platform_capability_routes(
     ) -> AdministrationOverview:
         return product.administration_overview(context)
 
+    @app.post(
+        "/v1/inference-telemetry/windows",
+        response_model=InferenceTelemetryEnvelope,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def ingest_inference_telemetry(
+        request: InferenceTelemetryEnvelope,
+        context: RequestContext = Depends(context_dependency),
+    ) -> InferenceTelemetryEnvelope:
+        return telemetry.ingest_window(context, request)
+
+    @app.get(
+        "/v1/inference-telemetry/windows",
+        response_model=list[InferenceTelemetryEnvelope],
+    )
+    def list_inference_telemetry(
+        model_version_id: str | None = None,
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[InferenceTelemetryEnvelope, ...]:
+        return telemetry.list_windows(context, model_version_id)
+
+    @app.post(
+        "/v1/inference-telemetry/source-status",
+        response_model=InferenceTelemetrySourceStatus,
+    )
+    def record_inference_telemetry_source_status(
+        request: InferenceTelemetrySourceStatus,
+        context: RequestContext = Depends(context_dependency),
+    ) -> InferenceTelemetrySourceStatus:
+        return telemetry.record_source_status(context, request)
+
     @app.get("/v1/model-health", response_model=list[ModelHealthRecord])
     def model_health(
         context: RequestContext = Depends(context_dependency),
     ) -> tuple[ModelHealthRecord, ...]:
-        return product.model_health(context)
+        return telemetry.model_health(context)
 
     @app.get("/v1/runtime-log-availability", response_model=RuntimeLogAvailability)
     def runtime_log_availability(
@@ -353,6 +400,7 @@ def create_app(
     learning_service: LearningService | None = None,
     operational_read_service: OperationalReadService | None = None,
     product_capability_service: ProductCapabilityService | None = None,
+    inference_telemetry_service: InferenceTelemetryService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -371,12 +419,13 @@ def create_app(
         session_factory,
         model_control_service=model_control,
     )
+    telemetry = inference_telemetry_service or InferenceTelemetryService(session_factory)
     context_dependency = identity_dependency(identity_context_provider)
     _register_exception_handlers(app)
     _register_terminal_route(app, terminal, context_dependency)
     _register_operational_routes(app, operations, context_dependency)
     _register_signal_strategy_routes(app, product, context_dependency)
-    _register_platform_capability_routes(app, product, context_dependency)
+    _register_platform_capability_routes(app, product, telemetry, context_dependency)
 
     @app.post("/v1/bots", response_model=BotInstance, status_code=status.HTTP_201_CREATED)
     def create_bot(

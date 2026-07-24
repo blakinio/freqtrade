@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -265,7 +266,7 @@ class InferenceTelemetryService:
         model: ModelVersion,
         scope: InferenceTelemetryScope,
         now: datetime,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         return {
             "health_record_id": ":".join(
                 (

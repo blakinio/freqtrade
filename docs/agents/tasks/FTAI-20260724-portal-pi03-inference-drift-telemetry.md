@@ -82,8 +82,8 @@ Add a tenant-scoped, aggregate-only inference telemetry boundary and determinist
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T11:25:00+02:00
-head: 65ed0b0fccd8e0784d11f1edfeb9c83daa1b987a
+updated_at: 2026-07-24T12:52:37+02:00
+head: 2d480a42585cff99f9ee4d201253b004d72e112c
 branch: feat/portal-pi03-inference-drift-telemetry-20260724
 pr: 239
 status: validating
@@ -115,22 +115,19 @@ proven:
   - Duplicate telemetry identities are idempotent only for the same canonical payload; conflicting reuse is rejected.
   - Model Health API and UI expose window identities, sample counts, source availability and PSI or feature-quality evidence without lifecycle mutation.
   - Focused telemetry and control-plane API tests passed with 18 tests.
-  - The latest standard AI Platform CI test step passed; its Ruff step failed.
-  - Portal Web CI, Portal Universal E2E and zizmor passed on owner-authored head cf9521ffc66bdcea187e60872ce7478163454dd5.
-  - Freqtrade documentation build and core test matrix passed except pre-commit and the Python 3.13 Ruff step.
-  - The backlog PI-03 table row is already active; the remaining documentation replacements are partially applied and must be completed idempotently.
-  - PR 239 currently contains four temporary handover or documentation artifacts that are not intended for merge.
+  - Exact Ruff 0.15.21 findings were I001 in telemetry package imports, C901 in InferenceTelemetryEnvelope.validate_envelope and E501 in the telemetry test helper; Ruff format identified five Python files.
+  - Ruff auto-fix and format resolved the import, line-length and formatting findings; the remaining C901 was removed by splitting the validator into bounded helpers without changing validation order or error semantics.
+  - Every intended PI-03 backlog, architecture, UI-status and program documentation replacement is already present, so cleanup is idempotent and no temporary patch runner is required.
+  - The temporary documentation workflow, patch script, trigger and diagnostic files are removed from the merge candidate.
 derived:
-  - The remaining code-quality failure is mechanical Ruff or formatting work rather than a failing PI-03 behavioral test.
-  - The documentation patch must treat already-applied replacements as success before cleaning temporary artifacts.
-  - A final owner-authored commit is required after cleanup so normal repository workflows run instead of action_required bot-head checks.
+  - The final cleanup changes are mechanical code-quality and handover cleanup; PI-03 behavioral contracts remain unchanged.
+  - The owner-authored cleanup commit should run the normal repository workflows without the temporary diagnostic workflow.
 unknown:
-  - Exact Ruff findings have not yet been captured in a compact durable file.
-  - PR mergeability must be rechecked after temporary artifacts are removed and the branch is synchronized with current develop.
+  - Required CI result and final PR mergeability on the cleanup head.
 conflicts: []
 first_failure:
-  marker: RUFF_PRECOMMIT_AND_TEMP_DOC_PATCH
-  evidence: AI tests pass but Ruff and Freqtrade pre-commit fail; the non-idempotent docs patch stopped after an already-applied backlog replacement and left temporary workflow, script, trigger and diagnostic files.
+  marker: FINAL_REQUIRED_CI_PENDING
+  evidence: Exact Ruff findings are fixed and temporary artifacts are removed; repository acceptance now depends only on required CI for the cleanup head.
 rejected_hypotheses:
   - Infer drift from model metadata age or training-window age.
   - Persist raw feature vectors or individual prediction values in the portal database.
@@ -138,7 +135,6 @@ rejected_hypotheses:
   - Reuse protected final-holdout observations as iterative reference telemetry.
   - Combine reference and observation windows across runtime, config or source identities.
 changed_paths:
-  - .github/workflows/pi03-docs-patch.yml
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
   - ai_platform/portal/telemetry/__init__.py
@@ -154,38 +150,34 @@ changed_paths:
   - ai_platform/portal/web/lib/product-contracts.ts
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md
-  - docs/agents/tasks/PI03_DOCS_RUN_DIAGNOSTIC.txt
-  - docs/agents/tasks/PI03_DOCS_TRIGGER.txt
   - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - tests/ai_platform/portal/control_plane/test_api.py
   - tests/ai_platform/portal/telemetry/test_inference_telemetry.py
-  - tools/agents/pi03_docs_patch.py
 validation:
   - command: focused PI-03 telemetry and control-plane API pytest
     result: PASS
     evidence: 18 tests passed after timezone and compatibility fixes.
-  - command: AI Platform CI test step on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+  - command: AI Platform CI test step on owner head 3947cea196018d1113c2087278bfa0275d56033e
     result: PASS
     evidence: Full AI Platform pytest completed successfully before Ruff.
-  - command: ruff check ai_platform tests/ai_platform
-    result: FAIL
-    evidence: Standard AI Platform CI run 934 failed at Ruff after tests passed.
-  - command: Portal Web CI on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+  - command: Ruff 0.15.21 diagnostic on head 2d480a42585cff99f9ee4d201253b004d72e112c
     result: PASS
-    evidence: Workflow run 121 completed successfully.
-  - command: Portal Universal E2E on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+    evidence: Three exact lint findings and five format targets were captured; auto-fix and format left only C901, which is resolved in the cleanup commit.
+  - command: Portal Web CI on owner head 3947cea196018d1113c2087278bfa0275d56033e
     result: PASS
-    evidence: Workflow run 126 completed successfully.
-  - command: GitHub Actions Security Analysis on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
+    evidence: Workflow run 124 completed successfully.
+  - command: Portal Universal E2E on owner head 3947cea196018d1113c2087278bfa0275d56033e
     result: PASS
-    evidence: Workflow run 1023 completed successfully.
-  - command: Freqtrade CI on owner head cf9521ffc66bdcea187e60872ce7478163454dd5
-    result: FAIL
-    evidence: Core tests and docs passed; pre-commit and Python 3.13 Ruff failed.
+    evidence: Workflow run 129 completed successfully.
+  - command: GitHub Actions Security Analysis on owner head 3947cea196018d1113c2087278bfa0275d56033e
+    result: PASS
+    evidence: Workflow run 1045 completed successfully.
+  - command: required repository CI on final cleanup head
+    result: NOT_RUN
+    evidence: Normal owner-head workflows must complete after the cleanup commit.
 blockers:
-  - Ruff and pre-commit failures must be fixed before PR 239 can become review-ready.
-  - Temporary documentation workflow, patch script, trigger and diagnostic files must be removed before merge.
-next_action: Capture exact Ruff findings, apply Ruff fix and format, make the documentation patch idempotent, remove all four temporary artifacts, then create one owner-authored commit and rerun required CI.
+  - Required repository CI must pass on the final cleanup head before PR 239 becomes review-ready.
+next_action: Recheck required CI and PR mergeability on the final cleanup head; resolve only concrete failures, then mark PR 239 ready when all required checks are green.
 ```

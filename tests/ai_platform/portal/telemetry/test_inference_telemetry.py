@@ -69,7 +69,9 @@ def _context(
     )
 
 
-def _prepare_scope(session_factory: SessionFactory, tenant_id: str = "tenant-a") -> InferenceTelemetryScope:
+def _prepare_scope(
+    session_factory: SessionFactory, tenant_id: str = "tenant-a"
+) -> InferenceTelemetryScope:
     model_control = ModelControlService(session_factory, clock=lambda: NOW)
     model_control.register_model(
         _context(tenant_id, Permission.MODEL_TRAIN),

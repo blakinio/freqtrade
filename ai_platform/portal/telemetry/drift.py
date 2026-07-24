@@ -53,9 +53,7 @@ def population_stability_index(
                 Decimal(observation_bucket.count) / observation_total,
                 epsilon,
             )
-            score += (observation_rate - reference_rate) * (
-                observation_rate / reference_rate
-            ).ln()
+            score += (observation_rate - reference_rate) * (observation_rate / reference_rate).ln()
     return max(score, Decimal("0")).quantize(_SCORE_QUANTUM, rounding=ROUND_HALF_UP)
 
 
@@ -227,9 +225,7 @@ def assess_drift(
     feature_scores = _feature_scores(reference, observation, policy)
     worst_feature_name = max(feature_scores, key=lambda name: (feature_scores[name], name))
     max_feature_score = feature_scores[worst_feature_name]
-    max_quality_rate = max(
-        _quality_issue_rate(feature) for feature in observation.feature_quality
-    )
+    max_quality_rate = max(_quality_issue_rate(feature) for feature in observation.feature_quality)
     status, reason_code = _classify(
         prediction_score=prediction_score,
         max_feature_score=max_feature_score,

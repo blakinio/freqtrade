@@ -187,8 +187,7 @@ class InferenceTelemetryRepository:
                 InferenceDriftAssessmentRow.feature_schema_version_id
                 == scope.feature_schema_version_id,
                 InferenceDriftAssessmentRow.bot_id == scope.bot_id,
-                InferenceDriftAssessmentRow.bot_config_revision_id
-                == scope.bot_config_revision_id,
+                InferenceDriftAssessmentRow.bot_config_revision_id == scope.bot_config_revision_id,
                 InferenceDriftAssessmentRow.runtime_id == scope.runtime_id,
                 InferenceDriftAssessmentRow.source_id == scope.source_id,
             )

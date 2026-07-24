@@ -125,6 +125,13 @@ class InferenceTelemetryEnvelope(ContractModel):
 
     @model_validator(mode="after")
     def validate_envelope(self) -> Self:
+        self._validate_contract_flags()
+        prediction_count = self._validate_prediction_counts()
+        self._validate_rejection_reasons()
+        self._validate_feature_quality(prediction_count)
+        return self
+
+    def _validate_contract_flags(self) -> None:
         if self.schema_version != 1:
             raise ValueError("schema_version must be 1")
         if not self.aggregate_only:
@@ -134,18 +141,22 @@ class InferenceTelemetryEnvelope(ContractModel):
         if self.generated_at < self.window.end_at:
             raise ValueError("generated_at must be at or after telemetry window end_at")
 
+    def _validate_prediction_counts(self) -> int:
         prediction_count = self.prediction_count
         if prediction_count <= 0:
             raise ValueError("telemetry window must contain at least one prediction")
         if self.prediction_distribution.total_count != prediction_count:
             raise ValueError("prediction distribution total must equal prediction count")
+        return prediction_count
 
+    def _validate_rejection_reasons(self) -> None:
         reason_codes = [reason.reason_code for reason in self.rejection_reasons]
         if len(set(reason_codes)) != len(reason_codes):
             raise ValueError("rejection reason codes must be unique")
         if sum(reason.count for reason in self.rejection_reasons) != self.rejected_predictions:
             raise ValueError("rejection reason counts must equal rejected_predictions")
 
+    def _validate_feature_quality(self, prediction_count: int) -> None:
         if not self.feature_quality:
             raise ValueError("feature_quality must contain at least one feature aggregate")
         feature_names = [feature.feature_name for feature in self.feature_quality]
@@ -154,7 +165,6 @@ class InferenceTelemetryEnvelope(ContractModel):
         for feature in self.feature_quality:
             if feature.total_count != prediction_count:
                 raise ValueError("each feature aggregate total must equal prediction count")
-        return self
 
     @property
     def prediction_count(self) -> int:
@@ -190,9 +200,7 @@ class DriftPolicy(ContractModel):
         if self.degraded_threshold <= self.attention_threshold:
             raise ValueError("degraded_threshold must be greater than attention_threshold")
         if self.feature_quality_degraded_rate <= self.feature_quality_attention_rate:
-            raise ValueError(
-                "feature_quality_degraded_rate must be greater than attention rate"
-            )
+            raise ValueError("feature_quality_degraded_rate must be greater than attention rate")
         return self
 
 

@@ -8,6 +8,7 @@ from ai_platform.portal.telemetry.schema import (
 )
 from ai_platform.portal.telemetry.service import InferenceTelemetryService
 
+
 __all__ = [
     "DriftHealthStatus",
     "InferenceTelemetryEnvelope",

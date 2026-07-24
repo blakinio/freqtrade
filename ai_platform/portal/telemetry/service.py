@@ -354,9 +354,7 @@ class InferenceTelemetryService:
             model_groups = grouped.setdefault(window.scope.model_version_id, {})
             model_groups.setdefault(cls._scope_key(window.scope), []).append(window)
         return {
-            model_version_id: {
-                key: tuple(group) for key, group in model_groups.items()
-            }
+            model_version_id: {key: tuple(group) for key, group in model_groups.items()}
             for model_version_id, model_groups in grouped.items()
         }
 

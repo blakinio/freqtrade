@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 import json
-import socket
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from enum import StrEnum
 from time import sleep
-from typing import Any, Literal, Protocol, TypeVar
+from typing import Any, Generic, Literal, Protocol, TypeVar
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
 from pydantic import PositiveInt
@@ -160,7 +161,7 @@ class PrivateRuntimeSnapshot(ContractModel):
 
 
 class HttpResponse(Protocol):
-    def __enter__(self) -> "HttpResponse": ...
+    def __enter__(self) -> HttpResponse: ...
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...
 
@@ -171,7 +172,7 @@ HttpOpener = Callable[..., HttpResponse]
 
 
 class HttpPrivateRuntimeTransport:
-    """HTTP client for a trusted private collector, not for browser or public ingress use."""
+    """HTTP client for a trusted private collector, not browser or public ingress use."""
 
     def __init__(
         self,
@@ -189,38 +190,63 @@ class HttpPrivateRuntimeTransport:
         self._max_body_bytes = max_body_bytes
 
     def fetch_page(self, request: RuntimeReadRequest) -> PrivateRuntimePage:
-        endpoint = self._endpoint_resolver(request.source_runtime_id, request.kind)
-        if not endpoint.startswith(("http://", "https://")):
+        endpoint = self._validated_endpoint(
+            self._endpoint_resolver(request.source_runtime_id, request.kind)
+        )
+        http_request = self._request(endpoint, request)
+        body = self._read_body(http_request, request.timeout_seconds)
+        return self._decode_page(body)
+
+    @staticmethod
+    def _validated_endpoint(endpoint: str) -> str:
+        parsed = urlsplit(endpoint)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
             raise RuntimeReadProtocolError("RUNTIME_READ_INVALID_PRIVATE_ENDPOINT")
+        if parsed.username is not None or parsed.password is not None:
+            raise RuntimeReadProtocolError("RUNTIME_READ_ENDPOINT_EMBEDS_CREDENTIALS")
+        return endpoint
+
+    def _request(self, endpoint: str, request: RuntimeReadRequest) -> Request:
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
             **dict(self._authorization_headers(request.source_runtime_id)),
         }
         encoded = json.dumps(request.model_dump(mode="json"), separators=(",", ":")).encode()
-        http_request = Request(endpoint, data=encoded, headers=headers, method="POST")
+        # S310 is safe here because _validated_endpoint permits only HTTP(S) with a hostname.
+        return Request(endpoint, data=encoded, headers=headers, method="POST")  # noqa: S310
+
+    def _read_body(self, request: Request, timeout_seconds: int) -> bytes:
         try:
-            with self._opener(http_request, timeout=request.timeout_seconds) as response:
+            with self._opener(request, timeout=timeout_seconds) as response:
                 body = response.read(self._max_body_bytes + 1)
         except HTTPError as exc:
-            if exc.code in {401, 403}:
-                raise RuntimeReadAuthenticationError() from None
-            if exc.code in {408, 504}:
-                raise RuntimeReadTimeoutError() from None
-            if exc.code == 404:
-                raise RuntimeReadUnavailableError("RUNTIME_READ_RUNTIME_NOT_FOUND") from None
-            if exc.code == 429 or exc.code >= 500:
-                raise RuntimeReadUnavailableError("RUNTIME_READ_COLLECTOR_UNAVAILABLE") from None
-            raise RuntimeReadProtocolError("RUNTIME_READ_HTTP_REJECTED") from None
-        except (TimeoutError, socket.timeout):
+            self._raise_http_error(exc.code)
+        except TimeoutError:
             raise RuntimeReadTimeoutError() from None
         except URLError as exc:
-            if isinstance(exc.reason, (TimeoutError, socket.timeout)):
+            if isinstance(exc.reason, TimeoutError):
                 raise RuntimeReadTimeoutError() from None
             raise RuntimeReadUnavailableError("RUNTIME_READ_TRANSPORT_UNAVAILABLE") from None
 
         if len(body) > self._max_body_bytes:
             raise RuntimeReadProtocolError("RUNTIME_READ_RESPONSE_TOO_LARGE")
+        return body
+
+    @staticmethod
+    def _raise_http_error(status_code: int) -> None:
+        if status_code in {401, 403}:
+            raise RuntimeReadAuthenticationError() from None
+        if status_code in {408, 504}:
+            raise RuntimeReadTimeoutError() from None
+        if status_code == 404:
+            raise RuntimeReadUnavailableError("RUNTIME_READ_RUNTIME_NOT_FOUND") from None
+        if status_code == 429 or status_code >= 500:
+            raise RuntimeReadUnavailableError("RUNTIME_READ_COLLECTOR_UNAVAILABLE") from None
+        raise RuntimeReadProtocolError("RUNTIME_READ_HTTP_REJECTED") from None
+
+    @staticmethod
+    def _decode_page(body: bytes) -> PrivateRuntimePage:
         try:
             payload = json.loads(body)
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -240,6 +266,16 @@ _RecordT = TypeVar(
     PrivateOrderRecord,
     PrivateTradeRecord,
 )
+
+
+@dataclass
+class _PageCollection(Generic[_RecordT]):
+    records: list[_RecordT]
+    source_observed_at: datetime | None
+    complete: bool
+    mismatch: bool
+    source_unavailable: bool
+    reason_code: str | None
 
 
 class PrivateRuntimeCollector:
@@ -396,139 +432,294 @@ class PrivateRuntimeCollector:
         identity_field: str,
     ) -> tuple[list[_RecordT], RuntimeReadStatus]:
         observed_at = self._clock()
+        collected = self._collect_pages(
+            tenant_id,
+            bot_id,
+            source_runtime_id,
+            kind,
+            record_type,
+            identity_field,
+        )
+        status = self._collection_status(
+            tenant_id=tenant_id,
+            bot_id=bot_id,
+            source_runtime_id=source_runtime_id,
+            kind=kind,
+            observed_at=observed_at,
+            collected=collected,
+        )
+        return collected.records, status
+
+    def _collect_pages(
+        self,
+        tenant_id: str,
+        bot_id: str,
+        source_runtime_id: str,
+        kind: RuntimeReadKind,
+        record_type: type[_RecordT],
+        identity_field: str,
+    ) -> _PageCollection[_RecordT]:
         cursor: str | None = None
         source_observed_at: datetime | None = None
         records_by_id: dict[str, _RecordT] = {}
         mismatch = False
-        reason_code: str | None = None
-        complete = False
 
         for _page_number in range(self._max_pages):
-            request = RuntimeReadRequest(
-                tenant_id=tenant_id,
-                bot_id=bot_id,
-                source_runtime_id=source_runtime_id,
-                kind=kind,
-                cursor=cursor,
-                page_size=self._page_size,
-                timeout_seconds=self._timeout_seconds,
+            request = self._request_model(
+                tenant_id,
+                bot_id,
+                source_runtime_id,
+                kind,
+                cursor,
             )
-            try:
-                page = self._fetch_with_retry(request)
-            except RuntimeReadIsolationError:
-                raise
-            except RuntimeReadError as exc:
-                reason_code = exc.reason_code
-                if records_by_id:
-                    return list(records_by_id.values()), self._status(
-                        tenant_id=tenant_id,
-                        bot_id=bot_id,
-                        source_runtime_id=source_runtime_id,
-                        kind=kind,
-                        source_observed_at=source_observed_at,
-                        observed_at=observed_at,
-                        freshness=RuntimeReadFreshness.PARTIAL,
-                        reconciliation_status=RuntimeReadReconciliationStatus.PENDING,
-                        complete=False,
-                        record_count=len(records_by_id),
-                        reason_code=reason_code,
-                    )
-                return [], self._status(
-                    tenant_id=tenant_id,
-                    bot_id=bot_id,
-                    source_runtime_id=source_runtime_id,
-                    kind=kind,
-                    source_observed_at=None,
-                    observed_at=observed_at,
-                    freshness=RuntimeReadFreshness.SOURCE_UNAVAILABLE,
-                    reconciliation_status=RuntimeReadReconciliationStatus.SOURCE_UNAVAILABLE,
-                    complete=False,
-                    record_count=0,
-                    reason_code=reason_code,
+            page_or_error = self._fetch_page_or_error(request)
+            if isinstance(page_or_error, RuntimeReadError):
+                return self._error_collection(
+                    records_by_id,
+                    source_observed_at,
+                    mismatch,
+                    page_or_error,
                 )
 
+            page = page_or_error
             self._require_page_scope(page, request)
-            source_observed_at = (
-                page.source_observed_at
-                if source_observed_at is None
-                else max(source_observed_at, page.source_observed_at)
+            source_observed_at = self._latest_observation(
+                source_observed_at,
+                page.source_observed_at,
             )
-            for raw_record in page.records:
-                try:
-                    reject_sensitive_payload_keys(raw_record, path=f"{kind.value}.record")
-                    record = record_type.model_validate(raw_record)
-                except ValueError:
-                    reason_code = "RUNTIME_READ_INVALID_RECORD"
-                    return list(records_by_id.values()), self._status(
-                        tenant_id=tenant_id,
-                        bot_id=bot_id,
-                        source_runtime_id=source_runtime_id,
-                        kind=kind,
-                        source_observed_at=source_observed_at,
-                        observed_at=observed_at,
-                        freshness=RuntimeReadFreshness.PARTIAL,
-                        reconciliation_status=RuntimeReadReconciliationStatus.MISMATCH,
-                        complete=False,
-                        record_count=len(records_by_id),
-                        reason_code=reason_code,
-                    )
-                identity = str(getattr(record, identity_field))
-                existing = records_by_id.get(identity)
-                if existing is not None and existing.canonical_json() != record.canonical_json():
-                    mismatch = True
-                else:
-                    records_by_id[identity] = record
-
+            page_mismatch, record_error = self._merge_page_records(
+                records_by_id,
+                page.records,
+                record_type,
+                identity_field,
+                kind,
+            )
+            mismatch = mismatch or page_mismatch
+            if record_error is not None:
+                return _PageCollection(
+                    records=list(records_by_id.values()),
+                    source_observed_at=source_observed_at,
+                    complete=False,
+                    mismatch=True,
+                    source_unavailable=False,
+                    reason_code=record_error,
+                )
             if page.complete:
-                if page.next_cursor is not None:
-                    raise RuntimeReadProtocolError("RUNTIME_READ_COMPLETE_PAGE_HAS_CURSOR")
-                complete = True
-                break
-            if page.next_cursor is None or page.next_cursor == cursor:
-                reason_code = "RUNTIME_READ_INVALID_PAGINATION"
-                break
-            cursor = page.next_cursor
-        else:
-            reason_code = "RUNTIME_READ_PAGE_LIMIT_EXCEEDED"
+                self._require_complete_page(page)
+                return _PageCollection(
+                    records=list(records_by_id.values()),
+                    source_observed_at=source_observed_at,
+                    complete=True,
+                    mismatch=mismatch,
+                    source_unavailable=False,
+                    reason_code=None,
+                )
+            next_cursor = self._next_cursor(page, cursor)
+            if next_cursor is None:
+                return _PageCollection(
+                    records=list(records_by_id.values()),
+                    source_observed_at=source_observed_at,
+                    complete=False,
+                    mismatch=True,
+                    source_unavailable=False,
+                    reason_code="RUNTIME_READ_INVALID_PAGINATION",
+                )
+            cursor = next_cursor
 
-        if not complete:
-            return list(records_by_id.values()), self._status(
+        return _PageCollection(
+            records=list(records_by_id.values()),
+            source_observed_at=source_observed_at,
+            complete=False,
+            mismatch=mismatch,
+            source_unavailable=False,
+            reason_code="RUNTIME_READ_PAGE_LIMIT_EXCEEDED",
+        )
+
+    def _request_model(
+        self,
+        tenant_id: str,
+        bot_id: str,
+        source_runtime_id: str,
+        kind: RuntimeReadKind,
+        cursor: str | None,
+    ) -> RuntimeReadRequest:
+        return RuntimeReadRequest(
+            tenant_id=tenant_id,
+            bot_id=bot_id,
+            source_runtime_id=source_runtime_id,
+            kind=kind,
+            cursor=cursor,
+            page_size=self._page_size,
+            timeout_seconds=self._timeout_seconds,
+        )
+
+    def _fetch_page_or_error(
+        self,
+        request: RuntimeReadRequest,
+    ) -> PrivateRuntimePage | RuntimeReadError:
+        try:
+            return self._fetch_with_retry(request)
+        except RuntimeReadIsolationError:
+            raise
+        except RuntimeReadError as exc:
+            return exc
+
+    @staticmethod
+    def _error_collection(
+        records_by_id: dict[str, _RecordT],
+        source_observed_at: datetime | None,
+        mismatch: bool,
+        error: RuntimeReadError,
+    ) -> _PageCollection[_RecordT]:
+        return _PageCollection(
+            records=list(records_by_id.values()),
+            source_observed_at=source_observed_at,
+            complete=False,
+            mismatch=mismatch,
+            source_unavailable=not records_by_id,
+            reason_code=error.reason_code,
+        )
+
+    @staticmethod
+    def _latest_observation(current: datetime | None, candidate: datetime) -> datetime:
+        return candidate if current is None else max(current, candidate)
+
+    @staticmethod
+    def _merge_page_records(
+        records_by_id: dict[str, _RecordT],
+        raw_records: tuple[dict[str, Any], ...],
+        record_type: type[_RecordT],
+        identity_field: str,
+        kind: RuntimeReadKind,
+    ) -> tuple[bool, str | None]:
+        mismatch = False
+        for raw_record in raw_records:
+            try:
+                reject_sensitive_payload_keys(raw_record, path=f"{kind.value}.record")
+                record = record_type.model_validate(raw_record)
+            except ValueError:
+                return mismatch, "RUNTIME_READ_INVALID_RECORD"
+            identity = str(getattr(record, identity_field))
+            existing = records_by_id.get(identity)
+            if existing is None:
+                records_by_id[identity] = record
+            elif existing.canonical_json() != record.canonical_json():
+                mismatch = True
+        return mismatch, None
+
+    @staticmethod
+    def _require_complete_page(page: PrivateRuntimePage) -> None:
+        if page.next_cursor is not None:
+            raise RuntimeReadProtocolError("RUNTIME_READ_COMPLETE_PAGE_HAS_CURSOR")
+
+    @staticmethod
+    def _next_cursor(page: PrivateRuntimePage, current: str | None) -> str | None:
+        if page.next_cursor is None or page.next_cursor == current:
+            return None
+        return page.next_cursor
+
+    def _collection_status(
+        self,
+        *,
+        tenant_id: str,
+        bot_id: str,
+        source_runtime_id: str,
+        kind: RuntimeReadKind,
+        observed_at: datetime,
+        collected: _PageCollection[_RecordT],
+    ) -> RuntimeReadStatus:
+        if collected.source_unavailable:
+            return self._status(
                 tenant_id=tenant_id,
                 bot_id=bot_id,
                 source_runtime_id=source_runtime_id,
                 kind=kind,
-                source_observed_at=source_observed_at,
+                source_observed_at=None,
+                observed_at=observed_at,
+                freshness=RuntimeReadFreshness.SOURCE_UNAVAILABLE,
+                reconciliation_status=RuntimeReadReconciliationStatus.SOURCE_UNAVAILABLE,
+                complete=False,
+                record_count=0,
+                reason_code=collected.reason_code,
+            )
+        if not collected.complete:
+            return self._partial_status(
+                tenant_id=tenant_id,
+                bot_id=bot_id,
+                source_runtime_id=source_runtime_id,
+                kind=kind,
+                observed_at=observed_at,
+                collected=collected,
+            )
+        return self._complete_status(
+            tenant_id=tenant_id,
+            bot_id=bot_id,
+            source_runtime_id=source_runtime_id,
+            kind=kind,
+            observed_at=observed_at,
+            collected=collected,
+        )
+
+    def _partial_status(
+        self,
+        *,
+        tenant_id: str,
+        bot_id: str,
+        source_runtime_id: str,
+        kind: RuntimeReadKind,
+        observed_at: datetime,
+        collected: _PageCollection[_RecordT],
+    ) -> RuntimeReadStatus:
+        reconciliation = (
+            RuntimeReadReconciliationStatus.MISMATCH
+            if collected.mismatch
+            else RuntimeReadReconciliationStatus.PENDING
+        )
+        return self._status(
+            tenant_id=tenant_id,
+            bot_id=bot_id,
+            source_runtime_id=source_runtime_id,
+            kind=kind,
+            source_observed_at=collected.source_observed_at,
+            observed_at=observed_at,
+            freshness=RuntimeReadFreshness.PARTIAL,
+            reconciliation_status=reconciliation,
+            complete=False,
+            record_count=len(collected.records),
+            reason_code=collected.reason_code or "RUNTIME_READ_PARTIAL_RESPONSE",
+        )
+
+    def _complete_status(
+        self,
+        *,
+        tenant_id: str,
+        bot_id: str,
+        source_runtime_id: str,
+        kind: RuntimeReadKind,
+        observed_at: datetime,
+        collected: _PageCollection[_RecordT],
+    ) -> RuntimeReadStatus:
+        source_observed_at = collected.source_observed_at
+        if source_observed_at is None:
+            return self._status(
+                tenant_id=tenant_id,
+                bot_id=bot_id,
+                source_runtime_id=source_runtime_id,
+                kind=kind,
+                source_observed_at=None,
                 observed_at=observed_at,
                 freshness=RuntimeReadFreshness.PARTIAL,
-                reconciliation_status=(
-                    RuntimeReadReconciliationStatus.MISMATCH
-                    if reason_code == "RUNTIME_READ_INVALID_PAGINATION"
-                    else RuntimeReadReconciliationStatus.PENDING
-                ),
+                reconciliation_status=RuntimeReadReconciliationStatus.MISMATCH,
                 complete=False,
-                record_count=len(records_by_id),
-                reason_code=reason_code or "RUNTIME_READ_PARTIAL_RESPONSE",
+                record_count=len(collected.records),
+                reason_code="RUNTIME_READ_SOURCE_TIMESTAMP_MISSING",
             )
-
-        assert source_observed_at is not None
         age_seconds = max(0.0, (observed_at - source_observed_at).total_seconds())
-        if mismatch:
-            freshness = (
-                RuntimeReadFreshness.STALE
-                if age_seconds > self._stale_after_seconds
-                else RuntimeReadFreshness.CURRENT
-            )
-            reconciliation = RuntimeReadReconciliationStatus.MISMATCH
-            reason_code = "RUNTIME_READ_DUPLICATE_MISMATCH"
-        elif age_seconds > self._stale_after_seconds:
-            freshness = RuntimeReadFreshness.STALE
-            reconciliation = RuntimeReadReconciliationStatus.PENDING
-            reason_code = "RUNTIME_READ_SOURCE_STALE"
-        else:
-            freshness = RuntimeReadFreshness.CURRENT
-            reconciliation = RuntimeReadReconciliationStatus.SYNCED
-
-        return list(records_by_id.values()), self._status(
+        freshness, reconciliation, reason_code = self._complete_state(
+            age_seconds,
+            collected.mismatch,
+        )
+        return self._status(
             tenant_id=tenant_id,
             bot_id=bot_id,
             source_runtime_id=source_runtime_id,
@@ -538,9 +729,37 @@ class PrivateRuntimeCollector:
             freshness=freshness,
             reconciliation_status=reconciliation,
             complete=True,
-            record_count=len(records_by_id),
+            record_count=len(collected.records),
             reason_code=reason_code,
         )
+
+    def _complete_state(
+        self,
+        age_seconds: float,
+        mismatch: bool,
+    ) -> tuple[
+        RuntimeReadFreshness,
+        RuntimeReadReconciliationStatus,
+        str | None,
+    ]:
+        freshness = (
+            RuntimeReadFreshness.STALE
+            if age_seconds > self._stale_after_seconds
+            else RuntimeReadFreshness.CURRENT
+        )
+        if mismatch:
+            return (
+                freshness,
+                RuntimeReadReconciliationStatus.MISMATCH,
+                "RUNTIME_READ_DUPLICATE_MISMATCH",
+            )
+        if freshness is RuntimeReadFreshness.STALE:
+            return (
+                freshness,
+                RuntimeReadReconciliationStatus.PENDING,
+                "RUNTIME_READ_SOURCE_STALE",
+            )
+        return freshness, RuntimeReadReconciliationStatus.SYNCED, None
 
     def _fetch_with_retry(self, request: RuntimeReadRequest) -> PrivateRuntimePage:
         last_error: RuntimeReadError | None = None
@@ -552,7 +771,8 @@ class PrivateRuntimeCollector:
                 if not exc.retryable or attempt >= self._max_retries:
                     raise
                 self._sleeper(self._retry_delay_seconds * (attempt + 1))
-        assert last_error is not None
+        if last_error is None:
+            raise RuntimeReadProtocolError("RUNTIME_READ_RETRY_STATE_INVALID")
         raise last_error
 
     @staticmethod

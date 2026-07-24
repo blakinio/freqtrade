@@ -96,9 +96,9 @@ def test_runtime_inheritance_preserves_baseline_lifecycle() -> None:
     strategy_class = type(strategy)
 
     assert strategy_class.__bases__ == (baseline_class,)
-    assert {
-        name for name in strategy_class.__dict__ if not name.startswith("_")
-    } == {"ignore_roi_if_entry_signal"}
+    assert {name for name in strategy_class.__dict__ if not name.startswith("_")} == {
+        "ignore_roi_if_entry_signal"
+    }
     assert strategy_class.ignore_roi_if_entry_signal is True
     assert strategy_class.minimal_roi == baseline_class.minimal_roi
     assert strategy_class.stoploss == baseline_class.stoploss

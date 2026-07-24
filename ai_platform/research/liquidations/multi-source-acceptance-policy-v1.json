@@ -45,36 +45,54 @@
     "bybit-linear": {
       "endpoint": "wss://stream.bybit.com/v5/public/linear",
       "clock_endpoint": "https://api.bybit.com/v5/market/time",
-      "stream": "allLiquidation",
-      "coverage_semantics": "all liquidation events published by the exchange",
-      "documented_push_frequency_ms": 500,
-      "minimum_messages_received": 1,
-      "maximum_parse_failures": 0,
-      "minimum_availability_ratio": 0.995,
-      "maximum_disconnects_per_hour": 2.0,
-      "maximum_duplicate_ratio": 0.01,
-      "latency_threshold_ms": 5000,
-      "maximum_latency_over_threshold_ratio": 0.01,
-      "minimum_latency_samples": 20,
+      "source_semantics": {
+        "stream": "allLiquidation",
+        "coverage": "all liquidation events published by the exchange",
+        "documented_push_frequency_ms": 500
+      },
       "minimum_events_total": 20,
-      "minimum_observed_symbols": 8
+      "minimum_observed_symbols": 8,
+      "thresholds": {
+        "minimum_duration_seconds": 86400,
+        "minimum_messages_received": 1,
+        "maximum_parse_failures": 0,
+        "minimum_availability_ratio": 0.995,
+        "maximum_disconnects_per_hour": 2.0,
+        "maximum_duplicate_ratio": 0.01,
+        "latency_threshold_ms": 5000,
+        "maximum_latency_over_threshold_ratio": 0.01,
+        "minimum_latency_samples": 20,
+        "minimum_events_per_symbol": 0,
+        "require_clock_synchronized": true,
+        "require_new_output": true,
+        "require_collector_commit": true
+      }
     },
     "binance-usdm": {
       "endpoint": "wss://fstream.binance.com/market/ws",
       "clock_endpoint": "https://fapi.binance.com/fapi/v1/time",
-      "stream": "forceOrder",
-      "coverage_semantics": "latest liquidation order per symbol within each 1000 ms window",
-      "documented_push_frequency_ms": 1000,
-      "minimum_messages_received": 1,
-      "maximum_parse_failures": 0,
-      "minimum_availability_ratio": 0.995,
-      "maximum_disconnects_per_hour": 2.0,
-      "maximum_duplicate_ratio": 0.01,
-      "latency_threshold_ms": 5000,
-      "maximum_latency_over_threshold_ratio": 0.01,
-      "minimum_latency_samples": 10,
+      "source_semantics": {
+        "stream": "forceOrder",
+        "coverage": "latest liquidation order per symbol within each 1000 ms window",
+        "documented_push_frequency_ms": 1000
+      },
       "minimum_events_total": 10,
-      "minimum_observed_symbols": 5
+      "minimum_observed_symbols": 5,
+      "thresholds": {
+        "minimum_duration_seconds": 86400,
+        "minimum_messages_received": 1,
+        "maximum_parse_failures": 0,
+        "minimum_availability_ratio": 0.995,
+        "maximum_disconnects_per_hour": 2.0,
+        "maximum_duplicate_ratio": 0.01,
+        "latency_threshold_ms": 5000,
+        "maximum_latency_over_threshold_ratio": 0.01,
+        "minimum_latency_samples": 10,
+        "minimum_events_per_symbol": 0,
+        "require_clock_synchronized": true,
+        "require_new_output": true,
+        "require_collector_commit": true
+      }
     }
   },
   "boundary": "Acceptance authorizes immutable multi-source research evidence only. It does not authorize replay, strategy promotion, dry-run trading, order execution, DCA, leverage, protected-holdout use, or live capital."

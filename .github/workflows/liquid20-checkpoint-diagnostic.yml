@@ -1,0 +1,27 @@
+name: Liquid20 checkpoint diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquid20-checkpoint-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Print checkpoint failure
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquid20-multi-source-acceptance-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260724-liquid20-multi-source-acceptance-v1.md \
+            --require-checkpoint

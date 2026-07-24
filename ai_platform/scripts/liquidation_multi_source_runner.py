@@ -138,7 +138,7 @@ def _source_manifest(
     start_clock: Mapping[str, object],
     end_clock: Mapping[str, object],
     result: CollectorRunStats | BaseException,
-    normalization_result: None | BaseException,
+    normalization_result: BaseException | None,
     source_id: str,
 ) -> dict[str, object]:
     errors = [

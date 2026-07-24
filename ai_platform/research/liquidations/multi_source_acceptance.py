@@ -37,7 +37,7 @@ def _number(value: object, *, field: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError(f"{field} must be numeric")
     parsed = float(value)
-    if not parsed == parsed or parsed in (float("inf"), float("-inf")):
+    if parsed != parsed or parsed in (float("inf"), float("-inf")):  # noqa: PLR0124
         raise ValueError(f"{field} must be finite")
     return parsed
 
@@ -599,16 +599,14 @@ def evaluate_multi_source_run(
     gates.add(
         "run_id",
         not policy.requires("run_id")
-        or bool(run_id)
-        and run_id not in {"unknown", "unspecified"},
+        or (bool(run_id) and run_id not in {"unknown", "unspecified"}),
         run_id,
         "stable run identifier",
     )
     gates.add(
         "host_id",
         not policy.requires("host_id")
-        or bool(host_id)
-        and host_id not in {"unknown", "unspecified"},
+        or (bool(host_id) and host_id not in {"unknown", "unspecified"}),
         host_id,
         "non-sensitive host identifier",
     )

@@ -4,15 +4,22 @@ on:
   push:
     branches:
       - diag/pi03-ci-1174-logs
+    paths:
+      - .github/workflows/pi03-ci-log-diagnostic.yml
 
 permissions:
   actions: read
-  contents: read
+  contents: write
 
 jobs:
   extract:
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: diag/pi03-ci-1174-logs
+
       - name: Download failed job logs
         shell: bash
         env:
@@ -66,13 +73,16 @@ jobs:
               output.append(f"===== {path.name} lines {start + 1}-{end} of {len(lines)} =====")
               output.extend(lines[start:end])
               output.append("")
-          (root / "failure-extract.txt").write_text("\n".join(output), encoding="utf-8")
+          Path("docs/agents/tasks/PI03_CI_1174_FAILURE_EXTRACT.txt").write_text(
+              "\n".join(output), encoding="utf-8"
+          )
           PY
 
-      - name: Upload failure extract
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pi03-ci-1174-failure-extract
-          path: ${{ runner.temp }}/pi03-ci-logs/failure-extract.txt
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit diagnostic extract
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/agents/tasks/PI03_CI_1174_FAILURE_EXTRACT.txt
+          git commit -m "docs(agents): capture PI-03 final CI failure"
+          git push origin HEAD:diag/pi03-ci-1174-logs

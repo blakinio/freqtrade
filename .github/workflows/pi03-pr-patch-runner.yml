@@ -21,7 +21,7 @@ jobs:
         with:
           ref: feat/portal-pi03-inference-drift-telemetry-20260724
           persist-credentials: true
-      - name: Extract and run branch patch
+      - name: Extract branch patch
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -38,7 +38,23 @@ jobs:
               lines.append(line[10:] if line else '')
           Path('/tmp/pi03-apply.sh').write_text('\n'.join(lines) + '\n', encoding='utf-8')
           PY
-          bash /tmp/pi03-apply.sh
+      - name: Run patch and capture exact failure
+        run: |
+          set +e
+          bash /tmp/pi03-apply.sh > /tmp/pi03-patch.log 2>&1
+          code=$?
+          cat /tmp/pi03-patch.log
+          if [ "$code" -ne 0 ]; then
+            cp /tmp/pi03-patch.log docs/agents/tasks/PI03_PATCH_DIAGNOSTIC.txt
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add docs/agents/tasks/PI03_PATCH_DIAGNOSTIC.txt
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(ci): capture PI-03 patch diagnostic"
+              git push origin HEAD:feat/portal-pi03-inference-drift-telemetry-20260724
+            fi
+            exit "$code"
+          fi
       - name: Commit integration patch
         run: |
           if git diff --quiet; then

@@ -61,6 +61,8 @@ ai_platform/portal/
 
 Implementation work must continue to follow the frozen architecture and safety boundaries rather than treating a merged foundation slice as completion of an entire roadmap stage.
 
+After the bounded P0-P12 software platform and software-addressable portal surfaces, remaining authoritative-source, private-runtime, identity, observability and external-infrastructure work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Listing a package there does not activate implementation or authorize live capital.
+
 ## Documentation map
 
 - `SYSTEM_ARCHITECTURE.md` — components, planes, trust boundaries and deployment evolution.
@@ -72,6 +74,7 @@ Implementation work must continue to follow the frozen architecture and safety b
 - `UI_DELIVERY_STATUS.md` — truthful per-surface implementation/integration status and remaining read-model gaps.
 - `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
 - `DELIVERY_ROADMAP.md` — staged delivery plan and gates.
+- `POST_P12_INTEGRATION_BACKLOG.md` — canonical dependency-ordered packages for remaining private/external integrations after the bounded platform foundation.
 - `AGENT_EXECUTION_PLAN.md` — bounded agent workstreams, ownership and dependencies.
 
 ## Non-negotiable safety boundaries

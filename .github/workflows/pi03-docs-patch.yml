@@ -51,48 +51,46 @@ jobs:
           )
 
           architecture = "docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md"
-          section = '''## 10. Canonical inference telemetry and drift
-
-PI-03 stores durable aggregate inference evidence in PostgreSQL without retaining raw feature vectors or individual prediction values.
-
-Every telemetry scope pins:
-
-```text
-tenant_id
-model_version_id
-feature_schema_version_id
-bot_id
-bot_config_revision_id
-runtime_id
-source_id
-```
-
-A versioned window contains accepted/rejected prediction counts, bounded rejection-reason counts, feature present/missing/invalid counts and named distribution buckets. Reference and observation windows must match the exact scope and bucket identities before comparison.
-
-The durable boundary consists of:
-
-- `portal_inference_telemetry_windows` for immutable aggregate reference/observation envelopes;
-- `portal_inference_telemetry_source_status` for explicit source availability and checked time;
-- `portal_inference_drift_assessments` for reproducible policy, window identities and scores.
-
-The initial `psi-v1` policy records minimum samples, attention/degraded thresholds, feature-quality thresholds and smoothing epsilon. It produces only:
-
-```text
-HEALTHY
-ATTENTION
-DEGRADED
-INSUFFICIENT_EVIDENCE
-UNAVAILABLE
-```
-
-Missing source status, stale/unavailable source evidence, missing windows, insufficient samples or incompatible buckets never produce `HEALTHY`. Drift evidence is read-only: it cannot mutate ModelVersion lifecycle, promotion slots, training state, risk policy or execution authority. Protected final-holdout data `20260801-20260930` is forbidden as iterative telemetry/reference evidence.
-
-'''
-          replace(
-              architecture,
-              "## 10. Observability stack\n",
-              section + "## 11. Observability stack\n",
-          )
+          section = "\n".join((
+              "## 10. Canonical inference telemetry and drift",
+              "",
+              "PI-03 stores durable aggregate inference evidence in PostgreSQL without retaining raw feature vectors or individual prediction values.",
+              "",
+              "Every telemetry scope pins:",
+              "",
+              "```text",
+              "tenant_id",
+              "model_version_id",
+              "feature_schema_version_id",
+              "bot_id",
+              "bot_config_revision_id",
+              "runtime_id",
+              "source_id",
+              "```",
+              "",
+              "A versioned window contains accepted/rejected prediction counts, bounded rejection-reason counts, feature present/missing/invalid counts and named distribution buckets. Reference and observation windows must match the exact scope and bucket identities before comparison.",
+              "",
+              "The durable boundary consists of:",
+              "",
+              "- `portal_inference_telemetry_windows` for immutable aggregate reference/observation envelopes;",
+              "- `portal_inference_telemetry_source_status` for explicit source availability and checked time;",
+              "- `portal_inference_drift_assessments` for reproducible policy, window identities and scores.",
+              "",
+              "The initial `psi-v1` policy records minimum samples, attention/degraded thresholds, feature-quality thresholds and smoothing epsilon. It produces only:",
+              "",
+              "```text",
+              "HEALTHY",
+              "ATTENTION",
+              "DEGRADED",
+              "INSUFFICIENT_EVIDENCE",
+              "UNAVAILABLE",
+              "```",
+              "",
+              "Missing source status, stale/unavailable source evidence, missing windows, insufficient samples or incompatible buckets never produce `HEALTHY`. Drift evidence is read-only: it cannot mutate ModelVersion lifecycle, promotion slots, training state, risk policy or execution authority. Protected final-holdout data `20260801-20260930` is forbidden as iterative telemetry/reference evidence.",
+              "",
+              "",
+          ))
+          replace(architecture, "## 10. Observability stack\n", section + "## 11. Observability stack\n")
           for old, new in (
               ("## 11. Structured logging", "## 12. Structured logging"),
               ("## 12. Metrics", "## 13. Metrics"),
@@ -115,30 +113,29 @@ Missing source status, stale/unavailable source evidence, missing windows, insuf
               "| Model Health | `/ai/model-health` | partially integrated | immutable model metadata and age are canonical; drift status truthfully reports unavailable until telemetry source exists |",
               "| Model Health | `/ai/model-health` | integrated | tenant-scoped aggregate inference telemetry, source availability, exact model/feature-schema/bot-config/runtime attribution and reproducible PSI-v1 reference/observation evidence |",
           )
+          semantics = "\n".join((
+              "Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.",
+              "",
+              "## PI-03 inference and drift semantics",
+              "",
+              "Model Health reads canonical `/v1/model-health` evidence derived from persisted aggregate telemetry windows.",
+              "",
+              "- `HEALTHY` means the latest compatible reference/observation pair satisfies the versioned PSI-v1 and feature-quality bounds.",
+              "- `ATTENTION` and `DEGRADED` identify threshold crossings without triggering retraining, promotion or lifecycle mutation.",
+              "- `INSUFFICIENT_EVIDENCE` covers minimum-sample and incompatible distribution evidence.",
+              "- `UNAVAILABLE` covers missing, stale or explicitly unavailable telemetry source/window/assessment evidence.",
+              "- every measured row exposes exact model, feature-schema, bot-config, runtime and source attribution plus window identities and sample counts.",
+              "",
+              "Raw feature values and individual predictions are not returned to the browser or persisted in this PI-03 boundary. Protected final-holdout observations are rejected from iterative telemetry evidence.",
+              "",
+              "## Remaining hard boundaries",
+          ))
           replace(
               ui,
               "Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.\n\n## Remaining hard boundaries",
-              '''Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.
-
-## PI-03 inference and drift semantics
-
-Model Health reads canonical `/v1/model-health` evidence derived from persisted aggregate telemetry windows.
-
-- `HEALTHY` means the latest compatible reference/observation pair satisfies the versioned PSI-v1 and feature-quality bounds.
-- `ATTENTION` and `DEGRADED` identify threshold crossings without triggering retraining, promotion or lifecycle mutation.
-- `INSUFFICIENT_EVIDENCE` covers minimum-sample and incompatible distribution evidence.
-- `UNAVAILABLE` covers missing, stale or explicitly unavailable telemetry source/window/assessment evidence.
-- every measured row exposes exact model, feature-schema, bot-config, runtime and source attribution plus window identities and sample counts.
-
-Raw feature values and individual predictions are not returned to the browser or persisted in this PI-03 boundary. Protected final-holdout observations are rejected from iterative telemetry evidence.
-
-## Remaining hard boundaries''',
+              semantics,
           )
-          replace(
-              ui,
-              "| canonical model/feature/prediction drift evidence | `PI-03` Canonical Inference and Drift Telemetry |\n",
-              "",
-          )
+          replace(ui, "| canonical model/feature/prediction drift evidence | `PI-03` Canonical Inference and Drift Telemetry |\n", "")
           replace(
               ui,
               "API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise.",

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
+from urllib.request import Request
 from uuid import UUID
 
 import pytest
@@ -12,6 +14,7 @@ from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.observability.redaction import REDACTED
 from ai_platform.portal.observability.runtime import (
+    HttpLokiQueryTransport,
     LokiRuntimeObservabilitySource,
     RuntimeLogQuery,
     RuntimeLogRecord,
@@ -19,6 +22,7 @@ from ai_platform.portal.observability.runtime import (
     RuntimeObservabilityProtocolError,
     RuntimeObservabilityService,
     RuntimeObservabilitySourceStatus,
+    RuntimeObservabilityUnavailableError,
     UnavailableRuntimeObservabilitySource,
 )
 from ai_platform.portal.security.authorization import PermissionDeniedError
@@ -135,6 +139,54 @@ class FakeLokiTransport:
         }
 
 
+class FakeHttpResponse:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+
+    def __enter__(self) -> FakeHttpResponse:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+        return None
+
+    def read(self, amount: int = -1) -> bytes:
+        return self._body if amount < 0 else self._body[:amount]
+
+
+class CapturingOpener:
+    def __init__(self, body: bytes) -> None:
+        self._body = body
+        self.request: Request | None = None
+        self.timeout: int | None = None
+
+    def __call__(self, request: Request, *, timeout: int) -> FakeHttpResponse:
+        self.request = request
+        self.timeout = timeout
+        return FakeHttpResponse(self._body)
+
+
+class TimeoutOpener:
+    def __call__(self, request: Request, *, timeout: int) -> FakeHttpResponse:
+        del request, timeout
+        raise TimeoutError
+
+
+def _http_transport(
+    opener: CapturingOpener | TimeoutOpener,
+    *,
+    endpoint: str = "https://loki.internal/loki/api/v1/query_range",
+    max_body_bytes: int = 1_048_576,
+) -> HttpLokiQueryTransport:
+    return HttpLokiQueryTransport(
+        lambda tenant_id: endpoint,
+        lambda tenant_id: {"Authorization": f"Bearer private-{tenant_id}"},
+        lambda tenant_id: _status(),
+        opener=opener,
+        timeout_seconds=3,
+        max_body_bytes=max_body_bytes,
+    )
+
+
 def test_loki_source_enforces_tenant_selector_and_redacts_nested_secrets() -> None:
     transport = FakeLokiTransport(_record_payload())
     source = LokiRuntimeObservabilitySource(transport)
@@ -154,6 +206,68 @@ def test_loki_source_enforces_tenant_selector_and_redacts_nested_secrets() -> No
         "nested": {"authorization": REDACTED, "safe": "ok"},
     }
     assert result.records[0].audit_evidence is False
+
+
+def test_http_loki_transport_builds_bounded_server_side_query() -> None:
+    opener = CapturingOpener(b'{"status":"success","data":{"result":[]}}')
+    transport = _http_transport(opener)
+
+    response = transport.query_range(
+        tenant_id="tenant-a",
+        query='{tenant_id="tenant-a"}',
+        start_ns=100,
+        end_ns=200,
+        limit=10,
+    )
+
+    assert response["status"] == "success"
+    assert opener.timeout == 3
+    assert opener.request is not None
+    assert opener.request.get_header("Authorization") == "Bearer private-tenant-a"
+    parsed = urlsplit(opener.request.full_url)
+    assert parsed.scheme == "https"
+    assert parsed.hostname == "loki.internal"
+    assert parse_qs(parsed.query) == {
+        "query": ['{tenant_id="tenant-a"}'],
+        "start": ["100"],
+        "end": ["200"],
+        "limit": ["10"],
+        "direction": ["backward"],
+    }
+
+
+def test_http_loki_transport_rejects_oversized_or_credentialed_source() -> None:
+    with pytest.raises(RuntimeObservabilityProtocolError, match="RESPONSE_TOO_LARGE"):
+        _http_transport(CapturingOpener(b"123456"), max_body_bytes=5).query_range(
+            tenant_id="tenant-a",
+            query='{tenant_id="tenant-a"}',
+            start_ns=100,
+            end_ns=200,
+            limit=10,
+        )
+
+    with pytest.raises(RuntimeObservabilityProtocolError, match="EMBEDS_CREDENTIALS"):
+        _http_transport(
+            CapturingOpener(b"{}"),
+            endpoint="https://user:password@loki.internal/loki/api/v1/query_range",
+        ).query_range(
+            tenant_id="tenant-a",
+            query='{tenant_id="tenant-a"}',
+            start_ns=100,
+            end_ns=200,
+            limit=10,
+        )
+
+
+def test_http_loki_transport_exposes_timeout_as_source_unavailable() -> None:
+    with pytest.raises(RuntimeObservabilityUnavailableError, match="TIMEOUT"):
+        _http_transport(TimeoutOpener()).query_range(
+            tenant_id="tenant-a",
+            query='{tenant_id="tenant-a"}',
+            start_ns=100,
+            end_ns=200,
+            limit=10,
+        )
 
 
 def test_unavailable_source_is_explicit_and_returns_no_raw_logs() -> None:

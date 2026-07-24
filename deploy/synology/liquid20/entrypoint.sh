@@ -6,6 +6,7 @@ umask 027
 MODE="${LIQUID20_MODE:-smoke}"
 HOST_ID="${LIQUIDATION_STAGING_HOST_ID:-synology-01}"
 COLLECTOR_COMMIT="${COLLECTOR_COMMIT:-}"
+IMAGE_COMMIT="$(cat /app/COLLECTOR_COMMIT)"
 RUN_ID="${RUN_ID:-liquid20-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 DATA_ROOT="${LIQUID20_DATA_ROOT:-/data/runs}"
 POLICY="/app/ai_platform/research/liquidations/multi-source-acceptance-policy-v1.json"
@@ -37,6 +38,11 @@ esac
 
 if ! printf '%s' "$COLLECTOR_COMMIT" | grep -Eq '^[0-9a-fA-F]{40}$'; then
   echo "COLLECTOR_COMMIT must be the exact 40-character Git commit used to build the image" >&2
+  exit 64
+fi
+
+if [ "$COLLECTOR_COMMIT" != "$IMAGE_COMMIT" ]; then
+  echo "Runtime COLLECTOR_COMMIT does not match the commit embedded in the image" >&2
   exit 64
 fi
 

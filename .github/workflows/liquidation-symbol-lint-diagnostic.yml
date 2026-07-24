@@ -6,6 +6,9 @@ on:
       - develop
     paths:
       - ".github/workflows/liquidation-symbol-lint-diagnostic.yml"
+      - "ai_platform/research/liquidations/symbol_universe.py"
+      - "ai_platform/scripts/liquidation_multi_source_runner.py"
+      - "tests/ai_platform_integration/test_liquidation_symbol_universe.py"
 
 permissions:
   contents: read

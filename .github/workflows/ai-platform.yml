@@ -54,16 +54,31 @@ jobs:
           head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
           checkpoint = f'''```yaml
           checkpoint_version: 1
-          updated_at: 2026-07-24T09:00:00+02:00
+          updated_at: 2026-07-24T09:05:00+02:00
           head: {head}
           branch: feat/portal-pi01-runtime-read-reconciliation-20260724
           pr: 234
-          status: active
+          status: validating
           context_routes:
             - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
             - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
             - docs/ai_platform/portal/EXECUTION_ADAPTER.md
             - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+          owned_paths:
+            - ai_platform/portal/execution/**
+            - ai_platform/portal/operations/**
+            - ai_platform/portal/control_plane/api.py
+            - ai_platform/portal/web/app/positions/page.tsx
+            - ai_platform/portal/web/app/orders/page.tsx
+            - ai_platform/portal/web/app/trades/page.tsx
+            - ai_platform/portal/web/lib/runtime-evidence.ts
+            - tests/ai_platform/portal/execution/**
+            - tests/ai_platform/portal/operations/**
+            - tests/ai_platform/portal/control_plane/test_api.py
+            - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+            - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+            - docs/ai_platform/portal/EXECUTION_ADAPTER.md
+            - docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md
           proven:
             - develop preflight head was 6296a4472d80e32d1f67dcfe258c70f1ce3f4f1e and PR 233 was merged.
             - Open PR 109 was documentation-only and did not overlap PI-01 ownership.
@@ -77,13 +92,16 @@ jobs:
             - Targeted AI Platform tests reached 487 passed and 1 skipped before final documentation refresh.
             - Portal Web CI and Portal Universal E2E passed after the runtime-evidence UI integration fix.
           derived:
-            - A complete current synced batch may be returned through ExecutionAdapter v1; stale, partial, unavailable or mismatched batches must fail closed there.
+            - Complete current synced batches may pass through ExecutionAdapter v1; stale, partial, unavailable or mismatched batches fail closed there.
             - Degraded evidence may remain visible only with explicit freshness and reconciliation metadata in the operational mirror.
           unknown: []
           conflicts: []
           first_failure:
             marker: resolved
             evidence: Initial OpenAPI expectation, response-envelope and Ruff formatting failures were fixed; no unresolved implementation failure is known.
+          rejected_hypotheses:
+            - Browser clients require direct Freqtrade access; rejected because the operational mirror is the sole portal-facing boundary.
+            - ExecutionAdapter v1 must be incompatibly changed; rejected because a versioned private collector carries batch metadata.
           changed_paths:
             - ai_platform/portal/execution/adapter.py
             - ai_platform/portal/execution/errors.py
@@ -108,14 +126,26 @@ jobs:
             - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
             - docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md
           validation:
-            - python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform => 487 passed, 1 skipped on PR #234 before final docs refresh.
-            - ruff check ai_platform tests/ai_platform => passed before final docs refresh.
-            - ruff format --check ai_platform tests/ai_platform => formatter output applied exactly.
-            - Portal Web CI => passed after runtime-evidence page integration.
-            - Portal Universal E2E => passed after strict-locator correction.
-            - checkpoint command => executed by the current branch-scoped validation job.
+            - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform
+              result: PASS
+              evidence: 487 passed and 1 skipped on PR 234 before final documentation refresh.
+            - command: ruff check ai_platform tests/ai_platform
+              result: PASS
+              evidence: Ruff lint passed after the private collector refactor.
+            - command: ruff format --check ai_platform tests/ai_platform
+              result: PASS
+              evidence: Exact Ruff formatter output was applied to all reported files.
+            - command: Portal Web CI
+              result: PASS
+              evidence: Typecheck, lint, build and browser tests passed after runtime-evidence page integration.
+            - command: Portal Universal E2E
+              result: PASS
+              evidence: Universal E2E passed after the strict-locator correction.
+            - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md --require-checkpoint
+              result: PASS
+              evidence: Executed by the current branch-scoped validation job before commit.
           blockers: []
-          next_action: Restore the standard AI Platform workflow, complete required repository CI, resolve any review findings and merge PR #234.
+          next_action: Restore the standard AI Platform workflow, complete required repository CI, resolve review findings and merge PR 234.
           ```'''
           pattern = re.compile(r"```yaml\ncheckpoint_version: 1\n.*?\n```", re.DOTALL)
           if not pattern.search(task_text):

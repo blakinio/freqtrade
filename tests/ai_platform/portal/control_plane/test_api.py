@@ -95,6 +95,7 @@ def test_api_enforces_tenant_isolation_without_resource_disclosure(
     assert client.get("/v1/orders").json() == []
     assert client.get("/v1/positions").json() == []
     assert client.get("/v1/trades").json() == []
+    assert client.get("/v1/valuations").json() == []
     assert client.get("/v1/signals").json() == []
     assert client.get("/v1/grid-bots").json() == []
 
@@ -174,7 +175,14 @@ def test_operational_routes_return_truthful_empty_state_and_protect_audit_reads(
     holder = {"context": _context("tenant-a", Permission.BOT_READ)}
     client = TestClient(create_app(session_factory, lambda: holder["context"]))
 
-    for path in ("/v1/positions", "/v1/orders", "/v1/trades", "/v1/performance", "/v1/risk-events"):
+    for path in (
+        "/v1/positions",
+        "/v1/orders",
+        "/v1/trades",
+        "/v1/performance",
+        "/v1/valuations",
+        "/v1/risk-events",
+    ):
         response = client.get(path)
         assert response.status_code == 200
         assert response.json() == []
@@ -227,6 +235,7 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/trades",
         "/v1/runtime-evidence",
         "/v1/performance",
+        "/v1/valuations",
         "/v1/risk-events",
         "/v1/audit-events",
         "/v1/execution-activity",

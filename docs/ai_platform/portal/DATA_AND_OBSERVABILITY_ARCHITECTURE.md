@@ -420,3 +420,7 @@ Rules:
 5. Secrets are absent from logs/events/traces.
 6. Negative model/trade evidence remains durable.
 7. Autonomous-agent repairs leave auditable evidence and PR history.
+
+## PI-02 authoritative valuation boundary
+
+PI-02 selects the exact pinned private Freqtrade runtime as the mark source for each reconciled open position. The source is normalized server-side with source-position identity, pair and side, base and quote currency, entry rate, current mark, leverage, source-price identity and observation timestamp. The portal computes `mark-to-entry-v1` only for current synced unit-leverage positions whose quote currency equals the bot capital currency. Stale, unavailable, cross-currency, leveraged, missing or conflicting evidence produces an explicit non-current state and no numeric valuation. The browser receives no private runtime endpoint or authorization material, and realized PNL remains closed-trade evidence.

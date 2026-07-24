@@ -72,6 +72,11 @@ from ai_platform.portal.telemetry.service import (
     InferenceTelemetryService,
     TelemetryConflictError,
 )
+from ai_platform.portal.valuation.runtime import (
+    UnavailableRuntimeValuationSource,
+    ValuationService,
+    ValuationSnapshot,
+)
 
 
 class CreateBotRequest(BaseModel):
@@ -266,6 +271,18 @@ def _register_operational_routes(
         return operations.list_execution_activity(context)
 
 
+def _register_valuation_routes(
+    app: FastAPI,
+    valuation: ValuationService,
+    context_dependency: Callable[..., RequestContext],
+) -> None:
+    @app.get("/v1/valuations", response_model=list[ValuationSnapshot])
+    def list_valuations(
+        context: RequestContext = Depends(context_dependency),
+    ) -> tuple[ValuationSnapshot, ...]:
+        return valuation.list_valuations(context)
+
+
 def _register_runtime_observability_routes(
     app: FastAPI,
     runtime_observability: RuntimeObservabilityService,
@@ -443,6 +460,7 @@ def create_app(
     product_capability_service: ProductCapabilityService | None = None,
     inference_telemetry_service: InferenceTelemetryService | None = None,
     runtime_observability_service: RuntimeObservabilityService | None = None,
+    valuation_service: ValuationService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -465,10 +483,15 @@ def create_app(
     runtime_observability = runtime_observability_service or RuntimeObservabilityService(
         UnavailableRuntimeObservabilitySource(checked_at=datetime.now(UTC))
     )
+    valuation = valuation_service or ValuationService(
+        session_factory,
+        UnavailableRuntimeValuationSource(checked_at=datetime.now(UTC)),
+    )
     context_dependency = identity_dependency(identity_context_provider)
     _register_exception_handlers(app)
     _register_terminal_route(app, terminal, context_dependency)
     _register_operational_routes(app, operations, context_dependency)
+    _register_valuation_routes(app, valuation, context_dependency)
     _register_runtime_observability_routes(app, runtime_observability, context_dependency)
     _register_signal_strategy_routes(app, product, context_dependency)
     _register_platform_capability_routes(app, product, telemetry, context_dependency)

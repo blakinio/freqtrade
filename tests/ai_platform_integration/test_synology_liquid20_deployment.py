@@ -37,6 +37,7 @@ def test_synology_image_uses_minimal_pinned_runtime_dependency() -> None:
     assert "python:3.13-slim-bookworm" in dockerfile
     assert '"websockets==16.0"' in dockerfile
     assert "COPY ai_platform /app/ai_platform" in dockerfile
+    assert "> /app/COLLECTOR_COMMIT" in dockerfile
     assert 'ENTRYPOINT ["/usr/local/bin/liquid20-entrypoint"]' in dockerfile
 
 
@@ -48,6 +49,7 @@ def test_synology_entrypoint_freezes_acceptance_and_refuses_credentials() -> Non
     assert "--require-new-output" in entrypoint
     assert "liquidation_multi_source_evaluator" in entrypoint
     assert "artifact-sha256.txt" in entrypoint
+    assert 'COLLECTOR_COMMIT" != "$IMAGE_COMMIT' in entrypoint
     for variable in (
         "BYBIT_API_KEY",
         "BYBIT_API_SECRET",

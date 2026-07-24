@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import Depends, FastAPI, status
@@ -27,6 +28,14 @@ from ai_platform.portal.intelligence.service import TradeIntelligenceService
 from ai_platform.portal.learning.schema import LearningHistoryEntry
 from ai_platform.portal.learning.service import LearningService
 from ai_platform.portal.model_control.service import ModelControlService
+from ai_platform.portal.observability.runtime import (
+    RuntimeLogQuery,
+    RuntimeLogSearchResult,
+    RuntimeObservabilityProtocolError,
+    RuntimeObservabilityService,
+    RuntimeObservabilitySourceStatus,
+    UnavailableRuntimeObservabilitySource,
+)
 from ai_platform.portal.operations.schema import (
     ExecutionActivityEntry,
     OperationalOrder,
@@ -159,6 +168,13 @@ def _register_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
 
+    @app.exception_handler(RuntimeObservabilityProtocolError)
+    async def runtime_observability_protocol_handler(
+        _request: object,
+        exc: RuntimeObservabilityProtocolError,
+    ) -> JSONResponse:
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(exc)})
+
     @app.exception_handler(RiskSnapshotUnavailableError)
     async def risk_snapshot_unavailable_handler(
         _request: object,
@@ -248,6 +264,31 @@ def _register_operational_routes(
         context: RequestContext = Depends(context_dependency),
     ) -> tuple[ExecutionActivityEntry, ...]:
         return operations.list_execution_activity(context)
+
+
+def _register_runtime_observability_routes(
+    app: FastAPI,
+    runtime_observability: RuntimeObservabilityService,
+    context_dependency: Callable[..., RequestContext],
+) -> None:
+    @app.get(
+        "/v1/runtime-observability/availability",
+        response_model=RuntimeObservabilitySourceStatus,
+    )
+    def runtime_observability_availability(
+        context: RequestContext = Depends(context_dependency),
+    ) -> RuntimeObservabilitySourceStatus:
+        return runtime_observability.availability(context)
+
+    @app.post(
+        "/v1/runtime-observability/logs/search",
+        response_model=RuntimeLogSearchResult,
+    )
+    def search_runtime_logs(
+        request: RuntimeLogQuery,
+        context: RequestContext = Depends(context_dependency),
+    ) -> RuntimeLogSearchResult:
+        return runtime_observability.search_logs(context, request)
 
 
 def _register_signal_strategy_routes(
@@ -401,6 +442,7 @@ def create_app(
     operational_read_service: OperationalReadService | None = None,
     product_capability_service: ProductCapabilityService | None = None,
     inference_telemetry_service: InferenceTelemetryService | None = None,
+    runtime_observability_service: RuntimeObservabilityService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -420,10 +462,14 @@ def create_app(
         model_control_service=model_control,
     )
     telemetry = inference_telemetry_service or InferenceTelemetryService(session_factory)
+    runtime_observability = runtime_observability_service or RuntimeObservabilityService(
+        UnavailableRuntimeObservabilitySource(checked_at=datetime.now(UTC))
+    )
     context_dependency = identity_dependency(identity_context_provider)
     _register_exception_handlers(app)
     _register_terminal_route(app, terminal, context_dependency)
     _register_operational_routes(app, operations, context_dependency)
+    _register_runtime_observability_routes(app, runtime_observability, context_dependency)
     _register_signal_strategy_routes(app, product, context_dependency)
     _register_platform_capability_routes(app, product, telemetry, context_dependency)
 

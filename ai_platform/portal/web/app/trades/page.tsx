@@ -39,7 +39,10 @@ export default async function TradesPage() {
               <tbody>
                 {trades.map((trade) => (
                   <tr key={trade.trade_id}>
-                    <td><strong>{trade.source_trade_id}</strong><span>{trade.trade_id}</span></td>
+                    <td>
+                      <strong>{trade.source_trade_id}</strong>
+                      {trade.trade_id !== trade.source_trade_id ? <span>{trade.trade_id}</span> : null}
+                    </td>
                     <td><strong>{botNames.get(trade.bot_id) ?? trade.bot_id}</strong><span>{trade.source_runtime_id}</span></td>
                     <td><strong>{trade.pair}</strong><span>{trade.side}</span></td>
                     <td><StatusPill value={trade.state} /></td>

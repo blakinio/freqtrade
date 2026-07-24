@@ -1,0 +1,67 @@
+name: AI Platform RL-v2 Pre-commit Diagnostic
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/ai-platform-rl-v2-precommit-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install pre-commit runner
+        run: python -m pip install --disable-pip-version-check --quiet pre-commit
+
+      - name: Capture exact pre-commit failure
+        id: diagnostic
+        shell: bash
+        run: |
+          set +e
+          pre-commit run --all-files --show-diff-on-failure --verbose \
+            > precommit-diagnostic.log 2>&1
+          status=$?
+          {
+            printf '\n=== exit status ===\n%s\n' "$status"
+            printf '\n=== git status ===\n'
+            git status --short
+            printf '\n=== git diff check ===\n'
+            git diff --check
+            printf '\n=== git diff ===\n'
+            git diff -- .
+          } >> precommit-diagnostic.log 2>&1
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload diagnostic log
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-precommit-diagnostic-${{ github.event.pull_request.number }}
+          path: precommit-diagnostic.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Report diagnostic result
+        run: |
+          echo "pre-commit exit status: ${{ steps.diagnostic.outputs.status }}"

@@ -245,9 +245,7 @@ def test_data_verifier_accepts_exact_stop_boundary(
 ) -> None:
     import pandas as pd
 
-    dates = pd.to_datetime(
-        ["2025-08-01T00:00:00Z", "2026-05-01T00:00:00Z"], utc=True
-    )
+    dates = pd.to_datetime(["2025-08-01T00:00:00Z", "2026-05-01T00:00:00Z"], utc=True)
 
     def fake_load_pair_history(**_: object) -> pd.DataFrame:
         return pd.DataFrame({"date": dates})
@@ -260,10 +258,7 @@ def test_data_verifier_accepts_exact_stop_boundary(
     result = verify_downloaded_data(tmp_path, pairs=["BTC/USDT"])
 
     assert result["status"] == "ready"
-    assert result["coverage"]["BTC/USDT:15m"]["last"] == (
-        "2026-05-01T00:00:00+00:00"
-    )
-
+    assert result["coverage"]["BTC/USDT:15m"]["last"] == ("2026-05-01T00:00:00+00:00")
 
 
 def test_synthetic_trade_accounting_fixture_reconciles() -> None:

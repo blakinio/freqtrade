@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "profile_id": "wickhunter-inspired-liquidation-reversal-example-v1",
+  "status": "research_only",
+  "enabled": false,
+  "deployment_stage": "data_collection_only",
+  "profitability_claim_allowed": false,
+  "promotion_allowed": false,
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "allowed": false,
+    "earliest_final_evaluation_utc": "2026-10-01T00:00:00Z"
+  },
+  "data": {
+    "sources": [
+      {
+        "id": "bybit-linear",
+        "transport": "public_websocket",
+        "endpoint": "wss://stream.bybit.com/v5/public/linear",
+        "topics": [
+          "allLiquidation.BTCUSDT",
+          "allLiquidation.ETHUSDT"
+        ]
+      }
+    ],
+    "canonical_format": "ndjson",
+    "append_only": true,
+    "deduplicate": true,
+    "record_received_timestamp": true,
+    "record_source_timestamp": true
+  },
+  "signal": {
+    "logic": "counter_trade_liquidated_position",
+    "allowed_symbols": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ],
+    "minimum_liquidation_notional_usd": 75000,
+    "maximum_event_age_ms": 2000,
+    "band": {
+      "method": "rolling_typical_price_vwap",
+      "timeframe": "1m",
+      "periods": 20,
+      "use_only_completed_candles": true,
+      "long_distance_ratio": 0.015,
+      "short_distance_ratio": 0.015
+    },
+    "volume_filter": {
+      "enabled": false,
+      "metric": null,
+      "minimum_usd": null,
+      "maximum_usd": null,
+      "reason": "The exact volume metric must be prospectively declared and validated before signal execution."
+    }
+  },
+  "execution": {
+    "enabled": false,
+    "dry_run": true,
+    "exchange": null,
+    "margin_mode": "isolated",
+    "leverage": 1,
+    "position_size_usd": 0,
+    "maximum_open_trades": 1,
+    "entry_order_type": "market"
+  },
+  "dca": {
+    "enabled": false,
+    "maximum_orders": 0,
+    "reason": "DCA requires separate bounded risk and liquidation-distance validation."
+  },
+  "exit": {
+    "take_profit_enabled": false,
+    "stop_loss_enabled": false,
+    "trailing_take_profit_enabled": false,
+    "reason": "Exit parameters must be declared before replay and cannot be tuned on reported OOS data."
+  },
+  "risk": {
+    "new_entries_kill_switch": true,
+    "reject_stale_events": true,
+    "reject_unknown_sources": true,
+    "reject_unknown_symbols": true,
+    "reject_duplicate_events": true,
+    "withdrawal_permission_allowed": false
+  },
+  "notes": [
+    "The numerical signal values are non-authoritative research examples, not selected parameters.",
+    "This profile cannot place orders and exists to make the intended contract reviewable."
+  ]
+}

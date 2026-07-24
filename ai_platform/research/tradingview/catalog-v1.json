@@ -19,8 +19,13 @@
       "research_family": "liquidation_reversal",
       "local_adaptation": "rolling typical-price VWAP plus symmetric percentage-distance gates",
       "executable_strategy_class": null,
-      "status": "blocked_on_historical_liquidation_feed",
-      "notes": "The local implementation provides the VWAP gate only. A time-aligned historical liquidation event stream is required before this becomes a valid tradable backtest candidate."
+      "status": "data_collection_foundation_available",
+      "data_foundation": {
+        "contract_path": "ai_platform/research/liquidations/contracts.py",
+        "collector_path": "ai_platform/scripts/liquidation_collector.py",
+        "deployment_process": "docs/ai_platform/LIQUIDATION_REVERSAL_RESEARCH.md"
+      },
+      "notes": "The repository now provides a canonical Bybit liquidation event contract, public collector, deterministic completed-candle alignment, and counter-trade policy. This is still not a tradable backtest candidate until an immutable integrity-checked dataset and prospectively declared replay contract exist."
     },
     {
       "id": "donchian-breakout",

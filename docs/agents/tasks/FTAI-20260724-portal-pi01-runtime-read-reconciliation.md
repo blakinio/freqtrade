@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260724-portal-pi01-runtime-read-reconciliation
-status: active
+status: done
 branch: feat/portal-pi01-runtime-read-reconciliation-20260724
 base_branch: develop
 created: 2026-07-24
@@ -69,11 +69,11 @@ Implement authoritative, read-only private runtime ingestion for open positions,
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T09:10:00+02:00
-head: 3ec444ad3678a7d1ab738e4f451df8f81517da76
-branch: feat/portal-pi01-runtime-read-reconciliation-20260724
+updated_at: 2026-07-24T09:25:00+02:00
+head: 00c50b4340945cb71e149f269de33f75f9d84a3c
+branch: develop
 pr: 234
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
@@ -95,8 +95,7 @@ owned_paths:
   - docs/ai_platform/portal/EXECUTION_ADAPTER.md
   - docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md
 proven:
-  - develop preflight head was 6296a4472d80e32d1f67dcfe258c70f1ce3f4f1e and PR 233 was merged.
-  - Open PR 109 was documentation-only and did not overlap PI-01 ownership.
+  - PR #234 was squash-merged to develop as 00c50b4340945cb71e149f269de33f75f9d84a3c.
   - Shared ExecutionAdapter v1 remains unchanged; PI-01 uses a separately versioned private collector/read-batch interface.
   - Private runtime reads preserve tenant, bot, runtime, source identity and source/observed/reconciled timestamps.
   - Collector behavior is bounded for timeout, retry, pagination, body size, duplicate handling, partial pages and stale source.
@@ -106,15 +105,15 @@ proven:
   - submit_approved_intent remains fail-closed with ORDER_SUBMISSION_NOT_IMPLEMENTED.
   - Targeted AI Platform tests reached 487 passed and 1 skipped before final documentation refresh.
   - Full repository pre-commit passed after the final mypy corrections.
-  - Portal Web CI and Portal Universal E2E passed after the runtime-evidence UI integration fix.
+  - Final PR checks AI Platform CI, Portal Web CI, Portal Universal E2E, Freqtrade CI and zizmor all passed on head 7ae14137a569877cfce24f776963d044b5a0fdbf.
 derived:
-  - Complete current synced batches may pass through ExecutionAdapter v1; stale, partial, unavailable or mismatched batches fail closed there.
-  - Degraded evidence may remain visible only with explicit freshness and reconciliation metadata in the operational mirror.
+  - PI-01 acceptance is complete without adding execution submission, credential brokering, valuation or live-capital authority.
+  - PI-02 may now consume attributable open-position evidence, while authoritative price and conversion evidence remain separate entry gates.
 unknown: []
 conflicts: []
 first_failure:
-  marker: resolved
-  evidence: Initial OpenAPI expectation, response-envelope, Ruff formatting and mypy failures were fixed; no unresolved implementation failure is known.
+  marker: no-final-blocking-failure
+  evidence: Initial OpenAPI expectation, response-envelope, Ruff formatting and mypy failures were resolved; the final required CI matrix passed before merge.
 rejected_hypotheses:
   - Browser clients require direct Freqtrade access; rejected because the operational mirror is the sole portal-facing boundary.
   - ExecutionAdapter v1 must be incompatibly changed; rejected because a versioned private collector carries batch metadata.
@@ -142,27 +141,24 @@ changed_paths:
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md
 validation:
-  - command: python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform
+  - command: AI Platform CI 30074526202
     result: PASS
-    evidence: 487 passed and 1 skipped on PR 234 before final documentation refresh.
-  - command: ruff check ai_platform tests/ai_platform
+    evidence: Final AI Platform tests, Ruff, formatter, codespell and contract validations passed on PR #234 head 7ae14137a569877cfce24f776963d044b5a0fdbf.
+  - command: Portal Web CI 30074526235
     result: PASS
-    evidence: Ruff lint passed after the private collector refactor.
-  - command: ruff format --check ai_platform tests/ai_platform
+    evidence: Final typecheck, lint, build and browser validation passed on PR #234 head 7ae14137a569877cfce24f776963d044b5a0fdbf.
+  - command: Portal Universal E2E 30074526203
     result: PASS
-    evidence: Exact Ruff formatter output was applied to all reported files.
-  - command: pre-commit run --all-files --show-diff-on-failure
+    evidence: Final universal portal E2E passed on PR #234 head 7ae14137a569877cfce24f776963d044b5a0fdbf.
+  - command: Freqtrade CI 30074526234
     result: PASS
-    evidence: Schema extraction, mypy, Ruff, format, file hygiene, EXIF stripping, codespell and zizmor all passed on head 3ec444ad3678a7d1ab738e4f451df8f81517da76.
-  - command: Portal Web CI
+    evidence: Final pre-commit, documentation and required multi-platform core matrix passed on PR #234 head 7ae14137a569877cfce24f776963d044b5a0fdbf.
+  - command: zizmor 30074526201
     result: PASS
-    evidence: Typecheck, lint, build and browser tests passed after runtime-evidence page integration.
-  - command: Portal Universal E2E
-    result: PASS
-    evidence: Universal E2E passed after the strict-locator correction.
+    evidence: Final GitHub Actions security analysis passed on PR #234 head 7ae14137a569877cfce24f776963d044b5a0fdbf.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260724-portal-pi01-runtime-read-reconciliation.md --require-checkpoint
     result: PASS
-    evidence: Executed by the branch-scoped validation job before commit.
+    evidence: The implementation branch checkpoint passed the repository governance contract before merge.
 blockers: []
-next_action: Complete the required repository CI matrix on the owner-authored head, resolve review findings and merge PR 234.
+next_action: Do not reopen this completed task; declare a separate bounded task for the next integration package while P11, P13 and P14 retain their existing gates.
 ```

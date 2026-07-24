@@ -37,13 +37,13 @@ jobs:
 
           backlog = Path("docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md")
           text = backlog.read_text(encoding="utf-8")
-          old_row = "| PI-01 | Private Runtime Read and Reconciliation | private positions/orders/trades source, reconciliation | `ai_platform/portal/execution/**`, `ai_platform/portal/operations/**`, runtime deployment integration, focused API/UI consumers | `PI-02`, `PI-04`, `PI-08` | planned |"
-          new_row = "| PI-01 | Private Runtime Read and Reconciliation | private positions/orders/trades source, reconciliation | `ai_platform/portal/execution/**`, `ai_platform/portal/operations/**`, runtime deployment integration, focused API/UI consumers | `PI-02`, `PI-04`, `PI-08` | active |"
+          old_row = "| 1 | `PI-01` Private Runtime Read and Reconciliation | `planned` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |"
+          new_row = "| 1 | `PI-01` Private Runtime Read and Reconciliation | `active` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |"
           if old_row not in text:
               raise SystemExit("PI-01 canonical row not found")
           text = text.replace(old_row, new_row, 1)
-          old_header = "### PI-01 — Private Runtime Read and Reconciliation\n\nStatus: planned\n"
-          new_header = "### PI-01 — Private Runtime Read and Reconciliation\n\nStatus: active\n\nImplementation evidence: task `FTAI-20260724-portal-pi01-runtime-read-reconciliation`, PR #234. Merge evidence remains pending until required CI is green.\n"
+          old_header = "### PI-01 — Private Runtime Read and Reconciliation\n\nStatus: `planned`\n"
+          new_header = "### PI-01 — Private Runtime Read and Reconciliation\n\nStatus: `active`\n\nImplementation evidence: task `FTAI-20260724-portal-pi01-runtime-read-reconciliation`, PR #234. Merge evidence remains pending until required CI is green.\n"
           if old_header not in text:
               raise SystemExit("PI-01 status header not found")
           backlog.write_text(text.replace(old_header, new_header, 1), encoding="utf-8")
@@ -54,7 +54,7 @@ jobs:
           head = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
           checkpoint = f'''```yaml
           checkpoint_version: 1
-          updated_at: 2026-07-24T08:55:00+02:00
+          updated_at: 2026-07-24T09:00:00+02:00
           head: {head}
           branch: feat/portal-pi01-runtime-read-reconciliation-20260724
           pr: 234

@@ -56,7 +56,7 @@ def test_bybit_buy_side_is_normalized_as_liquidated_long() -> None:
     )[0]
 
     assert event.liquidated_position_side is LiquidatedPositionSide.LONG
-    assert event.notional_usd == Decimal("140000")
+    assert event.notional_usd == Decimal(140000)
     assert event.ingest_latency_ms == 500
 
 

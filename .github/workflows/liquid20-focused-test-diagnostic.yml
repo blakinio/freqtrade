@@ -1,0 +1,35 @@
+name: Liquid20 focused test diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquid20-focused-test-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Print first isolated test failure
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquid20-multi-source-acceptance-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python -m pip install -q "pytest==9.0.2" "websockets>=15,<17"
+          if ! pytest -q -x \
+            -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_liquidation_multi_source_acceptance.py \
+            tests/ai_platform_integration/test_liquidation_symbol_universe.py \
+            > pytest.log 2>&1; then
+            tail -n 100 pytest.log
+            exit 1
+          fi
+          cat pytest.log

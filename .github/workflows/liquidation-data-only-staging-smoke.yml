@@ -1,0 +1,53 @@
+name: Liquidation data-only staging smoke
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquidation-data-only-staging-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  public-endpoint-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/liquidation-data-only-staging-v1
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.13"
+      - name: Run bounded public collector smoke
+        run: |
+          set -euo pipefail
+          python -m pip install -q websockets
+          RUN_DIR="$(mktemp -d)"
+          COMMIT="$(git rev-parse HEAD)"
+          PYTHONPATH=. python -m ai_platform.scripts.liquidation_collector \
+            --symbol BTCUSDT \
+            --symbol ETHUSDT \
+            --duration-seconds 30 \
+            --require-new-output \
+            --collector-commit "$COMMIT" \
+            --output "$RUN_DIR/events.ndjson" \
+            --summary "$RUN_DIR/collector-summary.json"
+          set +e
+          PYTHONPATH=. python -m ai_platform.scripts.liquidation_staging_evaluator \
+            --summary "$RUN_DIR/collector-summary.json" \
+            --policy ai_platform/research/liquidations/data-only-staging-policy-v1.json \
+            --mode smoke \
+            --output "$RUN_DIR/staging-evaluation.json"
+          EVALUATION_STATUS=$?
+          set -e
+          echo "--- collector-summary.json ---"
+          cat "$RUN_DIR/collector-summary.json"
+          echo "--- staging-evaluation.json ---"
+          cat "$RUN_DIR/staging-evaluation.json"
+          exit "$EVALUATION_STATUS"

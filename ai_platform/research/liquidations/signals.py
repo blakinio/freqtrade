@@ -108,7 +108,7 @@ def decide_counter_trade(
         return SignalDecision(CounterTradeAction.IGNORE, "stale_event", event.source_event_id)
 
     if event.liquidated_position_side is LiquidatedPositionSide.LONG:
-        lower_band = vwap * (Decimal("1") - policy.long_distance_ratio)
+        lower_band = vwap * (Decimal(1) - policy.long_distance_ratio)
         if event.price <= lower_band and policy.allow_long:
             return SignalDecision(
                 CounterTradeAction.ENTER_LONG,
@@ -117,7 +117,7 @@ def decide_counter_trade(
             )
         return SignalDecision(CounterTradeAction.IGNORE, "long_band_not_met", event.source_event_id)
 
-    upper_band = vwap * (Decimal("1") + policy.short_distance_ratio)
+    upper_band = vwap * (Decimal(1) + policy.short_distance_ratio)
     if event.price >= upper_band and policy.allow_short:
         return SignalDecision(
             CounterTradeAction.ENTER_SHORT,

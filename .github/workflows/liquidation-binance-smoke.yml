@@ -22,6 +22,7 @@ jobs:
             --branch feat/liquidation-binance-source-v1 \
             https://github.com/blakinio/freqtrade.git repo
           cd repo
+          python -m pip install -q websockets
           PYTHONPATH=. python - <<'PY'
           import json
 

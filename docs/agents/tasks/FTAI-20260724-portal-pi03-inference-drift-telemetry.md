@@ -5,7 +5,7 @@ branch: feat/portal-pi03-inference-drift-telemetry-20260724
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
-related_pr: pending
+related_pr: 239
 owned_paths:
   - ai_platform/portal/telemetry/**
   - ai_platform/portal/control_plane/api.py
@@ -72,7 +72,7 @@ Add a tenant-scoped, aggregate-only inference telemetry boundary and determinist
 
 1. Matching reference and observation windows reproduce the same PSI-v1 result from persisted contracts and policy parameters.
 2. Missing source status, missing windows, incompatible buckets and insufficient samples never produce `HEALTHY`.
-3. Cross-tenant ingestion/read and mismatched model/bot/config attribution fail closed.
+3. Cross-tenant ingestion/read and mismatched model/bot/config attribution fail closed; reference and observation windows from different runtime scopes are never combined.
 4. Duplicate telemetry IDs are idempotent only for byte-equivalent canonical payloads; conflicting reuse is rejected.
 5. Public responses contain no raw features, individual predictions, credentials, private endpoints or secret-bearing payloads.
 6. Ingestion and health reads do not change ModelVersion lifecycle or promotion slots.
@@ -82,11 +82,11 @@ Add a tenant-scoped, aggregate-only inference telemetry boundary and determinist
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T09:40:00+02:00
-head: 12383471a0e2d1b3d8278504b5dfc7f7ccab3f38
+updated_at: 2026-07-24T10:55:00+02:00
+head: 8a747cf05d6affdb21e2d0c5599521c6941450be
 branch: feat/portal-pi03-inference-drift-telemetry-20260724
-pr: pending
-status: active
+pr: 239
+status: validating
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -108,29 +108,57 @@ owned_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md
 proven:
-  - develop preflight head is 12383471a0e2d1b3d8278504b5dfc7f7ccab3f38 after PI-01 closure PR 235.
+  - develop preflight head was 12383471a0e2d1b3d8278504b5dfc7f7ccab3f38 after PI-01 closure; develop later advanced to 49167cdf9ab6fd126de72613101c35fef6cc07e2 through disjoint RL documentation PR 237.
   - Open PR 236 owns only liquidation research paths and does not overlap PI-03 portal telemetry ownership.
-  - Current Model Health derives lifecycle metadata from immutable ModelVersion records and reports drift as unavailable because no canonical telemetry source exists.
-  - Existing model and bot repositories expose tenant-scoped ModelVersion and immutable BotConfigRevision attribution needed by PI-03.
-  - The canonical backlog requires aggregate inference counts, feature quality, prediction distributions, reference/observation identities and deterministic drift semantics.
+  - Versioned aggregate-only telemetry preserves exact tenant, ModelVersion, feature-schema, bot, immutable config revision, runtime and source identity.
+  - Durable reference/observation windows, source availability and drift assessments are stored separately with canonical JSON payloads and indexed attribution fields.
+  - PSI-v1 records minimum samples, attention/degraded thresholds, feature-quality thresholds and smoothing epsilon; incompatible or insufficient evidence never reports HEALTHY.
+  - Ingestion requires service/system identity plus MODEL_TRAIN and rejects tenant, model, feature-schema, bot and config-revision mismatches.
+  - Duplicate telemetry IDs are idempotent only for the same canonical payload; conflicting reuse is rejected.
+  - Model Health API/UI exposes window identities, sample counts, source availability and PSI/feature-quality evidence without raw features or individual predictions.
+  - Telemetry ingestion and reads leave ModelVersion lifecycle and promotion slots unchanged.
+  - Focused telemetry and API validation passed with 18 tests.
+  - Full AI suite reached 493 passed and 1 skipped; its sole compatibility failure was the historical unavailable reason code and that reason code has been restored.
 derived:
-  - A separate aggregate-only telemetry module avoids coupling PI-03 to product settings or raw runtime logging.
-  - Model Health should be computed from durable telemetry windows and a versioned policy while remaining read-only with respect to model control.
+  - Exact scope grouping prevents reference and observation evidence from different runtime/config/source identities from being compared or aggregated together.
+  - A separate aggregate-only telemetry module avoids coupling PI-03 to raw runtime logging, PI-04 or product settings.
+  - Drift status remains operational evidence only and cannot authorize promotion, retraining, risk or execution changes.
 unknown:
-  - First repository CI result for the implementation branch.
-  - Whether existing UI status styling needs extension for all five PI-03 states.
+  - Final repository CI result after the compatibility fix and canonical documentation update.
 conflicts: []
 first_failure:
-  marker: none-yet
-  evidence: Preflight found no overlapping ownership or implementation blocker.
+  marker: resolved
+  evidence: SQLite returned a naive checked_at column and an existing public unavailable reason code changed; repository comparison now uses canonical JSON timestamps and the historical reason code is preserved.
 rejected_hypotheses:
   - Infer drift from model metadata age or training-window age.
   - Persist raw feature vectors or individual prediction values in the portal database.
   - Let drift status automatically promote, rollback or retrain a model.
   - Reuse protected final-holdout observations as iterative reference telemetry.
+  - Combine reference and observation windows across runtime, config or source identities.
 changed_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/telemetry/__init__.py
+  - ai_platform/portal/telemetry/drift.py
+  - ai_platform/portal/telemetry/migrations/0001_inference_drift_telemetry.sql
+  - ai_platform/portal/telemetry/models.py
+  - ai_platform/portal/telemetry/repository.py
+  - ai_platform/portal/telemetry/schema.py
+  - ai_platform/portal/telemetry/service.py
+  - ai_platform/portal/web/app/ai/model-health/page.tsx
+  - ai_platform/portal/web/e2e/shell.spec.ts
+  - ai_platform/portal/web/lib/product-api.ts
+  - ai_platform/portal/web/lib/product-contracts.ts
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/telemetry/test_inference_telemetry.py
   - docs/agents/tasks/FTAI-20260724-portal-pi03-inference-drift-telemetry.md
-validation: []
+validation:
+  - command: focused PI-03 telemetry and control-plane API pytest
+    result: PASS
+    evidence: 18 passed on the compatibility-fixed implementation path.
+  - command: full AI Platform pytest before final compatibility rerun
+    result: PASS
+    evidence: 493 tests passed and 1 skipped; the single historical reason-code assertion was identified and fixed before final repository CI.
 blockers: []
-next_action: Implement the aggregate-only telemetry contracts, persistence, PSI-v1 assessment and focused tests on the dedicated branch, then open the PR early for repository CI.
+next_action: Apply the canonical PI-03 documentation patch, remove its temporary workflow, then resolve only concrete final repository CI findings before marking PR 239 ready.
 ```

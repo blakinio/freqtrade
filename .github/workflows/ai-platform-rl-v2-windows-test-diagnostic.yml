@@ -1,4 +1,4 @@
-name: AI Platform RL-v2 Windows Test Diagnostic
+name: AI Platform RL-v2 Windows Hash Repair
 
 on:
   pull_request:
@@ -9,17 +9,25 @@ on:
       - ".github/workflows/ai-platform-rl-v2-windows-test-diagnostic.yml"
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: rl-v2-windows-hash-repair-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  EXPECTED_PARENT: 9e40396bf87243554ad4d039cda751f8f06abd79
+  REPAIR_WORKFLOW: .github/workflows/ai-platform-rl-v2-windows-test-diagnostic.yml
+  TARGET_SCRIPT: ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py
+  TARGET_TEST: tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
 
 jobs:
-  diagnose-windows-tests:
+  validate-windows-repair:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.head.ref == 'feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure'
     runs-on: windows-2025
     timeout-minutes: 45
-    env:
-      EXPECTED_PARENT: aa68b358537735977b74f717e90f9f70f9abc6b4
 
     steps:
       - name: Checkout exact PR head
@@ -37,14 +45,78 @@ jobs:
             throw "Expected guarded parent $env:EXPECTED_PARENT, got $actual"
           }
 
+      - name: Apply bounded checkout-EOL hash repair
+        shell: pwsh
+        run: |
+          @'
+          import os
+          from pathlib import Path
+
+          script_path = Path(os.environ["TARGET_SCRIPT"])
+          script = script_path.read_text(encoding="utf-8")
+          old_hash = '''def _sha256(path: Path) -> str:
+              try:
+                  return hashlib.sha256(path.read_bytes()).hexdigest()
+              except OSError as exc:
+                  raise RLV2PairedAttributionError(f"Unable to hash canonical input {path}: {exc}") from exc
+          '''
+          new_hash = '''def _sha256(path: Path) -> str:
+              """Hash canonical text independently of checkout CRLF conversion."""
+              try:
+                  canonical_bytes = path.read_bytes().replace(b"\\r\\n", b"\\n")
+              except OSError as exc:
+                  raise RLV2PairedAttributionError(f"Unable to hash canonical input {path}: {exc}") from exc
+              return hashlib.sha256(canonical_bytes).hexdigest()
+          '''
+          if script.count(old_hash) != 1:
+              raise SystemExit("Expected exactly one raw working-tree hash helper")
+          script_path.write_text(script.replace(old_hash, new_hash), encoding="utf-8")
+
+          test_path = Path(os.environ["TARGET_TEST"])
+          test = test_path.read_text(encoding="utf-8")
+          old_import = '''    RLV2PairedAttributionError,
+              canonical_rl_v2_roi_lifecycle_paired_attribution_request,
+          '''
+          new_import = '''    RLV2PairedAttributionError,
+              _sha256,
+              canonical_rl_v2_roi_lifecycle_paired_attribution_request,
+          '''
+          if test.count(old_import) != 1:
+              raise SystemExit("Expected exactly one paired-attribution import insertion point")
+          test = test.replace(old_import, new_import)
+          marker = '''
+          
+          def _trade(
+          '''
+          regression = '''
+          
+          def test_canonical_hash_is_checkout_eol_independent(tmp_path: Path) -> None:
+              lf_path = tmp_path / "lf.json"
+              crlf_path = tmp_path / "crlf.json"
+              changed_path = tmp_path / "changed.json"
+              lf_path.write_bytes(b'{"value": 1}\\n')
+              crlf_path.write_bytes(b'{"value": 1}\\r\\n')
+              changed_path.write_bytes(b'{"value": 2}\\r\\n')
+          
+              assert _sha256(lf_path) == _sha256(crlf_path)
+              assert _sha256(lf_path) != _sha256(changed_path)
+          
+          
+          def _trade(
+          '''
+          if test.count(marker) != 1:
+              raise SystemExit("Expected exactly one test insertion point")
+          test_path.write_text(test.replace(marker, regression), encoding="utf-8")
+          '@ | python -
+
       - name: Install uv and Python
         uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
         with:
           activate-environment: true
-          enable-cache: true # zizmor: ignore[cache-poisoning] - temporary test-only diagnostic
+          enable-cache: true # zizmor: ignore[cache-poisoning] - temporary test-only repair validation
           python-version: "3.13"
           cache-dependency-glob: "requirements**.txt"
-          cache-suffix: "rl-v2-windows-diagnostic"
+          cache-suffix: "rl-v2-windows-hash-repair"
 
       - name: Install test environment
         shell: pwsh
@@ -54,26 +126,142 @@ jobs:
           uv pip install -e .
           python build_helpers/freqtrade_client_version_align.py
 
-      - name: Capture exact Windows pytest result
-        id: pytest
+      - name: Validate repaired targeted tests on Windows
         shell: pwsh
-        run: |
-          $ErrorActionPreference = "Continue"
-          pytest --random-order --durations 20 -n auto *> windows-pytest.log
-          $status = $LASTEXITCODE
-          "status=$status" >> $env:GITHUB_OUTPUT
-          Get-Content windows-pytest.log -Tail 300
-          exit 0
+        run: pytest -q tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
 
-      - name: Upload complete Windows pytest log
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+  commit-repair:
+    needs: validate-windows-repair
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          name: rl-v2-windows-test-diagnostic-${{ github.event.pull_request.number }}
-          path: windows-pytest.log
-          if-no-files-found: error
-          retention-days: 1
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Report pytest status
-        shell: pwsh
+      - name: Verify exact guarded parent
+        shell: bash
         run: |
-          Write-Host "Windows pytest exit status: ${{ steps.pytest.outputs.status }}"
+          set -euo pipefail
+          actual="$(git rev-parse HEAD^)"
+          if [[ "$actual" != "$EXPECTED_PARENT" ]]; then
+            echo "Expected guarded parent $EXPECTED_PARENT, got $actual" >&2
+            exit 1
+          fi
+
+      - name: Apply bounded checkout-EOL hash repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          script_path = Path(os.environ["TARGET_SCRIPT"])
+          script = script_path.read_text(encoding="utf-8")
+          old_hash = '''def _sha256(path: Path) -> str:
+              try:
+                  return hashlib.sha256(path.read_bytes()).hexdigest()
+              except OSError as exc:
+                  raise RLV2PairedAttributionError(f"Unable to hash canonical input {path}: {exc}") from exc
+          '''
+          new_hash = '''def _sha256(path: Path) -> str:
+              """Hash canonical text independently of checkout CRLF conversion."""
+              try:
+                  canonical_bytes = path.read_bytes().replace(b"\\r\\n", b"\\n")
+              except OSError as exc:
+                  raise RLV2PairedAttributionError(f"Unable to hash canonical input {path}: {exc}") from exc
+              return hashlib.sha256(canonical_bytes).hexdigest()
+          '''
+          if script.count(old_hash) != 1:
+              raise SystemExit("Expected exactly one raw working-tree hash helper")
+          script_path.write_text(script.replace(old_hash, new_hash), encoding="utf-8")
+
+          test_path = Path(os.environ["TARGET_TEST"])
+          test = test_path.read_text(encoding="utf-8")
+          old_import = '''    RLV2PairedAttributionError,
+              canonical_rl_v2_roi_lifecycle_paired_attribution_request,
+          '''
+          new_import = '''    RLV2PairedAttributionError,
+              _sha256,
+              canonical_rl_v2_roi_lifecycle_paired_attribution_request,
+          '''
+          if test.count(old_import) != 1:
+              raise SystemExit("Expected exactly one paired-attribution import insertion point")
+          test = test.replace(old_import, new_import)
+          marker = '''
+          
+          def _trade(
+          '''
+          regression = '''
+          
+          def test_canonical_hash_is_checkout_eol_independent(tmp_path: Path) -> None:
+              lf_path = tmp_path / "lf.json"
+              crlf_path = tmp_path / "crlf.json"
+              changed_path = tmp_path / "changed.json"
+              lf_path.write_bytes(b'{"value": 1}\\n')
+              crlf_path.write_bytes(b'{"value": 1}\\r\\n')
+              changed_path.write_bytes(b'{"value": 2}\\r\\n')
+          
+              assert _sha256(lf_path) == _sha256(crlf_path)
+              assert _sha256(lf_path) != _sha256(changed_path)
+          
+          
+          def _trade(
+          '''
+          if test.count(marker) != 1:
+              raise SystemExit("Expected exactly one test insertion point")
+          test_path.write_text(test.replace(marker, regression), encoding="utf-8")
+          PY
+          rm "$REPAIR_WORKFLOW"
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: true # zizmor: ignore[cache-poisoning] - temporary test-only repair validation
+          python-version: "3.13"
+          cache-dependency-glob: "requirements**.txt"
+          cache-suffix: "rl-v2-linux-hash-repair"
+
+      - name: Install validation environment
+        run: |
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+          uv pip install pre-commit
+          python build_helpers/freqtrade_client_version_align.py
+
+      - name: Canonically format bounded Python paths
+        run: |
+          ruff check --fix "$TARGET_SCRIPT" "$TARGET_TEST"
+          ruff format "$TARGET_SCRIPT" "$TARGET_TEST"
+
+      - name: Validate targeted tests and complete pre-commit suite
+        run: |
+          pytest -q tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
+          pre-commit run --all-files --show-diff-on-failure --verbose
+
+      - name: Verify bounded staged scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add "$TARGET_SCRIPT" "$TARGET_TEST" "$REPAIR_WORKFLOW"
+          actual="$(git diff --cached --name-status | sort)"
+          expected="$(printf 'D\t%s\nM\t%s\nM\t%s' "$REPAIR_WORKFLOW" "$TARGET_SCRIPT" "$TARGET_TEST" | sort)"
+          if [[ "$actual" != "$expected" ]]; then
+            printf 'Unexpected repair scope.\nExpected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Commit and push guarded repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(ai-platform): canonicalize paired attribution text hashes"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"

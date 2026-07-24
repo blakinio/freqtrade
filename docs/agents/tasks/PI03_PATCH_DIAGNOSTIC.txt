@@ -1,42 +1,4 @@
-source_lines=322
-extracted_lines=293
-first=
-last=n: |
---- source start ---
-    17	          persist-credentials: true
-    18	      - name: Apply exact integration patch
-    19	        run: |
-    20	          python - <<'PY'
-    21	          from pathlib import Path
-    22	
-    23	          def replace(path: str, old: str, new: str) -> None:
-    24	              target = Path(path)
-    25	              text = target.read_text(encoding="utf-8")
-    26	              if old not in text:
-    27	                  if new in text:
---- source end ---
-   298	      </article>
-   299	    </section>
-   300	  );
-   301	}
-   302	''', encoding="utf-8")
-   303	
-   304	          replace(
-   305	              "ai_platform/portal/web/e2e/shell.spec.ts",
-   306	              "  await expect(page.getByText(\"UNAVAILABLE\", { exact: true })).toBeVisible();\n"
-   307	              "  await expect(page.getByText(\"CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED\")).toBeVisible();\n",
-   308	              "  await expect(page.getByText(\"HEALTHY\", { exact: true })).toBeVisible();\n"
-   309	              "  await expect(page.getByText(\"PSI_V1_WITHIN_LIMITS\")).toBeVisible();\n"
-   310	              "  await expect(page.getByText(\"psi-v1\", { exact: true })).toBeVisible();\n",
-   311	          )
-   312	          PY
-   313	      - name: Commit patch
-   314	        run: |
-   315	          if git diff --quiet; then
-   316	            exit 0
-   317	          fi
-   318	          git config user.name "github-actions[bot]"
-   319	          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-   320	          git add ai_platform tests
-   321	          git commit -m "feat(portal): integrate inference telemetry API and model health UI"
-   322	          git push
+  File "<stdin>", line 232
+    page.write_text('''import { cookies } from "next/headers";
+                    ^
+SyntaxError: unterminated triple-quoted string literal (detected at line 291)

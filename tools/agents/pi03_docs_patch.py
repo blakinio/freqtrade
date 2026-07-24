@@ -1,0 +1,87 @@
+from pathlib import Path
+
+
+def replace(path: str, old: str, new: str) -> None:
+    target = Path(path)
+    text = target.read_text(encoding="utf-8")
+    if old not in text:
+        raise SystemExit(f"missing verified block: {path}")
+    target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
+backlog = "docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md"
+replace(
+    backlog,
+    "| 2 | `PI-03` Canonical Inference and Drift Telemetry | `planned` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |",
+    "| 2 | `PI-03` Canonical Inference and Drift Telemetry | `active` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |",
+)
+replace(
+    backlog,
+    "### PI-03 — Canonical Inference and Drift Telemetry\n\nStatus: `planned`\n\nGoal:",
+    "### PI-03 — Canonical Inference and Drift Telemetry\n\nStatus: `active`\n\nImplementation evidence: task `FTAI-20260724-portal-pi03-inference-drift-telemetry`, draft PR #239. Merge evidence remains pending until required CI is green.\n\nGoal:",
+)
+replace(
+    backlog,
+    "The recommended next software package is **PI-03 Canonical Inference and Drift Telemetry** because it:\n\n- remains read-only and does not introduce execution authority;\n- replaces the current model-health telemetry gap with attributable inference and distribution evidence;\n- makes drift status reproducible without automatic retraining or promotion;\n- can proceed independently of PI-02 valuation and PI-07/PI-08 credential/execution work.\n",
+    "The active software package is **PI-03 Canonical Inference and Drift Telemetry**. Its bounded task and PR implement aggregate-only, attributable inference windows and reproducible PSI-v1 evidence without execution authority, automatic retraining or model promotion. The next package is selected only after PI-03 durable completion evidence is merged.\n",
+)
+
+architecture = "docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md"
+telemetry_section = """## 9.1 Canonical inference telemetry and drift
+
+PI-03 persists aggregate-only inference evidence, never raw feature vectors or individual predictions. Every window is attributed to tenant, ModelVersion, feature schema, bot, immutable config revision, runtime and source identity.
+
+Durable reference/observation windows, explicit source availability and reproducible drift assessments are stored separately. The versioned `psi-v1` policy records minimum samples, attention/degraded thresholds, feature-quality thresholds and smoothing epsilon.
+
+Only `HEALTHY`, `ATTENTION`, `DEGRADED`, `INSUFFICIENT_EVIDENCE` and `UNAVAILABLE` are valid outcomes. Missing, stale, unavailable, insufficient or bucket-incompatible evidence never produces `HEALTHY`. Drift evidence cannot mutate model lifecycle, promotion, training, risk or execution state, and protected final-holdout data `20260801-20260930` is forbidden as iterative telemetry/reference evidence.
+
+"""
+replace(
+    architecture,
+    "## 10. Observability stack\n",
+    telemetry_section + "## 10. Observability stack\n",
+)
+
+ui = "docs/ai_platform/portal/UI_DELIVERY_STATUS.md"
+replace(
+    ui,
+    "`FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.\n",
+    "`FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.\n\n`FTAI-20260724-portal-pi03-inference-drift-telemetry` adds aggregate-only inference windows, explicit source status and reproducible PSI-v1 drift assessments attributed to the exact model, feature schema, bot configuration and runtime. It stores no raw feature values or individual predictions and cannot mutate model lifecycle or promotion state.\n",
+)
+replace(
+    ui,
+    "| Model Health | `/ai/model-health` | partially integrated | immutable model metadata and age are canonical; drift status truthfully reports unavailable until telemetry source exists |",
+    "| Model Health | `/ai/model-health` | integrated | tenant-scoped aggregate inference telemetry, source availability, exact model/feature-schema/bot-config/runtime attribution and reproducible PSI-v1 reference/observation evidence |",
+)
+replace(
+    ui,
+    "Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.\n\n## Remaining hard boundaries",
+    "Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.\n\n## PI-03 inference and drift semantics\n\nModel Health derives `HEALTHY`, `ATTENTION`, `DEGRADED`, `INSUFFICIENT_EVIDENCE` or `UNAVAILABLE` only from persisted aggregate windows and explicit source status. Rows expose exact attribution, window identities, sample counts and PSI/feature-quality evidence. No status triggers retraining, promotion or lifecycle mutation, and raw feature values, individual predictions and protected final-holdout observations are excluded.\n\n## Remaining hard boundaries",
+)
+replace(
+    ui,
+    "| canonical model/feature/prediction drift evidence | `PI-03` Canonical Inference and Drift Telemetry |\n",
+    "",
+)
+replace(
+    ui,
+    "API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise.",
+    "API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status.",
+)
+
+program = "docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md"
+replace(
+    program,
+    "The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. Those packages do not renumber P0-P14 and remain planning-only until separately declared.",
+    "The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01 is complete; PI-03 is the active bounded package. Other packages remain planning-only until separately declared.",
+)
+replace(
+    program,
+    "Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. The recommended first software package is read-only PI-01 Private Runtime Read and Reconciliation. PI-03, PI-04 and PI-06 may run in parallel only when ownership is disjoint and shared contract changes are serialized. PI-07 must precede PI-08; neither authorizes live capital.",
+    "Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. Read-only PI-01 is complete. PI-03 Canonical Inference and Drift Telemetry is active; PI-04 and PI-06 may run in parallel only when ownership is disjoint and shared contract changes are serialized. PI-07 must precede PI-08; neither authorizes live capital.",
+)
+replace(
+    program,
+    "Next autonomous software action: declare PI-01 Private Runtime Read and Reconciliation as a separate bounded task from current `develop`; keep it read-only and do not include credential brokering or order submission.",
+    "Next autonomous software action: complete and merge active PI-03 with aggregate-only evidence, explicit unavailable/insufficient states and no automatic lifecycle or promotion mutation. Select the next package only after PI-03 durable completion evidence is merged.",
+)

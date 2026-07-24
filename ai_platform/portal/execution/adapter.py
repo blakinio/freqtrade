@@ -20,9 +20,21 @@ from ai_platform.portal.execution.config import build_safe_dry_run_config
 from ai_platform.portal.execution.errors import (
     RuntimeDriverError,
     RuntimeNotProvisionedError,
+    RuntimeReadIncompleteError,
+    RuntimeReadIsolationError,
+    RuntimeReadUnavailableError,
     RuntimeRevisionConflictError,
     UnsupportedExecutionModeError,
     UnsupportedExecutionOperationError,
+)
+from ai_platform.portal.execution.private_read import (
+    OrderReadResult,
+    PositionReadResult,
+    PrivateRuntimeCollector,
+    PrivateRuntimeSnapshot,
+    RuntimeReadFreshness,
+    RuntimeReadReconciliationStatus,
+    TradeReadResult,
 )
 from ai_platform.portal.execution.runtime import (
     DriverRuntimeState,
@@ -44,11 +56,13 @@ class FreqtradeExecutionAdapter:
         artifact_resolver: RuntimeArtifactResolver,
         workspace_store: RuntimeWorkspaceStore,
         clock: Clock | None = None,
+        private_read_collector: PrivateRuntimeCollector | None = None,
     ) -> None:
         self._driver = driver
         self._artifact_resolver = artifact_resolver
         self._workspace_store = workspace_store
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._private_read_collector = private_read_collector
 
     def provision_bot(self, bot: BotInstance, context: CorrelationContext) -> RuntimeStatus:
         self._require_dry_run(bot)
@@ -191,14 +205,68 @@ class FreqtradeExecutionAdapter:
         del intent, context
         raise UnsupportedExecutionOperationError("ORDER_SUBMISSION_NOT_IMPLEMENTED")
 
+    def collect_private_runtime_snapshot(
+        self,
+        tenant_id: str,
+        bot_id: str,
+        context: CorrelationContext,
+    ) -> PrivateRuntimeSnapshot:
+        record = self._require_record(tenant_id, bot_id)
+        collector = self._private_read_collector
+        if collector is None:
+            reason_code = "PRIVATE_RUNTIME_COLLECTOR_NOT_CONFIGURED"
+            self._write_failure(record, context, reason_code)
+            return self._unavailable_snapshot(record, reason_code)
+
+        reason_code = self._runtime_read_unavailable_reason(record, context)
+        if reason_code is not None:
+            return collector.unavailable_snapshot(
+                tenant_id,
+                bot_id,
+                record.runtime_id,
+                reason_code,
+            )
+
+        try:
+            snapshot = collector.collect_snapshot(tenant_id, bot_id, record.runtime_id)
+        except RuntimeReadIsolationError as exc:
+            self._write_failure(record, context, exc.reason_code)
+            raise
+
+        failure_reason = self._snapshot_failure_reason(snapshot)
+        if failure_reason is None:
+            self._write_success(record, context)
+        else:
+            self._write_failure(record, context, failure_reason)
+        return snapshot
+
     def get_open_positions(
         self,
         tenant_id: str,
         bot_id: str,
         context: CorrelationContext,
     ) -> tuple[OpenPosition, ...]:
-        del tenant_id, bot_id, context
-        raise UnsupportedExecutionOperationError("POSITION_QUERY_NOT_IMPLEMENTED")
+        record = self._require_record(tenant_id, bot_id)
+        collector = self._require_private_collector(record, context)
+        self._require_runtime_readable(record, context)
+        try:
+            result = collector.collect_positions(tenant_id, bot_id, record.runtime_id)
+        except RuntimeReadIsolationError as exc:
+            self._write_failure(record, context, exc.reason_code)
+            raise
+        self._require_authoritative_result(record, context, result)
+        return tuple(
+            OpenPosition(
+                tenant_id=tenant_id,
+                bot_id=bot_id,
+                position_id=position.source_position_id,
+                pair=position.pair,
+                side=position.side,
+                amount=position.amount,
+                opened_at=position.opened_at,
+            )
+            for position in result.records
+        )
 
     def get_orders(
         self,
@@ -206,8 +274,34 @@ class FreqtradeExecutionAdapter:
         bot_id: str,
         context: CorrelationContext,
     ) -> tuple[OrderRecord, ...]:
-        del tenant_id, bot_id, context
-        raise UnsupportedExecutionOperationError("ORDER_QUERY_NOT_IMPLEMENTED")
+        record = self._require_record(tenant_id, bot_id)
+        collector = self._require_private_collector(record, context)
+        self._require_runtime_readable(record, context)
+        try:
+            result = collector.collect_orders(tenant_id, bot_id, record.runtime_id)
+        except RuntimeReadIsolationError as exc:
+            self._write_failure(record, context, exc.reason_code)
+            raise
+        self._require_authoritative_result(record, context, result)
+        if any(order.execution_intent_id is None for order in result.records):
+            reason_code = "RUNTIME_READ_ORDER_ATTRIBUTION_MISSING"
+            self._write_failure(record, context, reason_code)
+            raise RuntimeReadIncompleteError(reason_code)
+        return tuple(
+            OrderRecord(
+                tenant_id=tenant_id,
+                bot_id=bot_id,
+                order_id=order.source_order_id,
+                execution_intent_id=order.execution_intent_id,
+                pair=order.pair,
+                side=order.side,
+                state=order.state,
+                amount=order.amount,
+                created_at=order.created_at,
+            )
+            for order in result.records
+            if order.execution_intent_id is not None
+        )
 
     def get_trades(
         self,
@@ -215,8 +309,27 @@ class FreqtradeExecutionAdapter:
         bot_id: str,
         context: CorrelationContext,
     ) -> tuple[TradeRecord, ...]:
-        del tenant_id, bot_id, context
-        raise UnsupportedExecutionOperationError("TRADE_QUERY_NOT_IMPLEMENTED")
+        record = self._require_record(tenant_id, bot_id)
+        collector = self._require_private_collector(record, context)
+        self._require_runtime_readable(record, context)
+        try:
+            result = collector.collect_trades(tenant_id, bot_id, record.runtime_id)
+        except RuntimeReadIsolationError as exc:
+            self._write_failure(record, context, exc.reason_code)
+            raise
+        self._require_authoritative_result(record, context, result)
+        return tuple(
+            TradeRecord(
+                tenant_id=tenant_id,
+                bot_id=bot_id,
+                trade_id=trade.source_trade_id,
+                pair=trade.pair,
+                state=trade.state,
+                opened_at=trade.opened_at,
+                closed_at=trade.closed_at,
+            )
+            for trade in result.records
+        )
 
     def _lifecycle_status(
         self,
@@ -250,6 +363,107 @@ class FreqtradeExecutionAdapter:
             raise RuntimeNotProvisionedError("runtime has not been provisioned")
         self._require_record_identity(record, tenant_id, bot_id)
         return record
+
+    def _require_private_collector(
+        self,
+        record: RuntimeRecord,
+        context: CorrelationContext,
+    ) -> PrivateRuntimeCollector:
+        collector = self._private_read_collector
+        if collector is None:
+            reason_code = "PRIVATE_RUNTIME_COLLECTOR_NOT_CONFIGURED"
+            self._write_failure(record, context, reason_code)
+            raise RuntimeReadUnavailableError(reason_code)
+        return collector
+
+    def _require_runtime_readable(
+        self,
+        record: RuntimeRecord,
+        context: CorrelationContext,
+    ) -> None:
+        reason_code = self._runtime_read_unavailable_reason(record, context)
+        if reason_code is not None:
+            raise RuntimeReadUnavailableError(reason_code)
+
+    def _runtime_read_unavailable_reason(
+        self,
+        record: RuntimeRecord,
+        context: CorrelationContext,
+    ) -> str | None:
+        try:
+            state = self._driver.inspect(record.runtime_id)
+        except RuntimeDriverError as exc:
+            self._write_failure(record, context, exc.reason_code)
+            return exc.reason_code
+        if state is DriverRuntimeState.RUNNING:
+            return None
+        reason_code = {
+            DriverRuntimeState.MISSING: "RUNTIME_READ_RUNTIME_MISSING",
+            DriverRuntimeState.CREATED: "RUNTIME_READ_RUNTIME_NOT_STARTED",
+            DriverRuntimeState.STARTING: "RUNTIME_READ_RUNTIME_STARTING",
+            DriverRuntimeState.PAUSED: "RUNTIME_READ_RUNTIME_PAUSED",
+            DriverRuntimeState.STOPPED: "RUNTIME_READ_RUNTIME_STOPPED",
+        }[state]
+        self._write_failure(record, context, reason_code)
+        return reason_code
+
+    def _unavailable_snapshot(
+        self,
+        record: RuntimeRecord,
+        reason_code: str,
+    ) -> PrivateRuntimeSnapshot:
+        collector = self._private_read_collector
+        if collector is not None:
+            return collector.unavailable_snapshot(
+                record.tenant_id,
+                record.bot_id,
+                record.runtime_id,
+                reason_code,
+            )
+        observed_at = self._clock()
+        fallback = PrivateRuntimeCollector.__new__(PrivateRuntimeCollector)
+        fallback._clock = lambda: observed_at
+        return fallback.unavailable_snapshot(
+            record.tenant_id,
+            record.bot_id,
+            record.runtime_id,
+            reason_code,
+        )
+
+    def _require_authoritative_result(
+        self,
+        record: RuntimeRecord,
+        context: CorrelationContext,
+        result: PositionReadResult | OrderReadResult | TradeReadResult,
+    ) -> None:
+        status = result.status
+        if (
+            status.complete
+            and status.freshness is RuntimeReadFreshness.CURRENT
+            and status.reconciliation_status is RuntimeReadReconciliationStatus.SYNCED
+        ):
+            self._write_success(record, context)
+            return
+        reason_code = status.reason_code or "RUNTIME_READ_NOT_AUTHORITATIVE"
+        self._write_failure(record, context, reason_code)
+        if status.reconciliation_status is RuntimeReadReconciliationStatus.SOURCE_UNAVAILABLE:
+            raise RuntimeReadUnavailableError(reason_code)
+        raise RuntimeReadIncompleteError(reason_code)
+
+    @staticmethod
+    def _snapshot_failure_reason(snapshot: PrivateRuntimeSnapshot) -> str | None:
+        for status in (
+            snapshot.positions.status,
+            snapshot.orders.status,
+            snapshot.trades.status,
+        ):
+            if (
+                not status.complete
+                or status.freshness is not RuntimeReadFreshness.CURRENT
+                or status.reconciliation_status is not RuntimeReadReconciliationStatus.SYNCED
+            ):
+                return status.reason_code or "RUNTIME_READ_NOT_AUTHORITATIVE"
+        return None
 
     @staticmethod
     def _require_record_identity(record: RuntimeRecord, tenant_id: str, bot_id: str) -> None:

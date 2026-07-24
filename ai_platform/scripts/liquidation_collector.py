@@ -100,9 +100,7 @@ async def collect_bybit_liquidations(
                         received_at_ms=received_at_ms,
                     )
                     new_events = tuple(
-                        event
-                        for event in events
-                        if recent_ids.add_if_new(event.source_event_id)
+                        event for event in events if recent_ids.add_if_new(event.source_event_id)
                     )
                     if new_events:
                         await asyncio.to_thread(_append_events, output_path, new_events)

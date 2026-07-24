@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260724-rl-v2-roi-lifecycle-alignment
 status: active
-branch: docs/rl-v2-roi-lifecycle-alignment-declaration
+branch: feat/rl-v2-roi-lifecycle-alignment
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
-related_pr: "238"
+related_pr: "240"
 owned_paths:
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-alignment.md
   - docs/ai_platform/RL_V2_ROI_LIFECYCLE_ALIGNMENT.md
@@ -34,16 +34,12 @@ historical evidence diagnosis:
 
 `ignore_roi_if_entry_signal = True`
 
-The baseline strategy remains immutable. The experimental variant must be a new versioned subclass.
+The baseline strategy remains immutable. The experimental variant is a new versioned subclass.
 
 ## Exact selected delta
 
-Add:
-
-`AiDesiredPositionRLLifecycleAlignedResearchStrategy`
-
-as a direct subclass of `AiDesiredPositionRLResearchStrategy`, with only one explicit strategy
-override:
+`AiDesiredPositionRLLifecycleAlignedResearchStrategy` is a direct subclass of
+`AiDesiredPositionRLResearchStrategy` with only one explicit strategy override:
 
 ```python
 ignore_roi_if_entry_signal = True
@@ -56,7 +52,7 @@ target-flat exit signals and ROI without an active entry signal remain available
 
 - Add the versioned subclass.
 - Add focused unit tests proving inheritance and the exact core exit behavior.
-- Update this task checkpoint and implementation documentation.
+- Bind the implementation hash and update this task checkpoint.
 
 ## Non-negotiable boundaries
 
@@ -82,15 +78,16 @@ non-gating.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T10:20:00+02:00
-head: 6550574cb532a54a29617a1fc0bd1d893ec09705
-branch: docs/rl-v2-roi-lifecycle-alignment-declaration
-pr: 238
+updated_at: 2026-07-24T10:30:00+02:00
+head: b3fee4366a8c6d80490955627dd23a23b1e53ca1
+branch: feat/rl-v2-roi-lifecycle-alignment
+pr: 240
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260724-rl-v2-historical-evidence-diagnosis.md
   - docs/ai_platform/RL_V2_HISTORICAL_EVIDENCE_DIAGNOSIS.md
   - ai_platform/experimental_model_research/rl-v2-historical-evidence-diagnosis-v1.json
+  - docs/ai_platform/RL_V2_ROI_LIFECYCLE_ALIGNMENT.md
 owned_paths:
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-alignment.md
   - docs/ai_platform/RL_V2_ROI_LIFECYCLE_ALIGNMENT.md
@@ -99,15 +96,17 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_roi_lifecycle_alignment.py
 proven:
   - PR #237 merged the immutable-artifact diagnosis as 49167cdf9ab6fd126de72613101c35fef6cc07e2 and selected lifecycle churn as the highest-confidence mechanism.
+  - Declaration PR #238 prospectively fixed ignore_roi_if_entry_signal=true as the only allowed variant delta and merged as 9d5cc48db3aaa72995b10214642be6064ad5e00e.
   - The baseline strategy remains AiDesiredPositionRLResearchStrategy with SHA-256 9318a4d13937d9b572c4bcecfb56f999fd82d8309c6f898d0166c0c71dfd5c19.
   - The baseline inherits minimal_roi 0:0.03, 240:0.015 and 720:0.0, hard stoploss -0.05 and use_exit_signal=true.
   - Freqtrade should_exit skips ROI evaluation when enter is true and ignore_roi_if_entry_signal is true.
   - Stop-loss evaluation occurs independently before ROI is appended, so the selected setting does not disable the hard stop-loss.
-  - The experimental strategy is prospectively fixed as a new subclass with only ignore_roi_if_entry_signal=true.
+  - PR #240 adds a direct subclass whose only non-dunder class attribute is ignore_roi_if_entry_signal=true; its SHA-256 is 366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7.
+  - Focused tests exercise real should_exit behavior for active-long ROI suppression, ROI without entry, hard stop-loss and target-flat exit signals.
+  - The implementation descriptor is bound to the versioned strategy hash and marked implemented_not_executed.
   - Declaration and implementation prohibit training, backtest, market-data access and execution workflow changes.
   - Any future paired run must be a separate task and historical-development attribution only.
-  - Consumed OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden.
-  - Frozen thresholds remain 0.006/-0.009 and Phase 6 selected_model remains null.
+  - Consumed OOS 20260501-20260630 and protected final holdout 20260801-20260930 remain forbidden; thresholds stay 0.006/-0.009 and Phase 6 selected_model remains null.
 derived:
   - A new subclass preserves exact reproducibility of the original strategy and its completed artifact.
   - The selected flag is narrower than disabling ROI because ROI remains available when no entry signal is active.
@@ -129,15 +128,16 @@ rejected_hypotheses:
   - Treat future paired development attribution as strict OOS or promotion evidence.
 changed_paths:
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-alignment.md
-  - docs/ai_platform/RL_V2_ROI_LIFECYCLE_ALIGNMENT.md
   - ai_platform/experimental_model_research/rl-v2-roi-lifecycle-alignment-v1.json
+  - ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py
+  - tests/ai_platform/test_rl_v2_roi_lifecycle_alignment.py
 validation:
-  - command: diagnosis-to-declaration traceability inspection
+  - command: PR #238 repository CI
     result: PASS
-    evidence: Declaration binds diagnosis merge, immutable artifact digest, baseline strategy identity and the selected single mechanism.
-  - command: Freqtrade should_exit source inspection
+    evidence: Declaration head passed AI Platform CI, zizmor, pre-commit, documentation build and Freqtrade CI gate before merge.
+  - command: exact implementation source review
     result: PASS
-    evidence: Core condition is not (enter and ignore_roi_if_entry_signal) before min_roi_reached, while stop-loss and exit-signal checks remain independent.
+    evidence: The versioned subclass directly inherits the frozen baseline strategy and declares only ignore_roi_if_entry_signal=true.
 blockers: []
-next_action: Merge declaration PR #238 after CI, then create a separate implementation PR from updated develop that adds only the versioned lifecycle-aligned strategy, focused tests and this checkpoint update; do not train, backtest, access market data or create an execution workflow.
+next_action: Merge implementation PR #240 only after focused tests and repository CI pass, then declare a separate paired historical-development attribution execution task before any training, backtest or market-data access; do not access consumed OOS or the protected final holdout.
 ```

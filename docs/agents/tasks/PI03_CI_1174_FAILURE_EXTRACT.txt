@@ -1,0 +1,986 @@
+===== macos-313.log lines 592-702 of 702 =====
+2026-07-24T11:34:16.0707310Z ........................................................................ [ 59%]
+2026-07-24T11:34:17.2290300Z ........................................................................ [ 60%]
+2026-07-24T11:34:17.5615430Z ........................................................................ [ 62%]
+2026-07-24T11:34:17.9064810Z ........................................................................ [ 63%]
+2026-07-24T11:34:18.0702800Z ........................................................................ [ 64%]
+2026-07-24T11:34:19.4407520Z ........................................................................ [ 66%]
+2026-07-24T11:34:19.7367160Z ........................................................................ [ 67%]
+2026-07-24T11:34:21.0611270Z ........................................................................ [ 69%]
+2026-07-24T11:34:22.1969980Z ........................................................................ [ 70%]
+2026-07-24T11:34:23.7702850Z ........................................................................ [ 72%]
+2026-07-24T11:34:25.0921700Z ........................................................................ [ 73%]
+2026-07-24T11:34:27.7028560Z ........................................................................ [ 75%]
+2026-07-24T11:34:33.8630930Z ........................................................................ [ 76%]
+2026-07-24T11:34:36.0633030Z ........................................................................ [ 77%]
+2026-07-24T11:34:36.7834970Z ........................................................................ [ 79%]
+2026-07-24T11:34:37.1761870Z ........................................................................ [ 80%]
+2026-07-24T11:34:37.5015260Z ........................................................................ [ 82%]
+2026-07-24T11:34:37.8729290Z ........................................................................ [ 83%]
+2026-07-24T11:34:38.2841200Z ........................................................................ [ 85%]
+2026-07-24T11:34:38.7155480Z ........................................................................ [ 86%]
+2026-07-24T11:34:39.3192420Z ........................................................................ [ 88%]
+2026-07-24T11:34:39.9003430Z ........................................................................ [ 89%]
+2026-07-24T11:34:40.2302160Z ........................................................................ [ 90%]
+2026-07-24T11:34:41.0465000Z ........................................................................ [ 92%]
+2026-07-24T11:34:41.9498700Z ........................................................................ [ 93%]
+2026-07-24T11:34:42.7665230Z ........................................................................ [ 95%]
+2026-07-24T11:34:43.8192810Z ........................................................................ [ 96%]
+2026-07-24T11:34:44.3551400Z ........................................................................ [ 98%]
+2026-07-24T11:34:45.2721460Z .........F.............................................................. [ 99%]
+2026-07-24T11:34:48.9680720Z .....................                                                    [100%]
+2026-07-24T11:34:48.9681840Z =================================== FAILURES ===================================
+2026-07-24T11:34:48.9682580Z ___________ test_require_new_output_checks_every_multi_source_target ___________
+2026-07-24T11:34:48.9683250Z [gw2] darwin -- Python 3.13.14 /Users/runner/work/freqtrade/freqtrade/.venv/bin/python3
+2026-07-24T11:34:48.9683700Z 
+2026-07-24T11:34:48.9684330Z tmp_path = PosixPath('/private/var/folders/pd/2_nlvl1s4k121pdk4d5_2c8m0000gn/T/pytest-of-runner/pytest-0/popen-gw2/test_require_new_output_checks0')
+2026-07-24T11:34:48.9684980Z 
+2026-07-24T11:34:48.9686550Z     def test_require_new_output_checks_every_multi_source_target(tmp_path: Path) -> None:
+2026-07-24T11:34:48.9687200Z         paths = _target_paths(tmp_path)
+2026-07-24T11:34:48.9687620Z         _require_unused_targets(paths)
+2026-07-24T11:34:48.9688970Z     
+2026-07-24T11:34:48.9689590Z >       paths["manifest"].parent.mkdir(parents=True)
+2026-07-24T11:34:48.9689880Z 
+2026-07-24T11:34:48.9690290Z tests/ai_platform_integration/test_liquidation_symbol_universe.py:99: 
+2026-07-24T11:34:48.9691110Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-07-24T11:34:48.9691480Z 
+2026-07-24T11:34:48.9691950Z self = PosixPath('/private/var/folders/pd/2_nlvl1s4k121pdk4d5_2c8m0000gn/T/pytest-of-runner/pytest-0/popen-gw2/test_require_new_output_checks0')
+2026-07-24T11:34:48.9692770Z mode = 511, parents = True, exist_ok = False
+2026-07-24T11:34:48.9693110Z 
+2026-07-24T11:34:48.9693420Z     def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+2026-07-24T11:34:48.9693890Z         """
+2026-07-24T11:34:48.9694350Z         Create a new directory at this given path.
+2026-07-24T11:34:48.9694730Z         """
+2026-07-24T11:34:48.9695150Z         try:
+2026-07-24T11:34:48.9695620Z >           os.mkdir(self, mode)
+2026-07-24T11:34:48.9696370Z E           FileExistsError: [Errno 17] File exists: '/private/var/folders/pd/2_nlvl1s4k121pdk4d5_2c8m0000gn/T/pytest-of-runner/pytest-0/popen-gw2/test_require_new_output_checks0'
+2026-07-24T11:34:48.9697140Z 
+2026-07-24T11:34:48.9697570Z /Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/pathlib/_local.py:722: FileExistsError
+2026-07-24T11:34:48.9698330Z =============================== warnings summary ===============================
+2026-07-24T11:34:48.9698880Z .venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+2026-07-24T11:34:48.9699450Z .venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+2026-07-24T11:34:48.9699940Z .venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+2026-07-24T11:34:48.9700970Z   /Users/runner/work/freqtrade/freqtrade/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-07-24T11:34:48.9702080Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-07-24T11:34:48.9702400Z 
+2026-07-24T11:34:48.9708110Z tests/ai_platform/portal/product/test_product_capabilities.py::test_signal_validation_rejects_pair_outside_immutable_bot_config
+2026-07-24T11:34:48.9709310Z   /Users/runner/work/freqtrade/freqtrade/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:59: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+2026-07-24T11:34:48.9710910Z     response = await handler(conn, exc)  # type: ignore[arg-type]
+2026-07-24T11:34:48.9711290Z 
+2026-07-24T11:34:48.9712440Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-07-24T11:34:48.9712910Z ============================= slowest 20 durations =============================
+2026-07-24T11:34:48.9713500Z 4.87s call     tests/optimize/test_hyperopt.py::test_in_strategy_auto_hyperopt_with_parallel
+2026-07-24T11:34:48.9714200Z 3.90s call     tests/optimize/test_hyperopt.py::test_in_strategy_auto_hyperopt
+2026-07-24T11:34:48.9714850Z 3.64s call     tests/exchange/test_exchange.py::test__async_get_historic_ohlcv[mark-okx]
+2026-07-24T11:34:48.9715510Z 2.97s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-LTC/USDT-True]
+2026-07-24T11:34:48.9716460Z 2.74s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[XGBoostRegressor-False-True-False-True-False-10-0.05]
+2026-07-24T11:34:48.9717320Z 2.65s call     tests/optimize/test_hyperopt.py::test_max_open_trades_consistency
+2026-07-24T11:34:48.9718040Z 2.49s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[20-ADA/USDT-True]
+2026-07-24T11:34:48.9718760Z 2.43s call     tests/commands/test_commands.py::test_list_exchanges
+2026-07-24T11:34:48.9749570Z 2.22s call     tests/freqai/test_freqai_interface.py::test_start_backtesting_subdaily_backtest_period
+2026-07-24T11:34:48.9750200Z 1.50s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[no_bias]
+2026-07-24T11:34:48.9750830Z 1.46s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-ADA/USDT-True]
+2026-07-24T11:34:48.9751450Z 1.43s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[bias1]
+2026-07-24T11:34:48.9752040Z 1.40s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[30-LTC/USDT-True]
+2026-07-24T11:34:48.9752580Z 1.34s call     tests/test_pip_audit.py::test_pip_audit_runs_successfully
+2026-07-24T11:34:48.9753160Z 1.30s call     tests/freqai/test_freqai_interface.py::test_plot_feature_importance
+2026-07-24T11:34:48.9753750Z 1.27s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[20-LTC/USDT-True]
+2026-07-24T11:34:48.9754610Z 1.23s call     tests/exchange/test_exchange_ws.py::test_exchangews_schedule_ohlcv_loop_not_ready
+2026-07-24T11:34:48.9755170Z 1.23s call     tests/optimize/test_hyperopt.py::test_max_open_trades_dump
+2026-07-24T11:34:48.9755860Z 1.15s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[30-ADA/USDT-True]
+2026-07-24T11:34:48.9756620Z 1.11s call     tests/rpc/test_rpc_emc.py::test_emc_receive_messages_timeout
+2026-07-24T11:34:48.9757090Z =========================== short test summary info ============================
+2026-07-24T11:34:48.9758390Z FAILED tests/ai_platform_integration/test_liquidation_symbol_universe.py::test_require_new_output_checks_every_multi_source_target - FileExistsError: [Errno 17] File exists: '/private/var/folders/pd/2_nlvl1s4k121pdk4d5_2c8m0000gn/T/pytest-of-runner/pytest-0/popen-gw2/test_require_new_output_checks0'
+2026-07-24T11:34:48.9759540Z ====== 1 failed, 4952 passed, 36 skipped, 4 warnings in 78.01s (0:01:18) =======
+2026-07-24T11:34:49.6667230Z ##[error]Process completed with exit code 1.
+2026-07-24T11:34:49.6976390Z Post job cleanup.
+2026-07-24T11:34:50.1264690Z [command]/opt/homebrew/bin/git version
+2026-07-24T11:34:50.1445690Z git version 2.55.0
+2026-07-24T11:34:50.1472420Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/2266f2db-804e-4486-ab91-d0da4a32006b/.gitconfig'
+2026-07-24T11:34:50.1485280Z Temporarily overriding HOME='/Users/runner/work/_temp/2266f2db-804e-4486-ab91-d0da4a32006b' before making global git config changes
+2026-07-24T11:34:50.1486100Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-24T11:34:50.1487860Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/freqtrade/freqtrade
+2026-07-24T11:34:50.1582420Z Removing SSH command configuration
+2026-07-24T11:34:50.1587320Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-24T11:34:50.1650560Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-24T11:34:50.2488390Z Removing HTTP extra header
+2026-07-24T11:34:50.2492040Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-24T11:34:50.2544170Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-24T11:34:50.3156200Z Removing includeIf entries pointing to credentials config files
+2026-07-24T11:34:50.3160090Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-24T11:34:50.3209400Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-24T11:34:50.4023720Z Cleaning up orphan processes
+
+===== ubuntu-311.log lines 628-736 of 736 =====
+2026-07-24T11:35:24.0688362Z ........................................................................ [ 59%]
+2026-07-24T11:35:25.2180755Z ........................................................................ [ 60%]
+2026-07-24T11:35:26.2876509Z ...............s........................................................ [ 62%]
+2026-07-24T11:35:27.6594104Z ........................................................................ [ 63%]
+2026-07-24T11:35:29.2801501Z ...............................................s........................ [ 64%]
+2026-07-24T11:35:31.8210558Z ........................................................................ [ 66%]
+2026-07-24T11:35:33.1484854Z ........................................................................ [ 67%]
+2026-07-24T11:35:36.1886048Z ........................................................................ [ 69%]
+2026-07-24T11:35:37.3258694Z ........................................................................ [ 70%]
+2026-07-24T11:35:38.0133777Z ........................................................................ [ 72%]
+2026-07-24T11:35:38.6576554Z ........................................................................ [ 73%]
+2026-07-24T11:35:39.3283185Z ........................................................................ [ 75%]
+2026-07-24T11:35:40.1306480Z ..........................................s............................. [ 76%]
+2026-07-24T11:35:41.5257905Z ........................................................................ [ 77%]
+2026-07-24T11:35:42.5506778Z ........................................................................ [ 79%]
+2026-07-24T11:35:48.1974210Z ........................................................................ [ 80%]
+2026-07-24T11:36:11.0718051Z ........................................................................ [ 82%]
+2026-07-24T11:36:12.4566555Z ........................................................................ [ 83%]
+2026-07-24T11:36:13.3708828Z ........................................................................ [ 85%]
+2026-07-24T11:36:14.7611051Z ........................................................................ [ 86%]
+2026-07-24T11:36:17.0425714Z ........................................................................ [ 88%]
+2026-07-24T11:36:19.2657843Z ........................................................................ [ 89%]
+2026-07-24T11:36:22.7139596Z ........................................................................ [ 90%]
+2026-07-24T11:36:26.1917503Z ........................................................................ [ 92%]
+2026-07-24T11:36:29.5392630Z ........................................................................ [ 93%]
+2026-07-24T11:36:33.4542341Z ........................................................................ [ 95%]
+2026-07-24T11:36:37.2428136Z ........................................................................ [ 96%]
+2026-07-24T11:36:38.8052611Z ........................................................................ [ 98%]
+2026-07-24T11:36:43.5148514Z ........................................................................ [ 99%]
+2026-07-24T11:36:49.7518073Z .....................                                                    [100%]
+2026-07-24T11:36:49.7518961Z =================================== FAILURES ===================================
+2026-07-24T11:36:49.7520245Z ___________ test_require_new_output_checks_every_multi_source_target ___________
+2026-07-24T11:36:49.7521575Z [gw0] linux -- Python 3.11.15 /home/runner/work/freqtrade/freqtrade/.venv/bin/python3
+2026-07-24T11:36:49.7522374Z 
+2026-07-24T11:36:49.7523143Z tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0')
+2026-07-24T11:36:49.7524038Z 
+2026-07-24T11:36:49.7524477Z     def test_require_new_output_checks_every_multi_source_target(tmp_path: Path) -> None:
+2026-07-24T11:36:49.7525243Z         paths = _target_paths(tmp_path)
+2026-07-24T11:36:49.7525710Z         _require_unused_targets(paths)
+2026-07-24T11:36:49.7526138Z     
+2026-07-24T11:36:49.7526507Z >       paths["manifest"].parent.mkdir(parents=True)
+2026-07-24T11:36:49.7526885Z 
+2026-07-24T11:36:49.7527210Z tests/ai_platform_integration/test_liquidation_symbol_universe.py:99: 
+2026-07-24T11:36:49.7527943Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-07-24T11:36:49.7528358Z 
+2026-07-24T11:36:49.7528821Z self = PosixPath('/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0')
+2026-07-24T11:36:49.7529590Z mode = 511, parents = True, exist_ok = False
+2026-07-24T11:36:49.7530071Z 
+2026-07-24T11:36:49.7530290Z     def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+2026-07-24T11:36:49.7530694Z         """
+2026-07-24T11:36:49.7530969Z         Create a new directory at this given path.
+2026-07-24T11:36:49.7531588Z         """
+2026-07-24T11:36:49.7531797Z         try:
+2026-07-24T11:36:49.7532030Z >           os.mkdir(self, mode)
+2026-07-24T11:36:49.7532684Z E           FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0'
+2026-07-24T11:36:49.7533271Z 
+2026-07-24T11:36:49.7533651Z ../../_temp/uv-python-dir/cpython-3.11.15-linux-x86_64-gnu/lib/python3.11/pathlib.py:1116: FileExistsError
+2026-07-24T11:36:49.7534330Z =============================== warnings summary ===============================
+2026-07-24T11:36:49.7534823Z .venv/lib/python3.11/site-packages/fastapi/testclient.py:1
+2026-07-24T11:36:49.7535318Z .venv/lib/python3.11/site-packages/fastapi/testclient.py:1
+2026-07-24T11:36:49.7536543Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.11/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-07-24T11:36:49.7537773Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-07-24T11:36:49.7538133Z 
+2026-07-24T11:36:49.7538663Z tests/ai_platform/portal/product/test_product_capabilities.py::test_signal_validation_rejects_pair_outside_immutable_bot_config
+2026-07-24T11:36:49.7540613Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.11/site-packages/starlette/_exception_handler.py:59: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+2026-07-24T11:36:49.7541825Z     response = await handler(conn, exc)  # type: ignore[arg-type]
+2026-07-24T11:36:49.7542106Z 
+2026-07-24T11:36:49.7542333Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-07-24T11:36:49.7542804Z ============================= slowest 20 durations =============================
+2026-07-24T11:36:49.7543592Z 16.69s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_multiproc-False-False-False-True-False-0-0]
+2026-07-24T11:36:49.7544481Z 9.56s call     tests/optimize/test_hyperopt.py::test_in_strategy_auto_hyperopt_with_parallel
+2026-07-24T11:36:49.7545336Z 8.18s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-True-False-0-0]
+2026-07-24T11:36:49.7546167Z 6.27s call     tests/exchange/test_exchange.py::test__async_get_historic_ohlcv[mark-okx]
+2026-07-24T11:36:49.7546879Z 5.81s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[ReinforcementLearner-3-freqai_rl_test_strat]
+2026-07-24T11:36:49.7547834Z 5.62s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-False-False-0-0]
+2026-07-24T11:36:49.7548802Z 5.22s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[PyTorchTransformerRegressor-2-freqai_test_strat]
+2026-07-24T11:36:49.7549509Z 5.05s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[no_bias]
+2026-07-24T11:36:49.7550559Z 4.31s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner-False-True-False-True-False-0-0]
+2026-07-24T11:36:49.7551662Z 4.29s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_4ac-False-False-False-True-False-0-0]
+2026-07-24T11:36:49.7552479Z 3.16s call     tests/optimize/test_hyperopt.py::test_max_open_trades_dump
+2026-07-24T11:36:49.7552946Z 3.04s call     tests/commands/test_commands.py::test_list_exchanges
+2026-07-24T11:36:49.7553457Z 2.95s setup    tests/strategy/test_default_strategy.py::test_strategy_test_v3[False-long]
+2026-07-24T11:36:49.7554020Z 2.78s call     tests/optimize/test_hyperopt.py::test_max_open_trades_consistency
+2026-07-24T11:36:49.7554563Z 2.78s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[bias1]
+2026-07-24T11:36:49.7555203Z 2.74s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-ADA/USDT-True]
+2026-07-24T11:36:49.7556081Z 2.68s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[20-ADA/USDT-True]
+2026-07-24T11:36:49.7556729Z 2.65s setup    tests/strategy/test_default_strategy.py::test_strategy_test_v3_structure
+2026-07-24T11:36:49.7557372Z 2.62s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-LTC/USDT-True]
+2026-07-24T11:36:49.7558258Z 2.38s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[XGBoostRegressor-False-True-False-True-False-10-0.05]
+2026-07-24T11:36:49.7558984Z =========================== short test summary info ============================
+2026-07-24T11:36:49.7560273Z FAILED tests/ai_platform_integration/test_liquidation_symbol_universe.py::test_require_new_output_checks_every_multi_source_target - FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0'
+2026-07-24T11:36:49.7561381Z ====== 1 failed, 4967 passed, 21 skipped, 3 warnings in 192.59s (0:03:12) ======
+2026-07-24T11:36:50.4711252Z ##[error]Process completed with exit code 1.
+2026-07-24T11:36:50.4897017Z Post job cleanup.
+2026-07-24T11:36:50.5710413Z [command]/usr/bin/git version
+2026-07-24T11:36:50.5760646Z git version 2.54.0
+2026-07-24T11:36:50.5784373Z Temporarily overriding HOME='/home/runner/work/_temp/22c02274-030a-403b-9291-608c5ad34571' before making global git config changes
+2026-07-24T11:36:50.5785769Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-24T11:36:50.5797576Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/freqtrade/freqtrade
+2026-07-24T11:36:50.5829043Z Removing SSH command configuration
+2026-07-24T11:36:50.5837228Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-24T11:36:50.5883716Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-24T11:36:50.6130711Z Removing HTTP extra header
+2026-07-24T11:36:50.6131969Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-24T11:36:50.6164049Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-24T11:36:50.6410335Z Removing includeIf entries pointing to credentials config files
+2026-07-24T11:36:50.6418723Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-24T11:36:50.6487612Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-24T11:36:50.6881945Z Cleaning up orphan processes
+
+===== ubuntu-312-coverage.log lines 807-1225 of 1225 =====
+2026-07-24T11:41:52.0216126Z tests/ai_platform/portal/execution/test_driver.py ....                   [ 91%]
+2026-07-24T11:41:52.0340526Z tests/ai_platform/portal/observability/test_redaction.py .               [ 91%]
+2026-07-24T11:41:52.3444846Z tests/exchange/test_htx.py .....                                         [ 91%]
+2026-07-24T11:41:52.8339560Z tests/ai_platform/test_model_comparison_selection_policy.py ............ [ 92%]
+2026-07-24T11:41:52.8574110Z .                                                                        [ 92%]
+2026-07-24T11:41:53.4079431Z tests/test_misc.py ......................................                [ 92%]
+2026-07-24T11:41:53.8077302Z tests/ai_platform/test_model_comparison_result_provenance.py ........... [ 93%]
+2026-07-24T11:41:53.8094317Z                                                                          [ 93%]
+2026-07-24T11:41:53.9095198Z tests/ai_platform/test_rl_v2_training_configuration.py ........          [ 93%]
+2026-07-24T11:41:55.4222270Z tests/util/test_historic_wallets_migration.py ...........                [ 93%]
+2026-07-24T11:41:55.8607990Z tests/exchange/test_exchange_utils.py .................................. [ 94%]
+2026-07-24T11:42:02.1788132Z ........................................................................ [ 95%]
+2026-07-24T11:42:02.4255568Z ...................                                                      [ 95%]
+2026-07-24T11:42:02.5432277Z tests/leverage/test_interest.py .........                                [ 96%]
+2026-07-24T11:42:05.5948324Z tests/exchange/test_exchange_ws.py ...........                           [ 96%]
+2026-07-24T11:42:05.8482983Z tests/ai_platform/test_rl_v2_synthetic_reference.py .................... [ 96%]
+2026-07-24T11:42:05.8500079Z                                                                          [ 96%]
+2026-07-24T11:42:49.0996002Z tests/commands/test_commands.py ........................................ [ 97%]
+2026-07-24T11:42:57.0304095Z ......................                                                   [ 97%]
+2026-07-24T11:42:57.1023477Z tests/ai_platform/test_tradingview_futures_historical_preflight.py ..... [ 98%]
+2026-07-24T11:42:57.1315312Z ..                                                                       [ 98%]
+2026-07-24T11:42:58.9249038Z tests/test_main.py ...........                                           [ 98%]
+2026-07-24T11:42:59.0696743Z tests/test_log_setup.py ....s...                                         [ 98%]
+2026-07-24T11:42:59.7956734Z tests/persistence/test_migrations.py ................                    [ 98%]
+2026-07-24T11:43:00.4278802Z tests/optimize/test_hyperopt_tools.py ..........................         [ 99%]
+2026-07-24T11:43:00.5507695Z tests/ai_platform/test_rl_v2_runtime_integration.py .........            [ 99%]
+2026-07-24T11:43:00.6028883Z tests/ai_platform/portal/deploy/cloudflare/test_policy.py ....           [ 99%]
+2026-07-24T11:43:02.3244277Z tests/optimize/test_recursive_analysis.py ........                       [ 99%]
+2026-07-24T11:43:09.0908439Z tests/ai_platform/portal/execution/test_private_read.py .............    [100%]
+2026-07-24T11:43:09.0909225Z 
+2026-07-24T11:43:09.0909526Z =================================== FAILURES ===================================
+2026-07-24T11:43:09.0910480Z ___________ test_require_new_output_checks_every_multi_source_target ___________
+2026-07-24T11:43:09.0911134Z 
+2026-07-24T11:43:09.0911704Z tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/test_require_new_output_checks0')
+2026-07-24T11:43:09.0912420Z 
+2026-07-24T11:43:09.0913294Z     def test_require_new_output_checks_every_multi_source_target(tmp_path: Path) -> None:
+2026-07-24T11:43:09.0914291Z         paths = _target_paths(tmp_path)
+2026-07-24T11:43:09.0914940Z         _require_unused_targets(paths)
+2026-07-24T11:43:09.0915439Z     
+2026-07-24T11:43:09.0915850Z >       paths["manifest"].parent.mkdir(parents=True)
+2026-07-24T11:43:09.0916261Z 
+2026-07-24T11:43:09.0916616Z tests/ai_platform_integration/test_liquidation_symbol_universe.py:99: 
+2026-07-24T11:43:09.0917402Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-07-24T11:43:09.0917917Z 
+2026-07-24T11:43:09.0918341Z self = PosixPath('/tmp/pytest-of-runner/pytest-0/test_require_new_output_checks0')
+2026-07-24T11:43:09.0919149Z mode = 511, parents = True, exist_ok = False
+2026-07-24T11:43:09.0919502Z 
+2026-07-24T11:43:09.0919775Z     def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+2026-07-24T11:43:09.0920347Z         """
+2026-07-24T11:43:09.0920723Z         Create a new directory at this given path.
+2026-07-24T11:43:09.0921202Z         """
+2026-07-24T11:43:09.0921498Z         try:
+2026-07-24T11:43:09.0921844Z >           os.mkdir(self, mode)
+2026-07-24T11:43:09.0922912Z E           FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/test_require_new_output_checks0'
+2026-07-24T11:43:09.0923653Z 
+2026-07-24T11:43:09.0923891Z /usr/lib/python3.12/pathlib.py:1313: FileExistsError
+2026-07-24T11:43:09.0924511Z =============================== warnings summary ===============================
+2026-07-24T11:43:09.0925208Z .venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+2026-07-24T11:43:09.0926887Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-07-24T11:43:09.0928620Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-07-24T11:43:09.0929290Z 
+2026-07-24T11:43:09.0929763Z tests/ai_platform/portal/product/test_product_capabilities.py::test_signal_validation_rejects_pair_outside_immutable_bot_config
+2026-07-24T11:43:09.0931018Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py:59: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+2026-07-24T11:43:09.0932083Z     response = await handler(conn, exc)  # type: ignore[arg-type]
+2026-07-24T11:43:09.0932340Z 
+2026-07-24T11:43:09.0932561Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-07-24T11:43:09.0934128Z ================================ tests coverage ================================
+2026-07-24T11:43:09.0934873Z ___________________________________ coverage ___________________________________
+2026-07-24T11:43:09.0935342Z 
+2026-07-24T11:43:09.0935610Z Name                                                                      Stmts   Miss  Cover
+2026-07-24T11:43:09.0936394Z ---------------------------------------------------------------------------------------------
+2026-07-24T11:43:09.0937442Z freqtrade/__init__.py                                                         7      0   100%
+2026-07-24T11:43:09.0938277Z freqtrade/commands/__init__.py                                               14      0   100%
+2026-07-24T11:43:09.0939103Z freqtrade/commands/analyze_commands.py                                       10      0   100%
+2026-07-24T11:43:09.0939625Z freqtrade/commands/arguments.py                                             191      0   100%
+2026-07-24T11:43:09.0940151Z freqtrade/commands/build_config_commands.py                                  26      0   100%
+2026-07-24T11:43:09.0940673Z freqtrade/commands/cli_options.py                                            26      0   100%
+2026-07-24T11:43:09.0941177Z freqtrade/commands/data_commands.py                                          86      0   100%
+2026-07-24T11:43:09.0941686Z freqtrade/commands/db_commands.py                                            14      0   100%
+2026-07-24T11:43:09.0942203Z freqtrade/commands/deploy_commands.py                                        55      2    96%
+2026-07-24T11:43:09.0943071Z freqtrade/commands/deploy_ui.py                                              63      0   100%
+2026-07-24T11:43:09.0943596Z freqtrade/commands/hyperopt_commands.py                                      58      2    97%
+2026-07-24T11:43:09.0944121Z freqtrade/commands/list_commands.py                                         175      9    95%
+2026-07-24T11:43:09.0944638Z freqtrade/commands/optimize_commands.py                                      63      0   100%
+2026-07-24T11:43:09.0945174Z freqtrade/commands/pairlist_commands.py                                      30      0   100%
+2026-07-24T11:43:09.0945704Z freqtrade/commands/plot_commands.py                                          18      0   100%
+2026-07-24T11:43:09.0946247Z freqtrade/commands/strategy_utils_commands.py                                28      0   100%
+2026-07-24T11:43:09.0946779Z freqtrade/commands/trade_commands.py                                         17      2    88%
+2026-07-24T11:43:09.0947312Z freqtrade/commands/webserver_commands.py                                      7      0   100%
+2026-07-24T11:43:09.0947833Z freqtrade/config_schema/__init__.py                                           2      0   100%
+2026-07-24T11:43:09.0948343Z freqtrade/config_schema/config_schema.py                                     11      0   100%
+2026-07-24T11:43:09.0948880Z freqtrade/configuration/__init__.py                                           6      0   100%
+2026-07-24T11:43:09.0949414Z freqtrade/configuration/config_secrets.py                                    26      2    92%
+2026-07-24T11:43:09.0949954Z freqtrade/configuration/config_setup.py                                      13      0   100%
+2026-07-24T11:43:09.0950501Z freqtrade/configuration/config_validation.py                                201      0   100%
+2026-07-24T11:43:09.0951228Z freqtrade/configuration/configuration.py                                    209      5    98%
+2026-07-24T11:43:09.0951789Z freqtrade/configuration/deploy_config.py                                     49      0   100%
+2026-07-24T11:43:09.0952364Z freqtrade/configuration/deprecated_settings.py                               54      0   100%
+2026-07-24T11:43:09.0953195Z freqtrade/configuration/detect_environment.py                                 3      0   100%
+2026-07-24T11:43:09.0953768Z freqtrade/configuration/directory_operations.py                              54      3    94%
+2026-07-24T11:43:09.0954334Z freqtrade/configuration/environment_vars.py                                  43      0   100%
+2026-07-24T11:43:09.0955151Z freqtrade/configuration/load_config.py                                       64      1    98%
+2026-07-24T11:43:09.0955683Z freqtrade/configuration/timerange.py                                         90      1    99%
+2026-07-24T11:43:09.0956183Z freqtrade/constants.py                                                       75      0   100%
+2026-07-24T11:43:09.0956802Z freqtrade/data/__init__.py                                                    2      0   100%
+2026-07-24T11:43:09.0957303Z freqtrade/data/btanalysis/__init__.py                                         3      0   100%
+2026-07-24T11:43:09.0957841Z freqtrade/data/btanalysis/bt_fileutils.py                                   255     15    94%
+2026-07-24T11:43:09.0958401Z freqtrade/data/btanalysis/historic_precision.py                              10      0   100%
+2026-07-24T11:43:09.0958969Z freqtrade/data/btanalysis/trade_parallelism.py                               65      0   100%
+2026-07-24T11:43:09.0959506Z freqtrade/data/converter/__init__.py                                          4      0   100%
+2026-07-24T11:43:09.0960022Z freqtrade/data/converter/converter.py                                       105      2    98%
+2026-07-24T11:43:09.0960551Z freqtrade/data/converter/orderflow.py                                       120      7    94%
+2026-07-24T11:43:09.0961088Z freqtrade/data/converter/trade_converter.py                                  73      6    92%
+2026-07-24T11:43:09.0961655Z freqtrade/data/converter/trade_converter_kraken.py                           54      2    96%
+2026-07-24T11:43:09.0962193Z freqtrade/data/dataprovider.py                                              228      8    96%
+2026-07-24T11:43:09.0962934Z freqtrade/data/entryexitanalysis.py                                         186     23    88%
+2026-07-24T11:43:09.0963457Z freqtrade/data/history/__init__.py                                            2      0   100%
+2026-07-24T11:43:09.0963980Z freqtrade/data/history/datahandlers/__init__.py                               1      0   100%
+2026-07-24T11:43:09.0964560Z freqtrade/data/history/datahandlers/arrowdatahandler.py                      98      0   100%
+2026-07-24T11:43:09.0965161Z freqtrade/data/history/datahandlers/featherdatahandler.py                    11      0   100%
+2026-07-24T11:43:09.0966147Z freqtrade/data/history/datahandlers/idatahandler.py                         199     14    93%
+2026-07-24T11:43:09.0966753Z freqtrade/data/history/datahandlers/jsondatahandler.py                       58      0   100%
+2026-07-24T11:43:09.0967358Z freqtrade/data/history/datahandlers/parquetdatahandler.py                    11      0   100%
+2026-07-24T11:43:09.0967925Z freqtrade/data/history/history_utils.py                                     244      8    97%
+2026-07-24T11:43:09.0968423Z freqtrade/data/metrics.py                                                   237      6    97%
+2026-07-24T11:43:09.0968890Z freqtrade/enums/__init__.py                                                  14      0   100%
+2026-07-24T11:43:09.0969381Z freqtrade/enums/backteststate.py                                              9      0   100%
+2026-07-24T11:43:09.0969879Z freqtrade/enums/candletype.py                                                18      0   100%
+2026-07-24T11:43:09.0970527Z freqtrade/enums/exitchecktuple.py                                            14      1    93%
+2026-07-24T11:43:09.0971027Z freqtrade/enums/exittype.py                                                  16      0   100%
+2026-07-24T11:43:09.0971525Z freqtrade/enums/hyperoptstate.py                                              8      1    88%
+2026-07-24T11:43:09.0972021Z freqtrade/enums/marginmode.py                                                 5      0   100%
+2026-07-24T11:43:09.0972525Z freqtrade/enums/marketstatetype.py                                            8      0   100%
+2026-07-24T11:43:09.0973343Z freqtrade/enums/ordertypevalue.py                                             4      0   100%
+2026-07-24T11:43:09.0973845Z freqtrade/enums/pricetype.py                                                  5      0   100%
+2026-07-24T11:43:09.0974343Z freqtrade/enums/rpcmessagetype.py                                            25      0   100%
+2026-07-24T11:43:09.0974868Z freqtrade/enums/runmode.py                                                   14      0   100%
+2026-07-24T11:43:09.0975349Z freqtrade/enums/signaltype.py                                                12      0   100%
+2026-07-24T11:43:09.0975956Z freqtrade/enums/state.py                                                      8      0   100%
+2026-07-24T11:43:09.0976439Z freqtrade/enums/tradingmode.py                                                5      0   100%
+2026-07-24T11:43:09.0976917Z freqtrade/exceptions.py                                                      12      0   100%
+2026-07-24T11:43:09.0977388Z freqtrade/exchange/__init__.py                                               25      0   100%
+2026-07-24T11:43:09.0977868Z freqtrade/exchange/binance.py                                               201     22    89%
+2026-07-24T11:43:09.0978380Z freqtrade/exchange/binance_public_data.py                                   213      3    99%
+2026-07-24T11:43:09.0978885Z freqtrade/exchange/bingx.py                                                   6      0   100%
+2026-07-24T11:43:09.0979365Z freqtrade/exchange/bitget.py                                                116      7    94%
+2026-07-24T11:43:09.0979887Z freqtrade/exchange/bitmart.py                                                 6      0   100%
+2026-07-24T11:43:09.0980377Z freqtrade/exchange/bitpanda.py                                                8      0   100%
+2026-07-24T11:43:09.0980862Z freqtrade/exchange/bitvavo.py                                                 6      0   100%
+2026-07-24T11:43:09.0981340Z freqtrade/exchange/bybit.py                                                 118      8    93%
+2026-07-24T11:43:09.0981833Z freqtrade/exchange/check_exchange.py                                         25      0   100%
+2026-07-24T11:43:09.0982334Z freqtrade/exchange/coinex.py                                                  6      0   100%
+2026-07-24T11:43:09.0982951Z freqtrade/exchange/common.py                                                 76      1    99%
+2026-07-24T11:43:09.0983446Z freqtrade/exchange/cryptocom.py                                               6      0   100%
+2026-07-24T11:43:09.0983945Z freqtrade/exchange/exchange.py                                             1800     85    95%
+2026-07-24T11:43:09.0984448Z freqtrade/exchange/exchange_types.py                                         90      0   100%
+2026-07-24T11:43:09.0984962Z freqtrade/exchange/exchange_utils.py                                        132      3    98%
+2026-07-24T11:43:09.0985504Z freqtrade/exchange/exchange_utils_timeframe.py                               39      1    97%
+2026-07-24T11:43:09.0986032Z freqtrade/exchange/exchange_ws.py                                           185     24    87%
+2026-07-24T11:43:09.0986524Z freqtrade/exchange/gate.py                                                   52      6    88%
+2026-07-24T11:43:09.0987005Z freqtrade/exchange/hitbtc.py                                                  6      0   100%
+2026-07-24T11:43:09.0987632Z freqtrade/exchange/htx.py                                                    11      0   100%
+2026-07-24T11:43:09.0988124Z freqtrade/exchange/hyperliquid.py                                           155     20    87%
+2026-07-24T11:43:09.0988619Z freqtrade/exchange/idex.py                                                    6      0   100%
+2026-07-24T11:43:09.0989095Z freqtrade/exchange/kraken.py                                                 73      2    97%
+2026-07-24T11:43:09.0989598Z freqtrade/exchange/krakenfutures.py                                         144      0   100%
+2026-07-24T11:43:09.0990100Z freqtrade/exchange/kucoin.py                                                 17      0   100%
+2026-07-24T11:43:09.0990584Z freqtrade/exchange/lbank.py                                                   6      0   100%
+2026-07-24T11:43:09.0991054Z freqtrade/exchange/luno.py                                                    6      0   100%
+2026-07-24T11:43:09.0991539Z freqtrade/exchange/modetrade.py                                               6      0   100%
+2026-07-24T11:43:09.0992027Z freqtrade/exchange/okx.py                                                   147      2    99%
+2026-07-24T11:43:09.0992795Z freqtrade/freqai/RL/Base3ActionRLEnv.py                                      62      1    98%
+2026-07-24T11:43:09.0993389Z freqtrade/freqai/RL/Base4ActionRLEnv.py                                      65      5    92%
+2026-07-24T11:43:09.0993944Z freqtrade/freqai/RL/Base5ActionRLEnv.py                                      71      5    93%
+2026-07-24T11:43:09.0994492Z freqtrade/freqai/RL/BaseEnvironment.py                                      174     23    87%
+2026-07-24T11:43:09.0995070Z freqtrade/freqai/RL/BaseReinforcementLearningModel.py                       222     57    74%
+2026-07-24T11:43:09.0995612Z freqtrade/freqai/RL/__init__.py                                               0      0   100%
+2026-07-24T11:43:09.0996083Z freqtrade/freqai/__init__.py                                                  0      0   100%
+2026-07-24T11:43:09.0996625Z freqtrade/freqai/base_models/BaseClassifierModel.py                          50      1    98%
+2026-07-24T11:43:09.0997230Z freqtrade/freqai/base_models/BasePyTorchClassifier.py                        83      5    94%
+2026-07-24T11:43:09.0997814Z freqtrade/freqai/base_models/BasePyTorchModel.py                             18      1    94%
+2026-07-24T11:43:09.0998404Z freqtrade/freqai/base_models/BasePyTorchRegressor.py                         47      1    98%
+2026-07-24T11:43:09.0998989Z freqtrade/freqai/base_models/BaseRegressionModel.py                          50      2    96%
+2026-07-24T11:43:09.0999596Z freqtrade/freqai/base_models/FreqaiMultiOutputClassifier.py                  37      9    76%
+2026-07-24T11:43:09.1000206Z freqtrade/freqai/base_models/FreqaiMultiOutputRegressor.py                   20      4    80%
+2026-07-24T11:43:09.1000755Z freqtrade/freqai/data_drawer.py                                             404    126    69%
+2026-07-24T11:43:09.1001253Z freqtrade/freqai/data_kitchen.py                                            425     77    82%
+2026-07-24T11:43:09.1001762Z freqtrade/freqai/freqai_interface.py                                        502    188    63%
+2026-07-24T11:43:09.1002330Z freqtrade/freqai/prediction_models/LightGBMClassifier.py                     26      2    92%
+2026-07-24T11:43:09.1003083Z freqtrade/freqai/prediction_models/LightGBMClassifierMultiTarget.py          38      2    95%
+2026-07-24T11:43:09.1003696Z freqtrade/freqai/prediction_models/LightGBMRegressor.py                      26      2    92%
+2026-07-24T11:43:09.1004316Z freqtrade/freqai/prediction_models/LightGBMRegressorMultiTarget.py           38      2    95%
+2026-07-24T11:43:09.1004941Z freqtrade/freqai/prediction_models/PyTorchMLPClassifier.py                   30      0   100%
+2026-07-24T11:43:09.1005548Z freqtrade/freqai/prediction_models/PyTorchMLPRegressor.py                    28      0   100%
+2026-07-24T11:43:09.1006163Z freqtrade/freqai/prediction_models/PyTorchTransformerRegressor.py            58      2    97%
+2026-07-24T11:43:09.1006897Z freqtrade/freqai/prediction_models/ReinforcementLearner.py                   69     13    81%
+2026-07-24T11:43:09.1007508Z freqtrade/freqai/prediction_models/ReinforcementLearner_multiproc.py         28      0   100%
+2026-07-24T11:43:09.1008124Z freqtrade/freqai/prediction_models/SKLearnRandomForestClassifier.py          36     10    72%
+2026-07-24T11:43:09.1008734Z freqtrade/freqai/prediction_models/XGBoostClassifier.py                      40      1    98%
+2026-07-24T11:43:09.1009339Z freqtrade/freqai/prediction_models/XGBoostRFClassifier.py                    40      9    78%
+2026-07-24T11:43:09.1009934Z freqtrade/freqai/prediction_models/XGBoostRFRegressor.py                     20      2    90%
+2026-07-24T11:43:09.1010528Z freqtrade/freqai/prediction_models/XGBoostRegressor.py                       23      2    91%
+2026-07-24T11:43:09.1011133Z freqtrade/freqai/prediction_models/XGBoostRegressorMultiTarget.py            23      2    91%
+2026-07-24T11:43:09.1011722Z freqtrade/freqai/prediction_models/__init__.py                                0      0   100%
+2026-07-24T11:43:09.1012413Z freqtrade/freqai/tensorboard/TensorboardCallback.py                          26      0   100%
+2026-07-24T11:43:09.1013123Z freqtrade/freqai/tensorboard/__init__.py                                     12      5    58%
+2026-07-24T11:43:09.1013671Z freqtrade/freqai/tensorboard/base_tensorboard.py                             19      3    84%
+2026-07-24T11:43:09.1014243Z freqtrade/freqai/tensorboard/lightgbm_callback.py                            17      8    53%
+2026-07-24T11:43:09.1014814Z freqtrade/freqai/tensorboard/tensorboard.py                                  41      3    93%
+2026-07-24T11:43:09.1015395Z freqtrade/freqai/torch/PyTorchDataConvertor.py                               22      0   100%
+2026-07-24T11:43:09.1015973Z freqtrade/freqai/torch/PyTorchMLPModel.py                                    37      0   100%
+2026-07-24T11:43:09.1016549Z freqtrade/freqai/torch/PyTorchModelTrainer.py                               114     19    83%
+2026-07-24T11:43:09.1017134Z freqtrade/freqai/torch/PyTorchTrainerInterface.py                            15      2    87%
+2026-07-24T11:43:09.1017765Z freqtrade/freqai/torch/PyTorchTransformerModel.py                            35      0   100%
+2026-07-24T11:43:09.1018309Z freqtrade/freqai/torch/__init__.py                                            0      0   100%
+2026-07-24T11:43:09.1018815Z freqtrade/freqai/torch/datasets.py                                           13      0   100%
+2026-07-24T11:43:09.1019302Z freqtrade/freqai/utils.py                                                    88      9    90%
+2026-07-24T11:43:09.1019767Z freqtrade/freqtradebot.py                                                  1028     26    97%
+2026-07-24T11:43:09.1020235Z freqtrade/ft_types/__init__.py                                                3      0   100%
+2026-07-24T11:43:09.1020738Z freqtrade/ft_types/backtest_result_type.py                                   38      0   100%
+2026-07-24T11:43:09.1021272Z freqtrade/ft_types/plot_annotation_type.py                                   28      0   100%
+2026-07-24T11:43:09.1021814Z freqtrade/ft_types/valid_exchanges_type.py                                   15      0   100%
+2026-07-24T11:43:09.1022323Z freqtrade/leverage/__init__.py                                                1      0   100%
+2026-07-24T11:43:09.1022927Z freqtrade/leverage/interest.py                                               13      0   100%
+2026-07-24T11:43:09.1023448Z freqtrade/leverage/liquidation_price.py                                      23      1    96%
+2026-07-24T11:43:09.1023949Z freqtrade/loggers/__init__.py                                                74      2    97%
+2026-07-24T11:43:09.1024454Z freqtrade/loggers/buffering_handler.py                                        8      0   100%
+2026-07-24T11:43:09.1024975Z freqtrade/loggers/ft_rich_handler.py                                         26      8    69%
+2026-07-24T11:43:09.1025619Z freqtrade/loggers/json_formatter.py                                          27      5    81%
+2026-07-24T11:43:09.1026130Z freqtrade/loggers/rich_console.py                                            12      3    75%
+2026-07-24T11:43:09.1026631Z freqtrade/loggers/set_log_levels.py                                          12      0   100%
+2026-07-24T11:43:09.1027154Z freqtrade/loggers/std_err_stream_handler.py                                  17     17     0%
+2026-07-24T11:43:09.1027636Z freqtrade/main.py                                                            37      0   100%
+2026-07-24T11:43:09.1028062Z freqtrade/misc.py                                                           113      0   100%
+2026-07-24T11:43:09.1028511Z freqtrade/mixins/__init__.py                                                  1      0   100%
+2026-07-24T11:43:09.1028997Z freqtrade/mixins/logging_mixin.py                                            16      0   100%
+2026-07-24T11:43:09.1029498Z freqtrade/optimize/__init__.py                                                0      0   100%
+2026-07-24T11:43:09.1030104Z freqtrade/optimize/analysis/__init__.py                                       0      0   100%
+2026-07-24T11:43:09.1030646Z freqtrade/optimize/analysis/base_analysis.py                                 45      2    96%
+2026-07-24T11:43:09.1031196Z freqtrade/optimize/analysis/lookahead.py                                    150     17    89%
+2026-07-24T11:43:09.1031755Z freqtrade/optimize/analysis/lookahead_helpers.py                            112      9    92%
+2026-07-24T11:43:09.1032313Z freqtrade/optimize/analysis/recursive.py                                    129      8    94%
+2026-07-24T11:43:09.1033017Z freqtrade/optimize/analysis/recursive_helpers.py                             76      8    89%
+2026-07-24T11:43:09.1033856Z freqtrade/optimize/backtest_caching.py                                       19      0   100%
+2026-07-24T11:43:09.1034766Z freqtrade/optimize/backtesting.py                                           786     22    97%
+2026-07-24T11:43:09.1035617Z freqtrade/optimize/hyperopt/__init__.py                                       3      0   100%
+2026-07-24T11:43:09.1036573Z freqtrade/optimize/hyperopt/hyperopt.py                                     163     15    91%
+2026-07-24T11:43:09.1037668Z freqtrade/optimize/hyperopt/hyperopt_auto.py                                 43      1    98%
+2026-07-24T11:43:09.1038773Z freqtrade/optimize/hyperopt/hyperopt_interface.py                            55      2    96%
+2026-07-24T11:43:09.1039902Z freqtrade/optimize/hyperopt/hyperopt_logger.py                               23      7    70%
+2026-07-24T11:43:09.1040973Z freqtrade/optimize/hyperopt/hyperopt_optimizer.py                           228     11    95%
+2026-07-24T11:43:09.1042037Z freqtrade/optimize/hyperopt/hyperopt_output.py                               47      3    94%
+2026-07-24T11:43:09.1043281Z freqtrade/optimize/hyperopt_epoch_filters.py                                 58      1    98%
+2026-07-24T11:43:09.1044208Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_calmar.py                      9      0   100%
+2026-07-24T11:43:09.1044803Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_interface.py                  10      0   100%
+2026-07-24T11:43:09.1045390Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_max_drawdown.py               13      2    85%
+2026-07-24T11:43:09.1045982Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_max_drawdown_per_pair.py      20      1    95%
+2026-07-24T11:43:09.1046581Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_max_drawdown_relative.py      16      3    81%
+2026-07-24T11:43:09.1047183Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_multi_metric.py               34      2    94%
+2026-07-24T11:43:09.1047774Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_onlyprofit.py                  7      0   100%
+2026-07-24T11:43:09.1048363Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_profit_drawdown.py            14      2    86%
+2026-07-24T11:43:09.1049108Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_sharpe.py                      9      0   100%
+2026-07-24T11:43:09.1049698Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_sharpe_daily.py               22      1    95%
+2026-07-24T11:43:09.1050284Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_short_trade_dur.py            18      0   100%
+2026-07-24T11:43:09.1050876Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_sortino.py                     9      0   100%
+2026-07-24T11:43:09.1051457Z freqtrade/optimize/hyperopt_loss/hyperopt_loss_sortino_daily.py              24      1    96%
+2026-07-24T11:43:09.1052009Z freqtrade/optimize/hyperopt_tools.py                                        224     11    95%
+2026-07-24T11:43:09.1052554Z freqtrade/optimize/optimize_reports/__init__.py                               3      0   100%
+2026-07-24T11:43:09.1053263Z freqtrade/optimize/optimize_reports/bt_output.py                            115      2    98%
+2026-07-24T11:43:09.1053832Z freqtrade/optimize/optimize_reports/bt_storage.py                            76      0   100%
+2026-07-24T11:43:09.1054411Z freqtrade/optimize/optimize_reports/optimize_reports.py                     252     16    94%
+2026-07-24T11:43:09.1055078Z freqtrade/optimize/space/__init__.py                                          7      0   100%
+2026-07-24T11:43:09.1055628Z freqtrade/optimize/space/decimalspace.py                                     10      0   100%
+2026-07-24T11:43:09.1056179Z freqtrade/optimize/space/optunaspaces.py                                     28      3    89%
+2026-07-24T11:43:09.1056704Z freqtrade/persistence/__init__.py                                             7      0   100%
+2026-07-24T11:43:09.1057196Z freqtrade/persistence/base.py                                                 4      0   100%
+2026-07-24T11:43:09.1057699Z freqtrade/persistence/custom_data.py                                         96     13    86%
+2026-07-24T11:43:09.1058221Z freqtrade/persistence/db_migration.py                                        52      0   100%
+2026-07-24T11:43:09.1058763Z freqtrade/persistence/key_value_store.py                                     96      0   100%
+2026-07-24T11:43:09.1059296Z freqtrade/persistence/migrations.py                                         186     13    93%
+2026-07-24T11:43:09.1059806Z freqtrade/persistence/models.py                                              56      0   100%
+2026-07-24T11:43:09.1060312Z freqtrade/persistence/pairlock.py                                            38      0   100%
+2026-07-24T11:43:09.1060847Z freqtrade/persistence/pairlock_middleware.py                                 82      0   100%
+2026-07-24T11:43:09.1061394Z freqtrade/persistence/trade_model.py                                        940     23    98%
+2026-07-24T11:43:09.1061915Z freqtrade/persistence/usedb_context.py                                       20      0   100%
+2026-07-24T11:43:09.1062450Z freqtrade/persistence/wallet_history.py                                      22      0   100%
+2026-07-24T11:43:09.1063069Z freqtrade/plot/__init__.py                                                    0      0   100%
+2026-07-24T11:43:09.1063540Z freqtrade/plot/plotting.py                                                  274     21    92%
+2026-07-24T11:43:09.1064022Z freqtrade/plugins/__init__.py                                                 0      0   100%
+2026-07-24T11:43:09.1064535Z freqtrade/plugins/pairlist/AgeFilter.py                                      61      1    98%
+2026-07-24T11:43:09.1065128Z freqtrade/plugins/pairlist/CrossMarketPairList.py                            70      0   100%
+2026-07-24T11:43:09.1065715Z freqtrade/plugins/pairlist/DelistFilter.py                                   36      0   100%
+2026-07-24T11:43:09.1066314Z freqtrade/plugins/pairlist/FullTradesFilter.py                               18      0   100%
+2026-07-24T11:43:09.1066895Z freqtrade/plugins/pairlist/IPairList.py                                     101      2    98%
+2026-07-24T11:43:09.1067640Z freqtrade/plugins/pairlist/MarketCapPairList.py                             108      1    99%
+2026-07-24T11:43:09.1068220Z freqtrade/plugins/pairlist/OffsetFilter.py                                   30      1    97%
+2026-07-24T11:43:09.1068811Z freqtrade/plugins/pairlist/PairInformationFilter.py                          37      0   100%
+2026-07-24T11:43:09.1069426Z freqtrade/plugins/pairlist/PercentChangePairList.py                         115      6    95%
+2026-07-24T11:43:09.1070024Z freqtrade/plugins/pairlist/PerformanceFilter.py                              41      0   100%
+2026-07-24T11:43:09.1070614Z freqtrade/plugins/pairlist/PrecisionFilter.py                                35      0   100%
+2026-07-24T11:43:09.1071184Z freqtrade/plugins/pairlist/PriceFilter.py                                    79      1    99%
+2026-07-24T11:43:09.1071757Z freqtrade/plugins/pairlist/ProducerPairList.py                               37      0   100%
+2026-07-24T11:43:09.1072337Z freqtrade/plugins/pairlist/RemotePairList.py                                149     19    87%
+2026-07-24T11:43:09.1073036Z freqtrade/plugins/pairlist/ShuffleFilter.py                                  39      0   100%
+2026-07-24T11:43:09.1073725Z freqtrade/plugins/pairlist/SpreadFilter.py                                   33      0   100%
+2026-07-24T11:43:09.1074301Z freqtrade/plugins/pairlist/StaticPairList.py                                 37      0   100%
+2026-07-24T11:43:09.1074876Z freqtrade/plugins/pairlist/VolatilityFilter.py                               72      2    97%
+2026-07-24T11:43:09.1075454Z freqtrade/plugins/pairlist/VolumePairList.py                                103      1    99%
+2026-07-24T11:43:09.1076004Z freqtrade/plugins/pairlist/__init__.py                                        0      0   100%
+2026-07-24T11:43:09.1076548Z freqtrade/plugins/pairlist/pairlist_helpers.py                               26      0   100%
+2026-07-24T11:43:09.1077135Z freqtrade/plugins/pairlist/rangestabilityfilter.py                           76      2    97%
+2026-07-24T11:43:09.1077709Z freqtrade/plugins/pairlistmanager.py                                        113      1    99%
+2026-07-24T11:43:09.1078257Z freqtrade/plugins/protectionmanager.py                                       62      0   100%
+2026-07-24T11:43:09.1078800Z freqtrade/plugins/protections/__init__.py                                     1      0   100%
+2026-07-24T11:43:09.1079356Z freqtrade/plugins/protections/cooldown_period.py                             26      0   100%
+2026-07-24T11:43:09.1079939Z freqtrade/plugins/protections/iprotection.py                                 76      0   100%
+2026-07-24T11:43:09.1080509Z freqtrade/plugins/protections/low_profit_pairs.py                            34      0   100%
+2026-07-24T11:43:09.1081093Z freqtrade/plugins/protections/max_drawdown_protection.py                     48      2    96%
+2026-07-24T11:43:09.1081674Z freqtrade/plugins/protections/stoploss_guard.py                              38      0   100%
+2026-07-24T11:43:09.1082205Z freqtrade/resolvers/__init__.py                                               5      0   100%
+2026-07-24T11:43:09.1082837Z freqtrade/resolvers/exchange_resolver.py                                     42      0   100%
+2026-07-24T11:43:09.1083394Z freqtrade/resolvers/freqaimodel_resolver.py                                  23      2    91%
+2026-07-24T11:43:09.1083944Z freqtrade/resolvers/hyperopt_resolver.py                                     20      0   100%
+2026-07-24T11:43:09.1084463Z freqtrade/resolvers/iresolver.py                                            130      5    96%
+2026-07-24T11:43:09.1084987Z freqtrade/resolvers/pairlist_resolver.py                                     14      0   100%
+2026-07-24T11:43:09.1085534Z freqtrade/resolvers/protection_resolver.py                                   14      0   100%
+2026-07-24T11:43:09.1086092Z freqtrade/resolvers/strategy_resolver.py                                    137      2    99%
+2026-07-24T11:43:09.1086589Z freqtrade/rpc/__init__.py                                                     2      0   100%
+2026-07-24T11:43:09.1087240Z freqtrade/rpc/api_server/__init__.py                                          1      0   100%
+2026-07-24T11:43:09.1087758Z freqtrade/rpc/api_server/api_analysis.py                                    103      6    94%
+2026-07-24T11:43:09.1088279Z freqtrade/rpc/api_server/api_auth.py                                         77      2    97%
+2026-07-24T11:43:09.1088818Z freqtrade/rpc/api_server/api_background_tasks.py                             32      0   100%
+2026-07-24T11:43:09.1089351Z freqtrade/rpc/api_server/api_backtest.py                                    200      7    96%
+2026-07-24T11:43:09.1089884Z freqtrade/rpc/api_server/api_download_data.py                                53      2    96%
+2026-07-24T11:43:09.1090420Z freqtrade/rpc/api_server/api_pair_history.py                                 33      0   100%
+2026-07-24T11:43:09.1090955Z freqtrade/rpc/api_server/api_pairlists.py                                    69      6    91%
+2026-07-24T11:43:09.1091500Z freqtrade/rpc/api_server/api_schemas.py                                     594      1    99%
+2026-07-24T11:43:09.1092140Z freqtrade/rpc/api_server/api_trading.py                                     151      2    99%
+2026-07-24T11:43:09.1092776Z freqtrade/rpc/api_server/api_v1.py                                           81      1    99%
+2026-07-24T11:43:09.1093294Z freqtrade/rpc/api_server/api_webserver.py                                    50      0   100%
+2026-07-24T11:43:09.1093805Z freqtrade/rpc/api_server/api_ws.py                                           61      9    85%
+2026-07-24T11:43:09.1094298Z freqtrade/rpc/api_server/deps.py                                             52      3    94%
+2026-07-24T11:43:09.1094814Z freqtrade/rpc/api_server/uvicorn_threaded.py                                 23      2    91%
+2026-07-24T11:43:09.1095330Z freqtrade/rpc/api_server/web_ui.py                                           32      2    94%
+2026-07-24T11:43:09.1095844Z freqtrade/rpc/api_server/webserver.py                                       133      0   100%
+2026-07-24T11:43:09.1096375Z freqtrade/rpc/api_server/webserver_bgwork.py                                 34      0   100%
+2026-07-24T11:43:09.1096908Z freqtrade/rpc/api_server/ws/__init__.py                                       5      0   100%
+2026-07-24T11:43:09.1097423Z freqtrade/rpc/api_server/ws/channel.py                                      101     13    87%
+2026-07-24T11:43:09.1097953Z freqtrade/rpc/api_server/ws/message_stream.py                                14      1    93%
+2026-07-24T11:43:09.1098481Z freqtrade/rpc/api_server/ws/proxy.py                                         40      7    82%
+2026-07-24T11:43:09.1099006Z freqtrade/rpc/api_server/ws/serializer.py                                    37      4    89%
+2026-07-24T11:43:09.1099533Z freqtrade/rpc/api_server/ws/ws_types.py                                       5      0   100%
+2026-07-24T11:43:09.1100052Z freqtrade/rpc/api_server/ws_schemas.py                                       40      0   100%
+2026-07-24T11:43:09.1100546Z freqtrade/rpc/discord.py                                                     40      1    98%
+2026-07-24T11:43:09.1101054Z freqtrade/rpc/external_message_consumer.py                                  193     14    93%
+2026-07-24T11:43:09.1101567Z freqtrade/rpc/fiat_convert.py                                                85      1    99%
+2026-07-24T11:43:09.1102028Z freqtrade/rpc/rpc.py                                                        717     16    98%
+2026-07-24T11:43:09.1102491Z freqtrade/rpc/rpc_manager.py                                                 74      4    95%
+2026-07-24T11:43:09.1103073Z freqtrade/rpc/rpc_types.py                                                   85      0   100%
+2026-07-24T11:43:09.1103540Z freqtrade/rpc/telegram.py                                                   910     59    94%
+2026-07-24T11:43:09.1104006Z freqtrade/rpc/webhook.py                                                     82      7    91%
+2026-07-24T11:43:09.1104599Z freqtrade/strategy/__init__.py                                                8      0   100%
+2026-07-24T11:43:09.1105078Z freqtrade/strategy/hyper.py                                                  96      1    99%
+2026-07-24T11:43:09.1105605Z freqtrade/strategy/informative_decorator.py                                  71      3    96%
+2026-07-24T11:43:09.1106136Z freqtrade/strategy/interface.py                                             493     20    96%
+2026-07-24T11:43:09.1106641Z freqtrade/strategy/parameters.py                                            110      0   100%
+2026-07-24T11:43:09.1107159Z freqtrade/strategy/strategy_helper.py                                        51      0   100%
+2026-07-24T11:43:09.1107692Z freqtrade/strategy/strategy_validation.py                                    26      0   100%
+2026-07-24T11:43:09.1108232Z freqtrade/strategy/strategy_wrapper.py                                       40      3    92%
+2026-07-24T11:43:09.1108775Z freqtrade/strategy/strategyupdater.py                                       145      9    94%
+2026-07-24T11:43:09.1109281Z freqtrade/system/__init__.py                                                  5      0   100%
+2026-07-24T11:43:09.1109880Z freqtrade/system/asyncio_config.py                                            1      0   100%
+2026-07-24T11:43:09.1110377Z freqtrade/system/gc_setup.py                                                  8      3    62%
+2026-07-24T11:43:09.1110881Z freqtrade/system/set_mp_start_method.py                                       8      2    75%
+2026-07-24T11:43:09.1111387Z freqtrade/system/version_info.py                                             10      0   100%
+2026-07-24T11:43:09.1111862Z freqtrade/util/__init__.py                                                   12      0   100%
+2026-07-24T11:43:09.1112325Z freqtrade/util/coin_gecko.py                                                  6      0   100%
+2026-07-24T11:43:09.1112969Z freqtrade/util/datetime_helpers.py                                           46      0   100%
+2026-07-24T11:43:09.1113477Z freqtrade/util/dry_run_wallet.py                                              5      0   100%
+2026-07-24T11:43:09.1113974Z freqtrade/util/formatters.py                                                 33      0   100%
+2026-07-24T11:43:09.1114453Z freqtrade/util/ft_precise.py                                                  6      0   100%
+2026-07-24T11:43:09.1114927Z freqtrade/util/ft_ttlcache.py                                                 5      0   100%
+2026-07-24T11:43:09.1115406Z freqtrade/util/measure_time.py                                               21      0   100%
+2026-07-24T11:43:09.1115908Z freqtrade/util/migrations/__init__.py                                         8      0   100%
+2026-07-24T11:43:09.1116447Z freqtrade/util/migrations/funding_rate_mig.py                                15      0   100%
+2026-07-24T11:43:09.1117007Z freqtrade/util/migrations/migrate_wallet_history.py                          96      4    96%
+2026-07-24T11:43:09.1117548Z freqtrade/util/periodic_cache.py                                              9      0   100%
+2026-07-24T11:43:09.1118094Z freqtrade/util/progress_tracker.py                                            9      1    89%
+2026-07-24T11:43:09.1118597Z freqtrade/util/rich_progress.py                                              23      0   100%
+2026-07-24T11:43:09.1119086Z freqtrade/util/rich_tables.py                                                32      0   100%
+2026-07-24T11:43:09.1119562Z freqtrade/util/singleton.py                                                   8      0   100%
+2026-07-24T11:43:09.1120059Z freqtrade/util/template_renderer.py                                          13      0   100%
+2026-07-24T11:43:09.1120537Z freqtrade/wallets.py                                                        244      2    99%
+2026-07-24T11:43:09.1120979Z freqtrade/worker.py                                                         114      4    96%
+2026-07-24T11:43:09.1121579Z ft_client/freqtrade_client/__init__.py                                        9      0   100%
+2026-07-24T11:43:09.1122095Z ft_client/freqtrade_client/ft_client.py                                      68      5    93%
+2026-07-24T11:43:09.1122740Z ft_client/freqtrade_client/ft_rest_client.py                                166     13    92%
+2026-07-24T11:43:09.1123240Z ---------------------------------------------------------------------------------------------
+2026-07-24T11:43:09.1123665Z TOTAL                                                                     25347   1477    94%
+2026-07-24T11:43:10.1725934Z =========================== short test summary info ============================
+2026-07-24T11:43:10.1728014Z FAILED tests/ai_platform_integration/test_liquidation_symbol_universe.py::test_require_new_output_checks_every_multi_source_target - FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/test_require_new_output_checks0'
+2026-07-24T11:43:10.1730883Z = 1 failed, 4967 passed, 21 skipped, 394 deselected, 2 warnings in 573.00s (0:09:33) =
+2026-07-24T11:43:13.2347966Z ##[error]Process completed with exit code 1.
+2026-07-24T11:43:13.2531141Z Post job cleanup.
+2026-07-24T11:43:13.3379439Z [command]/usr/bin/git version
+2026-07-24T11:43:13.3434432Z git version 2.54.0
+2026-07-24T11:43:13.3475436Z Temporarily overriding HOME='/home/runner/work/_temp/8872910e-2985-4c7b-bd8e-9e74016d70ff' before making global git config changes
+2026-07-24T11:43:13.3476474Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-24T11:43:13.3481426Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/freqtrade/freqtrade
+2026-07-24T11:43:13.3511672Z Removing SSH command configuration
+2026-07-24T11:43:13.3518519Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-24T11:43:13.3556897Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-24T11:43:13.3793516Z Removing HTTP extra header
+2026-07-24T11:43:13.3798741Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-24T11:43:13.3835356Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-24T11:43:13.4090692Z Removing includeIf entries pointing to credentials config files
+2026-07-24T11:43:13.4098821Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-24T11:43:13.4134707Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-24T11:43:13.4542156Z Cleaning up orphan processes
+
+===== ubuntu-313.log lines 627-735 of 735 =====
+2026-07-24T11:35:03.7700034Z ........................................................s......s........ [ 59%]
+2026-07-24T11:35:04.3514926Z .s..............................................s....................... [ 60%]
+2026-07-24T11:35:08.0240613Z ......s................................................................. [ 62%]
+2026-07-24T11:35:09.2998952Z ..........................................................s............. [ 63%]
+2026-07-24T11:35:10.5924149Z ........................s............................................... [ 64%]
+2026-07-24T11:35:11.9593666Z ..s................................................................s.... [ 66%]
+2026-07-24T11:35:13.0277222Z ........................................................................ [ 67%]
+2026-07-24T11:35:13.7940278Z ........................................................................ [ 69%]
+2026-07-24T11:35:23.1076839Z ........................................................................ [ 70%]
+2026-07-24T11:35:41.8789704Z ........................................................................ [ 72%]
+2026-07-24T11:35:46.0901613Z ........................................................................ [ 73%]
+2026-07-24T11:35:47.6037468Z ........................................................................ [ 75%]
+2026-07-24T11:35:47.9495487Z ...........F............................................................ [ 76%]
+2026-07-24T11:35:49.7254830Z ........................................................................ [ 77%]
+2026-07-24T11:35:51.2295217Z ........................................................................ [ 79%]
+2026-07-24T11:35:51.7348743Z ........................................................................ [ 80%]
+2026-07-24T11:35:52.1906527Z ........................................................................ [ 82%]
+2026-07-24T11:36:05.9302166Z ........................................................................ [ 83%]
+2026-07-24T11:36:16.2301559Z ........................................................................ [ 85%]
+2026-07-24T11:36:17.4416421Z ........................................................................ [ 86%]
+2026-07-24T11:36:39.0601692Z ........................................................................ [ 88%]
+2026-07-24T11:36:40.1767934Z ........................................................................ [ 89%]
+2026-07-24T11:36:40.8903087Z ........................................................................ [ 90%]
+2026-07-24T11:36:41.5767502Z ........................................................................ [ 92%]
+2026-07-24T11:36:42.2477464Z ........................................................................ [ 93%]
+2026-07-24T11:36:43.3756038Z ........................................................................ [ 95%]
+2026-07-24T11:36:44.3616563Z ..........................................................s............. [ 96%]
+2026-07-24T11:36:47.7700649Z ........................................................................ [ 98%]
+2026-07-24T11:36:52.5012990Z ........................................................................ [ 99%]
+2026-07-24T11:36:57.9377082Z .....................                                                    [100%]
+2026-07-24T11:36:57.9377767Z =================================== FAILURES ===================================
+2026-07-24T11:36:57.9378443Z ___________ test_require_new_output_checks_every_multi_source_target ___________
+2026-07-24T11:36:57.9379221Z [gw1] linux -- Python 3.13.14 /home/runner/work/freqtrade/freqtrade/.venv/bin/python3
+2026-07-24T11:36:57.9379708Z 
+2026-07-24T11:36:57.9380144Z tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/popen-gw1/test_require_new_output_checks0')
+2026-07-24T11:36:57.9380703Z 
+2026-07-24T11:36:57.9381453Z     def test_require_new_output_checks_every_multi_source_target(tmp_path: Path) -> None:
+2026-07-24T11:36:57.9382109Z         paths = _target_paths(tmp_path)
+2026-07-24T11:36:57.9382486Z         _require_unused_targets(paths)
+2026-07-24T11:36:57.9382832Z     
+2026-07-24T11:36:57.9386067Z >       paths["manifest"].parent.mkdir(parents=True)
+2026-07-24T11:36:57.9386410Z 
+2026-07-24T11:36:57.9386706Z tests/ai_platform_integration/test_liquidation_symbol_universe.py:99: 
+2026-07-24T11:36:57.9387327Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-07-24T11:36:57.9387675Z 
+2026-07-24T11:36:57.9388065Z self = PosixPath('/tmp/pytest-of-runner/pytest-0/popen-gw1/test_require_new_output_checks0')
+2026-07-24T11:36:57.9388750Z mode = 511, parents = True, exist_ok = False
+2026-07-24T11:36:57.9389028Z 
+2026-07-24T11:36:57.9389247Z     def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+2026-07-24T11:36:57.9389741Z         """
+2026-07-24T11:36:57.9390076Z         Create a new directory at this given path.
+2026-07-24T11:36:57.9390474Z         """
+2026-07-24T11:36:57.9390709Z         try:
+2026-07-24T11:36:57.9391578Z >           os.mkdir(self, mode)
+2026-07-24T11:36:57.9392314Z E           FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/popen-gw1/test_require_new_output_checks0'
+2026-07-24T11:36:57.9392982Z 
+2026-07-24T11:36:57.9393468Z ../../_temp/uv-python-dir/cpython-3.13.14-linux-x86_64-gnu/lib/python3.13/pathlib/_local.py:722: FileExistsError
+2026-07-24T11:36:57.9394266Z =============================== warnings summary ===============================
+2026-07-24T11:36:57.9394818Z .venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+2026-07-24T11:36:57.9395359Z .venv/lib/python3.13/site-packages/fastapi/testclient.py:1
+2026-07-24T11:36:57.9396727Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-07-24T11:36:57.9398086Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-07-24T11:36:57.9398480Z 
+2026-07-24T11:36:57.9399170Z tests/ai_platform/portal/product/test_product_capabilities.py::test_signal_validation_rejects_pair_outside_immutable_bot_config
+2026-07-24T11:36:57.9401305Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.13/site-packages/starlette/_exception_handler.py:59: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+2026-07-24T11:36:57.9402828Z     response = await handler(conn, exc)  # type: ignore[arg-type]
+2026-07-24T11:36:57.9403191Z 
+2026-07-24T11:36:57.9403489Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-07-24T11:36:57.9404111Z ============================= slowest 20 durations =============================
+2026-07-24T11:36:57.9405221Z 15.18s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_multiproc-False-False-False-True-False-0-0]
+2026-07-24T11:36:57.9406641Z 10.01s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[ReinforcementLearner-3-freqai_rl_test_strat]
+2026-07-24T11:36:57.9407660Z 8.67s call     tests/optimize/test_hyperopt.py::test_in_strategy_auto_hyperopt_with_parallel
+2026-07-24T11:36:57.9408502Z 5.12s call     tests/exchange/test_exchange.py::test__async_get_historic_ohlcv[mark-okx]
+2026-07-24T11:36:57.9409226Z 4.94s call     tests/optimize/test_hyperopt.py::test_max_open_trades_dump
+2026-07-24T11:36:57.9410066Z 4.69s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[30-ADA/USDT-True]
+2026-07-24T11:36:57.9419808Z 4.52s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[20-ADA/USDT-True]
+2026-07-24T11:36:57.9421458Z 4.44s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-False-False-0-0]
+2026-07-24T11:36:57.9422822Z 4.39s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-LTC/USDT-True]
+2026-07-24T11:36:57.9424161Z 4.32s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-True-False-0-0]
+2026-07-24T11:36:57.9425508Z 4.13s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[20-LTC/USDT-True]
+2026-07-24T11:36:57.9426551Z 4.09s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-ADA/USDT-True]
+2026-07-24T11:36:57.9427559Z 4.03s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[30-LTC/USDT-True]
+2026-07-24T11:36:57.9428888Z 3.91s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[PyTorchTransformerRegressor-False-False-False-False-False-0-0]
+2026-07-24T11:36:57.9430098Z 3.73s call     tests/optimize/test_hyperopt.py::test_in_strategy_auto_hyperopt
+2026-07-24T11:36:57.9430993Z 3.66s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[no_bias]
+2026-07-24T11:36:57.9432429Z 3.54s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_4ac-False-False-False-True-False-0-0]
+2026-07-24T11:36:57.9433598Z 3.49s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[bias1]
+2026-07-24T11:36:57.9434730Z 3.33s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner-False-True-False-True-False-0-0]
+2026-07-24T11:36:57.9435775Z 3.30s call     tests/commands/test_commands.py::test_list_exchanges
+2026-07-24T11:36:57.9436343Z =========================== short test summary info ============================
+2026-07-24T11:36:57.9437864Z FAILED tests/ai_platform_integration/test_liquidation_symbol_universe.py::test_require_new_output_checks_every_multi_source_target - FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/popen-gw1/test_require_new_output_checks0'
+2026-07-24T11:36:57.9439604Z ====== 1 failed, 4967 passed, 21 skipped, 3 warnings in 199.90s (0:03:19) ======
+2026-07-24T11:36:58.9106816Z ##[error]Process completed with exit code 1.
+2026-07-24T11:36:58.9294068Z Post job cleanup.
+2026-07-24T11:36:59.0161988Z [command]/usr/bin/git version
+2026-07-24T11:36:59.0214077Z git version 2.54.0
+2026-07-24T11:36:59.0249829Z Temporarily overriding HOME='/home/runner/work/_temp/0e9b4b2b-85cc-4543-9edf-9e98f192d357' before making global git config changes
+2026-07-24T11:36:59.0251219Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-24T11:36:59.0255197Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/freqtrade/freqtrade
+2026-07-24T11:36:59.0289610Z Removing SSH command configuration
+2026-07-24T11:36:59.0296543Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-24T11:36:59.0332933Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-24T11:36:59.0589714Z Removing HTTP extra header
+2026-07-24T11:36:59.0596012Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-24T11:36:59.0632436Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-24T11:36:59.0908990Z Removing includeIf entries pointing to credentials config files
+2026-07-24T11:36:59.0916173Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-24T11:36:59.1003659Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-24T11:36:59.1432608Z Cleaning up orphan processes
+
+===== ubuntu-314.log lines 624-732 of 732 =====
+2026-07-24T11:36:06.2141095Z ........................................................................ [ 59%]
+2026-07-24T11:36:07.0168375Z ...................................................................s.... [ 60%]
+2026-07-24T11:36:09.1131877Z .s...........s.......................................................... [ 62%]
+2026-07-24T11:36:10.0661203Z ........................................................................ [ 63%]
+2026-07-24T11:36:11.1829003Z .............................................................s.......... [ 64%]
+2026-07-24T11:36:12.7690611Z ..............s.......................................................s. [ 66%]
+2026-07-24T11:36:13.5588237Z ........................................................................ [ 67%]
+2026-07-24T11:36:14.9170588Z ........................................................................ [ 69%]
+2026-07-24T11:36:16.6199395Z ........................................................................ [ 70%]
+2026-07-24T11:36:17.2002171Z ..................................s....s................................ [ 72%]
+2026-07-24T11:36:17.8966667Z ........................................................................ [ 73%]
+2026-07-24T11:36:18.8059204Z ........................................................................ [ 75%]
+2026-07-24T11:36:19.7835349Z ........................................................................ [ 76%]
+2026-07-24T11:36:21.1074244Z ...............................................................s.....s.. [ 77%]
+2026-07-24T11:36:21.9005702Z ........................................................................ [ 79%]
+2026-07-24T11:36:22.8162702Z ...............s.................s...................................... [ 80%]
+2026-07-24T11:36:23.3688267Z .......................s....................s........................... [ 82%]
+2026-07-24T11:36:24.0953829Z ...........s.....................................................s...... [ 83%]
+2026-07-24T11:36:25.8405996Z ............................................s........................... [ 85%]
+2026-07-24T11:36:27.0446027Z ........................................................................ [ 86%]
+2026-07-24T11:36:28.0896994Z .......................s...........................s.................... [ 88%]
+2026-07-24T11:36:29.2655701Z ........................................................................ [ 89%]
+2026-07-24T11:36:30.3630778Z ........................................................................ [ 90%]
+2026-07-24T11:36:32.8306635Z ........................................................................ [ 92%]
+2026-07-24T11:36:34.4222144Z ........................................................................ [ 93%]
+2026-07-24T11:36:35.0737548Z ........................................................................ [ 95%]
+2026-07-24T11:36:35.9735131Z ........................................................................ [ 96%]
+2026-07-24T11:36:36.7956106Z ........................................................................ [ 98%]
+2026-07-24T11:36:38.3749988Z ........................................................................ [ 99%]
+2026-07-24T11:36:45.9558940Z .....................                                                    [100%]
+2026-07-24T11:36:45.9560746Z =================================== FAILURES ===================================
+2026-07-24T11:36:45.9561534Z ___________ test_require_new_output_checks_every_multi_source_target ___________
+2026-07-24T11:36:45.9562399Z [gw0] linux -- Python 3.14.6 /home/runner/work/freqtrade/freqtrade/.venv/bin/python3
+2026-07-24T11:36:45.9562899Z 
+2026-07-24T11:36:45.9563356Z tmp_path = PosixPath('/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0')
+2026-07-24T11:36:45.9563959Z 
+2026-07-24T11:36:45.9564379Z     def test_require_new_output_checks_every_multi_source_target(tmp_path: Path) -> None:
+2026-07-24T11:36:45.9565097Z         paths = _target_paths(tmp_path)
+2026-07-24T11:36:45.9565836Z         _require_unused_targets(paths)
+2026-07-24T11:36:45.9566225Z     
+2026-07-24T11:36:45.9568319Z >       paths["manifest"].parent.mkdir(parents=True)
+2026-07-24T11:36:45.9568565Z 
+2026-07-24T11:36:45.9568782Z tests/ai_platform_integration/test_liquidation_symbol_universe.py:99: 
+2026-07-24T11:36:45.9569229Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+2026-07-24T11:36:45.9569470Z 
+2026-07-24T11:36:45.9569751Z self = PosixPath('/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0')
+2026-07-24T11:36:45.9570251Z mode = 511, parents = True, exist_ok = False
+2026-07-24T11:36:45.9570457Z 
+2026-07-24T11:36:45.9570624Z     def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+2026-07-24T11:36:45.9570945Z         """
+2026-07-24T11:36:45.9571172Z         Create a new directory at this given path.
+2026-07-24T11:36:45.9571449Z         """
+2026-07-24T11:36:45.9571625Z         try:
+2026-07-24T11:36:45.9571822Z >           os.mkdir(self, mode)
+2026-07-24T11:36:45.9572351Z E           FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0'
+2026-07-24T11:36:45.9573116Z 
+2026-07-24T11:36:45.9573474Z ../../_temp/uv-python-dir/cpython-3.14.6-linux-x86_64-gnu/lib/python3.14/pathlib/__init__.py:1011: FileExistsError
+2026-07-24T11:36:45.9574052Z =============================== warnings summary ===============================
+2026-07-24T11:36:45.9574455Z .venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+2026-07-24T11:36:45.9574838Z .venv/lib/python3.14/site-packages/fastapi/testclient.py:1
+2026-07-24T11:36:45.9575985Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.14/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-07-24T11:36:45.9576921Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-07-24T11:36:45.9577195Z 
+2026-07-24T11:36:45.9577675Z tests/ai_platform/portal/product/test_product_capabilities.py::test_signal_validation_rejects_pair_outside_immutable_bot_config
+2026-07-24T11:36:45.9579040Z   /home/runner/work/freqtrade/freqtrade/.venv/lib/python3.14/site-packages/starlette/_exception_handler.py:59: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+2026-07-24T11:36:45.9580039Z     response = await handler(conn, exc)  # type: ignore[arg-type]
+2026-07-24T11:36:45.9580294Z 
+2026-07-24T11:36:45.9580520Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-07-24T11:36:45.9580995Z ============================= slowest 20 durations =============================
+2026-07-24T11:36:45.9581741Z 15.15s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_multiproc-False-False-False-True-False-0-0]
+2026-07-24T11:36:45.9582561Z 8.15s call     tests/optimize/test_hyperopt.py::test_in_strategy_auto_hyperopt_with_parallel
+2026-07-24T11:36:45.9583240Z 5.32s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[ReinforcementLearner-3-freqai_rl_test_strat]
+2026-07-24T11:36:45.9583900Z 5.23s call     tests/exchange/test_exchange.py::test__async_get_historic_ohlcv[mark-okx]
+2026-07-24T11:36:45.9584518Z 5.11s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-LTC/USDT-True]
+2026-07-24T11:36:45.9585238Z 4.81s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[30-ADA/USDT-True]
+2026-07-24T11:36:45.9586147Z 4.74s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[PyTorchMLPRegressor-2-freqai_test_strat]
+2026-07-24T11:36:45.9587049Z 4.51s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-False-False-0-0]
+2026-07-24T11:36:45.9588071Z 4.40s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-True-False-0-0]
+2026-07-24T11:36:45.9589055Z 3.83s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner-False-True-False-True-False-0-0]
+2026-07-24T11:36:45.9590042Z 3.80s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[PyTorchMLPRegressor-False-False-False-False-False-0-0]
+2026-07-24T11:36:45.9590792Z 3.71s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[bias1]
+2026-07-24T11:36:45.9591554Z 3.44s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_4ac-False-False-False-True-False-0-0]
+2026-07-24T11:36:45.9592300Z 3.34s call     tests/commands/test_commands.py::test_list_exchanges
+2026-07-24T11:36:45.9592740Z 3.02s call     tests/optimize/test_hyperopt.py::test_max_open_trades_dump
+2026-07-24T11:36:45.9593364Z 2.93s setup    tests/ai_platform_integration/test_liquidation_binance_source.py::test_non_force_order_payload_fails_closed
+2026-07-24T11:36:45.9594260Z 2.93s setup    tests/ai_platform/portal/intelligence/test_trade_intelligence_migration.py::test_trade_intelligence_migration_declares_durable_evidence_tables
+2026-07-24T11:36:45.9595226Z 2.75s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[no_bias]
+2026-07-24T11:36:45.9596114Z 2.36s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[PyTorchTransformerRegressor-2-freqai_test_strat]
+2026-07-24T11:36:45.9597000Z 2.23s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[XGBoostRegressor-False-True-False-True-False-10-0.05]
+2026-07-24T11:36:45.9597674Z =========================== short test summary info ============================
+2026-07-24T11:36:45.9598687Z FAILED tests/ai_platform_integration/test_liquidation_symbol_universe.py::test_require_new_output_checks_every_multi_source_target - FileExistsError: [Errno 17] File exists: '/tmp/pytest-of-runner/pytest-0/popen-gw0/test_require_new_output_checks0'
+2026-07-24T11:36:45.9599801Z ====== 1 failed, 4967 passed, 21 skipped, 3 warnings in 186.55s (0:03:06) ======
+2026-07-24T11:36:47.2493133Z ##[error]Process completed with exit code 1.
+2026-07-24T11:36:47.2683199Z Post job cleanup.
+2026-07-24T11:36:47.3576653Z [command]/usr/bin/git version
+2026-07-24T11:36:47.3620120Z git version 2.54.0
+2026-07-24T11:36:47.3674736Z Temporarily overriding HOME='/home/runner/work/_temp/baac29d9-b739-4cbb-bac5-1fe7ce11bc98' before making global git config changes
+2026-07-24T11:36:47.3675900Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-24T11:36:47.3681656Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/freqtrade/freqtrade
+2026-07-24T11:36:47.3720236Z Removing SSH command configuration
+2026-07-24T11:36:47.3728118Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-07-24T11:36:47.3768857Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-07-24T11:36:47.4034498Z Removing HTTP extra header
+2026-07-24T11:36:47.4041498Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-24T11:36:47.4079986Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-07-24T11:36:47.4350738Z Removing includeIf entries pointing to credentials config files
+2026-07-24T11:36:47.4358534Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-24T11:36:47.4400555Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-07-24T11:36:47.4913861Z Cleaning up orphan processes
+
+===== windows-313.log lines 559-676 of 676 =====
+2026-07-24T11:36:08.6646224Z ........................................................................ [ 59%]
+2026-07-24T11:36:10.2434155Z ........................................................................ [ 60%]
+2026-07-24T11:36:15.7643446Z .......................................ss...s..s........................ [ 62%]
+2026-07-24T11:36:32.0354890Z ........................................................................ [ 63%]
+2026-07-24T11:36:44.8924117Z ........................................................................ [ 64%]
+2026-07-24T11:36:46.5579347Z ......................................s........................s........ [ 66%]
+2026-07-24T11:36:47.7904983Z .s...........................s..........................s............... [ 67%]
+2026-07-24T11:36:49.0340457Z ........................................................................ [ 69%]
+2026-07-24T11:36:49.8359967Z ..................................................................s..... [ 70%]
+2026-07-24T11:36:51.9770241Z ................................................................s....... [ 72%]
+2026-07-24T11:36:54.4281956Z ........................................................................ [ 73%]
+2026-07-24T11:36:57.0106438Z ........................................................................ [ 75%]
+2026-07-24T11:36:59.6943836Z ........................................................................ [ 76%]
+2026-07-24T11:37:02.2430512Z ........................s......................................s........ [ 77%]
+2026-07-24T11:37:03.8018820Z ..........................................s..............s.............. [ 79%]
+2026-07-24T11:37:05.3118913Z ........................................................s............... [ 80%]
+2026-07-24T11:37:06.1358602Z ........................................................................ [ 82%]
+2026-07-24T11:37:07.1304777Z .........................s.............................................. [ 83%]
+2026-07-24T11:37:08.3443799Z .............................................s...............s.......... [ 85%]
+2026-07-24T11:37:09.5568635Z ..................................................s..................... [ 86%]
+2026-07-24T11:37:10.8014805Z ........................................................................ [ 88%]
+2026-07-24T11:37:12.2481393Z ........................................................................ [ 89%]
+2026-07-24T11:37:13.7231650Z ........................................................s............... [ 90%]
+2026-07-24T11:37:15.6295684Z .................................................................s...... [ 92%]
+2026-07-24T11:37:17.5062756Z ........................................................................ [ 93%]
+2026-07-24T11:37:18.9129292Z ........................................................................ [ 95%]
+2026-07-24T11:37:21.0543289Z ........................................................................ [ 96%]
+2026-07-24T11:37:24.5195671Z ........................................................................ [ 98%]
+2026-07-24T11:37:30.0110877Z ........................................................................ [ 99%]
+2026-07-24T11:37:36.4952027Z .....................                                                    [100%]
+2026-07-24T11:37:36.4952507Z ================================== FAILURES ===================================
+2026-07-24T11:37:36.4952915Z __________ test_require_new_output_checks_every_multi_source_target ___________
+2026-07-24T11:37:36.4953336Z [gw1] win32 -- Python 3.13.14 D:\a\freqtrade\freqtrade\.venv\Scripts\python.exe
+2026-07-24T11:37:36.4953617Z 
+2026-07-24T11:37:36.4954453Z tmp_path = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw1/test_require_new_output_checks0')
+2026-07-24T11:37:36.4955084Z 
+2026-07-24T11:37:36.4955471Z     def test_require_new_output_checks_every_multi_source_target(tmp_path: Path) -> None:
+2026-07-24T11:37:36.4955864Z         paths = _target_paths(tmp_path)
+2026-07-24T11:37:36.4956138Z         _require_unused_targets(paths)
+2026-07-24T11:37:36.4956401Z     
+2026-07-24T11:37:36.4956621Z >       paths["manifest"].parent.mkdir(parents=True)
+2026-07-24T11:37:36.4957057Z 
+2026-07-24T11:37:36.4957222Z tests\ai_platform_integration\test_liquidation_symbol_universe.py:99: 
+2026-07-24T11:37:36.4957624Z _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+2026-07-24T11:37:36.4957814Z 
+2026-07-24T11:37:36.4958190Z self = WindowsPath('C:/Users/runneradmin/AppData/Local/Temp/pytest-of-runneradmin/pytest-0/popen-gw1/test_require_new_output_checks0')
+2026-07-24T11:37:36.4958694Z mode = 511, parents = True, exist_ok = False
+2026-07-24T11:37:36.4958885Z 
+2026-07-24T11:37:36.4959019Z     def mkdir(self, mode=0o777, parents=False, exist_ok=False):
+2026-07-24T11:37:36.4959315Z         """
+2026-07-24T11:37:36.4959565Z         Create a new directory at this given path.
+2026-07-24T11:37:36.4959825Z         """
+2026-07-24T11:37:36.4959989Z         try:
+2026-07-24T11:37:36.4960145Z >           os.mkdir(self, mode)
+2026-07-24T11:37:36.4960783Z E           FileExistsError: [WinError 183] Cannot create a file when that file already exists: 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw1\\test_require_new_output_checks0'
+2026-07-24T11:37:36.4961368Z 
+2026-07-24T11:37:36.4961622Z C:\hostedtoolcache\windows\Python\3.13.14\x64\Lib\pathlib\_local.py:722: FileExistsError
+2026-07-24T11:37:36.4962037Z ============================== warnings summary ===============================
+2026-07-24T11:37:36.4962369Z .venv\Lib\site-packages\fastapi\testclient.py:1
+2026-07-24T11:37:36.4962663Z .venv\Lib\site-packages\fastapi\testclient.py:1
+2026-07-24T11:37:36.4963309Z   D:\a\freqtrade\freqtrade\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+2026-07-24T11:37:36.4964020Z     from starlette.testclient import TestClient as TestClient  # noqa
+2026-07-24T11:37:36.4964242Z 
+2026-07-24T11:37:36.4964827Z tests/ai_platform/portal/product/test_product_capabilities.py::test_signal_validation_rejects_pair_outside_immutable_bot_config
+2026-07-24T11:37:36.4965737Z   D:\a\freqtrade\freqtrade\.venv\Lib\site-packages\starlette\_exception_handler.py:59: StarletteDeprecationWarning: 'HTTP_422_UNPROCESSABLE_ENTITY' is deprecated. Use 'HTTP_422_UNPROCESSABLE_CONTENT' instead.
+2026-07-24T11:37:36.4966459Z     response = await handler(conn, exc)  # type: ignore[arg-type]
+2026-07-24T11:37:36.4966693Z 
+2026-07-24T11:37:36.4966889Z -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2026-07-24T11:37:36.4967297Z ============================ slowest 20 durations =============================
+2026-07-24T11:37:36.4967922Z 15.59s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_multiproc-False-False-False-True-False-0-0]
+2026-07-24T11:37:36.4968781Z 8.64s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-True-False-0-0]
+2026-07-24T11:37:36.4969379Z 6.90s call     tests/exchange/test_exchange.py::test__async_get_historic_ohlcv[mark-okx]
+2026-07-24T11:37:36.4969826Z 6.39s call     tests/optimize/test_hyperopt.py::test_in_strategy_auto_hyperopt_with_parallel
+2026-07-24T11:37:36.4970404Z 5.78s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[ReinforcementLearner-3-freqai_rl_test_strat]
+2026-07-24T11:37:36.4970982Z 4.94s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[20-ADA/USDT-True]
+2026-07-24T11:37:36.4971592Z 4.61s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-ADA/USDT-True]
+2026-07-24T11:37:36.4972116Z 4.51s setup    tests/persistence/test_db_migration.py::test_migrate_db_detail
+2026-07-24T11:37:36.4972762Z 4.51s setup    tests/ai_platform/portal/simulator/test_visual_baseline.py::test_visual_acceptance_baseline_covers_critical_portal_surfaces
+2026-07-24T11:37:36.4973449Z 4.29s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[0-LTC/USDT-True]
+2026-07-24T11:37:36.4974409Z 4.29s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[30-LTC/USDT-True]
+2026-07-24T11:37:36.4975051Z 4.16s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[20-LTC/USDT-True]
+2026-07-24T11:37:36.4975631Z 4.09s call     tests/optimize/test_backtesting.py::test_backtest_multi_pair_detail_simplified[30-ADA/USDT-True]
+2026-07-24T11:37:36.4976149Z 3.88s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[bias1]
+2026-07-24T11:37:36.4976811Z 3.87s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner-False-True-False-True-False-0-0]
+2026-07-24T11:37:36.4990582Z 3.68s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_4ac-False-False-False-True-False-0-0]
+2026-07-24T11:37:36.4991810Z 3.60s call     tests/freqai/test_freqai_interface.py::test_extract_data_and_train_model_Standard[ReinforcementLearner_test_3ac-False-False-False-False-False-0-0]
+2026-07-24T11:37:36.4992633Z 3.41s call     tests/commands/test_commands.py::test_list_exchanges
+2026-07-24T11:37:36.4993756Z 3.31s call     tests/freqai/test_freqai_interface.py::test_start_backtesting[PyTorchMLPClassifier-2-freqai_test_classifier]
+2026-07-24T11:37:36.4994578Z 2.69s call     tests/optimize/test_lookahead_analysis.py::test_biased_strategy[no_bias]
+2026-07-24T11:37:36.4995712Z =========================== short test summary info ===========================
+2026-07-24T11:37:36.4997515Z FAILED tests/ai_platform_integration/test_liquidation_symbol_universe.py::test_require_new_output_checks_every_multi_source_target - FileExistsError: [WinError 183] Cannot create a file when that file already exists: 'C:\\Users\\runneradmin\\AppData\\Local\\Temp\\pytest-of-runneradmin\\pytest-0\\popen-gw1\\test_require_new_output_checks0'
+2026-07-24T11:37:36.4999174Z ===== 1 failed, 4964 passed, 24 skipped, 3 warnings in 220.00s (0:03:39) ======
+2026-07-24T11:37:37.4491560Z ##[error]Process completed with exit code 1.
+2026-07-24T11:37:37.4709481Z Post job cleanup.
+2026-07-24T11:37:37.6177328Z [command]"C:\Program Files\Git\bin\git.exe" version
+2026-07-24T11:37:37.6400307Z git version 2.55.0.windows.2
+2026-07-24T11:37:37.6452175Z Temporarily overriding HOME='D:\a\_temp\976eb52a-368d-4302-957f-92252daf48f3' before making global git config changes
+2026-07-24T11:37:37.6453078Z Adding repository directory to the temporary git global config as a safe directory
+2026-07-24T11:37:37.6460765Z [command]"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\freqtrade\freqtrade
+2026-07-24T11:37:37.6721568Z Removing SSH command configuration
+2026-07-24T11:37:37.6735364Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp core\.sshCommand
+2026-07-24T11:37:37.7007052Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :\""
+2026-07-24T11:37:38.6736389Z Removing HTTP extra header
+2026-07-24T11:37:38.6745221Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-07-24T11:37:38.7022134Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "sh -c \"git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :\""
+2026-07-24T11:37:39.1931115Z Removing includeIf entries pointing to credentials config files
+2026-07-24T11:37:39.1949702Z [command]"C:\Program Files\Git\bin\git.exe" config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-07-24T11:37:39.2191984Z includeif.gitdir:D:/a/freqtrade/freqtrade/.git.path
+2026-07-24T11:37:39.2192680Z includeif.gitdir:D:/a/freqtrade/freqtrade/.git/worktrees/*.path
+2026-07-24T11:37:39.2229546Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/freqtrade/freqtrade/.git.path
+2026-07-24T11:37:39.2470546Z D:\a\_temp\git-credentials-343bcfe1-bf36-4620-9790-5a6641cb0011.config
+2026-07-24T11:37:39.2512573Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/freqtrade/freqtrade/.git.path D:\a\_temp\git-credentials-343bcfe1-bf36-4620-9790-5a6641cb0011.config
+2026-07-24T11:37:39.2759264Z [command]"C:\Program Files\Git\bin\git.exe" config --local --get-all includeif.gitdir:D:/a/freqtrade/freqtrade/.git/worktrees/*.path
+2026-07-24T11:37:39.2961753Z D:\a\_temp\git-credentials-343bcfe1-bf36-4620-9790-5a6641cb0011.config
+2026-07-24T11:37:39.2994974Z [command]"C:\Program Files\Git\bin\git.exe" config --local --unset includeif.gitdir:D:/a/freqtrade/freqtrade/.git/worktrees/*.path D:\a\_temp\git-credentials-343bcfe1-bf36-4620-9790-5a6641cb0011.config
+2026-07-24T11:37:39.3225023Z [command]"C:\Program Files\Git\bin\git.exe" submodule foreach --recursive "git config --local --show-origin --name-only --get-regexp remote.origin.url"
+2026-07-24T11:37:39.7606246Z Removing credentials config 'D:\a\_temp\git-credentials-343bcfe1-bf36-4620-9790-5a6641cb0011.config'
+2026-07-24T11:37:39.7769428Z Cleaning up orphan processes

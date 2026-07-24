@@ -129,7 +129,8 @@ class InferenceTelemetryRepository:
                 )
             )
             return
-        if status.checked_at < row.checked_at:
+        current = InferenceTelemetrySourceStatus.model_validate_json(row.status_json)
+        if status.checked_at < current.checked_at:
             return
         row.checked_at = status.checked_at
         row.availability = status.availability.value

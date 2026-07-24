@@ -140,10 +140,13 @@ def test_runtime_observability_api_requires_audit_read(
     )
 
     assert client.get("/v1/runtime-observability/availability").status_code == 403
-    assert client.post(
-        "/v1/runtime-observability/logs/search",
-        json=_query_payload(),
-    ).status_code == 403
+    assert (
+        client.post(
+            "/v1/runtime-observability/logs/search",
+            json=_query_payload(),
+        ).status_code
+        == 403
+    )
 
 
 def test_runtime_observability_api_rejects_unbounded_query(

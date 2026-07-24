@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from hashlib import sha256
-from typing import Any, Mapping
+from typing import Any
 
 
 class LiquidatedPositionSide(StrEnum):

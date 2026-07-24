@@ -33,7 +33,7 @@ enabling execution, merging unlike feed semantics, or making a profitability cla
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T10:57:00Z
+updated_at: 2026-07-24T11:00:00Z
 head: 767b4f570c5cffca34e0ba0ebfa7284a95cd1da5
 branch: develop
 pr: "#250"
@@ -57,6 +57,7 @@ proven:
   - The merged package provides a Binance parser, bounded public collector, clock probe, source catalog, focused tests, immutable evidence, and a multi-source runbook.
   - Final candidate 04cfeac6b85747ad1e2cb9bc377e6b7e6818b1cf passed AI Platform CI runs 30087228832 and 30087519876.
   - Final candidate passed zizmor runs 30087228839 and 30087519963.
+  - Exact-candidate validation run 30087686411 passed repository pre-commit and documentation syntax.
   - The final implementation diff contained exactly seven intended files and no temporary workflow.
   - The only security review thread concerned a deleted diagnostic workflow and was resolved as outdated.
   - GitHub-hosted smoke run 30086906301 connected to Binance USD-M WebSocket for 35.269 seconds, received subscription acknowledgement and one liquidation event, wrote one canonical record, and recorded zero disconnects and zero parser failures.
@@ -99,6 +100,9 @@ validation:
   - command: GitHub Actions Security Analysis runs 30087228839 and 30087519963
     result: PASS
     evidence: Zizmor completed successfully for the exact final candidate.
+  - command: Exact-candidate validation run 30087686411
+    result: PASS
+    evidence: Repository pre-commit and documentation syntax passed after checking out 04cfeac6b85747ad1e2cb9bc377e6b7e6818b1cf.
   - command: Binance public smoke run 30086906301
     result: BLOCKED
     evidence: WebSocket transport and one real canonical event passed; only the mandatory clock check remained unknown.

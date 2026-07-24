@@ -7,7 +7,7 @@ import os
 import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ai_platform.research.liquidations.staging import (
     DEFAULT_BYBIT_TIME_URL,
@@ -211,7 +211,7 @@ async def run_multi_source_collection(
         ),
     )
 
-    bybit_result, binance_result = await asyncio.gather(
+    collection_results = await asyncio.gather(
         collect_bybit_liquidations(
             endpoint=bybit_endpoint,
             symbols=profile.symbols,
@@ -236,6 +236,8 @@ async def run_multi_source_collection(
         ),
         return_exceptions=True,
     )
+    bybit_result = cast(CollectorRunStats | BaseException, collection_results[0])
+    binance_result = cast(CollectorRunStats | BaseException, collection_results[1])
 
     bybit_normalization, binance_normalization = await asyncio.gather(
         asyncio.to_thread(

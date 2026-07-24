@@ -37,7 +37,7 @@ def _number(value: object, *, field: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError(f"{field} must be numeric")
     parsed = float(value)
-    if parsed != parsed or parsed in (float("inf"), float("-inf")):  # noqa: PLR0124
+    if parsed != parsed or parsed in (float("inf"), float("-inf")):
         raise ValueError(f"{field} must be finite")
     return parsed
 

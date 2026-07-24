@@ -15,7 +15,7 @@ class OperationalOrder(ContractModel):
     bot_id: NonEmptyStr
     source_runtime_id: NonEmptyStr
     order_id: NonEmptyStr
-    execution_intent_id: NonEmptyStr
+    execution_intent_id: NonEmptyStr | None = None
     pair: NonEmptyStr
     side: TradeSide
     state: OrderState

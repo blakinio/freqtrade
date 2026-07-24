@@ -23,7 +23,9 @@ jobs:
           persist-credentials: true
       - name: Extract verified branch patch
         run: |
-          sed -n '20,312p' .github/workflows/pi03-branch-patch.yml | cut -c11- > /tmp/pi03-apply.sh
+          sed -n '20,312p' .github/workflows/pi03-branch-patch.yml |
+            awk '{ if (substr($0, 1, 10) == "          ") print substr($0, 11); else print $0 }' \
+            > /tmp/pi03-apply.sh
           test "$(head -n 1 /tmp/pi03-apply.sh)" = "python - <<'PY'"
           test "$(tail -n 1 /tmp/pi03-apply.sh)" = "PY"
       - name: Run patch and capture exact failure

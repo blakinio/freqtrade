@@ -32,6 +32,7 @@ from ai_platform.portal.operations.schema import (
     OperationalOrder,
     OperationalPosition,
     PerformanceSummary,
+    RuntimeEvidenceSnapshot,
     TradeHistoryEntry,
 )
 from ai_platform.portal.operations.service import OperationalReadService
@@ -202,6 +203,12 @@ def _register_operational_routes(
         context: RequestContext = Depends(context_dependency),
     ) -> tuple[TradeHistoryEntry, ...]:
         return operations.list_trades(context)
+
+    @app.get("/v1/runtime-evidence", response_model=RuntimeEvidenceSnapshot)
+    def runtime_evidence(
+        context: RequestContext = Depends(context_dependency),
+    ) -> RuntimeEvidenceSnapshot:
+        return operations.runtime_evidence(context)
 
     @app.get("/v1/performance", response_model=list[PerformanceSummary])
     def list_performance(

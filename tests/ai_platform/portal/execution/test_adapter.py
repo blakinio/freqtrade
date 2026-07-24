@@ -256,20 +256,18 @@ def test_driver_failure_returns_error_and_persists_unhealthy_reason(tmp_path: Pa
     assert recovered_health.reason_code == "RUNTIME_NOT_READY"
 
 
-def test_trade_and_portfolio_methods_fail_closed_until_private_transport_exists(
-    tmp_path: Path,
-) -> None:
+def test_submission_and_unprovisioned_private_reads_fail_closed(tmp_path: Path) -> None:
     adapter, _driver, _resolver, _store = _adapter(tmp_path)
     context = _context()
     intent = cast(ApprovedExecutionIntent, object())
 
     with pytest.raises(UnsupportedExecutionOperationError) as submit_error:
         adapter.submit_approved_intent(intent, context)
-    with pytest.raises(UnsupportedExecutionOperationError):
+    with pytest.raises(RuntimeNotProvisionedError):
         adapter.get_open_positions("tenant-a", "bot-1", context)
-    with pytest.raises(UnsupportedExecutionOperationError):
+    with pytest.raises(RuntimeNotProvisionedError):
         adapter.get_orders("tenant-a", "bot-1", context)
-    with pytest.raises(UnsupportedExecutionOperationError):
+    with pytest.raises(RuntimeNotProvisionedError):
         adapter.get_trades("tenant-a", "bot-1", context)
 
     assert submit_error.value.reason_code == "ORDER_SUBMISSION_NOT_IMPLEMENTED"

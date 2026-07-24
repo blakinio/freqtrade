@@ -39,7 +39,7 @@ No status in this document authorizes production deployment, real exchange crede
 
 | Order | Package | Status | Primary outcome | Depends on |
 |---:|---|---|---|---|
-| 1 | `PI-01` Private Runtime Read and Reconciliation | `planned` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |
+| 1 | `PI-01` Private Runtime Read and Reconciliation | `active` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |
 | 2 | `PI-03` Canonical Inference and Drift Telemetry | `planned` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
 | 3 | `PI-04` Centralized Runtime Observability | `planned` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
 | 4 | `PI-06` Product Identity and Session Lifecycle | `planned` | real product authentication, MFA, revocation and tenant membership lifecycle | P1 security contracts, external IdP decision |
@@ -88,7 +88,9 @@ P11 may be resumed earlier when the owner intentionally starts the external infr
 
 ### PI-01 — Private Runtime Read and Reconciliation
 
-Status: `planned`
+Status: `active`
+
+Implementation evidence: task `FTAI-20260724-portal-pi01-runtime-read-reconciliation`, PR #234. Merge evidence remains pending until required CI is green.
 
 Goal: replace portal-only operational evidence gaps with authenticated private reads from the runtime boundary while preserving source-runtime identity, tenant scope, staleness and reconciliation state.
 

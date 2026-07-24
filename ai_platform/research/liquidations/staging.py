@@ -644,9 +644,8 @@ def evaluate_staging_summary(
     synchronized = clock_probe.get("synchronized")
 
     collector_commit = str(summary.get("collector_commit", ""))
-    collector_commit_valid = (
-        len(collector_commit) == 40
-        and all(character in "0123456789abcdef" for character in collector_commit)
+    collector_commit_valid = len(collector_commit) == 40 and all(
+        character in "0123456789abcdef" for character in collector_commit
     )
     gates = [
         GateResult(

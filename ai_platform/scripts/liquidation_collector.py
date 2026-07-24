@@ -102,9 +102,7 @@ def _process_payload(
         stats.parse_failures += 1
         return ()
 
-    new_events = tuple(
-        event for event in events if recent_ids.add_if_new(event.source_event_id)
-    )
+    new_events = tuple(event for event in events if recent_ids.add_if_new(event.source_event_id))
     stats.record_events(
         events,
         written_count=len(new_events),

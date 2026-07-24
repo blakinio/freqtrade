@@ -17,13 +17,13 @@ BYBIT_SOURCE = "bybit-linear"
 
 def _require_sequence(value: object, *, field: str) -> Sequence[object]:
     if not isinstance(value, list):
-        raise ValueError(f"{field} must be a list")
+        raise TypeError(f"{field} must be a list")
     return value
 
 
 def _require_mapping(value: object, *, field: str) -> Mapping[str, Any]:
     if not isinstance(value, dict):
-        raise ValueError(f"{field} must be an object")
+        raise TypeError(f"{field} must be an object")
     return value
 
 

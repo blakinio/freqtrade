@@ -1,0 +1,33 @@
+name: PI-04 Static Diagnostic
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  static-diagnostic:
+    if: github.event.pull_request.number == 261
+    runs-on: ubuntu-24.04
+    env:
+      TARGET_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Report PI-04 Ruff and format findings
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://api.github.com/repos/blakinio/freqtrade/tarball/${TARGET_SHA}" \
+            | tar -xz --strip-components=1
+          python -m pip install --quiet ruff==0.15.21
+          files=(
+            ai_platform/portal/control_plane/api.py
+            ai_platform/portal/observability/__init__.py
+            ai_platform/portal/observability/runtime.py
+            tests/ai_platform/portal/control_plane/test_api.py
+            tests/ai_platform/portal/observability/test_collector_config.py
+            tests/ai_platform/portal/observability/test_runtime.py
+            tests/ai_platform/portal/observability/test_runtime_api.py
+          )
+          ruff check "${files[@]}" --output-format=concise || true
+          ruff format --check --diff "${files[@]}"

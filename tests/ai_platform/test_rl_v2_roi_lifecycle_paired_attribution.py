@@ -14,6 +14,7 @@ from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request impo
     EXPECTED_RUNTIME_IDENTIFIER,
     REQUEST_REPO_PATH,
     RLV2PairedAttributionError,
+    _sha256,
     canonical_rl_v2_roi_lifecycle_paired_attribution_request,
     load_rl_v2_roi_lifecycle_paired_attribution_request,
     materialize_runtime_config,
@@ -25,6 +26,18 @@ BASE_CONFIG_PATH = REPO_ROOT / "ai_platform/configs/rl_v2_training_research.json
 WORKFLOW_PATH = (
     REPO_ROOT / ".github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml"
 )
+
+
+def test_canonical_hash_is_checkout_eol_independent(tmp_path: Path) -> None:
+    lf_path = tmp_path / "lf.json"
+    crlf_path = tmp_path / "crlf.json"
+    changed_path = tmp_path / "changed.json"
+    lf_path.write_bytes(b'{"value": 1}\n')
+    crlf_path.write_bytes(b'{"value": 1}\r\n')
+    changed_path.write_bytes(b'{"value": 2}\r\n')
+
+    assert _sha256(lf_path) == _sha256(crlf_path)
+    assert _sha256(lf_path) != _sha256(changed_path)
 
 
 def _trade(

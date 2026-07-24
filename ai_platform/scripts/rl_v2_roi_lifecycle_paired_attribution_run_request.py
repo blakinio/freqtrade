@@ -107,10 +107,12 @@ def _read_json(path: Path, label: str) -> dict[str, Any]:
 
 
 def _sha256(path: Path) -> str:
+    """Hash canonical text independently of checkout CRLF conversion."""
     try:
-        return hashlib.sha256(path.read_bytes()).hexdigest()
+        canonical_bytes = path.read_bytes().replace(b"\r\n", b"\n")
     except OSError as exc:
         raise RLV2PairedAttributionError(f"Unable to hash canonical input {path}: {exc}") from exc
+    return hashlib.sha256(canonical_bytes).hexdigest()
 
 
 def _repo_path(value: str) -> Path:

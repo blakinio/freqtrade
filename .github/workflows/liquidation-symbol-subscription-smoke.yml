@@ -1,0 +1,111 @@
+name: Liquid20 public subscription smoke
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquidation-symbol-subscription-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  subscription-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Validate public subscription acknowledgements
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquidation-symbol-universe-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python -m pip install -q websockets
+          PYTHONPATH=. python - <<'PY'
+          import asyncio
+          import json
+
+          import websockets
+
+          from ai_platform.research.liquidations.symbol_universe import load_symbol_profile
+          from ai_platform.scripts.liquidation_binance_collector import (
+              DEFAULT_BINANCE_ENDPOINT,
+              _subscription as binance_subscription,
+          )
+          from ai_platform.scripts.liquidation_collector import (
+              DEFAULT_BYBIT_ENDPOINT,
+              _subscription as bybit_subscription,
+          )
+
+
+          async def bybit_ack(symbols: tuple[str, ...]) -> dict[str, object]:
+              async with websockets.connect(
+                  DEFAULT_BYBIT_ENDPOINT,
+                  open_timeout=15,
+                  close_timeout=5,
+                  ping_interval=None,
+              ) as websocket:
+                  await websocket.send(bybit_subscription(symbols))
+                  payload = json.loads(await asyncio.wait_for(websocket.recv(), timeout=15))
+              if not isinstance(payload, dict):
+                  raise TypeError("Bybit acknowledgement must be an object")
+              passed = payload.get("success") is True and payload.get("op") == "subscribe"
+              if not passed:
+                  raise RuntimeError(f"Bybit subscription rejected: {payload}")
+              return {
+                  "passed": True,
+                  "success": payload.get("success"),
+                  "operation": payload.get("op"),
+                  "message": payload.get("ret_msg"),
+              }
+
+
+          async def binance_ack(symbols: tuple[str, ...]) -> dict[str, object]:
+              async with websockets.connect(
+                  DEFAULT_BINANCE_ENDPOINT,
+                  open_timeout=15,
+                  close_timeout=5,
+                  ping_interval=None,
+              ) as websocket:
+                  await websocket.send(binance_subscription(symbols))
+                  payload = json.loads(await asyncio.wait_for(websocket.recv(), timeout=15))
+              if not isinstance(payload, dict):
+                  raise TypeError("Binance acknowledgement must be an object")
+              passed = payload.get("id") == 1 and payload.get("result") is None and "code" not in payload
+              if not passed:
+                  raise RuntimeError(f"Binance subscription rejected: {payload}")
+              return {
+                  "passed": True,
+                  "request_id": payload.get("id"),
+                  "result": payload.get("result"),
+              }
+
+
+          async def main() -> None:
+              profile = load_symbol_profile()
+              bybit, binance = await asyncio.gather(
+                  bybit_ack(profile.symbols),
+                  binance_ack(profile.symbols),
+              )
+              evidence = {
+                  "schema_version": 1,
+                  "evidence_type": "liquidation_symbol_subscription_smoke",
+                  "profile": profile.name,
+                  "frozen_at": profile.frozen_at,
+                  "symbol_count": len(profile.symbols),
+                  "symbols": list(profile.symbols),
+                  "sources": {
+                      "bybit-linear": bybit,
+                      "binance-usdm": binance,
+                  },
+                  "passed": bybit["passed"] is True and binance["passed"] is True,
+              }
+              print("LIQUID20_SUBSCRIPTION=" + json.dumps(evidence, sort_keys=True))
+              if not evidence["passed"]:
+                  raise SystemExit(1)
+
+
+          asyncio.run(main())
+          PY

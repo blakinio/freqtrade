@@ -1,14 +1,15 @@
 ---
 task_id: FTAI-20260724-liquidation-symbol-universe-v1
-status: active
+status: validating
 branch: feat/liquidation-symbol-universe-v1
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
-related_pr: pending
+related_pr: "#254"
 owned_paths:
   - ai_platform/research/liquidations/symbol-universes-v1.json
   - ai_platform/research/liquidations/symbol_universe.py
+  - ai_platform/research/liquidations/evidence/liquid20-subscription-github-us-20260724-v1.json
   - ai_platform/scripts/liquidation_multi_source_runner.py
   - tests/ai_platform_integration/test_liquidation_symbol_universe.py
   - docs/ai_platform/LIQUIDATION_MULTI_SOURCE.md
@@ -30,41 +31,67 @@ Expand multi-source liquidation collection from BTCUSDT and ETHUSDT to a frozen,
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T13:10:00Z
-head: bb8dc9189db954a1c8da8f45448e7e875a3af690
+updated_at: 2026-07-24T13:25:00Z
+head: 598fc3285268d0856427005ced9cebec1abda774
 branch: feat/liquidation-symbol-universe-v1
-pr: pending
-status: active
+pr: "#254"
+status: validating
 context_routes:
   - docs/ai_platform/LIQUIDATION_MULTI_SOURCE.md
 owned_paths:
   - ai_platform/research/liquidations/symbol-universes-v1.json
   - ai_platform/research/liquidations/symbol_universe.py
+  - ai_platform/research/liquidations/evidence/liquid20-subscription-github-us-20260724-v1.json
   - ai_platform/scripts/liquidation_multi_source_runner.py
   - tests/ai_platform_integration/test_liquidation_symbol_universe.py
   - docs/ai_platform/LIQUIDATION_MULTI_SOURCE.md
   - docs/agents/tasks/FTAI-20260724-liquidation-symbol-universe-v1.md
 proven:
-  - Bybit futures public subscriptions permit multiple symbols and are bounded by a 21000-character args limit.
-  - The existing collectors already accept arbitrary repeated symbols and preserve per-source files and summaries.
-  - PR #250 and checkpoint PR #253 are merged on develop.
+  - PR #250 and checkpoint PR #253 are merged on develop, providing separate Bybit and Binance collectors.
+  - Both existing collectors accept arbitrary repeated symbols and preserve per-source files and summaries.
+  - The branch defines frozen profile liquid20-v1 with 20 exact uppercase USDT perpetual symbols.
+  - The loader rejects duplicates, count mismatches, invalid symbols, unknown profiles, inconsistent thresholds, and profiles above the hard maximum of 100.
+  - Profiles above 50 symbols require the explicit --allow-broad-universe capacity acknowledgement.
+  - The multi-source runner supplies the identical frozen profile to both collectors, refuses trading credentials, and records separate outputs plus a combined manifest.
+  - Focused tests, compile, and Ruff check passed before the final formatting-only correction.
+  - GitHub Actions run 30089322467 job 89468775700 received successful production public-WebSocket subscription acknowledgements from Bybit linear and Binance USD-M for the complete 20-symbol profile.
+  - Machine-readable subscription evidence is preserved at ai_platform/research/liquidations/evidence/liquid20-subscription-github-us-20260724-v1.json.
 derived:
-  - Twenty symbols are operationally small for both public connections.
-  - A frozen profile is more reproducible than a changing market-cap or 24-hour-volume ranking.
+  - Twenty symbols are operationally small for both public connections and materially increase the chance of observing liquidation events relative to BTC and ETH alone.
+  - A frozen profile is reproducible, unlike a continuously changing market-cap or 24-hour-volume ranking.
+  - A 100-symbol profile is technically permitted by the loader but should remain a separate capacity and symbol-lifecycle work package.
 unknown:
-  - Whether every proposed symbol is currently accepted by both production WebSocket endpoints.
-  - Final repository CI result.
+  - Final repository CI result for the clean evidence and checkpoint head.
+  - Per-symbol liquidation frequency, 24-hour availability, storage growth, and source-specific gaps for liquid20-v1.
 conflicts: []
 first_failure:
   marker: none
-  evidence: No implementation failure observed before branch creation.
+  evidence: All functional and subscription validations completed so far passed; only final repository CI remains.
 rejected_hypotheses:
   - Call an unstable market-cap ranking top 20 without freezing its identity.
   - Start with 100 symbols before measuring event volume, symbol churn, storage, and parser health on 20.
   - Merge cross-exchange events or remove source labels.
+  - Treat successful subscription acknowledgement as 24-hour operational acceptance or profitability evidence.
 changed_paths:
+  - ai_platform/research/liquidations/symbol-universes-v1.json
+  - ai_platform/research/liquidations/symbol_universe.py
+  - ai_platform/research/liquidations/evidence/liquid20-subscription-github-us-20260724-v1.json
+  - ai_platform/scripts/liquidation_multi_source_runner.py
+  - tests/ai_platform_integration/test_liquidation_symbol_universe.py
+  - docs/ai_platform/LIQUIDATION_MULTI_SOURCE.md
   - docs/agents/tasks/FTAI-20260724-liquidation-symbol-universe-v1.md
-validation: []
-blockers: []
-next_action: Add a frozen liquid20-v1 profile, loader, multi-source runner, tests, and documentation; then validate both exchange subscriptions and repository CI.
+validation:
+  - command: focused AI Platform tests
+    result: PASS
+    evidence: Profile loading, validation, broad-universe gating, and immutable-target checks passed in repository CI.
+  - command: Ruff check
+    result: PASS
+    evidence: Run 30089026845 completed successfully after the branch-local refactor.
+  - command: liquid20 production subscription smoke
+    result: PASS
+    evidence: Run 30089322467 job 89468775700 accepted the full 20-symbol subscription set on both public sources.
+blockers:
+  - Final clean-head repository CI has not completed.
+  - No 24-hour multi-source operational run exists for liquid20-v1 on the intended non-restricted staging host.
+next_action: Complete final clean-head CI, merge PR #254, then declare and run a 24-hour liquid20-v1 multi-source acceptance package on the intended staging host.
 ```

@@ -1,0 +1,31 @@
+name: Liquid20 acceptance Ruff diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquid20-ruff-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Print exact Ruff findings
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquid20-multi-source-acceptance-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python -m pip install -q "ruff==0.16.0"
+          ruff check --output-format concise \
+            ai_platform/research/liquidations/multi_source_acceptance.py \
+            ai_platform/scripts/liquidation_multi_source_runner.py \
+            ai_platform/scripts/liquidation_multi_source_evaluator.py \
+            tests/ai_platform_integration/test_liquidation_multi_source_acceptance.py \
+            tests/ai_platform_integration/test_liquidation_symbol_universe.py

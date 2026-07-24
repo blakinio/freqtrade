@@ -1,0 +1,40 @@
+name: Binance source final validation
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/binance-source-final-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  precommit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: 04cfeac6b85747ad1e2cb9bc377e6b7e6818b1cf
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+      - name: Run repository pre-commit
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd
+
+  docs-syntax:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: 04cfeac6b85747ad1e2cb9bc377e6b7e6818b1cf
+          persist-credentials: false
+      - name: Validate documentation syntax
+        run: ./tests/test_docs.sh

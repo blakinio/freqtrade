@@ -43,7 +43,7 @@ No status in this document authorizes production deployment, real exchange crede
 | 2 | `PI-03` Canonical Inference and Drift Telemetry | `done` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
 | 3 | `PI-04` Centralized Runtime Observability | `done` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
 | 4 | `PI-06` Product Identity and Session Lifecycle | `planned` | real product authentication, MFA, revocation and tenant membership lifecycle | P1 security contracts, external IdP decision |
-| 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `planned` | attributable current valuation with freshness and reconciliation | PI-01 plus authoritative price source |
+| 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `active` | attributable current valuation with freshness and reconciliation | PI-01 plus authoritative price source |
 | 6 | `PI-05` External Notification Delivery | `planned` | auditable email/webhook/push delivery without secret leakage | current in-app notification model; PI-06 where user identity/contact data is required |
 | 7 | `PI-07` Runtime Credential Broker and Rotation | `planned` | secret-store/KMS-backed runtime credential injection and revocation | P1 secret references, P3 isolation, security review |
 | 8 | `PI-08` Private Dry-Run Approved Execution Submission | `planned` | risk-approved intents submitted privately to isolated Freqtrade dry-run runtimes | PI-01, PI-07, P7 risk, audit and kill switches |
@@ -51,7 +51,7 @@ No status in this document authorizes production deployment, real exchange crede
 | Conditional | P13 Scale and Service Extraction | `deferred` | smallest measured response to a proven bottleneck/SLO failure | durable measurement bundle |
 | Capital gate | P14 Live-Small Readiness | `blocked` | separately approved minimal-capital readiness | P11, lifecycle evidence, security/operations evidence and explicit owner approval |
 
-The numeric order is the recommended software sequencing. PI-01, PI-03 and PI-04 are complete. No other PI package is active; PI-06 requires an explicit product IdP decision, while PI-02 requires authoritative price-source, currency-conversion and staleness decisions before declaration.
+The numeric order is the recommended software sequencing. PI-01, PI-03 and PI-04 are complete. PI-02 is active with the exact pinned private Freqtrade runtime selected as the mark source; PI-06 still requires an explicit product IdP decision.
 
 ## 5. Dependency graph
 
@@ -137,7 +137,9 @@ Completed task ID:
 
 ### PI-02 — Authoritative Valuation and Unrealized PNL
 
-Status: `planned`
+Status: `active`
+
+Implementation evidence: task `FTAI-20260724-portal-pi02-authoritative-valuation`, draft PR #267.
 
 Goal: calculate current position valuation and unrealized PNL only from attributable position evidence and an authoritative, timestamped price source.
 
@@ -542,7 +544,7 @@ Exit condition:
 
 ### Wave PI-B — Product completeness from authoritative sources
 
-PI-02 may now be declared once its authoritative price, conversion and staleness policies are selected. Declare PI-05 after channel/provider and identity/destination ownership are clear.
+PI-02 is active with private-runtime `mark-to-entry-v1`, exact-quote-only valuation and explicit stale, unavailable and unpriced states. Declare PI-05 only after channel/provider and identity/destination ownership are clear.
 
 Exit condition:
 
@@ -591,9 +593,9 @@ A package must not be broadened mid-implementation to include the next package m
 
 ## 10. Priority decision
 
-There is no active software PI package. PI-01, PI-03 and PI-04 are durably complete. The next package must be selected and declared separately only after its authoritative external source and policy entry gates are explicitly resolved.
+The active software package is **PI-02 Authoritative Valuation and Unrealized PNL**. It uses the exact pinned private Freqtrade runtime as the mark source and remains bounded to exact-quote, unit-leverage `mark-to-entry-v1` valuation.
 
-PI-02 is dependency-ready from the runtime-position side but still requires explicit authoritative price, conversion and staleness decisions. PI-06 requires the product IdP, membership source and session/MFA policy. PI-05 requires a channel/provider decision, and PI-07 requires a secret-store/KMS decision before PI-08 can be considered.
+PI-06 still requires the product IdP, membership source and session/MFA policy. PI-05 requires a channel/provider decision, and PI-07 requires a secret-store/KMS decision before PI-08 can be considered.
 
 The recommended next external action remains **P11**, but only when the owner intentionally starts the Cloudflare/protected GitHub infrastructure phase.
 

@@ -35,6 +35,8 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 `FTAI-20260724-portal-pi04-central-runtime-observability` adds a permission-gated, tenant-scoped private runtime-log query boundary, explicit source availability and retention metadata, correlation/trace linkage and OpenTelemetry Collector routing contracts. Runtime telemetry remains separate from append-only audit evidence, and API mode fails closed when the private target-environment source is not configured.
 
+`FTAI-20260724-portal-pi02-authoritative-valuation` adds exact-runtime `mark-to-entry-v1` valuation with explicit `CURRENT`, `STALE`, `SOURCE_UNAVAILABLE` and `UNPRICED` states. Realized PNL remains separate closed-trade evidence and unsupported currency conversion or leverage never produces a numeric guess.
+
 `FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
 
 Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
@@ -44,7 +46,7 @@ Remaining authoritative-source and external/private integration work is routed t
 | Product surface | Route | Current delivery | Data boundary |
 |---|---|---|---|
 | Dashboard | `/` | integrated | bot/control-plane snapshot |
-| PNL & Performance | `/performance` | integrated for realized performance | aggregate of persisted attributable TradeOutcome evidence; unrealized PNL remains unavailable without authoritative current-price/position valuation evidence |
+| PNL & Performance | `/performance` | integrated for realized and bounded unrealized evidence | realized PNL from persisted closed trades plus tenant-scoped exact-runtime mark-to-entry valuation; stale, unavailable, cross-currency and leveraged positions remain explicitly non-current |
 | Open Positions | `/positions` | integrated for runtime evidence | private collector -> tenant/bot/runtime-scoped operational mirror; rows and empty states distinguish `CURRENT`, `STALE`, `PARTIAL` and `SOURCE_UNAVAILABLE` |
 | Trading Terminal | `/terminal` | integrated, execution still fail-closed | deterministic risk intent API |
 | Orders | `/orders` | integrated for runtime evidence | private collector -> operational mirror with source identity, freshness and reconciliation; unattributed runtime orders are `MISMATCH` |
@@ -91,13 +93,16 @@ Model Health derives `HEALTHY`, `ATTENTION`, `DEGRADED`, `INSUFFICIENT_EVIDENCE`
 
 Execution Activity presents two independent evidence classes. Runtime logs are operational, retention-bound and queryable only through the private tenant-scoped source using `audit.read`; AuditEvent rows remain append-only business/security evidence. A missing or failed log backend produces explicit `UNAVAILABLE`, never a healthy claim or a fabricated empty success. Browser contracts contain source identity, retention and runbook metadata but no private backend endpoint or credential.
 
+## PI-02 valuation semantics
+
+The PNL & Performance page keeps closed-trade realized evidence separate from open-position valuation. Numeric unrealized PNL requires a current reconciled position, an exact source-position match, the pinned runtime's timestamped mark identity, unit leverage and quote currency equal to the bot capital currency. Missing, stale, cross-currency, leveraged or conflicting evidence produces `STALE`, `SOURCE_UNAVAILABLE` or `UNPRICED`, never a fallback number.
+
 ## Remaining hard boundaries
 
 The remaining partial states depend on authoritative sources or separately reviewed private integrations that do not currently exist in this repository or target environment:
 
 | Boundary | Canonical package/stage |
 |---|---|
-| authoritative current valuation and unrealized PNL | `PI-02` Authoritative Valuation and Unrealized PNL |
 | real target-environment Loki/Tempo/Prometheus connectivity and dashboards | `PI-04` deployment configuration; repository query and collector contracts are bounded by the active task |
 | external email/webhook/push delivery | `PI-05` External Notification Delivery |
 | product authentication, MFA, session revocation and tenant membership lifecycle | `PI-06` Product Identity and Session Lifecycle |
@@ -109,7 +114,7 @@ P13 remains deferred until measured need. P14 remains blocked and separately own
 
 ## Safety behavior
 
-API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status. PI-04 runtime-log absence never changes audit records or runtime-health claims.
+API mode never fabricates PNL, valuation, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status. PI-04 runtime-log absence never changes audit records or runtime-health claims.
 
 The normalized operational mirror is the only portal-facing runtime trade evidence boundary. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` use the private collector but return records only for complete, current and synced reads; stale, partial, unavailable and mismatched evidence fails closed or remains explicitly degraded in the mirror.
 

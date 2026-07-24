@@ -5,7 +5,7 @@ branch: feat/portal-pi02-authoritative-valuation-20260724
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-24
-related_pr: null
+related_pr: 267
 owned_paths:
   - ai_platform/portal/valuation/**
   - ai_platform/portal/execution/private_read.py
@@ -86,11 +86,11 @@ Provide attributable current position valuation and unrealized PNL from reconcil
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T20:25:00+02:00
-head: 5afb797f389bd4eb90cf189804cba26d8249ba07
+updated_at: 2026-07-24T22:25:00+02:00
+head: e14a200514431010901f866a1277cd08917bdce9
 branch: feat/portal-pi02-authoritative-valuation-20260724
-pr: null
-status: active
+pr: 267
+status: validating
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
@@ -124,19 +124,36 @@ derived:
   - The same pinned private runtime is the narrowest attributable mark source and avoids a new public market-data dependency.
   - V1 can safely support exact-quote, unit-leverage mark-to-entry valuation while failing closed for conversion and derivatives semantics.
 unknown:
-  - Final implementation and repository CI result.
+  - Final required repository CI result on the documentation-synchronized candidate.
 conflicts: []
 first_failure:
-  marker: NOT_RUN
-  evidence: PI-02 implementation and validation have not run yet.
+  marker: RESOLVED
+  evidence: Full pytest initially found a duplicate test_runtime module basename; a valuation test-package marker resolved collection. Ruff then identified import/format findings and one C901 decision method, all fixed without changing valuation semantics.
 rejected_hypotheses:
   - Select an unaffiliated public price API without an owner decision.
   - Reuse fixture prices in API mode.
   - Treat stale or cross-currency evidence as a numeric current valuation.
   - Recompute realized PNL from open-position marks.
 changed_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/valuation/__init__.py
+  - ai_platform/portal/valuation/runtime.py
+  - ai_platform/portal/web/app/performance/page.tsx
+  - ai_platform/portal/web/e2e/valuation.spec.ts
+  - ai_platform/portal/web/lib/valuation.ts
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-pi02-authoritative-valuation.md
-validation: []
+  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/valuation/__init__.py
+  - tests/ai_platform/portal/valuation/test_runtime.py
+  - tests/ai_platform/portal/valuation/test_runtime_api.py
+validation:
+  - command: AI Platform CI 30123794369 / run 1129
+    result: PASS
+    evidence: Tests, compile, Ruff, formatter, codespell and contract validation passed on clean implementation head e14a200514431010901f866a1277cd08917bdce9.
 blockers: []
-next_action: Implement normalized mark provenance, deterministic valuation snapshots, tenant-scoped API/UI integration and focused tests, then run required CI.
+next_action: Complete final required CI on the documentation-synchronized candidate, then mark PR 267 ready and merge only if the head remains unchanged and all required workflows pass.
 ```

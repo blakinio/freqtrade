@@ -466,8 +466,7 @@ def _evaluate_source(
     gates.add("output_hash", summary_hash == actual_hash, summary_hash, actual_hash)
     gates.add(
         "output_size",
-        integer_value(output["final_size_bytes"], field="output.final_size_bytes")
-        == actual_size,
+        integer_value(output["final_size_bytes"], field="output.final_size_bytes") == actual_size,
         output["final_size_bytes"],
         actual_size,
     )
@@ -578,8 +577,7 @@ def evaluate_multi_source_run(
     )
     gates.add(
         "execution_disabled",
-        not policy.requires("execution_disabled")
-        or manifest.get("execution_enabled") is False,
+        not policy.requires("execution_disabled") or manifest.get("execution_enabled") is False,
         manifest.get("execution_enabled"),
         False,
     )
@@ -643,15 +641,13 @@ def evaluate_multi_source_run(
     )
     gates.add(
         "deduplicate_between_exchanges",
-        cross.get("deduplicate_between_exchanges")
-        is policy.deduplicate_between_exchanges,
+        cross.get("deduplicate_between_exchanges") is policy.deduplicate_between_exchanges,
         cross.get("deduplicate_between_exchanges"),
         policy.deduplicate_between_exchanges,
     )
     gates.add(
         "sum_events_without_source_labels",
-        cross.get("sum_events_without_source_labels")
-        is policy.sum_events_without_source_labels,
+        cross.get("sum_events_without_source_labels") is policy.sum_events_without_source_labels,
         cross.get("sum_events_without_source_labels"),
         policy.sum_events_without_source_labels,
     )
@@ -666,9 +662,7 @@ def evaluate_multi_source_run(
             manifest_commit=manifest_commit,
             expected_symbols=policy.symbols,
             policy=source,
-            require_start_end_clock=policy.requires(
-                "clock_synchronized_at_start_and_end"
-            ),
+            require_start_end_clock=policy.requires("clock_synchronized_at_start_and_end"),
         )
         for source in policy.sources
     )

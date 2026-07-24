@@ -1,0 +1,76 @@
+name: Binance liquidation public smoke
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/liquidation-binance-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  public-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Run bounded public Binance collector
+        run: |
+          set -euo pipefail
+          git clone -q --depth 1 \
+            --branch feat/liquidation-binance-source-v1 \
+            https://github.com/blakinio/freqtrade.git repo
+          cd repo
+          python -m pip install -q websockets
+          RUN_DIR="$(mktemp -d)"
+          COMMIT="$(git rev-parse HEAD)"
+          PYTHONPATH=. python -m ai_platform.scripts.liquidation_binance_collector \
+            --symbol BTCUSDT \
+            --symbol ETHUSDT \
+            --duration-seconds 30 \
+            --require-new-output \
+            --collector-commit "$COMMIT" \
+            --output "$RUN_DIR/binance-usdm.ndjson" \
+            --summary "$RUN_DIR/binance-usdm-summary.json"
+          RUN_DIR="$RUN_DIR" PYTHONPATH=. python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = json.loads(
+              (Path(os.environ["RUN_DIR"]) / "binance-usdm-summary.json").read_text()
+          )
+          stats = summary["stats"]
+          evidence = {
+              "source": summary.get("source"),
+              "collector_commit": summary["collector_commit"],
+              "clock_synchronized": summary["clock_probe"]["synchronized"],
+              "clock_skew_ms": summary["clock_probe"]["absolute_skew_ms"],
+              "duration_ms": stats["duration_ms"],
+              "availability_ratio": stats["availability_ratio"],
+              "messages_received": stats["messages_received"],
+              "control_messages": stats["control_messages"],
+              "liquidation_messages": stats["liquidation_messages"],
+              "events_written": stats["events_written"],
+              "parse_failures": stats["parse_failures"],
+              "disconnects": stats["disconnects"],
+              "credentials_present": summary["trading_credentials_present"],
+              "output_sha256": summary["output"]["sha256"],
+          }
+          checks = {
+              "source": evidence["source"] == "binance-usdm",
+              "duration": evidence["duration_ms"] >= 20_000,
+              "message": evidence["messages_received"] >= 1,
+              "control": evidence["control_messages"] >= 1,
+              "clock": evidence["clock_synchronized"] is True,
+              "parse": evidence["parse_failures"] == 0,
+              "disconnect": evidence["disconnects"] == 0,
+              "credentials": evidence["credentials_present"] is False,
+              "hash": len(evidence["output_sha256"]) == 64,
+          }
+          evidence["failed_checks"] = [name for name, passed in checks.items() if not passed]
+          evidence["passed"] = not evidence["failed_checks"]
+          print("BINANCE_SMOKE=" + json.dumps(evidence, sort_keys=True))
+          raise SystemExit(0 if evidence["passed"] else 1)
+          PY

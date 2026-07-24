@@ -6,9 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-DEFAULT_SYMBOL_UNIVERSE_PATH = Path(
-    "ai_platform/research/liquidations/symbol-universes-v1.json"
-)
+DEFAULT_SYMBOL_UNIVERSE_PATH = Path("ai_platform/research/liquidations/symbol-universes-v1.json")
 DEFAULT_SYMBOL_PROFILE = "liquid20-v1"
 
 

@@ -9,13 +9,13 @@ portal/control/runtime workloads
         |
         | OTLP over private networking
         v
-OpenTelemetry Collector
+OpenTelemetry Collector Contrib
         |-- logs --> private Loki-compatible OTLP endpoint
         |-- traces --> private Tempo-compatible OTLP endpoint
         `-- metrics --> private Prometheus-compatible remote-write endpoint
 ```
 
-The collector is a private infrastructure component. It is not a public portal API and is not exposed to browser clients.
+The collector is a private infrastructure component. It is not a public portal API and is not exposed to browser clients. The example requires a Collector distribution containing the `redaction` processor, such as OpenTelemetry Collector Contrib.
 
 ## Required workload identity
 
@@ -60,6 +60,8 @@ An environment may use stricter retention, but the effective values must be expo
 
 - Runtime-log queries require `audit.read` and tenant scope from trusted identity context.
 - Loki/Tempo/Prometheus endpoints and credentials remain server-side.
-- Secret-like fields are recursively redacted before export and before browser serialization.
+- P4 producers recursively redact secret-like fields before they reach telemetry sinks.
+- The collector `redaction/sensitive` processor masks sensitive top-level attributes in every logs, traces and metrics pipeline before batch/export as defense in depth.
+- The portal query service recursively redacts structured fields again before browser serialization.
 - Runtime telemetry is operational evidence and does not replace append-only audit events.
 - This repository configuration does not provision external infrastructure and does not satisfy P11 production-like staging acceptance.

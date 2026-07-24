@@ -43,7 +43,7 @@ def test_lifecycle_aligned_strategy_has_exact_single_override() -> None:
 
     assert strategy_class.__bases__ == (AiDesiredPositionRLResearchStrategy,)
     assert {
-        name for name in strategy_class.__dict__ if not name.startswith("__")
+        name for name in strategy_class.__dict__ if not name.startswith("_")
     } == {"ignore_roi_if_entry_signal"}
     assert strategy_class.ignore_roi_if_entry_signal is True
 

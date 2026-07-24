@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import time
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from ai_platform.research.liquidations.staging import (
     DEFAULT_BYBIT_TIME_URL,
+    CollectorRunStats,
     probe_bybit_clock,
     trading_credentials_present_in_environment,
     write_json_atomic,
@@ -31,6 +35,20 @@ from ai_platform.scripts.liquidation_collector import (
     DEFAULT_BYBIT_ENDPOINT,
     collect_bybit_liquidations,
 )
+
+
+SOURCE_SEMANTICS: dict[str, dict[str, object]] = {
+    "bybit-linear": {
+        "stream": "allLiquidation",
+        "coverage": "all liquidation events published by the exchange",
+        "documented_push_frequency_ms": 500,
+    },
+    "binance-usdm": {
+        "stream": "forceOrder",
+        "coverage": "latest liquidation order per symbol within each 1000 ms window",
+        "documented_push_frequency_ms": 1000,
+    },
+}
 
 
 def _positive_float(value: str) -> float:
@@ -65,7 +83,7 @@ def _target_paths(output_root: Path) -> dict[str, Path]:
     }
 
 
-def _require_unused_targets(paths: dict[str, Path]) -> None:
+def _require_unused_targets(paths: Mapping[str, Path]) -> None:
     occupied = [str(path) for path in paths.values() if path.exists()]
     if occupied:
         raise FileExistsError(f"multi-source output targets already exist: {occupied}")
@@ -73,13 +91,82 @@ def _require_unused_targets(paths: dict[str, Path]) -> None:
 
 def _prepare_output_root(
     output_root: Path,
-    paths: dict[str, Path],
+    paths: Mapping[str, Path],
     *,
     require_new_output: bool,
 ) -> None:
     if require_new_output:
         _require_unused_targets(paths)
     output_root.mkdir(parents=True, exist_ok=True)
+
+
+def _load_json(path: Path) -> dict[str, Any]:
+    with path.open(encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise TypeError(f"JSON payload must be an object: {path}")
+    return payload
+
+
+def _normalize_summary(
+    summary_path: Path,
+    *,
+    source_id: str,
+    endpoint: str,
+    symbols: Sequence[str],
+) -> None:
+    summary = _load_json(summary_path)
+    summary["source"] = {
+        "id": source_id,
+        "endpoint": endpoint,
+        "symbols": list(symbols),
+    }
+    summary["source_semantics"] = SOURCE_SEMANTICS[source_id]
+    write_json_atomic(summary_path, summary)
+
+
+def _exception_text(error: BaseException) -> str:
+    message = f"{type(error).__name__}: {error}"
+    return message[:500]
+
+
+def _source_manifest(
+    *,
+    endpoint: str,
+    output_path: Path,
+    summary_path: Path,
+    start_clock: Mapping[str, object],
+    end_clock: Mapping[str, object],
+    result: CollectorRunStats | BaseException,
+    normalization_result: None | BaseException,
+    source_id: str,
+) -> dict[str, object]:
+    errors = [
+        error
+        for error in (result if isinstance(result, BaseException) else None, normalization_result)
+        if isinstance(error, BaseException)
+    ]
+    stats: Mapping[str, object] | None = None
+    if isinstance(result, CollectorRunStats):
+        stats = result.as_json_dict()
+    elif summary_path.exists():
+        summary = _load_json(summary_path)
+        raw_stats = summary.get("stats")
+        if isinstance(raw_stats, dict):
+            stats = raw_stats
+    return {
+        "endpoint": endpoint,
+        "source_semantics": SOURCE_SEMANTICS[source_id],
+        "output": output_path.name,
+        "summary": summary_path.name,
+        "collector_status": "failed" if errors else "completed",
+        "collector_error": "; ".join(_exception_text(error) for error in errors) or None,
+        "clock_probes": {
+            "start": dict(start_clock),
+            "end": dict(end_clock),
+        },
+        "stats": stats,
+    }
 
 
 async def run_multi_source_collection(
@@ -90,6 +177,8 @@ async def run_multi_source_collection(
     collector_commit: str,
     require_new_output: bool,
     clock_tolerance_ms: int,
+    run_id: str = "unspecified",
+    host_id: str = "unspecified",
     bybit_endpoint: str = DEFAULT_BYBIT_ENDPOINT,
     bybit_time_url: str = DEFAULT_BYBIT_TIME_URL,
     binance_endpoint: str = DEFAULT_BINANCE_ENDPOINT,
@@ -109,7 +198,7 @@ async def run_multi_source_collection(
         raise RuntimeError("trading credentials are present; data-only runner refuses to start")
 
     started_at_ms = time.time_ns() // 1_000_000
-    bybit_clock, binance_clock = await asyncio.gather(
+    bybit_clock_start, binance_clock_start = await asyncio.gather(
         asyncio.to_thread(
             probe_bybit_clock,
             server_time_url=bybit_time_url,
@@ -122,7 +211,7 @@ async def run_multi_source_collection(
         ),
     )
 
-    bybit_stats, binance_stats = await asyncio.gather(
+    bybit_result, binance_result = await asyncio.gather(
         collect_bybit_liquidations(
             endpoint=bybit_endpoint,
             symbols=profile.symbols,
@@ -131,7 +220,7 @@ async def run_multi_source_collection(
             summary_path=paths["bybit_summary"],
             collector_commit=collector_commit,
             require_new_output=require_new_output,
-            clock_probe=bybit_clock,
+            clock_probe=bybit_clock_start,
             trading_credentials_present=False,
         ),
         collect_binance_liquidations(
@@ -142,15 +231,78 @@ async def run_multi_source_collection(
             summary_path=paths["binance_summary"],
             collector_commit=collector_commit,
             require_new_output=require_new_output,
-            clock_probe=binance_clock,
+            clock_probe=binance_clock_start,
             credentials_present=False,
+        ),
+        return_exceptions=True,
+    )
+
+    bybit_normalization, binance_normalization = await asyncio.gather(
+        asyncio.to_thread(
+            _normalize_summary,
+            paths["bybit_summary"],
+            source_id="bybit-linear",
+            endpoint=bybit_endpoint,
+            symbols=profile.symbols,
+        ),
+        asyncio.to_thread(
+            _normalize_summary,
+            paths["binance_summary"],
+            source_id="binance-usdm",
+            endpoint=binance_endpoint,
+            symbols=profile.symbols,
+        ),
+        return_exceptions=True,
+    )
+
+    bybit_clock_end, binance_clock_end = await asyncio.gather(
+        asyncio.to_thread(
+            probe_bybit_clock,
+            server_time_url=bybit_time_url,
+            tolerance_ms=clock_tolerance_ms,
+        ),
+        asyncio.to_thread(
+            probe_binance_clock,
+            server_time_url=binance_time_url,
+            tolerance_ms=clock_tolerance_ms,
         ),
     )
     ended_at_ms = time.time_ns() // 1_000_000
 
+    bybit_source = _source_manifest(
+        endpoint=bybit_endpoint,
+        output_path=paths["bybit_output"],
+        summary_path=paths["bybit_summary"],
+        start_clock=bybit_clock_start.as_json_dict(),
+        end_clock=bybit_clock_end.as_json_dict(),
+        result=bybit_result,
+        normalization_result=bybit_normalization,
+        source_id="bybit-linear",
+    )
+    binance_source = _source_manifest(
+        endpoint=binance_endpoint,
+        output_path=paths["binance_output"],
+        summary_path=paths["binance_summary"],
+        start_clock=binance_clock_start.as_json_dict(),
+        end_clock=binance_clock_end.as_json_dict(),
+        result=binance_result,
+        normalization_result=binance_normalization,
+        source_id="binance-usdm",
+    )
+    failed_sources = [
+        source_id
+        for source_id, source in (
+            ("bybit-linear", bybit_source),
+            ("binance-usdm", binance_source),
+        )
+        if source["collector_status"] != "completed"
+    ]
     manifest: dict[str, object] = {
         "schema_version": 1,
         "manifest_type": "liquidation_multi_source_collection",
+        "run_status": "failed" if failed_sources else "completed",
+        "run_id": run_id,
+        "host_id": host_id,
         "execution_enabled": False,
         "trading_credentials_present": False,
         "collector_commit": collector_commit,
@@ -165,20 +317,8 @@ async def run_multi_source_collection(
             "symbols": list(profile.symbols),
         },
         "sources": {
-            "bybit-linear": {
-                "endpoint": bybit_endpoint,
-                "clock_probe": bybit_clock.as_json_dict(),
-                "output": paths["bybit_output"].name,
-                "summary": paths["bybit_summary"].name,
-                "stats": bybit_stats.as_json_dict(),
-            },
-            "binance-usdm": {
-                "endpoint": binance_endpoint,
-                "clock_probe": binance_clock.as_json_dict(),
-                "output": paths["binance_output"].name,
-                "summary": paths["binance_summary"].name,
-                "stats": binance_stats.as_json_dict(),
-            },
+            "bybit-linear": bybit_source,
+            "binance-usdm": binance_source,
         },
         "cross_source_policy": {
             "deduplicate_between_exchanges": False,
@@ -186,6 +326,8 @@ async def run_multi_source_collection(
         },
     }
     await asyncio.to_thread(write_json_atomic, paths["manifest"], manifest)
+    if failed_sources:
+        raise RuntimeError(f"multi-source collection failed: {', '.join(failed_sources)}")
     return manifest
 
 
@@ -204,6 +346,11 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--collector-commit",
         default=os.environ.get("GITHUB_SHA", "unknown"),
+    )
+    parser.add_argument("--run-id")
+    parser.add_argument(
+        "--host-id",
+        default=os.environ.get("LIQUIDATION_STAGING_HOST_ID", "unspecified"),
     )
     parser.add_argument("--require-new-output", action="store_true")
     parser.add_argument("--allow-broad-universe", action="store_true")
@@ -227,6 +374,8 @@ def main() -> None:
             collector_commit=args.collector_commit,
             require_new_output=args.require_new_output,
             clock_tolerance_ms=args.clock_tolerance_ms,
+            run_id=args.run_id or args.output_root.name,
+            host_id=args.host_id,
             bybit_endpoint=args.bybit_endpoint,
             bybit_time_url=args.bybit_time_url,
             binance_endpoint=args.binance_endpoint,

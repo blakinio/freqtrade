@@ -1,33 +1,46 @@
 name: Liquidation staging format diagnostic
 
 on:
-  pull_request:
+  push:
     branches:
-      - develop
+      - feat/liquidation-data-only-staging-v1
     paths:
-      - "ai_platform/research/liquidations/staging.py"
-      - "ai_platform/scripts/liquidation_collector.py"
-      - "ai_platform/scripts/liquidation_staging_evaluator.py"
-      - "tests/ai_platform_integration/test_liquidation_data_only_staging.py"
       - ".github/workflows/liquidation-staging-format-diagnostic.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  format-diagnostic:
+  apply-format:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Print exact Ruff format diff
+      - name: Checkout branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/liquidation-data-only-staging-v1
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.13"
+      - name: Apply exact Ruff formatting
         run: |
-          git clone -q --depth 1 \
-            --branch feat/liquidation-data-only-staging-v1 \
-            https://github.com/blakinio/freqtrade.git repo
-          cd repo
           python -m pip install -q "ruff==0.16.0"
-          ruff format --check --diff \
+          ruff format \
             ai_platform/research/liquidations/staging.py \
             ai_platform/scripts/liquidation_collector.py \
             ai_platform/scripts/liquidation_staging_evaluator.py \
             tests/ai_platform_integration/test_liquidation_data_only_staging.py
+          git diff --check
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/research/liquidations/staging.py \
+            ai_platform/scripts/liquidation_collector.py \
+            ai_platform/scripts/liquidation_staging_evaluator.py \
+            tests/ai_platform_integration/test_liquidation_data_only_staging.py
+          git commit -m "style(ai-platform): apply liquidation staging format"
+          git push origin HEAD:feat/liquidation-data-only-staging-v1

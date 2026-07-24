@@ -27,7 +27,8 @@ jobs:
       - name: Install dependencies
         run: >-
           python -m pip install -q --disable-pip-version-check
-          pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" fastapi
+          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          "httpx>=0.24.1" fastapi
       - name: Capture first failing AI platform test
         id: test
         shell: bash

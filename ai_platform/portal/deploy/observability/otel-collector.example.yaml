@@ -23,6 +23,18 @@ processors:
       - key: service.namespace
         action: upsert
         value: ai-trading-portal
+  redaction/sensitive:
+    allow_all_keys: true
+    blocked_key_patterns:
+      - "(?i).*api[_-]?key.*"
+      - "(?i).*authorization.*"
+      - "(?i).*cookie.*"
+      - "(?i).*passphrase.*"
+      - "(?i).*password.*"
+      - "(?i).*private[_-]?key.*"
+      - "(?i).*secret.*"
+      - "(?i).*token.*"
+    summary: silent
   batch:
     timeout: 5s
     send_batch_size: 1024
@@ -49,13 +61,13 @@ service:
   pipelines:
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, resource/environment, batch]
+      processors: [memory_limiter, resource/environment, redaction/sensitive, batch]
       exporters: [otlphttp/logs]
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource/environment, batch]
+      processors: [memory_limiter, resource/environment, redaction/sensitive, batch]
       exporters: [otlphttp/traces]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, resource/environment, batch]
+      processors: [memory_limiter, resource/environment, redaction/sensitive, batch]
       exporters: [prometheusremotewrite/metrics]

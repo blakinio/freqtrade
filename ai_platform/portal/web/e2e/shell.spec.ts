@@ -44,8 +44,9 @@ test("renders AI intelligence surfaces from deterministic fixture read models", 
 
   await page.goto("/ai/model-health");
   await expect(page.getByRole("heading", { name: "Model Health" })).toBeVisible();
-  await expect(page.getByText("UNAVAILABLE", { exact: true })).toBeVisible();
-  await expect(page.getByText("CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED")).toBeVisible();
+  await expect(page.getByText("HEALTHY", { exact: true })).toBeVisible();
+  await expect(page.getByText("PSI_V1_WITHIN_LIMITS")).toBeVisible();
+  await expect(page.getByText("psi-v1", { exact: true })).toBeVisible();
 });
 
 test("renders canonical operational read-model surfaces in fixture mode", async ({ page }) => {

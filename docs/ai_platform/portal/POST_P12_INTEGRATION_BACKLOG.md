@@ -40,7 +40,7 @@ No status in this document authorizes production deployment, real exchange crede
 | Order | Package | Status | Primary outcome | Depends on |
 |---:|---|---|---|---|
 | 1 | `PI-01` Private Runtime Read and Reconciliation | `done` | authoritative private positions/orders/trades ingestion with source identity and freshness | P3, P4, existing operational mirror |
-| 2 | `PI-03` Canonical Inference and Drift Telemetry | `planned` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
+| 2 | `PI-03` Canonical Inference and Drift Telemetry | `active` | authoritative inference, feature and prediction-distribution telemetry | P4, P5, model/runtime attribution |
 | 3 | `PI-04` Centralized Runtime Observability | `planned` | searchable logs/traces/metrics with redaction and correlation | P3, P4, deployment logging source |
 | 4 | `PI-06` Product Identity and Session Lifecycle | `planned` | real product authentication, MFA, revocation and tenant membership lifecycle | P1 security contracts, external IdP decision |
 | 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `planned` | attributable current valuation with freshness and reconciliation | PI-01 plus authoritative price source |
@@ -183,7 +183,9 @@ Recommended task ID:
 
 ### PI-03 — Canonical Inference and Drift Telemetry
 
-Status: `planned`
+Status: `active`
+
+Implementation evidence: task `FTAI-20260724-portal-pi03-inference-drift-telemetry`, draft PR #239. Merge evidence remains pending until required CI is green.
 
 Goal: provide canonical inference, feature and prediction-distribution evidence so Model Health can report measured drift rather than only metadata age or `UNAVAILABLE`.
 
@@ -587,12 +589,7 @@ A package must not be broadened mid-implementation to include the next package m
 
 ## 10. Priority decision
 
-The recommended next software package is **PI-03 Canonical Inference and Drift Telemetry** because it:
-
-- remains read-only and does not introduce execution authority;
-- replaces the current model-health telemetry gap with attributable inference and distribution evidence;
-- makes drift status reproducible without automatic retraining or promotion;
-- can proceed independently of PI-02 valuation and PI-07/PI-08 credential/execution work.
+The active software package is **PI-03 Canonical Inference and Drift Telemetry**. Its bounded task and PR implement aggregate-only, attributable inference windows and reproducible PSI-v1 evidence without execution authority, automatic retraining or model promotion. The next package is selected only after PI-03 durable completion evidence is merged.
 
 PI-02 is now dependency-ready from the runtime-position side, but still requires explicit authoritative price, conversion and staleness decisions before declaration.
 

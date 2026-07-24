@@ -31,6 +31,8 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 `FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.
 
+`FTAI-20260724-portal-pi03-inference-drift-telemetry` adds aggregate-only inference windows, explicit source status and reproducible PSI-v1 drift assessments attributed to the exact model, feature schema, bot configuration and runtime. It stores no raw feature values or individual predictions and cannot mutate model lifecycle or promotion state.
+
 `FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
 
 Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
@@ -54,7 +56,7 @@ Remaining authoritative-source and external/private integration work is routed t
 | AI Overview | `/ai` | integrated | model/intelligence/learning read APIs |
 | Trade Analysis | `/ai/trade-analysis` | integrated | P8 TradeAnalysis read API |
 | Insights | `/ai/insights` | integrated | P8 TradeInsight read API |
-| Model Health | `/ai/model-health` | partially integrated | immutable model metadata and age are canonical; drift status truthfully reports unavailable until telemetry source exists |
+| Model Health | `/ai/model-health` | integrated | tenant-scoped aggregate inference telemetry, source availability, exact model/feature-schema/bot-config/runtime attribution and reproducible PSI-v1 reference/observation evidence |
 | Experiments | `/ai/experiments` | integrated | P9 learning history read API |
 | Learning History | `/ai/learning` | integrated | P9 aggregate history read API |
 | Execution Activity | `/operations/execution-logs` | partially integrated | permission-gated execution-related AuditEvent evidence plus explicit raw-log availability; centralized stdout/stderr source remains unavailable |
@@ -79,6 +81,10 @@ The Open Positions, Orders and Trade History pages read one canonical `/v1/runti
 
 Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.
 
+## PI-03 inference and drift semantics
+
+Model Health derives `HEALTHY`, `ATTENTION`, `DEGRADED`, `INSUFFICIENT_EVIDENCE` or `UNAVAILABLE` only from persisted aggregate windows and explicit source status. Rows expose exact attribution, window identities, sample counts and PSI/feature-quality evidence. No status triggers retraining, promotion or lifecycle mutation, and raw feature values, individual predictions and protected final-holdout observations are excluded.
+
 ## Remaining hard boundaries
 
 The remaining partial states are not presentation shells. They depend on authoritative sources or separately reviewed private integrations that do not currently exist in this repository:
@@ -86,7 +92,6 @@ The remaining partial states are not presentation shells. They depend on authori
 | Boundary | Canonical package/stage |
 |---|---|
 | authoritative current valuation and unrealized PNL | `PI-02` Authoritative Valuation and Unrealized PNL |
-| canonical model/feature/prediction drift evidence | `PI-03` Canonical Inference and Drift Telemetry |
 | centralized raw runtime logs/traces/metrics | `PI-04` Centralized Runtime Observability |
 | external email/webhook/push delivery | `PI-05` External Notification Delivery |
 | product authentication, MFA, session revocation and tenant membership lifecycle | `PI-06` Product Identity and Session Lifecycle |
@@ -98,7 +103,7 @@ P13 remains deferred until measured need. P14 remains blocked and separately own
 
 ## Safety behavior
 
-API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise.
+API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status.
 
 The normalized operational mirror is the only portal-facing runtime evidence boundary. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` use the private collector but return records only for complete, current and synced reads; stale, partial, unavailable and mismatched evidence fails closed or remains explicitly degraded in the mirror.
 

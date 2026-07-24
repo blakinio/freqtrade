@@ -256,6 +256,7 @@ export async function listModelHealth(
   if (dataMode() === "fixture") {
     return [
       {
+        health_record_id: "model-validated-2026-07:bot-btc-dryrun-01:runtime-1:revision-1:fixture-source",
         model_version_id: "model-validated-2026-07",
         tenant_id: "tenant-demo",
         model_family_id: "directional-lightgbm",
@@ -263,8 +264,27 @@ export async function listModelHealth(
         created_at: "2026-07-20T10:00:00Z",
         training_window_end: "2026-05-01T00:00:00Z",
         metadata_age_days: 3,
-        drift_status: "UNAVAILABLE",
-        drift_reason: "CANONICAL_DRIFT_TELEMETRY_SOURCE_NOT_CONFIGURED",
+        drift_status: "HEALTHY",
+        drift_reason: "PSI_V1_WITHIN_LIMITS",
+        policy_version: "psi-v1",
+        reference_window_id: "fixture-reference-2026-07",
+        observation_window_id: "fixture-observation-2026-07-24",
+        reference_sample_count: 200,
+        observation_sample_count: 200,
+        accepted_predictions: 180,
+        rejected_predictions: 20,
+        rejection_reasons: [{ reason_code: "DO_PREDICT_FALSE", count: 20 }],
+        prediction_drift_score: "0.000400",
+        max_feature_drift_score: "0.001600",
+        worst_feature_name: "rsi_14",
+        max_feature_quality_issue_rate: "0.000000",
+        feature_schema_version_id: "features-v1",
+        bot_id: "bot-btc-dryrun-01",
+        bot_config_revision_id: "revision-1",
+        runtime_id: "runtime-1",
+        source_id: "fixture-source",
+        source_availability: "AVAILABLE",
+        source_checked_at: "2026-07-24T09:00:00Z",
       },
     ];
   }

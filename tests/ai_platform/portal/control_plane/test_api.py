@@ -237,6 +237,8 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/notifications/preferences",
         "/v1/profile",
         "/v1/admin/overview",
+        "/v1/inference-telemetry/windows",
+        "/v1/inference-telemetry/source-status",
         "/v1/model-health",
         "/v1/runtime-log-availability",
     }

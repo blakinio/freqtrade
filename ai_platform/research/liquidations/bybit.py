@@ -8,6 +8,7 @@ from ai_platform.research.liquidations.contracts import (
     LiquidatedPositionSide,
     LiquidationEvent,
     deterministic_event_id,
+    integer_value,
     positive_decimal,
 )
 
@@ -51,14 +52,14 @@ def parse_bybit_all_liquidation(
 
     rows = _require_sequence(message.get("data"), field="data")
     try:
-        source_message_at_ms = int(message["ts"])
+        source_message_at_ms = integer_value(message["ts"], field="ts")
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("Bybit message ts must be an integer timestamp") from exc
     events: list[LiquidationEvent] = []
     for index, raw_row in enumerate(rows):
         row = _require_mapping(raw_row, field=f"data[{index}]")
         try:
-            occurred_at_ms = int(row["T"])
+            occurred_at_ms = integer_value(row["T"], field=f"data[{index}].T")
             symbol = str(row["s"]).strip().upper()
             raw_side = str(row["S"])
         except (KeyError, TypeError, ValueError) as exc:

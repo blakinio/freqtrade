@@ -1,0 +1,155 @@
+name: PI-02 Documentation Sync
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.event.pull_request.head.ref == 'feat/portal-pi02-authoritative-valuation-20260724'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout head branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+      - name: Apply exact documentation updates
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding="utf-8")
+              if text.count(old) != 1:
+                  raise RuntimeError(f"expected one match in {path}: {old[:80]!r}")
+              target.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          backlog = "docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md"
+          replace_once(
+              backlog,
+              "| 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `planned` | attributable current valuation with freshness and reconciliation | PI-01 plus authoritative price source |",
+              "| 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `active` | attributable current valuation with freshness and reconciliation | PI-01 plus authoritative price source |",
+          )
+          replace_once(
+              backlog,
+              "The numeric order is the recommended software sequencing. PI-01, PI-03 and PI-04 are complete. No other PI package is active; PI-06 requires an explicit product IdP decision, while PI-02 requires authoritative price-source, currency-conversion and staleness decisions before declaration.",
+              "The numeric order is the recommended software sequencing. PI-01, PI-03 and PI-04 are complete. PI-02 is active with the exact pinned private Freqtrade runtime selected as the mark source; PI-06 still requires an explicit product IdP decision.",
+          )
+          replace_once(
+              backlog,
+              "### PI-02 — Authoritative Valuation and Unrealized PNL\n\nStatus: `planned`\n",
+              "### PI-02 — Authoritative Valuation and Unrealized PNL\n\nStatus: `active`\n\nImplementation evidence: task `FTAI-20260724-portal-pi02-authoritative-valuation`, draft PR #267.\n",
+          )
+          replace_once(
+              backlog,
+              "PI-02 may now be declared once its authoritative price, conversion and staleness policies are selected. Declare PI-05 after channel/provider and identity/destination ownership are clear.",
+              "PI-02 is active with private-runtime `mark-to-entry-v1`, exact-quote-only valuation and explicit stale, unavailable and unpriced states. Declare PI-05 only after channel/provider and identity/destination ownership are clear.",
+          )
+          replace_once(
+              backlog,
+              "There is no active software PI package. PI-01, PI-03 and PI-04 are durably complete. The next package must be selected and declared separately only after its authoritative external source and policy entry gates are explicitly resolved.\n\nPI-02 is dependency-ready from the runtime-position side but still requires explicit authoritative price, conversion and staleness decisions. PI-06 requires the product IdP, membership source and session/MFA policy. PI-05 requires a channel/provider decision, and PI-07 requires a secret-store/KMS decision before PI-08 can be considered.",
+              "The active software package is **PI-02 Authoritative Valuation and Unrealized PNL**. It uses the exact pinned private Freqtrade runtime as the mark source and remains bounded to exact-quote, unit-leverage `mark-to-entry-v1` valuation.\n\nPI-06 still requires the product IdP, membership source and session/MFA policy. PI-05 requires a channel/provider decision, and PI-07 requires a secret-store/KMS decision before PI-08 can be considered.",
+          )
+
+          program = "docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md"
+          replace_once(
+              program,
+              "The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-03 and PI-04 are complete. No other PI package is active; each remains planning-only until its authoritative external source and policy entry gates are explicitly resolved and a separate dated task is declared.",
+              "The remaining authoritative-source, private-runtime, identity, observability and provider integrations are canonically ordered in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-03 and PI-04 are complete; PI-02 is active with the exact pinned private Freqtrade runtime selected as its authoritative mark source.",
+          )
+          replace_once(
+              program,
+              "Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. PI-01, PI-03 and PI-04 are complete. PI-06 requires an explicit product IdP and membership/session policy decision; PI-02 requires authoritative price, conversion and staleness policy; PI-05 requires a provider/channel decision; PI-07 must precede PI-08. No planned package authorizes live capital.",
+              "Post-P12 continuation is governed by `POST_P12_INTEGRATION_BACKLOG.md`. PI-01, PI-03 and PI-04 are complete. PI-02 authoritative valuation is active; PI-06 requires an explicit product IdP and membership/session policy decision, PI-05 requires a provider/channel decision and PI-07 must precede PI-08. No package authorizes live capital.",
+          )
+          replace_once(
+              program,
+              "Next autonomous software action: select and declare one separate bounded PI package only after its authoritative external source and policy entry gates are explicitly resolved. Do not infer a provider, IdP, price source, secret store or execution authority from repository completion alone.",
+              "Next autonomous software action: complete PI-02 exact-runtime authoritative valuation with explicit stale, source-unavailable and unpriced states; do not broaden into currency-provider integration, execution or live capital.",
+          )
+
+          ui = "docs/ai_platform/portal/UI_DELIVERY_STATUS.md"
+          replace_once(
+              ui,
+              "`FTAI-20260724-portal-pi04-central-runtime-observability` adds a permission-gated, tenant-scoped private runtime-log query boundary, explicit source availability and retention metadata, correlation/trace linkage and OpenTelemetry Collector routing contracts. Runtime telemetry remains separate from append-only audit evidence, and API mode fails closed when the private target-environment source is not configured.\n",
+              "`FTAI-20260724-portal-pi04-central-runtime-observability` adds a permission-gated, tenant-scoped private runtime-log query boundary, explicit source availability and retention metadata, correlation/trace linkage and OpenTelemetry Collector routing contracts. Runtime telemetry remains separate from append-only audit evidence, and API mode fails closed when the private target-environment source is not configured.\n\n`FTAI-20260724-portal-pi02-authoritative-valuation` adds exact-runtime `mark-to-entry-v1` valuation with explicit `CURRENT`, `STALE`, `SOURCE_UNAVAILABLE` and `UNPRICED` states. Realized PNL remains separate closed-trade evidence and unsupported currency conversion or leverage never produces a numeric guess.\n",
+          )
+          replace_once(
+              ui,
+              "| PNL & Performance | `/performance` | integrated for realized performance | aggregate of persisted attributable TradeOutcome evidence; unrealized PNL remains unavailable without authoritative current-price/position valuation evidence |",
+              "| PNL & Performance | `/performance` | integrated for realized and bounded unrealized evidence | realized PNL from persisted closed trades plus tenant-scoped exact-runtime mark-to-entry valuation; stale, unavailable, cross-currency and leveraged positions remain explicitly non-current |",
+          )
+          replace_once(
+              ui,
+              "## Remaining hard boundaries\n",
+              "## PI-02 valuation semantics\n\nThe PNL & Performance page keeps closed-trade realized evidence separate from open-position valuation. Numeric unrealized PNL requires a current reconciled position, an exact source-position match, the pinned runtime's timestamped mark identity, unit leverage and quote currency equal to the bot capital currency. Missing, stale, cross-currency, leveraged or conflicting evidence produces `STALE`, `SOURCE_UNAVAILABLE` or `UNPRICED`, never a fallback number.\n\n## Remaining hard boundaries\n",
+          )
+          replace_once(
+              ui,
+              "| authoritative current valuation and unrealized PNL | `PI-02` Authoritative Valuation and Unrealized PNL |\n",
+              "",
+          )
+          replace_once(
+              ui,
+              "API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records.",
+              "API mode never fabricates PNL, valuation, position, order, trade, signal, log, drift, security or audit records.",
+          )
+
+          architecture = Path("docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md")
+          architecture_text = architecture.read_text(encoding="utf-8")
+          heading = "## PI-02 authoritative valuation boundary"
+          if heading not in architecture_text:
+              architecture_text += (
+                  "\n## PI-02 authoritative valuation boundary\n\n"
+                  "PI-02 selects the exact pinned private Freqtrade runtime as the mark source for each reconciled open position. "
+                  "The source is normalized server-side with source-position identity, pair and side, base and quote currency, entry rate, current mark, leverage, source-price identity and observation timestamp. "
+                  "The portal computes `mark-to-entry-v1` only for current synced unit-leverage positions whose quote currency equals the bot capital currency. "
+                  "Stale, unavailable, cross-currency, leveraged, missing or conflicting evidence produces an explicit non-current state and no numeric valuation. "
+                  "The browser receives no private runtime endpoint or authorization material, and realized PNL remains closed-trade evidence.\n"
+              )
+              architecture.write_text(architecture_text, encoding="utf-8")
+
+          task = "docs/agents/tasks/FTAI-20260724-portal-pi02-authoritative-valuation.md"
+          replace_once(task, "related_pr: null", "related_pr: 267")
+          replace_once(task, "updated_at: 2026-07-24T20:25:00+02:00", "updated_at: 2026-07-24T22:25:00+02:00")
+          replace_once(task, "head: 5afb797f389bd4eb90cf189804cba26d8249ba07", "head: e14a200514431010901f866a1277cd08917bdce9")
+          replace_once(task, "pr: null", "pr: 267")
+          replace_once(task, "status: active\ncontext_routes:", "status: validating\ncontext_routes:")
+          replace_once(
+              task,
+              "  - Final implementation and repository CI result.",
+              "  - Final required repository CI result on the documentation-synchronized candidate.",
+          )
+          replace_once(
+              task,
+              "first_failure:\n  marker: NOT_RUN\n  evidence: PI-02 implementation and validation have not run yet.",
+              "first_failure:\n  marker: RESOLVED\n  evidence: Full pytest initially found a duplicate test_runtime module basename; a valuation test-package marker resolved collection. Ruff then identified import/format findings and one C901 decision method, all fixed without changing valuation semantics.",
+          )
+          replace_once(
+              task,
+              "changed_paths:\n  - docs/agents/tasks/FTAI-20260724-portal-pi02-authoritative-valuation.md\nvalidation: []",
+              "changed_paths:\n  - ai_platform/portal/control_plane/api.py\n  - ai_platform/portal/valuation/__init__.py\n  - ai_platform/portal/valuation/runtime.py\n  - ai_platform/portal/web/app/performance/page.tsx\n  - ai_platform/portal/web/e2e/valuation.spec.ts\n  - ai_platform/portal/web/lib/valuation.ts\n  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md\n  - docs/agents/tasks/FTAI-20260724-portal-pi02-authoritative-valuation.md\n  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md\n  - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md\n  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md\n  - tests/ai_platform/portal/control_plane/test_api.py\n  - tests/ai_platform/portal/valuation/__init__.py\n  - tests/ai_platform/portal/valuation/test_runtime.py\n  - tests/ai_platform/portal/valuation/test_runtime_api.py\nvalidation:\n  - command: AI Platform CI 30123794369 / run 1129\n    result: PASS\n    evidence: Tests, compile, Ruff, formatter, codespell and contract validation passed on clean implementation head e14a200514431010901f866a1277cd08917bdce9."
+          )
+          replace_once(
+              task,
+              "next_action: Implement normalized mark provenance, deterministic valuation snapshots, tenant-scoped API/UI integration and focused tests, then run required CI.",
+              "next_action: Complete final required CI on the documentation-synchronized candidate, then mark PR 267 ready and merge only if the head remains unchanged and all required workflows pass.",
+          )
+          PY
+      - name: Commit documentation synchronization
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs
+          git diff --cached --check
+          git commit -m "docs(portal): synchronize PI-02 valuation state"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}

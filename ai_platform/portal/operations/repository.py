@@ -144,9 +144,7 @@ class OperationalRepository:
                 OperationalSourceStatusRow.kind,
             )
         ).all()
-        return tuple(
-            OperationalSourceStatus.model_validate_json(row.status_json) for row in rows
-        )
+        return tuple(OperationalSourceStatus.model_validate_json(row.status_json) for row in rows)
 
     def list_orders_for_runtime(
         self,

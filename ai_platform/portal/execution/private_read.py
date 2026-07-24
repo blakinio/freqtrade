@@ -415,9 +415,7 @@ class PrivateRuntimeCollector:
             bot_id=bot_id,
             source_runtime_id=source_runtime_id,
             observed_at=observed_at,
-            positions=PositionReadResult(
-                status=status(RuntimeReadKind.OPEN_POSITIONS), records=()
-            ),
+            positions=PositionReadResult(status=status(RuntimeReadKind.OPEN_POSITIONS), records=()),
             orders=OrderReadResult(status=status(RuntimeReadKind.ORDERS), records=()),
             trades=TradeReadResult(status=status(RuntimeReadKind.TRADES), records=()),
         )

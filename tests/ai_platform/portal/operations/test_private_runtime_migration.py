@@ -7,9 +7,7 @@ from sqlalchemy import inspect
 from ai_platform.portal.control_plane.database import build_engine, create_schema
 
 
-MIGRATION = Path(
-    "ai_platform/portal/operations/migrations/0002_private_runtime_reconciliation.sql"
-)
+MIGRATION = Path("ai_platform/portal/operations/migrations/0002_private_runtime_reconciliation.sql")
 
 
 def test_development_schema_includes_runtime_trade_and_source_status_tables() -> None:

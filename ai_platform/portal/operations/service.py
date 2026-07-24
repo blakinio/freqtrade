@@ -126,10 +126,7 @@ class OperationalReadService:
         self._validate_snapshot_scope(snapshot)
 
         with self._session_factory() as session, session.begin():
-            if (
-                self._bot_repository.get_bot(session, context.tenant_id, snapshot.bot_id)
-                is None
-            ):
+            if self._bot_repository.get_bot(session, context.tenant_id, snapshot.bot_id) is None:
                 raise OperationalReconciliationConflictError("bot does not exist in tenant scope")
 
             self._reconcile_positions(session, snapshot.positions)
@@ -306,9 +303,7 @@ class OperationalReadService:
             else:
                 self._repository.upsert_position(
                     session,
-                    position.model_copy(
-                        update=self._degraded_record_update(status)
-                    ),
+                    position.model_copy(update=self._degraded_record_update(status)),
                 )
 
     def _reconcile_orders(self, session: object, result: OrderReadResult) -> None:
@@ -491,9 +486,7 @@ class OperationalReadService:
 
     @staticmethod
     def _mirror_id(kind: RuntimeReadKind, runtime_id: str, source_id: str) -> str:
-        digest = hashlib.sha256(
-            f"{kind.value}\0{runtime_id}\0{source_id}".encode()
-        ).hexdigest()
+        digest = hashlib.sha256(f"{kind.value}\0{runtime_id}\0{source_id}".encode()).hexdigest()
         return f"{kind.value.lower()}:{digest[:32]}"
 
     @staticmethod

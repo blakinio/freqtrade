@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution
 status: active
-branch: feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure
+branch: develop
 base_branch: develop
 created: 2026-07-24
-updated: 2026-07-24
-related_pr: "248"
+updated: 2026-07-25
+related_pr: "269"
 owned_paths:
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md
   - docs/ai_platform/RL_V2_ROI_LIFECYCLE_PAIRED_ATTRIBUTION_EXECUTION.md
@@ -122,10 +122,10 @@ PR #248 adds:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T19:09:44+02:00
-head: 746d52d4473f6043a530f79e376215ca8257e946
+updated_at: 2026-07-25T00:23:00+02:00
+head: ee76c708091c00329b20f044e133072ecbc4ae6b
 branch: develop
-pr: 263
+pr: 269
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260724-rl-v2-historical-evidence-diagnosis.md
@@ -140,59 +140,61 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
   - .github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml
 proven:
-  - PR #218 produced immutable baseline artifact rl-v2-historical-training-execution-218 with digest sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55; baseline rerun remains forbidden.
-  - PR #240 implemented the sole semantic delta ignore_roi_if_entry_signal=True and merged as 09044f824ea102955147900f3d6d5e8f83929c0a.
-  - PR #246 declared the variant-only paired attribution task and merged as d26f2221107bb2c0a95753cb2d8ea4bacf3a65f9.
-  - PR #248 merged the seven-path inert infrastructure as 746d52d4473f6043a530f79e376215ca8257e946 with no canonical request or execution.
-  - Final PR #248 AI Platform CI 30106646592, Freqtrade CI 30106646728, zizmor 30106646266, Portal Web CI 30106646431, and Portal Universal E2E 30106646632 passed.
-  - The merged workflow accepts only an opened exact-one-file request PR, executes exactly one variant backtest, and contains zero baseline execution commands.
-  - Canonical text hashing normalizes checkout CRLF to LF while remaining sensitive to substantive content changes; Windows and Linux regression validation passed.
-  - The merged contract freezes baseline identity, model/config/strategy hashes, geometry, attribution, isolation, authorization, and baseline_executions=0.
-  - Merged code generated the canonical request in AI Platform CI run 30111506773; artifact digest is sha256:11cd3b2401045537c5dc02031f0510ceac472f24ec5b6175c4a7bbee5665f680.
-  - Temporary generator PR #262 changed only CI generation plumbing, performed no model or data execution, and closed without merge.
-  - Trigger PR #263 added exactly the canonical request file; its exact-one-file scope validation passed.
-  - Trigger run 30111679825 stopped at checkpoint validation before Python setup, request validation, cache restore, market-data access, training, or backtest.
-  - Data preparation and variant backtest jobs in run 30111679825 were skipped, so baseline executions remained zero and no OOS or holdout was accessed.
-  - Trigger PR #263 closed without merge after the safe pre-runtime failure.
-  - Current develop is exactly infrastructure merge 746d52d4473f6043a530f79e376215ca8257e946.
-  - Frozen thresholds remain 0.006/-0.009 and Phase 6 selected_model remains null.
+  - PR 248 merged the inert variant-only paired-attribution infrastructure as 746d52d4473f6043a530f79e376215ca8257e946 with all required CI green and zero execution.
+  - Immutable baseline artifact rl-v2-historical-training-execution-218 remains bound to run 30022863894 and digest sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55; baseline rerun remains forbidden.
+  - Trigger PR 265 added exactly the canonical request file and canonical request plus checkpoint validation passed in run 30112291721.
+  - Both BTC/USDT and ETH/USDT data jobs in run 30112291721 failed at pre-OOS coverage verification and the lifecycle variant backtest job was skipped.
+  - Baseline run 30022863894 data artifacts record first timestamp 2025-08-01T00:00:00Z and last timestamp exactly 2026-05-01T00:00:00Z for every declared pair and timeframe.
+  - The paired verifier rejected last_date greater than or equal to stopdt while the completed baseline verifier accepted that exact stored boundary representation.
+  - No baseline execution, variant backtest, consumed historical OOS access or protected final holdout access occurred in PR 265.
+  - PR 265 was closed without merge after terminal failure evidence was recorded.
+  - PR 269 accepts exactly the stored 2026-05-01T00:00:00Z boundary while continuing to reject any later timestamp.
+  - PR 269 adds a dependency-light exact-boundary regression and permits a present trigger request only when it equals the generated canonical payload.
+  - PR 269 changed no model, PPO, reward, feature, strategy, config, geometry, pair, timeframe, fee, threshold or evidence criterion.
+  - Temporary patch, formatter, diagnostic and checkpoint workflows were removed from the PR 269 candidate.
+  - AI Platform CI 1151, Freqtrade CI 1342 and zizmor 1272 passed on final PR 269 head bbf75230d292f1f95c540b61ab261cc2fdf54b73.
+  - PR 269 was squash-merged to develop as ee76c708091c00329b20f044e133072ecbc4ae6b.
+  - Two accidental placeholder-only commits created and immediately deleted the same noop file before PR 269; the resulting develop tree was restored before the repair branch was created.
 derived:
-  - The failed trigger was caused by stale durable state: the merged checkpoint still described PR #248 as awaiting final CI and exceeded the proven compactness limit of 16 items.
-  - The canonical request remains valid after this task-document-only checkpoint repair because the task path is not one of the request hash inputs.
-  - A fresh PR-opened event is required after checkpoint repair; rerunning or synchronizing closed PR #263 cannot authorize execution.
+  - The PR 265 failure was a timestamp-representation validation mismatch, not incomplete declared data coverage or model behavior evidence.
+  - A fresh pull-request-opened event is required after the merged repair; PR 265 cannot be rerun or merged as an execution switch.
 unknown:
-  - Whether verified pre-OOS caches are available and complete for both declared pairs and all three timeframes.
-  - Whether the one-shot lifecycle variant execution completes successfully.
+  - Whether a fresh exact-one-file trigger completes the lifecycle variant execution.
   - Whether the variant reduces both frozen primary lifecycle metrics.
 conflicts: []
 first_failure:
-  marker: pr263_checkpoint_validation_before_runtime
-  evidence: Run 30111679825 passed exact-one-file scope but failed tools/agents/checkpoint.py on the stale merged checkpoint; Python setup, data, cache, training, and backtest never ran.
+  marker: RESOLVED
+  evidence: PR 265 rejected the exact stored stop boundary before backtest; PR 269 aligned the verifier, added regression coverage and merged after terminal green CI.
 rejected_hypotheses:
-  - Rerun failed PR #263 without repairing the merged checkpoint.
-  - Add checkpoint changes to an exact-one-file trigger PR.
-  - Merge any trigger request into develop.
-  - Rerun baseline training or backtest.
-  - Use consumed historical OOS or protected final holdout.
-  - Change PPO, reward, features, thresholds, geometry, model, strategy, or config.
+  - Treat the PR 265 data failure as model or strategy evidence.
+  - Rerun or merge PR 265.
+  - Rerun the immutable baseline.
+  - Broaden the repair into PPO, reward, feature, strategy, pair, timeframe, fee, threshold or geometry changes.
+  - Access consumed historical OOS or the protected final holdout.
+  - Treat future paired development attribution as strict OOS, profitability, superiority or promotion evidence.
 changed_paths:
+  - ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py
+  - tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md
 validation:
-  - command: final standard CI on PR #248 head 329226dbcabac98e63a7e172810e9dc33b19d8d2
-    result: PASS
-    evidence: All required standard workflows reached terminal success before merge.
-  - command: compare develop with merge commit 746d52d4473f6043a530f79e376215ca8257e946
-    result: PASS
-    evidence: Compare was identical after PR #248 merged.
-  - command: generate canonical request with merged validator --print-canonical
-    result: PASS
-    evidence: AI Platform CI run 30111506773 uploaded canonical request artifact digest sha256:11cd3b2401045537c5dc02031f0510ceac472f24ec5b6175c4a7bbee5665f680.
-  - command: compare PR #263 trigger branch with develop
-    result: PASS
-    evidence: The branch was one commit ahead, zero behind, and added exactly the canonical request file.
-  - command: trigger run 30111679825 checkpoint validation
+  - command: AI Platform RL-v2 ROI Lifecycle Paired Attribution 30112291721
     result: FAIL
-    evidence: Exact-one-file scope passed, then the stale checkpoint failed before any runtime or data step.
+    evidence: Request validation passed; both data jobs failed at exact-stop coverage validation and the backtest was skipped.
+  - command: immutable baseline data artifact inspection
+    result: PASS
+    evidence: BTC and ETH coverage artifacts from run 30022863894 record complete declared coverage with the exact May 1 boundary timestamp and no later data.
+  - command: AI Platform CI 30129827779 / run 1151
+    result: PASS
+    evidence: AI tests, compile, Ruff, formatter, codespell and JSON validations passed on the clean repair candidate.
+  - command: Freqtrade CI 30129827803 / run 1342
+    result: PASS
+    evidence: Pre-commit and the full multi-platform core matrix, including coverage, smoke checks, Ruff, formatter and mypy, passed.
+  - command: GitHub Actions Security Analysis 30129827776 / run 1272
+    result: PASS
+    evidence: Required zizmor workflow security analysis passed on the clean repair candidate.
+  - command: squash merge PR 269
+    result: PASS
+    evidence: GitHub merged the reviewed repair head to develop as ee76c708091c00329b20f044e133072ecbc4ae6b.
 blockers: []
-next_action: Merge this task-document-only checkpoint repair, then open a fresh exact-one-file canonical request PR against the repaired develop and close it without merge after terminal paired-attribution evidence is collected.
+next_action: Generate the canonical request from repaired develop, open a fresh exact-one-file trigger PR, and close it without merge after terminal paired-attribution evidence is collected and recorded.
 ```

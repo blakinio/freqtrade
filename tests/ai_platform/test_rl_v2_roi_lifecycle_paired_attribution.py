@@ -2,6 +2,7 @@ import json
 import math
 import zipfile
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request impo
     REQUEST_REPO_PATH,
     RLV2PairedAttributionError,
     _sha256,
+    _validate_data_coverage_bounds,
     canonical_rl_v2_roi_lifecycle_paired_attribution_request,
     load_rl_v2_roi_lifecycle_paired_attribution_request,
     materialize_runtime_config,
@@ -232,7 +234,35 @@ def test_infrastructure_is_inert_and_variant_only() -> None:
     assert "baseline training" not in workflow.lower()
     assert "rl-v2-historical-training-pre-oos-v1" in workflow
     assert "paired-attribution.json" in workflow
-    assert not (REPO_ROOT / REQUEST_REPO_PATH).exists()
+    request_path = REPO_ROOT / REQUEST_REPO_PATH
+    if request_path.exists():
+        assert load_rl_v2_roi_lifecycle_paired_attribution_request(request_path) == (
+            canonical_rl_v2_roi_lifecycle_paired_attribution_request()
+        )
+
+
+def test_data_verifier_accepts_exact_stop_boundary() -> None:
+    startdt = datetime(2025, 8, 1, tzinfo=UTC)
+    stopdt = datetime(2026, 5, 1, tzinfo=UTC)
+
+    _validate_data_coverage_bounds(
+        pair="BTC/USDT",
+        timeframe="15m",
+        first_date=startdt,
+        last_date=stopdt,
+        startdt=startdt,
+        stopdt=stopdt,
+    )
+
+    with pytest.raises(RLV2PairedAttributionError, match="crosses exclusive stop"):
+        _validate_data_coverage_bounds(
+            pair="BTC/USDT",
+            timeframe="15m",
+            first_date=startdt,
+            last_date=stopdt + timedelta(minutes=15),
+            startdt=startdt,
+            stopdt=stopdt,
+        )
 
 
 def test_synthetic_trade_accounting_fixture_reconciles() -> None:

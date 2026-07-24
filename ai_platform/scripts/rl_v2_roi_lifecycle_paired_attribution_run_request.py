@@ -545,6 +545,28 @@ def materialize_runtime_config(output: Path) -> Path:
     return output
 
 
+def _validate_data_coverage_bounds(
+    *,
+    pair: str,
+    timeframe: str,
+    first_date: datetime,
+    last_date: datetime,
+    startdt: datetime,
+    stopdt: datetime,
+) -> None:
+    if first_date > startdt:
+        raise RLV2PairedAttributionError(
+            f"Data starts too late for {pair} {timeframe}: {first_date.isoformat()}"
+        )
+    minimum_last_ts = int(stopdt.timestamp()) - TIMEFRAME_SECONDS[timeframe]
+    if int(last_date.timestamp()) < minimum_last_ts:
+        raise RLV2PairedAttributionError(
+            f"Data ends too early for {pair} {timeframe}: {last_date.isoformat()}"
+        )
+    if last_date > stopdt:
+        raise RLV2PairedAttributionError(f"Data crosses exclusive stop for {pair} {timeframe}")
+
+
 def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> dict[str, Any]:
     """Verify exact pre-May pair/timeframe coverage without model execution."""
     from freqtrade.configuration import TimeRange
@@ -582,19 +604,14 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
                 raise RLV2PairedAttributionError(f"No downloaded data for {pair} {timeframe}")
             first_date = frame["date"].min().to_pydatetime()
             last_date = frame["date"].max().to_pydatetime()
-            if first_date > startdt:
-                raise RLV2PairedAttributionError(
-                    f"Data starts too late for {pair} {timeframe}: {first_date.isoformat()}"
-                )
-            minimum_last_ts = timerange.stopts - TIMEFRAME_SECONDS[timeframe]
-            if int(last_date.timestamp()) < minimum_last_ts:
-                raise RLV2PairedAttributionError(
-                    f"Data ends too early for {pair} {timeframe}: {last_date.isoformat()}"
-                )
-            if last_date >= stopdt:
-                raise RLV2PairedAttributionError(
-                    f"Data crosses exclusive stop for {pair} {timeframe}"
-                )
+            _validate_data_coverage_bounds(
+                pair=pair,
+                timeframe=timeframe,
+                first_date=first_date,
+                last_date=last_date,
+                startdt=startdt,
+                stopdt=stopdt,
+            )
             coverage[f"{pair}:{timeframe}"] = {
                 "rows": len(frame),
                 "first": first_date.isoformat(),

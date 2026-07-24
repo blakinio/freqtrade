@@ -34,10 +34,6 @@ jobs:
               "        request = urllib.request.Request(\n",
               "        request = urllib.request.Request(  # noqa: S310\n",
           )
-          text = text.replace(
-              "        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310\n",
-              "        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:\n",
-          )
           collector.write_text(text, encoding="utf-8")
 
           tests = Path("tests/ai_platform_integration/test_liquidation_binance_source.py")

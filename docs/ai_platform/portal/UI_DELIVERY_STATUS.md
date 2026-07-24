@@ -27,7 +27,9 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 `FTAI-20260723-portal-ui-completion` closed the presentation/read-model gaps that could be backed by the then-existing control-plane, intelligence and learning APIs.
 
-`FTAI-20260723-portal-operational-read-models` added a bounded tenant-scoped operational mirror for order/open-position evidence and exposed existing persisted trade-outcome, risk-decision and audit evidence through trusted read APIs. It did not implement the deliberately fail-closed `FreqtradeExecutionAdapter` order/position/trade query methods and did not expose private runtime endpoints.
+`FTAI-20260723-portal-operational-read-models` added a bounded tenant-scoped operational mirror for order/open-position evidence and exposed existing persisted trade-outcome, risk-decision and audit evidence through trusted read APIs. It did not expose private runtime endpoints.
+
+`FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.
 
 `FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
 
@@ -39,10 +41,10 @@ Remaining authoritative-source and external/private integration work is routed t
 |---|---|---|---|
 | Dashboard | `/` | integrated | bot/control-plane snapshot |
 | PNL & Performance | `/performance` | integrated for realized performance | aggregate of persisted attributable TradeOutcome evidence; unrealized PNL remains unavailable without authoritative current-price/position valuation evidence |
-| Open Positions | `/positions` | partially integrated | normalized portal operational mirror; direct Freqtrade position query remains fail-closed |
+| Open Positions | `/positions` | integrated for runtime evidence | private collector -> tenant/bot/runtime-scoped operational mirror; rows and empty states distinguish `CURRENT`, `STALE`, `PARTIAL` and `SOURCE_UNAVAILABLE` |
 | Trading Terminal | `/terminal` | integrated, execution still fail-closed | deterministic risk intent API |
-| Orders | `/orders` | partially integrated | normalized portal operational mirror; direct Freqtrade order query remains fail-closed |
-| Trade History | `/trades` | integrated | persisted TradeOutcome + DecisionSnapshot/TradeAnalysis attribution |
+| Orders | `/orders` | integrated for runtime evidence | private collector -> operational mirror with source identity, freshness and reconciliation; unattributed runtime orders are `MISMATCH` |
+| Trade History | `/trades` | integrated for runtime evidence | canonical runtime trade mirror with source timestamps, realized fields when present and explicit mismatch/unavailable semantics; no fabricated current price |
 | View Bots | `/bots` | integrated | control-plane bot API |
 | Bot Detail | `/bots/detail/[botId]` | integrated | control-plane bot API |
 | Create Bot | `/bots/new` | integrated for dry-run | same-origin BFF -> control plane |
@@ -65,13 +67,24 @@ Remaining authoritative-source and external/private integration work is routed t
 | Profile & Security | `/platform/profile` | partially integrated | trusted actor/tenant/permission context; MFA credentials and session revocation remain external-IdP-owned |
 | Administration | `/platform/admin` | partially integrated | `ADMIN_MANAGE`-gated built-in RBAC overview; tenant membership lifecycle remains external-IdP-owned |
 
+## PI-01 freshness and reconciliation semantics
+
+The Open Positions, Orders and Trade History pages read one canonical `/v1/runtime-evidence` snapshot in API mode.
+
+- `CURRENT` + `SYNCED` means the private source returned a complete authoritative batch inside the freshness bound.
+- `STALE` means preserved evidence exists but is not represented as current.
+- `PARTIAL` means pagination or record validation was incomplete; the UI does not convert it to a confirmed empty result.
+- `SOURCE_UNAVAILABLE` means no authoritative source batch was available.
+- `MISMATCH` means source identities or expected attribution/outcome fields conflict with mirror evidence.
+
+Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.
+
 ## Remaining hard boundaries
 
 The remaining partial states are not presentation shells. They depend on authoritative sources or separately reviewed private integrations that do not currently exist in this repository:
 
 | Boundary | Canonical package/stage |
 |---|---|
-| private positions/orders/trades source and reconciliation | `PI-01` Private Runtime Read and Reconciliation |
 | authoritative current valuation and unrealized PNL | `PI-02` Authoritative Valuation and Unrealized PNL |
 | canonical model/feature/prediction drift evidence | `PI-03` Canonical Inference and Drift Telemetry |
 | centralized raw runtime logs/traces/metrics | `PI-04` Centralized Runtime Observability |
@@ -87,7 +100,7 @@ P13 remains deferred until measured need. P14 remains blocked and separately own
 
 API mode never fabricates PNL, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise.
 
-The normalized operational mirror is an ingestion/read boundary, not a shortcut around the execution adapter. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` remain fail-closed until PI-01 is separately declared, implemented and accepted.
+The normalized operational mirror is the only portal-facing runtime evidence boundary. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` use the private collector but return records only for complete, current and synced reads; stale, partial, unavailable and mismatched evidence fails closed or remains explicitly degraded in the mirror.
 
 Signal evidence is advisory and cannot create execution authority. Grid configuration is constrained to `dry_run`. Browser code still has no direct Freqtrade, exchange or secret-store path.
 

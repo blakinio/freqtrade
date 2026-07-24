@@ -76,7 +76,9 @@ jobs:
 
       - name: Install project and targeted test dependencies
         shell: pwsh
-        run: python -m pip install --disable-pip-version-check --quiet -e . pytest pytest-xdist
+        run: >-
+          python -m pip install --disable-pip-version-check --quiet -e .
+          pytest pytest-xdist pytest-mock pytest-asyncio
 
       - name: Capture targeted test output
         shell: pwsh

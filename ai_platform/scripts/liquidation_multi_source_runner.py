@@ -48,10 +48,7 @@ def _non_negative_int(value: str) -> int:
 
 
 def _validate_profile_scope(profile: SymbolProfile, *, allow_broad_universe: bool) -> None:
-    if (
-        len(profile.symbols) > profile.broad_universe_review_threshold
-        and not allow_broad_universe
-    ):
+    if len(profile.symbols) > profile.broad_universe_review_threshold and not allow_broad_universe:
         raise ValueError(
             "profile exceeds broad_universe_review_threshold; "
             "pass --allow-broad-universe after a separate capacity review"

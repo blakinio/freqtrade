@@ -1,0 +1,161 @@
+{
+  "boundaries": {
+    "consumed_historical_oos": "20260501-20260630",
+    "frozen_entry_threshold": 0.006,
+    "frozen_exit_threshold": -0.009,
+    "new_backtest_executed": false,
+    "new_market_data_accessed": false,
+    "new_training_executed": false,
+    "phase6_selected_model": null,
+    "promotion_authorized": false,
+    "protected_final_holdout": "20260801-20260930",
+    "ranking_performed": false,
+    "retuning_performed": false
+  },
+  "by_exit_reason": {
+    "force_exit": {
+      "fees_usdt": 0.799189,
+      "gross_positive_trades": 0,
+      "gross_price_pnl_usdt": -0.404999,
+      "median_duration_minutes": 375.0,
+      "net_profit_usdt": -1.204188,
+      "net_wins": 0,
+      "trades": 2
+    },
+    "freqai_rl_v2_target_flat": {
+      "fees_usdt": 15.482153,
+      "gross_positive_trades": 2,
+      "gross_price_pnl_usdt": -58.907848,
+      "median_duration_minutes": 225.0,
+      "net_profit_usdt": -74.390001,
+      "net_wins": 1,
+      "trades": 39
+    },
+    "roi": {
+      "fees_usdt": 49.072122,
+      "gross_positive_trades": 122,
+      "gross_price_pnl_usdt": 136.102404,
+      "median_duration_minutes": 720.0,
+      "net_profit_usdt": 87.030282,
+      "net_wins": 88,
+      "trades": 122
+    },
+    "stop_loss": {
+      "fees_usdt": 4.290001,
+      "gross_positive_trades": 0,
+      "gross_price_pnl_usdt": -54.998259,
+      "median_duration_minutes": 1380.0,
+      "net_profit_usdt": -59.288261,
+      "net_wins": 0,
+      "trades": 11
+    }
+  },
+  "by_month": {
+    "2026-03": {
+      "fees_usdt": 38.404985,
+      "gross_price_pnl_usdt": 2.523445,
+      "net_profit_usdt": -35.88154,
+      "net_wins": 45,
+      "trades": 96
+    },
+    "2026-04": {
+      "fees_usdt": 30.43929,
+      "gross_price_pnl_usdt": 19.672851,
+      "net_profit_usdt": -10.766439,
+      "net_wins": 44,
+      "trades": 76
+    },
+    "2026-05": {
+      "fees_usdt": 0.799189,
+      "gross_price_pnl_usdt": -0.404999,
+      "net_profit_usdt": -1.204188,
+      "net_wins": 0,
+      "trades": 2
+    }
+  },
+  "by_pair": {
+    "BTC/USDT": {
+      "fees_usdt": 37.218091,
+      "gross_positive_trades": 62,
+      "gross_price_pnl_usdt": 9.102588,
+      "median_duration_minutes": 720.0,
+      "net_profit_usdt": -28.115502,
+      "net_win_rate": 0.451613,
+      "net_wins": 42,
+      "trades": 93
+    },
+    "ETH/USDT": {
+      "fees_usdt": 32.425374,
+      "gross_positive_trades": 62,
+      "gross_price_pnl_usdt": 12.688709,
+      "median_duration_minutes": 720.0,
+      "net_profit_usdt": -19.736665,
+      "net_win_rate": 0.580247,
+      "net_wins": 47,
+      "trades": 81
+    }
+  },
+  "churn": {
+    "all_reentry_gap_median_minutes": 15.0,
+    "fees_at_immediate_external_exit_reentry_boundaries_usdt": 52.582123,
+    "immediate_external_exit_reentry_boundaries": 131,
+    "roi_exits_followed_by_15m_reentry": 122,
+    "stop_loss_exits_followed_by_15m_reentry": 9,
+    "target_flat_exits_followed_by_15m_reentry": 8
+  },
+  "diagnosis_id": "rl-v2-historical-evidence-diagnosis-v1",
+  "next_bounded_hypothesis": {
+    "authorized_by_this_diagnosis": false,
+    "id": "rl-v2-roi-lifecycle-alignment-single-variable",
+    "requires_new_task": true,
+    "statement": "Prospectively test one lifecycle-only change that prevents inherited ROI profit-taking from closing a position while the frozen policy still requests target_long, while preserving the hard stop-loss and every frozen PPO, reward, feature, fee, pair and threshold input."
+  },
+  "overall": {
+    "average_roundtrip_fee_usdt": 0.40025,
+    "fee_drag_on_starting_balance": 0.00696435,
+    "fees_usdt": 69.643465,
+    "gross_positive_but_net_negative_trades": 35,
+    "gross_positive_trades": 124,
+    "gross_price_pnl_usdt": 21.791297,
+    "gross_return_on_starting_balance": 0.00217913,
+    "median_duration_minutes": 720.0,
+    "net_positive_trades": 89,
+    "net_profit_usdt": -47.852168,
+    "net_return_on_starting_balance": -0.00478522,
+    "trades": 174
+  },
+  "primary_diagnosis": {
+    "confidence": "high",
+    "evidence": [
+      "122 ROI exits were each followed by a new entry in the same pair exactly one 15-minute candle later.",
+      "All 122 ROI exits had positive gross price PnL, but 34 became net losses after the 0.2% open plus 0.2% close fees.",
+      "ROI plus stop-loss exits produced 131 immediate 15-minute exit/re-entry boundaries with 52.582123 USDT of close-plus-reopen fees.",
+      "The inherited minimal ROI schedule reaches zero after 720 minutes, so it can close a positive-price trade while the policy still requests target_long."
+    ],
+    "interpretation": "The strongest observed failure mechanism is lifecycle churn at the strategy-policy boundary, not proof that PPO lacks directional information. This is diagnostic evidence only and does not establish that disabling ROI would improve future performance.",
+    "mechanism": "desired_position_lifecycle_conflicts_with_inherited_external_roi_exit"
+  },
+  "schema_version": 1,
+  "secondary_observation": {
+    "evidence": [
+      "39 target_flat exits produced -58.907848 USDT gross price PnL and -74.390001 USDT net PnL.",
+      "38 of 39 target_flat exits were net losses and median holding duration was 225 minutes."
+    ],
+    "interpretation": "Exit-policy quality remains a separate concern, but it should not be tuned in the same experiment as lifecycle alignment.",
+    "mechanism": "target_flat_exits_are_loss_concentrated"
+  },
+  "source": {
+    "artifact_digest": "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55",
+    "artifact_name": "rl-v2-historical-training-execution-218",
+    "classification": "historical_development_evidence",
+    "consumed_historical_oos_accessed": false,
+    "execution_head_sha": "36f175477c848ae2ecfc92dbd335d7573af4933d",
+    "protected_final_holdout_accessed": false,
+    "protected_final_validation": false,
+    "semantic_evidence_window": "20260301-20260430",
+    "strict_oos": false,
+    "trigger_pr": 218,
+    "workflow_run_id": 30022863894
+  },
+  "status": "complete"
+}

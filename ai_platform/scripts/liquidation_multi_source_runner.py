@@ -23,6 +23,8 @@ from ai_platform.scripts.liquidation_binance_collector import (
     DEFAULT_BINANCE_TIME_URL,
     collect_binance_liquidations,
     probe_binance_clock,
+)
+from ai_platform.scripts.liquidation_binance_collector import (
     trading_credentials_present as binance_credentials_present,
 )
 from ai_platform.scripts.liquidation_collector import (

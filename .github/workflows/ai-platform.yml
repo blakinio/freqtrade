@@ -7,6 +7,7 @@ on:
       - "ai_platform/**"
       - "docs/ai_platform/**"
       - "tests/ai_platform/**"
+      - "docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md"
       - ".github/workflows/ai-platform.yml"
   push:
     branches:
@@ -34,6 +35,12 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+
+      - name: Validate repaired RL-v2 checkpoint
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md
+          --require-checkpoint
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0

@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
-      EXPECTED_PARENT: fd4c57c079c0473c3ff5be6a1a26e6581cd4aa8a
+      EXPECTED_PARENT: b95a3cbbe9f4bfb1e702591d3ff674a96c534eeb
       REPAIR_WORKFLOW: .github/workflows/ai-platform-rl-v2-precommit-repair.yml
       TARGET_FILE: ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py
 
@@ -50,21 +50,26 @@ jobs:
 
           path = Path(os.environ["TARGET_FILE"])
           text = path.read_text(encoding="utf-8")
-          old = """    if isinstance(value, list):
-              keys: set[str] = set()
-              for child in value:
-                  keys.update(_collect_keys(child))
-              return keys
-          """
-          new = """    if isinstance(value, list):
-              list_keys: set[str] = set()
-              for child in value:
-                  list_keys.update(_collect_keys(child))
-              return list_keys
-          """
-          if text.count(old) != 1:
-              raise SystemExit("Expected exactly one bounded _collect_keys list branch")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          marker = "    if isinstance(value, list):\n"
+          prefix, separator, suffix = text.partition(marker)
+          if not separator or marker in suffix:
+              raise SystemExit("Expected exactly one _collect_keys list branch marker")
+          old = (
+              "        keys: set[str] = set()\n"
+              "        for child in value:\n"
+              "            keys.update(_collect_keys(child))\n"
+              "        return keys\n"
+          )
+          new = (
+              "        list_keys: set[str] = set()\n"
+              "        for child in value:\n"
+              "            list_keys.update(_collect_keys(child))\n"
+              "        return list_keys\n"
+          )
+          if suffix.count(old) != 1:
+              raise SystemExit("Expected exactly one bounded list accumulator fragment")
+          repaired = prefix + separator + suffix.replace(old, new, 1)
+          path.write_text(repaired, encoding="utf-8")
           PY
           rm "$REPAIR_WORKFLOW"
 

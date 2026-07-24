@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260724-portal-post-p12-integration-backlog
-status: active
+status: done
 branch: docs/portal-post-p12-integration-backlog-20260724
 base_branch: develop
 created: 2026-07-24
@@ -64,11 +64,11 @@ Create one canonical, dependency-ordered backlog for the remaining hard external
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T07:20:00+02:00
-head: af572497ac9578060c725f822b9024bfc927d764
+updated_at: 2026-07-24T07:30:00+02:00
+head: b17a3bc7637590cf6dbb6d211b345fa501855d74
 branch: docs/portal-post-p12-integration-backlog-20260724
 pr: "#233"
-status: active
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/DELIVERY_ROADMAP.md
@@ -86,6 +86,9 @@ proven:
   - UI delivery boundaries map to exactly one PI package or the existing P11 gate.
   - ADR-016 preserves P0-P14 semantics and separates runtime reads, credential brokering and approved-intent submission.
   - Delivery roadmap, portal index, program record and agent execution plan route future work to the same backlog.
+  - AI Platform CI run 30069018717 passed on the final content head.
+  - Freqtrade CI run 30069018719 passed scope classification, pre-commit and documentation build; runtime matrices were correctly skipped for docs-only changes.
+  - zizmor run 30069018757 passed on the final content head.
 derived:
   - PI-01 Private Runtime Read and Reconciliation is the lowest-risk next software package and a prerequisite for valuation and reconciled dry-run submission.
   - PI-03, PI-04 and PI-06 may proceed in parallel only after ownership and shared-contract checks.
@@ -93,7 +96,7 @@ unknown: []
 conflicts: []
 first_failure:
   marker: none
-  evidence: No documentation or repository validation failure has been observed yet.
+  evidence: No documentation or repository validation failure was observed.
 changed_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260724-portal-post-p12-integration-backlog.md
@@ -103,7 +106,13 @@ changed_paths:
   - docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md
   - docs/ai_platform/portal/README.md
   - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
-validation: []
+validation:
+  - command: AI Platform CI 30069018717
+    result: PASS
+  - command: Freqtrade CI 30069018719
+    result: PASS
+  - command: GitHub Actions Security Analysis with zizmor 30069018757
+    result: PASS
 blockers: []
-next_action: Require standard repository CI to pass on PR #233, then mark the task done and merge the documentation backlog into develop.
+next_action: Merge PR #233 into develop, then use PI-01 as the next separately declared software package unless the owner intentionally starts the existing P11 external infrastructure gate first.
 ```

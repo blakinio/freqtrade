@@ -122,8 +122,8 @@ PR #248 adds:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-24T16:20:00+02:00
-head: ee35fc596d4fd6b45b41804bdab9981918d6f41f
+updated_at: 2026-07-24T17:00:29+02:00
+head: 383ca937086955d5b096f8f3d138c9b8992f9f25
 branch: feat/rl-v2-roi-lifecycle-paired-attribution-infrastructure
 pr: 248
 status: validating
@@ -148,27 +148,31 @@ proven:
   - Contract v1 freezes baseline identity, variant/model/config hashes, geometry, attribution definitions, isolation, authorization, and zero baseline executions.
   - The workflow remains inert until a future exact-one-file trigger and contains exactly one variant backtesting command with no baseline execution command.
   - Guarded Ruff repair produced ce492702825b4fa68347a675768a4fda6b07d3dc after exact Ruff 0.15.21 check and format passed.
-  - Current develop c00a091c5adc67cf75c46db5805e358ffc72fad7 is an ancestor of integrated head ee35fc596d4fd6b45b41804bdab9981918d6f41f.
+  - Pre-commit diagnostic run 30102235674 identified one actual infrastructure failure: mypy no-redef in _collect_keys at run-request line 150; all non-temporary repository hooks otherwise passed.
+  - Guarded repair run 30102941491 renamed only the list accumulator keys to list_keys, passed full pre-commit across the repository, verified the bounded staged scope, pushed a6cc5167d318003750958f695afd99a8fffe9cf6, and self-removed the temporary repair workflow.
+  - The diagnostic and repair workflows are absent from the repaired branch and the net PR compare contains only the seven owned infrastructure paths.
+  - Current develop ee6c8c36272e5b565515692ddb1c834c4ff6a88c is an ancestor of integrated head 383ca937086955d5b096f8f3d138c9b8992f9f25.
   - Compare current develop to integrated head reports behind_by=0 and exactly the seven owned infrastructure paths.
   - No current open PR other than #248 overlaps RL-v2 execution, lifecycle attribution, model, strategy, config, or experimental-research ownership.
-  - AI Platform CI run 30100229104 passed compile, project tests, Ruff, Ruff format, codespell, and JSON validation on integrated head ee35fc596d4fd6b45b41804bdab9981918d6f41f.
-  - Standard workflows now create jobs instead of concluding action_required with zero jobs.
-  - No canonical request, training, backtest, cache restore, market-data access, consumed OOS access, or protected final-holdout access occurred during integration.
+  - Standard workflows create normal runs and jobs rather than action_required runs with zero jobs.
+  - No canonical request, training, backtest, cache restore, market-data access, consumed OOS access, or protected final-holdout access occurred during diagnosis, repair, or integration.
   - Frozen thresholds remain 0.006/-0.009 and Phase 6 selected_model remains null.
 derived:
-  - The original action_required and behind-develop blockers are resolved.
-  - The current-develop integration preserved the seven-path infrastructure scope and frozen semantics.
+  - The original action_required, behind-develop, Ruff, and pre-commit mypy blockers are resolved.
+  - The current-develop integration preserves the seven-path infrastructure scope and frozen semantics.
+  - The keys-to-list_keys change is local name disambiguation only and does not change recursive key collection behavior.
   - No variant trigger may be created until the infrastructure PR is fully validated and merged.
 unknown:
-  - Whether all remaining standard CI jobs pass on the owner-authored checkpoint head.
+  - Whether all standard CI jobs pass on the owner-authored checkpoint head after the final develop integration.
   - Whether the later one-shot variant run reduces both frozen primary lifecycle metrics.
 conflicts: []
 first_failure:
-  marker: pr248_final_standard_ci_pending
-  evidence: AI Platform CI passed on the integrated head, while Freqtrade CI and zizmor had not yet reached terminal success before the owner-authored checkpoint commit.
+  marker: pr248_final_standard_ci_pending_after_mypy_repair
+  evidence: Full pre-commit passed in guarded repair run 30102941491 and current develop is integrated, but standard PR CI has not yet reached terminal green on the owner-authored checkpoint head.
 rejected_hypotheses:
   - Merge PR #248 without terminal green standard CI.
   - Treat the earlier action_required state as a code or test failure.
+  - Treat EOF, line-ending, Ruff, codespell, generated-output, or zizmor checks as the source of the original pre-commit failure.
   - Add the canonical run request before infrastructure merge.
   - Rerun baseline training or backtest.
   - Combine lifecycle alignment with any other tuning.
@@ -184,15 +188,18 @@ changed_paths:
   - tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
   - .github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml
 validation:
+  - command: pre-commit run --all-files --show-diff-on-failure --verbose
+    result: PASS
+    evidence: Guarded repair run 30102941491 passed every configured hook after the bounded keys-to-list_keys repair and before committing.
   - command: compare current develop with integrated PR #248 head
     result: PASS
-    evidence: develop c00a091c5adc67cf75c46db5805e358ffc72fad7 is the merge base, branch behind_by=0, and the compare contains exactly seven owned paths.
-  - command: PR #248 AI Platform CI run 30100229104
+    evidence: develop ee6c8c36272e5b565515692ddb1c834c4ff6a88c is the merge base, branch behind_by=0, and the compare contains exactly seven owned paths.
+  - command: verify repaired _collect_keys branch
     result: PASS
-    evidence: Compile, project tests, Ruff, Ruff format, codespell, and JSON validation completed successfully on ee35fc596d4fd6b45b41804bdab9981918d6f41f.
-  - command: standard PR workflow creation after owner integration
+    evidence: Repaired head uses list_keys only inside the list branch while preserving dict-branch keys and identical recursive behavior.
+  - command: verify temporary diagnostic and repair workflow removal
     result: PASS
-    evidence: AI Platform CI, Freqtrade CI, and zizmor created normal runs and jobs rather than action_required runs with zero jobs.
+    evidence: Both temporary workflow paths are absent from the repaired and integrated branch.
 blockers:
   - Full standard CI on the owner-authored checkpoint head is not yet terminal green.
 next_action: Validate the checkpoint and full standard CI on the new checkpoint head; if every required check is green and the compare still contains exactly the seven owned infrastructure paths, merge PR #248 without adding a run request or executing any model or data path; otherwise repair only the first bounded infrastructure failure.

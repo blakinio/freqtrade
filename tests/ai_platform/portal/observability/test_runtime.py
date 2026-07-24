@@ -59,9 +59,7 @@ def _status(
         availability=availability,
         checked_at=_NOW,
         reason_code=(
-            "SOURCE_READY"
-            if availability is RuntimeObservabilityAvailability.AVAILABLE
-            else "DOWN"
+            "SOURCE_READY" if availability is RuntimeObservabilityAvailability.AVAILABLE else "DOWN"
         ),
         log_retention_days=14,
         trace_retention_days=7,

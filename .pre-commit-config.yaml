@@ -65,7 +65,6 @@ repos:
     rev: v2.4.2
     hooks:
     - id: codespell
-      exclude: ^docs/agents/prompts/FTAI-20260725-portal-liquidations-integration-agent-prompt\.md$
       additional_dependencies:
         - tomli
 

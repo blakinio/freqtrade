@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260725-rl-v2-lifecycle-seed-robustness-declaration
-status: active
-branch: docs/rl-v2-lifecycle-seed-robustness-declaration
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
@@ -62,11 +62,11 @@ It does not implement or authorize execution infrastructure.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T10:19:18+02:00
-head: a9297e625c1159d02535dd3ff0c121293471da03
-branch: docs/rl-v2-lifecycle-seed-robustness-declaration
+updated_at: 2026-07-25T10:25:00+02:00
+head: d943a670068484fc6391e17833c20c8abc757ede
+branch: develop
 pr: 278
-status: validating
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-paired-attribution-interpretation.md
   - docs/ai_platform/RL_V2_PAIRED_ATTRIBUTION_INTERPRETATION.md
@@ -76,24 +76,25 @@ owned_paths:
   - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_DECLARATION.md
   - ai_platform/experimental_model_research/rl-v2-lifecycle-seed-robustness-declaration-v1.json
 proven:
-  - Develop head 9bf961c5adec1d4bbfccaa9316cfddbd7e3d4c5c contains the completed paired-attribution execution, interpretation and canonical closure records.
-  - Anchor seed 42 produced 45 non-degenerate trades across both declared pairs and met both frozen mechanism criteria.
-  - Anchor artifact digest deterministically yields four additional signed-31-bit seed values without outcome-based selection.
-  - Model code passes model_training_parameters.seed into both PPO/runtime parameters and the environment while data_split_parameters.random_state remains independently configurable.
-  - Parallel stale closure PR 277 was closed without merge after canonical closure PR 276 merged.
-  - PR 278 changes only the seed declaration task, human-readable declaration and machine-readable record; no workflow, model, strategy, config or request file changed.
+  - PR 278 froze one immutable anchor seed and four outcome-independent derived seeds without adding execution infrastructure.
+  - Anchor seed 42 remains bound to run 30131273189 and artifact digest sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04 and must not be rerun.
+  - Derived seeds are 300538280, 1710810709, 1950377252 and 1146911492 using the declared digest-word modulo rule.
+  - Only freqai.model_training_parameters.seed may differ behaviorally; data-split random_state and all other model, strategy, PPO, reward, feature, threshold, market and geometry inputs remain frozen.
+  - Per-seed validity, original directional, strong-reduction and deterministic supported/not-supported/inconclusive rules were declared before additional results exist.
+  - The declaration preserves paired historical-development classification, strict_oos=false, protected_final_validation=false, profitability non-gating and Phase 6 selected_model=null.
+  - Parallel stale closure PR 277 was closed without merge after canonical interpretation closure PR 276 merged.
+  - AI Platform CI 1160, Freqtrade CI 1358 and zizmor 1288 passed on final PR 278 head b9334068bb8d840d3838f398fb8b8b0190a6c7ea.
+  - PR 278 was squash-merged to develop as d943a670068484fc6391e17833c20c8abc757ede.
 derived:
-  - Reusing seed 42 and executing only four new seeds minimizes duplicate compute while preserving a five-seed evidence set.
-  - Seed robustness can evaluate path-level mechanism consistency but cannot create strict-OOS or profitability evidence on reused data.
-unknown:
-  - Whether all four additional seeds complete valid non-degenerate executions.
-  - Whether the lifecycle mechanism reductions remain consistent under the prospectively frozen seed set.
+  - A later valid five-seed evidence set requires only four new executions because seed 42 is an immutable anchor.
+  - Seed consistency on reused data can assess stochastic mechanism robustness but cannot create strict-OOS, profitability, statistical-proof, ranking or promotion evidence.
+unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: Declaration is inert and requires no execution, data or cache access.
+  evidence: Declaration completed as an inert documentation and machine-readable contract package with all required CI green.
 rejected_hypotheses:
-  - Select seeds manually after observing results.
+  - Select or replace seeds after observing outcomes.
   - Rerun seed 42 or the immutable baseline.
   - Change data-split random_state together with the PPO seed.
   - Gate on net PnL, profit factor, drawdown, p-value or positive returns.
@@ -106,13 +107,19 @@ changed_paths:
 validation:
   - command: deterministic seed derivation from immutable anchor digest
     result: PASS
-    evidence: First four digest words map to 300538280, 1710810709, 1950377252 and 1146911492 modulo 2147483647; all are non-zero, distinct and different from anchor seed 42.
-  - command: current runtime seed-binding inspection
+    evidence: First four digest words map to the four declared non-zero, distinct signed-31-bit seeds and none equals anchor seed 42.
+  - command: AI Platform CI 30150922580 / run 1160
     result: PASS
-    evidence: Base config freezes model seed 42 and data-split random_state 42 separately; model pack_env_dict forwards model_training_parameters.seed to the environment.
-  - command: compare develop to PR 278 declaration head
+    evidence: AI platform tests, compile, lint, formatting, spelling and JSON validation passed.
+  - command: Freqtrade CI 30150922591 / run 1358
     result: PASS
-    evidence: Three declaration-only files changed with zero divergence from develop before the checkpoint commit.
+    evidence: Pre-commit, scope classification, documentation syntax, documentation build and CI gate passed.
+  - command: GitHub Actions Security Analysis 30150922583 / run 1288
+    result: PASS
+    evidence: Required zizmor workflow security analysis passed.
+  - command: squash merge PR 278
+    result: PASS
+    evidence: GitHub merged final declaration head b9334068bb8d840d3838f398fb8b8b0190a6c7ea to develop as d943a670068484fc6391e17833c20c8abc757ede.
 blockers: []
-next_action: Merge PR 278 only after checkpoint, JSON, documentation and repository CI pass, then close the declaration task in a separate one-file checkpoint PR.
+next_action: Do not reopen this completed declaration task; declare a separate inert seed-robustness infrastructure task only if it implements the frozen seeds, validity and decision rules exactly, performs no model or data execution during review, reruns neither seed 42 nor the baseline, and preserves all OOS, holdout, Phase 6 and no-promotion boundaries.
 ```

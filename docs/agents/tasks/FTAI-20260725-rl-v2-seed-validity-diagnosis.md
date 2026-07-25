@@ -43,11 +43,11 @@ The immutable archives contain no per-candle action, prediction or model-state t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:16:00+02:00
-head: c56edc5fc16ce44ef8ddc50097015d257e5b8aef
+updated_at: 2026-07-25T23:22:00+02:00
+head: 7ec4ebb282f3ea776202b4029a83970a21fc0532
 branch: docs/rl-v2-seed-validity-diagnosis-results
 pr: 299
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS_DECLARATION.md
@@ -116,9 +116,18 @@ validation:
   - command: python -m json.tool ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json
     result: PASS
     evidence: The machine-readable diagnosis is valid JSON and preserves the frozen decision and isolation flags.
+  - command: AI Platform CI 30175303408 / run 1233
+    result: PASS
+    evidence: Compile, AI platform tests, Ruff, Ruff format, codespell and JSON validation passed on the diagnosis result head.
+  - command: Freqtrade CI 30175303434 / run 1457
+    result: PASS
+    evidence: Scope, pre-commit, documentation syntax, documentation build and CI gate passed on the diagnosis result head.
+  - command: GitHub Actions Security Analysis 30175303403 / run 1380
+    result: PASS
+    evidence: Required zizmor workflow-security analysis passed on the diagnosis result head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md --require-checkpoint
     result: NOT_RUN
-    evidence: Repository CI must validate the result checkpoint after the three-file PR is opened.
+    evidence: Final exact-content validation is required in a checkpoint-only diagnostic PR before merge.
 blockers: []
-next_action: Open and validate the exact three-file diagnosis result PR; merge it only after AI Platform CI, Freqtrade CI, zizmor and final checkpoint validation pass, then close this task with decision=inconclusive unchanged and require a separate prospective declaration before any action-level instrumentation or further experiment.
+next_action: Merge PR 299 only after final exact-content checkpoint validation passes; then close this task with decision=inconclusive unchanged and require a separate prospective declaration before any action-level instrumentation or further experiment.
 ```

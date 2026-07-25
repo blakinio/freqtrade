@@ -61,7 +61,11 @@ ai_platform/portal/
 
 Implementation work must continue to follow the frozen architecture and safety boundaries rather than treating a merged foundation slice as completion of an entire roadmap stage.
 
-After the bounded P0-P12 software platform and software-addressable portal surfaces, remaining authoritative-source, private-runtime, identity, observability and external-infrastructure work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Listing a package there does not activate implementation or authorize live capital.
+After the bounded P0-P12 software platform and software-addressable portal surfaces, use `NEXT_WORK_AND_REPAIR_PLAN.md` to select the next bounded task. Detailed hard private/external integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`; listing a package there does not activate implementation or authorize live capital.
+
+## Current continuation snapshot
+
+PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side acceptance. The recommended next autonomous product package is Bot Operations convergence over existing canonical reads plus the existing immutable-revision and desired-state control-plane endpoints. PI-05 through PI-08 remain separately planned and gated; P11 is blocked on real external infrastructure, P13 is deferred and P14 remains blocked.
 
 ## Documentation map
 
@@ -72,9 +76,10 @@ After the bounded P0-P12 software platform and software-addressable portal surfa
 - `QUALITY_AND_AUTONOMOUS_E2E.md` — full-platform testing, user simulation and bounded agent-assisted repair.
 - `UI_INFORMATION_ARCHITECTURE.md` — target portal navigation and major product surfaces.
 - `UI_DELIVERY_STATUS.md` — truthful per-surface implementation/integration status and remaining read-model gaps.
+- `NEXT_WORK_AND_REPAIR_PLAN.md` — current continuation ledger, repair priorities, next bounded task and stop conditions.
 - `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
 - `DELIVERY_ROADMAP.md` — staged delivery plan and gates.
-- `POST_P12_INTEGRATION_BACKLOG.md` — canonical dependency-ordered packages for remaining private/external integrations after the bounded platform foundation.
+- `POST_P12_INTEGRATION_BACKLOG.md` — detailed contracts for remaining private/external integrations after the bounded platform foundation.
 - `AGENT_EXECUTION_PLAN.md` — bounded agent workstreams, ownership and dependencies.
 
 ## Non-negotiable safety boundaries

@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import statistics
 import sys
+import zipfile
 from collections import Counter
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +80,73 @@ def _validate_seed_summary(result: dict[str, Any], seed: int) -> None:
         raise RLV2SeedEvidenceError("Exit-signal behavior drifted")
 
 
+def _load_backtest_config(archive: Path) -> dict[str, Any]:
+    try:
+        with zipfile.ZipFile(archive) as bundle:
+            names = sorted(
+                name for name in bundle.namelist() if name.endswith("_config.json")
+            )
+            if len(names) != 1:
+                raise RLV2SeedEvidenceError(
+                    f"Expected exactly one backtest config JSON, found {len(names)}"
+                )
+            payload = json.loads(bundle.read(names[0]))
+    except (OSError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
+        raise RLV2SeedEvidenceError(
+            f"Unable to read backtest config from {archive}: {exc}"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise RLV2SeedEvidenceError("Backtest config root must be an object")
+    return payload
+
+
+def _expected_runtime_config(
+    base_config: dict[str, Any],
+    contract: dict[str, Any],
+    seed: int,
+) -> dict[str, Any]:
+    expected = deepcopy(base_config)
+    expected["strategy"] = contract["runtime_binding"]["strategy"]
+    freqai = expected.setdefault("freqai", {})
+    freqai["identifier"] = runtime_identifier(seed)
+    freqai["train_period_days"] = contract["execution_geometry"]["train_period_days"]
+    freqai["backtest_period_days"] = contract["execution_geometry"][
+        "backtest_period_days"
+    ]
+    freqai.setdefault("model_training_parameters", {})["seed"] = seed
+    return expected
+
+
+def _validate_archive_config(
+    archive: Path,
+    base_config: dict[str, Any],
+    contract: dict[str, Any],
+    seed: int,
+) -> str:
+    embedded = _load_backtest_config(archive)
+    expected = _expected_runtime_config(base_config, contract, seed)
+
+    embedded.pop("config_files", None)
+    expected.pop("config_files", None)
+    embedded_exchange = embedded.get("exchange")
+    expected_exchange = expected.get("exchange")
+    if not isinstance(embedded_exchange, dict) or not isinstance(
+        expected_exchange,
+        dict,
+    ):
+        raise RLV2SeedEvidenceError("Backtest exchange config is missing")
+    for field in ("key", "secret"):
+        value = embedded_exchange.get(field)
+        if value not in (None, "", "REDACTED"):
+            raise RLV2SeedEvidenceError(f"Unexpected embedded exchange {field} value")
+        embedded_exchange[field] = expected_exchange.get(field, "")
+
+    if embedded != expected:
+        raise RLV2SeedEvidenceError(f"Backtest archive config drifted for seed {seed}")
+    rendered = json.dumps(expected, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(rendered).hexdigest()
+
+
 def _mechanism_support(
     primary: dict[str, Any],
 ) -> tuple[dict[str, bool], dict[str, bool]]:
@@ -110,7 +180,13 @@ def _mechanism_support(
 def extract_seed_evidence(archive: Path, seed: int) -> dict[str, Any]:
     """Extract one new seed and apply the prospectively frozen validity gate."""
     validate_new_seed(seed)
-    contract, _, _ = _validate_contract()
+    contract, _, base_config = _validate_contract()
+    runtime_config_sha256 = _validate_archive_config(
+        archive,
+        base_config,
+        contract,
+        seed,
+    )
     result = _strategy_result(_load_backtest_result(archive))
     _validate_seed_summary(result, seed)
     trades = _validated_trades(result)
@@ -167,6 +243,8 @@ def extract_seed_evidence(archive: Path, seed: int) -> dict[str, Any]:
         "strategy_sha256": contract["runtime_binding"]["strategy_sha256"],
         "freqai_model": EXPECTED_MODEL,
         "freqai_model_sha256": contract["runtime_binding"]["freqai_model_sha256"],
+        "runtime_config_sha256": runtime_config_sha256,
+        "runtime_hashes_reconciled": True,
         "execution_timerange": contract["execution_geometry"]["execution_timerange"],
         "semantic_evidence_window": contract["execution_geometry"]["semantic_evidence_window"],
         "valid": not validity_reasons,

@@ -1,0 +1,192 @@
+{
+  "anchor_evidence": {
+    "artifact_digest": "sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04",
+    "artifact_name": "rl-v2-roi-lifecycle-paired-attribution-272",
+    "descriptive_metrics": {
+      "fees_usdt": 18.059698,
+      "force_exit_count": 2,
+      "gross_price_pnl_usdt": 29.866574,
+      "max_drawdown_abs": 26.728284,
+      "net_profit_usdt": 11.806876,
+      "profit_factor": 1.251195,
+      "roi_exit_count": 2,
+      "stop_loss_exit_count": 1,
+      "target_flat_exit_count": 40,
+      "trade_count": 45
+    },
+    "execution_head_sha": "ce83a3e52ab6bc8676072522e266dcf50bd692e7",
+    "primary_mechanism_metrics": {
+      "external_exit_reentry_boundary_fee_usdt": 0.0,
+      "immediate_external_exit_reentry_boundary_count": 0,
+      "roi_exit_followed_by_same_pair_15m_reentry_count": 0
+    },
+    "rerun_allowed": false,
+    "seed": 42,
+    "trigger_pr": 272,
+    "valid": true,
+    "workflow_run_id": 30131273189
+  },
+  "authorization": {
+    "anchor_seed_execution_allowed": false,
+    "baseline_execution_allowed": false,
+    "behavioral_changes_beyond_seed_allowed": false,
+    "canonical_request_required": true,
+    "consumed_historical_oos_access_allowed": false,
+    "cross_track_selection_allowed": false,
+    "execution_task_required_before_trigger": true,
+    "four_new_seed_training_backtests_allowed_after_canonical_request": true,
+    "infrastructure_merge_executes_model": false,
+    "live_trading_allowed": false,
+    "market_data_download_allowed_after_canonical_request": true,
+    "profitability_claim_allowed": false,
+    "promotion_allowed": false,
+    "protected_final_holdout_access_allowed": false,
+    "retuning_allowed": false,
+    "statistical_proof_claim_allowed": false,
+    "strict_oos_scoring_allowed": false
+  },
+  "baseline_evidence": {
+    "artifact_digest": "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55",
+    "artifact_name": "rl-v2-historical-training-execution-218",
+    "primary_metrics": {
+      "external_exit_reentry_boundary_fee_usdt": 52.582123,
+      "immediate_external_exit_reentry_boundary_count": 131,
+      "roi_exit_followed_by_same_pair_15m_reentry_count": 122
+    },
+    "rerun_allowed": false,
+    "trigger_pr": 218,
+    "workflow_run_id": 30022863894
+  },
+  "contract_id": "rl-v2-lifecycle-seed-robustness-execution-v1",
+  "declaration_closure_merge": "2ea44b33423d199f5ab020e07031b14642806303",
+  "declaration_merge": "d943a670068484fc6391e17833c20c8abc757ede",
+  "declaration_path": "ai_platform/experimental_model_research/rl-v2-lifecycle-seed-robustness-declaration-v1.json",
+  "evidence": {
+    "automatic_promotion": false,
+    "automatic_ranking": false,
+    "classification": "paired_historical_development_seed_robustness",
+    "decision_values": [
+      "supported",
+      "not_supported",
+      "inconclusive"
+    ],
+    "profitability_is_non_gating": true,
+    "protected_final_validation": false,
+    "strict_oos": false
+  },
+  "execution_geometry": {
+    "backtest_period_days": 61,
+    "download_timerange": "20250801-20260501",
+    "exchange": "kraken",
+    "execution_timerange": "20260301-20260501",
+    "fee": 0.002,
+    "mode": "four_new_seed_variant_matrix",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "semantic_evidence_window": "20260301-20260430",
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "train_period_days": 90
+  },
+  "execution_task": "docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-execution.md",
+  "infrastructure_task": "docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-infrastructure.md",
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "frozen_entry_prediction_threshold": 0.006,
+    "frozen_exit_prediction_threshold": -0.009,
+    "phase6_authoritative_selected_model": null,
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    }
+  },
+  "market_data": {
+    "cache_namespace": "rl-v2-historical-training-pre-oos-v1",
+    "restore_from_post_20260501_cache_allowed": false,
+    "reuse_verified_baseline_cache": true,
+    "verification_module": "ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request"
+  },
+  "mechanism_consistency_gate": {
+    "original_directional_criteria_per_seed": {
+      "all_required": true,
+      "external_exit_reentry_boundary_fee_usdt_lt": 52.582123,
+      "required_seed_count": 5,
+      "roi_exit_followed_by_same_pair_15m_reentry_count_lt": 122
+    },
+    "strong_reduction_criteria": {
+      "external_exit_reentry_boundary_fee_usdt_lte": 13.145531,
+      "minimum_seed_count_meeting_both": 4,
+      "roi_exit_followed_by_same_pair_15m_reentry_count_lte": 30
+    }
+  },
+  "per_seed_validity_gate": {
+    "accounting_must_reconcile": true,
+    "both_pairs_minimum_completed_trades_each": 1,
+    "consumed_historical_oos_accessed": false,
+    "exactly_one_backtest_archive": true,
+    "maximum_rejected_signals": 0,
+    "maximum_timed_out_entry_orders": 0,
+    "maximum_timed_out_exit_orders": 0,
+    "minimum_target_flat_exit_count": 1,
+    "minimum_total_trade_count": 20,
+    "protected_final_holdout_accessed": false,
+    "runtime_hashes_must_reconcile": true
+  },
+  "request_path": "ai_platform/experimental_model_research/run-requests/rl-v2-lifecycle-seed-robustness-execution-v1.json",
+  "runtime_binding": {
+    "base_config_path": "ai_platform/configs/rl_v2_training_research.json",
+    "base_config_sha256": "5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de",
+    "batch_size": 64,
+    "data_split_random_state": 42,
+    "data_split_shuffle": false,
+    "freqai_model": "DesiredPositionReinforcementLearner",
+    "freqai_model_path": "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py",
+    "freqai_model_sha256": "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb4624cb79d46",
+    "model_type": "PPO",
+    "n_steps": 128,
+    "only_behavioral_change_per_execution": "freqai.model_training_parameters.seed",
+    "only_lifecycle_semantic_delta": {
+      "ignore_roi_if_entry_signal": true
+    },
+    "policy_type": "MlpPolicy",
+    "runtime_identifier_template": "rl-v2-lifecycle-seed-robustness-v1-seed-{seed}",
+    "strategy": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
+    "strategy_path": "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py",
+    "strategy_sha256": "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7",
+    "train_cycles": 1
+  },
+  "schema_version": 1,
+  "seed_matrix": {
+    "anchor_executions": 0,
+    "anchor_seed": 42,
+    "baseline_executions": 0,
+    "invalid_seed_replacement_allowed": false,
+    "new_execution_seeds": [
+      300538280,
+      1710810709,
+      1950377252,
+      1146911492
+    ],
+    "new_variant_executions": 4,
+    "ordered_seeds": [
+      42,
+      300538280,
+      1710810709,
+      1950377252,
+      1146911492
+    ]
+  },
+  "trigger": {
+    "base_branch": "develop",
+    "event": "pull_request_opened",
+    "exact_one_file": true
+  }
+}

@@ -1,0 +1,215 @@
+{
+  "boundaries": {
+    "baseline_rerun": false,
+    "consumed_historical_oos": "20260501-20260630",
+    "frozen_entry_threshold": 0.006,
+    "frozen_exit_threshold": -0.009,
+    "new_backtest_executed": false,
+    "new_market_data_accessed": false,
+    "new_training_executed": false,
+    "phase6_selected_model": null,
+    "promotion_authorized": false,
+    "protected_final_holdout": "20260801-20260930",
+    "ranking_performed": false,
+    "retuning_performed": false
+  },
+  "by_exit_reason": {
+    "force_exit": {
+      "average_duration_minutes": 9307.5,
+      "fees_usdt": 0.795921,
+      "gross_price_pnl_usdt": -2.038871,
+      "median_duration_minutes": 9307.5,
+      "net_profit_usdt": -2.834793,
+      "net_wins": 1,
+      "trades": 2
+    },
+    "freqai_rl_v2_target_flat": {
+      "average_duration_minutes": 3377.25,
+      "fees_usdt": 16.061529,
+      "gross_price_pnl_usdt": 30.781068,
+      "median_duration_minutes": 577.5,
+      "net_profit_usdt": 14.719539,
+      "net_wins": 11,
+      "trades": 40
+    },
+    "roi": {
+      "average_duration_minutes": 6412.5,
+      "fees_usdt": 0.812247,
+      "gross_price_pnl_usdt": 6.124014,
+      "median_duration_minutes": 6412.5,
+      "net_profit_usdt": 5.311767,
+      "net_wins": 2,
+      "trades": 2
+    },
+    "stop_loss": {
+      "average_duration_minutes": 4665.0,
+      "fees_usdt": 0.390001,
+      "gross_price_pnl_usdt": -4.999637,
+      "median_duration_minutes": 4665.0,
+      "net_profit_usdt": -5.389638,
+      "net_wins": 0,
+      "trades": 1
+    }
+  },
+  "by_pair": {
+    "BTC/USDT": {
+      "average_duration_minutes": 2641.40625,
+      "fees_usdt": 12.823084,
+      "gross_price_pnl_usdt": 11.559041,
+      "median_duration_minutes": 577.5,
+      "net_profit_usdt": -1.264043,
+      "net_win_rate": 0.28125,
+      "net_wins": 9,
+      "trades": 32
+    },
+    "ETH/USDT": {
+      "average_duration_minutes": 6666.923077,
+      "fees_usdt": 5.236615,
+      "gross_price_pnl_usdt": 18.307533,
+      "median_duration_minutes": 6255.0,
+      "net_profit_usdt": 13.070919,
+      "net_win_rate": 0.384615,
+      "net_wins": 5,
+      "trades": 13
+    }
+  },
+  "by_realized_close_month": {
+    "2026-03": {
+      "fees_usdt": 11.205713,
+      "gross_price_pnl_usdt": 2.865606,
+      "net_profit_usdt": -8.340107,
+      "net_wins": 6,
+      "trades": 28
+    },
+    "2026-04": {
+      "fees_usdt": 6.058064,
+      "gross_price_pnl_usdt": 29.03984,
+      "net_profit_usdt": 22.981776,
+      "net_wins": 7,
+      "trades": 15
+    },
+    "2026-05-terminal-force-exit": {
+      "fees_usdt": 0.795921,
+      "gross_price_pnl_usdt": -2.038871,
+      "net_profit_usdt": -2.834793,
+      "net_wins": 1,
+      "trades": 2
+    }
+  },
+  "duration_distribution_minutes": {
+    "maximum": 16905.0,
+    "median": 1065.0,
+    "minimum": 15.0,
+    "p25": 60.0,
+    "p75": 6255.0,
+    "p90": 12480.0
+  },
+  "interpretation_id": "rl-v2-lifecycle-attribution-interpretation-v1",
+  "lifecycle_attribution": {
+    "baseline": {
+      "external_exit_reentry_boundary_fee_usdt": 52.582123,
+      "immediate_external_exit_reentry_boundary_count": 131,
+      "roi_exit_followed_by_same_pair_15m_reentry_count": 122,
+      "trade_count": 174
+    },
+    "comparison": {
+      "external_exit_reentry_boundary_fee_usdt_delta": -52.582123,
+      "immediate_external_exit_reentry_boundary_count_delta": -131,
+      "roi_exit_followed_by_same_pair_15m_reentry_count_delta": -122,
+      "trade_count_delta": -129
+    },
+    "conclusion": "The prospectively selected lifecycle-only flag removed the targeted inherited external ROI/stop-loss immediate re-entry mechanism in this reused historical-development window.",
+    "confidence": "high_for_the_targeted_mechanism_only",
+    "variant": {
+      "external_exit_reentry_boundary_fee_usdt": 0.0,
+      "immediate_external_exit_reentry_boundary_count": 0,
+      "roi_exit_followed_by_same_pair_15m_reentry_count": 0,
+      "trade_count": 45
+    }
+  },
+  "non_degeneracy_checks": {
+    "both_declared_pairs_traded": true,
+    "external_roi_exits_remained_possible": true,
+    "hard_stop_loss_remained_active": true,
+    "immediate_target_flat_same_pair_15m_reentries": 8,
+    "rejected_signals": 0,
+    "roi_exit_next_same_pair_entry_gaps_minutes": [
+      45.0,
+      45.0
+    ],
+    "stop_loss_next_same_pair_entry_gap_minutes": 135.0,
+    "target_flat_exit_count": 40,
+    "timed_out_entry_orders": 0,
+    "timed_out_exit_orders": 0,
+    "trade_count": 45,
+    "two_positions_concurrently_active_ratio": 0.959529,
+    "position_exposure_ratio_by_pair": {
+      "BTC/USDT": 0.962261,
+      "ETH/USDT": 0.98668
+    },
+    "interpretation": "The zero targeted churn count is not a zero-trade or disabled-exit artifact. The variant traded both pairs, remained almost continuously exposed, produced target-flat, ROI, stop-loss and terminal force exits, and preserved the separate policy-level target-flat transition surface."
+  },
+  "overall": {
+    "average_roundtrip_fee_usdt": 0.401327,
+    "fees_usdt": 18.059698,
+    "gross_positive_but_net_negative_trades": 2,
+    "gross_positive_trades": 16,
+    "gross_price_pnl_usdt": 29.866574,
+    "max_drawdown_abs_usdt": 26.728284,
+    "median_net_profit_per_trade_usdt": -0.866404,
+    "net_positive_trades": 14,
+    "net_profit_usdt": 11.806876,
+    "profit_factor": 1.251195,
+    "statistical_p_value": 0.627831,
+    "trade_count": 45,
+    "win_rate": 0.311111,
+    "winner_average_duration_minutes": 9010.0,
+    "loser_average_duration_minutes": 1454.0
+  },
+  "profitability_interpretation": {
+    "aggregate_result_is_descriptive_only": true,
+    "cross_pair_consistency_established": false,
+    "cross_month_consistency_established": false,
+    "evidence": [
+      "BTC/USDT remained net negative at -1.264043 USDT while ETH/USDT contributed +13.070919 USDT.",
+      "March realized -8.340107 USDT, April realized +22.981776 USDT, and terminal May 1 force exits realized -2.834793 USDT.",
+      "Only 14 of 45 trades were net winners and the median trade lost 0.866404 USDT.",
+      "The three largest winners contributed 30.077937 USDT, exceeding the complete 11.806876 USDT net result before losses were offset.",
+      "The reported p-value is 0.627831 and no strict-OOS or protected-final validation was performed."
+    ],
+    "profitability_claim_authorized": false,
+    "robustness_established": false
+  },
+  "separate_remaining_observation": {
+    "interpretation": "Eight target-flat exits were followed by same-pair re-entry after exactly one 15-minute candle. This policy-level transition behavior is separate from the repaired inherited external ROI/stop-loss mechanism and is not authorization to retune reward, features, PPO, thresholds or action semantics on the reused window.",
+    "mechanism": "policy_target_flat_then_fast_target_long_transition",
+    "selected_for_immediate_experiment": false
+  },
+  "source": {
+    "artifact_digest": "sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04",
+    "artifact_name": "rl-v2-roi-lifecycle-paired-attribution-272",
+    "classification": "paired_historical_development_attribution",
+    "consumed_historical_oos_accessed": false,
+    "data_coverage_sha256": "75244e3e69c38e7dec1f028f8f32e74f5b1fc3bc4716939a5c92a5163f0b4656",
+    "effective_runtime_config_sha256": "92c51d1f88168b3650c4e07284822a89635ca55ec87a78f513a711d06beb2948",
+    "evidence_metadata_sha256": "81079470523622aa68078f9389beff6f94c5ff9449ee29e2b9e9ab4e024f25f5",
+    "execution_head_sha": "ce83a3e52ab6bc8676072522e266dcf50bd692e7",
+    "paired_attribution_sha256": "210b221cd4c48aff7b72e62d92f292504833a1bad87d9ff673570003f5d85a7e",
+    "protected_final_holdout_accessed": false,
+    "protected_final_validation": false,
+    "raw_backtest_archive_sha256": "fb5b9df98c1cbe372305d54a5c1ee0bf85395abb13fc29d5a2a7b9c995218460",
+    "raw_backtest_result_sha256": "be7cb0d757f8d7c7b036b4e1467637a1030df492264ef2944c7d5c22a6646afd",
+    "semantic_evidence_window": "20260301-20260430",
+    "strict_oos": false,
+    "trigger_pr": 272,
+    "workflow_run_id": 30131273189
+  },
+  "status": "complete",
+  "future_policy": {
+    "access_consumed_historical_oos": false,
+    "access_protected_final_holdout": false,
+    "authorize_dry_run_or_live": false,
+    "authorize_same_window_retuning": false,
+    "next_step": "Pause RL-v2 experimentation. Any future evaluation must be a separately declared prospective work package with frozen inputs and a fresh non-contaminated evidence window; this interpretation does not authorize that execution."
+  }
+}

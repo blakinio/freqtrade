@@ -43,11 +43,11 @@ Current position and transition classes will be derived later from immutable com
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:42:00+02:00
-head: d5548fd37265c4ac83b5216058f3e94cf9886a2b
+updated_at: 2026-07-25T23:45:00+02:00
+head: 7323594f391381a9afec925d477421d1fe45ae74
 branch: docs/rl-v2-action-observability-declaration
 pr: 305
-status: active
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
@@ -99,7 +99,7 @@ validation:
     evidence: Frozen fields map to existing desired-position action, do_predict and deterministic signal semantics without authorizing runtime mutation.
   - command: exact branch scope comparison
     result: PASS
-    evidence: The branch is three commits ahead of develop and changes exactly the three declared files.
+    evidence: The branch changes exactly the three declared files relative to develop.
   - command: machine-readable declaration JSON parse
     result: PASS
     evidence: The declaration renders as valid JSON with implementation and execution authorization both false.

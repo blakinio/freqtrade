@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260725-rl-v2-seed-validity-diagnosis
 status: active
-branch: docs/rl-v2-seed-validity-diagnosis-task
+branch: docs/rl-v2-seed-validity-diagnosis-results
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: "296"
+related_pr: "pending"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
@@ -31,33 +31,23 @@ optional_reads:
 
 Perform the prospectively declared evidence-only diagnosis of the two low-trade-count seeds from the completed lifecycle seed-robustness study. The task may inspect only immutable artifacts and must produce one documentation result plus one machine-readable evidence file. It performs no model, training, backtest, market-data or cache operation.
 
-## Frozen evidence set
+## Result
 
-- aggregate workflow run `30171023448`, artifact id `8623459762`, digest `sha256:5b39af275b0add9a9d616d6fa8a72132f97844726a69f22fd21c95064ce3b108`;
-- anchor seed `42`, run `30131273189`, artifact digest `sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04`;
-- seed `300538280`, artifact id `8623454828`, digest `sha256:6b4a74e15cf1cd7eb1d77d348fc21211f6f9b8da4f661f05332a77b22ea322ca`;
-- seed `1710810709`, artifact id `8623457962`, digest `sha256:6cda21cc5c512387936992609b61514c843b2e9871e819ff9b6e048715a4c581`;
-- seed `1950377252`, artifact id `8623457885`, digest `sha256:e8570fb4fc03721775d42ffe2e65b7e917801076b30a73923ed58b04488f983a`;
-- seed `1146911492`, artifact id `8623455361`, digest `sha256:7b056e6b6e64863aa46191bb854f534482cd288fb4ef5fa44ca76fa723db4d86`.
+All immutable artifacts, embedded configurations, runtime hashes, strategy hashes, raw trade counts and accounting reconcile. No evidence-integrity defect explains the invalid seeds. Seeds `1710810709` and `1950377252` remain invalid at `14` and `13` completed trades and the aggregate remains `inconclusive`.
 
-## Required outputs
+Both invalid seeds occupied at least one position for `99.9146%` of the execution window, but their median completed-trade durations were `10.176x` and `9.634x` the valid-set median. Their same-pair median flat gaps were not longer than the valid-set medians. The observable association is therefore long-held positions and widely spaced completed-position initiations, not prolonged observed time flat.
 
-- deterministic artifact identity, config and trade-accounting reconciliation;
-- pair, realized-month, exit-reason and duration decomposition for every seed;
-- occupied-time, completed-position initiation and same-pair flat-gap comparisons;
-- exact invalid-seed versus valid-set-median ratios and differences;
-- explicit statement whether action-level timelines exist and whether causal PPO attribution is possible;
-- preservation of the frozen `inconclusive` decision and all no-rerun, OOS, holdout, Phase 6 and no-promotion boundaries.
+The immutable archives contain no per-candle action, prediction or model-state timeline. Causal PPO action-persistence or entry-suppression attribution remains unknown.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:00:00+02:00
-head: 8e9f7c88b819adf05b6181ddac7293b82cdcf0c9
-branch: docs/rl-v2-seed-validity-diagnosis-task
-pr: 296
-status: ready
+updated_at: 2026-07-25T23:10:00+02:00
+head: 1c0633eb375e677f512b95b98e5f998ba9549662
+branch: docs/rl-v2-seed-validity-diagnosis-results
+pr: pending
+status: implementing
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS_DECLARATION.md
@@ -68,53 +58,67 @@ owned_paths:
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
   - ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json
 proven:
-  - Develop head c6c3a6ca1a0245118e8e4e13db0cb4ec6e9716b3 contains the completed prospective diagnosis declaration and its closed checkpoint.
-  - No open PR containing RL-v2 overlaps seed artifacts, lifecycle evidence, PPO configuration, workflows, requests or model-selection ownership.
-  - The frozen aggregate decision remains inconclusive with valid seeds 42, 300538280 and 1146911492 and invalid seeds 1710810709 and 1950377252.
-  - Seed removal, replacement, rerun and validity-threshold relaxation are forbidden.
-  - The declaration binds this diagnosis to exactly one aggregate, one anchor and four new-seed immutable artifacts.
-  - The required outputs are deterministic artifact, accounting, trade-lifecycle and evidence-availability calculations only.
-  - This task declaration adds no result file, workflow, request, model, strategy, configuration or executable analysis code.
-  - Classification remains paired_historical_development_seed_validity_diagnosis with strict_oos=false, protected_final_validation=false and profitability non-gating.
+  - Develop head 3b3cdd4415acefa83496cceacb922d3868852483 contains the merged bounded diagnosis task and no overlapping open RL-v2 PR existed before result work.
+  - The aggregate, anchor and four new-seed artifact SHA-256 values exactly match the frozen declaration.
+  - Every embedded raw backtest configuration reconciles with its accepted effective runtime configuration after the documented extractor normalization.
+  - Every seed embeds strategy SHA-256 366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7 and every new-seed runtime hash matches accepted evidence.
+  - Raw trade counts, backtest summaries, accepted descriptive metrics and trade accounting reconcile with maximum per-trade absolute error below 5e-9 USDT.
+  - All data coverage records are identical and stop at the exclusive 2026-05-01 boundary; consumed OOS and protected holdout access are false.
+  - Seeds 1710810709 and 1950377252 completed 14 and 13 trades and remain invalid below the frozen minimum 20.
+  - Both invalid seeds occupied at least one position for 87765 of 87840 minutes, or 99.9146 percent of the execution window.
+  - Invalid-seed median completed-trade durations were 10837.5 and 10260 minutes versus the valid-set median 1065 minutes.
+  - Invalid-seed initiation rates were 0.2295 and 0.2131 per day versus the valid-set median 0.7377 per day.
+  - Invalid-seed same-pair median flat gaps were no longer than valid-set medians for BTC or ETH.
+  - The raw archives retain trades, configs, strategy, wallet and market-change files but no per-candle action, prediction or model-state timeline.
+  - No model, training, backtest, market-data, cache, baseline or seed operation occurred in this diagnosis.
+  - The frozen aggregate decision remains inconclusive with strict_oos=false, protected_final_validation=false, profitability non-gating and Phase 6 selected_model=null.
 derived:
-  - The diagnosis can determine whether raw artifacts reconcile and quantify completed-trade turnover dispersion without executing another experiment.
-  - Completed-trade intervals can separate observed occupancy duration from completed-position initiation frequency but cannot expose unrecorded action decisions.
-  - Missing action-level evidence must remain unknown and cannot be replaced by a causal PPO inference.
+  - No evidence-integrity defect explains the two invalid seeds.
+  - Low completed-trade counts are observationally associated with long-held positions and widely spaced completed-position initiations rather than prolonged observed flat gaps.
+  - Near-continuous aggregate occupancy alone is not sufficient because valid seed 1146911492 had even higher occupancy.
+  - The two invalid seeds are descriptively similar in occupancy, BTC trade count, target-flat exits, stop-loss exits, force exits and primary mechanism metrics.
+  - Completed-trade geometry cannot establish whether PPO repeatedly selected hold or suppressed entries between recorded trades.
 unknown:
-  - Whether the anchor artifact remains downloadable by exact immutable artifact id and digest.
-  - Whether the raw archives contain any action-level prediction or action-state timeline.
-  - Whether invalid-seed turnover dispersion is associated mainly with occupancy duration, completed-position initiation spacing or both.
+  - The causal PPO action-level mechanism producing the long completed-position durations remains unknown because the required timeline was not retained.
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: This one-file task declaration performs no artifact download, detailed diagnosis, data access, cache operation or model execution.
+  evidence: All frozen artifacts and deterministic calculations reconciled; no integrity, provenance, accounting or scope failure was found.
 rejected_hypotheses:
   - Rerun, replace or remove either invalid seed.
   - Relax the minimum trade-count gate or reinterpret the frozen aggregate.
-  - Download market data or restore research caches.
-  - Execute a baseline, anchor, new seed, training job or backtest.
-  - Claim PPO action persistence or entry suppression without action-level evidence.
-  - Gate, rank or promote on descriptive profitability metrics.
+  - Treat near-continuous occupancy as causal proof of PPO action persistence.
+  - Treat shorter flat gaps as proof of entry suppression or absence of entry suppression.
+  - Use descriptive profitability to gate, rank or promote the result.
   - Access consumed historical OOS or the protected final holdout.
+  - Execute a model, baseline, seed, data job, cache restore or backtest.
   - Reopen Phase 6 or change selected_model=null.
 changed_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
+  - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
+  - ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json
 validation:
   - command: live develop and overlapping open-PR search
     result: PASS
-    evidence: Develop is c6c3a6ca1a0245118e8e4e13db0cb4ec6e9716b3 and no open RL-v2 PR exists before this task declaration.
-  - command: diagnosis declaration boundary review
+    evidence: Result work branched from develop 3b3cdd4415acefa83496cceacb922d3868852483 with no open overlapping RL-v2 PR.
+  - command: immutable artifact digest and archive identity verification
     result: PASS
-    evidence: The merged declaration fixes immutable sources, calculations, causal limits, output paths and all execution prohibitions.
-  - command: Freqtrade CI 30174453566 / run 1450
+    evidence: Aggregate, anchor and all four new-seed downloaded archive hashes exactly match the prospective declaration.
+  - command: deterministic config, strategy, runtime-hash and accounting reconciliation
     result: PASS
-    evidence: Scope, pre-commit, documentation syntax, documentation build and CI gate passed for the one-file task declaration.
-  - command: GitHub Actions Security Analysis 30174453542 / run 1375
+    evidence: All configurations and accepted evidence reconcile; maximum per-trade accounting error is below 5e-9 USDT.
+  - command: frozen trade-lifecycle geometry calculation
     result: PASS
-    evidence: Required zizmor workflow-security analysis passed on the task head.
+    evidence: Pair, month, exit, duration, occupancy, initiation and flat-gap metrics were computed only from recorded immutable trades.
+  - command: action-level evidence availability inspection
+    result: PASS
+    evidence: No retained per-candle action or prediction timeline exists, so causal PPO attribution is explicitly recorded as unknown.
+  - command: python -m json.tool ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json
+    result: PASS
+    evidence: The machine-readable diagnosis is valid JSON and preserves the frozen decision and isolation flags.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md --require-checkpoint
-    result: PASS
-    evidence: The canonical validator completed successfully in checkpoint-only diagnostic PR 297; a final exact-content validation is required after recording this result.
+    result: NOT_RUN
+    evidence: Repository CI must validate the result checkpoint after the three-file PR is opened.
 blockers: []
-next_action: Open and validate this exact-one-file diagnosis task declaration PR; merge it only after required CI and checkpoint validation pass, then branch from updated develop, inspect exactly the frozen immutable artifacts, and add only the declared diagnosis documentation, machine-readable evidence and task-record updates.
+next_action: Open and validate the exact three-file diagnosis result PR; merge it only after AI Platform CI, Freqtrade CI, zizmor and final checkpoint validation pass, then close this task with decision=inconclusive unchanged and require a separate prospective declaration before any action-level instrumentation or further experiment.
 ```

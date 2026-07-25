@@ -60,11 +60,7 @@ METADATA_INPUT_FIELDS = (
     "timeframe",
     "pairs",
 )
-MANIFEST_FIELDS = (
-    *METADATA_INPUT_FIELDS,
-    "row_count",
-    "timeline_sha256",
-)
+MANIFEST_FIELDS = (*METADATA_INPUT_FIELDS, "row_count", "timeline_sha256")
 SENSITIVE_KEY_FRAGMENTS = (
     "access_token",
     "api_key",
@@ -160,8 +156,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 def validate_implementation_descriptor(path: Path = DESCRIPTOR_PATH) -> dict[str, Any]:
     """Validate exact descriptor identity and its no-execution boundaries."""
     actual = _read_json(path)
-    expected = canonical_implementation_descriptor()
-    if actual != expected:
+    if actual != canonical_implementation_descriptor():
         raise RLV2ActionObservabilityError("RL-v2 action observability descriptor drifted")
     return actual
 
@@ -202,7 +197,6 @@ def _timestamp_utc(value: Any) -> str:
         timestamp = value
     else:
         raise RLV2ActionObservabilityError("date must be a datetime or RFC3339 string")
-
     if timestamp.tzinfo is None:
         raise RLV2ActionObservabilityError("date must be timezone-aware UTC")
     if timestamp.utcoffset() != timedelta(0):
@@ -212,11 +206,7 @@ def _timestamp_utc(value: Any) -> str:
 
 def _row_sort_key(row: Mapping[str, Any]) -> tuple[str, float, int]:
     timestamp = datetime.fromisoformat(str(row["timestamp_utc"]).replace("Z", "+00:00"))
-    return (
-        str(row["pair"]),
-        timestamp.timestamp(),
-        int(row["source_row_ordinal"]),
-    )
+    return str(row["pair"]), timestamp.timestamp(), int(row["source_row_ordinal"])
 
 
 def _normalized_pair(value: Any) -> str:
@@ -236,11 +226,9 @@ def _normalize_row(
     do_predict: Any,
     volume: Any,
 ) -> dict[str, Any]:
-    normalized_pair = _normalized_pair(pair)
     ordinal = _integer(source_row_ordinal, "source_row_ordinal")
     if ordinal < 0:
         raise RLV2ActionObservabilityError("source_row_ordinal must be non-negative")
-
     action_raw = _integer(action, "action_raw")
     try:
         action_label = desired_position_label(action_raw)
@@ -248,20 +236,17 @@ def _normalize_row(
         raise RLV2ActionObservabilityError(
             f"Unsupported desired-position action: {action_raw}"
         ) from exc
-
     do_predict_raw = _integer(do_predict, "do_predict_raw")
-    volume_value = _finite_float(volume, "volume")
     prediction_accepted = do_predict_raw == 1
-    volume_positive = volume_value > 0
+    volume_positive = _finite_float(volume, "volume") > 0
     enter_long = (
         prediction_accepted
         and action_raw == DesiredPosition.TARGET_LONG.value
         and volume_positive
     )
     exit_long = prediction_accepted and action_raw == DesiredPosition.TARGET_FLAT.value
-
     return {
-        "pair": normalized_pair,
+        "pair": _normalized_pair(pair),
         "timestamp_utc": _timestamp_utc(timestamp),
         "source_row_ordinal": ordinal,
         "action_raw": action_raw,
@@ -300,7 +285,6 @@ def _validate_serialized_row(row: Any) -> dict[str, Any]:
     for field in ("pre_trade_enter_tag", "pre_trade_exit_tag"):
         if row[field] is not None and not isinstance(row[field], str):
             raise RLV2ActionObservabilityError("Timeline tag field type drifted")
-
     normalized = _normalize_row(
         pair=row["pair"],
         timestamp=row["timestamp_utc"],
@@ -321,7 +305,7 @@ def _json_bytes(payload: Mapping[str, Any]) -> bytes:
         sort_keys=True,
         separators=(",", ":"),
     )
-    return (rendered + "\n").encode()
+    return f"{rendered}\n".encode()
 
 
 def _timeline_bytes(rows: Sequence[Mapping[str, Any]]) -> bytes:
@@ -342,7 +326,6 @@ def _build_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     action_totals: Counter[str] = Counter()
     prediction_totals: Counter[str] = Counter()
     signal_totals: Counter[str] = Counter()
-
     for row in rows:
         pair_summary = pairs.setdefault(str(row["pair"]), _new_pair_summary())
         pair_summary["rows"] += 1
@@ -358,7 +341,6 @@ def _build_summary(rows: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         if row["pre_trade_exit_long"]:
             pair_summary["pre_trade_signals"]["exit"] += 1
             signal_totals["exit"] += 1
-
     return {
         "schema_version": 1,
         "row_count": len(rows),
@@ -411,6 +393,27 @@ def _non_empty_string(value: Any, label: str) -> str:
     return value
 
 
+def _normalize_pairs(value: Any, observed_pairs: Sequence[str]) -> list[str]:
+    if not isinstance(value, list):
+        raise RLV2ActionObservabilityError("pairs must be a list")
+    pairs = [_normalized_pair(pair) for pair in value]
+    if len(pairs) != len(set(pairs)):
+        raise RLV2ActionObservabilityError("pairs must be unique")
+    pairs = sorted(pairs)
+    if pairs != sorted(observed_pairs):
+        raise RLV2ActionObservabilityError("manifest pairs do not match timeline pairs")
+    return pairs
+
+
+def _normalize_git_commit(value: Any) -> str:
+    commit = _non_empty_string(value, "git_commit").casefold()
+    if len(commit) != 40 or any(
+        character not in "0123456789abcdef" for character in commit
+    ):
+        raise RLV2ActionObservabilityError("git_commit must be a 40-character hex SHA")
+    return commit
+
+
 def _normalize_metadata(
     metadata: Mapping[str, Any],
     *,
@@ -423,49 +426,29 @@ def _normalize_metadata(
     _reject_sensitive_keys(metadata)
     if set(metadata) != set(METADATA_INPUT_FIELDS):
         raise RLV2ActionObservabilityError("Manifest metadata schema drifted")
-
     schema_version = _integer(metadata["schema_version"], "schema_version")
     if schema_version != 1:
         raise RLV2ActionObservabilityError("schema_version must be 1")
-    git_commit = _non_empty_string(metadata["git_commit"], "git_commit").casefold()
-    if len(git_commit) != 40 or any(
-        character not in "0123456789abcdef" for character in git_commit
-    ):
-        raise RLV2ActionObservabilityError("git_commit must be a 40-character hex SHA")
-
-    pairs_value = metadata["pairs"]
-    if not isinstance(pairs_value, list):
-        raise RLV2ActionObservabilityError("pairs must be a list")
-    pairs = [_normalized_pair(pair) for pair in pairs_value]
-    if len(pairs) != len(set(pairs)):
-        raise RLV2ActionObservabilityError("pairs must be unique")
-    pairs = sorted(pairs)
-    if pairs != sorted(observed_pairs):
-        raise RLV2ActionObservabilityError("manifest pairs do not match timeline pairs")
-
     seed = _integer(metadata["seed"], "seed")
     if seed < 0:
         raise RLV2ActionObservabilityError("seed must be non-negative")
-
     return {
         "schema_version": schema_version,
-        "git_commit": git_commit,
+        "git_commit": _normalize_git_commit(metadata["git_commit"]),
         "strategy_name": _non_empty_string(metadata["strategy_name"], "strategy_name"),
         "strategy_sha256": _sha256_hex(metadata["strategy_sha256"], "strategy_sha256"),
         "freqai_model": _non_empty_string(metadata["freqai_model"], "freqai_model"),
         "freqai_model_sha256": _sha256_hex(
-            metadata["freqai_model_sha256"],
-            "freqai_model_sha256",
+            metadata["freqai_model_sha256"], "freqai_model_sha256"
         ),
         "config_sha256": _sha256_hex(metadata["config_sha256"], "config_sha256"),
         "freqai_identifier": _non_empty_string(
-            metadata["freqai_identifier"],
-            "freqai_identifier",
+            metadata["freqai_identifier"], "freqai_identifier"
         ),
         "seed": seed,
         "timerange": _non_empty_string(metadata["timerange"], "timerange"),
         "timeframe": _non_empty_string(metadata["timeframe"], "timeframe"),
-        "pairs": pairs,
+        "pairs": _normalize_pairs(metadata["pairs"], observed_pairs),
         "row_count": row_count,
         "timeline_sha256": timeline_sha256,
     }
@@ -490,6 +473,25 @@ def _atomic_write_many(output_dir: Path, payloads: Mapping[str, bytes]) -> None:
         ) from exc
 
 
+def _dataframe_columns(dataframe: Any) -> Sequence[str]:
+    try:
+        return dataframe.columns
+    except AttributeError as exc:
+        raise RLV2ActionObservabilityError(
+            "dataframe must expose columns and column selection"
+        ) from exc
+
+
+def _dataframe_row_iterator(dataframe: Any) -> Any:
+    try:
+        selected = dataframe[list(REQUIRED_DATAFRAME_COLUMNS)]
+        return selected.itertuples
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        raise RLV2ActionObservabilityError(
+            "dataframe selection must expose itertuples"
+        ) from exc
+
+
 class RLV2ActionObservabilityRecorder:
     """Collect deterministic inference rows without changing strategy behavior."""
 
@@ -509,25 +511,14 @@ class RLV2ActionObservabilityRecorder:
         """Capture one pair dataframe or perform a strict disabled-mode no-op."""
         if not self.enabled:
             return 0
-
-        columns = getattr(dataframe, "columns", None)
-        if columns is None or not hasattr(dataframe, "__getitem__"):
-            raise RLV2ActionObservabilityError(
-                "dataframe must expose columns and column selection"
-            )
+        columns = _dataframe_columns(dataframe)
         missing = set(REQUIRED_DATAFRAME_COLUMNS).difference(columns)
         if missing:
             rendered = ", ".join(sorted(missing))
             raise RLV2ActionObservabilityError(
                 f"Missing RL-v2 observability columns: {rendered}"
             )
-        selected = dataframe[list(REQUIRED_DATAFRAME_COLUMNS)]
-        row_iterator = getattr(selected, "itertuples", None)
-        if not callable(row_iterator):
-            raise RLV2ActionObservabilityError(
-                "dataframe selection must expose itertuples"
-            )
-
+        row_iterator = _dataframe_row_iterator(dataframe)
         normalized_pair = _normalized_pair(pair)
         candidates: list[dict[str, Any]] = []
         candidate_keys: set[tuple[str, str]] = set()
@@ -541,22 +532,19 @@ class RLV2ActionObservabilityRecorder:
                 do_predict=do_predict,
                 volume=volume,
             )
-            key = (row["pair"], row["timestamp_utc"])
+            key = row["pair"], row["timestamp_utc"]
             if key in self._keys or key in candidate_keys:
                 raise RLV2ActionObservabilityError(
                     f"Duplicate pair/timestamp observability row: {key[0]} {key[1]}"
                 )
             candidate_keys.add(key)
             candidates.append(row)
-
         self._rows.extend(candidates)
         self._keys.update(candidate_keys)
         return len(candidates)
 
     def write_artifacts(
-        self,
-        output_dir: Path,
-        metadata: Mapping[str, Any],
+        self, output_dir: Path, metadata: Mapping[str, Any]
     ) -> dict[str, Any] | None:
         """Write deterministic evidence files when explicitly enabled."""
         if not self.enabled:
@@ -576,13 +564,15 @@ class RLV2ActionObservabilityRecorder:
             timeline_sha256=timeline_sha256,
         )
         summary = _build_summary(rows)
-        payloads = {
-            TIMELINE_NAME: timeline,
-            MANIFEST_NAME: _json_bytes(manifest),
-            SUMMARY_NAME: _json_bytes(summary),
-        }
         destination = Path(output_dir)
-        _atomic_write_many(destination, payloads)
+        _atomic_write_many(
+            destination,
+            {
+                TIMELINE_NAME: timeline,
+                MANIFEST_NAME: _json_bytes(manifest),
+                SUMMARY_NAME: _json_bytes(summary),
+            },
+        )
         return {
             "timeline": destination / TIMELINE_NAME,
             "manifest": destination / MANIFEST_NAME,
@@ -592,26 +582,18 @@ class RLV2ActionObservabilityRecorder:
         }
 
 
-def validate_action_observability_artifacts(output_dir: Path) -> dict[str, Any]:
-    """Validate timeline identity, schema, ordering, manifest and summary."""
-    directory = Path(output_dir)
-    timeline_path = directory / TIMELINE_NAME
-    manifest_path = directory / MANIFEST_NAME
-    summary_path = directory / SUMMARY_NAME
+def _read_timeline(path: Path) -> tuple[bytes, list[dict[str, Any]]]:
     try:
-        timeline = timeline_path.read_bytes()
+        timeline = path.read_bytes()
     except OSError as exc:
-        raise RLV2ActionObservabilityError(
-            f"Unable to read timeline {timeline_path}: {exc}"
-        ) from exc
+        raise RLV2ActionObservabilityError(f"Unable to read timeline {path}: {exc}") from exc
     if not timeline or not timeline.endswith(b"\n"):
         raise RLV2ActionObservabilityError("Timeline must be non-empty JSONL with final newline")
-
-    rows: list[dict[str, Any]] = []
     try:
         text = timeline.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise RLV2ActionObservabilityError("Timeline must be UTF-8") from exc
+    rows: list[dict[str, Any]] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if not line:
             raise RLV2ActionObservabilityError(
@@ -624,15 +606,19 @@ def validate_action_observability_artifacts(output_dir: Path) -> dict[str, Any]:
                 f"Invalid timeline JSON at line {line_number}: {exc}"
             ) from exc
         rows.append(_validate_serialized_row(raw))
+    return timeline, rows
 
-    ordered = sorted(rows, key=_row_sort_key)
-    if rows != ordered:
+
+def validate_action_observability_artifacts(output_dir: Path) -> dict[str, Any]:
+    """Validate timeline identity, schema, ordering, manifest and summary."""
+    directory = Path(output_dir)
+    timeline, rows = _read_timeline(directory / TIMELINE_NAME)
+    if rows != sorted(rows, key=_row_sort_key):
         raise RLV2ActionObservabilityError("Timeline rows are not deterministically sorted")
     keys = [(row["pair"], row["timestamp_utc"]) for row in rows]
     if len(keys) != len(set(keys)):
         raise RLV2ActionObservabilityError("Timeline contains duplicate pair/timestamp rows")
-
-    manifest = _read_json(manifest_path)
+    manifest = _read_json(directory / MANIFEST_NAME)
     if set(manifest) != set(MANIFEST_FIELDS):
         raise RLV2ActionObservabilityError("Manifest schema drifted")
     expected_manifest = _normalize_metadata(
@@ -643,14 +629,8 @@ def validate_action_observability_artifacts(output_dir: Path) -> dict[str, Any]:
     )
     if manifest != expected_manifest:
         raise RLV2ActionObservabilityError("Manifest does not reconcile with timeline")
-
-    summary = _read_json(summary_path)
+    summary = _read_json(directory / SUMMARY_NAME)
     expected_summary = _build_summary(rows)
     if summary != expected_summary:
         raise RLV2ActionObservabilityError("Summary does not reconcile with timeline")
-
-    return {
-        "manifest": manifest,
-        "summary": summary,
-        "rows": rows,
-    }
+    return {"manifest": manifest, "summary": summary, "rows": rows}

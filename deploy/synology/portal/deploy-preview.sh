@@ -4,11 +4,13 @@ set -Eeuo pipefail
 image_name="${PORTAL_IMAGE_NAME:-local/freqtrade-portal-web}"
 container_name="${PORTAL_CONTAINER_NAME:-freqtrade-portal-staging}"
 bind_address="${PORTAL_BIND_ADDRESS:-192.168.1.2}"
-portal_port="${PORTAL_PORT:-3000}"
+portal_port="${PORTAL_PORT:-3031}"
 commit_sha="${GITHUB_SHA:?GITHUB_SHA is required}"
 image="${image_name}:sha-${commit_sha}"
 candidate="${container_name}-candidate-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}"
 previous_image=""
+previous_bind_address=""
+previous_port=""
 
 cleanup_candidate() {
     docker rm -f "$candidate" >/dev/null 2>&1 || true
@@ -60,47 +62,88 @@ wait_healthy() {
     return 1
 }
 
-start_final() {
-    local selected_image="$1"
+wait_http() {
+    local address="$1"
+    local port="$2"
+    for _ in $(seq 1 30); do
+        if curl --fail --silent --show-error --max-time 5 \
+            "http://${address}:${port}/" >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+    echo "LAN endpoint did not become reachable: http://${address}:${port}/" >&2
+    return 1
+}
+
+start_container() {
+    local name="$1"
+    local selected_image="$2"
+    local selected_bind="$3"
+    local selected_port="$4"
+    local restart_policy="$5"
+
     docker run -d \
-        --name "$container_name" \
-        --restart unless-stopped \
-        --publish "${bind_address}:${portal_port}:3000" \
+        --name "$name" \
+        --restart "$restart_policy" \
+        --publish "${selected_bind}:${selected_port}:3000" \
         "${common_args[@]}" \
         "$selected_image"
 }
 
 rollback() {
     docker rm -f "$container_name" >/dev/null 2>&1 || true
-    if [[ -n "$previous_image" ]] && docker image inspect "$previous_image" >/dev/null 2>&1; then
-        echo "Restoring previous portal image: $previous_image"
-        start_final "$previous_image" >/dev/null
+    if [[ -n "$previous_image" && -n "$previous_bind_address" && -n "$previous_port" ]] \
+        && docker image inspect "$previous_image" >/dev/null 2>&1; then
+        echo "Restoring previous portal image on ${previous_bind_address}:${previous_port}: $previous_image"
+        start_container \
+            "$container_name" \
+            "$previous_image" \
+            "$previous_bind_address" \
+            "$previous_port" \
+            unless-stopped >/dev/null
         wait_healthy "$container_name" || true
+        wait_http "$previous_bind_address" "$previous_port" || true
     else
-        echo "No previous portal image is available for rollback." >&2
+        echo "No complete previous portal mapping is available for rollback." >&2
     fi
 }
 
+if docker inspect "$container_name" >/dev/null 2>&1; then
+    previous_image="$(docker inspect --format '{{.Config.Image}}' "$container_name")"
+    previous_published="$(docker port "$container_name" 3000/tcp | head -n 1 || true)"
+    if [[ -n "$previous_published" ]]; then
+        previous_bind_address="${previous_published%:*}"
+        previous_port="${previous_published##*:}"
+    fi
+fi
+
 echo "Validating isolated candidate container."
-docker run -d \
-    --name "$candidate" \
-    --restart no \
-    "${common_args[@]}" \
-    "$image"
-wait_healthy "$candidate"
+if [[ "$previous_bind_address" == "$bind_address" && "$previous_port" == "$portal_port" ]]; then
+    docker run -d \
+        --name "$candidate" \
+        --restart no \
+        "${common_args[@]}" \
+        "$image" >/dev/null
+    wait_healthy "$candidate"
+else
+    start_container "$candidate" "$image" "$bind_address" "$portal_port" no >/dev/null
+    wait_healthy "$candidate"
+    wait_http "$bind_address" "$portal_port"
+fi
 cleanup_candidate
 
 if docker inspect "$container_name" >/dev/null 2>&1; then
-    previous_image="$(docker inspect --format '{{.Config.Image}}' "$container_name")"
     docker rm -f "$container_name" >/dev/null
 fi
 
-if ! start_final "$image" >/dev/null; then
+if ! start_container \
+    "$container_name" "$image" "$bind_address" "$portal_port" unless-stopped >/dev/null; then
     rollback
     exit 1
 fi
 
-if ! wait_healthy "$container_name"; then
+if ! wait_healthy "$container_name" || ! wait_http "$bind_address" "$portal_port"; then
     rollback
     exit 1
 fi

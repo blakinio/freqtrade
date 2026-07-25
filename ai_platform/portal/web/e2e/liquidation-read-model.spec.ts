@@ -194,6 +194,7 @@ test("stays bounded, ignores symlinked runs and reads source files without write
   const outside = await mkdtemp(join(tmpdir(), "portal-liquidations-outside-"));
   try {
     const bybitPath = join(run.runRoot, "bybit-linear.ndjson");
+    const binancePath = join(run.runRoot, "binance-usdm.ndjson");
     await writeFile(
       bybitPath,
       [
@@ -203,7 +204,7 @@ test("stays bounded, ignores symlinked runs and reads source files without write
       ].join("\n") + "\n",
       "utf8",
     );
-    await writeFile(join(run.runRoot, "binance-usdm.ndjson"), "", "utf8");
+    await writeFile(binancePath, "", "utf8");
     await chmod(bybitPath, 0o444);
     const before = await readFile(bybitPath, "utf8");
 
@@ -213,6 +214,7 @@ test("stays bounded, ignores symlinked runs and reads source files without write
 
     const old = new Date(now - 60 * 60 * 1_000);
     await utimes(bybitPath, old, old);
+    await utimes(binancePath, old, old);
     await utimes(run.runRoot, old, old);
     const model = new LiquidationReadModel({
       dataRoot: run.dataRoot,

@@ -1,0 +1,210 @@
+{
+  "schema_version": 1,
+  "declaration_id": "rl-v2-action-observability-declaration-v1",
+  "task_path": "docs/agents/tasks/FTAI-20260725-rl-v2-action-observability-declaration.md",
+  "status": "declared_not_authorized_for_implementation_or_execution",
+  "source_gap": {
+    "terminal_diagnosis_task": "docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md",
+    "terminal_diagnosis_result": "docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md",
+    "develop_head_at_declaration": "fb8001f38385a1b1a69c2869ee93968d014702b1",
+    "frozen_seed_robustness_decision": "inconclusive",
+    "invalid_low_trade_count_seeds": [
+      1710810709,
+      1950377252
+    ],
+    "observed_association": "long_completed_position_durations_and_widely_spaced_completed_position_initiations",
+    "causal_ppo_mechanism": "unknown",
+    "missing_evidence": [
+      "retained_per_candle_inference_action_timeline",
+      "retained_per_candle_do_predict_timeline",
+      "retained_pre_trade_entry_exit_signal_timeline"
+    ]
+  },
+  "purpose": {
+    "primary_question": "For each inference candle, what desired-position action and deterministic pre-trade signal state existed before Freqtrade trade lifecycle handling?",
+    "allowed_future_use": "bounded_research_only_causal_diagnosis",
+    "may_replace_or_reclassify_prior_evidence": false
+  },
+  "capture_contract": {
+    "capture_surface": "strategy_inference_dataframe_after_freqai_prediction_columns_exist",
+    "mutation_allowed": false,
+    "row_order": [
+      "pair_ascending",
+      "timestamp_utc_ascending",
+      "source_row_ordinal_ascending"
+    ],
+    "one_row_per_pair_timestamp": true,
+    "required_row_fields": [
+      {
+        "name": "pair",
+        "type": "string"
+      },
+      {
+        "name": "timestamp_utc",
+        "type": "rfc3339_utc"
+      },
+      {
+        "name": "source_row_ordinal",
+        "type": "non_negative_integer"
+      },
+      {
+        "name": "action_raw",
+        "type": "integer"
+      },
+      {
+        "name": "action_label",
+        "type": "enum",
+        "values": [
+          "target_flat",
+          "target_long"
+        ]
+      },
+      {
+        "name": "do_predict_raw",
+        "type": "integer"
+      },
+      {
+        "name": "prediction_accepted",
+        "type": "boolean"
+      },
+      {
+        "name": "volume_positive",
+        "type": "boolean"
+      },
+      {
+        "name": "pre_trade_enter_long",
+        "type": "boolean"
+      },
+      {
+        "name": "pre_trade_exit_long",
+        "type": "boolean"
+      },
+      {
+        "name": "pre_trade_enter_tag",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      {
+        "name": "pre_trade_exit_tag",
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    ],
+    "required_artifact_metadata": [
+      "schema_version",
+      "git_commit",
+      "strategy_name",
+      "strategy_sha256",
+      "freqai_model",
+      "freqai_model_sha256",
+      "config_sha256",
+      "freqai_identifier",
+      "seed",
+      "timerange",
+      "timeframe",
+      "pairs",
+      "row_count",
+      "timeline_sha256"
+    ],
+    "forbidden_row_fields": [
+      "exchange_api_key",
+      "exchange_api_secret",
+      "wallet_credentials",
+      "private_endpoint",
+      "raw_feature_vector",
+      "model_weights",
+      "access_token"
+    ],
+    "position_and_transition_handling": {
+      "runtime_trade_state_capture_required": false,
+      "current_position_state": "derive_post_hoc_from_immutable_completed_trade_intervals",
+      "transition_class": "derive_post_hoc_from_current_position_state_plus_action_label",
+      "allowed_transition_classes": [
+        "hold_flat",
+        "enter_long",
+        "hold_long",
+        "exit_long"
+      ],
+      "derivation_must_not_mutate_runtime_behavior": true
+    }
+  },
+  "artifact_contract": {
+    "timeline_name": "rl-v2-action-observability-timeline-v1.jsonl",
+    "manifest_name": "rl-v2-action-observability-manifest-v1.json",
+    "summary_name": "rl-v2-action-observability-summary-v1.json",
+    "timeline_format": "utf8_json_lines",
+    "manifest_format": "json",
+    "summary_format": "json",
+    "artifact_is_ephemeral_workflow_output_not_repository_input": true,
+    "timeline_must_be_retained_with_backtest_evidence": true,
+    "digest_algorithm": "sha256",
+    "duplicate_pair_timestamp_policy": "fail_closed"
+  },
+  "behavioral_invariants": {
+    "default_enabled": false,
+    "configuration_flag_required": true,
+    "research_only": true,
+    "upstream_freqtrade_core_change_allowed": false,
+    "strategy_signal_mutation_allowed": false,
+    "model_action_mutation_allowed": false,
+    "reward_mutation_allowed": false,
+    "feature_mutation_allowed": false,
+    "trade_lifecycle_mutation_allowed": false,
+    "logging_failure_policy": "fail_closed_only_when_explicitly_enabled",
+    "disabled_mode_output": "no_observability_artifact",
+    "disabled_mode_behavioral_equivalence_required": true,
+    "enabled_mode_signal_equivalence_required": true
+  },
+  "future_implementation_acceptance": {
+    "project_specific_paths_only": true,
+    "unit_tests_required": true,
+    "synthetic_dataframe_tests_required": true,
+    "deterministic_serialization_test_required": true,
+    "duplicate_and_invalid_action_fail_closed_tests_required": true,
+    "secret_redaction_test_required": true,
+    "disabled_mode_no_op_test_required": true,
+    "enabled_vs_disabled_signal_equivalence_test_required": true,
+    "market_data_access_allowed": false,
+    "training_allowed": false,
+    "backtest_allowed": false,
+    "cache_restore_allowed": false
+  },
+  "evidence_classification": {
+    "classification": "prospective_rl_v2_action_observability_declaration",
+    "strict_oos": false,
+    "protected_final_validation": false,
+    "profitability_is_non_gating": true,
+    "statistical_proof_claim_allowed": false,
+    "automatic_ranking": false,
+    "automatic_promotion": false,
+    "dry_run_authorized": false,
+    "live_authorized": false
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "future_evaluation_window_selected": false,
+    "phase6_authoritative_selected_model": null,
+    "phase6_reopen_allowed": false,
+    "seed_rerun_or_replacement_allowed": false,
+    "retuning_allowed": false
+  },
+  "future_sequence": {
+    "separate_bounded_implementation_task_required": true,
+    "implementation_may_execute_model_or_backtest": false,
+    "separate_prospective_execution_declaration_required": true,
+    "execution_window_must_be_fresh_and_unconsumed": true,
+    "this_declaration_authorizes_implementation": false,
+    "this_declaration_authorizes_execution": false
+  }
+}

@@ -1,0 +1,129 @@
+{
+  "schema_version": 1,
+  "interpretation_id": "rl-v2-paired-attribution-interpretation-v1",
+  "source": {
+    "task_id": "FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution",
+    "workflow_run_id": 30131273189,
+    "trigger_pr": 272,
+    "execution_head_sha": "ce83a3e52ab6bc8676072522e266dcf50bd692e7",
+    "artifact_name": "rl-v2-roi-lifecycle-paired-attribution-272",
+    "artifact_digest": "sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04",
+    "classification": "paired_historical_development_attribution",
+    "strict_oos": false,
+    "protected_final_validation": false
+  },
+  "baseline": {
+    "artifact_name": "rl-v2-historical-training-execution-218",
+    "artifact_digest": "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55",
+    "rerun": false
+  },
+  "boundaries": {
+    "consumed_historical_oos_accessed": false,
+    "protected_final_holdout_accessed": false,
+    "profitability_is_non_gating": true,
+    "automatic_ranking": false,
+    "automatic_promotion": false,
+    "dry_run_authorized": false,
+    "live_authorized": false,
+    "phase6_authoritative_selected_model": null
+  },
+  "only_semantic_delta": {
+    "ignore_roi_if_entry_signal": true
+  },
+  "primary_mechanism_attribution": {
+    "directional_hypothesis_supported": true,
+    "baseline": {
+      "roi_exit_followed_by_same_pair_15m_reentry_count": 122,
+      "immediate_external_exit_reentry_boundary_count": 131,
+      "external_exit_reentry_boundary_fee_usdt": 52.582123
+    },
+    "variant": {
+      "roi_exit_followed_by_same_pair_15m_reentry_count": 0,
+      "immediate_external_exit_reentry_boundary_count": 0,
+      "external_exit_reentry_boundary_fee_usdt": 0.0
+    },
+    "conclusion": "The prospectively defined immediate ROI-exit and same-pair re-entry mechanism was absent in the lifecycle-aligned variant on the reused historical-development path."
+  },
+  "descriptive_comparison": {
+    "baseline": {
+      "trade_count": 174,
+      "gross_price_pnl_usdt": 21.791297,
+      "fees_usdt": 69.643465,
+      "net_profit_usdt": -47.852168,
+      "roi_exit_count": 122,
+      "target_flat_exit_count": 39,
+      "stop_loss_exit_count": 11
+    },
+    "variant": {
+      "trade_count": 45,
+      "gross_price_pnl_usdt": 29.866574,
+      "fees_usdt": 18.059698,
+      "net_profit_usdt": 11.806876,
+      "profit_factor": 1.251195,
+      "max_drawdown_abs": 26.728284,
+      "roi_exit_count": 2,
+      "target_flat_exit_count": 40,
+      "stop_loss_exit_count": 1,
+      "force_exit_count": 2
+    },
+    "net_profit_delta_usdt": 59.659044,
+    "causal_profitability_claim_authorized": false
+  },
+  "variant_exit_reason_decomposition": {
+    "freqai_rl_v2_target_flat": {
+      "trades": 40,
+      "gross_price_pnl_usdt": 30.781068,
+      "fees_usdt": 16.061529,
+      "net_profit_usdt": 14.719539,
+      "net_wins": 11,
+      "median_duration_minutes": 577.5
+    },
+    "roi": {
+      "trades": 2,
+      "gross_price_pnl_usdt": 6.124014,
+      "fees_usdt": 0.812247,
+      "net_profit_usdt": 5.311767,
+      "net_wins": 2,
+      "median_duration_minutes": 6412.5
+    },
+    "stop_loss": {
+      "trades": 1,
+      "gross_price_pnl_usdt": -4.999637,
+      "fees_usdt": 0.390001,
+      "net_profit_usdt": -5.389638,
+      "net_wins": 0,
+      "median_duration_minutes": 4665.0
+    },
+    "force_exit": {
+      "trades": 2,
+      "gross_price_pnl_usdt": -2.038871,
+      "fees_usdt": 0.795921,
+      "net_profit_usdt": -2.834793,
+      "net_wins": 1,
+      "median_duration_minutes": 9307.5
+    },
+    "target_flat_hypothesis_resolved": false
+  },
+  "interpretation": {
+    "mechanism_support": true,
+    "strict_oos_generalization_established": false,
+    "protected_final_validation_established": false,
+    "ppo_seed_stability_established": false,
+    "profitability_established": false,
+    "superiority_established": false,
+    "promotion_authorized": false
+  },
+  "next_research_gate": {
+    "kind": "prospective_seed_robustness_declaration",
+    "execution_authorized_by_this_record": false,
+    "requirements": [
+      "Freeze a finite seed set before execution.",
+      "Keep model, strategy, reward, features, thresholds, pairs, timeframes, fees and geometry unchanged.",
+      "Retain paired_historical_development_attribution classification for reused data.",
+      "Predeclare mechanism-consistency and dispersion criteria.",
+      "Do not rerun the immutable baseline.",
+      "Do not access consumed historical OOS or the protected final holdout.",
+      "Do not infer profitability, ranking, superiority, promotion or deployment readiness."
+    ]
+  }
+}

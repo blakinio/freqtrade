@@ -53,11 +53,11 @@ Perform the prospectively declared evidence-only diagnosis of the two low-trade-
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T22:54:00+02:00
-head: a4326c7a7fd1b2b95b930085ee7cbe35ee0e8b10
+updated_at: 2026-07-25T22:58:00+02:00
+head: 18c93fbceee40916c6cb67c76b2af7be84c1ad88
 branch: docs/rl-v2-seed-validity-diagnosis-task
 pr: 296
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS_DECLARATION.md
@@ -106,9 +106,15 @@ validation:
   - command: diagnosis declaration boundary review
     result: PASS
     evidence: The merged declaration fixes immutable sources, calculations, causal limits, output paths and all execution prohibitions.
+  - command: Freqtrade CI 30174453566 / run 1450
+    result: PASS
+    evidence: Scope, pre-commit, documentation syntax, documentation build and CI gate passed for the one-file task declaration.
+  - command: GitHub Actions Security Analysis 30174453542 / run 1375
+    result: PASS
+    evidence: Required zizmor workflow-security analysis passed on the task head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md --require-checkpoint
     result: NOT_RUN
-    evidence: Local checkout is unavailable; repository CI must validate the task checkpoint before merge.
+    evidence: The final ready-state task checkpoint must be validated in a checkpoint-only diagnostic PR before merge.
 blockers: []
 next_action: Open and validate this exact-one-file diagnosis task declaration PR; merge it only after required CI and checkpoint validation pass, then branch from updated develop, inspect exactly the frozen immutable artifacts, and add only the declared diagnosis documentation, machine-readable evidence and task-record updates.
 ```

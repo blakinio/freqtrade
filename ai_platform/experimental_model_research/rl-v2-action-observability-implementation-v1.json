@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "implementation_id": "rl-v2-action-observability-implementation-v1",
+  "status": "implemented_not_authorized_for_execution",
+  "task": "docs/agents/tasks/FTAI-20260725-rl-v2-action-observability-implementation.md",
+  "declaration": {
+    "path": "ai_platform/experimental_model_research/rl-v2-action-observability-declaration-v1.json",
+    "declaration_id": "rl-v2-action-observability-declaration-v1"
+  },
+  "module": "ai_platform/scripts/rl_v2_action_observability.py",
+  "tests": "tests/ai_platform/test_rl_v2_action_observability.py",
+  "artifact_contract": {
+    "timeline": "rl-v2-action-observability-timeline-v1.jsonl",
+    "manifest": "rl-v2-action-observability-manifest-v1.json",
+    "summary": "rl-v2-action-observability-summary-v1.json",
+    "timeline_format": "utf8_json_lines",
+    "digest_algorithm": "sha256"
+  },
+  "behavioral_invariants": {
+    "default_enabled": false,
+    "disabled_mode_writes_artifacts": false,
+    "input_dataframe_mutation_allowed": false,
+    "strategy_signal_mutation_allowed": false,
+    "model_action_mutation_allowed": false,
+    "reward_mutation_allowed": false,
+    "feature_mutation_allowed": false,
+    "trade_lifecycle_mutation_allowed": false,
+    "upstream_freqtrade_core_modified": false
+  },
+  "scope": {
+    "recorder_implemented": true,
+    "validator_implemented": true,
+    "deterministic_serializer_implemented": true,
+    "synthetic_tests_implemented": true,
+    "strategy_integration_allowed": false,
+    "workflow_integration_allowed": false,
+    "model_execution_allowed": false,
+    "training_allowed": false,
+    "backtest_allowed": false,
+    "market_data_access_allowed": false,
+    "cache_restore_allowed": false,
+    "promotion_allowed": false
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "phase6_authoritative_selected_model": null,
+    "seed_rerun_or_replacement_allowed": false
+  }
+}

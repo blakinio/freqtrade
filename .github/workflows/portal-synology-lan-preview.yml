@@ -18,7 +18,7 @@ permissions:
 
 concurrency:
   group: portal-synology-lan-preview
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   IMAGE_NAME: ghcr.io/blakinio/freqtrade-portal-web
@@ -58,8 +58,6 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.title=Freqtrade AI Trading Portal LAN Preview
-          cache-from: type=gha,scope=portal-synology-lan-preview
-          cache-to: type=gha,mode=max,scope=portal-synology-lan-preview
 
   deploy:
     name: Deploy to Synology LAN

@@ -80,6 +80,36 @@ test("keeps the liquidation page usable on a narrow viewport", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Likwidacje", exact: true })).toBeVisible();
   await expect(page.getByLabel("Źródło")).toBeVisible();
   await expect(page.getByText("Ranking symboli")).toBeVisible();
-  const documentWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-  expect(documentWidth).toBeLessThanOrEqual(390);
+
+  const overflowSources = await page.evaluate(() => {
+    const viewportWidth = window.innerWidth;
+    return [...document.querySelectorAll<HTMLElement>("body *")]
+      .map((element) => {
+        const bounds = element.getBoundingClientRect();
+        let parent = element.parentElement;
+        let clipped = false;
+        while (parent) {
+          const overflowX = getComputedStyle(parent).overflowX;
+          if (["auto", "scroll", "hidden", "clip"].includes(overflowX)) {
+            clipped = true;
+            break;
+          }
+          parent = parent.parentElement;
+        }
+        return {
+          tag: element.tagName.toLowerCase(),
+          className: element.className,
+          right: Math.round(bounds.right),
+          width: Math.round(bounds.width),
+          clipped,
+        };
+      })
+      .filter((item) => !item.clipped && item.right > viewportWidth + 1)
+      .sort((left, right) => right.right - left.right)
+      .slice(0, 5);
+  });
+
+  expect(overflowSources, `Unclipped mobile overflow: ${JSON.stringify(overflowSources)}`).toEqual(
+    [],
+  );
 });

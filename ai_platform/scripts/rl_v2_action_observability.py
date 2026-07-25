@@ -6,15 +6,12 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import os
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
-
-import pandas as pd
-from pandas import DataFrame
 
 from ai_platform.scripts.rl_v2_synthetic_reference import (
     DesiredPosition,
@@ -194,22 +191,30 @@ def _finite_float(value: Any, label: str) -> float:
 
 
 def _timestamp_utc(value: Any) -> str:
-    try:
-        timestamp = pd.Timestamp(value)
-    except (TypeError, ValueError) as exc:
-        raise RLV2ActionObservabilityError("date must be a valid UTC timestamp") from exc
-    if pd.isna(timestamp) or timestamp.tzinfo is None:
+    if isinstance(value, str):
+        try:
+            timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise RLV2ActionObservabilityError(
+                "date must be a valid UTC timestamp"
+            ) from exc
+    elif isinstance(value, datetime):
+        timestamp = value
+    else:
+        raise RLV2ActionObservabilityError("date must be a datetime or RFC3339 string")
+
+    if timestamp.tzinfo is None:
         raise RLV2ActionObservabilityError("date must be timezone-aware UTC")
-    if timestamp.utcoffset() is None or timestamp.utcoffset().total_seconds() != 0:
+    if timestamp.utcoffset() != timedelta(0):
         raise RLV2ActionObservabilityError("date must use UTC")
-    return timestamp.tz_convert("UTC").isoformat().replace("+00:00", "Z")
+    return timestamp.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def _row_sort_key(row: Mapping[str, Any]) -> tuple[str, int, int]:
-    timestamp = pd.Timestamp(str(row["timestamp_utc"]))
+def _row_sort_key(row: Mapping[str, Any]) -> tuple[str, float, int]:
+    timestamp = datetime.fromisoformat(str(row["timestamp_utc"]).replace("Z", "+00:00"))
     return (
         str(row["pair"]),
-        int(timestamp.value),
+        timestamp.timestamp(),
         int(row["source_row_ordinal"]),
     )
 
@@ -275,7 +280,10 @@ def _validate_serialized_row(row: Any) -> dict[str, Any]:
     if not isinstance(row, dict) or set(row) != set(ROW_FIELDS):
         raise RLV2ActionObservabilityError("Timeline row schema drifted")
     integer_fields = ("source_row_ordinal", "action_raw", "do_predict_raw")
-    if any(type(row[field]) is not int for field in integer_fields):
+    if any(
+        not isinstance(row[field], int) or isinstance(row[field], bool)
+        for field in integer_fields
+    ):
         raise RLV2ActionObservabilityError("Timeline integer field type drifted")
     boolean_fields = (
         "prediction_accepted",
@@ -283,7 +291,7 @@ def _validate_serialized_row(row: Any) -> dict[str, Any]:
         "pre_trade_enter_long",
         "pre_trade_exit_long",
     )
-    if any(type(row[field]) is not bool for field in boolean_fields):
+    if any(not isinstance(row[field], bool) for field in boolean_fields):
         raise RLV2ActionObservabilityError("Timeline boolean field type drifted")
     if not isinstance(row["pair"], str) or not isinstance(row["timestamp_utc"], str):
         raise RLV2ActionObservabilityError("Timeline string field type drifted")
@@ -473,7 +481,7 @@ def _atomic_write_many(output_dir: Path, payloads: Mapping[str, bytes]) -> None:
             temporary.write_bytes(content)
             staged.append((temporary, destination))
         for temporary, destination in staged:
-            os.replace(temporary, destination)
+            temporary.replace(destination)
     except OSError as exc:
         for temporary, _ in staged:
             temporary.unlink(missing_ok=True)
@@ -497,25 +505,33 @@ class RLV2ActionObservabilityRecorder:
         """Return a defensive copy of rows in deterministic artifact order."""
         return [deepcopy(row) for row in sorted(self._rows, key=_row_sort_key)]
 
-    def capture_pair_dataframe(self, pair: str, dataframe: DataFrame) -> int:
+    def capture_pair_dataframe(self, pair: str, dataframe: Any) -> int:
         """Capture one pair dataframe or perform a strict disabled-mode no-op."""
         if not self.enabled:
             return 0
-        if not isinstance(dataframe, DataFrame):
-            raise RLV2ActionObservabilityError("dataframe must be a pandas DataFrame")
-        missing = set(REQUIRED_DATAFRAME_COLUMNS).difference(dataframe.columns)
+
+        columns = getattr(dataframe, "columns", None)
+        if columns is None or not hasattr(dataframe, "__getitem__"):
+            raise RLV2ActionObservabilityError(
+                "dataframe must expose columns and column selection"
+            )
+        missing = set(REQUIRED_DATAFRAME_COLUMNS).difference(columns)
         if missing:
             rendered = ", ".join(sorted(missing))
             raise RLV2ActionObservabilityError(
                 f"Missing RL-v2 observability columns: {rendered}"
             )
+        selected = dataframe[list(REQUIRED_DATAFRAME_COLUMNS)]
+        row_iterator = getattr(selected, "itertuples", None)
+        if not callable(row_iterator):
+            raise RLV2ActionObservabilityError(
+                "dataframe selection must expose itertuples"
+            )
 
         normalized_pair = _normalized_pair(pair)
         candidates: list[dict[str, Any]] = []
         candidate_keys: set[tuple[str, str]] = set()
-        for ordinal, values in enumerate(
-            dataframe[list(REQUIRED_DATAFRAME_COLUMNS)].itertuples(index=False, name=None)
-        ):
+        for ordinal, values in enumerate(row_iterator(index=False, name=None)):
             timestamp, action, do_predict, volume = values
             row = _normalize_row(
                 pair=normalized_pair,

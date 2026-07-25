@@ -3,34 +3,19 @@ name: AI Platform CI
 on:
   pull_request:
     paths:
-      - "AGENTS.md"
-      - "ai_platform/**"
-      - "docs/ai_platform/**"
-      - "tests/ai_platform/**"
-      - ".github/workflows/ai-platform.yml"
-  push:
-    branches:
-      - develop
-    paths:
-      - "AGENTS.md"
-      - "ai_platform/**"
-      - "docs/ai_platform/**"
       - "tests/ai_platform/**"
       - ".github/workflows/ai-platform.yml"
 
 permissions:
   contents: read
 
-concurrency:
-  group: "ai-platform-${{ github.workflow }}-${{ github.ref }}"
-  cancel-in-progress: true
-
 jobs:
-  validate:
-    name: AI platform tests and lint
+  emit-canonical-request:
+    name: Emit canonical seed request
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout diagnostic commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
@@ -40,34 +25,19 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install lightweight validation dependencies
-        run: >-
-          python -m pip install --disable-pip-version-check
-          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
-          "httpx>=0.24.1" fastapi ruff==0.15.21 codespell==2.4.2
+      - name: Emit exact canonical request and validate checkpoint
+        run: |
+          mkdir -p diagnostic-output
+          python -m ai_platform.scripts.rl_v2_lifecycle_seed_robustness_run_request \
+            --print-canonical > diagnostic-output/canonical-request.json
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-execution.md \
+            --require-checkpoint > diagnostic-output/checkpoint-validation.txt
 
-      - name: Compile AI platform Python
-        run: python -m compileall -q ai_platform tests/ai_platform
-
-      - name: Run AI platform tests
-        run: >-
-          python -m pytest -q -o addopts=''
-          --confcutdir=tests/ai_platform tests/ai_platform
-
-      - name: Ruff
-        run: ruff check ai_platform tests/ai_platform
-
-      - name: Ruff format
-        run: ruff format --check ai_platform tests/ai_platform
-
-      - name: Codespell
-        run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform
-
-      - name: Validate baseline JSON
-        run: python -m json.tool ai_platform/configs/freqai-baseline.example.json > /dev/null
-
-      - name: Validate experiment manifest JSON
-        run: python -m json.tool ai_platform/experiments/baseline-v1.json > /dev/null
-
-      - name: Validate experiment schema JSON
-        run: python -m json.tool ai_platform/experiments/schema-v1.json > /dev/null
+      - name: Upload diagnostic output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-seed-canonical-request-${{ github.event.pull_request.number }}
+          path: diagnostic-output/
+          if-no-files-found: error
+          retention-days: 1

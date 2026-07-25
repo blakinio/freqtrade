@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution
-status: active
+status: done
 branch: develop
 base_branch: develop
 created: 2026-07-24
 updated: 2026-07-25
-related_pr: "269"
+related_pr: "272"
 owned_paths:
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md
   - docs/ai_platform/RL_V2_ROI_LIFECYCLE_PAIRED_ATTRIBUTION_EXECUTION.md
@@ -122,11 +122,11 @@ PR #248 adds:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T00:23:00+02:00
-head: ee76c708091c00329b20f044e133072ecbc4ae6b
+updated_at: 2026-07-25T09:27:17+02:00
+head: 46618f215eba39da682b94f230387666b4799a06
 branch: develop
-pr: 269
-status: ready
+pr: 272
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260724-rl-v2-historical-evidence-diagnosis.md
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-alignment.md
@@ -140,61 +140,54 @@ owned_paths:
   - tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
   - .github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml
 proven:
-  - PR 248 merged the inert variant-only paired-attribution infrastructure as 746d52d4473f6043a530f79e376215ca8257e946 with all required CI green and zero execution.
-  - Immutable baseline artifact rl-v2-historical-training-execution-218 remains bound to run 30022863894 and digest sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55; baseline rerun remains forbidden.
-  - Trigger PR 265 added exactly the canonical request file and canonical request plus checkpoint validation passed in run 30112291721.
-  - Both BTC/USDT and ETH/USDT data jobs in run 30112291721 failed at pre-OOS coverage verification and the lifecycle variant backtest job was skipped.
-  - Baseline run 30022863894 data artifacts record first timestamp 2025-08-01T00:00:00Z and last timestamp exactly 2026-05-01T00:00:00Z for every declared pair and timeframe.
-  - The paired verifier rejected last_date greater than or equal to stopdt while the completed baseline verifier accepted that exact stored boundary representation.
-  - No baseline execution, variant backtest, consumed historical OOS access or protected final holdout access occurred in PR 265.
-  - PR 265 was closed without merge after terminal failure evidence was recorded.
-  - PR 269 accepts exactly the stored 2026-05-01T00:00:00Z boundary while continuing to reject any later timestamp.
-  - PR 269 adds a dependency-light exact-boundary regression and permits a present trigger request only when it equals the generated canonical payload.
-  - PR 269 changed no model, PPO, reward, feature, strategy, config, geometry, pair, timeframe, fee, threshold or evidence criterion.
-  - Temporary patch, formatter, diagnostic and checkpoint workflows were removed from the PR 269 candidate.
-  - AI Platform CI 1151, Freqtrade CI 1342 and zizmor 1272 passed on final PR 269 head bbf75230d292f1f95c540b61ab261cc2fdf54b73.
-  - PR 269 was squash-merged to develop as ee76c708091c00329b20f044e133072ecbc4ae6b.
-  - Two accidental placeholder-only commits created and immediately deleted the same noop file before PR 269; the resulting develop tree was restored before the repair branch was created.
+  - PR 248 merged the inert variant-only paired-attribution infrastructure as 746d52d4473f6043a530f79e376215ca8257e946 with zero execution.
+  - Immutable baseline artifact rl-v2-historical-training-execution-218 remains bound to run 30022863894 and digest sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55; baseline rerun remained forbidden.
+  - Trigger PR 265 failed only at the exact stored stop-boundary representation and was closed without merge before variant execution.
+  - PR 269 aligned the verifier with the stored 2026-05-01T00:00:00Z boundary, retained rejection of later data, passed required CI, and merged as ee76c708091c00329b20f044e133072ecbc4ae6b.
+  - PR 270 durably synchronized the repaired checkpoint and merged as 46618f215eba39da682b94f230387666b4799a06.
+  - PR 271 placed a canonical payload outside the required run-requests path and was closed without merge or dedicated execution.
+  - PR 272 added exactly one canonical request file at the required run-requests path on head ce83a3e52ab6bc8676072522e266dcf50bd692e7.
+  - AI Platform CI 1154, Freqtrade CI 1347 and zizmor 1277 passed on PR 272.
+  - Paired-attribution run 30131273189 passed request validation, both pre-OOS data jobs and exactly one lifecycle-aligned variant training/backtest.
+  - Combined coverage spans 2025-08-01T00:00:00Z through exactly 2026-05-01T00:00:00Z for BTC/USDT and ETH/USDT on 15m, 1h and 4h; consumed historical OOS and protected final holdout access are false.
+  - Immutable artifact rl-v2-roi-lifecycle-paired-attribution-272 has digest sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04 and is bound to run 30131273189 and execution head ce83a3e52ab6bc8676072522e266dcf50bd692e7.
+  - Evidence metadata records one executed Freqtrade backtesting command, lifecycle-aligned strategy only, baseline_rerun=false, automatic_ranking=false and automatic_promotion=false.
+  - Variant ROI-to-same-pair-15m re-entries are 0 versus baseline 122, and immediate external-exit/re-entry boundaries are 0 versus baseline 131.
+  - Variant boundary fees are 0.0 USDT versus baseline 52.582123 USDT; both prospectively frozen directional criteria are met.
+  - Variant descriptive metrics are 45 trades, 11.806876 USDT net profit, 18.059698 USDT fees, profit factor 1.251195 and max drawdown 26.728284; profitability remains non-gating.
+  - PR 272 was closed without merge after terminal evidence and artifact provenance were recorded.
 derived:
-  - The PR 265 failure was a timestamp-representation validation mismatch, not incomplete declared data coverage or model behavior evidence.
-  - A fresh pull-request-opened event is required after the merged repair; PR 265 cannot be rerun or merged as an execution switch.
-unknown:
-  - Whether a fresh exact-one-file trigger completes the lifecycle variant execution.
-  - Whether the variant reduces both frozen primary lifecycle metrics.
+  - The sole lifecycle semantic delta removed the prospectively defined immediate ROI-exit/re-entry mechanism in this reused historical-development window.
+  - The result supports the frozen directional mechanism hypothesis only and does not establish strict-OOS generalization, final validation, superiority, ranking, promotion, dry-run or live readiness.
+unknown: []
 conflicts: []
 first_failure:
   marker: RESOLVED
-  evidence: PR 265 rejected the exact stored stop boundary before backtest; PR 269 aligned the verifier, added regression coverage and merged after terminal green CI.
+  evidence: The stop-boundary representation mismatch was repaired in PR 269; the fresh canonical PR 272 then completed all bounded data and variant execution stages.
 rejected_hypotheses:
-  - Treat the PR 265 data failure as model or strategy evidence.
-  - Rerun or merge PR 265.
+  - Treat the PR 265 pre-execution validation failure as model behavior evidence.
+  - Rerun or merge any trigger request PR.
   - Rerun the immutable baseline.
-  - Broaden the repair into PPO, reward, feature, strategy, pair, timeframe, fee, threshold or geometry changes.
   - Access consumed historical OOS or the protected final holdout.
-  - Treat future paired development attribution as strict OOS, profitability, superiority or promotion evidence.
+  - Change PPO, reward, features, thresholds, geometry, model, strategy or config during attribution execution.
+  - Treat the paired historical-development result as profitability, superiority, promotion or final-validation evidence.
 changed_paths:
   - ai_platform/scripts/rl_v2_roi_lifecycle_paired_attribution_run_request.py
   - tests/ai_platform/test_rl_v2_roi_lifecycle_paired_attribution.py
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md
 validation:
-  - command: AI Platform RL-v2 ROI Lifecycle Paired Attribution 30112291721
-    result: FAIL
-    evidence: Request validation passed; both data jobs failed at exact-stop coverage validation and the backtest was skipped.
-  - command: immutable baseline data artifact inspection
+  - command: AI Platform RL-v2 ROI Lifecycle Paired Attribution 30131273189
     result: PASS
-    evidence: BTC and ETH coverage artifacts from run 30022863894 record complete declared coverage with the exact May 1 boundary timestamp and no later data.
-  - command: AI Platform CI 30129827779 / run 1151
+    evidence: Request validation, both verified pre-OOS data jobs, exactly one lifecycle-aligned backtest, deterministic evidence extraction and immutable artifact upload succeeded.
+  - command: local digest and artifact payload verification
     result: PASS
-    evidence: AI tests, compile, Ruff, formatter, codespell and JSON validations passed on the clean repair candidate.
-  - command: Freqtrade CI 30129827803 / run 1342
+    evidence: Downloaded artifact digest equals sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04; paired-attribution, metadata and coverage payloads reconcile.
+  - command: standard PR 272 CI
     result: PASS
-    evidence: Pre-commit and the full multi-platform core matrix, including coverage, smoke checks, Ruff, formatter and mypy, passed.
-  - command: GitHub Actions Security Analysis 30129827776 / run 1272
+    evidence: AI Platform CI 1154, Freqtrade CI 1347 and zizmor 1277 completed successfully.
+  - command: close trigger PR 272 without merge
     result: PASS
-    evidence: Required zizmor workflow security analysis passed on the clean repair candidate.
-  - command: squash merge PR 269
-    result: PASS
-    evidence: GitHub merged the reviewed repair head to develop as ee76c708091c00329b20f044e133072ecbc4ae6b.
+    evidence: GitHub records PR 272 closed with merged=false after terminal evidence was posted.
 blockers: []
-next_action: Generate the canonical request from repaired develop, open a fresh exact-one-file trigger PR, and close it without merge after terminal paired-attribution evidence is collected and recorded.
+next_action: Do not reopen this completed paired-attribution task; declare a separate bounded interpretation or next-experiment task only if it preserves the evidence classification, forbids baseline rerun and OOS or holdout access, and leaves Phase 6 selected_model=null.
 ```

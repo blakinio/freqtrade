@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260725-rl-v2-seed-validity-diagnosis
-status: active
-branch: docs/rl-v2-seed-validity-diagnosis-results
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
@@ -43,9 +43,9 @@ The immutable archives contain no per-candle action, prediction or model-state t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:24:00+02:00
-head: e7c3addc03bcfd9bced73eb0fc6a454a222be163
-branch: docs/rl-v2-seed-validity-diagnosis-results
+updated_at: 2026-07-25T23:28:00+02:00
+head: b88f8610c71db3f62f63cb4560a579bf9f8f66b0
+branch: develop
 pr: 299
 status: ready
 context_routes:
@@ -58,7 +58,7 @@ owned_paths:
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
   - ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json
 proven:
-  - Develop head 3b3cdd4415acefa83496cceacb922d3868852483 contains the merged bounded diagnosis task and no overlapping open RL-v2 PR existed before result work.
+  - Develop head 3b3cdd4415acefa83496cceacb922d3868852483 contained the merged bounded diagnosis task before result work.
   - The aggregate, anchor and four new-seed artifact SHA-256 values exactly match the frozen declaration.
   - Every embedded raw backtest configuration reconciles with its accepted effective runtime configuration after the documented extractor normalization.
   - Every seed embeds strategy SHA-256 366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7 and every new-seed runtime hash matches accepted evidence.
@@ -71,6 +71,7 @@ proven:
   - Invalid-seed same-pair median flat gaps were no longer than valid-set medians for BTC or ETH.
   - The raw archives retain trades, configs, strategy, wallet and market-change files but no per-candle action, prediction or model-state timeline.
   - No model, training, backtest, market-data, cache, baseline or seed operation occurred in this diagnosis.
+  - PR 299 was squash-merged to develop as b88f8610c71db3f62f63cb4560a579bf9f8f66b0 with exactly the three declared result paths.
   - The frozen aggregate decision remains inconclusive with strict_oos=false, protected_final_validation=false, profitability non-gating and Phase 6 selected_model=null.
 derived:
   - No evidence-integrity defect explains the two invalid seeds.
@@ -98,9 +99,6 @@ changed_paths:
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
   - ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json
 validation:
-  - command: live develop and overlapping open-PR search
-    result: PASS
-    evidence: Result work branched from develop 3b3cdd4415acefa83496cceacb922d3868852483 with no open overlapping RL-v2 PR.
   - command: immutable artifact digest and archive identity verification
     result: PASS
     evidence: Aggregate, anchor and all four new-seed downloaded archive hashes exactly match the prospective declaration.
@@ -116,18 +114,21 @@ validation:
   - command: python -m json.tool ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json
     result: PASS
     evidence: The machine-readable diagnosis is valid JSON and preserves the frozen decision and isolation flags.
-  - command: AI Platform CI 30175303408 / run 1233
+  - command: AI Platform CI 30175463717 / run 1236
     result: PASS
-    evidence: Compile, AI platform tests, Ruff, Ruff format, codespell and JSON validation passed on the diagnosis result head.
-  - command: Freqtrade CI 30175303434 / run 1457
+    evidence: Compile, AI platform tests, Ruff, Ruff format, codespell and JSON validation passed on the final result head.
+  - command: Freqtrade CI 30175463684 / run 1460
     result: PASS
-    evidence: Scope, pre-commit, documentation syntax, documentation build and CI gate passed on the diagnosis result head.
-  - command: GitHub Actions Security Analysis 30175303403 / run 1380
+    evidence: Scope, pre-commit, documentation syntax, documentation build and CI gate passed on the final result head.
+  - command: GitHub Actions Security Analysis 30175463765 / run 1382
     result: PASS
-    evidence: Required zizmor workflow-security analysis passed on the diagnosis result head.
+    evidence: Required zizmor workflow-security analysis passed on the final result head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md --require-checkpoint
     result: PASS
-    evidence: Canonical checkpoint validation completed in AI Platform CI 30175412913, job 89723290204, artifact 8624061374; PR 300 closed without merge.
+    evidence: Final exact-content validation completed in AI Platform CI 30175479908, job 89723467818, artifact 8624079260; PR 301 closed without merge.
+  - command: squash merge PR 299
+    result: PASS
+    evidence: GitHub merged the final three-file diagnosis result to develop as b88f8610c71db3f62f63cb4560a579bf9f8f66b0.
 blockers: []
-next_action: Merge PR 299 only after final exact-content checkpoint validation passes; then close this task with decision=inconclusive unchanged and require a separate prospective declaration before any action-level instrumentation or further experiment.
+next_action: Do not reopen, rerun, replace, retune, rank or promote from this terminal diagnosis; preserve decision=inconclusive and require a separate prospective declaration before any action-level instrumentation or further experiment.
 ```

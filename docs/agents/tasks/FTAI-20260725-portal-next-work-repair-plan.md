@@ -4,7 +4,7 @@ status: ready
 branch: docs/portal-next-work-repair-sync-20260725
 base_branch: develop
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-26
 related_pr: 310
 owned_paths:
   - docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
@@ -50,8 +50,8 @@ Create a durable, repository-grounded continuation route that corrects stale por
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:55:00+02:00
-head: edb2899e0276adcb9538609368e42af5de63e838
+updated_at: 2026-07-26T00:40:00+02:00
+head: 9dd77cd0729069a432aa26a888987c0afe1d0766
 branch: docs/portal-next-work-repair-sync-20260725
 pr: 310
 status: ready
@@ -71,8 +71,8 @@ proven:
   - PI-02 task FTAI-20260724-portal-pi02-authoritative-valuation is done and PR 267 merged as 0c8fdfe6fb50ff635403ae963484bf4e6883e1e1.
   - The control-plane API already exposes immutable revision and desired-state mutation endpoints for bots.
   - Current web bot surfaces do not expose the complete bot-scoped operations and lifecycle workflow.
-  - Open portal PR 307 currently owns only docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md; PR 304 owns the Liquid20 prompt and pre-commit config, so this task has disjoint paths.
   - PR 310 contains exactly the five declared documentation paths and is based on develop cb001ac2c13bcefc8c979b89113d92d87657e6e8.
+  - Exact-head validation on 9dd77cd0729069a432aa26a888987c0afe1d0766 passed AI Platform CI, zizmor and Freqtrade CI including pre-commit, documentation build and CI Gate.
 derived:
   - The next safe autonomous portal product package is Bot Operations convergence over existing canonical APIs, not PI-08 execution submission.
   - A dedicated continuation document is needed because status-bearing portal documents have drifted at different times.
@@ -98,18 +98,18 @@ validation:
   - command: compare develop...docs/portal-next-work-repair-sync-20260725
     result: PASS
     evidence: The branch changed exactly the five declared documentation paths before validation repair.
-  - command: AI Platform CI on PR head 688f2cb385a08b6be24c0ff65c53f439a38fb1ca
+  - command: AI Platform CI on PR head 9dd77cd0729069a432aa26a888987c0afe1d0766
     result: PASS
-    evidence: Workflow run 30176794974 completed successfully.
-  - command: GitHub Actions Security Analysis with zizmor on PR head 688f2cb385a08b6be24c0ff65c53f439a38fb1ca
+    evidence: Workflow run 30177790660 completed successfully.
+  - command: GitHub Actions Security Analysis with zizmor on PR head 9dd77cd0729069a432aa26a888987c0afe1d0766
     result: PASS
-    evidence: Workflow run 30176794990 completed successfully.
-  - command: Freqtrade CI on PR head 688f2cb385a08b6be24c0ff65c53f439a38fb1ca
-    result: FAIL
-    evidence: Workflow run 30176794971; Pre-commit checks job 89726818422 exposed the missing final newline.
-  - command: required GitHub Actions on current exact PR head
+    evidence: Workflow run 30177790656 completed successfully.
+  - command: Freqtrade CI on PR head 9dd77cd0729069a432aa26a888987c0afe1d0766
+    result: PASS
+    evidence: Workflow run 30177790706 completed successfully; Pre-commit checks job 89729340016, Documentation build job 89729373188 and CI Gate job 89729406459 all passed.
+  - command: required GitHub Actions on final checkpoint-only PR head
     result: PENDING
-    evidence: The newline repair and this checkpoint update create a new exact head that must pass fresh required workflows before merge.
+    evidence: This checkpoint update creates one final exact head that must pass required workflows before merge.
 blockers: []
-next_action: Verify all required workflows on the exact current PR 310 head; if they pass and the PR remains mergeable and path-disjoint, squash-merge with expected_head_sha, verify develop, and leave Bot Operations for a separate dated implementation task.
+next_action: Verify all required workflows on the exact final PR 310 head; if they pass and the PR remains mergeable and path-disjoint, squash-merge with expected_head_sha, verify develop, and leave Bot Operations for a separate dated implementation task.
 ```

@@ -39,6 +39,7 @@ from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request impo
     RLV2PairedAttributionError,
 )
 
+
 EXPECTED_PAIRS = ("BTC/USDT", "ETH/USDT")
 
 
@@ -121,9 +122,7 @@ def extract_seed_evidence(archive: Path, seed: int) -> dict[str, Any]:
     timed_out_exit_orders = _summary_counter(result, "timedout_exit_orders")
 
     validity_reasons: list[str] = []
-    minimum_pair_trades = int(
-        EXPECTED_VALIDITY_GATE["both_pairs_minimum_completed_trades_each"]
-    )
+    minimum_pair_trades = int(EXPECTED_VALIDITY_GATE["both_pairs_minimum_completed_trades_each"])
     for pair in EXPECTED_PAIRS:
         if pair_counts[pair] < minimum_pair_trades:
             validity_reasons.append(
@@ -144,13 +143,9 @@ def extract_seed_evidence(archive: Path, seed: int) -> dict[str, Any]:
         )
     if rejected_signals > int(EXPECTED_VALIDITY_GATE["maximum_rejected_signals"]):
         validity_reasons.append("rejected signal count exceeded the frozen maximum")
-    if timed_out_entry_orders > int(
-        EXPECTED_VALIDITY_GATE["maximum_timed_out_entry_orders"]
-    ):
+    if timed_out_entry_orders > int(EXPECTED_VALIDITY_GATE["maximum_timed_out_entry_orders"]):
         validity_reasons.append("timed-out entry orders exceeded the frozen maximum")
-    if timed_out_exit_orders > int(
-        EXPECTED_VALIDITY_GATE["maximum_timed_out_exit_orders"]
-    ):
+    if timed_out_exit_orders > int(EXPECTED_VALIDITY_GATE["maximum_timed_out_exit_orders"]):
         validity_reasons.append("timed-out exit orders exceeded the frozen maximum")
 
     primary = metrics["primary_mechanism_metrics"]
@@ -173,9 +168,7 @@ def extract_seed_evidence(archive: Path, seed: int) -> dict[str, Any]:
         "freqai_model": EXPECTED_MODEL,
         "freqai_model_sha256": contract["runtime_binding"]["freqai_model_sha256"],
         "execution_timerange": contract["execution_geometry"]["execution_timerange"],
-        "semantic_evidence_window": contract["execution_geometry"][
-            "semantic_evidence_window"
-        ],
+        "semantic_evidence_window": contract["execution_geometry"]["semantic_evidence_window"],
         "valid": not validity_reasons,
         "validity_reasons": validity_reasons,
         "pair_trade_counts": {pair: pair_counts[pair] for pair in EXPECTED_PAIRS},
@@ -245,7 +238,9 @@ def _anchor_evidence(contract: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def aggregate_seed_evidence(paths: list[Path]) -> dict[str, Any]:
+def aggregate_seed_evidence(  # noqa: C901
+    paths: list[Path],
+) -> dict[str, Any]:
     """Combine exactly four new seeds with the immutable seed-42 anchor."""
     contract, _, _ = _validate_contract()
     if len(paths) != len(NEW_SEEDS):
@@ -302,22 +297,16 @@ def aggregate_seed_evidence(paths: list[Path]) -> dict[str, Any]:
     entries = [_anchor_evidence(contract)] + [by_seed[seed] for seed in NEW_SEEDS]
     invalid = [entry["seed"] for entry in entries if entry.get("valid") is not True]
     original_pass_count = sum(
-        entry["original_directional_support"]["all_required_criteria_met"]
-        for entry in entries
+        entry["original_directional_support"]["all_required_criteria_met"] for entry in entries
     )
     strong_pass_count = sum(
-        entry["strong_reduction_support"]["all_strong_criteria_met"]
-        for entry in entries
+        entry["strong_reduction_support"]["all_strong_criteria_met"] for entry in entries
     )
     required_original = int(
-        EXPECTED_MECHANISM_GATE["original_directional_criteria_per_seed"][
-            "required_seed_count"
-        ]
+        EXPECTED_MECHANISM_GATE["original_directional_criteria_per_seed"]["required_seed_count"]
     )
     required_strong = int(
-        EXPECTED_MECHANISM_GATE["strong_reduction_criteria"][
-            "minimum_seed_count_meeting_both"
-        ]
+        EXPECTED_MECHANISM_GATE["strong_reduction_criteria"]["minimum_seed_count_meeting_both"]
     )
     if invalid:
         decision = "inconclusive"
@@ -343,8 +332,7 @@ def aggregate_seed_evidence(paths: list[Path]) -> dict[str, Any]:
         ]
         descriptive[name] = {
             "values_by_seed": {
-                str(entry["seed"]): entry["descriptive_metrics"].get(name)
-                for entry in entries
+                str(entry["seed"]): entry["descriptive_metrics"].get(name) for entry in entries
             },
             "median": round(float(statistics.median(values)), 6) if values else None,
             "gating": False,

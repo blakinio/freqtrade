@@ -14,6 +14,10 @@ const navigationGroups = [
     ],
   },
   {
+    label: "Market Data",
+    items: [{ href: "/market/liquidations", label: "Likwidacje" }],
+  },
+  {
     label: "Trading",
     items: [
       { href: "/terminal", label: "Trading Terminal" },
@@ -63,20 +67,27 @@ const navigationGroups = [
   },
 ];
 
+const shellStyle = { minWidth: 0, width: "100%" } as const;
+const navigationStyle = { minWidth: 0, maxWidth: "100%" } as const;
+
 export function AppShell({ children }: { children: ReactNode }) {
   const environment = portalEnvironment();
   return (
-    <div className="app-shell">
-      <a className="skip-link" href="#main-content">Skip to content</a>
-      <aside className="sidebar">
+    <div className="app-shell" style={shellStyle}>
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
+      <aside className="sidebar" style={navigationStyle}>
         <div className="brand-block">
-          <span className="brand-mark" aria-hidden="true">FT</span>
+          <span className="brand-mark" aria-hidden="true">
+            FT
+          </span>
           <div>
             <strong>AI Trading Portal</strong>
             <span>Operations console</span>
           </div>
         </div>
-        <nav className="primary-nav" aria-label="Primary navigation">
+        <nav className="primary-nav" aria-label="Primary navigation" style={navigationStyle}>
           {navigationGroups.map((group) => (
             <div className="nav-group" key={group.label}>
               <span className="nav-group-title">{group.label}</span>
@@ -106,7 +117,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             Protected portal boundary active
           </div>
         </header>
-        <main className="page-content" id="main-content">{children}</main>
+        <main className="page-content" id="main-content">
+          {children}
+        </main>
       </div>
     </div>
   );

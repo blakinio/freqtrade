@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - diagnostic/rl-v2-observability-lint
+  pull_request:
+    branches:
+      - feat/rl-v2-action-observability-implementation
 
 permissions:
   contents: write

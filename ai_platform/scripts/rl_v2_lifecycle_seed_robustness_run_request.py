@@ -12,13 +12,18 @@ from typing import Any
 
 from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request import (
     EXPECTED_EXECUTION as PAIRED_EXECUTION,
+)
+from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request import (
     RLV2PairedAttributionError,
     _read_json,
     _repo_path,
     _sha256,
-    _validate_contract as _validate_paired_contract,
     verify_downloaded_data,
 )
+from ai_platform.scripts.rl_v2_roi_lifecycle_paired_attribution_run_request import (
+    _validate_contract as _validate_paired_contract,
+)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_REPO_PATH = (
@@ -26,12 +31,10 @@ CONTRACT_REPO_PATH = (
     "rl-v2-lifecycle-seed-robustness-execution-contract-v1.json"
 )
 DECLARATION_REPO_PATH = (
-    "ai_platform/experimental_model_research/"
-    "rl-v2-lifecycle-seed-robustness-declaration-v1.json"
+    "ai_platform/experimental_model_research/rl-v2-lifecycle-seed-robustness-declaration-v1.json"
 )
 INTERPRETATION_REPO_PATH = (
-    "ai_platform/experimental_model_research/"
-    "rl-v2-paired-attribution-interpretation-v1.json"
+    "ai_platform/experimental_model_research/rl-v2-paired-attribution-interpretation-v1.json"
 )
 REQUEST_REPO_PATH = (
     "ai_platform/experimental_model_research/run-requests/"
@@ -39,9 +42,7 @@ REQUEST_REPO_PATH = (
 )
 BASE_CONFIG_REPO_PATH = "ai_platform/configs/rl_v2_training_research.json"
 MODEL_REPO_PATH = "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py"
-STRATEGY_REPO_PATH = (
-    "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py"
-)
+STRATEGY_REPO_PATH = "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py"
 VALIDATOR_REPO_PATH = "ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py"
 EVIDENCE_REPO_PATH = "ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py"
 WORKFLOW_REPO_PATH = ".github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml"
@@ -60,12 +61,8 @@ EXPECTED_DECLARATION_CLOSURE_MERGE = "2ea44b33423d199f5ab020e07031b14642806303"
 EXPECTED_CONFIG_SHA256 = "5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de"
 EXPECTED_MODEL_SHA256 = "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb4624cb79d46"
 EXPECTED_STRATEGY_SHA256 = "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7"
-EXPECTED_ANCHOR_DIGEST = (
-    "sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04"
-)
-EXPECTED_BASELINE_DIGEST = (
-    "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55"
-)
+EXPECTED_ANCHOR_DIGEST = "sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04"
+EXPECTED_BASELINE_DIGEST = "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55"
 ANCHOR_SEED = 42
 NEW_SEEDS = (300538280, 1710810709, 1950377252, 1146911492)
 ORDERED_SEEDS = (ANCHOR_SEED, *NEW_SEEDS)
@@ -131,18 +128,16 @@ def validate_new_seed(seed: int) -> None:
 def _require_sha(path: str, expected: str, label: str) -> None:
     actual = _sha256(_repo_path(path))
     if actual != expected:
-        raise RLV2SeedRobustnessError(
-            f"{label} SHA-256 drifted: expected {expected}, got {actual}"
-        )
+        raise RLV2SeedRobustnessError(f"{label} SHA-256 drifted: expected {expected}, got {actual}")
 
 
-def _validate_declaration(contract: dict[str, Any]) -> dict[str, Any]:
+def _validate_declaration(  # noqa: C901
+    contract: dict[str, Any],
+) -> dict[str, Any]:
     declaration = _read_json(_repo_path(DECLARATION_REPO_PATH), "seed declaration")
     if declaration.get("schema_version") != 1:
         raise RLV2SeedRobustnessError("Seed declaration schema_version drifted")
-    if declaration.get("declaration_id") != (
-        "rl-v2-lifecycle-seed-robustness-declaration-v1"
-    ):
+    if declaration.get("declaration_id") != ("rl-v2-lifecycle-seed-robustness-declaration-v1"):
         raise RLV2SeedRobustnessError("Seed declaration id drifted")
     if declaration.get("status") != "declared_not_authorized_for_execution":
         raise RLV2SeedRobustnessError("Seed declaration status drifted")
@@ -211,14 +206,14 @@ def _validate_declaration(contract: dict[str, Any]) -> dict[str, Any]:
     }:
         raise RLV2SeedRobustnessError("Per-seed validity declaration drifted")
     mechanism = declaration.get("mechanism_consistency_gate", {})
-    if mechanism.get("original_directional_criteria_per_seed") != (
-        EXPECTED_MECHANISM_GATE["original_directional_criteria_per_seed"]
+    if (
+        mechanism.get("original_directional_criteria_per_seed")
+        != (EXPECTED_MECHANISM_GATE["original_directional_criteria_per_seed"])
     ):
         raise RLV2SeedRobustnessError("Original mechanism criteria drifted")
     strong = mechanism.get("strong_reduction_criteria", {})
     if {
-        key: strong.get(key)
-        for key in EXPECTED_MECHANISM_GATE["strong_reduction_criteria"]
+        key: strong.get(key) for key in EXPECTED_MECHANISM_GATE["strong_reduction_criteria"]
     } != EXPECTED_MECHANISM_GATE["strong_reduction_criteria"]:
         raise RLV2SeedRobustnessError("Strong mechanism criteria drifted")
 
@@ -242,7 +237,8 @@ def _validate_declaration(contract: dict[str, Any]) -> dict[str, Any]:
     return declaration
 
 
-def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _validate_contract(  # noqa: C901
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     paired_contract, _, _, base_config = _validate_paired_contract()
     contract = _read_json(_repo_path(CONTRACT_REPO_PATH), "seed execution contract")
     if contract.get("schema_version") != 1:
@@ -460,9 +456,7 @@ def canonical_rl_v2_lifecycle_seed_robustness_request() -> dict[str, Any]:
         "baseline_rerun_allowed": False,
         "download_timerange": contract["execution_geometry"]["download_timerange"],
         "execution_timerange": contract["execution_geometry"]["execution_timerange"],
-        "semantic_evidence_window": contract["execution_geometry"][
-            "semantic_evidence_window"
-        ],
+        "semantic_evidence_window": contract["execution_geometry"]["semantic_evidence_window"],
         "train_period_days": contract["execution_geometry"]["train_period_days"],
         "backtest_period_days": contract["execution_geometry"]["backtest_period_days"],
         "pairs": list(contract["execution_geometry"]["pairs"]),
@@ -493,9 +487,7 @@ def load_rl_v2_lifecycle_seed_robustness_request(path: Path) -> dict[str, Any]:
         )
     for field, expected_value in expected.items():
         if request[field] != expected_value:
-            raise RLV2SeedRobustnessError(
-                f"Request field {field} drifted from canonical payload"
-            )
+            raise RLV2SeedRobustnessError(f"Request field {field} drifted from canonical payload")
     return request
 
 
@@ -512,9 +504,7 @@ def materialize_seed_runtime_config(output: Path, seed: int) -> Path:
     freqai = runtime_config.setdefault("freqai", {})
     freqai["identifier"] = runtime_identifier(seed)
     freqai["train_period_days"] = contract["execution_geometry"]["train_period_days"]
-    freqai["backtest_period_days"] = contract["execution_geometry"][
-        "backtest_period_days"
-    ]
+    freqai["backtest_period_days"] = contract["execution_geometry"]["backtest_period_days"]
     training = freqai.setdefault("model_training_parameters", {})
     training["seed"] = seed
     if freqai.get("data_split_parameters") != {
@@ -560,9 +550,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.materialize_config is not None:
             if args.seed is None:
-                raise RLV2SeedRobustnessError(
-                    "--seed is required with --materialize-config"
-                )
+                raise RLV2SeedRobustnessError("--seed is required with --materialize-config")
             print(materialize_seed_runtime_config(args.materialize_config, args.seed))
             return 0
         if args.verify_data is not None:

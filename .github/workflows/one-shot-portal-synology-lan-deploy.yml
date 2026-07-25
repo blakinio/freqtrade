@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
   statuses: write
 
 concurrency:
@@ -42,26 +43,58 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build and deploy preview
+        id: deploy
+        continue-on-error: true
         env:
           PORTAL_BIND_ADDRESS: 192.168.1.2
           PORTAL_PORT: "3000"
-        run: bash deploy/synology/portal/deploy-preview.sh
+        run: |
+          set -o pipefail
+          bash deploy/synology/portal/deploy-preview.sh 2>&1 | tee /tmp/portal-synology-deploy.log
+
+      - name: Publish bounded failure evidence
+        if: steps.deploy.outcome != 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node_bin=/runner/externals/node24/bin/node
+          if [[ ! -x "$node_bin" ]]; then
+            node_bin=/runner/externals/node20/bin/node
+          fi
+          LOG_PATH=/tmp/portal-synology-deploy.log COMMENT_PATH=/tmp/portal-synology-comment.json "$node_bin" <<'NODE'
+          const fs = require('fs');
+          const logPath = process.env.LOG_PATH;
+          const commentPath = process.env.COMMENT_PATH;
+          const text = fs.existsSync(logPath) ? fs.readFileSync(logPath, 'utf8') : 'deployment log unavailable';
+          const tail = text.split(/\r?\n/).slice(-80).join('\n').slice(0, 6000);
+          const body = `One-shot Synology portal deployment failed. Bounded tail of the deployment log:\n\n\`\`\`text\n${tail}\n\`\`\``;
+          fs.writeFileSync(commentPath, JSON.stringify({body}));
+          NODE
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/284/comments" \
+            --data-binary @/tmp/portal-synology-comment.json
 
       - name: Publish final status
         if: always()
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          JOB_STATUS: ${{ job.status }}
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
         run: |
           set -euo pipefail
-          case "$JOB_STATUS" in
+          case "$DEPLOY_OUTCOME" in
             success) state=success ;;
             failure) state=failure ;;
             *) state=error ;;
           esac
           payload=$(cat <<EOF
-          {"state":"$state","context":"one-shot-portal-synology-lan-deploy","description":"Portal Synology deploy: $JOB_STATUS","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
+          {"state":"$state","context":"one-shot-portal-synology-lan-deploy","description":"Portal Synology deploy: $DEPLOY_OUTCOME","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
           EOF
           )
           curl --fail --silent --show-error \
@@ -71,3 +104,7 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
             --data "$payload"
+
+      - name: Fail after reporting
+        if: steps.deploy.outcome != 'success'
+        run: exit 1

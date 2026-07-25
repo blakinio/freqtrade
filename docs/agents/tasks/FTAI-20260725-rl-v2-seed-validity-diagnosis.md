@@ -5,7 +5,7 @@ branch: docs/rl-v2-seed-validity-diagnosis-task
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: "pending"
+related_pr: "296"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
@@ -53,11 +53,11 @@ Perform the prospectively declared evidence-only diagnosis of the two low-trade-
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T22:52:00+02:00
-head: c6c3a6ca1a0245118e8e4e13db0cb4ec6e9716b3
+updated_at: 2026-07-25T22:54:00+02:00
+head: a4326c7a7fd1b2b95b930085ee7cbe35ee0e8b10
 branch: docs/rl-v2-seed-validity-diagnosis-task
-pr: pending
-status: implementing
+pr: 296
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS_DECLARATION.md

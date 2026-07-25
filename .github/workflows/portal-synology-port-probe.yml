@@ -1,0 +1,28 @@
+name: Portal Synology Port Probe
+
+on:
+  push:
+    branches:
+      - fix/portal-synology-port-3030
+    paths:
+      - .github/workflows/portal-synology-port-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: freqtrade-staging
+    timeout-minutes: 5
+    steps:
+      - name: Probe candidate LAN ports
+        run: |
+          set -euo pipefail
+          for port in 3030 3031 3032 8088; do
+            echo "=== PORT ${port} ==="
+            docker ps --format '{{.Names}} {{.Ports}}' | grep -E "(^|:|->)${port}([-/]|$)" || true
+            if command -v ss >/dev/null 2>&1; then
+              ss -ltn "sport = :${port}" || true
+            fi
+            curl --silent --show-error --max-time 3 --dump-header - --output /dev/null "http://192.168.1.2:${port}/" || true
+          done

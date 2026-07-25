@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "report_type": "liquidation_multi_source_acceptance_evaluation",
+  "policy_id": "liquid20-multi-source-acceptance-v1",
+  "run_id": "liquid20-20260724T170830Z-1",
+  "host_id": "synology-pl-01",
+  "passed": false,
+  "failed_gates": [
+    "binance-usdm.maximum_latency_over_threshold_ratio"
+  ]
+}

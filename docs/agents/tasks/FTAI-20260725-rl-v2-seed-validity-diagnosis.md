@@ -5,7 +5,7 @@ branch: docs/rl-v2-seed-validity-diagnosis-results
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: "pending"
+related_pr: "299"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md
@@ -43,11 +43,11 @@ The immutable archives contain no per-candle action, prediction or model-state t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:10:00+02:00
-head: 1c0633eb375e677f512b95b98e5f998ba9549662
+updated_at: 2026-07-25T23:16:00+02:00
+head: c56edc5fc16ce44ef8ddc50097015d257e5b8aef
 branch: docs/rl-v2-seed-validity-diagnosis-results
-pr: pending
-status: implementing
+pr: 299
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS_DECLARATION.md

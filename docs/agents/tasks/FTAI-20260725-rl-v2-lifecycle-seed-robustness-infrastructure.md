@@ -64,11 +64,11 @@ or cache restore because the canonical request file is intentionally absent.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T10:31:35+02:00
-head: 2ea44b33423d199f5ab020e07031b14642806303
+updated_at: 2026-07-25T10:58:00+02:00
+head: 1c99e41e820400f7b470161abbd4fa8816cdaff4
 branch: feat/rl-v2-lifecycle-seed-robustness-infrastructure
 pr: 0
-status: implementing
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-declaration.md
   - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_DECLARATION.md
@@ -83,19 +83,21 @@ owned_paths:
   - .github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml
 proven:
   - Develop head 2ea44b33423d199f5ab020e07031b14642806303 contains the completed deterministic seed declaration and closure records.
-  - No open PR overlaps RL-v2 seed robustness infrastructure ownership.
-  - Existing paired-attribution verifier provides fail-closed temporal and pre-OOS data coverage validation.
-  - Existing paired evidence helpers reconcile raw trades and frozen mechanism metrics.
-  - actions/download-artifact v8 resolves to official commit 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c.
+  - The branch is ahead of develop with zero divergence and exactly seven owned infrastructure paths.
+  - The canonical request file is absent, so the dedicated seed workflow cannot run during infrastructure review.
+  - The execution contract freezes anchor seed 42, four new seeds, zero baseline executions, runtime hashes, data geometry, validity rules and deterministic aggregate decisions.
+  - The workflow contains one matrix backtesting command for four new seeds, no seed-42 command and no baseline command.
+  - The workflow uses pinned actions/download-artifact commit 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c only to aggregate same-run per-seed artifacts.
+  - Dependency-light tests cover seed-only materialization, anchor rejection, supported aggregation, invalid-seed inconclusive handling, tamper rejection and workflow inertness.
 derived:
-  - The new workflow can remain inert until an exact canonical request is added in a later separate PR.
-  - Four isolated seed jobs plus one aggregate job implement the declared evidence geometry without rerunning anchor seed 42.
+  - Four isolated seed jobs plus one aggregate job implement the declared five-seed evidence geometry without rerunning anchor seed 42.
+  - Invalid or zero-trade evidence must remain visible and force an inconclusive aggregate rather than allowing discretionary replacement.
 unknown:
-  - Whether the complete infrastructure implementation passes repository CI without contract drift.
+  - Whether the current seven-file implementation passes all required repository CI and workflow-security checks.
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: Fresh live-state preflight found no overlapping infrastructure PR or changed develop head.
+  evidence: The previous GitHub connector routing incident cleared; all seven candidate paths are now published and readable.
 rejected_hypotheses:
   - Add or generate the canonical request during infrastructure review.
   - Execute any seed, baseline, data or cache operation before a later trigger PR.
@@ -104,10 +106,19 @@ rejected_hypotheses:
   - Gate on profitability or access OOS or protected holdout data.
 changed_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-infrastructure.md
+  - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_INFRASTRUCTURE.md
+  - ai_platform/experimental_model_research/rl-v2-lifecycle-seed-robustness-execution-contract-v1.json
+  - ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py
+  - ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py
+  - tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
+  - .github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml
 validation:
-  - command: live-state overlap and develop preflight
+  - command: compare develop to infrastructure branch
     result: PASS
-    evidence: Develop remains 2ea44b33423d199f5ab020e07031b14642806303 and no open seed-robustness infrastructure PR exists.
+    evidence: Branch is ahead by seven commits, behind by zero, with exactly the seven declared owned paths.
+  - command: canonical request absence check
+    result: PASS
+    evidence: The exact run-request path is absent; infrastructure review cannot trigger model or data execution.
 blockers: []
-next_action: Implement the frozen contract, canonical validator, per-seed and aggregate evidence extraction, inert request-triggered workflow and dependency-light regression tests without adding the request file or executing model/data paths.
+next_action: Open the infrastructure PR, run AI Platform CI, Freqtrade CI and zizmor, fix only evidence-backed validation failures, and merge only after every required check is green.
 ```

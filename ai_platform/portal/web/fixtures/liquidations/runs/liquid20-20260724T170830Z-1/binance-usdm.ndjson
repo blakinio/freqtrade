@@ -1,0 +1,2 @@
+{"schema_version":1,"source":"binance-usdm","source_event_id":"shared-1","symbol":"BTCUSDT","liquidated_position_side":"short","occurred_at_ms":1784904830000,"received_at_ms":1784904831150,"price":"99900","quantity":"0.05","notional_usd":"4995","raw_side":"SELL"}
+{"schema_version":1,"source":"binance-usdm","source_event_id":"binance-eth-1","symbol":"ETHUSDT","liquidated_position_side":"long","occurred_at_ms":1784904890000,"received_at_ms":1784904892100,"price":"3490","quantity":"1.5","notional_usd":"5235.0","raw_side":"BUY"}

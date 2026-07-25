@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "manifest_type": "liquidation_multi_source_collection",
+  "run_id": "liquid20-20260724T170830Z-1",
+  "run_status": "completed",
+  "execution_enabled": false,
+  "trading_credentials_present": false,
+  "collector_commit": "c00a091c5adc67cf75c46db5805e358ffc72fad7",
+  "host_id": "synology-pl-01",
+  "cross_source_policy": {
+    "deduplicate_between_exchanges": false,
+    "sum_events_without_source_labels": false
+  },
+  "sources": {
+    "bybit-linear": {
+      "output": "bybit-linear.ndjson",
+      "summary": "bybit-linear-summary.json"
+    },
+    "binance-usdm": {
+      "output": "binance-usdm.ndjson",
+      "summary": "binance-usdm-summary.json"
+    }
+  }
+}

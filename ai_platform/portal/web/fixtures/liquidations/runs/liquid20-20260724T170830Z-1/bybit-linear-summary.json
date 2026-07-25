@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "source": {
+    "id": "bybit-linear",
+    "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+  },
+  "source_semantics": {
+    "coverage": "all liquidation events published by the exchange",
+    "documented_push_frequency_ms": 500,
+    "stream": "allLiquidation"
+  },
+  "stats": {
+    "availability_ratio": 0.998885,
+    "disconnects_per_hour": 0.02,
+    "events_written": 3,
+    "events_parsed": 3,
+    "events_by_symbol": {
+      "BTCUSDT": 1,
+      "ETHUSDT": 1,
+      "SOLUSDT": 1
+    },
+    "last_event_at_ms": 1784904920000
+  }
+}

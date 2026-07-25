@@ -219,7 +219,7 @@ test("stays bounded, ignores symlinked runs and reads source files without write
     const model = new LiquidationReadModel({
       dataRoot: run.dataRoot,
       maxEvents: 2,
-      staleAfterMs: 60_000,
+      staleAfterMs: 1_000,
       now: () => now,
     });
     const page = await model.list({ limit: 20 });

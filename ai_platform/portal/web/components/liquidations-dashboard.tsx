@@ -156,12 +156,15 @@ export function LiquidationsDashboard() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void load(controller.signal);
+    const initialRefresh = window.setTimeout(() => {
+      void load(controller.signal);
+    }, 0);
     const interval = window.setInterval(() => {
       void load(controller.signal);
     }, 10_000);
     return () => {
       controller.abort();
+      window.clearTimeout(initialRefresh);
       window.clearInterval(interval);
     };
   }, [load]);

@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration
-status: active
-branch: docs/rl-v2-seed-validity-diagnosis-declaration
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
@@ -56,9 +56,9 @@ Prospectively freeze an evidence-only diagnosis of the two low-trade-count seeds
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T22:44:00+02:00
-head: 50cc179c5f738f0034ae06a22844297818f3885a
-branch: docs/rl-v2-seed-validity-diagnosis-declaration
+updated_at: 2026-07-25T22:48:00+02:00
+head: 47ad17c0ad723f9ada5a27cd62e23c48b9756dbf
+branch: develop
 pr: 291
 status: ready
 context_routes:
@@ -78,6 +78,7 @@ proven:
   - All five seeds passed the original directional and strong-reduction lifecycle-mechanism criteria.
   - Aggregate and four new-seed artifacts are available with immutable artifact ids and digests recorded in the declaration.
   - This declaration adds no workflow, request, model, strategy, configuration, data or executable analysis code.
+  - PR 291 was squash-merged to develop as 47ad17c0ad723f9ada5a27cd62e23c48b9756dbf after all required CI and final checkpoint validation passed.
   - Classification remains paired historical-development evidence with strict_oos=false, protected_final_validation=false and profitability non-gating.
 derived:
   - A bounded artifact diagnosis can separate evidence-integrity defects from descriptive turnover dispersion without changing the frozen decision.
@@ -124,7 +125,10 @@ validation:
     evidence: Required zizmor workflow-security analysis passed on the declaration head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md --require-checkpoint
     result: PASS
-    evidence: The final declaration checkpoint is validated in a checkpoint-only diagnostic PR before merge; that PR performs no artifact analysis, data access or model execution.
+    evidence: Final exact-content validation completed in AI Platform CI 30174180524, job 89720179814, artifact 8623746357; the diagnostic PR closed without merge.
+  - command: squash merge PR 291
+    result: PASS
+    evidence: GitHub merged the final declaration head to develop as 47ad17c0ad723f9ada5a27cd62e23c48b9756dbf with exactly the three declared files.
 blockers: []
-next_action: Open and validate the three-file inert declaration PR; merge it only after required CI passes, then declare a separate bounded diagnosis task that inspects exactly the frozen immutable artifacts without any model, data, cache or backtest execution.
+next_action: Declare a separate bounded RL-v2 seed-validity diagnosis task that inspects exactly the frozen immutable artifacts, records one documentation result and one machine-readable evidence file, executes no model, data, cache or backtest operation, preserves decision=inconclusive, and leaves exactly one next action.
 ```

@@ -14,6 +14,10 @@ const navigationGroups = [
     ],
   },
   {
+    label: "Market Data",
+    items: [{ href: "/market/liquidations", label: "Likwidacje" }],
+  },
+  {
     label: "Trading",
     items: [
       { href: "/terminal", label: "Trading Terminal" },

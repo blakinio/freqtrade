@@ -64,7 +64,7 @@ updated_at: 2026-07-25T19:56:00+02:00
 head: 71b16023bbf44d8f092487fea296640b521c39de
 branch: develop
 pr: 280
-status: done
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-declaration.md
   - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_DECLARATION.md

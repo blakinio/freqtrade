@@ -17,6 +17,17 @@ function parseDecimal(value: string): ParsedDecimal {
   };
 }
 
+function alignDecimals(left: string, right: string): [bigint, bigint, number] {
+  const leftParsed = parseDecimal(left);
+  const rightParsed = parseDecimal(right);
+  const scale = Math.max(leftParsed.scale, rightParsed.scale);
+  return [
+    leftParsed.value * 10n ** BigInt(scale - leftParsed.scale),
+    rightParsed.value * 10n ** BigInt(scale - rightParsed.scale),
+    scale,
+  ];
+}
+
 function formatDecimal(value: bigint, scale: number): string {
   if (scale === 0) {
     return value.toString();
@@ -33,12 +44,13 @@ export function normalizeDecimal(value: string): string {
 }
 
 export function addDecimalStrings(left: string, right: string): string {
-  const leftParsed = parseDecimal(left);
-  const rightParsed = parseDecimal(right);
-  const scale = Math.max(leftParsed.scale, rightParsed.scale);
-  const leftValue = leftParsed.value * 10n ** BigInt(scale - leftParsed.scale);
-  const rightValue = rightParsed.value * 10n ** BigInt(scale - rightParsed.scale);
+  const [leftValue, rightValue, scale] = alignDecimals(left, right);
   return formatDecimal(leftValue + rightValue, scale);
+}
+
+export function compareDecimalStrings(left: string, right: string): number {
+  const [leftValue, rightValue] = alignDecimals(left, right);
+  return leftValue < rightValue ? -1 : leftValue > rightValue ? 1 : 0;
 }
 
 export function sumDecimalStrings(values: Iterable<string>): string {

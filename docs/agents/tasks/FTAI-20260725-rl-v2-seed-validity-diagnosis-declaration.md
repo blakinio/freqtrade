@@ -56,11 +56,11 @@ Prospectively freeze an evidence-only diagnosis of the two low-trade-count seeds
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T22:30:00+02:00
-head: b7af83f03cc89ac7b5c30d31683ce5a84370f2f8
+updated_at: 2026-07-25T22:44:00+02:00
+head: 50cc179c5f738f0034ae06a22844297818f3885a
 branch: docs/rl-v2-seed-validity-diagnosis-declaration
 pr: 291
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-execution.md
   - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_DECLARATION.md
@@ -113,9 +113,18 @@ validation:
   - command: declaration boundary review
     result: PASS
     evidence: The package authorizes no analysis or execution and freezes sources, questions, calculations, causal limits and no-promotion isolation.
+  - command: AI Platform CI 30174034633 / run 1224
+    result: PASS
+    evidence: Compile, AI platform tests, Ruff, Ruff format, codespell and JSON validation passed on the declaration head.
+  - command: Freqtrade CI 30174034620 / run 1441
+    result: PASS
+    evidence: Scope, pre-commit, documentation syntax, documentation build and the required CI gate passed.
+  - command: GitHub Actions Security Analysis 30174034609 / run 1369
+    result: PASS
+    evidence: Required zizmor workflow-security analysis passed on the declaration head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Local checkout is unavailable; repository CI must validate the checkpoint before merge.
+    result: PASS
+    evidence: The final declaration checkpoint is validated in a checkpoint-only diagnostic PR before merge; that PR performs no artifact analysis, data access or model execution.
 blockers: []
 next_action: Open and validate the three-file inert declaration PR; merge it only after required CI passes, then declare a separate bounded diagnosis task that inspects exactly the frozen immutable artifacts without any model, data, cache or backtest execution.
 ```

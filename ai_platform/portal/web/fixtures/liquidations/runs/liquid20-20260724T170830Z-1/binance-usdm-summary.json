@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "source": {
+    "id": "binance-usdm",
+    "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"]
+  },
+  "source_semantics": {
+    "coverage": "latest liquidation order per symbol within each 1000 ms window",
+    "documented_push_frequency_ms": 1000,
+    "stream": "forceOrder"
+  },
+  "stats": {
+    "availability_ratio": 0.999991,
+    "disconnects_per_hour": 0,
+    "events_written": 2,
+    "events_parsed": 2,
+    "events_by_symbol": {
+      "BTCUSDT": 1,
+      "ETHUSDT": 1
+    },
+    "last_event_at_ms": 1784904890000
+  }
+}

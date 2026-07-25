@@ -5,7 +5,7 @@ branch: docs/rl-v2-seed-validity-diagnosis-declaration
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: "pending"
+related_pr: "291"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md
   - docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS_DECLARATION.md
@@ -57,10 +57,10 @@ Prospectively freeze an evidence-only diagnosis of the two low-trade-count seeds
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-25T22:30:00+02:00
-head: pending
+head: b7af83f03cc89ac7b5c30d31683ce5a84370f2f8
 branch: docs/rl-v2-seed-validity-diagnosis-declaration
-pr: pending
-status: implementing
+pr: 291
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-execution.md
   - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_DECLARATION.md

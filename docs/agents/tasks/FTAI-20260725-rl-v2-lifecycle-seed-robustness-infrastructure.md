@@ -5,7 +5,7 @@ branch: feat/rl-v2-lifecycle-seed-robustness-infrastructure
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: ""
+related_pr: "280"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-infrastructure.md
   - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_INFRASTRUCTURE.md
@@ -64,10 +64,10 @@ or cache restore because the canonical request file is intentionally absent.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T10:58:00+02:00
-head: 1c99e41e820400f7b470161abbd4fa8816cdaff4
+updated_at: 2026-07-25T14:51:00+02:00
+head: d296c321fcdf89bccb675f654a3a1cc199e20121
 branch: feat/rl-v2-lifecycle-seed-robustness-infrastructure
-pr: 0
+pr: 280
 status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-declaration.md
@@ -83,7 +83,7 @@ owned_paths:
   - .github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml
 proven:
   - Develop head 2ea44b33423d199f5ab020e07031b14642806303 contains the completed deterministic seed declaration and closure records.
-  - The branch is ahead of develop with zero divergence and exactly seven owned infrastructure paths.
+  - PR 280 contains exactly seven declared infrastructure paths and no canonical request file.
   - The canonical request file is absent, so the dedicated seed workflow cannot run during infrastructure review.
   - The execution contract freezes anchor seed 42, four new seeds, zero baseline executions, runtime hashes, data geometry, validity rules and deterministic aggregate decisions.
   - The workflow contains one matrix backtesting command for four new seeds, no seed-42 command and no baseline command.
@@ -93,11 +93,11 @@ derived:
   - Four isolated seed jobs plus one aggregate job implement the declared five-seed evidence geometry without rerunning anchor seed 42.
   - Invalid or zero-trade evidence must remain visible and force an inconclusive aggregate rather than allowing discretionary replacement.
 unknown:
-  - Whether the current seven-file implementation passes all required repository CI and workflow-security checks.
+  - Whether final PR 280 HEAD passes all required repository CI and workflow-security checks.
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: The previous GitHub connector routing incident cleared; all seven candidate paths are now published and readable.
+  evidence: The previous GitHub connector routing incident cleared; all seven candidate paths are published and PR 280 is open.
 rejected_hypotheses:
   - Add or generate the canonical request during infrastructure review.
   - Execute any seed, baseline, data or cache operation before a later trigger PR.
@@ -113,12 +113,12 @@ changed_paths:
   - tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
   - .github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml
 validation:
-  - command: compare develop to infrastructure branch
+  - command: compare develop to PR 280 head
     result: PASS
-    evidence: Branch is ahead by seven commits, behind by zero, with exactly the seven declared owned paths.
+    evidence: PR scope is exactly the seven declared paths and contains no run request.
   - command: canonical request absence check
     result: PASS
     evidence: The exact run-request path is absent; infrastructure review cannot trigger model or data execution.
 blockers: []
-next_action: Open the infrastructure PR, run AI Platform CI, Freqtrade CI and zizmor, fix only evidence-backed validation failures, and merge only after every required check is green.
+next_action: Treat only CI runs for the post-checkpoint PR 280 head as authoritative, fix evidence-backed validation failures, and merge only after AI Platform CI, Freqtrade CI and zizmor are green.
 ```

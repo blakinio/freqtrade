@@ -1,5 +1,0 @@
-extend = "../../pyproject.toml"
-
-[lint.per-file-ignores]
-"rl_v2_lifecycle_seed_robustness_run_request.py" = ["C901"]
-"rl_v2_lifecycle_seed_robustness_evidence.py" = ["C901"]

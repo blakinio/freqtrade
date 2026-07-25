@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260725-portal-next-work-repair-plan
-status: implementing
+status: ready
 branch: docs/portal-next-work-repair-sync-20260725
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: null
+related_pr: 310
 owned_paths:
   - docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
   - docs/ai_platform/portal/README.md
@@ -50,11 +50,11 @@ Create a durable, repository-grounded continuation route that corrects stale por
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:20:00+02:00
-head: 2fc4c7617454a1daffaf1908d7b0ef55532af70a
+updated_at: 2026-07-25T23:35:00+02:00
+head: a27a2ed8403498b4f753deb4b8a744d99b40f144
 branch: docs/portal-next-work-repair-sync-20260725
-pr: null
-status: implementing
+pr: 310
+status: ready
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
@@ -72,24 +72,34 @@ proven:
   - The control-plane API already exposes immutable revision and desired-state mutation endpoints for bots.
   - Current web bot surfaces do not expose the complete bot-scoped operations and lifecycle workflow.
   - Open portal PR 307 currently owns only docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md; PR 304 owns the Liquid20 prompt and pre-commit config, so this task has disjoint paths.
+  - PR 310 contains exactly the five declared documentation paths and is based on develop cb001ac2c13bcefc8c979b89113d92d87657e6e8.
 derived:
   - The next safe autonomous portal product package is Bot Operations convergence over existing canonical APIs, not PI-08 execution submission.
   - A dedicated continuation document is needed because status-bearing portal documents have drifted at different times.
 unknown:
   - Exact final Bot Operations owned paths must be declared after a fresh preflight because concurrent portal work may change web files.
 conflicts:
-  - POST_P12_INTEGRATION_BACKLOG.md and older program/roadmap routing still describe PI-02 as active or PI-01 as next despite merged completion evidence.
+  - POST_P12_INTEGRATION_BACKLOG.md and the older post-P12 paragraph in DELIVERY_ROADMAP.md still contain stale PI-02/PI-01 routing sentences; NEXT_WORK_AND_REPAIR_PLAN.md is the current continuation ledger until those large canonical files are updated by their next owning package.
 first_failure:
   marker: NONE
-  evidence: Documentation-only task; no validation failure observed yet.
+  evidence: Documentation-only task; no validation failure observed before CI.
 rejected_hypotheses:
   - Treat bounded P6 completion as proof that the full target Bot Operations workflow exists.
   - Treat simulator execution as proof that private Freqtrade order submission exists.
   - Start PI-06, PI-05 or PI-07 without owner/provider/security decisions.
 changed_paths:
-  - docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260725-portal-next-work-repair-plan.md
-validation: []
+  - docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
+  - docs/ai_platform/portal/README.md
+  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
+validation:
+  - command: compare develop...docs/portal-next-work-repair-sync-20260725
+    result: PASS
+    evidence: Branch was ahead by five commits, behind by zero and changed exactly the five declared documentation paths before the checkpoint-only task update.
+  - command: required GitHub Actions on final PR head
+    result: PENDING
+    evidence: PR 310 opened; exact-head workflows must complete before merge.
 blockers: []
-next_action: Update portal README, UI status and program routing on this branch, then open a documentation PR and validate its exact head.
+next_action: Verify required CI on the exact current PR 310 head; if all required checks pass and the PR remains mergeable and path-disjoint, squash-merge it, verify develop, then declare the separate Bot Operations completion task.
 ```

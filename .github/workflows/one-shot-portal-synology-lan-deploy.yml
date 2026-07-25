@@ -36,12 +36,17 @@ jobs:
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
-            --data "$payload"
+            --data "$payload" >/dev/null
 
-      - name: Check out exact source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
+      - name: Fetch exact public source
+        run: |
+          set -euo pipefail
+          source_dir=/tmp/freqtrade-portal-source
+          rm -rf "$source_dir"
+          git init --quiet "$source_dir"
+          git -C "$source_dir" remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -C "$source_dir" fetch --quiet --depth 1 origin "$GITHUB_SHA"
+          git -C "$source_dir" checkout --quiet --detach FETCH_HEAD
 
       - name: Build and deploy preview
         id: deploy
@@ -51,6 +56,7 @@ jobs:
           PORTAL_PORT: "3000"
         run: |
           set -o pipefail
+          cd /tmp/freqtrade-portal-source
           bash deploy/synology/portal/deploy-preview.sh > /tmp/portal-synology-deploy.log 2>&1
 
       - name: Print bounded deployment evidence
@@ -87,7 +93,7 @@ jobs:
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
-            --data "$payload"
+            --data "$payload" >/dev/null
 
       - name: Fail after reporting
         if: steps.deploy.outcome != 'success'

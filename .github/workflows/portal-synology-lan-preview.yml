@@ -1,0 +1,187 @@
+name: Portal Synology LAN Preview
+
+on:
+  push:
+    branches:
+      - develop
+      - feat/portal-synology-lan-staging
+    paths:
+      - .github/workflows/portal-synology-lan-preview.yml
+      - deploy/synology/portal/**
+      - ai_platform/portal/web/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: portal-synology-lan-preview
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: ghcr.io/blakinio/freqtrade-portal-web
+  CONTAINER_NAME: freqtrade-portal-staging
+  PORTAL_BIND_ADDRESS: 192.168.1.2
+  PORTAL_PORT: "3000"
+
+jobs:
+  build:
+    name: Build exact-SHA portal image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and publish portal image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./ai_platform/portal/web
+          file: ./deploy/synology/portal/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=Freqtrade AI Trading Portal LAN Preview
+          cache-from: type=gha,scope=portal-synology-lan-preview
+          cache-to: type=gha,mode=max,scope=portal-synology-lan-preview
+
+  deploy:
+    name: Deploy to Synology LAN
+    needs: build
+    runs-on: freqtrade-staging
+    timeout-minutes: 15
+
+    steps:
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Validate candidate and replace preview
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          candidate="${CONTAINER_NAME}-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          previous_image=""
+
+          cleanup_candidate() {
+            docker rm -f "$candidate" >/dev/null 2>&1 || true
+          }
+          trap cleanup_candidate EXIT
+
+          common_args=(
+            --read-only
+            --tmpfs /tmp:size=64m,mode=1777
+            --tmpfs /app/.next/cache:size=64m,mode=0755
+            --cap-drop ALL
+            --security-opt no-new-privileges:true
+            --pids-limit 256
+            --memory 768m
+            --cpus 1.5
+            --env PORTAL_WEB_DATA_MODE=fixture
+            --env PORTAL_ENVIRONMENT=staging
+            --label io.freqtrade.portal.preview=true
+            --label "io.freqtrade.portal.commit=${GITHUB_SHA}"
+          )
+
+          wait_healthy() {
+            local name="$1"
+            local status=""
+            for _ in $(seq 1 60); do
+              status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$name" 2>/dev/null || true)"
+              if [[ "$status" == "healthy" ]]; then
+                return 0
+              fi
+              if [[ "$status" == "exited" || "$status" == "dead" ]]; then
+                break
+              fi
+              sleep 2
+            done
+            echo "Container $name did not become healthy; status=${status:-missing}" >&2
+            docker logs --tail 80 "$name" 2>&1 || true
+            return 1
+          }
+
+          start_final() {
+            local image="$1"
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              --restart unless-stopped \
+              --publish "${PORTAL_BIND_ADDRESS}:${PORTAL_PORT}:3000" \
+              "${common_args[@]}" \
+              "$image"
+          }
+
+          rollback() {
+            docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
+            if [[ -n "$previous_image" ]] && docker image inspect "$previous_image" >/dev/null 2>&1; then
+              echo "Restoring previous portal image: $previous_image"
+              start_final "$previous_image" >/dev/null
+              wait_healthy "$CONTAINER_NAME" || true
+            else
+              echo "No previous portal image is available for rollback." >&2
+            fi
+          }
+
+          docker pull "$IMAGE"
+
+          docker run -d \
+            --name "$candidate" \
+            --restart no \
+            "${common_args[@]}" \
+            "$IMAGE"
+          wait_healthy "$candidate"
+          cleanup_candidate
+
+          if docker inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+            previous_image="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_NAME")"
+            docker rm -f "$CONTAINER_NAME" >/dev/null
+          fi
+
+          if ! start_final "$IMAGE" >/dev/null; then
+            rollback
+            exit 1
+          fi
+
+          if ! wait_healthy "$CONTAINER_NAME"; then
+            rollback
+            exit 1
+          fi
+
+          running_image="$(docker inspect --format '{{.Config.Image}}' "$CONTAINER_NAME")"
+          published_port="$(docker port "$CONTAINER_NAME" 3000/tcp)"
+          test "$running_image" = "$IMAGE"
+          test "$published_port" = "${PORTAL_BIND_ADDRESS}:${PORTAL_PORT}"
+
+          {
+            echo "### Synology portal preview deployed"
+            echo
+            echo "- Image: \`$IMAGE\`"
+            echo "- Container: \`$CONTAINER_NAME\`"
+            echo "- LAN URL: \`http://synology:${PORTAL_PORT}\`"
+            echo "- Direct LAN URL: \`http://${PORTAL_BIND_ADDRESS}:${PORTAL_PORT}\`"
+            echo "- Data mode: \`fixture\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io >/dev/null 2>&1 || true

@@ -60,12 +60,13 @@ jobs:
           } else {
             const result = failed.test.results.find((item) => item.status !== 'passed');
             const title = String(failed.spec.title ?? 'unknown').replace(/[^A-Za-z0-9._-]+/g, '-');
-            const error = String(result?.error?.message ?? result?.errors?.[0]?.message ?? result?.status ?? 'failed')
+            const rawError = String(result?.error?.message ?? result?.errors?.[0]?.message ?? result?.status ?? 'failed')
+              .replace(/\u001b\[[0-9;]*m/g, '')
               .replace(/\s+/g, ' ')
-              .replace(/[`"']/g, '')
-              .slice(0, 135);
-            console.log(`liquidations-e2e/${title}`.slice(0, 100));
-            console.log(error || 'Focused liquidation browser test failed');
+              .replace(/[`"']/g, '');
+            const errorToken = rawError.replace(/[^A-Za-z0-9._=<>-]+/g, '-').slice(0, 58);
+            console.log(`liquidations-e2e/${title.slice(0, 25)}/${errorToken}`.slice(0, 100));
+            console.log(rawError.slice(0, 135) || 'Focused liquidation browser test failed');
           }
           NODE
           )

@@ -66,28 +66,36 @@ jobs:
                   content = content.replace(old, new, 1)
               path.write_text(content, encoding="utf-8")
           PY
+          set +e
           ruff check --fix \
             --config pyproject.toml \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
-            fixed/tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
+            fixed/tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py \
+            > fixed/ruff-fix.txt 2>&1
+          printf 'ruff_fix_status=%s\n' "$?" > fixed/ruff-status.txt
           ruff format \
             --config pyproject.toml \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
-            fixed/tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
+            fixed/tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py \
+            > fixed/ruff-format-apply.txt 2>&1
+          printf 'ruff_format_apply_status=%s\n' "$?" >> fixed/ruff-status.txt
           ruff check \
             --config pyproject.toml \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
             fixed/tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py \
             > fixed/ruff-check.txt 2>&1
+          printf 'ruff_check_status=%s\n' "$?" >> fixed/ruff-status.txt
           ruff format --check \
             --config pyproject.toml \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
             fixed/ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
             fixed/tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py \
             > fixed/ruff-format.txt 2>&1
+          printf 'ruff_format_status=%s\n' "$?" >> fixed/ruff-status.txt
+          set -e
       - name: Upload fixed candidates
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

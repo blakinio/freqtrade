@@ -23,6 +23,7 @@ jobs:
       - name: Validate terminal execution checkpoint
         run: |
           mkdir -p diagnostic-output
+          # Validate the final closure content after its validation result was recorded.
           python tools/agents/checkpoint.py \
             docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-execution.md \
             --require-checkpoint | tee diagnostic-output/checkpoint-validation.txt

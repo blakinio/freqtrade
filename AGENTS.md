@@ -68,6 +68,14 @@ Promotion requires evidence appropriate to the stage. At minimum, before dry-run
 8. Open a PR against `develop` unless the repository state explicitly indicates another base.
 9. Record important architecture or workflow changes in repository documentation.
 
+## Runtime and CI target
+
+- The deployment target for this fork is Linux containers, primarily Docker on Synology or another Linux host.
+- Freqtrade and portal build, test, packaging, and deployment workflows must use Linux runners only.
+- Do not add or retain native Windows or macOS compilation/test jobs unless the repository owner explicitly authorizes a separate portability work package.
+- Keep Linux architecture coverage relevant to deployed containers, including AMD64 and ARM64 where supported by available runners and dependencies.
+- Docker is the delivery mechanism; the container runtime remains Linux-based.
+
 ## Portal/control-plane safety boundary
 
 - Treat Freqtrade as a private execution engine behind an internal adapter; do not expose its control API or WebSocket directly to the public Internet or browser clients.

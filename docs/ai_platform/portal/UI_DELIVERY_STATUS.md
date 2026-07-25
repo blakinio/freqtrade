@@ -35,11 +35,11 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 `FTAI-20260724-portal-pi04-central-runtime-observability` adds a permission-gated, tenant-scoped private runtime-log query boundary, explicit source availability and retention metadata, correlation/trace linkage and OpenTelemetry Collector routing contracts. Runtime telemetry remains separate from append-only audit evidence, and API mode fails closed when the private target-environment source is not configured.
 
-`FTAI-20260724-portal-pi02-authoritative-valuation` adds exact-runtime `mark-to-entry-v1` valuation with explicit `CURRENT`, `STALE`, `SOURCE_UNAVAILABLE` and `UNPRICED` states. Realized PNL remains separate closed-trade evidence and unsupported currency conversion or leverage never produces a numeric guess.
+`FTAI-20260724-portal-pi02-authoritative-valuation` adds exact-runtime `mark-to-entry-v1` valuation with explicit `CURRENT`, `STALE`, `SOURCE_UNAVAILABLE` and `UNPRICED` states. Realized PNL remains separate closed-trade evidence and unsupported currency conversion or leverage never produces a numeric guess. The task is complete and PR #267 merged as `0c8fdfe6fb50ff635403ae963484bf4e6883e1e1`.
 
 `FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
 
-Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
+Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Current task selection and repair ordering are routed through `NEXT_WORK_AND_REPAIR_PLAN.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
 
 ## Current surface matrix
 
@@ -51,8 +51,8 @@ Remaining authoritative-source and external/private integration work is routed t
 | Trading Terminal | `/terminal` | integrated, execution still fail-closed | deterministic risk intent API |
 | Orders | `/orders` | integrated for runtime evidence | private collector -> operational mirror with source identity, freshness and reconciliation; unattributed runtime orders are `MISMATCH` |
 | Trade History | `/trades` | integrated for runtime evidence | canonical runtime trade mirror with source timestamps, realized fields when present and explicit mismatch/unavailable semantics; no fabricated current price |
-| View Bots | `/bots` | integrated | control-plane bot API |
-| Bot Detail | `/bots/detail/[botId]` | integrated | control-plane bot API |
+| View Bots | `/bots` | integrated basic fleet, operations convergence planned | control-plane bot API; canonical operations/valuation/risk evidence is not yet composed into the fleet table |
+| Bot Detail | `/bots/detail/[botId]` | integrated configuration read, operations convergence planned | control-plane bot API; bot-scoped operations and lifecycle mutations are not yet exposed by the web workflow |
 | Create Bot | `/bots/new` | integrated for dry-run | same-origin BFF -> control plane |
 | Signal Wizard | `/bots/signals` | integrated | tenant-scoped advisory SignalEvent persistence; never grants execution authority |
 | Strategy Catalog | `/bots/strategies` | integrated | immutable server-side portal strategy metadata; no research promotion authority |
@@ -72,6 +72,21 @@ Remaining authoritative-source and external/private integration work is routed t
 | Notifications | `/platform/notifications` | partially integrated | persisted actor preferences and in-app entries derived from canonical signal/risk/own execution evidence; external delivery channels are not claimed |
 | Profile & Security | `/platform/profile` | partially integrated | trusted actor/tenant/permission context; MFA credentials and session revocation remain external-IdP-owned |
 | Administration | `/platform/admin` | partially integrated | `ADMIN_MANAGE`-gated built-in RBAC overview; tenant membership lifecycle remains external-IdP-owned |
+
+## Bot Operations completion gap
+
+The control plane already supports immutable revision and desired-state mutations, but the web client currently exposes only bot list/get/create behavior. The next bounded product task should compose existing canonical APIs rather than create a new execution authority.
+
+Required completion scope:
+
+- enrich `/bots` with attributable open-position, PNL availability, risk, runtime-health and last-activity summaries plus bounded filters;
+- enrich `/bots/detail/[botId]` with bot-scoped positions, orders, trades, valuations, risk decisions, runtime logs and audit evidence;
+- add same-origin BFF/client support for `POST /v1/bots/{bot_id}/revisions`;
+- add same-origin BFF/client support for `POST /v1/bots/{bot_id}/desired-state`;
+- render permission-denied, conflict, stale, partial, unavailable, mutation-pending and confirmation states;
+- preserve immutable revisions, tenant attribution, auditability and private runtime boundaries.
+
+This package must not implement `submit_approved_intent`, exchange credential injection, external notification delivery, P11 infrastructure or live capital. Detailed entry gates and acceptance are in `NEXT_WORK_AND_REPAIR_PLAN.md`.
 
 ## PI-01 freshness and reconciliation semantics
 
@@ -103,7 +118,8 @@ The remaining partial states depend on authoritative sources or separately revie
 
 | Boundary | Canonical package/stage |
 |---|---|
-| real target-environment Loki/Tempo/Prometheus connectivity and dashboards | `PI-04` deployment configuration; repository query and collector contracts are bounded by the active task |
+| bot-scoped operational convergence and lifecycle/revision UI | `NEXT_WORK_AND_REPAIR_PLAN.md` Bot Operations completion package |
+| real target-environment Loki/Tempo/Prometheus connectivity and dashboards | PI-04 deployment configuration |
 | external email/webhook/push delivery | `PI-05` External Notification Delivery |
 | product authentication, MFA, session revocation and tenant membership lifecycle | `PI-06` Product Identity and Session Lifecycle |
 | runtime exchange credential injection/rotation | `PI-07` Runtime Credential Broker and Rotation |

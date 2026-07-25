@@ -1,0 +1,76 @@
+name: AI Platform RL-v2 Seed Format Apply
+
+on:
+  push:
+    branches:
+      - feat/rl-v2-lifecycle-seed-robustness-infrastructure
+    paths:
+      - ".github/workflows/ai-platform-rl-v2-seed-format-apply.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rl-v2-seed-format-apply-branch
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply exact Ruff formatting and self-remove
+    if: github.repository == 'blakinio/freqtrade'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb9087d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/rl-v2-lifecycle-seed-robustness-infrastructure
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Format only owned Python paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
+          ruff format --config pyproject.toml \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
+            tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
+          ruff check --config pyproject.toml \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
+            tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
+          ruff format --check --config pyproject.toml \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
+            tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
+      - name: Remove temporary formatter and verify scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/ai-platform-rl-v2-seed-format-apply.yml
+          mapfile -t changed < <(git diff --name-only | sort)
+          allowed_one=$'ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py'
+          allowed_three=$'ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py\nai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py\ntests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py'
+          actual="$(printf '%s\n' "${changed[@]}" | grep -v '^\.github/workflows/ai-platform-rl-v2-seed-format-apply.yml$' || true)"
+          if [[ "$actual" != "$allowed_one" && "$actual" != "$allowed_three" ]]; then
+            echo "Unexpected formatter diff:" >&2
+            printf '%s\n' "${changed[@]}" >&2
+            exit 1
+          fi
+      - name: Commit formatted files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_evidence.py \
+            ai_platform/scripts/rl_v2_lifecycle_seed_robustness_run_request.py \
+            tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py \
+            .github/workflows/ai-platform-rl-v2-seed-format-apply.yml
+          git commit -m "style(ai-platform): format RL-v2 seed robustness infrastructure"
+          git push origin HEAD:feat/rl-v2-lifecycle-seed-robustness-infrastructure

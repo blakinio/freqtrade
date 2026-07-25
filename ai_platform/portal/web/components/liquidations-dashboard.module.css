@@ -1,5 +1,6 @@
 .dashboard {
   display: grid;
+  min-width: 0;
   gap: 24px;
 }
 
@@ -8,12 +9,17 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 24px;
+  min-width: 0;
   padding: 28px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 20px;
   background:
     radial-gradient(circle at top right, rgba(45, 212, 191, 0.14), transparent 42%),
     rgba(15, 23, 42, 0.72);
+}
+
+.hero > div {
+  min-width: 0;
 }
 
 .hero h1,
@@ -84,8 +90,10 @@
 .inlineError,
 .state {
   display: grid;
+  min-width: 0;
   gap: 6px;
   padding: 16px 18px;
+  overflow-wrap: anywhere;
   border: 1px solid rgba(251, 191, 36, 0.35);
   border-radius: 14px;
   background: rgba(120, 53, 15, 0.16);
@@ -107,6 +115,7 @@
 
 .filters {
   display: grid;
+  min-width: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   padding: 18px;
@@ -117,6 +126,7 @@
 
 .filters label {
   display: grid;
+  min-width: 0;
   gap: 7px;
   color: #94a3b8;
   font-size: 0.78rem;
@@ -135,6 +145,7 @@
 
 .metrics {
   display: grid;
+  min-width: 0;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
@@ -149,6 +160,7 @@
 
 .metricCard {
   display: grid;
+  min-width: 0;
   gap: 8px;
   padding: 20px;
 }
@@ -176,6 +188,7 @@
 
 .grid {
   display: grid;
+  min-width: 0;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 0.8fr);
   gap: 16px;
 }
@@ -198,6 +211,7 @@
 }
 
 .tableWrap {
+  max-width: 100%;
   overflow-x: auto;
 }
 
@@ -257,6 +271,7 @@
 
 .ranking li > div {
   display: grid;
+  min-width: 0;
   gap: 3px;
 }
 
@@ -270,13 +285,16 @@
 
 .sourceNotes {
   display: grid;
+  min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   padding: 20px;
 }
 
 .sourceNotes article {
+  min-width: 0;
   padding: 14px;
+  overflow-wrap: anywhere;
   border-radius: 12px;
   background: rgba(30, 41, 59, 0.52);
 }
@@ -289,7 +307,9 @@
 
 .semanticWarning {
   grid-column: 1 / -1;
+  min-width: 0;
   padding-top: 14px;
+  overflow-wrap: anywhere;
   border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
 

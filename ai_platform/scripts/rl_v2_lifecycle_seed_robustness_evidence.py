@@ -130,10 +130,7 @@ def _validate_archive_config(
     expected.pop("config_files", None)
     embedded_exchange = embedded.get("exchange")
     expected_exchange = expected.get("exchange")
-    if not isinstance(embedded_exchange, dict) or not isinstance(
-        expected_exchange,
-        dict,
-    ):
+    if not isinstance(embedded_exchange, dict) or not isinstance(expected_exchange, dict):
         raise RLV2SeedEvidenceError("Backtest exchange config is missing")
     for field in ("key", "secret"):
         value = embedded_exchange.get(field)

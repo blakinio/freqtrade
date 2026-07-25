@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -133,12 +133,9 @@ def test_capture_is_non_mutating_and_uses_exact_strategy_predicates() -> None:
     rows = recorder.rows
     raw_rows = dataframe.snapshot[1]
     expected_entry = [
-        prediction == 1 and action == 1 and volume > 0
-        for _, action, prediction, volume in raw_rows
+        prediction == 1 and action == 1 and volume > 0 for _, action, prediction, volume in raw_rows
     ]
-    expected_exit = [
-        prediction == 1 and action == 0 for _, action, prediction, _ in raw_rows
-    ]
+    expected_exit = [prediction == 1 and action == 0 for _, action, prediction, _ in raw_rows]
     assert [row["pre_trade_enter_long"] for row in rows] == expected_entry
     assert [row["pre_trade_exit_long"] for row in rows] == expected_exit
     assert dataframe.snapshot == original

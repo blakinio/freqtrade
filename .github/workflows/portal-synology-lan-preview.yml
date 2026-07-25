@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - develop
-      - feat/portal-synology-lan-staging
     paths:
       - .github/workflows/portal-synology-lan-preview.yml
       - deploy/synology/portal/Dockerfile
@@ -55,7 +54,7 @@ jobs:
         continue-on-error: true
         env:
           PORTAL_BIND_ADDRESS: 192.168.1.2
-          PORTAL_PORT: "3000"
+          PORTAL_PORT: "3030"
         run: bash deploy/synology/portal/deploy-preview.sh
 
       - name: Verify LAN endpoint
@@ -65,7 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --max-time 15 \
-            http://192.168.1.2:3000/ >/dev/null
+            http://192.168.1.2:3030/ >/dev/null
 
       - name: Publish final status
         if: always()

@@ -36,7 +36,6 @@ common_args=(
     --security-opt no-new-privileges:true
     --pids-limit 256
     --memory 768m
-    --cpus 1.5
     --env PORTAL_WEB_DATA_MODE=fixture
     --env PORTAL_ENVIRONMENT=staging
     --label io.freqtrade.portal.preview=true

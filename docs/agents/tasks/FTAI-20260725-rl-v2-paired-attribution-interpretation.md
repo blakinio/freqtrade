@@ -5,7 +5,7 @@ branch: docs/rl-v2-paired-attribution-interpretation
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: ""
+related_pr: "274"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-paired-attribution-interpretation.md
   - docs/ai_platform/RL_V2_PAIRED_ATTRIBUTION_INTERPRETATION.md
@@ -62,11 +62,11 @@ support from profitability and generalization, and identify the next legal resea
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T09:51:15+02:00
-head: 98e8857a183f4603a9abc1cb466e8897eb589334
+updated_at: 2026-07-25T09:54:50+02:00
+head: 21207f92a083a4d8f00524df4fb1803ddde25f4b
 branch: docs/rl-v2-paired-attribution-interpretation
-pr: 0
-status: implementing
+pr: 274
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md
   - docs/ai_platform/RL_V2_HISTORICAL_EVIDENCE_DIAGNOSIS.md
@@ -81,6 +81,7 @@ proven:
   - Immutable artifact rl-v2-roi-lifecycle-paired-attribution-272 is bound to digest sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04.
   - Prospectively frozen mechanism criteria passed: ROI-to-15m re-entry count 122 to 0 and boundary fees 52.582123 USDT to 0.0 USDT.
   - Evidence classification remains paired_historical_development_attribution with strict_oos=false and protected_final_validation=false.
+  - PR 274 contains only the interpretation task, report and machine-readable record; no workflow, strategy, model, config or request file changed.
 derived:
   - The single lifecycle delta removed the defined immediate ROI exit and re-entry mechanism on the reused March-April development path.
   - Positive variant profit is descriptive and cannot establish causal profitability, generalization or promotion readiness.
@@ -100,10 +101,15 @@ rejected_hypotheses:
   - Use consumed OOS or protected final holdout for iterative research.
 changed_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-paired-attribution-interpretation.md
+  - docs/ai_platform/RL_V2_PAIRED_ATTRIBUTION_INTERPRETATION.md
+  - ai_platform/experimental_model_research/rl-v2-paired-attribution-interpretation-v1.json
 validation:
   - command: immutable artifact payload inspection
     result: PASS
-    evidence: paired-attribution.json and evidence-metadata.json reconcile with the recorded run, head, digest and classification.
+    evidence: paired-attribution.json, evidence-metadata.json and raw-backtest exit decomposition reconcile with the recorded run, head, digest and classification.
+  - command: compare develop to PR 274 head
+    result: PASS
+    evidence: Three interpretation-only files changed and the branch is ahead with zero divergence from develop.
 blockers: []
-next_action: Publish the bounded human-readable and machine-readable interpretation, open a documentation-only PR, and merge it only after checkpoint, JSON and documentation validation pass.
+next_action: Merge PR 274 only after checkpoint, JSON, documentation and repository CI pass, then close the interpretation task in a separate one-file checkpoint PR.
 ```

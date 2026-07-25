@@ -1,0 +1,81 @@
+name: Portal Liquidations E2E Diagnostic
+
+on:
+  push:
+    branches:
+      - feat/portal-liquidations-ui-20260725
+    paths:
+      - .github/workflows/portal-liquidations-e2e-diagnostic.yml
+      - ai_platform/portal/web/**
+
+permissions: {}
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      statuses: write
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Publish focused browser result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+        run: |
+          set -euo pipefail
+          set +e
+          npx playwright test e2e/liquidations.spec.ts --reporter=json > /tmp/liquidations-playwright.json
+          test_status=$?
+          set -e
+          readarray -t diagnostic < <(node - <<'NODE'
+          const fs = require('node:fs');
+          const report = JSON.parse(fs.readFileSync('/tmp/liquidations-playwright.json', 'utf8'));
+          const tests = [];
+          const walk = (suite) => {
+            for (const spec of suite.specs ?? []) {
+              for (const test of spec.tests ?? []) tests.push({spec, test});
+            }
+            for (const child of suite.suites ?? []) walk(child);
+          };
+          for (const suite of report.suites ?? []) walk(suite);
+          const failed = tests.find(({test}) => (test.results ?? []).some((result) => result.status !== 'passed'));
+          if (!failed) {
+            console.log('liquidations-e2e/clean');
+            console.log('Focused liquidation browser tests passed');
+          } else {
+            const result = failed.test.results.find((item) => item.status !== 'passed');
+            const title = String(failed.spec.title ?? 'unknown').replace(/[^A-Za-z0-9._-]+/g, '-');
+            const error = String(result?.error?.message ?? result?.errors?.[0]?.message ?? result?.status ?? 'failed')
+              .replace(/\s+/g, ' ')
+              .replace(/[`"']/g, '')
+              .slice(0, 135);
+            console.log(`liquidations-e2e/${title}`.slice(0, 100));
+            console.log(error || 'Focused liquidation browser test failed');
+          }
+          NODE
+          )
+          if [[ "$test_status" -eq 0 ]]; then state=success; else state=failure; fi
+          payload=$(node -e 'console.log(JSON.stringify({state: process.argv[1], context: process.argv[2], description: process.argv[3]}))' "$state" "${diagnostic[0]}" "${diagnostic[1]}")
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            --data "$payload" >/dev/null
+          exit "$test_status"

@@ -1,23 +1,45 @@
 import json
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-import pandas as pd
 import pytest
-from pandas.testing import assert_frame_equal
 
 from ai_platform.scripts.rl_v2_action_observability import (
     MANIFEST_NAME,
-    SUMMARY_NAME,
-    TIMELINE_NAME,
     RLV2ActionObservabilityError,
     RLV2ActionObservabilityRecorder,
+    SUMMARY_NAME,
+    TIMELINE_NAME,
     canonical_implementation_descriptor,
     validate_action_observability_artifacts,
     validate_implementation_descriptor,
 )
 
 
-def _metadata(*pairs: str) -> dict:
+class SyntheticDataFrame:
+    """Minimal immutable dataframe-shaped test fixture."""
+
+    def __init__(self, columns: list[str], rows: list[tuple[Any, ...]]) -> None:
+        self.columns = tuple(columns)
+        self._rows = tuple(tuple(row) for row in rows)
+
+    def __getitem__(self, columns: list[str]) -> "SyntheticDataFrame":
+        indexes = [self.columns.index(column) for column in columns]
+        selected_rows = [tuple(row[index] for index in indexes) for row in self._rows]
+        return SyntheticDataFrame(columns, selected_rows)
+
+    def itertuples(self, *, index: bool, name: None) -> tuple[tuple[Any, ...], ...]:
+        assert index is False
+        assert name is None
+        return self._rows
+
+    @property
+    def snapshot(self) -> tuple[tuple[str, ...], tuple[tuple[Any, ...], ...]]:
+        return self.columns, self._rows
+
+
+def _metadata(*pairs: str) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "git_commit": "a" * 40,
@@ -34,25 +56,38 @@ def _metadata(*pairs: str) -> dict:
     }
 
 
+def _timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+
 def _dataframe(
     *,
     dates: list[str] | None = None,
     actions: list[float] | None = None,
     do_predict: list[float] | None = None,
     volumes: list[float] | None = None,
-) -> pd.DataFrame:
+) -> SyntheticDataFrame:
     date_values = dates or [
         "2026-01-01T00:00:00Z",
         "2026-01-01T00:15:00Z",
         "2026-01-01T00:30:00Z",
     ]
-    return pd.DataFrame(
-        {
-            "date": pd.to_datetime(date_values),
-            "&-action": actions or [1.0, 0.0, 1.0],
-            "do_predict": do_predict or [1.0, 1.0, -1.0],
-            "volume": volumes or [10.0, 0.0, 5.0],
-        }
+    action_values = actions or [1.0, 0.0, 1.0]
+    prediction_values = do_predict or [1.0, 1.0, -1.0]
+    volume_values = volumes or [10.0, 0.0, 5.0]
+    rows = [
+        (_timestamp(date), action, prediction, volume)
+        for date, action, prediction, volume in zip(
+            date_values,
+            action_values,
+            prediction_values,
+            volume_values,
+            strict=True,
+        )
+    ]
+    return SyntheticDataFrame(
+        ["date", "&-action", "do_predict", "volume"],
+        rows,
     )
 
 
@@ -90,23 +125,45 @@ def test_capture_is_non_mutating_and_uses_exact_strategy_predicates() -> None:
             "2026-01-01T01:15:00Z",
         ],
     )
+    original = dataframe.snapshot
+    recorder = RLV2ActionObservabilityRecorder(enabled=True)
+
+    assert recorder.capture_pair_dataframe("BTC/USDT", dataframe) == 6
+
+    rows = recorder.rows
+    raw_rows = dataframe.snapshot[1]
+    expected_entry = [
+        prediction == 1 and action == 1 and volume > 0
+        for _, action, prediction, volume in raw_rows
+    ]
+    expected_exit = [
+        prediction == 1 and action == 0 for _, action, prediction, _ in raw_rows
+    ]
+    assert [row["pre_trade_enter_long"] for row in rows] == expected_entry
+    assert [row["pre_trade_exit_long"] for row in rows] == expected_exit
+    assert dataframe.snapshot == original
+
+
+def test_pandas_dataframe_compatibility_when_available() -> None:
+    pandas = pytest.importorskip("pandas")
+    dataframe = pandas.DataFrame(
+        {
+            "date": pandas.to_datetime(
+                [
+                    "2026-01-01T00:00:00Z",
+                    "2026-01-01T00:15:00Z",
+                ]
+            ),
+            "&-action": [1.0, 0.0],
+            "do_predict": [1.0, 1.0],
+            "volume": [10.0, 0.0],
+        }
+    )
     original = dataframe.copy(deep=True)
     recorder = RLV2ActionObservabilityRecorder(enabled=True)
 
-    assert recorder.capture_pair_dataframe("BTC/USDT", dataframe) == len(dataframe)
-
-    rows = recorder.rows
-    expected_entry = (
-        (dataframe["do_predict"] == 1)
-        & (dataframe["&-action"] == 1)
-        & (dataframe["volume"] > 0)
-    ).tolist()
-    expected_exit = (
-        (dataframe["do_predict"] == 1) & (dataframe["&-action"] == 0)
-    ).tolist()
-    assert [row["pre_trade_enter_long"] for row in rows] == expected_entry
-    assert [row["pre_trade_exit_long"] for row in rows] == expected_exit
-    assert_frame_equal(dataframe, original)
+    assert recorder.capture_pair_dataframe("BTC/USDT", dataframe) == 2
+    pandas.testing.assert_frame_equal(dataframe, original)
 
 
 def test_capture_normalizes_integer_valued_predictions_and_tags() -> None:
@@ -164,7 +221,10 @@ def test_capture_normalizes_integer_valued_predictions_and_tags() -> None:
     ("dataframe", "message"),
     [
         (
-            _dataframe().drop(columns=["do_predict"]),
+            SyntheticDataFrame(
+                ["date", "&-action", "volume"],
+                [(_timestamp("2026-01-01T00:00:00Z"), 1, 1.0)],
+            ),
             "Missing RL-v2 observability columns",
         ),
         (
@@ -186,7 +246,7 @@ def test_capture_normalizes_integer_valued_predictions_and_tags() -> None:
     ],
 )
 def test_malformed_enabled_capture_fails_closed(
-    dataframe: pd.DataFrame,
+    dataframe: SyntheticDataFrame,
     message: str,
 ) -> None:
     recorder = RLV2ActionObservabilityRecorder(enabled=True)

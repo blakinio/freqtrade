@@ -1,199 +1,184 @@
-# Portal Liquidations Integration — Agent Prompt
+# Portal Liquidations Integration — Autonomous Agent Prompt
 
-Pracujesz autonomicznie nad wdrożeniem danych o likwidacjach Bybit i Binance do AI Trading Portal.
+Work autonomously to integrate Bybit and Binance liquidation data into the AI Trading Portal.
 
-Repozytoria:
+Repositories:
 
 - `blakinio/freqtrade`
 - `blakinio/Oteryn-Platform`
 
-Twoim celem jest dostarczenie bezpiecznego, tylko-do-odczytu modułu **„Likwidacje”** w portalu, wdrożonego na istniejącym środowisku Synology.
+Your objective is to deliver a safe, read-only **Liquidations** module in the portal and deploy it through the existing Synology environment.
 
-Nie polegaj bezkrytycznie na tym promptcie ani historii rozmowy.
+Do not rely blindly on this prompt or previous conversation history. Current repository state, Git history, open and closed pull requests, GitHub Actions, task records, `AGENTS.md`, portal documentation, collector code, and actual Synology runtime state are the sources of truth.
 
-Aktualne repozytoria, Git, otwarte i zamknięte PR-y, GitHub Actions, task records, `AGENTS.md`, dokumentacja portalu, kod kolektora oraz rzeczywisty stan Synology są source of truth.
-
-Pracuj autonomicznie do zakończenia zadania albo do wystąpienia trwałego blokera wymagającego działania użytkownika.
+Continue autonomously until the bounded task is complete or a durable blocker requires user action.
 
 ---
 
-## 1. Obowiązkowy live-state preflight
+## 1. Mandatory live-state preflight
 
-Najpierw wykonaj świeży, oszczędny preflight.
+Perform a fresh but efficient preflight before editing anything.
 
-Sprawdź co najmniej:
+Verify at least:
 
-- HEAD i domyślne branche obu repozytoriów;
-- otwarte PR-y związane z:
-  - Liquid20;
-  - portalem;
-  - Synology;
-  - portalowym preview;
-- aktualne workflowy GitHub Actions;
-- rzeczywiste etykiety self-hosted runnerów;
-- aktualny port portalu na Synology;
-- aktualny stan issue `blakinio/Oteryn-Platform#148`;
-- stan kontenera `liquid20-collector`;
-- lokalizację danych Liquid20 na Synology;
-- aktualną strukturę AI Trading Portal;
-- aktualne kontrakty API, BFF, Data Plane i wdrożenia portalu;
-- `AGENTS.md` w każdym używanym repozytorium;
-- task records i obowiązujące checkpointy.
+- current default branches and HEADs of both repositories;
+- open pull requests related to Liquid20, the portal, Synology, and portal preview deployment;
+- current GitHub Actions workflows and required checks;
+- actual self-hosted runner labels and availability;
+- the current private-LAN portal port on Synology;
+- current state of `blakinio/Oteryn-Platform#148`;
+- current state of the `liquid20-collector` container;
+- the actual Liquid20 data path on Synology;
+- current AI Trading Portal structure;
+- current portal API, BFF, Data Plane, and deployment contracts;
+- `AGENTS.md` in every repository you modify;
+- relevant durable task records and checkpoints.
 
-Nie zakładaj, że numery PR, SHA, porty lub branche podane niżej są nadal aktualne.
+Do not assume that pull request numbers, commits, ports, paths, or branches mentioned below are still current.
 
-Znany wcześniejszy stan, który należy zweryfikować:
+Earlier state that must be verified rather than assumed:
 
-- pierwszy pełny przebieg Liquid20 zebrał 24 godziny danych;
-- zebrał dane ze wszystkich 20 symboli na obu giełdach;
-- wynik acceptance był `failed` wyłącznie przez `binance-usdm.maximum_latency_over_threshold_ratio`;
-- polityka acceptance jest zamrożona i nie wolno jej łagodzić;
-- pełne dane powinny znajdować się pod ścieżką zbliżoną do `/volume1/docker/freqtrade-liquidations/data/runs/`;
-- portalowe preview mogło działać na prywatnym adresie LAN i porcie `3031`;
-- powyższe fakty są tylko wskazówką i muszą zostać potwierdzone.
+- one complete Liquid20 run collected 24 hours of data;
+- it observed all 20 frozen symbols on both exchanges;
+- acceptance failed only on `binance-usdm.maximum_latency_over_threshold_ratio`;
+- the acceptance policy is frozen and must not be weakened;
+- evidence was expected under a path similar to `/volume1/docker/freqtrade-liquidations/data/runs/`;
+- the portal preview may have used private-LAN port `3031`.
 
 ---
 
-## 2. Cel produktowy
+## 2. Product goal
 
-Dodaj do portalu nową powierzchnię:
+Add a new portal surface named **Liquidations**.
 
-`Likwidacje`
+The module must present Liquid20 information as read-only market-data and research-preview information.
 
-Moduł ma prezentować dane Liquid20 jako dane rynkowe tylko do odczytu.
+Minimum interface scope:
 
-Minimalny zakres interfejsu:
-
-1. Strumień ostatnich likwidacji.
-2. Filtry:
-   - źródło: Bybit / Binance / wszystkie;
+1. A stream of recent liquidation events.
+2. Filters for:
+   - source: Bybit, Binance, or all;
    - symbol;
-   - strona likwidowanej pozycji: long / short;
-   - zakres czasu.
-3. Kolumny:
-   - czas zdarzenia;
-   - giełda;
+   - liquidated position side: long or short;
+   - time range.
+3. Event columns:
+   - event time;
+   - exchange/source;
    - symbol;
-   - likwidowana strona pozycji;
-   - cena;
-   - ilość;
-   - wartość w USDT;
-   - opóźnienie ingestu.
-4. Podsumowania:
-   - ostatnie 5 minut;
-   - ostatnia godzina;
-   - ostatnie 24 godziny.
-5. Ranking symboli:
-   - liczba likwidacji;
-   - suma notional;
-   - podział long/short.
-6. Stan danych:
-   - tryb danych;
-   - świeżość;
-   - ostatnie zdarzenie;
-   - aktywne źródła;
-   - liczba obserwowanych symboli;
-   - dostępność;
-   - rozłączenia;
-   - status acceptance, jeśli istnieje.
-7. Jawne objaśnienie semantyki źródeł:
-   - Bybit i Binance nie mają identycznej semantyki;
-   - Binance `forceOrder` publikuje najnowsze zdarzenie w oknie około 1000 ms;
-   - danych między giełdami nie wolno deduplikować ani sumować bez zachowania etykiety źródła.
+   - liquidated position side;
+   - price;
+   - quantity;
+   - notional value in USDT;
+   - ingest latency.
+4. Summary windows:
+   - last 5 minutes;
+   - last hour;
+   - last 24 hours.
+5. Symbol ranking by:
+   - event count;
+   - total notional;
+   - long/short split.
+6. Data status:
+   - mode;
+   - freshness;
+   - latest event time;
+   - active sources;
+   - observed symbol count;
+   - availability;
+   - disconnect rate;
+   - acceptance status when available.
+7. Explicit source-semantics explanation:
+   - Bybit and Binance do not have identical feed semantics;
+   - Binance `forceOrder` publishes the latest liquidation order per symbol within an approximately 1000 ms window;
+   - cross-exchange events must not be deduplicated or summed without retaining source identity.
 
-Portal musi uczciwie oznaczać tryb:
+The portal must truthfully classify data as:
 
-- `historical` — dane z zakończonego przebiegu;
-- `live` — dane z aktualnie zapisywanego przebiegu;
-- `stale` — źródło nie aktualizuje się w zadanym czasie;
-- `acceptance-failed` — dane istnieją, ale przebieg nie przeszedł zamrożonej polityki jakości;
-- `accepted` — dopiero gdy istnieje raport z `passed: true`.
+- `historical` — a completed run;
+- `live` — an actively written run;
+- `stale` — no recent source update within the declared freshness window;
+- `acceptance-failed` — data exists, but the run did not pass the frozen policy;
+- `accepted` — only when a report explicitly contains `passed: true`.
 
-Nie przedstawiaj niezaakceptowanego przebiegu jako produkcyjnego źródła live.
-
----
-
-## 3. Nienaruszalne granice
-
-Nie wolno:
-
-- zmieniać listy 20 symboli Liquid20;
-- zmieniać 24-godzinnego czasu acceptance;
-- zmieniać progów lub frozen acceptance policy;
-- usuwać ani omijać bramki latency;
-- zmieniać schematu istniejących dowodów bez osobnego wersjonowanego kontraktu;
-- mutować istniejących katalogów dowodowych;
-- usuwać lub nadpisywać danych z przebiegu 24-godzinnego;
-- wystawiać Freqtrade REST lub WebSocket bezpośrednio do przeglądarki;
-- wystawiać kontenera Liquid20 bezpośrednio do Internetu;
-- montować Docker socket do kontenera aplikacyjnego lub adaptera danych;
-- dodawać kluczy Binance, Bybit lub innych credentials;
-- łączyć modułu likwidacji z logiką składania zleceń;
-- generować sygnałów kupna lub sprzedaży;
-- uruchamiać DCA, leverage, dry-run lub live trading;
-- traktować likwidacji jako autoryzacji handlowej;
-- publikować surowych sekretów, tokenów lub prywatnych logów w UI;
-- modyfikować zakończonych kontraktów Phase 5, Phase 6, RL lub holdoutu.
-
-Moduł ma być wyłącznie read-only market-data / research preview.
+Never present an unaccepted run as a production-quality live source.
 
 ---
 
-## 4. Architektura docelowa
+## 3. Non-negotiable boundaries
 
-Zachowaj obowiązującą architekturę portalu:
+Do not:
+
+- change the frozen 20-symbol Liquid20 universe;
+- change the 24-hour acceptance duration;
+- change thresholds or the frozen acceptance policy;
+- remove, bypass, or reinterpret the latency gate;
+- change existing evidence schemas without a separate versioned contract;
+- mutate existing evidence directories;
+- delete or overwrite completed 24-hour evidence;
+- expose Freqtrade REST or WebSocket surfaces directly to the browser;
+- expose the Liquid20 collector directly to the public Internet;
+- mount the Docker socket into the portal application or data adapter;
+- add Binance, Bybit, or other exchange credentials;
+- connect this module to order submission;
+- generate buy, sell, long, or short recommendations;
+- enable DCA, leverage, dry-run trading, or live trading;
+- treat liquidation observations as trading authorization;
+- return secrets, tokens, or private raw logs to the UI;
+- modify completed Phase 5, Phase 6, RL, or protected-holdout contracts.
+
+This module is strictly read-only market-data and research-preview functionality.
+
+---
+
+## 4. Target architecture
+
+Preserve the portal architecture boundary:
 
 ```text
 Bybit / Binance
         ↓
 Liquid20 collector
         ↓
-niezmienne NDJSON + summary + manifest + acceptance report
+immutable NDJSON + summaries + manifest + acceptance report
         ↓
-prywatny read-model / adapter danych
+private read model / data adapter
         ↓
-portal control-plane / BFF
+portal control plane / BFF
         ↓
-przeglądarka
+browser
 ```
 
-Przeglądarka nie może czytać plików Synology bezpośrednio.
+The browser must not read Synology files directly and must not connect directly to the collector.
 
-Przeglądarka nie może łączyć się bezpośrednio z kolektorem.
+Prefer the smallest safe implementation that fits current code. Acceptable approaches include:
 
-Preferuj najmniejszą bezpieczną implementację zgodną z aktualnym kodem.
+- a read-model module inside the existing portal control plane;
+- a private read-only adapter on Synology;
+- a server-side Next.js reader only when current architecture and deployment isolation make that safe.
 
-Dopuszczalne warianty:
+Do not introduce a new microservice without a demonstrated need.
 
-A. Moduł read-model w istniejącym control plane portalu.
-
-B. Oddzielny prywatny adapter tylko do odczytu uruchomiony na Synology.
-
-C. Server-side reader w Next.js, jeżeli aktualna architektura i deployment zapewniają właściwą izolację.
-
-Nie twórz nowego mikroserwisu bez potrzeby.
-
-Adapter powinien otrzymać wolumen Liquid20 wyłącznie jako read-only:
+Mount Liquid20 evidence read-only, using the verified current path. The expected shape is similar to:
 
 ```text
 /volume1/docker/freqtrade-liquidations/data:/liquid20-data:ro
 ```
 
-Adapter nie może otrzymać:
+The portal or adapter must not receive:
 
 - `/var/run/docker.sock`;
-- kluczy giełdowych;
-- katalogów strategii;
-- konfiguracji live trading;
-- dostępu zapisu do katalogów Liquid20.
+- exchange keys;
+- strategy directories;
+- live-trading configuration;
+- write access to Liquid20 evidence.
 
-Jeśli potrzebny jest cache lub indeks, zapisuj go w osobnym katalogu stanu adaptera, nigdy w katalogu dowodowym Liquid20.
+If indexing or caching is required, write it only to a separate adapter-state directory, never to the evidence volume.
 
 ---
 
-## 5. Kontrakt danych
+## 5. Data contract
 
-Zachowaj istniejący kanoniczny model zdarzenia:
+Preserve the canonical liquidation event fields:
 
 - `schema_version`;
 - `source`;
@@ -207,9 +192,9 @@ Zachowaj istniejący kanoniczny model zdarzenia:
 - `notional_usd`;
 - `raw_side`.
 
-Dodaj wersjonowany portalowy read-model, który nie zmienia oryginalnego zdarzenia.
+Add a versioned portal read-model contract without mutating the original event.
 
-Przykładowy kontrakt zdarzenia portalowego:
+Example portal event:
 
 ```json
 {
@@ -227,9 +212,9 @@ Przykładowy kontrakt zdarzenia portalowego:
 }
 ```
 
-Kwoty i wartości dziesiętne przekazuj jako stringi albo bezpieczny typ decimal. Nie wprowadzaj utraty precyzji przez float.
+Keep decimal values as strings or a safe decimal type. Do not introduce floating-point precision loss.
 
-Minimalne endpointy BFF:
+Minimum BFF endpoints:
 
 ```text
 GET /api/market/liquidations
@@ -237,7 +222,7 @@ GET /api/market/liquidations/summary
 GET /api/market/liquidations/health
 ```
 
-Minimalne parametry listy:
+Minimum list parameters:
 
 ```text
 source
@@ -249,48 +234,43 @@ limit
 cursor
 ```
 
-Wymagania:
+Requirements:
 
-- maksymalny limit wyniku;
-- deterministyczne sortowanie;
-- stabilna paginacja lub cursor;
-- walidacja parametrów;
-- brak możliwości path traversal;
-- brak dowolnego wyboru pliku przez użytkownika;
-- brak zwracania całych logów lub manifestów;
-- brak pełnego skanowania wielkich plików przy każdym żądaniu.
-
----
-
-## 6. Wydajność i obsługa plików
-
-Nie ładuj całego NDJSON do pamięci przy każdym żądaniu.
-
-Zaimplementuj bezpieczny bounded read-model.
-
-Preferowane podejście:
-
-- wykrywanie najnowszego poprawnego runu;
-- odczyt zakończonego lub aktywnego NDJSON;
-- zapamiętywanie offsetu;
-- bounded in-memory cache ostatnich zdarzeń;
-- osobny indeks lub SQLite w katalogu stanu adaptera, jeśli jest rzeczywiście potrzebny;
-- odporność na częściową ostatnią linię aktywnie zapisywanego pliku;
-- odporność na restart;
-- wykrywanie rotacji lub zmiany `run_id`;
-- limit pamięci;
-- limit liczby rekordów;
-- brak modyfikowania plików źródłowych.
-
-Dla pierwszego wdrożenia dopuszczalny jest polling server-side co kilka sekund.
-
-Nie wymagaj WebSocket ani SSE w pierwszym PR, chyba że portal ma już gotowy i bezpieczny mechanizm eventowy.
+- enforce a maximum result limit;
+- deterministic sorting;
+- stable cursor or pagination;
+- strict parameter validation;
+- no path traversal;
+- no user-selected arbitrary file paths;
+- no return of complete logs or unrestricted manifests;
+- no full scan of large evidence files on every request.
 
 ---
 
-## 7. Health i jakość danych
+## 6. File handling and performance
 
-Endpoint health ma zwracać wyłącznie bezpieczne agregaty:
+Do not load an entire NDJSON file into memory for every request.
+
+Implement a bounded read model that supports:
+
+- detection of the newest valid run;
+- reading completed and active NDJSON files;
+- persisted or recoverable offsets;
+- a bounded cache of recent events;
+- an optional SQLite index in a separate state directory only when justified;
+- safe handling of a partially written final line;
+- restart recovery;
+- run rotation and `run_id` changes;
+- explicit memory and record-count limits;
+- zero mutation of source evidence.
+
+Server-side polling every few seconds is acceptable for the first delivery. Do not require WebSocket or SSE unless the portal already has a suitable secure event mechanism.
+
+---
+
+## 7. Health and data quality
+
+The health endpoint must return safe aggregates only. A representative shape is:
 
 ```json
 {
@@ -320,283 +300,232 @@ Endpoint health ma zwracać wyłącznie bezpieczne agregaty:
 }
 ```
 
-Nie pobieraj stanu przez Docker socket.
+Do not obtain health through the Docker socket.
 
-Health powinien wynikać z:
+Derive health from bounded reads of:
 
-- summary JSON;
-- manifestu;
-- acceptance report;
-- czasu modyfikacji lub ostatniego zdarzenia;
-- bezpiecznego status file, jeśli istniejący runner już taki publikuje.
+- source summaries;
+- the multi-source manifest;
+- the acceptance report;
+- file freshness or latest event timestamps;
+- an existing safe status file when one is already part of the trusted control path.
 
-Portal ma jasno pokazać:
+The UI must clearly show:
 
-- `Acceptance failed`;
-- nazwę niespełnionej bramki;
-- że dane pozostają dostępne jako research preview;
-- że wynik nie autoryzuje handlu.
+- `Acceptance failed` when applicable;
+- failed gate names;
+- that data remains available as research preview;
+- that the result does not authorize trading.
 
 ---
 
-## 8. UI / UX
+## 8. UI and user experience
 
-Dodaj moduł zgodny z aktualnym design systemem portalu.
+Use the existing portal design system and information architecture.
 
-Preferowana nawigacja:
+Prefer navigation similar to:
 
 ```text
 Market Data
-└── Likwidacje
+└── Liquidations
 ```
 
-albo najbliższa zgodna z aktualną information architecture.
+The surface should include:
 
-Widok powinien zawierać:
+- a **Liquidations** heading;
+- source-health status;
+- acceptance status;
+- 5-minute, 1-hour, and 24-hour summary cards;
+- an event table;
+- filters;
+- symbol ranking;
+- long/short liquidation split;
+- last-updated timestamp;
+- loading, empty, stale, and error states;
+- responsive behavior.
 
-- nagłówek „Likwidacje”;
-- status źródła;
-- status acceptance;
-- karty 5m / 1h / 24h;
-- tabelę zdarzeń;
-- filtry;
-- ranking symboli;
-- podział long/short;
-- znacznik czasu ostatniej aktualizacji;
-- loading state;
-- empty state;
-- stale state;
-- error state;
-- responsywny układ.
+Do not use trading-call language such as “buy,” “sell,” “long signal,” “short signal,” or “market edge.”
 
-Nie używaj sugestii tradingowych typu:
-
-- „kup”;
-- „sprzedaj”;
-- „sygnał long”;
-- „sygnał short”;
-- „przewaga rynkowa”.
-
-Dopuszczalne określenia:
-
-- „likwidowane pozycje long”;
-- „likwidowane pozycje short”;
-- „obserwacja rynku”;
-- „dane badawcze”;
-- „research preview”.
+Use neutral terms such as “liquidated long positions,” “liquidated short positions,” “market observation,” and “research preview.”
 
 ---
 
-## 9. Testy
+## 9. Tests
 
-Dodaj testy co najmniej dla:
+Add focused tests for at least:
 
-- parsowania poprawnych NDJSON;
-- częściowej ostatniej linii;
-- uszkodzonego rekordu;
-- filtrowania po source;
-- filtrowania po symbol;
-- filtrowania po side;
-- zakresu czasu;
-- limitu;
-- sortowania;
-- agregacji 5m / 1h / 24h;
-- sumowania notional z zachowaniem źródła;
-- niewykonywania cross-source deduplication;
-- statusu historical/live/stale;
-- statusu acceptance failed/passed;
-- braku path traversal;
-- braku dostępu zapisu do źródłowego katalogu;
-- braku credentials w kontrakcie;
-- UI loading/empty/error;
-- renderowania znanej próbki likwidacji;
-- jawnego ostrzeżenia o semantyce Binance.
+- valid NDJSON parsing;
+- partial final lines;
+- malformed records;
+- source filtering;
+- symbol filtering;
+- side filtering;
+- time ranges;
+- result limits;
+- deterministic ordering;
+- 5-minute, 1-hour, and 24-hour aggregation;
+- notional aggregation with source identity retained;
+- absence of cross-source deduplication;
+- historical, live, and stale classification;
+- failed and passed acceptance states;
+- path-traversal rejection;
+- read-only evidence access;
+- absence of credentials from contracts;
+- UI loading, empty, stale, and error states;
+- rendering a known liquidation fixture;
+- explicit Binance feed-semantics warning.
 
-Dodaj E2E dla portalu:
+Add portal E2E coverage for:
 
-1. otwarcie zakładki Likwidacje;
-2. załadowanie fixture/read-model;
-3. filtrowanie symbolu;
-4. filtrowanie źródła;
-5. sprawdzenie statusu acceptance;
-6. sprawdzenie, że nie występuje żaden przycisk handlowy;
-7. sprawdzenie, że dane nie pochodzą bezpośrednio z publicznego Freqtrade API.
+1. opening the Liquidations page;
+2. loading fixture or read-model data;
+3. filtering by symbol;
+4. filtering by source;
+5. displaying acceptance status;
+6. verifying there is no trading action;
+7. verifying data is not fetched directly from a public Freqtrade API.
 
-Fixture musi być jawnie oznaczony i nie może zostać przedstawiony jako live.
-
----
-
-## 10. Deployment na Synology
-
-Wykorzystaj istniejący, aktualnie działający tor wdrożenia portalu.
-
-Nie twórz drugiego konkurencyjnego mechanizmu deploy, jeśli repozytorium ma już:
-
-- self-hosted runner;
-- exact-SHA image build;
-- candidate container;
-- health check;
-- rollback;
-- prywatny LAN bind;
-- portal preview workflow.
-
-Rozszerz istniejący deployment minimalnie.
-
-Wdrożenie powinno:
-
-- zbudować immutable image;
-- zamontować dane Liquid20 read-only;
-- zamontować osobny katalog stanu read-modelu read-write, jeśli jest wymagany;
-- nie montować Docker socketa do aplikacji;
-- nie wystawiać nowego publicznego portu bez potrzeby;
-- zachować prywatny LAN;
-- zachować aktualny port portalu, jeżeli nadal jest prawidłowy;
-- wykonać candidate health check;
-- wykonać rollback przy błędzie;
-- sprawdzić portalową stronę Likwidacje;
-- sprawdzić endpoint health;
-- potwierdzić brak credentials;
-- potwierdzić, że katalog Liquid20 jest zamontowany `ro`.
-
-Nie restartuj ani nie usuwaj kolektora Liquid20 bez potrzeby.
-
-Nie uruchamiaj ponownie acceptance tylko w celu budowy UI.
+Fixtures must be explicitly labeled and must never be presented as live data.
 
 ---
 
-## 11. Strategia PR-ów
+## 10. Synology deployment
 
-Nie wdrażaj wszystkiego w jednym ogromnym PR.
+Use the existing portal deployment path. Do not create a competing deployment mechanism when the repository already provides a self-hosted runner, exact-SHA image build, candidate container, health check, rollback, and private-LAN binding.
 
-Preferowany podział:
+Extend the existing deployment minimally.
 
-### PR 1 — kontrakt i read-model
+The deployment must:
 
-- wersjonowany kontrakt;
-- parser;
-- bounded reader/index;
-- summary;
-- health;
-- testy.
+- build an immutable image;
+- mount Liquid20 data read-only;
+- mount a separate read-write adapter-state directory only when required;
+- avoid a Docker socket mount in the application;
+- avoid unnecessary new public ports;
+- preserve private-LAN exposure;
+- preserve the current verified portal port;
+- run candidate health checks;
+- preserve rollback;
+- validate the Liquidations page;
+- validate the health endpoint;
+- verify absence of exchange credentials;
+- verify the evidence mount is read-only.
 
-### PR 2 — portal API i UI
+Do not restart or delete the Liquid20 collector unless a verified dependency requires it. Do not rerun acceptance merely to build the portal UI.
 
-- endpointy BFF;
-- zakładka Likwidacje;
-- filtry;
-- podsumowania;
-- status quality/acceptance;
-- UI tests i E2E.
+---
+
+## 11. Pull request strategy
+
+Do not deliver the entire integration as one oversized pull request.
+
+Preferred sequence:
+
+### PR 1 — Contract and read model
+
+- versioned contracts;
+- bounded parser and reader/index;
+- summaries and health;
+- focused tests.
+
+### PR 2 — Portal API and UI
+
+- BFF endpoints;
+- Liquidations page;
+- filters and summaries;
+- quality and acceptance status;
+- UI tests and E2E.
 
 ### PR 3 — Synology deployment
 
 - read-only mount;
 - exact-SHA image;
 - health checks;
-- rollback;
-- wdrożenie LAN preview;
-- rzeczywista walidacja.
+- rollback preservation;
+- private-LAN deployment validation.
 
-Każdy PR ma być:
-
-- mały;
-- logiczny;
-- możliwy do niezależnego cofnięcia;
-- oparty na aktualnym branchu docelowym;
-- zielony przed scaleniem;
-- udokumentowany task checkpointem.
-
-Nie scalaj PR z czerwonymi wymaganymi kontrolami.
-
-Nie omijaj review ani branch protection.
+Each pull request must be small, reversible, based on current repository state, fully reviewed, and green before merge. Do not bypass branch protection or required checks.
 
 ---
 
-## 12. Dokumentacja i checkpoint
+## 12. Documentation and durable checkpoint
 
-Utwórz osobny task record dla integracji likwidacji z portalem.
+Create a separate task record for the portal liquidation integration.
 
-Task powinien zawierać:
+The task record must include:
 
 - goal;
-- owned_paths;
+- owned paths;
 - dependencies;
 - context routes;
-- proven;
-- derived;
-- unknown;
+- proven facts;
+- derived conclusions;
+- unknowns;
 - blockers;
 - conflicts;
-- first_failure;
-- rejected_hypotheses;
-- changed_paths;
-- validation;
-- dokładnie jeden `next_action`.
+- first failure;
+- rejected hypotheses;
+- changed paths;
+- validation evidence;
+- exactly one `next_action` while work remains.
 
-Aktualizuj checkpoint po każdym istotnym etapie.
+Update the checkpoint after each material milestone.
 
-Zaktualizuj dokumentację portalu:
+Update relevant portal documentation for:
 
 - architecture;
 - UI delivery status;
 - data ownership;
 - deployment;
-- security boundary;
+- security boundaries;
 - research-preview classification.
 
 ---
 
-## 13. Kryteria zakończenia
+## 13. Completion criteria
 
-Zadanie jest ukończone dopiero, gdy:
+The task is complete only when:
 
-- portal ma działającą zakładkę Likwidacje;
-- dane pochodzą z rzeczywistych plików Liquid20 na Synology;
-- moduł działa przez portalowy BFF/read-model;
-- przeglądarka nie łączy się bezpośrednio z kolektorem ani Freqtrade;
-- wolumen Liquid20 jest read-only;
-- nie ma exchange credentials;
-- nie ma Docker socketa w aplikacji;
-- filtry i podsumowania działają;
-- status acceptance jest pokazany uczciwie;
-- failed gate Binance jest widoczny, dopóki nowy przebieg nie przejdzie;
-- UI poprawnie rozróżnia historical/live/stale;
-- testy jednostkowe, integracyjne i E2E są zielone;
-- deployment Synology jest zielony;
-- candidate health check jest zielony;
-- rollback jest zachowany;
-- portal jest osiągalny na aktualnym prywatnym adresie LAN;
-- task checkpoint jest zakończony i zarchiwizowany;
-- nie zmieniono frozen acceptance policy;
-- nie uruchomiono ani nie autoryzowano handlu.
+- the portal has a working Liquidations page;
+- the page uses real Liquid20 files on Synology;
+- all browser access goes through a private read model or BFF;
+- the browser does not connect directly to the collector or Freqtrade;
+- the Liquid20 volume is mounted read-only;
+- no exchange credentials are provided;
+- no Docker socket is mounted into the application;
+- filters and summaries work;
+- acceptance status is displayed truthfully;
+- the Binance failed gate remains visible until a later run passes;
+- historical, live, and stale states are distinguished correctly;
+- unit, integration, and E2E tests pass;
+- Synology deployment and candidate health checks pass;
+- rollback remains available;
+- the portal is reachable on the verified private-LAN URL;
+- the task checkpoint is completed and archived;
+- no frozen acceptance policy was changed;
+- no trading was enabled or authorized.
 
 ---
 
-## 14. Raportowanie
+## 14. Reporting
 
-Nie wysyłaj częstych opisów rutynowych działań.
+Do not send frequent narration of routine actions.
 
-Informuj użytkownika tylko przy:
+Report only material milestones, merged pull requests, successful Synology deployment, meaningful failures, durable blockers, or final completion.
 
-- scaleniu kolejnego PR;
-- działającym wdrożeniu na Synology;
-- istotnym błędzie;
-- trwałym blokerze;
-- pełnym zakończeniu.
+The final report must include:
 
-Końcowy raport ma zawierać:
+- pull request numbers;
+- merge SHAs;
+- relevant workflow runs;
+- current private-LAN portal URL;
+- implemented endpoints;
+- read-only mount confirmation;
+- confirmation that no credentials or Docker socket were added;
+- confirmation that real Liquid20 data is used;
+- current acceptance status;
+- test results;
+- remaining limitations;
+- exactly one next step only when the task is not complete.
 
-- numery PR;
-- merge SHA;
-- użyte workflow runs;
-- aktualny URL portalu LAN;
-- endpointy;
-- potwierdzenie read-only mount;
-- potwierdzenie braku credentials i Docker socketa;
-- potwierdzenie rzeczywistych danych Liquid20;
-- status acceptance;
-- wyniki testów;
-- ewentualne ograniczenia;
-- dokładnie jeden kolejny krok, tylko jeżeli zadanie nie może zostać zakończone.
-
-Rozpocznij od live-state preflight i kontynuuj autonomicznie.
+Begin with the live-state preflight and continue autonomously.

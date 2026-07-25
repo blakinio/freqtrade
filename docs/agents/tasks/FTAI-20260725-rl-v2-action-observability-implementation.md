@@ -5,7 +5,7 @@ branch: feat/rl-v2-action-observability-implementation
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: "TBD"
+related_pr: "312"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-action-observability-implementation.md
   - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_IMPLEMENTATION.md
@@ -43,10 +43,10 @@ Disabled mode performs a strict no-op. Enabled mode reads but never mutates the 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:58:00+02:00
-head: 0673a0e50889bfb5888f02a7496488d0503152d6
+updated_at: 2026-07-26T00:04:00+02:00
+head: 962db975610bd55e9b8aed9dc23c7bbb6696ca3e
 branch: feat/rl-v2-action-observability-implementation
-pr: null
+pr: 312
 status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-action-observability-declaration.md
@@ -70,6 +70,7 @@ proven:
   - Manifest row count, pair set and SHA-256 digest and the summary counts are independently reconciled.
   - The implementation descriptor keeps strategy and workflow integration and every execution operation unauthorized.
   - Seventeen focused synthetic tests pass in an isolated local harness.
+  - PR 312 changes exactly the five prospectively owned paths.
 derived:
   - The pure evidence package can be reviewed and validated without touching Freqtrade runtime or historical datasets.
   - A later execution declaration can bind the validated library to project-specific hooks without changing this artifact schema.
@@ -101,9 +102,9 @@ validation:
   - command: Python AST compilation and maximum-line scan
     result: PASS
     evidence: The module and tests parse successfully and contain no line longer than 100 characters.
-  - command: exact implementation scope review
+  - command: exact PR 312 scope review
     result: PASS
-    evidence: Only the five declared project-specific code, test, descriptor, documentation and task paths are changed.
+    evidence: PR 312 changes only the five declared project-specific code, test, descriptor, documentation and task paths.
 blockers: []
-next_action: Open the focused five-file implementation PR, obtain AI Platform, Freqtrade and workflow-security validation, resolve any review or CI defect, then merge without executing a model or backtest.
+next_action: Obtain AI Platform, Freqtrade and workflow-security validation for PR 312, resolve any CI or review defect, then merge without executing a model or backtest.
 ```

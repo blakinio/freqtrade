@@ -5,7 +5,7 @@ branch: docs/rl-v2-action-observability-declaration
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: "TBD"
+related_pr: "305"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-action-observability-declaration.md
   - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_DECLARATION.md
@@ -43,10 +43,10 @@ Current position and transition classes will be derived later from immutable com
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:36:41+02:00
-head: fb8001f38385a1b1a69c2869ee93968d014702b1
+updated_at: 2026-07-25T23:42:00+02:00
+head: d5548fd37265c4ac83b5216058f3e94cf9886a2b
 branch: docs/rl-v2-action-observability-declaration
-pr: null
+pr: 305
 status: active
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
@@ -66,6 +66,7 @@ proven:
   - Current synthetic reference exposes count-level observability and deterministic desired-position transition semantics.
   - Open PR 288 is portal-only and open PR 109 is a UI reference; neither overlaps RL-v2 ownership.
   - This declaration changes exactly one task record, one AI-platform document and one machine-readable declaration.
+  - PR 305 targets develop from the dedicated declaration branch with exactly the three owned paths.
 derived:
   - A per-candle desired-position and gating timeline is sufficient for a later post-hoc join with immutable completed-trade intervals.
   - Capturing runtime trade state is unnecessary for this bounded observability contract and would create avoidable coupling.
@@ -96,9 +97,12 @@ validation:
   - command: declaration boundary and source-code review
     result: PASS
     evidence: Frozen fields map to existing desired-position action, do_predict and deterministic signal semantics without authorizing runtime mutation.
+  - command: exact branch scope comparison
+    result: PASS
+    evidence: The branch is three commits ahead of develop and changes exactly the three declared files.
   - command: machine-readable declaration JSON parse
     result: PASS
     evidence: The declaration renders as valid JSON with implementation and execution authorization both false.
 blockers: []
-next_action: Open a focused PR against develop containing exactly the three declared files, obtain required CI, merge the inert declaration, then create a separate bounded implementation task that runs no model, backtest, data or cache operation.
+next_action: Obtain required CI and exact checkpoint validation for PR 305, merge the inert three-file declaration, close this task on develop, then create a separate bounded implementation task that runs no model, backtest, data or cache operation.
 ```

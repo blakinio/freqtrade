@@ -4,7 +4,7 @@ set -Eeuo pipefail
 image_name="${PORTAL_IMAGE_NAME:-local/freqtrade-portal-web}"
 container_name="${PORTAL_CONTAINER_NAME:-freqtrade-portal-staging}"
 bind_address="${PORTAL_BIND_ADDRESS:-192.168.1.2}"
-portal_port="${PORTAL_PORT:-3000}"
+portal_port="${PORTAL_PORT:-3030}"
 commit_sha="${GITHUB_SHA:?GITHUB_SHA is required}"
 image="${image_name}:sha-${commit_sha}"
 candidate="${container_name}-candidate-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}"

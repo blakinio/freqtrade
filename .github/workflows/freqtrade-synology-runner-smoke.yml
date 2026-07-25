@@ -1,0 +1,44 @@
+name: Freqtrade Synology Runner Smoke
+
+on:
+  push:
+    branches:
+      - ops/freqtrade-runner-smoke
+    paths:
+      - .github/workflows/freqtrade-synology-runner-smoke.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freqtrade-synology-runner-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: freqtrade-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Validate runner and Docker access
+        run: |
+          set -euo pipefail
+          uname -a
+          docker version
+          docker compose version
+          test -S /var/run/docker.sock
+
+      - name: Run disposable container
+        run: |
+          set -euo pipefail
+          name="freqtrade-runner-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+          docker run --name "$name" --rm alpine:3.20 sh -c 'echo runner-smoke-ok'
+
+      - name: Verify staging state mount
+        run: |
+          set -euo pipefail
+          marker="/var/lib/freqtrade-staging-state/runner-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          printf 'ok\n' > "$marker"
+          test "$(cat "$marker")" = "ok"
+          rm -f "$marker"

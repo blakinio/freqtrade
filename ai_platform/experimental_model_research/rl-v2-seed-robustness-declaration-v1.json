@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "declaration_id": "rl-v2-seed-robustness-declaration-v1",
+  "status": "declared_not_executed",
+  "source": {
+    "interpretation_task_id": "FTAI-20260725-rl-v2-paired-attribution-interpretation",
+    "interpretation_path": "ai_platform/experimental_model_research/rl-v2-paired-attribution-interpretation-v1.json",
+    "paired_attribution_workflow_run_id": 30131273189,
+    "paired_attribution_artifact_name": "rl-v2-roi-lifecycle-paired-attribution-272",
+    "paired_attribution_artifact_digest": "sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04",
+    "anchor_seed": 42,
+    "anchor_seed_rerun_allowed": false,
+    "baseline_artifact_name": "rl-v2-historical-training-execution-218",
+    "baseline_artifact_digest": "sha256:5d74d87bf4408c7b51779cd9038d815c88d3f5cc193cd229b6757edf32112b55",
+    "baseline_rerun_allowed": false
+  },
+  "frozen_inputs": {
+    "freqai_model": "DesiredPositionReinforcementLearner",
+    "freqai_model_path": "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py",
+    "freqai_model_sha256": "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb4624cb79d46",
+    "strategy": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
+    "strategy_path": "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py",
+    "strategy_sha256": "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7",
+    "config_path": "ai_platform/configs/rl_v2_training_research.json",
+    "config_sha256": "5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "download_timerange": "20250801-20260501",
+    "execution_timerange": "20260301-20260501",
+    "semantic_evidence_window": "20260301-20260430",
+    "train_period_days": 90,
+    "backtest_period_days": 61,
+    "fee": 0.002,
+    "only_semantic_strategy_delta": {
+      "ignore_roi_if_entry_signal": true
+    }
+  },
+  "seed_set": {
+    "namespace": "rl-v2-lifecycle-seed-robustness-v1",
+    "namespace_sha256": "c70f5612edf1f2748eea6abafa2160af15a796bffe9c1df9ba59eed7c955d333",
+    "derivation": "Take the first five non-overlapping 4-byte big-endian chunks of SHA-256(namespace), mask each with 0x7fffffff, preserve order.",
+    "seeds": [
+      1192187410,
+      1844572788,
+      250243770,
+      2049007791,
+      363304639
+    ],
+    "count": 5,
+    "contains_anchor_seed_42": false,
+    "selection_after_results_allowed": false,
+    "replacement_allowed": false
+  },
+  "future_execution_boundary": {
+    "authorized_by_this_declaration": false,
+    "requires_separate_task": true,
+    "variant_training_executions": 5,
+    "variant_backtest_commands": 5,
+    "baseline_executions": 0,
+    "anchor_seed_executions": 0,
+    "parallel_or_serial": "implementation_choice_only",
+    "per_seed_config_delta_allowlist": [
+      "freqai.model_training_parameters.seed",
+      "freqai.identifier deterministic seed suffix"
+    ],
+    "all_other_model_strategy_reward_feature_threshold_pair_timeframe_fee_geometry_inputs_frozen": true,
+    "consumed_historical_oos_access_allowed": false,
+    "protected_final_holdout_access_allowed": false
+  },
+  "evidence_requirements": {
+    "external_exit_records_must_include": [
+      "pair",
+      "exit_reason",
+      "exit_timestamp",
+      "entry_signal_active_at_exit",
+      "next_same_pair_entry_timestamp",
+      "reentry_gap_minutes"
+    ],
+    "per_seed_summary_must_include": [
+      "completed_trade_count",
+      "completed_trade_count_by_pair",
+      "non_force_exit_count_by_pair",
+      "roi_exit_while_entry_signal_active_count",
+      "roi_exit_while_entry_signal_active_followed_by_same_pair_15m_reentry_count",
+      "raw_roi_exit_followed_by_same_pair_15m_reentry_count",
+      "target_flat_exit_followed_by_same_pair_15m_reentry_count",
+      "fees_usdt",
+      "net_profit_usdt",
+      "profit_factor",
+      "max_drawdown_abs",
+      "pair_exposure_fraction",
+      "exit_reason_counts"
+    ],
+    "aggregate_dispersion_must_include": [
+      "minimum",
+      "maximum",
+      "median",
+      "interquartile_range"
+    ]
+  },
+  "prospective_criteria": {
+    "execution_integrity": {
+      "required_completed_seeds": 5,
+      "allowed_failed_or_missing_seeds": 0,
+      "exact_frozen_input_hash_match_required": true
+    },
+    "primary_mechanism_consistency": {
+      "per_seed_roi_exit_while_entry_signal_active_count_max": 0,
+      "per_seed_roi_exit_while_entry_signal_active_followed_by_same_pair_15m_reentry_count_max": 0,
+      "required_passing_seeds": 5,
+      "raw_roi_15m_reentry_events_with_entry_signal_inactive_at_exit_are_reported_but_not_primary_failures": true
+    },
+    "non_degeneracy": {
+      "per_seed_minimum_completed_trades_per_pair": 1,
+      "per_seed_minimum_non_force_exits_total": 1,
+      "failure_classification": "inconclusive_not_robustness_pass"
+    },
+    "profitability": {
+      "gating": false,
+      "ranking_allowed": false,
+      "superiority_claim_allowed": false
+    },
+    "overall_classification": {
+      "mechanism_seed_robust": "all execution-integrity, primary-mechanism and non-degeneracy criteria pass for all five seeds",
+      "inconclusive": "any seed is missing, fails integrity, or fails non-degeneracy",
+      "mechanism_not_seed_robust": "any eligible seed records an active-entry ROI lifecycle conflict"
+    }
+  },
+  "boundaries": {
+    "classification": "paired_historical_development_seed_robustness",
+    "strict_oos": false,
+    "protected_final_validation": false,
+    "profitability_is_non_gating": true,
+    "automatic_ranking": false,
+    "automatic_promotion": false,
+    "dry_run_authorized": false,
+    "live_authorized": false,
+    "phase6_authoritative_selected_model": null,
+    "retuning_allowed_after_result": false
+  }
+}

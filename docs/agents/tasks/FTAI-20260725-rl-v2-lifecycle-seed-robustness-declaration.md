@@ -5,7 +5,7 @@ branch: docs/rl-v2-lifecycle-seed-robustness-declaration
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
-related_pr: ""
+related_pr: "278"
 owned_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-declaration.md
   - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_DECLARATION.md
@@ -62,11 +62,11 @@ It does not implement or authorize execution infrastructure.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T10:18:00+02:00
-head: 9bf961c5adec1d4bbfccaa9316cfddbd7e3d4c5c
+updated_at: 2026-07-25T10:19:18+02:00
+head: a9297e625c1159d02535dd3ff0c121293471da03
 branch: docs/rl-v2-lifecycle-seed-robustness-declaration
-pr: 0
-status: implementing
+pr: 278
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-paired-attribution-interpretation.md
   - docs/ai_platform/RL_V2_PAIRED_ATTRIBUTION_INTERPRETATION.md
@@ -81,6 +81,7 @@ proven:
   - Anchor artifact digest deterministically yields four additional signed-31-bit seed values without outcome-based selection.
   - Model code passes model_training_parameters.seed into both PPO/runtime parameters and the environment while data_split_parameters.random_state remains independently configurable.
   - Parallel stale closure PR 277 was closed without merge after canonical closure PR 276 merged.
+  - PR 278 changes only the seed declaration task, human-readable declaration and machine-readable record; no workflow, model, strategy, config or request file changed.
 derived:
   - Reusing seed 42 and executing only four new seeds minimizes duplicate compute while preserving a five-seed evidence set.
   - Seed robustness can evaluate path-level mechanism consistency but cannot create strict-OOS or profitability evidence on reused data.
@@ -100,6 +101,8 @@ rejected_hypotheses:
   - Treat a five-seed development study as statistical proof, ranking or promotion evidence.
 changed_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-declaration.md
+  - docs/ai_platform/RL_V2_LIFECYCLE_SEED_ROBUSTNESS_DECLARATION.md
+  - ai_platform/experimental_model_research/rl-v2-lifecycle-seed-robustness-declaration-v1.json
 validation:
   - command: deterministic seed derivation from immutable anchor digest
     result: PASS
@@ -107,6 +110,9 @@ validation:
   - command: current runtime seed-binding inspection
     result: PASS
     evidence: Base config freezes model seed 42 and data-split random_state 42 separately; model pack_env_dict forwards model_training_parameters.seed to the environment.
+  - command: compare develop to PR 278 declaration head
+    result: PASS
+    evidence: Three declaration-only files changed with zero divergence from develop before the checkpoint commit.
 blockers: []
-next_action: Publish the human-readable and machine-readable seed-robustness declaration, open a documentation-only PR, and merge it only after checkpoint, JSON, documentation and repository CI pass.
+next_action: Merge PR 278 only after checkpoint, JSON, documentation and repository CI pass, then close the declaration task in a separate one-file checkpoint PR.
 ```

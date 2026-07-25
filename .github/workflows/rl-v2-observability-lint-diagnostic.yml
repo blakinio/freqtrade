@@ -1,0 +1,46 @@
+name: RL-v2 observability lint diagnostic
+
+on:
+  push:
+    branches:
+      - diagnostic/rl-v2-observability-lint
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch current implementation files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p ai_platform/scripts tests/ai_platform
+          ref='feat%2Frl-v2-action-observability-implementation'
+          api='https://api.github.com/repos/blakinio/freqtrade/contents'
+          accept='Accept: application/vnd.github.raw+json'
+          auth="Authorization: Bearer ${GH_TOKEN}"
+          curl -fsSL -H "$accept" -H "$auth" \
+            "$api/pyproject.toml?ref=$ref" -o pyproject.toml
+          curl -fsSL -H "$accept" -H "$auth" \
+            "$api/ai_platform/scripts/rl_v2_action_observability.py?ref=$ref" \
+            -o ai_platform/scripts/rl_v2_action_observability.py
+          curl -fsSL -H "$accept" -H "$auth" \
+            "$api/tests/ai_platform/test_rl_v2_action_observability.py?ref=$ref" \
+            -o tests/ai_platform/test_rl_v2_action_observability.py
+      - name: Run exact Ruff checks
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet ruff==0.15.21 >/dev/null
+          set +e
+          ruff check \
+            ai_platform/scripts/rl_v2_action_observability.py \
+            tests/ai_platform/test_rl_v2_action_observability.py
+          lint_status=$?
+          ruff format --check \
+            ai_platform/scripts/rl_v2_action_observability.py \
+            tests/ai_platform/test_rl_v2_action_observability.py
+          format_status=$?
+          exit $((lint_status || format_status))

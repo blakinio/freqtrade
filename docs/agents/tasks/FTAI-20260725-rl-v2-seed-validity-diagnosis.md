@@ -53,8 +53,8 @@ Perform the prospectively declared evidence-only diagnosis of the two low-trade-
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T22:58:00+02:00
-head: 18c93fbceee40916c6cb67c76b2af7be84c1ad88
+updated_at: 2026-07-25T23:00:00+02:00
+head: 8e9f7c88b819adf05b6181ddac7293b82cdcf0c9
 branch: docs/rl-v2-seed-validity-diagnosis-task
 pr: 296
 status: ready
@@ -113,8 +113,8 @@ validation:
     result: PASS
     evidence: Required zizmor workflow-security analysis passed on the task head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md --require-checkpoint
-    result: NOT_RUN
-    evidence: The final ready-state task checkpoint must be validated in a checkpoint-only diagnostic PR before merge.
+    result: PASS
+    evidence: The canonical validator completed successfully in checkpoint-only diagnostic PR 297; a final exact-content validation is required after recording this result.
 blockers: []
 next_action: Open and validate this exact-one-file diagnosis task declaration PR; merge it only after required CI and checkpoint validation pass, then branch from updated develop, inspect exactly the frozen immutable artifacts, and add only the declared diagnosis documentation, machine-readable evidence and task-record updates.
 ```

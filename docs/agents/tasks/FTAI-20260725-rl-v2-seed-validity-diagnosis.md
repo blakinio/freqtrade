@@ -43,8 +43,8 @@ The immutable archives contain no per-candle action, prediction or model-state t
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:22:00+02:00
-head: 7ec4ebb282f3ea776202b4029a83970a21fc0532
+updated_at: 2026-07-25T23:24:00+02:00
+head: e7c3addc03bcfd9bced73eb0fc6a454a222be163
 branch: docs/rl-v2-seed-validity-diagnosis-results
 pr: 299
 status: ready
@@ -126,8 +126,8 @@ validation:
     result: PASS
     evidence: Required zizmor workflow-security analysis passed on the diagnosis result head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Final exact-content validation is required in a checkpoint-only diagnostic PR before merge.
+    result: PASS
+    evidence: Canonical checkpoint validation completed in AI Platform CI 30175412913, job 89723290204, artifact 8624061374; PR 300 closed without merge.
 blockers: []
 next_action: Merge PR 299 only after final exact-content checkpoint validation passes; then close this task with decision=inconclusive unchanged and require a separate prospective declaration before any action-level instrumentation or further experiment.
 ```

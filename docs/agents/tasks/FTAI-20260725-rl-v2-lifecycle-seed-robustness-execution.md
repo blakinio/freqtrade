@@ -152,8 +152,8 @@ validation:
     result: PASS
     evidence: GitHub records state=closed, merged=false, changed_files=1 after terminal aggregate evidence was captured.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-execution.md --require-checkpoint
-    result: NOT_RUN
-    evidence: The terminal checkpoint must be validated against the merged governance tool before the closure PR is merged.
+    result: PASS
+    evidence: The canonical repository validator completed successfully against the terminal checkpoint in an unmerged checkpoint-only diagnostic PR.
 blockers: []
 next_action: Do not reopen, rerun, replace, rank or promote from this terminal inconclusive study; preserve its immutable evidence and require a separate prospective declaration before any follow-on that still respects consumed-OOS, protected-holdout, Phase 6 and no-promotion boundaries.
 ```

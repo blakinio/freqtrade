@@ -83,9 +83,7 @@ def _validate_seed_summary(result: dict[str, Any], seed: int) -> None:
 def _load_backtest_config(archive: Path) -> dict[str, Any]:
     try:
         with zipfile.ZipFile(archive) as bundle:
-            names = sorted(
-                name for name in bundle.namelist() if name.endswith("_config.json")
-            )
+            names = sorted(name for name in bundle.namelist() if name.endswith("_config.json"))
             if len(names) != 1:
                 raise RLV2SeedEvidenceError(
                     f"Expected exactly one backtest config JSON, found {len(names)}"
@@ -110,9 +108,7 @@ def _expected_runtime_config(
     freqai = expected.setdefault("freqai", {})
     freqai["identifier"] = runtime_identifier(seed)
     freqai["train_period_days"] = contract["execution_geometry"]["train_period_days"]
-    freqai["backtest_period_days"] = contract["execution_geometry"][
-        "backtest_period_days"
-    ]
+    freqai["backtest_period_days"] = contract["execution_geometry"]["backtest_period_days"]
     freqai.setdefault("model_training_parameters", {})["seed"] = seed
     return expected
 

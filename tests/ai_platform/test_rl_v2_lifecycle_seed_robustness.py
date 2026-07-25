@@ -26,7 +26,13 @@ BASE = ROOT / "ai_platform/configs/rl_v2_training_research.json"
 WORKFLOW = ROOT / ".github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml"
 
 
-def _archive(path: Path, seed: int, count: int = 20) -> Path:
+def _archive(
+    path: Path,
+    seed: int,
+    count: int = 20,
+    *,
+    config_drift: bool = False,
+) -> Path:
     trades = []
     for index in range(count):
         open_rate = 100.0 + index
@@ -72,9 +78,20 @@ def _archive(path: Path, seed: int, count: int = 20) -> Path:
             }
         }
     }
+    base = json.loads(BASE.read_text(encoding="utf-8"))
+    base["strategy"] = strategy
+    base["freqai"]["identifier"] = runtime_identifier(seed)
+    base["freqai"]["train_period_days"] = 90
+    base["freqai"]["backtest_period_days"] = 61
+    base["freqai"]["model_training_parameters"]["seed"] = seed
+    base["exchange"]["key"] = "REDACTED"
+    base["exchange"]["secret"] = "REDACTED"
+    base["config_files"] = ["runtime.json"]
+    if config_drift:
+        base["freqai"]["data_split_parameters"]["random_state"] = 7
     with zipfile.ZipFile(path, "w") as bundle:
         bundle.writestr("result.json", json.dumps(result))
-        bundle.writestr("result_config.json", "{}")
+        bundle.writestr("result_config.json", json.dumps(base))
     return path
 
 
@@ -138,6 +155,13 @@ def test_invalid_seed_is_inconclusive_and_not_replaced(tmp_path: Path) -> None:
     assert aggregate["decision"] == "inconclusive"
     assert aggregate["invalid_seeds"] == [NEW_SEEDS[0]]
     assert aggregate["invalid_seed_replacement_allowed"] is False
+
+
+def test_per_seed_evidence_rejects_runtime_config_drift(tmp_path: Path) -> None:
+    seed = NEW_SEEDS[0]
+    archive = _archive(tmp_path / "drift.zip", seed, config_drift=True)
+    with pytest.raises(RLV2SeedEvidenceError, match="config drifted"):
+        extract_seed_evidence(archive, seed)
 
 
 def test_aggregate_rejects_tampered_support(tmp_path: Path) -> None:

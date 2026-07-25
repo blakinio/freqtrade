@@ -20,6 +20,7 @@ from ai_platform.scripts.rl_v2_lifecycle_seed_robustness_run_request import (
     runtime_identifier,
 )
 
+
 ROOT = Path(__file__).resolve().parents[2]
 BASE = ROOT / "ai_platform/configs/rl_v2_training_research.json"
 WORKFLOW = ROOT / ".github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml"

@@ -1,0 +1,152 @@
+{
+  "schema_version": 1,
+  "declaration_id": "rl-v2-seed-validity-diagnosis-declaration-v1",
+  "task_path": "docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis-declaration.md",
+  "status": "declared_not_authorized_for_analysis_or_execution",
+  "source": {
+    "workflow_run_id": 30171023448,
+    "trigger_pr": 287,
+    "execution_head_sha": "c1c3eb4c029125094ad6d0090ab85be3cb6ebd46",
+    "aggregate_artifact": {
+      "name": "rl-v2-lifecycle-seed-robustness-287",
+      "artifact_id": 8623459762,
+      "digest": "sha256:5b39af275b0add9a9d616d6fa8a72132f97844726a69f22fd21c95064ce3b108"
+    },
+    "frozen_decision": "inconclusive",
+    "valid_seed_count": 3,
+    "invalid_seeds": [1710810709, 1950377252],
+    "invalid_seed_replacement_allowed": false
+  },
+  "immutable_artifacts": [
+    {
+      "seed": 42,
+      "role": "valid_anchor",
+      "workflow_run_id": 30131273189,
+      "name": "rl-v2-roi-lifecycle-paired-attribution-272",
+      "artifact_id": 8612237323,
+      "digest": "sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04",
+      "rerun_allowed": false
+    },
+    {
+      "seed": 300538280,
+      "role": "valid_new_seed",
+      "workflow_run_id": 30171023448,
+      "name": "rl-v2-lifecycle-seed-robustness-seed-300538280-287",
+      "artifact_id": 8623454828,
+      "digest": "sha256:6b4a74e15cf1cd7eb1d77d348fc21211f6f9b8da4f661f05332a77b22ea322ca",
+      "rerun_allowed": false
+    },
+    {
+      "seed": 1710810709,
+      "role": "invalid_low_trade_count",
+      "workflow_run_id": 30171023448,
+      "name": "rl-v2-lifecycle-seed-robustness-seed-1710810709-287",
+      "artifact_id": 8623457962,
+      "digest": "sha256:6cda21cc5c512387936992609b61514c843b2e9871e819ff9b6e048715a4c581",
+      "recorded_trade_count": 14,
+      "minimum_declared_trade_count": 20,
+      "rerun_allowed": false
+    },
+    {
+      "seed": 1950377252,
+      "role": "invalid_low_trade_count",
+      "workflow_run_id": 30171023448,
+      "name": "rl-v2-lifecycle-seed-robustness-seed-1950377252-287",
+      "artifact_id": 8623457885,
+      "digest": "sha256:e8570fb4fc03721775d42ffe2e65b7e917801076b30a73923ed58b04488f983a",
+      "recorded_trade_count": 13,
+      "minimum_declared_trade_count": 20,
+      "rerun_allowed": false
+    },
+    {
+      "seed": 1146911492,
+      "role": "valid_new_seed",
+      "workflow_run_id": 30171023448,
+      "name": "rl-v2-lifecycle-seed-robustness-seed-1146911492-287",
+      "artifact_id": 8623455361,
+      "digest": "sha256:7b056e6b6e64863aa46191bb854f534482cd288fb4ef5fa44ca76fa723db4d86",
+      "rerun_allowed": false
+    }
+  ],
+  "comparison_sets": {
+    "valid_seeds": [42, 300538280, 1146911492],
+    "invalid_seeds": [1710810709, 1950377252],
+    "seed_removal_allowed": false,
+    "seed_replacement_allowed": false
+  },
+  "frozen_questions": [
+    "artifact_and_runtime_integrity",
+    "trade_count_decomposition_by_pair_month_exit_reason_and_duration",
+    "position_occupancy_versus_completed_position_initiation_dispersion",
+    "invalid_seed_similarity_and_valid_set_contrast",
+    "action_level_causal_attribution_availability"
+  ],
+  "allowed_calculations": [
+    "trade_count_decomposition",
+    "pair_decomposition",
+    "realized_month_decomposition",
+    "exit_reason_decomposition",
+    "trade_accounting_reconciliation",
+    "duration_quantiles_minutes",
+    "occupied_minutes_by_pair",
+    "union_of_trade_intervals_occupied_minutes",
+    "completed_position_initiation_timestamps",
+    "inter_initiation_intervals",
+    "same_pair_flat_gaps",
+    "invalid_to_valid_median_ratios_and_differences",
+    "evidence_integrity_warning_inventory"
+  ],
+  "completion_rule": {
+    "complete": "Every immutable artifact is identity-verified, available raw trades and configurations reconcile, and every frozen descriptive calculation is recorded.",
+    "blocked": "An immutable artifact is unavailable or evidence integrity cannot be reconciled.",
+    "frozen_seed_robustness_decision_must_remain": "inconclusive"
+  },
+  "evidence_classification": {
+    "classification": "paired_historical_development_seed_validity_diagnosis",
+    "strict_oos": false,
+    "protected_final_validation": false,
+    "profitability_is_non_gating": true,
+    "statistical_proof_claim_allowed": false,
+    "automatic_ranking": false,
+    "automatic_promotion": false,
+    "dry_run_authorized": false,
+    "live_authorized": false
+  },
+  "isolation": {
+    "model_execution_allowed": false,
+    "training_allowed": false,
+    "backtest_allowed": false,
+    "market_data_access_allowed": false,
+    "cache_restore_allowed": false,
+    "baseline_rerun_allowed": false,
+    "anchor_rerun_allowed": false,
+    "seed_rerun_allowed": false,
+    "validity_threshold_change_allowed": false,
+    "retuning_allowed": false,
+    "profitability_gate_allowed": false,
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "phase6_authoritative_selected_model": null
+  },
+  "causal_limits": {
+    "claim_ppo_action_persistence_without_action_timeline": false,
+    "claim_entry_suppression_without_action_timeline": false,
+    "missing_action_level_evidence_must_be_reported_as": "unknown",
+    "diagnosis_may_authorize_future_experiment": false
+  },
+  "future_sequence": {
+    "separate_bounded_diagnosis_task_required": true,
+    "diagnosis_outputs": [
+      "docs/ai_platform/RL_V2_SEED_VALIDITY_DIAGNOSIS.md",
+      "ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json"
+    ],
+    "this_declaration_authorizes_analysis": false,
+    "this_declaration_authorizes_execution": false
+  }
+}

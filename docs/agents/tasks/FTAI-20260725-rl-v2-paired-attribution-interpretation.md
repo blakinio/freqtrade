@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260725-rl-v2-paired-attribution-interpretation
-status: active
-branch: docs/rl-v2-paired-attribution-interpretation
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-25
 updated: 2026-07-25
@@ -62,11 +62,11 @@ support from profitability and generalization, and identify the next legal resea
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T09:54:50+02:00
-head: 21207f92a083a4d8f00524df4fb1803ddde25f4b
-branch: docs/rl-v2-paired-attribution-interpretation
+updated_at: 2026-07-25T10:01:37+02:00
+head: 69e2880f8e7fc916c89032eec473b6ef9941e9ea
+branch: develop
 pr: 274
-status: validating
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260724-rl-v2-roi-lifecycle-paired-attribution-execution.md
   - docs/ai_platform/RL_V2_HISTORICAL_EVIDENCE_DIAGNOSIS.md
@@ -76,23 +76,23 @@ owned_paths:
   - docs/ai_platform/RL_V2_PAIRED_ATTRIBUTION_INTERPRETATION.md
   - ai_platform/experimental_model_research/rl-v2-paired-attribution-interpretation-v1.json
 proven:
-  - Develop head 98e8857a183f4603a9abc1cb466e8897eb589334 contains the completed paired-attribution task and closure evidence.
+  - Develop head 69e2880f8e7fc916c89032eec473b6ef9941e9ea contains the completed paired-attribution interpretation package.
   - Run 30131273189 executed exactly one lifecycle-aligned variant backtest and no baseline command.
   - Immutable artifact rl-v2-roi-lifecycle-paired-attribution-272 is bound to digest sha256:11e9d9a8e5f8e65474406524445c7b04fe3d9af5afa6d137847c913f8e66ae04.
   - Prospectively frozen mechanism criteria passed: ROI-to-15m re-entry count 122 to 0 and boundary fees 52.582123 USDT to 0.0 USDT.
   - Evidence classification remains paired_historical_development_attribution with strict_oos=false and protected_final_validation=false.
-  - PR 274 contains only the interpretation task, report and machine-readable record; no workflow, strategy, model, config or request file changed.
+  - PR 274 added only the interpretation task, report and machine-readable record; no workflow, strategy, model, config or request file changed.
+  - AI Platform CI 1156, Freqtrade CI 1351 and zizmor 1281 passed on final PR 274 head c06c7efa765e8a0be78fb67b553c71efb1e94b65.
+  - PR 274 was squash-merged to develop as 69e2880f8e7fc916c89032eec473b6ef9941e9ea.
 derived:
   - The single lifecycle delta removed the defined immediate ROI exit and re-entry mechanism on the reused March-April development path.
   - Positive variant profit is descriptive and cannot establish causal profitability, generalization or promotion readiness.
-  - Stochastic repeatability should be assessed before another policy-semantic change is considered.
-unknown:
-  - Whether the mechanism result is stable across prospectively frozen PPO seeds.
-  - Whether any result generalizes to untouched data.
+  - A prospectively frozen seed-robustness declaration is the next defensible research gate before another policy-semantic change.
+unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: Interpretation uses immutable evidence only and requires no execution path.
+  evidence: Interpretation used immutable evidence only and completed without an execution path.
 rejected_hypotheses:
   - Treat the paired result as strict OOS or final validation.
   - Attribute the full profit delta causally to removed boundary fees.
@@ -107,9 +107,18 @@ validation:
   - command: immutable artifact payload inspection
     result: PASS
     evidence: paired-attribution.json, evidence-metadata.json and raw-backtest exit decomposition reconcile with the recorded run, head, digest and classification.
-  - command: compare develop to PR 274 head
+  - command: AI Platform CI 30150189609 / run 1156
     result: PASS
-    evidence: Three interpretation-only files changed and the branch is ahead with zero divergence from develop.
+    evidence: AI platform tests, lint and JSON validation passed.
+  - command: Freqtrade CI 30150189616 / run 1351
+    result: PASS
+    evidence: Pre-commit, scope classification, documentation syntax, documentation build and CI gate passed.
+  - command: GitHub Actions Security Analysis 30150189594 / run 1281
+    result: PASS
+    evidence: Required zizmor workflow security analysis passed.
+  - command: squash merge PR 274
+    result: PASS
+    evidence: GitHub merged final interpretation head c06c7efa765e8a0be78fb67b553c71efb1e94b65 to develop as 69e2880f8e7fc916c89032eec473b6ef9941e9ea.
 blockers: []
-next_action: Merge PR 274 only after checkpoint, JSON, documentation and repository CI pass, then close the interpretation task in a separate one-file checkpoint PR.
+next_action: Do not reopen this completed interpretation task; declare a separate prospective seed-robustness task only if it freezes seeds and consistency criteria before execution, reruns no baseline, accesses no consumed OOS or protected holdout, and preserves Phase 6 selected_model=null.
 ```

@@ -190,9 +190,7 @@ def _timestamp_utc(value: Any) -> str:
         try:
             timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
         except ValueError as exc:
-            raise RLV2ActionObservabilityError(
-                "date must be a valid UTC timestamp"
-            ) from exc
+            raise RLV2ActionObservabilityError("date must be a valid UTC timestamp") from exc
     elif isinstance(value, datetime):
         timestamp = value
     else:
@@ -240,9 +238,7 @@ def _normalize_row(
     prediction_accepted = do_predict_raw == 1
     volume_positive = _finite_float(volume, "volume") > 0
     enter_long = (
-        prediction_accepted
-        and action_raw == DesiredPosition.TARGET_LONG.value
-        and volume_positive
+        prediction_accepted and action_raw == DesiredPosition.TARGET_LONG.value and volume_positive
     )
     exit_long = prediction_accepted and action_raw == DesiredPosition.TARGET_FLAT.value
     return {
@@ -266,8 +262,7 @@ def _validate_serialized_row(row: Any) -> dict[str, Any]:
         raise RLV2ActionObservabilityError("Timeline row schema drifted")
     integer_fields = ("source_row_ordinal", "action_raw", "do_predict_raw")
     if any(
-        not isinstance(row[field], int) or isinstance(row[field], bool)
-        for field in integer_fields
+        not isinstance(row[field], int) or isinstance(row[field], bool) for field in integer_fields
     ):
         raise RLV2ActionObservabilityError("Timeline integer field type drifted")
     boolean_fields = (
@@ -407,9 +402,7 @@ def _normalize_pairs(value: Any, observed_pairs: Sequence[str]) -> list[str]:
 
 def _normalize_git_commit(value: Any) -> str:
     commit = _non_empty_string(value, "git_commit").casefold()
-    if len(commit) != 40 or any(
-        character not in "0123456789abcdef" for character in commit
-    ):
+    if len(commit) != 40 or any(character not in "0123456789abcdef" for character in commit):
         raise RLV2ActionObservabilityError("git_commit must be a 40-character hex SHA")
     return commit
 
@@ -438,13 +431,9 @@ def _normalize_metadata(
         "strategy_name": _non_empty_string(metadata["strategy_name"], "strategy_name"),
         "strategy_sha256": _sha256_hex(metadata["strategy_sha256"], "strategy_sha256"),
         "freqai_model": _non_empty_string(metadata["freqai_model"], "freqai_model"),
-        "freqai_model_sha256": _sha256_hex(
-            metadata["freqai_model_sha256"], "freqai_model_sha256"
-        ),
+        "freqai_model_sha256": _sha256_hex(metadata["freqai_model_sha256"], "freqai_model_sha256"),
         "config_sha256": _sha256_hex(metadata["config_sha256"], "config_sha256"),
-        "freqai_identifier": _non_empty_string(
-            metadata["freqai_identifier"], "freqai_identifier"
-        ),
+        "freqai_identifier": _non_empty_string(metadata["freqai_identifier"], "freqai_identifier"),
         "seed": seed,
         "timerange": _non_empty_string(metadata["timerange"], "timerange"),
         "timeframe": _non_empty_string(metadata["timeframe"], "timeframe"),
@@ -487,9 +476,7 @@ def _dataframe_row_iterator(dataframe: Any) -> Any:
         selected = dataframe[list(REQUIRED_DATAFRAME_COLUMNS)]
         return selected.itertuples
     except (AttributeError, KeyError, TypeError, ValueError) as exc:
-        raise RLV2ActionObservabilityError(
-            "dataframe selection must expose itertuples"
-        ) from exc
+        raise RLV2ActionObservabilityError("dataframe selection must expose itertuples") from exc
 
 
 class RLV2ActionObservabilityRecorder:
@@ -515,9 +502,7 @@ class RLV2ActionObservabilityRecorder:
         missing = set(REQUIRED_DATAFRAME_COLUMNS).difference(columns)
         if missing:
             rendered = ", ".join(sorted(missing))
-            raise RLV2ActionObservabilityError(
-                f"Missing RL-v2 observability columns: {rendered}"
-            )
+            raise RLV2ActionObservabilityError(f"Missing RL-v2 observability columns: {rendered}")
         row_iterator = _dataframe_row_iterator(dataframe)
         normalized_pair = _normalized_pair(pair)
         candidates: list[dict[str, Any]] = []
@@ -596,9 +581,7 @@ def _read_timeline(path: Path) -> tuple[bytes, list[dict[str, Any]]]:
     rows: list[dict[str, Any]] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if not line:
-            raise RLV2ActionObservabilityError(
-                f"Timeline contains blank line at {line_number}"
-            )
+            raise RLV2ActionObservabilityError(f"Timeline contains blank line at {line_number}")
         try:
             raw = json.loads(line)
         except json.JSONDecodeError as exc:

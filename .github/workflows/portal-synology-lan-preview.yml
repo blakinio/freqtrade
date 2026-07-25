@@ -13,7 +13,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
   statuses: write
 
 concurrency:
@@ -21,16 +20,16 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE_NAME: ghcr.io/blakinio/freqtrade-portal-web
+  IMAGE_NAME: local/freqtrade-portal-web
   CONTAINER_NAME: freqtrade-portal-staging
   PORTAL_BIND_ADDRESS: 192.168.1.2
   PORTAL_PORT: "3000"
 
 jobs:
-  build:
-    name: Build exact-SHA portal image
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+  deploy:
+    name: Build and deploy on Synology
+    runs-on: freqtrade-staging
+    timeout-minutes: 45
 
     steps:
       - name: Publish pending status
@@ -39,7 +38,7 @@ jobs:
         run: |
           set -euo pipefail
           payload=$(cat <<EOF
-          {"state":"pending","context":"portal-synology-lan-preview","description":"Building exact-SHA portal preview image","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
+          {"state":"pending","context":"portal-synology-lan-preview","description":"Building and deploying portal on Synology","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
           EOF
           )
           curl --fail --silent --show-error \
@@ -53,42 +52,25 @@ jobs:
       - name: Check out exact source
         uses: actions/checkout@v7
 
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build and publish portal image
-        uses: docker/build-push-action@v7
-        with:
-          context: ./ai_platform/portal/web
-          file: ./deploy/synology/portal/Dockerfile
-          push: true
-          platforms: linux/amd64
-          tags: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=Freqtrade AI Trading Portal LAN Preview
-
-  deploy:
-    name: Deploy to Synology LAN
-    needs: build
-    runs-on: freqtrade-staging
-    timeout-minutes: 15
-
-    steps:
-      - name: Log in to GHCR
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate runner tools
         run: |
           set -euo pipefail
-          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker version >/dev/null
+          docker compose version >/dev/null
+          test -S /var/run/docker.sock
+
+      - name: Build exact-SHA portal image
+        env:
+          IMAGE: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull \
+            --file deploy/synology/portal/Dockerfile \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "$IMAGE" \
+            ai_platform/portal/web
 
       - name: Validate candidate and replace preview
         env:
@@ -122,7 +104,7 @@ jobs:
           wait_healthy() {
             local name="$1"
             local status=""
-            for _ in $(seq 1 60); do
+            for _ in $(seq 1 90); do
               status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$name" 2>/dev/null || true)"
               if [[ "$status" == "healthy" ]]; then
                 return 0
@@ -157,8 +139,6 @@ jobs:
               echo "No previous portal image is available for rollback." >&2
             fi
           }
-
-          docker pull "$IMAGE"
 
           docker run -d \
             --name "$candidate" \
@@ -198,37 +178,21 @@ jobs:
             echo "- Data mode: \`fixture\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Log out of GHCR
+      - name: Publish final status
         if: always()
-        run: docker logout ghcr.io >/dev/null 2>&1 || true
-
-  report:
-    name: Publish deployment result
-    if: always()
-    needs:
-      - build
-      - deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-
-    steps:
-      - name: Publish commit status
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          BUILD_RESULT: ${{ needs.build.result }}
-          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          JOB_STATUS: ${{ job.status }}
         run: |
           set -euo pipefail
-          if [[ "$BUILD_RESULT" == "success" && "$DEPLOY_RESULT" == "success" ]]; then
-            state=success
-          elif [[ "$BUILD_RESULT" == "failure" || "$DEPLOY_RESULT" == "failure" ]]; then
-            state=failure
-          else
-            state=error
-          fi
-          description="Portal preview: build=$BUILD_RESULT deploy=$DEPLOY_RESULT"
+          case "$JOB_STATUS" in
+            success) state=success ;;
+            failure) state=failure ;;
+            *) state=error ;;
+          esac
           payload=$(cat <<EOF
-          {"state":"$state","context":"portal-synology-lan-preview","description":"$description","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
+          {"state":"$state","context":"portal-synology-lan-preview","description":"Synology portal preview: $JOB_STATUS","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
           EOF
           )
           curl --fail --silent --show-error \

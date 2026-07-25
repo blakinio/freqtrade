@@ -50,8 +50,8 @@ Create a durable, repository-grounded continuation route that corrects stale por
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:35:00+02:00
-head: a27a2ed8403498b4f753deb4b8a744d99b40f144
+updated_at: 2026-07-25T23:55:00+02:00
+head: edb2899e0276adcb9538609368e42af5de63e838
 branch: docs/portal-next-work-repair-sync-20260725
 pr: 310
 status: ready
@@ -81,12 +81,13 @@ unknown:
 conflicts:
   - POST_P12_INTEGRATION_BACKLOG.md and the older post-P12 paragraph in DELIVERY_ROADMAP.md still contain stale PI-02/PI-01 routing sentences; NEXT_WORK_AND_REPAIR_PLAN.md is the current continuation ledger until those large canonical files are updated by their next owning package.
 first_failure:
-  marker: NONE
-  evidence: Documentation-only task; no validation failure observed before CI.
+  marker: precommit-end-of-file-fixer-missing-newline
+  evidence: Freqtrade CI run 30176794971, Pre-commit checks job 89726818422 failed on PR head 688f2cb385a08b6be24c0ff65c53f439a38fb1ca; the PR patch showed NEXT_WORK_AND_REPAIR_PLAN.md with no newline at end of file. Commit edb2899e0276adcb9538609368e42af5de63e838 restored the required final newline.
 rejected_hypotheses:
   - Treat bounded P6 completion as proof that the full target Bot Operations workflow exists.
   - Treat simulator execution as proof that private Freqtrade order submission exists.
   - Start PI-06, PI-05 or PI-07 without owner/provider/security decisions.
+  - Treat the first Freqtrade CI failure as transient or merge despite a deterministic pre-commit defect.
 changed_paths:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/agents/tasks/FTAI-20260725-portal-next-work-repair-plan.md
@@ -96,10 +97,19 @@ changed_paths:
 validation:
   - command: compare develop...docs/portal-next-work-repair-sync-20260725
     result: PASS
-    evidence: Branch was ahead by five commits, behind by zero and changed exactly the five declared documentation paths before the checkpoint-only task update.
-  - command: required GitHub Actions on final PR head
+    evidence: The branch changed exactly the five declared documentation paths before validation repair.
+  - command: AI Platform CI on PR head 688f2cb385a08b6be24c0ff65c53f439a38fb1ca
+    result: PASS
+    evidence: Workflow run 30176794974 completed successfully.
+  - command: GitHub Actions Security Analysis with zizmor on PR head 688f2cb385a08b6be24c0ff65c53f439a38fb1ca
+    result: PASS
+    evidence: Workflow run 30176794990 completed successfully.
+  - command: Freqtrade CI on PR head 688f2cb385a08b6be24c0ff65c53f439a38fb1ca
+    result: FAIL
+    evidence: Workflow run 30176794971; Pre-commit checks job 89726818422 exposed the missing final newline.
+  - command: required GitHub Actions on current exact PR head
     result: PENDING
-    evidence: PR 310 opened; exact-head workflows must complete before merge.
+    evidence: The newline repair and this checkpoint update create a new exact head that must pass fresh required workflows before merge.
 blockers: []
-next_action: Verify required CI on the exact current PR 310 head; if all required checks pass and the PR remains mergeable and path-disjoint, squash-merge it, verify develop, then declare the separate Bot Operations completion task.
+next_action: Verify all required workflows on the exact current PR 310 head; if they pass and the PR remains mergeable and path-disjoint, squash-merge with expected_head_sha, verify develop, and leave Bot Operations for a separate dated implementation task.
 ```

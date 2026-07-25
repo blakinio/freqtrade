@@ -6,6 +6,7 @@ on:
       - feat/portal-synology-lan-staging
     paths:
       - .github/workflows/one-shot-portal-synology-lan-deploy.yml
+      - deploy/synology/portal/deploy-preview.sh
 
 permissions:
   contents: write

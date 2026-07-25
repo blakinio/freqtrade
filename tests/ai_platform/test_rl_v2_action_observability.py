@@ -7,10 +7,10 @@ import pytest
 
 from ai_platform.scripts.rl_v2_action_observability import (
     MANIFEST_NAME,
-    RLV2ActionObservabilityError,
-    RLV2ActionObservabilityRecorder,
     SUMMARY_NAME,
     TIMELINE_NAME,
+    RLV2ActionObservabilityError,
+    RLV2ActionObservabilityRecorder,
     canonical_implementation_descriptor,
     validate_action_observability_artifacts,
     validate_implementation_descriptor,

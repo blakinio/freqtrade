@@ -64,8 +64,8 @@ or cache restore because the canonical request file is intentionally absent.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T14:51:00+02:00
-head: d296c321fcdf89bccb675f654a3a1cc199e20121
+updated_at: 2026-07-25T16:06:00+02:00
+head: f34feb9c2b8be0e208240c912e016b63bc18b603
 branch: feat/rl-v2-lifecycle-seed-robustness-infrastructure
 pr: 280
 status: validating
@@ -88,21 +88,27 @@ proven:
   - The execution contract freezes anchor seed 42, four new seeds, zero baseline executions, runtime hashes, data geometry, validity rules and deterministic aggregate decisions.
   - The workflow contains one matrix backtesting command for four new seeds, no seed-42 command and no baseline command.
   - The workflow uses pinned actions/download-artifact commit 3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c only to aggregate same-run per-seed artifacts.
-  - Dependency-light tests cover seed-only materialization, anchor rejection, supported aggregation, invalid-seed inconclusive handling, tamper rejection and workflow inertness.
+  - Dependency-light tests cover seed-only materialization, anchor rejection, supported aggregation, invalid-seed inconclusive handling, support-tamper rejection, runtime-config tamper rejection and workflow inertness.
+  - Per-seed extraction validates the effective embedded runtime config, lifecycle strategy, model identifier, exact seed, frozen data split and seed-only materialization before accepting evidence.
+  - The three central fail-closed validators use local C901 annotations matching the existing paired-attribution pattern; no repository-wide or per-file Ruff exemption remains.
+  - Temporary diagnostic and formatting workflows self-removed; final source head f34feb9c2b8be0e208240c912e016b63bc18b603 contains only the seven owned paths.
 derived:
   - Four isolated seed jobs plus one aggregate job implement the declared five-seed evidence geometry without rerunning anchor seed 42.
-  - Invalid or zero-trade evidence must remain visible and force an inconclusive aggregate rather than allowing discretionary replacement.
+  - Invalid or zero-trade evidence remains visible and forces an inconclusive aggregate rather than allowing discretionary replacement.
+  - Runtime-config reconciliation prevents a result produced with a changed seed, data split, strategy, identifier or materialization surface from entering the aggregate.
 unknown:
-  - Whether final PR 280 HEAD passes all required repository CI and workflow-security checks.
+  - Whether the post-checkpoint PR 280 head passes final AI Platform CI, Freqtrade CI and zizmor.
 conflicts: []
 first_failure:
-  marker: NONE
-  evidence: The previous GitHub connector routing incident cleared; all seven candidate paths are published and PR 280 is open.
+  marker: AI Platform CI 1163 / run 30158653922 / Ruff
+  evidence: Compile and all AI Platform tests passed; Ruff reported three I001 import-order findings, C901 on _validate_declaration, _validate_contract and aggregate_seed_evidence, and formatter drift in the two new modules. The import order, local C901 annotations and exact Ruff formatting were applied without behavioral changes.
 rejected_hypotheses:
   - Add or generate the canonical request during infrastructure review.
   - Execute any seed, baseline, data or cache operation before a later trigger PR.
   - Rerun anchor seed 42 to simplify aggregation.
   - Permit invalid seed replacement or discretionary evidence removal.
+  - Trust copied runtime hashes without reconciling the effective per-seed runtime config.
+  - Add a global or persistent per-file Ruff exemption instead of fixing owned files locally.
   - Gate on profitability or access OOS or protected holdout data.
 changed_paths:
   - docs/agents/tasks/FTAI-20260725-rl-v2-lifecycle-seed-robustness-infrastructure.md
@@ -113,12 +119,21 @@ changed_paths:
   - tests/ai_platform/test_rl_v2_lifecycle_seed_robustness.py
   - .github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml
 validation:
-  - command: compare develop to PR 280 head
+  - command: compare develop to PR 280 source head f34feb9c2b8be0e208240c912e016b63bc18b603
     result: PASS
-    evidence: PR scope is exactly the seven declared paths and contains no run request.
+    evidence: PR scope is exactly the seven declared paths, is ahead with zero divergence and contains no run request or temporary workflow.
   - command: canonical request absence check
     result: PASS
     evidence: The exact run-request path is absent; infrastructure review cannot trigger model or data execution.
+  - command: AI Platform CI 1163 / run 30158653922 before quality fixes
+    result: FAIL
+    evidence: Compile and tests passed; first failure was Ruff only and was repaired on later source heads.
+  - command: runtime-config tamper regression
+    result: PASS
+    evidence: A seed archive whose effective config differs from the expected seed-only materialization is rejected before aggregation.
+  - command: exact Ruff formatter application and temporary workflow self-removal
+    result: PASS
+    evidence: Ruff 0.15.21 formatted the owned Python paths and the temporary formatter removed itself; final source head retains exactly seven paths.
 blockers: []
-next_action: Treat only CI runs for the post-checkpoint PR 280 head as authoritative, fix evidence-backed validation failures, and merge only after AI Platform CI, Freqtrade CI and zizmor are green.
+next_action: Treat only CI runs for the checkpoint commit and its unchanged successors as authoritative, then squash-merge PR 280 only after AI Platform CI, Freqtrade CI and zizmor all pass.
 ```

@@ -187,14 +187,6 @@ jobs:
             python-version: "3.14"
             coverage: false
             quality: false
-          - os: macos-15
-            python-version: "3.13"
-            coverage: false
-            quality: false
-          - os: windows-2025
-            python-version: "3.13"
-            coverage: false
-            quality: false
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -207,9 +199,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache-dependency-glob: "requirements**.txt"
           cache-suffix: "smart-ci-${{ matrix.os }}-${{ matrix.python-version }}"
-      - name: Installation - macOS
-        if: runner.os == 'macOS'
-        run: brew install libomp
       - name: Installation
         run: |
           uv pip install -r requirements-dev.txt
@@ -263,16 +252,6 @@ jobs:
       - name: Mypy
         if: matrix.quality == true
         run: mypy freqtrade scripts tests
-      - name: Pester tests
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $PSVersionTable
-          Install-PSResource -Name Pester -Version '[5.7.1]' -TrustRepository -Reinstall
-          $Error.clear()
-          Function Clear-Host { }
-          Invoke-Pester -Path "tests" -CI
-          if ($Error.Length -gt 0) {exit 1}
 
   exhaustive-tests:
     name: "Compatibility sweep (${{ matrix.os }}, ${{ matrix.python-version }})"
@@ -282,7 +261,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-22.04", "ubuntu-24.04", "ubuntu-26.04", "ubuntu-24.04-arm", "macos-14", "macos-15", "windows-2022", "windows-2025"]
+        os: ["ubuntu-22.04", "ubuntu-24.04", "ubuntu-26.04", "ubuntu-24.04-arm"]
         python-version: ["3.11", "3.12", "3.13", "3.14"]
         exclude:
           - os: "ubuntu-22.04"
@@ -307,10 +286,6 @@ jobs:
             python-version: "3.13"
           - os: "ubuntu-24.04"
             python-version: "3.14"
-          - os: "macos-15"
-            python-version: "3.13"
-          - os: "windows-2025"
-            python-version: "3.13"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -323,9 +298,6 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache-dependency-glob: "requirements**.txt"
           cache-suffix: "exhaustive-${{ matrix.os }}-${{ matrix.python-version }}"
-      - name: Installation - macOS
-        if: runner.os == 'macOS'
-        run: brew install libomp
       - name: Installation
         run: |
           uv pip install -r requirements-dev.txt

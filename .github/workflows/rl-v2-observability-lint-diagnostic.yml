@@ -1,49 +1,44 @@
-name: RL-v2 observability lint diagnostic
+name: RL-v2 observability formatting diagnostic
 
 on:
   push:
     branches:
       - diagnostic/rl-v2-observability-lint
-  pull_request:
-    branches:
-      - feat/rl-v2-action-observability-implementation
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  lint:
+  format:
     runs-on: ubuntu-24.04
     steps:
-      - name: Fetch current implementation files
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          mkdir -p ai_platform/scripts tests/ai_platform
-          ref='feat%2Frl-v2-action-observability-implementation'
-          api='https://api.github.com/repos/blakinio/freqtrade/contents'
-          accept='Accept: application/vnd.github.raw+json'
-          auth="Authorization: Bearer ${GH_TOKEN}"
-          curl -fsSL -H "$accept" -H "$auth" \
-            "$api/pyproject.toml?ref=$ref" -o pyproject.toml
-          curl -fsSL -H "$accept" -H "$auth" \
-            "$api/ai_platform/scripts/rl_v2_action_observability.py?ref=$ref" \
-            -o ai_platform/scripts/rl_v2_action_observability.py
-          curl -fsSL -H "$accept" -H "$auth" \
-            "$api/tests/ai_platform/test_rl_v2_action_observability.py?ref=$ref" \
-            -o tests/ai_platform/test_rl_v2_action_observability.py
-      - name: Run exact Ruff checks
+      - name: Checkout diagnostic branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: true
+          ref: diagnostic/rl-v2-observability-lint
+      - name: Apply exact Ruff fixes
         run: |
           set -euo pipefail
           python3 -m pip install --disable-pip-version-check --quiet ruff==0.15.21 >/dev/null
-          set +e
-          ruff check \
+          ruff check --fix \
             ai_platform/scripts/rl_v2_action_observability.py \
             tests/ai_platform/test_rl_v2_action_observability.py
-          lint_status=$?
-          ruff format --check \
+          ruff format \
             ai_platform/scripts/rl_v2_action_observability.py \
             tests/ai_platform/test_rl_v2_action_observability.py
-          format_status=$?
-          exit $((lint_status || format_status))
+      - name: Commit diagnostic formatting
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- \
+            ai_platform/scripts/rl_v2_action_observability.py \
+            tests/ai_platform/test_rl_v2_action_observability.py; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            ai_platform/scripts/rl_v2_action_observability.py \
+            tests/ai_platform/test_rl_v2_action_observability.py
+          git commit -m 'style(diagnostic): apply Ruff formatting'
+          git push origin HEAD:diagnostic/rl-v2-observability-lint

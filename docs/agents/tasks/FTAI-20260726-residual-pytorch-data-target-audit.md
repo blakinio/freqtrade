@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-residual-pytorch-data-target-audit
-status: active
+status: completed
 branch: feat/residual-pytorch-data-target-audit
 base_branch: develop
 created: 2026-07-26
@@ -34,17 +34,18 @@ Freeze the development-only temporal and data geometry, prove the exact target l
 
 ## Boundaries
 
-This package uses a deterministic synthetic close series only. It performs no exchange access, historical market-data read, FreqAI feature-matrix generation, training, model comparison, backtest, Hyperopt, historical-OOS reuse, protected-holdout access, liquidation-feature use, deployment, promotion or profitability scoring.
+This package used a deterministic synthetic close series only. It performed no exchange access, historical market-data read, FreqAI feature-matrix generation, training, model comparison, backtest, Hyperopt, historical-OOS reuse, protected-holdout access, liquidation-feature use, deployment, promotion or profitability scoring.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T20:53:00+02:00
-head: 55d62a78737f3da6207e4cc7afa21f7c257d34cc
+updated_at: 2026-07-26T21:07:00+02:00
+head: 68faf30253d5670c4ab88c0b70abf7275aace96b
+merge_commit: fee90dce7fadd5320d7279a51e45dc91026e903f
 branch: feat/residual-pytorch-data-target-audit
 pr: 376
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-runtime-smoke.md
   - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md
@@ -60,20 +61,20 @@ owned_paths:
   - tests/ai_platform/test_residual_pytorch_data_target_audit.py
 proven:
   - P1 implementation merged as b51b8850db32e0050b9fa876dd141a49c0cf68c5 and its closeout merged as 41c04518cdb67bb2f7d70916ab4dd396d233a8a9.
-  - P2 uses only a deterministic synthetic close series and forbids market data, training, backtesting, consumed historical OOS, protected holdout and liquidation features.
+  - P2 used only a deterministic synthetic close series and forbade market data, training, backtesting, consumed historical OOS, protected holdout and liquidation features.
   - The frozen development window is 2025-12-01T00:00:00Z through 2026-05-01T00:00:00Z exclusive.
   - Strategy target semantics use future offsets t+1 through t+12.
-  - PR 376 contains exactly the six declared owned paths and the task Markdown is restored at its correct path.
-  - Residual PyTorch Data Target Audit run 30215214117, AI Platform CI run 30215214118 and zizmor run 30215214124 passed on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc.
+  - PR 376 squash-merged as fee90dce7fadd5320d7279a51e45dc91026e903f from exact head 68faf30253d5670c4ab88c0b70abf7275aace96b with exactly the six declared owned paths and no review blocker.
+  - Final exact-head Residual PyTorch Data Target Audit 30215725189, AI Platform CI 30215725190, zizmor 30215725208 and Freqtrade CI 30215725203 succeeded.
 derived:
-  - The only honest current audit outcome is audit_inconclusive because historical feature and label evidence is not authorized.
+  - The honest P2 audit outcome is audit_inconclusive because historical feature and label evidence was not authorized.
+  - P3 remains request-gated and cannot infer the unresolved historical evidence from this synthetic audit.
 unknown:
   - Exact FreqAI-expanded feature count and historical NaN, outlier and label distributions.
-  - Final Freqtrade CI outcome for the live checkpoint-updated PR head.
 conflicts: []
 first_failure:
   marker: CHECKPOINT_PATH_BLOB_MISMATCH
-  evidence: Earlier reconstruction mapped the auditor blob into the task path, so checkpoint validation stopped before audit execution; the task Markdown was restored before run 30215214117 passed.
+  evidence: Earlier reconstruction mapped the auditor blob into the task path, so checkpoint validation stopped before audit execution; the task Markdown was restored before successful exact-head validation.
 rejected_hypotheses:
   - Infer the expanded feature count from static source declarations.
   - Download exchange candles or reuse historical data without separate authorization.
@@ -90,19 +91,19 @@ changed_paths:
 validation:
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md --require-checkpoint
     result: PASS
-    evidence: Compact checkpoint validates locally against GOVERNANCE_CONTRACT v1 before publication.
-  - command: Residual PyTorch Data Target Audit on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc
+    evidence: Compact checkpoint validated locally against GOVERNANCE_CONTRACT v1 before implementation publication.
+  - command: Residual PyTorch Data Target Audit 30215725189
     result: PASS
-    evidence: Workflow run 30215214117 completed successfully.
-  - command: AI Platform CI on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc
+    evidence: Exact-head run 17 completed contract, synthetic target semantics and fail-closed checks with audit_inconclusive.
+  - command: AI Platform CI 30215725190
     result: PASS
-    evidence: Workflow run 30215214118 completed successfully.
-  - command: GitHub Actions Security Analysis with zizmor on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc
+    evidence: Exact-head run 1668 completed successfully.
+  - command: Freqtrade CI 30215725203
     result: PASS
-    evidence: Workflow run 30215214124 completed successfully.
-  - command: Freqtrade CI on live checkpoint-updated PR head
-    result: NOT_RUN
-    evidence: Exact-head workflow must complete after this checkpoint-only update.
+    evidence: Exact-head run 2016 passed pre-commit, documentation, Python 3.11 through 3.14, coverage, distribution build and CI Gate.
+  - command: zizmor 30215725208
+    result: PASS
+    evidence: Exact-head run 1879 completed successfully.
 blockers: []
-next_action: Verify all required workflows on the current live PR 376 head after this checkpoint-only update; if they pass and the PR remains mergeable, merge PR 376 with expected_head_sha, verify develop, and close the task record with a compact checkpoint update.
+next_action: Start a separate request-gated P3 bounded M1 execution task only after explicit authorization; keep feature, target, strategy, pair universe, timeframes, fees, training windows and evaluation windows identical across LightGBM, seeded MLP and residual MLP.
 ```

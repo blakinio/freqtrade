@@ -38,7 +38,7 @@ class CaptureManifest:
     trading_credentials_absent: bool
     manifest_sha256: str
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         validate_sha256(self.request_sha256, field="request_sha256")

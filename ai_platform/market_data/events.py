@@ -46,7 +46,7 @@ class RawMarketEventEnvelope:
     raw_payload: object | None = None
     raw_payload_ref: str | None = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         expected_id = canonical_instrument_id(
@@ -161,7 +161,7 @@ class InstrumentSnapshot:
     source_snapshot_id: str
     source_snapshot_sha256: str
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         expected_id = canonical_instrument_id(
@@ -295,7 +295,7 @@ class UniverseSnapshot:
     decisions: tuple[UniverseDecision, ...]
     snapshot_sha256: str
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         if self.profile_identity not in {

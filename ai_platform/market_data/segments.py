@@ -39,7 +39,7 @@ class SegmentManifest:
     closure_state: str
     manifest_sha256: str
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         for field_name in (
@@ -189,7 +189,7 @@ class GapMarker:
     resolved_at_ms: int | None
     resynchronization_segment_id: str | None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         for field_name in ("gap_id", "capture_run_id", "source_id", "connection_id"):

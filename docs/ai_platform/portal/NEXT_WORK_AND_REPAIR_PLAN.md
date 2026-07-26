@@ -40,7 +40,7 @@ Snapshot date: `2026-07-26`.
 - PI-03 Canonical Inference and Drift Telemetry: `done`, PR #239 with closure PR #260.
 - PI-04 Centralized Runtime Observability: `done` for repository-side contracts, PR #261; target-environment backend connectivity remains deployment-owned and must fail closed when absent.
 - PI-05 External Notification Delivery: `planned`; provider/channel and privacy policy are unresolved.
-- PI-06 Product Identity and Session Lifecycle: `active`; the accepted architecture, repository backend and same-origin BFF/browser-session integration are complete. Real Authentik/Synology provisioning, MFA enrollment, recovery, backup/restore and target-environment acceptance remain.
+- PI-06 Product Identity and Session Lifecycle: `active`; the accepted architecture, repository backend, same-origin BFF/browser-session integration and secret-free Authentik/Synology repository deployment package are complete. Real target provisioning, MFA enrollment, recovery, backup/restore and owner-managed acceptance remain.
 - PI-07 Runtime Credential Broker and Rotation: `planned`; requires a selected secret backend and security review.
 - PI-08 Private Dry-Run Approved Execution Submission: `planned`; depends on PI-07 and must remain dry-run-only.
 
@@ -108,11 +108,29 @@ Exact final implementation head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passe
 
 This is repository and deterministic fixture evidence. It does not prove a real Authentik instance, MFA enrollment, recovery, Synology deployment or Cloudflare ingress.
 
+### 4.5 PI-06 Authentik/Synology repository deployment — complete
+
+Task `FTAI-20260726-portal-pi06-authentik-synology-deployment`, PR #385, squash merge `cd15070301227842dc74b2cfa2a4795b6677a48b`, delivered:
+
+- exact tag-plus-digest pins for Authentik 2026.5.5 and PostgreSQL 16.13-alpine3.23;
+- loopback-only Authentik host ingress, an internal database network and no published PostgreSQL port;
+- no Redis, Docker socket, host networking, privileged container or timezone mount;
+- fail-closed runtime configuration and Compose validation;
+- one-shot hashed-password bootstrap restricted to an empty database and removed from steady state;
+- health checks and deterministic service ordering;
+- direct-to-`age` encrypted database and volume backups with SHA-256 checksums;
+- checksum-verified destructive restore, recovery, upgrade and rollback runbooks;
+- dedicated deployment CI and nine focused invariant tests.
+
+Exact final implementation head `b4fba695402c4dce2d1a5a79661250d3920cb856` passed Portal Authentik Deployment CI #11, AI Platform CI #1679, Freqtrade CI #2027 and GitHub Actions Security Analysis #1890.
+
+This is repository deployment evidence only. No Synology host, real IdP user, MFA device, DNS/TLS route, OIDC client secret, backup retention location or restore target was provisioned or accepted.
+
 ## 5. External and owner-gated boundaries
 
 The following are not ordinary UI repairs:
 
-- real Authentik/Synology target provisioning and identity acceptance require a separate deployment package;
+- real Authentik/Synology target provisioning and identity acceptance require intentional owner-managed resources and secrets;
 - email/webhook/push delivery requires the PI-05 provider and destination policy decision;
 - runtime credential injection requires PI-07 and a security-reviewed secret backend;
 - approved private Freqtrade dry-run submission requires PI-08 after PI-07;
@@ -125,31 +143,30 @@ Repository-side PI-04 contracts are complete, but a real Loki/Tempo/Prometheus-c
 
 Unless live repository evidence changes the order:
 
-1. declare a separate PI-06 Authentik/Synology deployment package with pinned images, runtime-injected secret placeholders, restricted bootstrap, health checks, migrations, backup/restore and recovery runbooks;
-2. on owner-managed target resources, prove real login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, recovery and restore without committing credentials;
-3. implement PI-05 one external channel at a time only after provider and privacy decisions;
-4. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
-5. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
-6. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
-7. keep P13 deferred until measured bottleneck/SLO evidence exists;
-8. keep P14 blocked until separately authorized.
+1. when owner-managed Synology access, runtime secrets, DNS/TLS route, test users, MFA devices and an offline `age` recovery key are intentionally available, declare a separate PI-06 target acceptance task and prove real login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, recovery, encrypted backup and isolated restore;
+2. implement PI-05 one external channel at a time only after provider and privacy decisions;
+3. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
+4. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
+5. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
+6. keep P13 deferred until measured bottleneck/SLO evidence exists;
+7. keep P14 blocked until separately authorized.
 
 Liquid20 and other read-only feature integrations may proceed in parallel only with disjoint paths and explicit task ownership. They must not silently change identity, execution, credential, P11 or live-capital gates.
 
-## 7. Deployment package acceptance boundaries
+## 7. Completed deployment package and remaining acceptance boundaries
 
-The next Authentik/Synology package may autonomously add repository deployment definitions and deterministic validators, but it must preserve these boundaries:
+The Authentik/Synology repository package has passed its bounded acceptance:
 
-- pin Authentik, PostgreSQL and supporting image digests or immutable versions;
-- commit no password, client secret, cookie key, encryption key, recovery code or user identity;
-- use runtime-injected placeholders and fail closed when required values are absent;
-- expose only intended portal/IdP ingress and keep the control plane, database and Freqtrade private;
-- restrict bootstrap and document removal/disablement after first setup;
-- add health checks, migration ordering, backups, restore verification and rollback;
-- distinguish repository validation from owner-managed deployment evidence;
-- do not combine Cloudflare P11 acceptance, PI-07, PI-08 or P14.
+- Authentik and PostgreSQL images are pinned by exact version and full digest;
+- no password, client secret, cookie key, encryption key, recovery code or user identity is committed;
+- runtime placeholders fail closed when missing, weak or unchanged;
+- only loopback IdP ingress is published and the database remains private;
+- bootstrap is restricted and removed after first setup;
+- health, backup, restore verification and rollback procedures are deterministic;
+- repository evidence remains distinct from owner-managed deployment evidence;
+- Cloudflare P11 acceptance, PI-07, PI-08 and P14 remain separate.
 
-Stop and record a blocker rather than fabricating real acceptance when target resources, DNS, certificates, users, MFA devices or protected secrets are unavailable.
+The remaining PI-06 acceptance cannot proceed autonomously without target resources. Stop and record the blocker rather than fabricating success when Synology access, DNS, certificates, real users, MFA devices, protected secrets, an offline `age` key or an isolated restore target are unavailable.
 
 ## 8. Documentation repair rules
 
@@ -180,4 +197,4 @@ Stop and record a blocker instead of improvising when:
 
 ## 10. Current next action
 
-Declare `FTAI-YYYYMMDD-portal-pi06-authentik-synology-deployment` after a fresh `develop`, open-PR and path-ownership preflight. Add a bounded, secret-free deployment package with pinned Authentik/PostgreSQL definitions, private networking, runtime-injected configuration, restricted bootstrap, health checks, migrations, backup/restore, recovery and rollback runbooks, and deterministic configuration tests. Record real login, MFA, revocation, recovery and restore as blocked until owner-managed Synology resources are available. Keep Cloudflare P11 acceptance, PI-07, PI-08 and live capital separate.
+Do not create another repository-only Authentik deployment package. When the owner intentionally supplies Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target, declare `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acceptance`. Execute the merged runbook and record real OIDC login, MFA, session-cookie, logout, logout-all, membership-revocation, generic recovery, encrypted-backup and restore evidence. If those resources are unavailable, keep PI-06 `active` and blocked at the owner-managed acceptance boundary. Keep Cloudflare P11 acceptance, PI-07, PI-08 and live capital separate.

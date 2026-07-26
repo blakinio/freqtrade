@@ -14,7 +14,7 @@ Build a secure, modern and extensible portal above the existing Freqtrade AI Pla
 
 ## Current program state
 
-Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages, completed Bot Operations convergence in PR #320, completed the bounded PI-06 repository identity backend in PR #341 and completed the same-origin BFF/browser-session package in PR #361.
+Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages, completed Bot Operations convergence in PR #320, completed the bounded PI-06 repository identity backend in PR #341, completed the same-origin BFF/browser-session package in PR #361 and completed the secret-free Authentik/Synology repository deployment package in PR #385.
 
 Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
 
@@ -24,9 +24,9 @@ Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMA
 - P13 measured-need assessment completed with NO-GO, so scale/service extraction is deferred until evidence demonstrates a need;
 - P14 remains separately blocked and this program does not authorize live capital.
 
-The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 is active: the architecture decision, repository identity backend and same-origin BFF/browser-session integration are complete, while real Authentik/Synology provisioning, MFA enrollment, recovery, backup/restore and target-environment acceptance remain. PI-05, PI-07 and PI-08 remain separately planned and gated.
+The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 is active: the architecture decision, repository identity backend, same-origin BFF/browser-session integration and Authentik/Synology repository deployment package are complete, while real owner-managed provisioning, MFA enrollment, recovery, encrypted backup/restore and target-environment acceptance remain. PI-05, PI-07 and PI-08 remain separately planned and gated.
 
-Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. The next dependency-ordered identity action is a separate Authentik/Synology deployment package. It may add pinned deployment definitions and runbooks without credentials, but real acceptance remains owner-managed target-environment evidence. Cloudflare P11 remains separate.
+Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. No further repository-only Authentik deployment package is authorized. The next PI-06 action is real owner-managed target acceptance and may begin only when Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target are intentionally available. Cloudflare P11 remains separate.
 
 Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
 
@@ -76,6 +76,7 @@ Task-specific agents read additional portal documents only when relevant.
 - A planned PI package is not active and cannot be used as completion evidence until its separate task and acceptance gates pass.
 - Cloudflare Access supplements product authorization and never replaces portal-owned tenant membership, capability enforcement or local session revocation.
 - Browser-readable storage receives no IdP access, ID or refresh token.
+- Repository deployment validation cannot be represented as real Synology, Authentik, MFA, recovery or restore acceptance.
 
 ## Protected existing AI boundaries
 
@@ -113,9 +114,9 @@ Canonical stage order, current statuses and acceptance boundaries are defined in
 
 The historical first implementation task after architecture merge was `FTAI-20260722-portal-p1-contracts-security`. That sequence has now progressed through completed P12 simulation-first acceptance; it is no longer the program's next software action.
 
-Post-P12 integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`. PI-01 through PI-04 are complete. PI-06 has an accepted Authentik architecture, a merged repository backend and merged same-origin browser integration; its remaining work is separately controlled target-environment provisioning and real identity acceptance. PI-05 requires a provider/channel decision and PI-07 must precede PI-08. No package authorizes live capital.
+Post-P12 integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`. PI-01 through PI-04 are complete. PI-06 has an accepted Authentik architecture, a merged repository backend, merged same-origin browser integration and a merged secret-free Synology deployment package; its remaining work is controlled owner-managed target provisioning and real identity acceptance. PI-05 requires a provider/channel decision and PI-07 must precede PI-08. No package authorizes live capital.
 
-The Bot Operations product completion package is complete. The continuation route in `NEXT_WORK_AND_REPAIR_PLAN.md` authorizes only a bounded Authentik/Synology deployment package after a fresh path-ownership preflight. It does not authorize Cloudflare P11 acceptance, PI-07, PI-08 or P14.
+The Bot Operations product completion package is complete. The continuation route in `NEXT_WORK_AND_REPAIR_PLAN.md` authorizes only an owner-managed PI-06 target acceptance task when the required resources are intentionally available. It does not authorize Cloudflare P11 acceptance, PI-07, PI-08 or P14.
 
 ## PI-06 repository backend evidence
 
@@ -153,7 +154,27 @@ The package includes:
 
 Exact final implementation head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passed Portal Web CI #287, Portal Universal E2E #292, AI Platform CI #1521, Freqtrade CI #1837 and GitHub Actions Security Analysis #1702.
 
-This remains repository and fixture browser evidence. No real Authentik instance, user, MFA device, recovery flow, secret, Synology deployment or Cloudflare resource has been provisioned or accepted.
+This remains repository and fixture browser evidence. No real Authentik instance, user, MFA device, recovery flow, secret, Synology deployment or Cloudflare resource has been provisioned or accepted by those tests.
+
+## PI-06 Authentik/Synology repository deployment evidence
+
+Task `FTAI-20260726-portal-pi06-authentik-synology-deployment` delivered the bounded, secret-free deployment package in PR #385, squash merge `cd15070301227842dc74b2cfa2a4795b6677a48b`.
+
+The package includes:
+
+- exact tag-plus-digest pins for Authentik 2026.5.5 and PostgreSQL 16.13-alpine3.23;
+- loopback-only Authentik host ingress, an internal database network and no published PostgreSQL port;
+- no Redis, Docker socket, host networking, privileged container or timezone mount;
+- fail-closed runtime configuration and Compose validation;
+- one-shot hashed-password bootstrap restricted to an empty database and removed from steady state;
+- health checks and deterministic service ordering;
+- direct-to-`age` encrypted database and volume backups with SHA-256 checksums;
+- checksum-verified destructive restore, recovery, upgrade and rollback runbooks;
+- dedicated deployment CI and nine focused invariant tests.
+
+Exact final implementation head `b4fba695402c4dce2d1a5a79661250d3920cb856` passed Portal Authentik Deployment CI #11, AI Platform CI #1679, Freqtrade CI #2027 and GitHub Actions Security Analysis #1890.
+
+This remains repository deployment evidence. No real Synology host, user, MFA device, protected secret, DNS/TLS route, backup retention target or isolated restore exercise was provisioned or accepted.
 
 ## Parallelization policy
 
@@ -232,9 +253,7 @@ Repository-side and simulation-first evidence already cover many of these softwa
 
 ## Next actions by authorization lane
 
-Next autonomous identity/deployment action: declare a separate `FTAI-YYYYMMDD-portal-pi06-authentik-synology-deployment` task after a fresh `develop`, open-PR and path-ownership preflight. Add pinned Authentik/PostgreSQL deployment definitions, runtime-injected secret placeholders, restricted bootstrap, health checks, backup/restore and recovery runbooks, and deterministic configuration validation. Do not commit credentials or claim real acceptance without owner-managed target probes.
-
-Next real identity acceptance action: on owner-managed Synology resources, prove OIDC login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, recovery and restore. Record unavailability rather than simulating successful target connectivity.
+Next PI-06 action: when the owner intentionally supplies Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target, declare `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acceptance`. Execute the merged runbook and prove real OIDC login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, generic recovery, encrypted backup and isolated restore. Record unavailability rather than simulating successful target connectivity.
 
 Next owner/external action: when the owner intentionally starts the real infrastructure phase, resume P11, provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.
 

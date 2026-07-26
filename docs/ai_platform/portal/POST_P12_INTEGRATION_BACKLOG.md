@@ -51,7 +51,7 @@ Every package inherits these invariants:
 | Conditional | P13 Scale and Service Extraction | `deferred` | smallest measured response to a proven bottleneck | durable measurement bundle |
 | Capital gate | P14 Live-Small Readiness | `blocked` | separately approved minimal-capital readiness | P11 and explicit owner approval |
 
-PI-01 through PI-04 and PI-02 are complete. PI-06 remains active: the architecture decision, repository backend and same-origin BFF/browser-session integration are complete; real Authentik/Synology deployment, MFA enrollment, recovery, backup/restore and target-environment acceptance remain.
+PI-01 through PI-04 and PI-02 are complete. PI-06 remains active: the architecture decision, repository backend, same-origin BFF/browser-session integration and secret-free Authentik/Synology repository deployment package are complete; real owner-managed target provisioning, MFA enrollment, recovery, backup/restore and target-environment acceptance remain.
 
 ## 5. Dependency graph
 
@@ -216,11 +216,28 @@ Task `FTAI-20260726-portal-pi06-bff-browser-session-integration`, PR #361, merge
 
 Exact final head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passed Portal Web CI #287, Portal Universal E2E #292, AI Platform CI #1521, Freqtrade CI #1837 and security #1702.
 
+#### Completed Authentik/Synology repository deployment
+
+Task `FTAI-20260726-portal-pi06-authentik-synology-deployment`, PR #385, merge `cd15070301227842dc74b2cfa2a4795b6677a48b` delivered:
+
+- exact tag-plus-digest pins for Authentik 2026.5.5 and PostgreSQL 16.13-alpine3.23;
+- loopback-only Authentik host ingress, an internal database network and no published PostgreSQL port;
+- no Redis, Docker socket, host networking, privileged container or timezone mount;
+- fail-closed runtime configuration and Compose validation;
+- one-shot hashed-password bootstrap restricted to an empty database and removed from steady state;
+- health checks and deterministic service ordering;
+- direct-to-`age` encrypted database and volume backups with SHA-256 checksums;
+- checksum-verified destructive restore, recovery, upgrade and rollback runbooks;
+- dedicated deployment CI and nine focused invariant tests.
+
+Exact final head `b4fba695402c4dce2d1a5a79661250d3920cb856` passed Portal Authentik Deployment CI #11, AI Platform CI #1679, Freqtrade CI #2027 and security #1890.
+
+This is repository deployment evidence only. No Synology host, real IdP user, MFA device, DNS/TLS route, OIDC client secret, backup retention location or restore target was provisioned or accepted.
+
 #### Remaining work
 
-1. Add a separate secret-free Authentik/Synology deployment package with pinned images, private networking, runtime-injected configuration, restricted bootstrap, health checks, migrations, backups, restore and rollback runbooks.
-2. On owner-managed target resources, prove OIDC login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, recovery and restore.
-3. Keep Cloudflare P11 provisioning and five-probe external acceptance separate.
+1. On owner-managed target resources, prove OIDC login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, generic recovery, encrypted backup and isolated restore.
+2. Keep Cloudflare P11 provisioning and five-probe external acceptance separate.
 
 Full PI-06 acceptance requires:
 
@@ -234,9 +251,10 @@ Full PI-06 acceptance requires:
 Completed tasks:
 
 - `FTAI-20260726-portal-pi06-product-identity-lifecycle`;
-- `FTAI-20260726-portal-pi06-bff-browser-session-integration`.
+- `FTAI-20260726-portal-pi06-bff-browser-session-integration`;
+- `FTAI-20260726-portal-pi06-authentik-synology-deployment`.
 
-Recommended next task: `FTAI-YYYYMMDD-portal-pi06-authentik-synology-deployment`.
+Recommended next task: `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acceptance`, only when owner-managed Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target are intentionally available.
 
 ### PI-07 — Runtime Credential Broker and Rotation
 
@@ -299,12 +317,11 @@ Status: `blocked` and outside this backlog's autonomous authority. It requires e
 
 ### Wave PI-A — Truthful operational evidence and identity
 
-PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 decision, repository backend and BFF/browser integration are complete subpackages.
+PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 decision, repository backend, BFF/browser integration and Authentik/Synology repository deployment are complete subpackages.
 
 Next:
 
-- add the bounded Authentik/Synology deployment package;
-- then collect real owner-managed identity acceptance.
+- collect real owner-managed identity acceptance only when the required Synology resources, protected secrets, users, MFA devices, recovery key and isolated restore target are available.
 
 Exit condition: protected browser paths derive identity, tenant and capabilities from the real product session; missing target resources remain explicit; no execution submission is added.
 
@@ -342,7 +359,7 @@ Do not broaden a package merely because adjacent code is convenient.
 
 ## 10. Priority decision
 
-The next dependency-ordered identity action is **PI-06 Authentik/Synology deployment packaging**. Repository backend and BFF/browser integration are complete; real identity acceptance remains unproven.
+The next dependency-ordered identity action is **PI-06 owner-managed Authentik/Synology target acceptance**. Repository backend, BFF/browser integration and deployment packaging are complete; real identity acceptance remains unproven and cannot start without intentional owner-managed resources.
 
 PI-05 requires a channel/provider decision. PI-07 requires a secret-store/KMS decision before PI-08. P11 remains owner-started external infrastructure work.
 

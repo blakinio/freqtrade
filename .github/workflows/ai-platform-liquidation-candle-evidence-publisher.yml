@@ -1,0 +1,128 @@
+name: AI Platform Liquid20 Candle Evidence Publisher
+
+on:
+  push:
+    branches:
+      - docs/liquid20-candle-evidence-publication
+    paths:
+      - .github/workflows/ai-platform-liquidation-candle-evidence-publisher.yml
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: liquid20-candle-evidence-publisher
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'blakinio/freqtrade' && github.ref_name == 'docs/liquid20-candle-evidence-publication'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout exact publication branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+          ref: docs/liquid20-candle-evidence-publication
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Download and verify exact workflow artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          archive=/tmp/liquid20-candle-diagnostic-375.zip
+          extract=/tmp/liquid20-candle-diagnostic-375
+          curl --fail --location --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/blakinio/freqtrade/actions/artifacts/8633031826/zip" \
+            --output "$archive"
+          echo "d3d25327c1b8f70a89638f26d95aae495b27b96a684add830581f2755e146cfd  $archive" | sha256sum --check
+          rm -rf "$extract"
+          mkdir -p "$extract"
+          unzip -q "$archive" -d "$extract"
+          source_root="$extract/liquid20-candle-diagnostic-20260724-v1"
+          test -f "$source_root/candle-artifact-manifest.json"
+          test -f "$source_root/artifact-sha256.txt"
+          test "$(find "$source_root" -type f | wc -l)" -eq 42
+
+          destination=docs/ai_platform/liquidations/datasets
+          mkdir -p "$destination"
+          cp "$source_root/candle-artifact-manifest.json" \
+            "$destination/liquid20-candle-diagnostic-20260724-v1.manifest.json"
+          cp "$source_root/artifact-sha256.txt" \
+            "$destination/liquid20-candle-diagnostic-20260724-v1.sha256"
+
+          echo "2cf141e114bd348c5b6495c646649dec03f09479f201240fcdd7daa46011bdff  $destination/liquid20-candle-diagnostic-20260724-v1.manifest.json" | sha256sum --check
+          echo "050415458c25dfbeab7545c13a256120a9b50a1eb5c9acb1150bd9bb68e81cb2  $destination/liquid20-candle-diagnostic-20260724-v1.sha256" | sha256sum --check
+
+      - name: Validate evidence and checkpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import runpy
+          checks = runpy.run_path(
+              'tests/ai_platform_integration/test_liquidation_candle_evidence_publication.py'
+          )
+          checks['test_published_manifest_and_checksum_index_are_coherent']()
+          checks['test_evidence_envelope_binds_workflow_and_safety_state']()
+          PY
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md \
+            --require-checkpoint
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md \
+            --require-checkpoint
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md \
+            --require-checkpoint
+
+      - name: Enforce exact publication scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add \
+            docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.manifest.json \
+            docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.sha256
+          expected="$(cat <<'EOF'
+          .github/workflows/ai-platform-liquidation-candle-evidence-publisher.yml
+          docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md
+          docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md
+          docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
+          docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.evidence.json
+          docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.manifest.json
+          docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.sha256
+          tests/ai_platform_integration/test_liquidation_candle_evidence_publication.py
+          EOF
+          )"
+          actual="$(
+            {
+              git diff --name-only origin/develop...HEAD
+              git diff --cached --name-only
+            } | sort -u
+          )"
+          if [[ "$actual" != "$expected" ]]; then
+            printf 'Unexpected publication scope.\nExpected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+
+      - name: Commit exact manifest and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "docs(liquidations): publish exact candle manifest and checksums"
+          git push origin HEAD:docs/liquid20-candle-evidence-publication

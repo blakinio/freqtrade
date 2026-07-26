@@ -5,6 +5,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator
+
 from ai_platform.market_data.capture import (
     CaptureManifest,
     CaptureRequest,
@@ -12,6 +14,7 @@ from ai_platform.market_data.capture import (
     SegmentManifest,
     assert_order_book_reconstructible,
 )
+# isort: off
 from ai_platform.market_data.common import (
     SCHEMA_VERSION,
     AvailabilityTimestampKind,
@@ -33,13 +36,13 @@ from ai_platform.market_data.common import (
     validate_commit,
     validate_sha256,
 )
+# isort: on
 from ai_platform.market_data.events import (
     InstrumentSnapshot,
     RawMarketEventEnvelope,
     UniverseDecision,
     UniverseSnapshot,
 )
-from jsonschema import Draft202012Validator
 
 __all__ = [
     "SCHEMA_VERSION",

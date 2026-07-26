@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import tempfile
 from collections import Counter
@@ -78,7 +77,7 @@ class HistoricalLocalImporter:
                 temporary_root=temporary_root,
                 manifest=manifest,
             )
-            os.replace(temporary_root, output_root)
+            temporary_root.replace(output_root)
             return ImportArtifactSet(output_root=output_root, **result)
         except Exception:
             shutil.rmtree(temporary_root, ignore_errors=True)

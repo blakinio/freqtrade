@@ -4,9 +4,9 @@ import json
 import shutil
 import tempfile
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from ai_platform.research.liquidations.historical.acceptance import (
     HistoricalAcceptancePolicy,
@@ -22,6 +22,13 @@ from ai_platform.research.liquidations.historical.providers.base import (
     ProviderParseContext,
 )
 from ai_platform.research.liquidations.historical.semantic_eras import SemanticEraRegistry
+
+
+class RejectionArtifact(TypedDict):
+    relative_path: str
+    row_number: int
+    reason: str
+    detail: str
 
 
 def _json_bytes(payload: object) -> bytes:
@@ -88,7 +95,7 @@ class HistoricalLocalImporter:
         manifest: HistoricalImportManifest,
     ) -> dict[str, Any]:
         events = []
-        rejections: list[dict[str, object]] = []
+        rejections: list[RejectionArtifact] = []
         for descriptor in sorted(manifest.raw_files, key=lambda item: item.relative_path):
             path = (input_root / descriptor.relative_path).resolve()
             if input_root not in path.parents:
@@ -102,13 +109,15 @@ class HistoricalLocalImporter:
                 ),
             )
             events.extend(parsed.events)
-            rejections.extend(
-                {
-                    "relative_path": descriptor.relative_path,
-                    **asdict(rejection),
-                }
-                for rejection in parsed.rejections
-            )
+            for rejection in parsed.rejections:
+                rejections.append(
+                    {
+                        "relative_path": descriptor.relative_path,
+                        "row_number": rejection.row_number,
+                        "reason": rejection.reason,
+                        "detail": rejection.detail,
+                    }
+                )
 
         events.sort(
             key=lambda event: (
@@ -121,9 +130,9 @@ class HistoricalLocalImporter:
         )
         rejections.sort(
             key=lambda rejection: (
-                str(rejection["relative_path"]),
-                int(rejection["row_number"]),
-                str(rejection["reason"]),
+                rejection["relative_path"],
+                rejection["row_number"],
+                rejection["reason"],
             )
         )
         parser_rejection_reasons = Counter(

@@ -33,9 +33,7 @@ from ai_platform.scripts.liquidation_collector import RecentEventIds
 
 DEFAULT_OKX_ENDPOINT = "wss://ws.okx.com:8443/ws/v5/public"
 DEFAULT_OKX_TIME_URL = "https://www.okx.com/api/v5/public/time"
-DEFAULT_OKX_INSTRUMENTS_URL = (
-    "https://www.okx.com/api/v5/public/instruments?instType=SWAP"
-)
+DEFAULT_OKX_INSTRUMENTS_URL = "https://www.okx.com/api/v5/public/instruments?instType=SWAP"
 EXPECTED_CONNECTION_EXCEPTIONS = (OSError, ValueError, WebSocketException)
 OKX_CREDENTIAL_ENVIRONMENT_NAMES = (
     "OKX_API_KEY",
@@ -157,9 +155,7 @@ def build_instrument_snapshot(
         "source": OKX_USDT_SWAP_SOURCE,
         "fetched_at_ms": fetched_at_ms,
         "endpoint": instruments_url,
-        "contracts": [
-            instruments[inst_id].as_json_dict() for inst_id in sorted(instruments)
-        ],
+        "contracts": [instruments[inst_id].as_json_dict() for inst_id in sorted(instruments)],
         "normalization_policy": {
             "supported_contract_type": "linear",
             "supported_settle_currency": "USDT",

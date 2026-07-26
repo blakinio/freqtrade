@@ -79,7 +79,9 @@ class OkxShadowAcceptancePolicy:
     outcomes: Mapping[str, object]
 
     @classmethod
-    def load(cls, path: Path = POLICY_PATH) -> OkxShadowAcceptancePolicy:
+    def load(  # noqa: C901 - frozen policy validation stays fail-closed in one loader
+        cls, path: Path = POLICY_PATH
+    ) -> OkxShadowAcceptancePolicy:
         payload = _load_json(path, field="policy")
         if _integer(payload.get("schema_version"), field="schema_version") != 1:
             raise ValueError("policy schema_version must be 1")
@@ -266,7 +268,7 @@ def _inspect_events(
                     raise ValueError("duplicate persisted source_event_id")
                 source_event_ids.add(event.source_event_id)
                 counts[symbol] += 1
-            except (TypeError, ValueError, json.JSONDecodeError):
+            except (TypeError, ValueError):
                 invalid += 1
     return line_count, invalid, counts
 

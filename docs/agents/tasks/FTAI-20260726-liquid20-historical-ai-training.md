@@ -5,7 +5,7 @@ branch: docs/liquid20-historical-ai-training-20260726
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: TBD
+related_pr: "#332"
 owned_paths:
   - docs/ai_platform/LIQUID20_HISTORICAL_AI_TRAINING_ARCHITECTURE.md
   - docs/ai_platform/LIQUIDATION_REVERSAL_RESEARCH.md
@@ -122,10 +122,10 @@ not be coupled to the initial backfill or model execution.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T08:30:00Z
-head: 184b3c3bdc5d8706312fd2b63494e7e864967efa
+updated_at: 2026-07-26T07:35:00Z
+head: 490c6798e45b2883864c6e7619bc9eb86ec8c7f0
 branch: docs/liquid20-historical-ai-training-20260726
-pr: none
+pr: "#332"
 status: planned
 context_routes:
   - docs/ai_platform/ARCHITECTURE.md
@@ -177,10 +177,14 @@ rejected_hypotheses:
 changed_paths:
   - docs/ai_platform/LIQUID20_HISTORICAL_AI_TRAINING_ARCHITECTURE.md
   - docs/agents/tasks/FTAI-20260726-liquid20-historical-ai-training.md
+  - docs/agents/prompts/FTAI-20260726-liquid20-historical-ai-training.md
 validation:
   - command: repository and live-state documentation preflight
     result: PASS
     evidence: Current Freqtrade and Oteryn Liquid20 records, issue 148, completed portal task, Phase 6 boundary, and official/provider documentation were inspected.
+  - command: pull request creation
+    result: PASS
+    evidence: PR #332 opened against develop with exactly three documentation files.
 blockers: []
 next_action: After this declaration PR merges, create feat/liquid20-historical-provider-preflight-v1 and execute H0 only.
 ```

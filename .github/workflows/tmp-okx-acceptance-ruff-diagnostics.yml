@@ -28,24 +28,29 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Capture Ruff diagnostics
+      - name: Apply Ruff fixes in disposable checkout
         run: |
+          set -euo pipefail
           python -m pip install --disable-pip-version-check ruff==0.14.14
-          ruff --version > ruff-diagnostics.txt
-          ruff check \
-            ai_platform/scripts/liquidation_okx_shadow_acceptance.py \
-            ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py \
-            tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance.py \
-            >> ruff-diagnostics.txt 2>&1 || true
-          ruff format --check \
-            ai_platform/scripts/liquidation_okx_shadow_acceptance.py \
-            ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py \
-            tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance.py \
-            >> ruff-diagnostics.txt 2>&1 || true
+          files=(
+            ai_platform/scripts/liquidation_okx_shadow_acceptance.py
+            ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py
+            tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance.py
+          )
+          ruff check --fix "${files[@]}"
+          ruff format "${files[@]}"
+          ruff check "${files[@]}"
+          ruff format --check "${files[@]}"
+          mkdir -p formatted/ai_platform/scripts formatted/tests/ai_platform_integration
+          cp ai_platform/scripts/liquidation_okx_shadow_acceptance.py formatted/ai_platform/scripts/
+          cp ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py formatted/ai_platform/scripts/
+          cp tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance.py \
+            formatted/tests/ai_platform_integration/
+          ruff --version > formatted/ruff-version.txt
 
-      - name: Upload diagnostics
+      - name: Upload formatted files
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: okx-acceptance-ruff-diagnostics
-          path: ruff-diagnostics.txt
+          name: okx-acceptance-ruff-formatted
+          path: formatted
           retention-days: 1

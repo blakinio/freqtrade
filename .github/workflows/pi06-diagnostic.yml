@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  focused-identity-tests:
+  full-ai-tests:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -25,13 +25,13 @@ jobs:
           python -m pip install --disable-pip-version-check
           pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
           "httpx>=0.24.1" fastapi pyjwt cryptography
-      - name: Capture focused pytest
+      - name: Capture full AI pytest
         id: pytest
         continue-on-error: true
         shell: bash
         run: |
           set +e
-          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform/portal/identity > pi06-pytest.txt 2>&1
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform > pi06-pytest.txt 2>&1
           code=$?
           echo "exit_code=$code" >> "$GITHUB_OUTPUT"
           exit 0
@@ -39,7 +39,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: pi06-pytest
+          name: pi06-full-pytest
           path: pi06-pytest.txt
           if-no-files-found: error
       - name: Fail when pytest failed

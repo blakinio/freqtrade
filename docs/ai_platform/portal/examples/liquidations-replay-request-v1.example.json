@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "request_id": "liquidation-replay-YYYYMMDD-v1",
+  "created_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "code_commit": "<exact-feature-sha>",
+  "dataset_id": "liquid20-dataset-YYYYMMDD-v1",
+  "event_ordering": {
+    "primary": "received_at_ms",
+    "tie_breakers": [
+      "occurred_at_ms",
+      "source",
+      "source_event_id"
+    ],
+    "late_earlier_occurred_event_policy": "process_at_received_time_without_rewriting_prior_decisions"
+  },
+  "candle_availability_rule": {
+    "mode": "completed_before_decision_availability",
+    "containing_candle_final_values_allowed": false,
+    "intrabar_evidence_required_for_containing_candle": true
+  },
+  "entry_price_rule": {
+    "mode": "first_eligible_market_sample_at_or_after_decision_delay",
+    "price_source": "<versioned-source>",
+    "maximum_wait_ms": 0,
+    "no_price_policy": "reject_candidate"
+  },
+  "fees": {
+    "maker_ratio": "0",
+    "taker_ratio": "<prospectively-frozen-ratio>",
+    "funding_included": false
+  },
+  "slippage": {
+    "model": "fixed_basis_points",
+    "entry_bps": "<value>",
+    "exit_bps": "<value>"
+  },
+  "decision_delay_ms": 0,
+  "maximum_event_age_ms": 0,
+  "duplicate_policy": "deduplicate_source_plus_source_event_id",
+  "conflict_policy": "fail_run",
+  "gap_policy": {
+    "missing_liquidation_interval": "preserve_gap",
+    "missing_candle": "reject_affected_candidate",
+    "partial_source_outage": "quarantine_affected_interval"
+  },
+  "source_outage_policy": {
+    "bybit-linear": "require_declared_health_state",
+    "binance-usdm": "require_declared_health_state"
+  },
+  "warmup": {
+    "candles": 0,
+    "liquidation_history_ms": 0,
+    "insufficient_warmup_policy": "ignore_with_reason"
+  },
+  "evaluation_windows": [
+    {
+      "name": "oos-1",
+      "start_ms": 0,
+      "end_ms": 0,
+      "classification": "out_of_sample"
+    }
+  ],
+  "request_sha256": "<sha256-of-canonical-request-with-this-field-excluded>"
+}

@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "document_id": "liquidations-ai-bot-artifact-contracts-v1",
+  "updated_at": "2026-07-26T10:00:00+02:00",
+  "canonical_architecture": "docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md",
+  "implementation_blueprint": "docs/ai_platform/portal/LIQUIDATIONS_AI_BOT_IMPLEMENTATION_BLUEPRINT.md",
+  "classification": "planning_and_research_contract_only",
+  "global_invariants": {
+    "performance_research_requires_explicit_passed_true": true,
+    "failed_evidence_performance_use_allowed": false,
+    "cross_exchange_deduplication_allowed": false,
+    "decision_not_before_field": "received_at_ms",
+    "completed_candles_only_without_intrabar_evidence": true,
+    "model_can_submit_orders": false,
+    "deterministic_risk_required": true,
+    "initial_execution_mode": "dry_run",
+    "initial_dca_enabled": false,
+    "live_capital_authorized": false
+  },
+  "artifact_types": {
+    "DatasetSelectionManifest": {
+      "schema_version": 1,
+      "purpose": "Freeze accepted and quarantined Liquid20 and candle evidence before replay or performance research.",
+      "required_fields": [
+        "schema_version",
+        "document_id",
+        "created_at",
+        "code_commit",
+        "dataset_id",
+        "purpose_classification",
+        "liquid20_runs",
+        "source_files",
+        "acceptance_reports",
+        "accepted_intervals",
+        "quarantined_intervals",
+        "candle_artifacts",
+        "protected_holdout_check",
+        "performance_research_authorized",
+        "manifest_sha256"
+      ],
+      "rules": {
+        "performance_research_authorized_true_requires": [
+          "every selected performance interval is covered by a final report with passed true",
+          "all required source and candle files have immutable hashes",
+          "protected holdout policy passes",
+          "no unresolved source clock or interval-integrity failure"
+        ]
+      },
+      "example": "docs/ai_platform/portal/examples/liquidations-dataset-selection-v1.example.json"
+    },
+    "ReplayRequest": {
+      "schema_version": 1,
+      "purpose": "Prospectively freeze deterministic replay behavior before reading strategy results.",
+      "required_fields": [
+        "schema_version",
+        "request_id",
+        "created_at",
+        "code_commit",
+        "dataset_id",
+        "event_ordering",
+        "candle_availability_rule",
+        "entry_price_rule",
+        "fees",
+        "slippage",
+        "decision_delay_ms",
+        "maximum_event_age_ms",
+        "duplicate_policy",
+        "conflict_policy",
+        "gap_policy",
+        "source_outage_policy",
+        "warmup",
+        "evaluation_windows",
+        "request_sha256"
+      ],
+      "example": "docs/ai_platform/portal/examples/liquidations-replay-request-v1.example.json"
+    },
+    "ReplayEvidenceReport": {
+      "schema_version": 1,
+      "purpose": "Record deterministic replay outputs and validation evidence.",
+      "required_fields": [
+        "schema_version",
+        "report_id",
+        "request_id",
+        "request_sha256",
+        "dataset_id",
+        "code_commit",
+        "started_at",
+        "completed_at",
+        "input_counts",
+        "decision_counts",
+        "trade_counts",
+        "fees",
+        "slippage",
+        "metrics",
+        "no_lookahead_tests",
+        "repeatability",
+        "artifacts",
+        "passed",
+        "failed_gates",
+        "report_sha256"
+      ]
+    },
+    "DecisionSnapshot": {
+      "schema_version": 1,
+      "purpose": "Persist only decision-time evidence before execution outcome is known.",
+      "required_fields": [
+        "schema_version",
+        "decision_id",
+        "correlation_id",
+        "decision_available_at_ms",
+        "event_identity",
+        "market_evidence",
+        "source_health",
+        "bot_id",
+        "runtime_id",
+        "bot_config_revision_id",
+        "strategy_version_id",
+        "model_version_id_or_no_model_baseline",
+        "feature_schema_version",
+        "risk_policy_version_id",
+        "model_output",
+        "strategy_decision",
+        "risk_decision",
+        "proposed_exposure",
+        "snapshot_sha256"
+      ],
+      "forbidden_fields": [
+        "future_label",
+        "fill_price",
+        "realized_pnl",
+        "future_mfe",
+        "future_mae",
+        "future_exit_reason"
+      ],
+      "example": "docs/ai_platform/portal/examples/liquidations-decision-snapshot-v1.example.json"
+    },
+    "SignalObservationReport": {
+      "schema_version": 1,
+      "purpose": "Record signal-only live decisions and replay reconciliation without order submission.",
+      "required_fields": [
+        "schema_version",
+        "report_id",
+        "interval",
+        "collector_identity",
+        "candle_identity",
+        "strategy_version_id",
+        "decision_counts",
+        "reject_reason_counts",
+        "timing_metrics",
+        "source_unavailable_intervals",
+        "replay_reconciliation",
+        "orders_submitted",
+        "passed",
+        "failed_gates"
+      ],
+      "required_values": {
+        "orders_submitted": 0
+      }
+    },
+    "ModelCandidateEvidence": {
+      "schema_version": 1,
+      "purpose": "Evaluate an optional AI candidate against the deterministic baseline.",
+      "required_fields": [
+        "schema_version",
+        "experiment_id",
+        "dataset_id",
+        "feature_schema_version",
+        "target_definition",
+        "model_artifact_sha256",
+        "code_commit",
+        "seed_policy",
+        "train_window",
+        "tune_window",
+        "validation_window",
+        "oos_window",
+        "baseline_metrics",
+        "candidate_metrics",
+        "fees",
+        "slippage",
+        "leakage_checks",
+        "minimum_sample_gate",
+        "minimum_trade_gate",
+        "promotion_authorized"
+      ],
+      "required_values": {
+        "promotion_authorized": false
+      }
+    },
+    "ApprovedDryRunIntent": {
+      "schema_version": 1,
+      "purpose": "Carry a deterministic risk-approved intent to the private dry-run adapter.",
+      "required_fields": [
+        "schema_version",
+        "intent_id",
+        "decision_id",
+        "correlation_id",
+        "tenant_id",
+        "bot_id",
+        "runtime_id",
+        "bot_config_revision_id",
+        "strategy_version_id",
+        "model_version_id_or_no_model_baseline",
+        "risk_policy_version_id",
+        "pair",
+        "side",
+        "stake_amount",
+        "maximum_slippage",
+        "expires_at",
+        "dry_run",
+        "risk_approved",
+        "intent_sha256"
+      ],
+      "required_values": {
+        "dry_run": true,
+        "risk_approved": true
+      }
+    }
+  },
+  "package_order": [
+    "LQ-02_accepted_dataset_selection",
+    "LQ-03_deterministic_replay",
+    "LQ-04_deterministic_baseline",
+    "LQ-05_signal_only_live_observation",
+    "LQ-06_optional_ai_experiment",
+    "LQ-07_freqtrade_dry_run",
+    "LQ-08_shadow",
+    "LQ-09_owner_gated_live_small"
+  ],
+  "next_agent_prompt": "docs/agents/prompts/FTAI_LIQUIDATIONS_AI_BOT_NEXT_AGENT.md"
+}

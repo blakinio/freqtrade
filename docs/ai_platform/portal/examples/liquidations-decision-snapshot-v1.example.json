@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision-<uuid>",
+  "correlation_id": "correlation-<uuid>",
+  "decision_available_at_ms": 0,
+  "event_identity": {
+    "source": "bybit-linear",
+    "source_event_id": "<source-event-id>",
+    "occurred_at_ms": 0,
+    "received_at_ms": 0,
+    "event_sha256": "<sha256>"
+  },
+  "market_evidence": {
+    "pair": "BTC/USDT:USDT",
+    "timeframe": "5m",
+    "last_completed_candle_open_ms": 0,
+    "candle_artifact_sha256": "<sha256>",
+    "feature_artifact_sha256": "<sha256>"
+  },
+  "source_health": {
+    "source": "bybit-linear",
+    "status": "current",
+    "latest_event_age_ms": 0,
+    "acceptance_status": "accepted"
+  },
+  "tenant_id": "<tenant-id>",
+  "bot_id": "<bot-id>",
+  "runtime_id": "<runtime-id>",
+  "bot_config_revision_id": "<revision-id>",
+  "strategy_version_id": "liquidation-baseline-v1",
+  "model_version_id_or_no_model_baseline": "no-model-baseline",
+  "feature_schema_version": "liquidation-features-v1",
+  "risk_policy_version_id": "<risk-policy-id>",
+  "model_output": null,
+  "strategy_decision": {
+    "action": "ignore",
+    "reason_code": "<reason-code>"
+  },
+  "risk_decision": {
+    "status": "rejected",
+    "reason_codes": [
+      "<risk-reason>"
+    ]
+  },
+  "proposed_exposure": {
+    "stake_amount": "0",
+    "leverage": "1"
+  },
+  "snapshot_sha256": "<sha256-of-canonical-snapshot-with-this-field-excluded>"
+}

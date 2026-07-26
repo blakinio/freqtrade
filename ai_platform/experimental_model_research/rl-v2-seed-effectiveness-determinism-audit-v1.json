@@ -1,0 +1,113 @@
+{
+  "audit_id": "rl-v2-seed-effectiveness-determinism-audit-v1",
+  "authorization": {
+    "backtest": false,
+    "cache_restore": false,
+    "consumed_historical_oos_access": false,
+    "dry_run": false,
+    "inference": false,
+    "live": false,
+    "market_data_access": false,
+    "model_training": false,
+    "promotion": false,
+    "protected_final_holdout_access": false,
+    "ranking": false,
+    "runtime_change": false,
+    "seed_rerun": false,
+    "upstream_core_change": false
+  },
+  "bounded_conclusion": {
+    "compatible_explanations": [
+      "policy_output_collision",
+      "deterministic_convergence",
+      "pair_specific_action_boundary_saturation"
+    ],
+    "identical_output_mechanism_explained": false,
+    "incomplete_seed_propagation_defect_supported": false,
+    "ranking_or_promotion_authorized": false,
+    "runtime_code_change_authorized": false,
+    "seed_rerun_authorized": false
+  },
+  "classification": "static_repository_code_audit",
+  "completed_execution_reference": {
+    "decision": null,
+    "execution_head": "ca10ddfd981da3a05debcec7a24a5db4ecbbd07c",
+    "execution_seeds": [
+      271828182,
+      628318530,
+      1414213562,
+      1618033988
+    ],
+    "identical_complete_timeline_seeds": [
+      271828182,
+      628318530
+    ],
+    "invariant_action_summary_pairs": [
+      "BTC/USDT"
+    ],
+    "telemetry_rows_per_seed": 29378,
+    "trigger_pr": 345,
+    "workflow_run_id": 30195095341
+  },
+  "future_provenance_requirements": [
+    "exact_python_and_dependency_versions_with_hashes",
+    "device_and_torch_determinism_flags",
+    "per_pair_initial_policy_state_digest",
+    "per_pair_final_policy_state_digest",
+    "serialized_trained_policy_artifact_digest",
+    "effective_runtime_config_digest",
+    "seed_and_rng_provenance"
+  ],
+  "governance": {
+    "phase6_selected_model": null,
+    "profitability_is_non_gating": true,
+    "protected_final_validation": false,
+    "strict_oos": false
+  },
+  "repository_seed_path": {
+    "environment_seeds_gym_numpy_generator": true,
+    "global_random_randint_branch_active_in_completed_matrix": false,
+    "inherited_learner_passes_training_parameters_to_ppo": true,
+    "project_model_passes_seed_to_environment": true,
+    "randomized_starting_position_enabled": false,
+    "repository_seed_wiring_supported": true,
+    "runtime_materializer_sets_distinct_identifier": true,
+    "runtime_materializer_sets_per_run_seed": true
+  },
+  "retained_evidence_gaps": {
+    "device_and_determinism_flags_retained": false,
+    "exact_dependency_version_manifest_retained": false,
+    "exact_python_version_manifest_retained": false,
+    "final_policy_parameter_digest_retained": false,
+    "initial_policy_parameter_digest_retained": false,
+    "serialized_trained_policy_retained": false,
+    "stable_baselines3_version_retained": false,
+    "torch_version_retained": false
+  },
+  "schema_version": 1,
+  "source_bindings": {
+    ".github/workflows/ai-platform-rl-v2-action-observability-execution.yml": "75488401c99cbd10574801a949c0a7ddd261125b",
+    "ai_platform/configs/rl_v2_training_research.json": "340972a028fe1c423a56378f7552b54ac3aff219",
+    "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py": "d133dfe8673cdc5e98d443cdd0550ee1c1f3ca34",
+    "ai_platform/scripts/rl_v2_action_observability_execution_run_request.py": "256d56cf329ca7ea5557e64349ffa71f650405f7",
+    "freqtrade/freqai/RL/BaseEnvironment.py": "d33cf1393b1af2268256468d519edfd1c7928d51",
+    "freqtrade/freqai/RL/BaseReinforcementLearningModel.py": "db9fba85a4fe5356e2eafd8edb09f9b62a491073",
+    "freqtrade/freqai/prediction_models/ReinforcementLearner.py": "ff6b2d029166552ba664ff8aa0581fc09ee1b6eb"
+  },
+  "stable_baselines3_source_review": {
+    "base_class_blob_sha1": "e1216ab6b33c7fa6e7253b59e6a9215e51fe4eef",
+    "exact_completed_runtime_version_retained": false,
+    "on_policy_algorithm_blob_sha1": "a437b5e91a970b53e62de675c6b2da2ad23d52ee",
+    "on_policy_setup_calls_set_random_seed_before_policy_construction": true,
+    "repository": "DLR-RM/stable-baselines3",
+    "reviewed_commit": "06f613544574aa3157eba0ccee8570f5a8a8e1c9",
+    "set_random_seed_scope": [
+      "python",
+      "numpy",
+      "pytorch",
+      "action_space",
+      "environment"
+    ]
+  },
+  "status": "code_audit_complete_no_seed_propagation_defect_proven"
+}

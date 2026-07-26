@@ -1,9 +1,9 @@
 name: Liquid20 CoinAPI Public Sample Probe
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/liquid20-coinapi-provider-preflight
+      - develop
     paths:
       - .github/workflows/liquid20-coinapi-public-sample-probe.yml
 

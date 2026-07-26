@@ -5,12 +5,12 @@ from decimal import Decimal
 from typing import Any, Self
 
 from ai_platform.market_data.common import (
-    SCHEMA_VERSION,
     AvailabilityTimestampKind,
     EventType,
     Exchange,
     FrozenJsonObject,
     MarketType,
+    SCHEMA_VERSION,
     _json_compatible,
     _require_int,
     _require_text,
@@ -58,13 +58,21 @@ class RawMarketEventEnvelope:
             raise ValueError("instrument_id does not match exchange, market and native ID")
         _require_text(self.native_symbol, field="native_symbol")
         _require_text(self.canonical_symbol, field="canonical_symbol")
-        _require_int(self.exchange_timestamp_ms, field="exchange_timestamp_ms", minimum=1)
+        _require_int(
+            self.exchange_timestamp_ms,
+            field="exchange_timestamp_ms",
+            minimum=1,
+        )
         _require_int(
             self.availability_timestamp_ms,
             field="availability_timestamp_ms",
             minimum=1,
         )
-        _require_int(self.ingestion_timestamp_ms, field="ingestion_timestamp_ms", minimum=1)
+        _require_int(
+            self.ingestion_timestamp_ms,
+            field="ingestion_timestamp_ms",
+            minimum=1,
+        )
         if self.ingestion_timestamp_ms < self.availability_timestamp_ms:
             raise ValueError("ingestion_timestamp_ms must be >= availability_timestamp_ms")
         _require_text(self.connection_id, field="connection_id")
@@ -304,7 +312,11 @@ class UniverseSnapshot:
             "top20-high-frequency-v1",
         }:
             raise ValueError("unsupported universe profile_identity")
-        _require_int(self.selection_timestamp_ms, field="selection_timestamp_ms", minimum=1)
+        _require_int(
+            self.selection_timestamp_ms,
+            field="selection_timestamp_ms",
+            minimum=1,
+        )
         validate_sha256(
             self.source_instrument_snapshot_sha256,
             field="source_instrument_snapshot_sha256",

@@ -53,4 +53,15 @@ jobs:
         env:
           PORTAL_WEB_DATA_MODE: fixture
           PORTAL_ENVIRONMENT: test
-        run: npm run test:e2e
+        run: set -o pipefail; npm run test:e2e 2>&1 | tee playwright-output.log
+
+      - name: Upload temporary Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: portal-web-playwright-failure
+          path: |
+            ai_platform/portal/web/playwright-output.log
+            ai_platform/portal/web/test-results
+          if-no-files-found: ignore
+          retention-days: 1

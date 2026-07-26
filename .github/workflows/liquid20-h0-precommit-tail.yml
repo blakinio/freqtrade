@@ -1,0 +1,32 @@
+name: Liquid20 H0 Precommit Tail
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-h0-precommit-tail.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Run full pre-commit and show failure tail
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet pre-commit
+          if ! pre-commit run --all-files > /tmp/precommit.log 2>&1; then
+            tail -n 160 /tmp/precommit.log
+            exit 1
+          fi
+          tail -n 40 /tmp/precommit.log

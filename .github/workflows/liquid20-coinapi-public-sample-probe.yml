@@ -1,0 +1,46 @@
+name: Liquid20 CoinAPI Public Sample Probe
+
+on:
+  push:
+    branches:
+      - feat/liquid20-coinapi-provider-preflight
+    paths:
+      - .github/workflows/liquid20-coinapi-public-sample-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check documented public sample credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /tmp/coinapi.json --write-out '%{http_code}' --header 'X-CoinAPI-Key: 73034021-THIS-IS-SAMPLE-KEY' 'https://rest.coinapi.io/v1/metrics/listing')"
+          echo "COINAPI_PUBLIC_SAMPLE_HTTP_STATUS=$status"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = Path('/tmp/coinapi.json').read_bytes()
+          print(f'COINAPI_PUBLIC_SAMPLE_BYTES={len(payload)}')
+          try:
+              decoded = json.loads(payload)
+          except Exception:
+              print('COINAPI_PUBLIC_SAMPLE_JSON=false')
+          else:
+              print('COINAPI_PUBLIC_SAMPLE_JSON=true')
+              if isinstance(decoded, list):
+                  ids = sorted(
+                      item.get('metric_id')
+                      for item in decoded
+                      if isinstance(item, dict)
+                      and isinstance(item.get('metric_id'), str)
+                      and 'LIQUIDATION' in item['metric_id']
+                  )
+                  print('COINAPI_LIQUIDATION_METRICS=' + ','.join(ids))
+              elif isinstance(decoded, dict):
+                  print('COINAPI_PUBLIC_SAMPLE_ERROR_KEYS=' + ','.join(sorted(decoded)))
+          PY

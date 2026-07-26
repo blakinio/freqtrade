@@ -6,7 +6,6 @@ on:
       - develop
     paths:
       - .github/workflows/liquid20-coinapi-authenticated-trial.yml
-      - .github/scripts/liquid20_coinapi_authenticated_trial.py
 
 permissions:
   contents: read
@@ -14,15 +13,36 @@ permissions:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     env:
       COINAPI_KEY: ${{ secrets.COINAPI_KEY }}
     steps:
-      - name: Probe exact CoinAPI liquidation coverage
+      - name: Identify exact CoinAPI quota blocker
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error \
-            https://raw.githubusercontent.com/blakinio/freqtrade/070d31efb84c309781f21786d22532c7bca8fd7b/.github/scripts/liquid20_coinapi_authenticated_trial.py \
-            --output /tmp/liquid20_coinapi_authenticated_trial.py
-          python /tmp/liquid20_coinapi_authenticated_trial.py
+          status="$(curl --silent --show-error \
+            --output /tmp/coinapi-error.json \
+            --write-out '%{http_code}' \
+            --header "X-CoinAPI-Key: $COINAPI_KEY" \
+            'https://rest.coinapi.io/v1/metrics/symbol/listing?symbol_id=BYBIT_PERP_BTC_USDT')"
+          echo "COINAPI_HTTP_STATUS=$status"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path('/tmp/coinapi-error.json').read_text())
+          allowed = (
+              'QuotaKey',
+              'QuotaName',
+              'QuotaType',
+              'QuotaValue',
+              'QuotaValueAdjustable',
+              'QuotaValueCurrentUsage',
+              'QuotaValueUnit',
+              'status',
+              'title',
+          )
+          summary = {key: payload.get(key) for key in allowed if key in payload}
+          print('COINAPI_QUOTA_SUMMARY=' + json.dumps(summary, sort_keys=True))
+          PY

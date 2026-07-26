@@ -89,7 +89,7 @@ export function BotLifecycleControls({
       <div className="status-cluster" aria-label="Bot lifecycle actions">
         {actions.map((action) => (
           <button
-            className={action.state === "STOPPED" ? "secondary-button" : "primary-button"}
+            className="primary-button"
             disabled={pending !== null || !action.allowed || currentDesiredState === action.state}
             key={action.state}
             onClick={() => requestState(action.state)}

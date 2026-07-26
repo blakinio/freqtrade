@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Show focused formatter patch
+      - name: Show remaining formatter patch
         shell: bash
         run: |
           set -euo pipefail
@@ -25,5 +25,6 @@ jobs:
             | tar --extract --gzip --strip-components=1 --directory=source
           python -m pip install --quiet ruff==0.15.21
           ruff format --check --diff \
-            source/ai_platform/research/liquidations/historical \
+            source/ai_platform/research/liquidations/historical/acceptance.py \
+            source/ai_platform/research/liquidations/historical/semantic_eras.py \
             source/tests/ai_platform_integration/test_liquidation_history_contracts.py

@@ -1,4 +1,4 @@
-name: Temporary OKX Freqtrade Log Diagnostics
+name: Temporary OKX Report Normalization Fix
 
 on:
   pull_request:
@@ -9,30 +9,47 @@ on:
       - ".github/workflows/tmp-okx-freqtrade-log-diagnostics.yml"
 
 permissions:
-  actions: read
-  contents: read
+  contents: write
 
 jobs:
-  diagnostics:
-    if: github.event.pull_request.number == 417
+  fix:
+    if: >-
+      github.event.pull_request.number == 417 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/okx-shadow-long-run-acceptance-v1'
     runs-on: ubuntu-24.04
     steps:
-      - name: Download failed job log tail
+      - name: Checkout exact PR head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Normalize report before self-hash
         env:
-          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          curl --fail --location \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/jobs/89852419003/logs" \
-            --output job.log
-          tail -n 300 job.log > failure-tail.txt
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          python - <<'PY'
+          from pathlib import Path
 
-      - name: Upload failure tail
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: okx-freqtrade-failure-tail
-          path: failure-tail.txt
-          retention-days: 1
+          path = Path("ai_platform/scripts/liquidation_okx_shadow_acceptance.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''    report["report_sha256"] = _canonical_hash(report, field="report_sha256")
+    return report
+'''
+          new = '''    report = json.loads(json.dumps(report, sort_keys=True))
+    report["report_sha256"] = _canonical_hash(report, field="report_sha256")
+    return report
+'''
+          if text.count(old) != 1:
+              raise SystemExit("expected report return block not found exactly once")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+          python -m compileall -q ai_platform/scripts/liquidation_okx_shadow_acceptance.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/scripts/liquidation_okx_shadow_acceptance.py
+          git commit -m "fix(ai-platform): normalize acceptance report before hashing"
+          git push origin HEAD:refs/heads/feat/okx-shadow-long-run-acceptance-v1

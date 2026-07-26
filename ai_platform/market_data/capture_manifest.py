@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from typing import Any, Self
 
 from ai_platform.market_data.common import (
-    SCHEMA_VERSION,
     FrozenJsonObject,
     OutputImmutabilityState,
+    SCHEMA_VERSION,
     _require_int,
     _require_text,
     canonical_sha256,

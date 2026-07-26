@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
+import { csrfFetch } from "@/lib/client-fetch";
 import type { BotInstance, TradeSide } from "@/lib/contracts";
 import type { SubmitSignalRequest } from "@/lib/product-contracts";
 
@@ -32,7 +33,7 @@ export function SignalWizardForm({ bots }: { bots: BotInstance[] }) {
     };
 
     try {
-      const response = await fetch("/api/signals", {
+      const response = await csrfFetch("/api/signals", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),

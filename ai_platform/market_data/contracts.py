@@ -1,4 +1,3 @@
-# ruff: noqa: I001
 from __future__ import annotations
 
 import json
@@ -16,7 +15,6 @@ from ai_platform.market_data.capture import (
     assert_order_book_reconstructible,
 )
 from ai_platform.market_data.common import (
-    SCHEMA_VERSION,
     AvailabilityTimestampKind,
     ChannelFamily,
     CompressionPolicy,
@@ -26,6 +24,7 @@ from ai_platform.market_data.common import (
     GapReason,
     MarketType,
     OutputImmutabilityState,
+    SCHEMA_VERSION,
     canonical_instrument_id,
     canonical_json_bytes,
     canonical_sha256,

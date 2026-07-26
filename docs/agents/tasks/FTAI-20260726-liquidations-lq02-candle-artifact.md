@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260726-liquidations-lq02-candle-artifact
-status: reviewing
-branch: feat/liquidations-lq02-candle-artifact-v1
+status: ready
+branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
@@ -55,7 +55,7 @@ The selected window ends before the protected holdout and contains only complete
 
 ## Execution separation
 
-This infrastructure PR contains no run request and performs no network data download. After merge, a separate PR may add exactly:
+The merged infrastructure contains no run request and performs no network data download. A separate PR may add exactly:
 
 `ai_platform/research/liquidations/datasets/run-requests/liquid20-candle-diagnostic-20260724-v1.json`
 
@@ -79,11 +79,11 @@ The workflow path is an unavoidable dependency because the requested public sour
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T11:31:00Z
-head: 10fc8ddb5b4ea1675414d570710ba4ece8927964
-branch: feat/liquidations-lq02-candle-artifact-v1
+updated_at: 2026-07-26T12:16:00Z
+head: e448c7137e4787525cbba1da2c90a8a98812e219
+branch: develop
 pr: "#350"
-status: reviewing
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
   - docs/ai_platform/portal/LIQUIDATIONS_AI_BOT_IMPLEMENTATION_BLUEPRINT.md
@@ -99,15 +99,16 @@ owned_paths:
   - pyproject.toml
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md
 proven:
-  - Develop head bef49bdf4d914c2aa363d99621cdb7b80fd16c9d contains merged blocked LQ-02 preflight a9f818e1f5f5948fc095f374a554952e3d070e33.
+  - Blocked LQ-02 dataset-selection preflight is merged as a9f818e1f5f5948fc095f374a554952e3d070e33.
   - Completed run liquid20-20260724T170830Z-1 failed exactly binance-usdm.maximum_latency_over_threshold_ratio and remains diagnostic-only.
   - Active run liquid20-20260725T212201Z-1 had no final report at the last Synology status check.
   - No adequate versioned candle artifact exists yet.
   - The declared 2026-07-24 through 2026-07-26 window is before the protected 2026-08-01 through 2026-10-01 holdout.
   - The contract binds source catalog and liquid20-v1 universe SHA-256 identities and preserves ordered source-separated membership.
   - Focused validation passes 10 deterministic tests, Python compilation, exact Ruff 0.15.21 lint and formatting, mypy and repository pre-commit.
-  - PR 350 is rebuilt as one commit over current develop with exactly eight final files and no run request or temporary diagnostic workflow.
-  - Exact candidate head 10fc8ddb5b4ea1675414d570710ba4ece8927964 passed AI Platform CI 1490, Freqtrade CI 1804, GitHub Actions Security Analysis 1669 and Experimental Model Runtime Smoke 113.
+  - PR 350 merged the eight-file infrastructure package as e448c7137e4787525cbba1da2c90a8a98812e219 with no run request or temporary diagnostic workflow.
+  - Exact candidate head 4320eba3a68fb34359639236675c4d3bf50f7fe3 passed AI Platform CI 1523, Freqtrade CI 1839, GitHub Actions Security Analysis 1704 and Experimental Model Runtime Smoke 124.
+  - Trigger PR 366 passed exact-one-file scope and stopped before network access because the merged checkpoint used unsupported status reviewing.
 derived:
   - One 48-hour request fits both source limits with 576 rows per source-symbol file.
   - Source-separated public candles can remove the candle-identity blocker without changing failed liquidation acceptance.
@@ -118,8 +119,8 @@ unknown:
   - Whether the first generated package can later be copied to durable Synology storage without a separate deployment package.
 conflicts: []
 first_failure:
-  marker: NONE
-  evidence: No canonical run request exists in this infrastructure branch, so no public data access or artifact execution can occur.
+  marker: checkpoint-status-reviewing-not-allowed
+  evidence: Trigger run 30201634582 failed before network access because reviewing is not an allowed governance checkpoint status.
 rejected_hypotheses:
   - Add the run request to the infrastructure PR.
   - Use one exchange candle source for both liquidation venues.
@@ -146,13 +147,16 @@ validation:
     evidence: Candle artifact module, CLI and tests compiled successfully.
   - command: ruff 0.15.21 check and format plus mypy and repository pre-commit
     result: PASS
-    evidence: Exact repository tooling accepted lint, formatting and typing; Freqtrade CI 1804 pre-commit passed.
-  - command: pull request scope and current-develop rebuild
+    evidence: Exact repository tooling accepted lint, formatting and typing; Freqtrade CI 1839 passed.
+  - command: pull request scope and merge
     result: PASS
-    evidence: PR 350 contains one commit above develop bef49bdf4d914c2aa363d99621cdb7b80fd16c9d and exactly eight final files.
+    evidence: PR 350 contained exactly eight final files and merged as e448c7137e4787525cbba1da2c90a8a98812e219.
   - command: exact-head repository CI
     result: PASS
-    evidence: Head 10fc8ddb5b4ea1675414d570710ba4ece8927964 passed AI Platform CI 1490, Freqtrade CI 1804, GitHub Actions Security Analysis 1669 and Experimental Model Runtime Smoke 113.
+    evidence: Head 4320eba3a68fb34359639236675c4d3bf50f7fe3 passed AI Platform CI 1523, Freqtrade CI 1839, GitHub Actions Security Analysis 1704 and Experimental Model Runtime Smoke 124.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md --require-checkpoint
+    result: PASS
+    evidence: The repaired checkpoint uses governance-allowed status ready and a concrete next action.
 blockers: []
-next_action: Merge PR 350, then create the exact-one-file diagnostic candle request trigger PR and close that trigger without merge after terminal artifact evidence is captured.
+next_action: After this checkpoint repair merges, open a new exact-one-file diagnostic candle request trigger PR and close it without merge after terminal artifact evidence is captured.
 ```

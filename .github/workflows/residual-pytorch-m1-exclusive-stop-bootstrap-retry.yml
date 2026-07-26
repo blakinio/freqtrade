@@ -69,7 +69,7 @@ jobs:
           for path in paths:
               json.loads(path.read_text(encoding="utf-8"))
           PY
-      - name: Commit corrected infrastructure and remove bootstraps
+      - name: Commit corrected non-workflow infrastructure
         shell: bash
         env:
           BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
@@ -77,9 +77,17 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm \
-            .github/workflows/residual-pytorch-m1-exclusive-stop-bootstrap.yml \
-            .github/workflows/residual-pytorch-m1-exclusive-stop-bootstrap-retry.yml
-          git add -A
+          git restore --source=HEAD -- \
+            .github/workflows/residual-pytorch-bounded-m1-execution.yml
+          git add \
+            ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json \
+            ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json \
+            ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json \
+            ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json \
+            ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json \
+            ai_platform/scripts/residual_pytorch_bounded_m1_execution.py \
+            docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md \
+            docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md \
+            tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
           git commit -m "fix(ai-platform): enforce bounded M1 exclusive stop"
           git push origin "HEAD:${BRANCH_NAME}"

@@ -4,12 +4,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from ai_platform.market_data.common import (
-    SCHEMA_VERSION,
     ChannelFamily,
     CompressionPolicy,
     Exchange,
     FrozenJsonObject,
     MarketType,
+    SCHEMA_VERSION,
     _require_text,
     canonical_sha256,
     validate_commit,

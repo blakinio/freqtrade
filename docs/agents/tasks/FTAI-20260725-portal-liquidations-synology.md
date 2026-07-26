@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260725-portal-liquidations-synology
-status: reviewing
+status: completed
 branch: feat/portal-liquidations-synology-20260725
 base_branch: develop
 created: 2026-07-25
@@ -31,11 +31,11 @@ Mount the authoritative Liquid20 Synology evidence directory read-only into the 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T06:30:00Z
-head: 8ec78c8e77cb7bfdba123efe10f5ac75cbbb344e
+updated_at: 2026-07-26T06:52:00Z
+head: 1bf106fb5919706cca4db4f8245e00d2a1932df9
 branch: feat/portal-liquidations-synology-20260725
 pr: 313
-status: reviewing
+status: completed
 context_routes:
   - docs/agents/tasks/FTAI-20260725-portal-synology-lan-staging.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md
@@ -48,18 +48,20 @@ owned_paths:
 proven:
   - PR 307 read-model merged to develop as aa2f193b970588e478b5d57f58d2ddfd7f4aab67.
   - PR 311 BFF and UI merged to develop as 228b5ad3eb12c6adab300ab86461d3fa67acaa47.
-  - The authoritative Liquid20 root is /volume1/docker/freqtrade-liquidations/data and is mounted at /liquid20-data read-only.
-  - Liquid20 directories are root:root mode 750 and event files are root:root mode 640.
-  - The deployment derives and validates the shared numeric read GID through a root-only metadata preflight container, then adds only that supplementary group to the non-root Node process.
+  - PR 313 Synology integration merged to develop as 1bf106fb5919706cca4db4f8245e00d2a1932df9.
+  - The authoritative Liquid20 root is mounted from /volume1/docker/freqtrade-liquidations/data to /liquid20-data read-only.
+  - The deployment validates regular non-symlinked paths, group-readable files and one consistent numeric read GID through the Synology Docker daemon.
+  - The portal process remains non-root and receives only the verified supplementary read group required by the root:root 750/640 evidence tree.
   - Host permissions and Liquid20 evidence contents remain unchanged.
-  - Exact feature commit e48c421aea4adb46854578264d80622803498a87 deployed successfully in workflow run 30191045808.
-  - The exact deployment passed image build, isolated candidate health, real-data health, summary, bounded list and page probes, LAN probes on 192.168.1.2:3031 and final health-contract validation.
-  - The running portal remains non-root, has no Docker socket mount, exposes no credentials and carries no trading authority.
-  - The temporary feature-branch deployment trigger was removed after successful proof; authoritative future deployments run from develop only.
+  - The portal container has no Docker socket mount, exposes no credentials and carries no trading authority.
+  - The feature candidate e48c421aea4adb46854578264d80622803498a87 passed real-data deployment run 30191045808.
+  - The authoritative develop commit 1bf106fb5919706cca4db4f8245e00d2a1932df9 passed deployment run 30191687921.
+  - Build, isolated candidate, health, summary, bounded list, page and private-LAN probes all passed on 192.168.1.2:3031.
+  - Automatic Synology deployment is restricted to develop after the feature proof.
 derived:
-  - The final merge can preserve the existing running exact feature image until the develop deployment replaces it with the merge SHA.
+  - The portal integration is terminal and independent of the still-running Liquid20 acceptance decision.
 unknown:
-  - Final acceptance outcome of active run liquid20-20260725T212201Z-1; this is independent of portal integration completion.
+  - Final acceptance outcome of active run liquid20-20260725T212201Z-1; this does not block or reopen the completed portal integration.
 conflicts: []
 first_failure:
   marker: LIQUID20_GROUP_TRAVERSE
@@ -87,6 +89,12 @@ validation:
   - command: exact feature deployment run 30191045808
     result: PASS
     evidence: Build and deploy, LAN Liquid20 surface and final status all completed successfully for e48c421aea4adb46854578264d80622803498a87.
+  - command: PR 313 final CI
+    result: PASS
+    evidence: Freqtrade CI, documentation, all Linux/Python core tests and zizmor completed successfully for 33c4d3b139ea16d14b8eb57568a71f822dce506c.
+  - command: authoritative develop deployment run 30191687921
+    result: PASS
+    evidence: Build and deploy, real-data LAN Liquid20 surface and final status all completed successfully for 1bf106fb5919706cca4db4f8245e00d2a1932df9.
 blockers: []
-next_action: Complete final PR checks, verify review threads remain empty, squash-merge PR 313 and verify the authoritative develop deployment.
+next_action: none
 ```

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "experiment_id": "residual-pytorch-m1-data-audit-v1",
+  "description": "Data-audit preflight for the frozen residual PyTorch M1 development matrix.",
+  "config": "ai_platform/configs/freqai-residual-pytorch-m1-data-audit.example.json",
+  "strategy": "AiFrozenCandidateStrategy",
+  "strategy_path": "ai_platform/strategies",
+  "freqai_model": "ResidualPyTorchM1DataAuditRegressor",
+  "timerange": "20260301-20260501",
+  "download_timerange": "20250801-20260501",
+  "pairs": [
+    "BTC/USDT",
+    "ETH/USDT"
+  ],
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "fee": 0.002,
+  "output_root": "ai_platform/artifacts/experimental-model-research/residual-pytorch-m1/data-audit"
+}

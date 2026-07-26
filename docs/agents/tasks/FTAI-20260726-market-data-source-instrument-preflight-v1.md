@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-market-data-source-instrument-preflight-v1
-status: implementing
+status: validating
 branch: feat/market-data-source-instrument-preflight-v1
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: null
+related_pr: "#384"
 owned_paths:
   - docs/ai_platform/market_data/SOURCE_AND_INSTRUMENT_CATALOG_PREFLIGHT.md
   - docs/ai_platform/market_data/source-and-instrument-catalog-preflight-v1.json
@@ -39,11 +39,11 @@ without implementing adapters, making live endpoint requests, starting capture o
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T20:36:00+02:00
-head: 12b26427c25cedf0a16ceb2c2d667809229b5baa
+updated_at: 2026-07-26T20:45:00+02:00
+head: 6099178fa90ed6f0e17e87023d6b11f6a3ba9de4
 branch: feat/market-data-source-instrument-preflight-v1
-pr: "not_opened"
-status: implementing
+pr: "#384"
+status: validating
 context_routes:
   - docs/ai_platform/market_data/ARCHITECTURE.md
   - docs/ai_platform/market_data/SOURCE_AND_INSTRUMENT_CATALOG_PREFLIGHT.md
@@ -57,8 +57,9 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260726-market-data-source-instrument-preflight-v1.md
 proven:
   - Market Data Fabric foundation v1 is merged and routes next to a separate source and instrument-catalog preflight without broad capture.
-  - Current develop is 12b26427c25cedf0a16ceb2c2d667809229b5baa.
-  - Open PR 339 owns liquidation-specific OKX paths and open PR 376 owns residual PyTorch audit paths; neither overlaps this task.
+  - Current PR base develop is 11ad81870c0b199b0739af9dcfa239cb32d455cc.
+  - PR 339 merged on liquidation-specific OKX paths and open PR 376 owns residual PyTorch audit paths; neither overlaps this task.
+  - PR 384 is open, non-draft, mergeable and contains exactly the five task-owned files.
   - The foundation catalog contains exactly six declarations and keeps every source not implemented, not validated and not accepted.
   - Current official documentation exposes sufficient bounded instrument metadata for Binance Spot, Bybit Spot, Bybit Linear, OKX Spot and OKX SWAP/FUTURES adapter design.
   - Binance USD-M official exchange information does not expose explicit contract value and contract-value unit evidence required by the foundation contract.
@@ -68,11 +69,11 @@ derived:
 unknown:
   - Exact current production inventory and endpoint reachability because this package performs no live endpoint requests.
   - Explicit Binance USD-M contract value and contract-value unit semantics.
-  - Representation policy for non-unit OKX ctMult values.
+  - Representation policy for non-unit OKX ctMult values outside the validated unit-multiplier boundary.
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: No implementation failure has occurred; exact branch validation and CI remain pending.
+  evidence: No implementation failure has occurred; exact-head repository CI is pending.
 rejected_hypotheses:
   - Modify the declarations-only foundation source catalog to claim source acceptance.
   - Infer Binance USD-M contract value from quantity precision or lot-size step.
@@ -87,16 +88,19 @@ changed_paths:
 validation:
   - command: live-state and open-PR ownership preflight
     result: PASS
-    evidence: Current develop and open PR paths were inspected; no generic market-data ownership conflict was found.
+    evidence: Current develop and relevant PR paths were inspected; no generic market-data ownership conflict was found.
   - command: official documentation verification
     result: PASS
     evidence: Current Binance, Bybit and OKX catalog, payload, rate and public WebSocket documentation was inspected.
   - command: local JSON generation and Draft 2020-12 schema validation
     result: PASS
     evidence: The machine-readable preflight validates and its canonical self-hash reproduces.
-  - command: exact branch tests and repository CI
+  - command: PR 384 changed-file and mergeability inspection
+    result: PASS
+    evidence: The PR is non-draft, mergeable and changes exactly the five declared task files.
+  - command: exact-head repository CI
     result: NOT_RUN
-    evidence: Files have not yet been committed and the PR is not open.
+    evidence: GitHub Actions is pending on the checkpoint update commit.
 blockers: []
-next_action: Commit the five-file preflight package, open a PR, run exact-head CI and repair the first failing required gate.
+next_action: Complete exact-head GitHub Actions for PR 384, repair the first failing required job if any, then update the checkpoint to ready.
 ```

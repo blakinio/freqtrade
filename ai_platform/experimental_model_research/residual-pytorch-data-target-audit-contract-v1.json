@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "stage": "P2",
+  "contract_id": "residual-pytorch-data-target-audit-v1",
+  "status": "audit_contract_ready_not_historically_executed",
+  "model": "ResidualPyTorchRegressor",
+  "strategy": "AiFrozenCandidateStrategy",
+  "purpose": "Freeze and validate the development-only data/target audit geometry without accessing market data or executing training or backtesting.",
+  "paths": {
+    "foundation_contract": "ai_platform/experimental_model_research/residual-pytorch-research-contract-v1.json",
+    "runtime_contract": "ai_platform/experimental_model_research/residual-pytorch-runtime-smoke-contract-v1.json",
+    "config": "ai_platform/configs/freqai-residual-pytorch-research.example.json",
+    "experiment": "ai_platform/experiments/residual-pytorch-research-v1.json",
+    "strategy": "ai_platform/strategies/AiFrozenCandidateStrategy.py",
+    "auditor": "ai_platform/scripts/residual_pytorch_data_target_audit.py",
+    "documentation": "docs/ai_platform/RESIDUAL_PYTORCH_DATA_TARGET_AUDIT.md",
+    "task": "docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md",
+    "tests": "tests/ai_platform/test_residual_pytorch_data_target_audit.py",
+    "workflow": ".github/workflows/residual-pytorch-data-target-audit.yml"
+  },
+  "development_window": {
+    "semantic_start": "2025-12-01T00:00:00Z",
+    "semantic_stop_exclusive": "2026-05-01T00:00:00Z",
+    "freqtrade_timerange": "20251201-20260501",
+    "training_geometry": "20251201-20260228",
+    "tuning_geometry": "20260301-20260430",
+    "consumed_historical_oos": "20260501-20260630",
+    "protected_final_holdout": "20260801-20260930"
+  },
+  "data_geometry": {
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "base_timeframe": "15m",
+    "include_timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "indicator_periods_candles": [
+      14,
+      50
+    ],
+    "include_shifted_candles": 2,
+    "startup_candle_count": 200,
+    "shuffle": false
+  },
+  "target": {
+    "column": "&-future_return",
+    "horizon_candles": 12,
+    "semantic_formula": "mean(close[t+1:t+13]) / close[t] - 1",
+    "strategy_expression": "dataframe[\"close\"].shift(-horizon).rolling(horizon).mean()",
+    "first_future_offset": 1,
+    "last_future_offset": 12,
+    "leading_unavailable_rows": 11,
+    "trailing_unavailable_rows": 12
+  },
+  "required_audits": {
+    "chronological_window_isolation": true,
+    "target_lookforward_alignment": true,
+    "target_edge_null_geometry": true,
+    "current_and_past_leakage_guard": true,
+    "future_offset_influence_guard": true,
+    "freqai_expanded_feature_count": true,
+    "feature_nan_distribution": true,
+    "feature_outlier_distribution": true,
+    "historical_label_distribution": true,
+    "liquidation_feature_exclusion": true
+  },
+  "current_execution": {
+    "fixture": "deterministic_synthetic_close_series",
+    "historical_market_data": false,
+    "freqai_expanded_feature_matrix": false,
+    "expected_outcome": "audit_inconclusive",
+    "inconclusive_reasons": [
+      "market_data_access_not_authorized",
+      "freqai_expanded_feature_count_not_measured",
+      "historical_nan_outlier_and_label_distributions_not_measured"
+    ]
+  },
+  "outcomes": [
+    "audit_supported",
+    "audit_not_supported",
+    "audit_inconclusive"
+  ],
+  "authorization": {
+    "synthetic_target_fixture": true,
+    "market_data_access": false,
+    "exchange_download": false,
+    "historical_feature_matrix_access": false,
+    "training": false,
+    "backtesting": false,
+    "hyperparameter_search": false,
+    "feature_search": false,
+    "consumed_historical_oos_access": false,
+    "protected_holdout_access": false,
+    "liquidation_features": false,
+    "deployment": false,
+    "promotion": false,
+    "profitability_claim": false
+  }
+}

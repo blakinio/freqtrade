@@ -1,0 +1,161 @@
+name: Residual PyTorch Data Target Audit
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "ai_platform/configs/freqai-residual-pytorch-research.example.json"
+      - "ai_platform/experimental_model_research/residual-pytorch-data-target-audit-contract-v1.json"
+      - "ai_platform/experimental_model_research/residual-pytorch-research-contract-v1.json"
+      - "ai_platform/experimental_model_research/residual-pytorch-runtime-smoke-contract-v1.json"
+      - "ai_platform/experiments/residual-pytorch-research-v1.json"
+      - "ai_platform/scripts/residual_pytorch_data_target_audit.py"
+      - "ai_platform/strategies/AiFrozenCandidateStrategy.py"
+      - "docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md"
+      - "docs/ai_platform/RESIDUAL_PYTORCH_DATA_TARGET_AUDIT.md"
+      - "tests/ai_platform/test_residual_pytorch_data_target_audit.py"
+      - ".github/workflows/residual-pytorch-data-target-audit.yml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "ai_platform/configs/freqai-residual-pytorch-research.example.json"
+      - "ai_platform/experimental_model_research/residual-pytorch-data-target-audit-contract-v1.json"
+      - "ai_platform/experimental_model_research/residual-pytorch-research-contract-v1.json"
+      - "ai_platform/experimental_model_research/residual-pytorch-runtime-smoke-contract-v1.json"
+      - "ai_platform/experiments/residual-pytorch-research-v1.json"
+      - "ai_platform/scripts/residual_pytorch_data_target_audit.py"
+      - "ai_platform/strategies/AiFrozenCandidateStrategy.py"
+      - "docs/ai_platform/RESIDUAL_PYTORCH_DATA_TARGET_AUDIT.md"
+      - "tests/ai_platform/test_residual_pytorch_data_target_audit.py"
+      - ".github/workflows/residual-pytorch-data-target-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: residual-pytorch-data-target-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  data-target-audit:
+    name: Residual PyTorch synthetic data-target audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Validate active task checkpoint
+        if: github.event_name == 'pull_request'
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md
+          --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Install lint dependency
+        run: python -m pip install ruff==0.15.21
+
+      - name: Run focused unit tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests/ai_platform \
+            -p 'test_residual_pytorch_data_target_audit.py' -v \
+            2>&1 | tee residual-pytorch-data-target-tests.log
+          touch residual-pytorch-data-target-tests.passed
+
+      - name: Run Ruff
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          ruff check \
+            ai_platform/scripts/residual_pytorch_data_target_audit.py \
+            tests/ai_platform/test_residual_pytorch_data_target_audit.py \
+            2>&1 | tee residual-pytorch-data-target-ruff.log
+          touch residual-pytorch-data-target-ruff.passed
+
+      - name: Run Ruff format check
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          ruff format --check \
+            ai_platform/scripts/residual_pytorch_data_target_audit.py \
+            tests/ai_platform/test_residual_pytorch_data_target_audit.py \
+            2>&1 | tee residual-pytorch-data-target-ruff-format.log
+          touch residual-pytorch-data-target-ruff-format.passed
+
+      - name: Run bounded data-target audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m ai_platform.scripts.residual_pytorch_data_target_audit \
+            --output residual-pytorch-data-target-audit.json \
+            2>&1 | tee residual-pytorch-data-target-audit.log
+          touch residual-pytorch-data-target-audit.passed
+
+      - name: Upload audit diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: residual-pytorch-data-target-audit-${{ github.event.pull_request.number || github.run_number }}
+          path: |
+            residual-pytorch-data-target-audit.json
+            residual-pytorch-data-target-audit.log
+            residual-pytorch-data-target-tests.log
+            residual-pytorch-data-target-ruff.log
+            residual-pytorch-data-target-ruff-format.log
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Verify bounded inconclusive outcome
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          sentinels = {
+              "Focused unit tests": Path("residual-pytorch-data-target-tests.passed"),
+              "Ruff": Path("residual-pytorch-data-target-ruff.passed"),
+              "Ruff format": Path("residual-pytorch-data-target-ruff-format.passed"),
+              "Audit command": Path("residual-pytorch-data-target-audit.passed"),
+          }
+          failed = [name for name, path in sentinels.items() if not path.is_file()]
+          if failed:
+              raise SystemExit("Failed P2 steps: " + ", ".join(failed) + "; inspect diagnostics")
+
+          report_path = Path("residual-pytorch-data-target-audit.json")
+          if not report_path.is_file():
+              raise SystemExit("Data-target audit did not produce a report")
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          if report.get("outcome") != "audit_inconclusive":
+              raise SystemExit(f"Unexpected P2 outcome: {report.get('outcome')}")
+          forbidden_flags = (
+              "market_data_used",
+              "exchange_download_performed",
+              "training_performed",
+              "backtest_performed",
+              "historical_oos_used",
+              "protected_holdout_used",
+              "liquidation_features_used",
+          )
+          enabled = [name for name in forbidden_flags if report.get(name) is not False]
+          if enabled:
+              raise SystemExit("Forbidden P2 evidence flags drifted: " + ", ".join(enabled))
+          if report.get("feature_audit", {}).get("freqai_expanded_feature_count") is not None:
+              raise SystemExit("P2 guessed an unmeasured expanded feature count")
+          PY

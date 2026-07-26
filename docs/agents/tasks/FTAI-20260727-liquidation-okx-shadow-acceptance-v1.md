@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260727-liquidation-okx-shadow-acceptance-v1
-status: validating
+status: ready
 branch: docs/okx-shadow-acceptance-policy-v1
 base_branch: develop
 created: 2026-07-27
@@ -34,11 +34,11 @@ Prospectively freeze the exact 24-hour operational acceptance contract for the i
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T00:25:00+02:00
-head: 50a6ecc80cfd998551c85f45cbed3e41c51ef38f
+updated_at: 2026-07-27T00:30:00+02:00
+head: ad735c3e9639173553d20a0c02d1784c959f47a1
 branch: docs/okx-shadow-acceptance-policy-v1
 pr: "#413"
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SOURCE.md
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SMOKE.md
@@ -55,6 +55,8 @@ proven:
   - This declaration freezes the same health geometry for unchanged BTCUSDT and ETHUSDT OKX shadow collection and adds an explicit inconclusive outcome for insufficient real-event activity.
   - The declaration requires public endpoints, no credentials, zero orders, exact instrument metadata, start/end clock probes, self-hashed evidence and durable raw storage beyond an expiring CI artifact.
   - PR 413 contains exactly the three declared policy, runbook and checkpoint files and no implementation or operational trigger.
+  - Exact content head ad735c3e9639173553d20a0c02d1784c959f47a1 passed AI Platform CI 30223119700, Freqtrade CI 30223119703 including CI Gate, and zizmor 30223119716.
+  - GitHub reports PR 413 mergeable and there are no review threads.
 derived:
   - The first long run should preserve the two-symbol smoke contract; broad-universe or liquid20-v2 membership is a later package.
   - A GitHub-hosted runner is not eligible for continuous 24-hour capture and durable raw evidence.
@@ -62,11 +64,11 @@ derived:
 unknown:
   - Exact implementation design for the inert runner, evaluator and guarded staging workflow.
   - Whether the intended non-restricted always-on Linux staging host will pass the frozen gates.
-  - Final exact-head repository CI, mergeability and review result for PR 413.
+  - Final repository CI outcome for this ready-state checkpoint metadata commit.
 conflicts: []
 first_failure:
   marker: none
-  evidence: No implementation or operational run is included; declaration validation has not reached terminal CI.
+  evidence: The declaration content passed all required exact-head checks without a confirmed failure.
 rejected_hypotheses:
   - Add OKX directly to liquid20-v1 after the short smoke.
   - Run a 24-hour job on a GitHub-hosted runner.
@@ -78,12 +80,18 @@ changed_paths:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md
   - docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-v1.md
 validation:
-  - command: repository exact-head CI
-    result: NOT_RUN
-    evidence: PR 413 has opened and its final metadata head has not reached terminal CI.
+  - command: AI Platform CI 30223119700
+    result: PASS
+    evidence: Exact content head ad735c3e9639173553d20a0c02d1784c959f47a1 passed AI tests, Ruff, Ruff format, codespell and JSON validation.
+  - command: Freqtrade CI 30223119703
+    result: PASS
+    evidence: Exact content head passed pre-commit, documentation build and CI Gate; core matrices were correctly skipped for the declaration-only scope.
+  - command: GitHub Actions Security Analysis with zizmor 30223119716
+    result: PASS
+    evidence: Exact content head completed successfully.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-v1.md --require-checkpoint
-    result: NOT_RUN
-    evidence: No local checkout is available; repository CI is authoritative for PR 413.
+    result: PASS
+    evidence: Repository validation accepted the compact checkpoint structure and exactly one next_action.
 blockers: []
-next_action: Verify PR 413 exact-head AI Platform CI, Freqtrade CI, zizmor, mergeability and review state; fix only confirmed failures, merge the declaration if green, then implement inert runner, evaluator and guarded staging workflow infrastructure in a separate PR without a canonical run request.
+next_action: Verify the ready-state checkpoint commit exact-head CI and unchanged PR 413 mergeability/review state, then guarded squash-merge the declaration and implement inert runner, evaluator and guarded staging workflow infrastructure in a separate PR without a canonical run request.
 ```

@@ -1,0 +1,32 @@
+name: Market Data Governance Bundle
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/market-data-governance-bundle.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Prepare governance bundle
+        run: |
+          mkdir -p governance-bundle/tools/agents governance-bundle/docs/agents/tasks governance-bundle/docs/agents
+          cp tools/agents/checkpoint.py governance-bundle/tools/agents/
+          cp tools/agents/resume.py governance-bundle/tools/agents/
+          cp docs/agents/GOVERNANCE_CONTRACT.json governance-bundle/docs/agents/
+          cp docs/agents/tasks/FTAI-20260726-market-data-fabric-foundation-v1.md governance-bundle/docs/agents/tasks/
+      - name: Upload governance bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-data-governance-bundle
+          path: governance-bundle
+          if-no-files-found: error
+          retention-days: 1

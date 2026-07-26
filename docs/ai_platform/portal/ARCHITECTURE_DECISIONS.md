@@ -221,3 +221,24 @@ The remaining work crosses several architectural planes and has materially diffe
 Consequence:
 
 The recommended first software package is read-only `PI-01 Private Runtime Read and Reconciliation`. Higher-risk credential and dry-run submission work follows only after its explicit dependencies pass. No PI package authorizes live capital.
+
+## ADR-017 — Liquid20 portal evidence is read-only and not execution authority
+
+Status: `accepted`
+
+Decision:
+
+- Liquid20 run evidence remains authoritative and is mounted into the portal read-only.
+- The server-side read-model exposes only bounded versioned event, summary and health contracts through same-origin BFF routes.
+- Bybit and Binance source identity and feed semantics remain explicit; cross-exchange events are not silently deduplicated or presented as one complete volume feed.
+- Portal health must state `research_preview: true` and `trading_authorized: false`.
+- The Liquidations page cannot create a signal, trade intent, order, model promotion or capital authorization.
+- Any Wick Hunter-inspired strategy, AI model, deterministic replay, dry-run adapter, DCA, leverage or live-small work is a separate prospectively declared lifecycle package.
+
+Reason:
+
+A working market-data page proves data presentation, not data acceptance, synchronization validity, strategy edge, risk acceptance or safe execution. Keeping the observation path separate prevents portal integration from bypassing research and capital-governance gates.
+
+Consequence:
+
+Future agents must use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md`, preserve immutable evidence and no-lookahead rules, and follow the standard model/strategy/risk/execution lifecycle before making any trading claim.

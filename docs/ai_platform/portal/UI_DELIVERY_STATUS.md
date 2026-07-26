@@ -41,7 +41,9 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 `FTAI-20260726-portal-bot-operations-completion` converges existing canonical bot, runtime-evidence, performance, valuation, risk, observability and audit reads into the bot fleet and Bot Detail routes. PR #320 also exposes the existing immutable-revision and desired-state control-plane commands through same-origin BFF routes with capability, confirmation, stale-state, conflict and idempotency behavior. It creates no order-submission or credential authority.
 
-Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Current task selection and repair ordering are routed through `NEXT_WORK_AND_REPAIR_PLAN.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
+`FTAI-20260725-portal-liquidations-read-model`, `FTAI-20260725-portal-liquidations-ui` and `FTAI-20260725-portal-liquidations-synology` integrate the read-only Liquid20 market-data surface. The browser reads same-origin versioned contracts, while the non-root server reads the authoritative Synology evidence tree through a read-only mount. The module explicitly reports research-preview and no-trading status; it is not a validated liquidation strategy.
+
+Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Current task selection and repair ordering are routed through `NEXT_WORK_AND_REPAIR_PLAN.md`. Liquid20 strategy and AI-bot expansion is routed through `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
 
 ## Current surface matrix
 
@@ -50,6 +52,7 @@ Remaining authoritative-source and external/private integration work is routed t
 | Dashboard | `/` | integrated | bot/control-plane snapshot |
 | PNL & Performance | `/performance` | integrated for realized and bounded unrealized evidence | realized PNL from persisted closed trades plus tenant-scoped exact-runtime mark-to-entry valuation; stale, unavailable, cross-currency and leveraged positions remain explicitly non-current |
 | Open Positions | `/positions` | integrated for runtime evidence | private collector -> tenant/bot/runtime-scoped operational mirror; rows and empty states distinguish `CURRENT`, `STALE`, `PARTIAL` and `SOURCE_UNAVAILABLE` |
+| Liquidations | `/market/liquidations` | integrated read-only research preview | same-origin BFF -> bounded server-side Liquid20 read-model -> `/liquid20-data:ro`; source identity, freshness and acceptance state are retained; `trading_authorized=false` |
 | Trading Terminal | `/terminal` | integrated, execution still fail-closed | deterministic risk intent API |
 | Orders | `/orders` | integrated for runtime evidence | private collector -> operational mirror with source identity, freshness and reconciliation; unattributed runtime orders are `MISMATCH` |
 | Trade History | `/trades` | integrated for runtime evidence | canonical runtime trade mirror with source timestamps, realized fields when present and explicit mismatch/unavailable semantics; no fabricated current price |
@@ -89,6 +92,19 @@ Delivered behavior:
 - browser code receives no private Freqtrade, exchange, observability or secret-store endpoint or credential.
 
 The package does not implement `submit_approved_intent`, exchange credential injection, external notification delivery, P11 infrastructure or live capital.
+
+## Liquidations semantics
+
+The Liquidations page presents public market-data evidence only.
+
+- Bybit and Binance feed semantics remain source-labelled.
+- Cross-exchange events are not deduplicated.
+- A cache-truncated result is not represented as a complete 24-hour aggregate.
+- A final report is accepted only when it explicitly contains `passed: true`.
+- An active retry does not hide the latest completed failed acceptance evidence.
+- The browser receives no Synology path, collector endpoint, Docker socket, exchange credential, Freqtrade endpoint, signal, recommendation or execution authority.
+
+Future strategy, model and execution packages must follow `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` and remain separate from this read-only surface.
 
 ## PI-01 freshness and reconciliation semantics
 

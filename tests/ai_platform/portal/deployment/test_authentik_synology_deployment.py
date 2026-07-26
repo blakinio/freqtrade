@@ -99,9 +99,7 @@ def test_backup_and_restore_are_encrypted_and_confirmed() -> None:
 
 
 def test_contract_truthfully_excludes_target_acceptance() -> None:
-    contract = json.loads(
-        (DEPLOYMENT / "deployment-contract-v1.json").read_text(encoding="utf-8")
-    )
+    contract = json.loads((DEPLOYMENT / "deployment-contract-v1.json").read_text(encoding="utf-8"))
     assert contract["status"] == "repository_validated_target_not_accepted"
     assert contract["controls"]["docker_socket_mount"] is False
     assert contract["controls"]["database_has_no_published_port"] is True

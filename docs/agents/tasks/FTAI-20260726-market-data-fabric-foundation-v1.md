@@ -41,9 +41,9 @@ Create the first bounded provider-neutral contract and deterministic-universe fo
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T19:13:00+02:00
-head: 688a70f3eca003310fc0e43119517e29105a040e
-branch: feat/market-data-fabric-foundation-v1
+updated_at: 2026-07-26T20:20:00+02:00
+head: 0693c9f7bad2c5f68000c256e11a60603827bd9c
+branch: develop
 pr: "#368"
 status: ready
 context_routes:
@@ -57,21 +57,22 @@ owned_paths:
   - tests/ai_platform_integration/test_market_data_*.py
   - docs/agents/tasks/FTAI-20260726-market-data-fabric-foundation-v1.md
 proven:
-  - PR 368 is open, non-draft, mergeable and its final diff contains exactly the declared 18 files.
+  - PR 368 was squash-merged into develop as 0693c9f7bad2c5f68000c256e11a60603827bd9c.
+  - The merged PR contains exactly the declared 18 files under the task-owned paths.
   - The package defines provider-neutral event, instrument, universe, capture, segment, gap and manifest contracts with deterministic identities and fail-closed validation.
   - Deterministic all-active, Top 100 and Top 20 selectors operate only on supplied snapshots and perform no network calls.
   - All six initial Binance, Bybit and OKX source declarations remain not implemented, not validated and not accepted.
-  - No live capture, raw market record, credential, order, model, replay, portal or deployment change is present.
-  - PR 339 remains open on disjoint liquidation-specific OKX paths; PRs 350 and 360 merged without path overlap.
-  - The implementation tree at a257278d5dc8be40055f75ff7ae3da228eb4443c passed AI Platform CI, full Freqtrade CI and security analysis.
+  - No live capture, raw market record, credential, order, model, replay, portal or deployment change was merged.
+  - Exact PR head 93a036a35f26a37f1dcfc6b4020c9d9a22f5ec85 passed AI Platform CI, full Freqtrade CI and security analysis.
+  - Open PRs 339 and 376 remained path-disjoint from the Market Data Fabric package at merge time.
 derived:
   - The generic package can coexist with Liquid20 without moving or reinterpreting existing contracts or timestamps.
-  - The next package should be a separate source and instrument-catalog live preflight after PR 368 is merged.
+  - The next package is a separate source and instrument-catalog live preflight and must not include broad capture.
 unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: All implementation, lint, format, type, documentation, matrix and security checks are green; no unresolved failure remains.
+  evidence: Review, exact-head CI, security analysis and the guarded squash merge completed without an unresolved failure.
 rejected_hypotheses:
   - Modify the existing Liquid20 source catalog to host generic market-data declarations.
   - Copy or merge the open OKX shadow implementation into the generic package.
@@ -85,30 +86,24 @@ changed_paths:
   - tests/ai_platform_integration/test_market_data_universe.py
   - docs/agents/tasks/FTAI-20260726-market-data-fabric-foundation-v1.md
 validation:
-  - command: live-state preflight and open-PR ownership inspection
+  - command: required reads, live-state preflight and open-PR ownership inspection
     result: PASS
-    evidence: Current develop, PR 339, merged PRs 350 and 360, required documents and path ownership were verified.
-  - command: PYTHONPATH=. pytest -q tests/ai_platform_integration/test_market_data_*.py
+    evidence: Current develop, all required documents, PR 339, PR 376 and path ownership were inspected before merge.
+  - command: review PR 368 final 18-file diff and review state
     result: PASS
-    evidence: The focused synthetic foundation suite passed 24 tests and the published tests passed in AI Platform CI.
-  - command: python -m compileall -q ai_platform/market_data tests/ai_platform_integration/test_market_data_*.py
+    evidence: Contract, schema, source catalog, universe, capture and test files were reviewed; all review threads were resolved and outdated.
+  - command: GitHub Actions on exact PR head 93a036a35f26a37f1dcfc6b4020c9d9a22f5ec85
     result: PASS
-    evidence: Market-data modules and focused tests compiled locally and in AI Platform CI.
+    evidence: AI Platform CI run 30212190466, Freqtrade CI run 30212190442 and security run 30212190459 succeeded.
+  - command: focused synthetic Market Data Fabric suite
+    result: PASS
+    evidence: The exact PR head published 24 passing focused tests through AI Platform CI.
   - command: JSON parsing and Draft 2020-12 schema checks
     result: PASS
-    evidence: Source catalog, architecture manifest and contract schema validation passed.
-  - command: GitHub Actions AI Platform CI run 30211393132
+    evidence: Source catalog, architecture manifest and contract schema validation succeeded on the exact PR head.
+  - command: guarded squash merge of PR 368
     result: PASS
-    evidence: Compile, focused tests, Ruff, Ruff format, codespell and JSON validation all succeeded on a257278d5dc8be40055f75ff7ae3da228eb4443c.
-  - command: GitHub Actions Freqtrade CI run 30211393174
-    result: PASS
-    evidence: Pre-commit, documentation, Python 3.11 through 3.14 matrix, Mypy, packaging and CI gate succeeded.
-  - command: GitHub Actions security run 30211393145
-    result: PASS
-    evidence: Zizmor security analysis succeeded on the implementation tree.
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-market-data-fabric-foundation-v1.md --require-checkpoint
-    result: PASS
-    evidence: The compact checkpoint validates against docs/agents/GOVERNANCE_CONTRACT.json.
+    evidence: GitHub accepted expected head 93a036a35f26a37f1dcfc6b4020c9d9a22f5ec85 and created develop commit 0693c9f7bad2c5f68000c256e11a60603827bd9c.
 blockers: []
-next_action: Review and merge PR 368.
+next_action: Start a separate source and instrument-catalog live preflight task from current develop without implementing broad capture.
 ```

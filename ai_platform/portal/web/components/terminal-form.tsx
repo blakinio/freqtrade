@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
+import { csrfFetch } from "@/lib/client-fetch";
 import type { BotInstance, TerminalIntentResult } from "@/lib/contracts";
 
 export function TerminalForm({ bots }: { bots: BotInstance[] }) {
@@ -21,7 +22,7 @@ export function TerminalForm({ bots }: { bots: BotInstance[] }) {
     setError(null);
     const form = new FormData(event.currentTarget);
     try {
-      const response = await fetch("/api/terminal", {
+      const response = await csrfFetch("/api/terminal", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({

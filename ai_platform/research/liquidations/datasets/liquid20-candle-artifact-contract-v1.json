@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "contract_id": "liquid20-source-separated-candle-artifact-v1",
+  "classification": "diagnostic_public_market_data_only",
+  "source_catalog": {
+    "logical_path": "ai_platform/research/liquidations/source-catalog-v1.json",
+    "sha256": "4ead5a062bcd5516178cb954be2c5680610e78973d34688c2490173f23aee59c"
+  },
+  "symbol_universe": {
+    "logical_path": "ai_platform/research/liquidations/symbol-universes-v1.json",
+    "sha256": "a75bd2734275b837a14db359ff8d380936e01eab93af436433682e47442582f4",
+    "profile": "liquid20-v1"
+  },
+  "sources": [
+    {
+      "source": "bybit-linear",
+      "endpoint": "https://api.bybit.com/v5/market/kline",
+      "market": "linear perpetual trade-price candles",
+      "interval_parameter": "5",
+      "response_order": "reverse_start_time",
+      "public_market_data": true
+    },
+    {
+      "source": "binance-usdm",
+      "endpoint": "https://fapi.binance.com/fapi/v1/klines",
+      "market": "USD-M perpetual trade-price candles",
+      "interval_parameter": "5m",
+      "response_order": "ascending_start_time",
+      "public_market_data": true
+    }
+  ],
+  "protected_holdout": {
+    "start_ms": 1785542400000,
+    "end_ms": 1790812800000,
+    "start": "2026-08-01T00:00:00Z",
+    "end": "2026-10-01T00:00:00Z"
+  },
+  "policies": {
+    "credentials_allowed": false,
+    "orders_allowed": false,
+    "cross_exchange_deduplication": false,
+    "missing_candle_is_zero": false,
+    "containing_incomplete_candle_allowed": false,
+    "performance_research_authorized": false
+  }
+}

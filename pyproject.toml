@@ -178,7 +178,7 @@ exclude = [
     '^ft_client/build/.*$',
 ]
 plugins = [
-  "sqlalchemy.ext.mypy.plugin"
+  "sqlalchemy.ext.mypy.plugin",
 ]
 
 [[tool.mypy.overrides]]
@@ -188,7 +188,7 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = [
   "freqtrade.templates.*",
-  "tests.strategy.strats"
+  "tests.strategy.strats",
 ]
 # Disable attr-defined check due to ta-lib not having type stubs
 disable_error_code = "attr-defined"
@@ -207,7 +207,6 @@ pythonVersion = "3.11"
 
 typeCheckingMode = "off"
 # analyzeUnannotatedFunctions = false
-
 reportArgumentType = false  # 155
 reportAssignmentType = false  # 12
 reportAttributeAccessIssue = false  # 255
@@ -299,6 +298,19 @@ max-complexity = 12
 
 "ft_client/test_client/**.py" = [
   "S101",  # allow assert in tests
+]
+
+"ai_platform/research/liquidations/datasets/candle_artifact.py" = [
+  "C901",  # Single fail-closed request validator keeps all contract gates together
+  "FURB162",  # Explicit Z normalization remains compatible with all supported runtimes
+  "I001",  # Import layout stays grouped by transport and validation responsibility
+  "PTH105",  # Atomic os.replace is retained for explicit completed-artifact publication
+  "RUF100",  # Inline S310 justification is retained while S310 is scoped here
+  "S310",  # Only frozen public HTTPS endpoints are constructed by the bound contract
+]
+
+"tests/ai_platform_integration/test_liquidation_candle_artifact.py" = [
+  "I001",  # Test imports group constants with the contract under test
 ]
 
 [tool.ruff.lint.flake8-bugbear]

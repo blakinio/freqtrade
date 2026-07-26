@@ -1,0 +1,143 @@
+name: AI Platform Liquid20 Candle Artifact
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/research/liquidations/datasets/run-requests/liquid20-candle-diagnostic-20260724-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquid20-candle-artifact-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/research/liquidations/datasets/run-requests/liquid20-candle-diagnostic-20260724-v1.json
+  CONTRACT_PATH: ai_platform/research/liquidations/datasets/liquid20-candle-artifact-contract-v1.json
+  TASK_PATH: docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md
+  EVIDENCE_ROOT: liquid20-candle-diagnostic-20260724-v1
+
+jobs:
+  build-candle-artifact:
+    name: Build source-separated diagnostic candle artifact
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/research/liquidations/datasets/run-requests/liquid20-candle-diagnostic-20260724-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Candle artifact trigger must add exactly the canonical request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate bounded task checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Validate frozen request and contract
+        run: >-
+          python -m ai_platform.scripts.liquidation_candle_artifact
+          --request "$REQUEST_PATH"
+          --contract "$CONTRACT_PATH"
+          --validate-only
+
+      - name: Build public diagnostic candle artifact
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          python -m ai_platform.scripts.liquidation_candle_artifact
+          --request "$REQUEST_PATH"
+          --contract "$CONTRACT_PATH"
+          --output-root "$EVIDENCE_ROOT"
+          --code-commit "$HEAD_SHA"
+          > candle-artifact-result.json
+
+      - name: Verify artifact hashes and safety boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd "$EVIDENCE_ROOT"
+            sha256sum --check artifact-sha256.txt
+          )
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("liquid20-candle-diagnostic-20260724-v1")
+          manifest = json.loads((root / "candle-artifact-manifest.json").read_text())
+          assert manifest["schema_version"] == 1
+          assert manifest["artifact_type"] == "Liquid20CandleArtifactManifest"
+          assert manifest["purpose_classification"] == "diagnostic_only"
+          assert manifest["target_run_ids"] == ["liquid20-20260724T170830Z-1"]
+          assert manifest["source_separated"] is True
+          assert manifest["cross_exchange_deduplication"] is False
+          assert manifest["missing_candle_is_zero"] is False
+          assert manifest["performance_research_authorized"] is False
+          assert manifest["protected_holdout_check"]["passed"] is True
+          assert manifest["execution_safety"] == {
+              "orders_submitted": 0,
+              "trading_credentials_present": False,
+          }
+          artifacts = manifest["artifacts"]
+          assert len(artifacts) == 40
+          assert {item["source"] for item in artifacts} == {
+              "bybit-linear",
+              "binance-usdm",
+          }
+          assert all(item["record_count"] == 576 for item in artifacts)
+          assert len({(item["source"], item["symbol"]) for item in artifacts}) == 40
+          PY
+
+      - name: Upload bounded diagnostic evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: liquid20-candle-diagnostic-${{ github.event.pull_request.number }}
+          path: |
+            ${{ env.EVIDENCE_ROOT }}/
+            candle-artifact-result.json
+          if-no-files-found: error
+          retention-days: 90

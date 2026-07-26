@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   diagnose:
-    name: Capture RL-v2 seed-audit Ruff output
+    name: Emit canonical RL-v2 seed-audit formatting
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -27,23 +27,20 @@ jobs:
       - name: Install exact Ruff
         run: python -m pip install --disable-pip-version-check ruff==0.15.21
 
-      - name: Capture exact diagnostics
+      - name: Apply canonical lint and formatting in runner workspace
         run: |
+          ruff check --fix ai_platform/scripts/rl_v2_seed_effectiveness_audit.py
+          ruff format ai_platform/scripts/rl_v2_seed_effectiveness_audit.py
+          ruff check ai_platform/scripts/rl_v2_seed_effectiveness_audit.py
+          ruff format --check ai_platform/scripts/rl_v2_seed_effectiveness_audit.py
           mkdir -p diagnostic-output
-          ruff check \
-            ai_platform/scripts/rl_v2_seed_effectiveness_audit.py \
-            tests/ai_platform/test_rl_v2_seed_effectiveness_audit.py \
-            --output-format=concise \
-            > diagnostic-output/ruff.txt 2>&1 || true
-          ruff format --check \
-            ai_platform/scripts/rl_v2_seed_effectiveness_audit.py \
-            tests/ai_platform/test_rl_v2_seed_effectiveness_audit.py \
-            > diagnostic-output/ruff-format.txt 2>&1 || true
+          cp ai_platform/scripts/rl_v2_seed_effectiveness_audit.py \
+            diagnostic-output/rl_v2_seed_effectiveness_audit.py
 
-      - name: Upload diagnostic output
+      - name: Upload canonical file
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rl-v2-seed-audit-ruff-${{ github.event.pull_request.number }}
+          name: rl-v2-seed-audit-formatted-${{ github.event.pull_request.number }}
           path: diagnostic-output/
           if-no-files-found: error
           retention-days: 1

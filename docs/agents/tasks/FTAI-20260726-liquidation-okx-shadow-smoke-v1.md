@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-liquidation-okx-shadow-smoke-v1
-status: implementing
+status: validating
 branch: feat/liquidation-okx-shadow-smoke-v1
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: pending
+related_pr: "#386"
 owned_paths:
   - ai_platform/research/liquidations/okx-liquidation-shadow-smoke-policy-v1.json
   - ai_platform/scripts/liquidation_okx_shadow_smoke.py
@@ -35,11 +35,11 @@ separate exact-one-file trigger. Keep OKX outside `liquid20-v1`, LQ-02, replay, 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T18:45:00Z
-head: pending
+updated_at: 2026-07-26T18:50:00Z
+head: 968f1b1c85ab1d86b3854a9941231ec02d250eff
 branch: feat/liquidation-okx-shadow-smoke-v1
-pr: pending
-status: implementing
+pr: "#386"
+status: validating
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SOURCE.md
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SMOKE.md
@@ -54,6 +54,7 @@ owned_paths:
 proven:
   - PR 339 merged as 11ad81870c0b199b0739af9dcfa239cb32d455cc.
   - OKX remains shadow_only_not_in_liquid20_v1.
+  - Infrastructure commit 968f1b1c85ab1d86b3854a9941231ec02d250eff is published in PR 386.
   - The merged collector uses public endpoints, refuses recognized trading credentials and freezes instrument metadata.
   - Official OKX contracts still expose the public WebSocket, public time and public SWAP instrument metadata used by the collector.
 derived:
@@ -86,7 +87,7 @@ validation:
     evidence: The new Python sources parse and the frozen policy is valid JSON before publication.
   - command: repository CI on exact PR head
     result: NOT_RUN
-    evidence: Run after the infrastructure branch is published.
+    evidence: Exact-head CI is running on PR 386.
 blockers: []
 next_action: Merge the prospective smoke infrastructure after exact-head CI, then open a separate exact-one-file trigger PR and close it without merge after terminal evidence is captured.
 ```

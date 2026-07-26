@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import websockets
 from websockets.exceptions import WebSocketException
@@ -349,6 +350,166 @@ async def _collect_one_connection(
             )
 
 
+def _validated_collection_symbols(
+    symbols: Sequence[str],
+    instruments: Mapping[str, OkxInstrumentContract],
+) -> tuple[str, ...]:
+    normalized = tuple(
+        dict.fromkeys(symbol.strip().upper() for symbol in symbols if symbol.strip())
+    )
+    if not normalized:
+        raise ValueError("at least one symbol is required")
+    selected = {item.canonical_symbol for item in instruments.values()}
+    missing = sorted(set(normalized) - selected)
+    if missing:
+        raise ValueError(f"missing OKX instrument metadata for: {', '.join(missing)}")
+    return normalized
+
+
+async def _persist_instrument_snapshot(
+    *,
+    instruments: Mapping[str, OkxInstrumentContract],
+    instruments_url: str,
+    instrument_metadata_path: Path,
+) -> str:
+    snapshot = build_instrument_snapshot(
+        instruments=instruments,
+        instruments_url=instruments_url,
+        fetched_at_ms=time.time_ns() // 1_000_000,
+    )
+    await asyncio.to_thread(write_json_atomic, instrument_metadata_path, snapshot)
+    return await asyncio.to_thread(sha256_file, instrument_metadata_path)
+
+
+async def _run_collection_loop(
+    *,
+    endpoint: str,
+    symbols: tuple[str, ...],
+    instruments: Mapping[str, OkxInstrumentContract],
+    output_path: Path,
+    deadline: float | None,
+    reconnect_max_seconds: float,
+    recent_ids: RecentEventIds,
+    stats: CollectorRunStats,
+) -> str:
+    reconnect_delay = 1.0
+    while not _duration_complete(deadline):
+        try:
+            status = await _collect_one_connection(
+                endpoint=endpoint,
+                subscription=_subscription(),
+                deadline=deadline,
+                output_path=output_path,
+                instruments=instruments,
+                allowed_symbols=symbols,
+                recent_ids=recent_ids,
+                stats=stats,
+            )
+            if status == "completed_duration":
+                return status
+        except asyncio.CancelledError:
+            raise
+        except EXPECTED_CONNECTION_EXCEPTIONS:
+            if _duration_complete(deadline):
+                return "completed_duration"
+        remaining = _remaining_seconds(deadline)
+        sleep_seconds = reconnect_delay if remaining is None else min(reconnect_delay, remaining)
+        await asyncio.sleep(max(0.0, sleep_seconds))
+        reconnect_delay = min(reconnect_delay * 2.0, reconnect_max_seconds)
+    return "completed_duration" if _duration_complete(deadline) else "stopped"
+
+
+def _okx_summary(
+    *,
+    stats: CollectorRunStats,
+    endpoint: str,
+    symbols: tuple[str, ...],
+    output_path: Path,
+    output_initial_size_bytes: int,
+    collector_commit: str,
+    clock_probe: ClockProbeResult,
+    credentials_present: bool,
+    instrument_metadata_path: Path,
+    instruments_url: str,
+    metadata_sha256: str,
+    instrument_count: int,
+) -> dict[str, object]:
+    summary = build_collector_summary(
+        stats=stats,
+        endpoint=endpoint,
+        symbols=symbols,
+        output_path=output_path,
+        output_initial_size_bytes=output_initial_size_bytes,
+        collector_commit=collector_commit,
+        clock_probe=clock_probe,
+        trading_credentials_present=credentials_present,
+    )
+    source = summary["source"]
+    if not isinstance(source, dict):
+        raise TypeError("collector summary source must be an object")
+    source["id"] = OKX_USDT_SWAP_SOURCE
+    source["semantics"] = {
+        "stream": "liquidation-orders",
+        "subscription_scope": "all SWAP instruments with local canonical-symbol filtering",
+        "price": "bankruptcy price (bkPx)",
+        "raw_quantity": "contract count (sz)",
+        "normalized_quantity": "base quantity using frozen public ctVal metadata",
+        "status": "shadow_only_not_in_liquid20_v1",
+    }
+    summary["instrument_metadata"] = {
+        "file_name": instrument_metadata_path.name,
+        "endpoint": instruments_url,
+        "sha256": metadata_sha256,
+        "contract_count": instrument_count,
+    }
+    return summary
+
+
+async def _write_okx_summary(
+    *,
+    summary_path: Path | None,
+    stats: CollectorRunStats,
+    endpoint: str,
+    symbols: tuple[str, ...],
+    output_path: Path,
+    output_initial_size_bytes: int,
+    collector_commit: str,
+    clock_probe: ClockProbeResult | None,
+    credentials_present: bool,
+    instrument_metadata_path: Path,
+    instruments_url: str,
+    metadata_sha256: str,
+    instrument_count: int,
+    started_at_ms: int,
+) -> None:
+    if summary_path is None:
+        return
+    effective_clock_probe = clock_probe or ClockProbeResult(
+        checked_at_ms=started_at_ms,
+        server_time_url=DEFAULT_OKX_TIME_URL,
+        round_trip_ms=None,
+        absolute_skew_ms=None,
+        tolerance_ms=2_000,
+        synchronized=None,
+        error="clock probe not supplied",
+    )
+    summary = _okx_summary(
+        stats=stats,
+        endpoint=endpoint,
+        symbols=symbols,
+        output_path=output_path,
+        output_initial_size_bytes=output_initial_size_bytes,
+        collector_commit=collector_commit,
+        clock_probe=effective_clock_probe,
+        credentials_present=credentials_present,
+        instrument_metadata_path=instrument_metadata_path,
+        instruments_url=instruments_url,
+        metadata_sha256=metadata_sha256,
+        instrument_count=instrument_count,
+    )
+    await asyncio.to_thread(write_json_atomic, summary_path, summary)
+
+
 async def collect_okx_liquidations(
     *,
     endpoint: str,
@@ -369,113 +530,58 @@ async def collect_okx_liquidations(
         raise ValueError("duration_seconds must be > 0")
     if reconnect_max_seconds <= 0:
         raise ValueError("reconnect_max_seconds must be > 0")
-    normalized_symbols = tuple(
-        dict.fromkeys(symbol.strip().upper() for symbol in symbols if symbol.strip())
-    )
-    if not normalized_symbols:
-        raise ValueError("at least one symbol is required")
-    selected = {item.canonical_symbol for item in instruments.values()}
-    missing = sorted(set(normalized_symbols) - selected)
-    if missing:
-        raise ValueError(f"missing OKX instrument metadata for: {', '.join(missing)}")
-
+    normalized_symbols = _validated_collection_symbols(symbols, instruments)
     output_initial_size_bytes = await asyncio.to_thread(
         _prepare_output_path,
         output_path,
         require_new_output=require_new_output,
     )
-    metadata_snapshot = build_instrument_snapshot(
+    metadata_sha256 = await _persist_instrument_snapshot(
         instruments=instruments,
         instruments_url=instruments_url,
-        fetched_at_ms=time.time_ns() // 1_000_000,
+        instrument_metadata_path=instrument_metadata_path,
     )
-    await asyncio.to_thread(write_json_atomic, instrument_metadata_path, metadata_snapshot)
-    metadata_sha256 = await asyncio.to_thread(sha256_file, instrument_metadata_path)
 
     recent_ids = RecentEventIds()
     started_at_ms = time.time_ns() // 1_000_000
     stats = CollectorRunStats(started_at_ms=started_at_ms)
     deadline = time.monotonic() + duration_seconds if duration_seconds is not None else None
-    reconnect_delay = 1.0
     final_status = "stopped"
-
     try:
-        while not _duration_complete(deadline):
-            try:
-                status = await _collect_one_connection(
-                    endpoint=endpoint,
-                    subscription=_subscription(),
-                    deadline=deadline,
-                    output_path=output_path,
-                    instruments=instruments,
-                    allowed_symbols=normalized_symbols,
-                    recent_ids=recent_ids,
-                    stats=stats,
-                )
-                if status == "completed_duration":
-                    final_status = status
-                    break
-            except asyncio.CancelledError:
-                final_status = "cancelled"
-                raise
-            except EXPECTED_CONNECTION_EXCEPTIONS:
-                if _duration_complete(deadline):
-                    final_status = "completed_duration"
-                    break
-            remaining = _remaining_seconds(deadline)
-            sleep_seconds = (
-                reconnect_delay if remaining is None else min(reconnect_delay, remaining)
-            )
-            await asyncio.sleep(max(0.0, sleep_seconds))
-            reconnect_delay = min(reconnect_delay * 2.0, reconnect_max_seconds)
-        if _duration_complete(deadline):
-            final_status = "completed_duration"
+        final_status = await _run_collection_loop(
+            endpoint=endpoint,
+            symbols=normalized_symbols,
+            instruments=instruments,
+            output_path=output_path,
+            deadline=deadline,
+            reconnect_max_seconds=reconnect_max_seconds,
+            recent_ids=recent_ids,
+            stats=stats,
+        )
     except asyncio.CancelledError:
+        final_status = "cancelled"
         raise
     except Exception:
         final_status = "failed"
         raise
     finally:
         stats.finish(time.time_ns() // 1_000_000, status=final_status)
-        if summary_path is not None:
-            effective_clock_probe = clock_probe or ClockProbeResult(
-                checked_at_ms=started_at_ms,
-                server_time_url=DEFAULT_OKX_TIME_URL,
-                round_trip_ms=None,
-                absolute_skew_ms=None,
-                tolerance_ms=2_000,
-                synchronized=None,
-                error="clock probe not supplied",
-            )
-            summary = build_collector_summary(
-                stats=stats,
-                endpoint=endpoint,
-                symbols=normalized_symbols,
-                output_path=output_path,
-                output_initial_size_bytes=output_initial_size_bytes,
-                collector_commit=collector_commit,
-                clock_probe=effective_clock_probe,
-                trading_credentials_present=credentials_present,
-            )
-            source = summary["source"]
-            if not isinstance(source, dict):
-                raise TypeError("collector summary source must be an object")
-            source["id"] = OKX_USDT_SWAP_SOURCE
-            source["semantics"] = {
-                "stream": "liquidation-orders",
-                "subscription_scope": "all SWAP instruments with local canonical-symbol filtering",
-                "price": "bankruptcy price (bkPx)",
-                "raw_quantity": "contract count (sz)",
-                "normalized_quantity": "base quantity using frozen public ctVal metadata",
-                "status": "shadow_only_not_in_liquid20_v1",
-            }
-            summary["instrument_metadata"] = {
-                "file_name": instrument_metadata_path.name,
-                "endpoint": instruments_url,
-                "sha256": metadata_sha256,
-                "contract_count": len(instruments),
-            }
-            await asyncio.to_thread(write_json_atomic, summary_path, summary)
+        await _write_okx_summary(
+            summary_path=summary_path,
+            stats=stats,
+            endpoint=endpoint,
+            symbols=normalized_symbols,
+            output_path=output_path,
+            output_initial_size_bytes=output_initial_size_bytes,
+            collector_commit=collector_commit,
+            clock_probe=clock_probe,
+            credentials_present=credentials_present,
+            instrument_metadata_path=instrument_metadata_path,
+            instruments_url=instruments_url,
+            metadata_sha256=metadata_sha256,
+            instrument_count=len(instruments),
+            started_at_ms=started_at_ms,
+        )
     return stats
 
 

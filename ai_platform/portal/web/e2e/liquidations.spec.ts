@@ -1,15 +1,14 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-async function authenticateFixture(request: APIRequestContext) {
-  const response = await request.post("/api/identity/fixture-state", {
-    data: { state: "authenticated" },
-  });
-  expect(response.status()).toBe(200);
-}
+const fixtureReadHeaders = {
+  cookie:
+    "portal_fixture_identity_state=authenticated; portal_fixture_session=fixture-session-authenticated; portal_fixture_csrf=fixture-csrf-token",
+};
 
 test("serves versioned read-only liquidation BFF contracts", async ({ request }) => {
-  await authenticateFixture(request);
-  const healthResponse = await request.get("/api/market/liquidations/health");
+  const healthResponse = await request.get("/api/market/liquidations/health", {
+    headers: fixtureReadHeaders,
+  });
   expect(healthResponse.status()).toBe(200);
   expect(healthResponse.headers()["cache-control"]).toContain("no-store");
   const health = await healthResponse.json();
@@ -26,6 +25,7 @@ test("serves versioned read-only liquidation BFF contracts", async ({ request })
 
   const listResponse = await request.get(
     "/api/market/liquidations?source=binance-usdm&symbol=BTCUSDT&limit=20",
+    { headers: fixtureReadHeaders },
   );
   expect(listResponse.status()).toBe(200);
   const list = await listResponse.json();
@@ -42,6 +42,7 @@ test("serves versioned read-only liquidation BFF contracts", async ({ request })
 
   const summaryResponse = await request.get(
     "/api/market/liquidations/summary?side=long",
+    { headers: fixtureReadHeaders },
   );
   expect(summaryResponse.status()).toBe(200);
   const summary = await summaryResponse.json();
@@ -49,9 +50,23 @@ test("serves versioned read-only liquidation BFF contracts", async ({ request })
     expect.objectContaining({ event_count: 3, notional_usd: "18235" }),
   );
 
-  expect((await request.get("/api/market/liquidations?limit=201")).status()).toBe(422);
-  expect((await request.get("/api/market/liquidations?symbol=../../secret")).status()).toBe(422);
-  expect((await request.get("/api/market/liquidations?source=unknown")).status()).toBe(422);
+  expect(
+    (await request.get("/api/market/liquidations?limit=201", { headers: fixtureReadHeaders })).status(),
+  ).toBe(422);
+  expect(
+    (
+      await request.get("/api/market/liquidations?symbol=../../secret", {
+        headers: fixtureReadHeaders,
+      })
+    ).status(),
+  ).toBe(422);
+  expect(
+    (
+      await request.get("/api/market/liquidations?source=unknown", {
+        headers: fixtureReadHeaders,
+      })
+    ).status(),
+  ).toBe(422);
 });
 
 test("renders filters, truthful acceptance state, rankings and source semantics", async ({ page }) => {

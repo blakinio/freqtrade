@@ -5,12 +5,12 @@ from decimal import Decimal
 from typing import Any, Self
 
 from ai_platform.market_data.common import (
+    SCHEMA_VERSION,
     AvailabilityTimestampKind,
     EventType,
     Exchange,
     FrozenJsonObject,
     MarketType,
-    SCHEMA_VERSION,
     _json_compatible,
     _require_int,
     _require_text,

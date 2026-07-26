@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-residual-pytorch-research-foundation
-status: active
+status: completed
 branch: feat/residual-pytorch-research-foundation
 base_branch: develop
 created: 2026-07-26
@@ -38,22 +38,20 @@ Introduce the smallest useful custom neural-model successor to the existing seed
 
 ## Boundaries
 
-This package performs no market-data access, training on historical exchange data, backtesting, hyperparameter search, feature search, strict-OOS scoring, protected-final-holdout access, deployment, model promotion or profitability claim.
+This package performed no market-data access, training on historical exchange data, backtesting, hyperparameter search, feature search, strict-OOS scoring, protected-final-holdout access, deployment, model promotion or profitability claim.
 
-It does not change Freqtrade core, the frozen strategy thresholds, completed Phase 6, the authoritative `selected_model = null`, RL models or liquidation-data contracts.
+It did not change Freqtrade core, the frozen strategy thresholds, completed Phase 6, the authoritative `selected_model = null`, RL models or liquidation-data contracts.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T11:43:00+02:00
+updated_at: 2026-07-26T12:16:00+02:00
+implementation_head: a0aa39921e4136cd30b7d66eb0df71d44bd0fbab
+merge_commit: 1ed82158374684aa9a01b3d98e172fcca84ee88d
 branch: feat/residual-pytorch-research-foundation
 pr: 338
-status: second_reconstruction_pending_exact_head_ci
-base_develop_at_second_reconstruction: f49929bd151df878de8b83f83a909e68a70dcad8
-validated_checkpoint_refresh_head: 038dcd06317d0af60f71256809d41c8e9779d795
-previous_reconstructed_head: 14c6954aa92f1ad08a7e8c006d1533950ab092ab
-initial_head: 9c05b88acecb9fe37d79c8b8282fbb1add3d674a
+status: completed
 context_routes:
   - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md
   - ai_platform/experimental_model_research/residual-pytorch-research-contract-v1.json
@@ -69,35 +67,25 @@ owned_paths:
   - ai_platform/scripts/residual_pytorch_research_contract.py
   - tests/ai_platform/test_residual_pytorch_research_contract.py
 proven:
-  - PR 338 contains exactly the nine intended owned paths.
-  - No open pull request owns or changes any PR 338 path.
-  - PR 338 has no submitted reviews, review threads or unresolved review blocker.
+  - PR 338 merged exact implementation_head as merge_commit with exactly the nine intended owned paths.
+  - PR 338 was mergeable, non-draft, had no submitted reviews, no review threads and no unresolved review blocker at merge time.
+  - No open pull request owned or changed any PR 338 path during the final pre-merge audit.
   - ResidualPyTorchRegressor uses the supported BasePyTorchRegressor extension point.
   - The M1 network has an explicit residual addition, one target, AdamW and SmoothL1Loss.
   - The config is spot, dry_run, initial_state stopped, empty-secret and continual-learning disabled.
-  - The experiment has no execution/download timerange and no run request.
+  - The experiment has no execution or download timerange and no run request.
   - Phase 5 thresholds remain 0.006 and -0.009.
   - Authoritative Phase 6 evidence remains completed with selected_model null.
   - Consumed historical OOS 20260501-20260630 remains forbidden.
   - Protected final holdout 20260801-20260930 remains unused and unauthorized.
-  - Initial exact-head AI Platform CI 30195444286 run 1411 succeeded on initial_head.
-  - Initial exact-head Freqtrade CI 30195444278 run 1708 succeeded on initial_head.
-  - Initial exact-head Experimental Model Runtime Smoke 30195444285 run 76 succeeded on initial_head.
-  - Initial exact-head Zizmor 30195444300 run 1575 succeeded on initial_head.
-  - Reconstructed exact-head AI Platform CI 30196151286 run 1418 succeeded on previous_reconstructed_head.
-  - Reconstructed exact-head Freqtrade CI 30196151287 run 1717 succeeded on previous_reconstructed_head.
-  - Reconstructed exact-head Experimental Model Runtime Smoke 30196151282 run 77 succeeded on previous_reconstructed_head.
-  - Reconstructed exact-head Zizmor 30196151294 run 1584 succeeded on previous_reconstructed_head.
-  - Checkpoint-refresh exact-head AI Platform CI 30196672519 run 1421 succeeded on validated_checkpoint_refresh_head.
-  - Checkpoint-refresh exact-head Freqtrade CI 30196672535 run 1721 succeeded on validated_checkpoint_refresh_head.
-  - Checkpoint-refresh exact-head Experimental Model Runtime Smoke 30196672521 run 78 succeeded on validated_checkpoint_refresh_head.
-  - Checkpoint-refresh exact-head Zizmor 30196672552 run 1588 succeeded on validated_checkpoint_refresh_head.
-  - Pre-commit Types update 30196672530 run 1355 was skipped; Freqtrade CI pre-commit checks succeeded.
-  - All eight non-checkpoint files retained their prior blob SHA through both reconstructions.
-  - Develop-only advances touched no PR 338 owned path, but repository mergeability required another current-base reconstruction.
+  - Exact-head AI Platform CI 30197544469 run 1435 succeeded.
+  - Exact-head Freqtrade CI 30197544511 run 1739 succeeded, including pre-commit, documentation, Python 3.11 through 3.14, coverage, package build, Ruff, Ruff format and mypy where applicable.
+  - Exact-head Experimental Model Runtime Smoke 30197544464 run 80 succeeded; this existing smoke does not prove residual-specific P1 lifecycle support.
+  - Exact-head Zizmor 30197544539 run 1606 succeeded.
+  - Pre-commit Types update 30197544519 run 1370 was skipped; Freqtrade CI pre-commit checks succeeded.
 derived:
-  - P0 remains the only authorized scope of PR 338.
-  - Residual-specific runtime support still requires a separate P1 synthetic-only package.
+  - The bounded P0 foundation is accepted and merged.
+  - Residual-specific runtime support still requires a separate synthetic-only P1 task, branch and PR.
 unknown:
   - Residual-model resolver, fit, save, load and predict behavior under the dependency-closed Linux FreqAI profile.
   - CUDA behavior when CUDA is available.
@@ -105,14 +93,15 @@ unknown:
 conflicts: []
 first_failure:
   marker: RUFF_FORMAT_DRIFT
-  evidence: Initial source formatting differed from Ruff 0.15.21 output; canonical formatting was applied and required CI passed.
+  evidence: Initial source formatting differed from Ruff 0.15.21 output.
+  correction: Applied canonical Ruff formatting and required exact-head CI subsequently passed.
 first_live_blocker:
   marker: DEVELOP_ADVANCED_DURING_CI
-  evidence: Develop advanced during exact-head validation and GitHub repeatedly changed PR 338 to mergeable false despite no owned-path overlap.
-  correction: Reconstructed the exact bounded nine-file diff on each current develop base, replaced the PR branch atomically, and required fresh exact-head CI rather than force-merging.
+  evidence: Develop advanced repeatedly during exact-head validation and GitHub temporarily reported PR 338 as non-mergeable despite no owned-path overlap.
+  correction: Reconstructed the exact bounded nine-file tree on current develop without semantic expansion, required fresh exact-head CI and merged only after the final atomic audit passed.
 rejected_hypotheses:
   - Force-merge a non-mergeable PR.
-  - Add runtime smoke, market-data training or backtesting to PR 338.
+  - Add residual-specific runtime smoke, market-data training or backtesting to PR 338.
   - Reuse consumed historical OOS or the protected final holdout.
   - Treat the model as a Phase 6 candidate or compare it retrospectively with RL for promotion.
 changed_paths:
@@ -126,12 +115,11 @@ changed_paths:
   - ai_platform/scripts/residual_pytorch_research_contract.py
   - tests/ai_platform/test_residual_pytorch_research_contract.py
 validation:
-  - Latest completed AI Platform CI 30196672519 run 1421: success.
-  - Latest completed Freqtrade CI 30196672535 run 1721: success.
-  - Latest completed Experimental Model Runtime Smoke 30196672521 run 78: success; it does not prove residual P1 runtime.
-  - Latest completed Zizmor 30196672552 run 1588: success.
+  - AI Platform CI 30197544469 run 1435: success.
+  - Freqtrade CI 30197544511 run 1739: success.
+  - Experimental Model Runtime Smoke 30197544464 run 80: success; residual-specific runtime remains unknown.
+  - Zizmor 30197544539 run 1606: success.
   - Review state: no reviews and no review threads.
-blockers:
-  - Exact-head CI is required for the second reconstructed PR head.
-next_action: Replace feat/residual-pytorch-research-foundation with this current-develop reconstruction, verify the exact nine-file diff and all exact-head workflows, then squash-merge PR 338 immediately if mergeable and blocker-free. Start a separate P1 runtime-smoke task only after merge.
+blockers: []
+next_action: Start bounded task FTAI-20260726-residual-pytorch-runtime-smoke from merge_commit on a separate branch and PR; use only deterministic synthetic data and report runtime_supported, runtime_not_supported or runtime_inconclusive.
 ```

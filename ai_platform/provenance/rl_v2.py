@@ -360,7 +360,9 @@ def _scan_sensitive(value: Any, path: str = "$") -> None:
             _scan_sensitive(item, f"{path}[{index}]")
     elif isinstance(value, str):
         if _SENSITIVE_VALUE_RE.search(value) or _PRIVATE_ENDPOINT_RE.search(value):
-            raise RLV2ProvenanceError(f"{path}: secret-like or private endpoint value is forbidden")
+            raise RLV2ProvenanceError(
+                f"{path}: secret-like or private endpoint value is forbidden"
+            )
 
 
 def _validate_authorization(value: Any) -> None:
@@ -369,7 +371,9 @@ def _validate_authorization(value: Any) -> None:
     _exact_keys(item, AUTHORIZATION_BOOLEAN_FIELDS | {"phase6_selected_model"}, label)
     for field in AUTHORIZATION_BOOLEAN_FIELDS:
         if _boolean(item[field], f"{label}.{field}"):
-            raise RLV2ProvenanceError(f"Execution authorization must remain false: {field}")
+            raise RLV2ProvenanceError(
+                f"Execution authorization must remain false: {field}"
+            )
     if item["phase6_selected_model"] is not None:
         raise RLV2ProvenanceError("Phase 6 selected_model must remain null")
 
@@ -394,7 +398,10 @@ def _validate_environment(value: Any) -> None:
         "cudnn_version",
         "container_image_digest",
     }
-    fields = required_strings | nullable_strings | {"selected_device", "environment_variables"}
+    fields = required_strings | nullable_strings | {
+        "selected_device",
+        "environment_variables",
+    }
     _exact_keys(item, fields, label)
     for field in required_strings:
         _string(item[field], f"{label}.{field}")
@@ -447,7 +454,9 @@ def _validate_code_identity(value: Any) -> str:
     }
     fields = hash_fields | {"repository_commit_sha", "timerange", "pair_universe"}
     _exact_keys(item, fields, label)
-    commit = _string(item["repository_commit_sha"], f"{label}.repository_commit_sha") or ""
+    commit = (
+        _string(item["repository_commit_sha"], f"{label}.repository_commit_sha") or ""
+    )
     if not _GIT_SHA_RE.fullmatch(commit):
         raise RLV2ProvenanceError(
             f"{label}.repository_commit_sha must be lowercase Git SHA-1"
@@ -542,7 +551,11 @@ def _validate_seed_rng(value: Any) -> None:
         seen.add(device)
         _sha256(row["sha256"], f"{row_label}.sha256")
     _string_list(item["initialization_order"], f"{label}.initialization_order")
-    _boolean(item["consumed_before_snapshot"], f"{label}.consumed_before_snapshot", True)
+    _boolean(
+        item["consumed_before_snapshot"],
+        f"{label}.consumed_before_snapshot",
+        True,
+    )
 
 
 def _validate_nullable_hashes(value: Any, label: str, fields: set[str]) -> None:
@@ -575,8 +588,16 @@ def _validate_artifacts(value: Any, label: str, model_artifact: bool) -> None:
         if model_artifact:
             _string(row["format"], f"{row_label}.format")
             _string_list(row["writer_versions"], f"{row_label}.writer_versions")
-            _sha256(row["semantic_digest_sha256"], f"{row_label}.semantic_digest_sha256", True)
-            _sha256(row["file_digest_sha256"], f"{row_label}.file_digest_sha256", True)
+            _sha256(
+                row["semantic_digest_sha256"],
+                f"{row_label}.semantic_digest_sha256",
+                True,
+            )
+            _sha256(
+                row["file_digest_sha256"],
+                f"{row_label}.file_digest_sha256",
+                True,
+            )
             _integer(row["byte_size"], f"{row_label}.byte_size", True)
             _boolean(row["reread_verified"], f"{row_label}.reread_verified", True)
         else:
@@ -599,8 +620,11 @@ def _validate_dataset(value: Any, expected_digest: str) -> None:
         "protected_final_holdout_accessed",
     }
     _exact_keys(item, fields, label)
-    if _sha256(item["manifest_sha256"], f"{label}.manifest_sha256") != expected_digest:
-        raise RLV2ProvenanceError("Dataset manifest identity does not match code/config binding")
+    actual_digest = _sha256(item["manifest_sha256"], f"{label}.manifest_sha256")
+    if actual_digest != expected_digest:
+        raise RLV2ProvenanceError(
+            "Dataset manifest identity does not match code/config binding"
+        )
     _string(item["source_identity"], f"{label}.source_identity")
     if _boolean(item["cache_restore_used"], f"{label}.cache_restore_used"):
         raise RLV2ProvenanceError("Cache restore must be false")
@@ -620,7 +644,9 @@ def _path_value(value: Mapping[str, Any], path: str) -> Any:
     current: Any = value
     for segment in path.split("."):
         if not isinstance(current, dict) or segment not in current:
-            raise RLV2ProvenanceError(f"Optional field path is structurally missing: {path}")
+            raise RLV2ProvenanceError(
+                f"Optional field path is structurally missing: {path}"
+            )
         current = current[segment]
     return current
 
@@ -628,7 +654,9 @@ def _path_value(value: Mapping[str, Any], path: str) -> Any:
 def collect_missing_optional_fields(manifest: Mapping[str, Any]) -> list[str]:
     """Return sorted nullable schema paths whose explicit value is null."""
 
-    return sorted(path for path in OPTIONAL_FIELD_PATHS if _path_value(manifest, path) is None)
+    return sorted(
+        path for path in OPTIONAL_FIELD_PATHS if _path_value(manifest, path) is None
+    )
 
 
 def _validate_structure(manifest: Mapping[str, Any]) -> None:
@@ -653,12 +681,16 @@ def _validate_structure(manifest: Mapping[str, Any]) -> None:
     }
     _exact_keys(manifest, fields, "manifest")
     if manifest["schema_version"] != SCHEMA_VERSION:
-        raise RLV2ProvenanceError(f"Unsupported schema_version: {manifest['schema_version']}")
+        raise RLV2ProvenanceError(
+            f"Unsupported schema_version: {manifest['schema_version']}"
+        )
     manifest_id = _string(manifest["manifest_id"], "manifest.manifest_id") or ""
     if not _ID_RE.fullmatch(manifest_id):
         raise RLV2ProvenanceError("manifest.manifest_id has invalid syntax")
     if manifest["classification"] not in PROVENANCE_CLASSIFICATIONS:
-        raise RLV2ProvenanceError(f"Unknown classification: {manifest['classification']}")
+        raise RLV2ProvenanceError(
+            f"Unknown classification: {manifest['classification']}"
+        )
     _validate_authorization(manifest["authorization"])
     _validate_environment(manifest["execution_environment"])
     _validate_dependencies(manifest["runtime_dependencies"])
@@ -680,7 +712,10 @@ def _validate_structure(manifest: Mapping[str, Any]) -> None:
         "optimizer_state",
         {"state_digest_sha256"},
     )
-    model_artifacts = _object(manifest["serialized_model_artifacts"], "serialized_model_artifacts")
+    model_artifacts = _object(
+        manifest["serialized_model_artifacts"],
+        "serialized_model_artifacts",
+    )
     _exact_keys(model_artifacts, {"artifacts"}, "serialized_model_artifacts")
     _validate_artifacts(
         model_artifacts["artifacts"],

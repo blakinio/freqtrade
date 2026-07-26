@@ -47,8 +47,8 @@ Create one canonical human-readable and machine-readable architecture and contin
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T07:11:00Z
-head: c44358a310455c6c6589eac8011d6a02a1856f10
+updated_at: 2026-07-26T09:22:00+02:00
+head: 8003de22b600a7c8f1a93f37bfbec367184ee59f
 branch: docs/portal-liquidations-ai-bot-architecture-20260726
 pr: 323
 status: reviewing
@@ -72,29 +72,30 @@ proven:
   - PR #311 merged the same-origin BFF and Likwidacje UI as 228b5ad3eb12c6adab300ab86461d3fa67acaa47.
   - PR #313 merged the Synology read-only integration as 1bf106fb5919706cca4db4f8245e00d2a1932df9.
   - Authoritative develop deployment run 30191687921 passed for the merged Synology integration.
-  - The existing portal module is market-data and research preview only and carries trading_authorized false.
+  - PR #320 Bot Operations merged as 7fc2dde2f40b31b23ef719109af6e54898b09102 and its closure PR #324 merged as fa4158db5073bcdab34d3a41eb0b9af196821513.
+  - The existing Liquidations module is market-data and research preview only and carries trading_authorized false.
   - The Wick Hunter-inspired foundation remains a separate research track without a validated profitability or execution claim.
   - The new architecture document defines data, trust, synchronization, strategy, AI, risk, execution, testing and agent-handoff boundaries.
   - A versioned JSON manifest preserves current component identity, routes, paths, invariants, dependencies and revalidation requirements.
   - Stale read-model and UI checkpoints now record their completed merged state, and the completed Synology checkpoint routes future work through the canonical architecture.
-  - PR #323 is open as a documentation-only review package with no overlap with open Bot Operations PR #320.
+  - PR #323 is current with develop and has no owned-path conflict with completed Bot Operations work.
 derived:
   - Future agents can start from one source rather than reconstructing state from prompt, PR and task fragments.
   - The next legal strategy work starts with accepted dataset selection and a prospective deterministic replay contract, not order integration.
 unknown:
-  - Final CI state for PR #323 current head.
+  - Final current-head CI state for PR #323 after newline normalization.
   - Current mutable runtime state after the recorded develop deployment; every operational task must reverify it.
   - Current newest Liquid20 acceptance outcome.
-conflicts:
-  - Open PR #320 owns bot-operation implementation paths and its own task record; this documentation package has no owned-path overlap.
+conflicts: []
 first_failure:
-  marker: none
-  evidence: Repository source documents and merged implementation records were consistent after stale task states were identified.
+  marker: MISSING_FINAL_NEWLINES
+  evidence: Freqtrade CI run 30192552953 failed only the pre-commit job because end-of-file-fixer identified five Markdown files without a final newline; documentation build, AI Platform CI and zizmor passed on the same head.
 rejected_hypotheses:
   - Treat the portal page, collector availability or a completed data run as a validated trading strategy.
   - Add trading controls or execution authority to the Liquidations page.
   - Combine collection, replay, AI, DCA, leverage and live capital into one work package.
   - Let future agents rely on the historical implementation prompt instead of current repository state.
+  - Change codespell or repository-wide pre-commit policy for a file-format defect.
 changed_paths:
   - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
   - docs/ai_platform/portal/liquidations-ai-bot-architecture-v1.json
@@ -112,7 +113,16 @@ validation:
     evidence: Current merged Liquid20 portal packages, exact merge SHAs, current open PR ownership, source contracts and deployment checkpoint were inspected before writing.
   - command: JSON structure review
     result: PASS
-    evidence: The machine-readable manifest was authored as strict JSON with no comments or trailing commas.
+    evidence: The machine-readable manifest is strict JSON with no comments or trailing commas.
+  - command: AI Platform CI run 30192552967 on head 0d81ece6e7900e381392e6a561c61a213c68d82d
+    result: PASS
+    evidence: AI Platform validation completed successfully.
+  - command: GitHub Actions Security Analysis run 30192552965 on head 0d81ece6e7900e381392e6a561c61a213c68d82d
+    result: PASS
+    evidence: Zizmor completed successfully.
+  - command: Freqtrade CI run 30192552953 on head 0d81ece6e7900e381392e6a561c61a213c68d82d
+    result: FAIL
+    evidence: Documentation build passed; pre-commit failed only because five Markdown files lacked a final newline.
 blockers: []
-next_action: Require current-head repository CI on PR #323 and squash-merge only after all required checks pass.
+next_action: Normalize the remaining architecture file newline, run all required checks on the exact current head and squash-merge PR #323 only after success.
 ```

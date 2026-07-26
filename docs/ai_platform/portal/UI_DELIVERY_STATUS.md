@@ -39,6 +39,8 @@ P9 PR #158 delivered the Safe Continual Learning backend foundation but did not 
 
 `FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
 
+`FTAI-20260726-portal-bot-operations-completion` converges existing canonical bot, runtime-evidence, performance, valuation, risk, observability and audit reads into the bot fleet and Bot Detail routes. PR #320 also exposes the existing immutable-revision and desired-state control-plane commands through same-origin BFF routes with capability, confirmation, stale-state, conflict and idempotency behavior. It creates no order-submission or credential authority.
+
 Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Current task selection and repair ordering are routed through `NEXT_WORK_AND_REPAIR_PLAN.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
 
 ## Current surface matrix
@@ -51,8 +53,8 @@ Remaining authoritative-source and external/private integration work is routed t
 | Trading Terminal | `/terminal` | integrated, execution still fail-closed | deterministic risk intent API |
 | Orders | `/orders` | integrated for runtime evidence | private collector -> operational mirror with source identity, freshness and reconciliation; unattributed runtime orders are `MISMATCH` |
 | Trade History | `/trades` | integrated for runtime evidence | canonical runtime trade mirror with source timestamps, realized fields when present and explicit mismatch/unavailable semantics; no fabricated current price |
-| View Bots | `/bots` | integrated basic fleet, operations convergence planned | control-plane bot API; canonical operations/valuation/risk evidence is not yet composed into the fleet table |
-| Bot Detail | `/bots/detail/[botId]` | integrated configuration read, operations convergence planned | control-plane bot API; bot-scoped operations and lifecycle mutations are not yet exposed by the web workflow |
+| View Bots | `/bots` | integrated operational fleet | bounded server-side composition of control-plane bots plus attributable runtime-evidence, performance, valuation, risk and audit summaries; filters are server-rendered and private endpoints remain hidden |
+| Bot Detail | `/bots/detail/[botId]` | integrated bot-scoped operations and lifecycle workflow | tenant/bot-filtered configuration, runtime source status, positions, orders, trades, valuation, risk, audit and runtime logs plus same-origin immutable-revision and desired-state BFF commands |
 | Create Bot | `/bots/new` | integrated for dry-run | same-origin BFF -> control plane |
 | Signal Wizard | `/bots/signals` | integrated | tenant-scoped advisory SignalEvent persistence; never grants execution authority |
 | Strategy Catalog | `/bots/strategies` | integrated | immutable server-side portal strategy metadata; no research promotion authority |
@@ -73,20 +75,20 @@ Remaining authoritative-source and external/private integration work is routed t
 | Profile & Security | `/platform/profile` | partially integrated | trusted actor/tenant/permission context; MFA credentials and session revocation remain external-IdP-owned |
 | Administration | `/platform/admin` | partially integrated | `ADMIN_MANAGE`-gated built-in RBAC overview; tenant membership lifecycle remains external-IdP-owned |
 
-## Bot Operations completion gap
+## Bot Operations completion
 
-The control plane already supports immutable revision and desired-state mutations, but the web client currently exposes only bot list/get/create behavior. The next bounded product task should compose existing canonical APIs rather than create a new execution authority.
+The bot fleet and Bot Detail routes now compose existing canonical APIs instead of creating a second operational source or execution authority.
 
-Required completion scope:
+Delivered behavior:
 
-- enrich `/bots` with attributable open-position, PNL availability, risk, runtime-health and last-activity summaries plus bounded filters;
-- enrich `/bots/detail/[botId]` with bot-scoped positions, orders, trades, valuations, risk decisions, runtime logs and audit evidence;
-- add same-origin BFF/client support for `POST /v1/bots/{bot_id}/revisions`;
-- add same-origin BFF/client support for `POST /v1/bots/{bot_id}/desired-state`;
-- render permission-denied, conflict, stale, partial, unavailable, mutation-pending and confirmation states;
-- preserve immutable revisions, tenant attribution, auditability and private runtime boundaries.
+- `/bots` exposes attributable open-position count, realized PNL, unrealized-PNL availability, risk state, runtime health, last attributable activity and bounded environment/status/exchange/strategy/model/market/risk filters;
+- `/bots/detail/[botId]` exposes bot-scoped source status, positions, orders, trades, valuations, risk decisions, runtime logs and append-only audit evidence;
+- immutable configuration changes use a same-origin BFF over `POST /v1/bots/{bot_id}/revisions` and require the next revision identity;
+- start/pause/stop controls use a same-origin BFF over `POST /v1/bots/{bot_id}/desired-state`, preserve desired/observed separation and reject stale expected state;
+- permission-denied, conflict, stale, partial, unavailable, unpriced, empty and mutation-pending states remain explicit;
+- browser code receives no private Freqtrade, exchange, observability or secret-store endpoint or credential.
 
-This package must not implement `submit_approved_intent`, exchange credential injection, external notification delivery, P11 infrastructure or live capital. Detailed entry gates and acceptance are in `NEXT_WORK_AND_REPAIR_PLAN.md`.
+The package does not implement `submit_approved_intent`, exchange credential injection, external notification delivery, P11 infrastructure or live capital.
 
 ## PI-01 freshness and reconciliation semantics
 
@@ -118,7 +120,6 @@ The remaining partial states depend on authoritative sources or separately revie
 
 | Boundary | Canonical package/stage |
 |---|---|
-| bot-scoped operational convergence and lifecycle/revision UI | `NEXT_WORK_AND_REPAIR_PLAN.md` Bot Operations completion package |
 | real target-environment Loki/Tempo/Prometheus connectivity and dashboards | PI-04 deployment configuration |
 | external email/webhook/push delivery | `PI-05` External Notification Delivery |
 | product authentication, MFA, session revocation and tenant membership lifecycle | `PI-06` Product Identity and Session Lifecycle |
@@ -133,6 +134,8 @@ P13 remains deferred until measured need. P14 remains blocked and separately own
 API mode never fabricates PNL, valuation, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status. PI-04 runtime-log absence never changes audit records or runtime-health claims.
 
 The normalized operational mirror is the only portal-facing runtime trade evidence boundary. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` use the private collector but return records only for complete, current and synced reads; stale, partial, unavailable and mismatched evidence fails closed or remains explicitly degraded in the mirror.
+
+Bot Operations composes those reads server-side and forwards only same-origin immutable-revision and desired-state commands. Lifecycle controls never submit exchange orders, and desired state never substitutes for observed runtime reconciliation.
 
 Signal evidence is advisory and cannot create execution authority. Grid configuration is constrained to `dry_run`. Browser code still has no direct Freqtrade, exchange, secret-store or observability-backend path.
 

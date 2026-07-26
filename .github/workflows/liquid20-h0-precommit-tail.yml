@@ -15,15 +15,18 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Check out repository
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
-
       - name: Run full pre-commit and show compact result
         shell: bash
         run: |
           set -euo pipefail
+          curl --fail --silent --show-error --location \
+            https://github.com/blakinio/freqtrade/archive/001a9bc3c0ece507c081a9bd091ab062b7aa197b.tar.gz \
+            -o /tmp/source.tar.gz
+          mkdir /tmp/source
+          tar -xzf /tmp/source.tar.gz --strip-components=1 -C /tmp/source
+          cd /tmp/source
+          git init --quiet
+          git add --all
           python -m pip install --disable-pip-version-check --quiet pre-commit
           if ! pre-commit run --all-files > /tmp/precommit.log 2>&1; then
             tail -n 45 /tmp/precommit.log

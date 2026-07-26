@@ -15,23 +15,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          persist-credentials: false
       - name: Run focused Ruff diagnostics
         shell: bash
         run: |
           set -euo pipefail
+          mkdir source
+          curl --fail --silent --show-error --location \
+            https://api.github.com/repos/blakinio/freqtrade/tarball/4fec76fe2aa5eb62acad58945f6cca11755b98d4 \
+            | tar --extract --gzip --strip-components=1 --directory=source
           python -m pip install --quiet ruff==0.15.21
           set +e
           ruff check \
-            ai_platform/research/liquidations/historical \
-            tests/ai_platform_integration/test_liquidation_history_contracts.py
+            source/ai_platform/research/liquidations/historical \
+            source/tests/ai_platform_integration/test_liquidation_history_contracts.py
           check_rc=$?
           ruff format --check --diff \
-            ai_platform/research/liquidations/historical \
-            tests/ai_platform_integration/test_liquidation_history_contracts.py
+            source/ai_platform/research/liquidations/historical \
+            source/tests/ai_platform_integration/test_liquidation_history_contracts.py
           format_rc=$?
           set -e
           if [ "$check_rc" -ne 0 ] || [ "$format_rc" -ne 0 ]; then

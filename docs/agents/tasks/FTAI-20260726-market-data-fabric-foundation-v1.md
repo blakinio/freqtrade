@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-market-data-fabric-foundation-v1
-status: validating
+status: ready
 branch: feat/market-data-fabric-foundation-v1
 base_branch: develop
 created: 2026-07-26
@@ -41,11 +41,11 @@ Create the first bounded provider-neutral contract and deterministic-universe fo
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T14:27:00+02:00
-head: d4406e4b4e2761dbab99a2911be8eb73a7a3ebd7
+updated_at: 2026-07-26T19:13:00+02:00
+head: 688a70f3eca003310fc0e43119517e29105a040e
 branch: feat/market-data-fabric-foundation-v1
 pr: "#368"
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/market_data/ARCHITECTURE.md
   - docs/ai_platform/market_data/architecture-v1.json
@@ -57,24 +57,21 @@ owned_paths:
   - tests/ai_platform_integration/test_market_data_*.py
   - docs/agents/tasks/FTAI-20260726-market-data-fabric-foundation-v1.md
 proven:
-  - Task declaration started from develop bef49bdf4d914c2aa363d99621cdb7b80fd16c9d and the branch was rebuilt on current develop be7b387fa1090ee72b9ba4200f6e71098ed1d2ac.
-  - No generic ai_platform/market_data package existed before this task.
-  - PR 339 remains open and owns only existing liquidation-specific OKX paths.
-  - PR 350 and PR 360 merged while this task was active; their paths remain disjoint from this package.
-  - PR 368 is open, non-draft, mergeable and contains only the declared 18 new-path files.
-  - The package defines real event, instrument, universe, capture, segment, gap and manifest contracts with deterministic identities and fail-closed validation.
-  - The deterministic selector supports all-active, Top 100 and Top 20 profiles using supplied synthetic snapshots only and performs no network calls.
-  - All six initial source declarations remain not implemented, not validated and not accepted.
-  - No live capture request, raw market record, credential, order, model, replay, portal or deployment change is present.
+  - PR 368 is open, non-draft, mergeable and its final diff contains exactly the declared 18 files.
+  - The package defines provider-neutral event, instrument, universe, capture, segment, gap and manifest contracts with deterministic identities and fail-closed validation.
+  - Deterministic all-active, Top 100 and Top 20 selectors operate only on supplied snapshots and perform no network calls.
+  - All six initial Binance, Bybit and OKX source declarations remain not implemented, not validated and not accepted.
+  - No live capture, raw market record, credential, order, model, replay, portal or deployment change is present.
+  - PR 339 remains open on disjoint liquidation-specific OKX paths; PRs 350 and 360 merged without path overlap.
+  - The implementation tree at a257278d5dc8be40055f75ff7ae3da228eb4443c passed AI Platform CI, full Freqtrade CI and security analysis.
 derived:
   - The generic package can coexist with Liquid20 without moving or reinterpreting existing contracts or timestamps.
-  - The next package can be a separate source and instrument-catalog live preflight after this foundation is reviewed.
-unknown:
-  - Exact-current-head GitHub Actions outcome for PR 368.
+  - The next package should be a separate source and instrument-catalog live preflight after PR 368 is merged.
+unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: No implementation failure is unresolved; local Ruff was unavailable in the network-isolated sandbox, so repository CI is authoritative.
+  evidence: All implementation, lint, format, type, documentation, matrix and security checks are green; no unresolved failure remains.
 rejected_hypotheses:
   - Modify the existing Liquid20 source catalog to host generic market-data declarations.
   - Copy or merge the open OKX shadow implementation into the generic package.
@@ -90,22 +87,28 @@ changed_paths:
 validation:
   - command: live-state preflight and open-PR ownership inspection
     result: PASS
-    evidence: Current develop, PR 339, merged PRs 350 and 360, required documents and path ownership were verified before and after implementation.
+    evidence: Current develop, PR 339, merged PRs 350 and 360, required documents and path ownership were verified.
   - command: PYTHONPATH=. pytest -q tests/ai_platform_integration/test_market_data_*.py
     result: PASS
-    evidence: The pre-publication synthetic foundation suite passed 24 tests; exact published test files remain subject to repository CI.
+    evidence: The focused synthetic foundation suite passed 24 tests and the published tests passed in AI Platform CI.
   - command: python -m compileall -q ai_platform/market_data tests/ai_platform_integration/test_market_data_*.py
     result: PASS
-    evidence: The pre-publication market-data modules and focused tests compiled successfully.
+    evidence: Market-data modules and focused tests compiled locally and in AI Platform CI.
   - command: JSON parsing and Draft 2020-12 schema checks
     result: PASS
-    evidence: The source catalog, architecture manifest and contract schema parsed and the schema passed Draft202012Validator.check_schema.
-  - command: exact-current-head repository CI on PR 368
-    result: NOT_RUN
-    evidence: GitHub Actions is queued for the checkpoint predecessor d4406e4b4e2761dbab99a2911be8eb73a7a3ebd7 and must rerun on this checkpoint commit.
+    evidence: Source catalog, architecture manifest and contract schema validation passed.
+  - command: GitHub Actions AI Platform CI run 30211393132
+    result: PASS
+    evidence: Compile, focused tests, Ruff, Ruff format, codespell and JSON validation all succeeded on a257278d5dc8be40055f75ff7ae3da228eb4443c.
+  - command: GitHub Actions Freqtrade CI run 30211393174
+    result: PASS
+    evidence: Pre-commit, documentation, Python 3.11 through 3.14 matrix, Mypy, packaging and CI gate succeeded.
+  - command: GitHub Actions security run 30211393145
+    result: PASS
+    evidence: Zizmor security analysis succeeded on the implementation tree.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-market-data-fabric-foundation-v1.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Run against this governance-valid checkpoint before handoff.
+    result: PASS
+    evidence: The compact checkpoint validates against docs/agents/GOVERNANCE_CONTRACT.json.
 blockers: []
-next_action: Complete exact-current-head GitHub Actions for PR 368, repair the first non-green required job if any, then update this checkpoint to ready.
+next_action: Review and merge PR 368.
 ```

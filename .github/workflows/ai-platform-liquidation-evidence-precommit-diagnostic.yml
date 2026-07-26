@@ -8,7 +8,7 @@ on:
       - .github/workflows/ai-platform-liquidation-evidence-precommit-diagnostic.yml
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   diagnose:
@@ -20,7 +20,6 @@ jobs:
       - name: Checkout exact branch head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          persist-credentials: false
           ref: docs/liquid20-candle-evidence-publication
 
       - name: Set up Python
@@ -34,18 +33,18 @@ jobs:
           set -euo pipefail
           python -m pip install --disable-pip-version-check pre-commit
           set +e
-          pre-commit run --all-files --show-diff-on-failure > precommit-output.txt 2>&1
+          pre-commit run --all-files --show-diff-on-failure > precommit-diagnostic.txt 2>&1
           status=$?
           set -e
-          printf '%s\n' "$status" > precommit-status.txt
-          cat precommit-output.txt
+          printf '\nPRE_COMMIT_EXIT_STATUS=%s\n' "$status" >> precommit-diagnostic.txt
+          cat precommit-diagnostic.txt
 
-      - name: Upload diagnostic
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: liquid20-evidence-precommit-diagnostic
-          path: |
-            precommit-output.txt
-            precommit-status.txt
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit diagnostic output
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add precommit-diagnostic.txt
+          git commit -m "chore(liquidations): capture temporary pre-commit diagnostic"
+          git push origin HEAD:docs/liquid20-candle-evidence-publication

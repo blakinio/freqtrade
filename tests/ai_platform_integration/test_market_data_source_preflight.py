@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 from jsonschema import Draft202012Validator
 
@@ -22,13 +23,13 @@ EXPECTED_SOURCES = {
 }
 
 
-def _load(path: Path) -> dict[str, object]:
+def _load(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
     return payload
 
 
-def _canonical_sha256(payload: dict[str, object]) -> str:
+def _canonical_sha256(payload: dict[str, Any]) -> str:
     return hashlib.sha256(
         json.dumps(
             payload,

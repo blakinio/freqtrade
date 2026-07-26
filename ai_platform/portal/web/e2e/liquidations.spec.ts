@@ -1,6 +1,14 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+
+async function authenticateFixture(request: APIRequestContext) {
+  const response = await request.post("/api/identity/fixture-state", {
+    data: { state: "authenticated" },
+  });
+  expect(response.status()).toBe(200);
+}
 
 test("serves versioned read-only liquidation BFF contracts", async ({ request }) => {
+  await authenticateFixture(request);
   const healthResponse = await request.get("/api/market/liquidations/health");
   expect(healthResponse.status()).toBe(200);
   expect(healthResponse.headers()["cache-control"]).toContain("no-store");

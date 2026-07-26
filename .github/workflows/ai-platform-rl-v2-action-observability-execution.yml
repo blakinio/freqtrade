@@ -1,0 +1,431 @@
+name: AI Platform RL-v2 Action Observability Execution
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/experimental_model_research/run-requests/rl-v2-action-observability-execution-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rl-v2-action-observability-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/experimental_model_research/run-requests/rl-v2-action-observability-execution-v1.json
+  CONTRACT_PATH: ai_platform/experimental_model_research/rl-v2-action-observability-execution-contract-v1.json
+  TASK_PATH: docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution.md
+  BASE_CONFIG: ai_platform/configs/rl_v2_training_research.json
+  DATA_DIR: user_data/data/kraken
+  EVIDENCE_ROOT: rl-v2-action-observability-evidence
+  DOWNLOAD_TIMERANGE: 20250601-20251101
+  EXECUTION_TIMERANGE: 20250901-20251101
+
+jobs:
+  validate-request:
+    name: Validate four-seed action-observability request
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact observability request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate trigger PR scope before runtime or data access
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/experimental_model_research/run-requests/rl-v2-action-observability-execution-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Action-observability PR must add exactly the canonical request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate bounded execution checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Validate canonical request and frozen contract
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/request"
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_run_request \
+            "$REQUEST_PATH"
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_run_request \
+            --print-canonical > "$EVIDENCE_ROOT/request/canonical-request.json"
+          cp "$REQUEST_PATH" "$EVIDENCE_ROOT/request/run-request.json"
+          cp "$CONTRACT_PATH" "$EVIDENCE_ROOT/request/execution-contract.json"
+
+      - name: Upload request validation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-action-observability-request-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/request/
+          if-no-files-found: error
+          retention-days: 90
+
+  data:
+    name: Prepare fresh history (${{ matrix.pair }})
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - pair: BTC/USDT
+            slug: btc-usdt
+          - pair: ETH/USDT
+            slug: eth-usdt
+
+    steps:
+      - name: Checkout exact observability request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate bounded execution checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependency-closed FreqAI RL runtime
+        run: python -m pip install --disable-pip-version-check --quiet -e ".[freqai,freqai_rl]"
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Download only the fresh declared Kraken history
+        run: |
+          freqtrade download-data \
+            --config "$BASE_CONFIG" \
+            --pairs "${{ matrix.pair }}" \
+            --timeframes 15m 1h 4h \
+            --timerange "$DOWNLOAD_TIMERANGE" \
+            --dl-trades \
+            --convert
+
+      - name: Verify fresh pair coverage
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/data-${{ matrix.slug }}"
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_run_request \
+            --verify-data "$DATA_DIR" --pair "${{ matrix.pair }}" \
+            > "$EVIDENCE_ROOT/data-${{ matrix.slug }}/coverage.json"
+
+      - name: Upload fresh pair data for this workflow only
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-action-observability-data-${{ matrix.slug }}-${{ github.event.pull_request.number }}
+          path: ${{ env.DATA_DIR }}/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload immutable pair coverage evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-action-observability-coverage-${{ matrix.slug }}-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/data-${{ matrix.slug }}/
+          if-no-files-found: error
+          retention-days: 90
+
+  seed-backtest:
+    name: Execute observable lifecycle seed ${{ matrix.seed }}
+    needs: data
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        seed:
+          - 271828182
+          - 628318530
+          - 1414213562
+          - 1618033988
+    env:
+      EXECUTION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      SEED: ${{ matrix.seed }}
+
+    steps:
+      - name: Checkout exact observability request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate bounded execution checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install dependency-closed FreqAI RL runtime
+        run: python -m pip install --disable-pip-version-check --quiet -e ".[freqai,freqai_rl]"
+
+      - name: Prepare research user directory
+        run: freqtrade create-userdir --userdir user_data
+
+      - name: Download the fresh same-run pair artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rl-v2-action-observability-data-*-${{ github.event.pull_request.number }}
+          path: ${{ env.DATA_DIR }}
+          merge-multiple: true
+
+      - name: Re-verify combined fresh market data
+        run: |
+          mkdir -p "$EVIDENCE_ROOT/seed-$SEED"
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_run_request \
+            --verify-data "$DATA_DIR" \
+            > "$EVIDENCE_ROOT/seed-$SEED/data-coverage.json"
+
+      - name: Re-validate canonical request immediately before execution
+        run: >-
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_run_request
+          "$REQUEST_PATH"
+
+      - name: Materialize frozen observable seed config
+        run: >-
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_run_request
+          --materialize-config "$RUNNER_TEMP/rl-v2-observable-seed-$SEED.json"
+          --seed "$SEED"
+
+      - name: Run exactly one instrumented lifecycle seed backtest
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$GITHUB_WORKSPACE"
+          seed_root="$EVIDENCE_ROOT/seed-$SEED"
+          telemetry="$seed_root/telemetry"
+          config="$RUNNER_TEMP/rl-v2-observable-seed-$SEED.json"
+          rm -rf user_data/backtest_results "$telemetry"
+          mkdir -p user_data/backtest_results "$seed_root" "$telemetry"
+
+          strategy_path="ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py"
+          model_path="ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py"
+          export RL_V2_ACTION_OBSERVABILITY_ENABLED=1
+          export RL_V2_ACTION_OBSERVABILITY_OUTPUT_DIR="$telemetry"
+          export RL_V2_ACTION_OBSERVABILITY_GIT_COMMIT="$EXECUTION_HEAD_SHA"
+          export RL_V2_ACTION_OBSERVABILITY_STRATEGY_SHA256="$(sha256sum "$strategy_path" | cut -d' ' -f1)"
+          export RL_V2_ACTION_OBSERVABILITY_MODEL_NAME="DesiredPositionReinforcementLearner"
+          export RL_V2_ACTION_OBSERVABILITY_MODEL_SHA256="$(sha256sum "$model_path" | cut -d' ' -f1)"
+          export RL_V2_ACTION_OBSERVABILITY_CONFIG_SHA256="$(sha256sum "$config" | cut -d' ' -f1)"
+          export RL_V2_ACTION_OBSERVABILITY_IDENTIFIER="rl-v2-action-observability-fresh-v1-seed-$SEED"
+          export RL_V2_ACTION_OBSERVABILITY_SEED="$SEED"
+          export RL_V2_ACTION_OBSERVABILITY_TIMERANGE="$EXECUTION_TIMERANGE"
+          export RL_V2_ACTION_OBSERVABILITY_TIMEFRAME=15m
+
+          set +e
+          freqtrade backtesting \
+            --config "$config" \
+            --timerange "$EXECUTION_TIMERANGE" \
+            --fee 0.002 \
+            --cache none \
+            --export trades \
+            > "$seed_root/backtest.log" \
+            2> "$seed_root/backtest-error.log"
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 ]]; then
+            echo "::group::RL-v2 action-observability seed $SEED stderr"
+            cat "$seed_root/backtest-error.log" || true
+            echo "::endgroup::"
+            exit "$status"
+          fi
+
+          mapfile -t archives < <(
+            find user_data/backtest_results -maxdepth 1 -type f -name '*.zip' -print | sort
+          )
+          if [[ "${#archives[@]}" -ne 1 ]]; then
+            echo "Expected exactly one backtest archive, found ${#archives[@]}" >&2
+            exit 1
+          fi
+          cp "${archives[0]}" "$seed_root/raw-backtest.zip"
+          cp "$config" "$seed_root/effective-runtime-config.json"
+
+      - name: Validate and extract deterministic action evidence
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from ai_platform.scripts.rl_v2_action_observability import (
+              validate_action_observability_artifacts,
+          )
+
+          root = Path(os.environ["EVIDENCE_ROOT"]) / f"seed-{os.environ['SEED']}"
+          validate_action_observability_artifacts(root / "telemetry")
+          PY
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_evidence \
+            extract "$EVIDENCE_ROOT/seed-$SEED/raw-backtest.zip" \
+            --telemetry-dir "$EVIDENCE_ROOT/seed-$SEED/telemetry" \
+            --runtime-config "$EVIDENCE_ROOT/seed-$SEED/effective-runtime-config.json" \
+            --seed "$SEED" \
+            --output "$EVIDENCE_ROOT/seed-$SEED/seed-action-evidence.json"
+
+      - name: Record bounded per-seed provenance
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          seed = int(os.environ["SEED"])
+          root = Path(os.environ["EVIDENCE_ROOT"]) / f"seed-{seed}"
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          evidence = json.loads(
+              (root / "seed-action-evidence.json").read_text(encoding="utf-8")
+          )
+          payload = {
+              "schema_version": 1,
+              "evidence_id": evidence["evidence_id"],
+              "request_id": request["request_id"],
+              "execution_head_sha": os.environ["EXECUTION_HEAD_SHA"],
+              "seed": seed,
+              "classification": request["evidence_classification"],
+              "strict_oos": False,
+              "protected_final_validation": False,
+              "profitability_is_non_gating": True,
+              "executed_freqtrade_commands": 1,
+              "executed_command": "backtesting",
+              "prior_seed_rerun": False,
+              "cache_restore_used": False,
+              "consumed_historical_oos_accessed": False,
+              "protected_final_holdout_accessed": False,
+              "automatic_decision": False,
+              "automatic_ranking": False,
+              "automatic_promotion": False,
+          }
+          (root / "evidence-metadata.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload immutable per-seed action evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-action-observability-seed-${{ matrix.seed }}-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/seed-${{ matrix.seed }}/
+          if-no-files-found: error
+          retention-days: 90
+
+  aggregate:
+    name: Aggregate four-seed action-observability evidence
+    needs: seed-backtest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      EXECUTION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+    steps:
+      - name: Checkout exact observability request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate bounded execution checkpoint
+        run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Download exactly the four fresh seed artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: rl-v2-action-observability-seed-*-${{ github.event.pull_request.number }}
+          path: downloaded-seed-evidence
+          merge-multiple: false
+
+      - name: Aggregate descriptive action evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE_ROOT/aggregate"
+          mapfile -t evidence_files < <(
+            find downloaded-seed-evidence -type f -name seed-action-evidence.json -print | sort
+          )
+          if [[ "${#evidence_files[@]}" -ne 4 ]]; then
+            echo "Expected exactly four seed evidence files, found ${#evidence_files[@]}" >&2
+            exit 1
+          fi
+          python -m ai_platform.scripts.rl_v2_action_observability_execution_evidence \
+            aggregate "${evidence_files[@]}" \
+            --output "$EVIDENCE_ROOT/aggregate/action-observability-aggregate.json"
+
+      - name: Record aggregate provenance
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["EVIDENCE_ROOT"]) / "aggregate"
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          aggregate = json.loads(
+              (root / "action-observability-aggregate.json").read_text(encoding="utf-8")
+          )
+          payload = {
+              "schema_version": 1,
+              "evidence_id": aggregate["evidence_id"],
+              "request_id": request["request_id"],
+              "execution_head_sha": os.environ["EXECUTION_HEAD_SHA"],
+              "classification": request["evidence_classification"],
+              "strict_oos": False,
+              "protected_final_validation": False,
+              "profitability_is_non_gating": True,
+              "new_seed_execution_count": 4,
+              "prior_seed_rerun": False,
+              "cache_restore_used": False,
+              "decision": None,
+              "automatic_decision": False,
+              "consumed_historical_oos_accessed": False,
+              "protected_final_holdout_accessed": False,
+              "automatic_ranking": False,
+              "automatic_promotion": False,
+          }
+          (root / "evidence-metadata.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload immutable aggregate action evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-action-observability-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/aggregate/
+          if-no-files-found: error
+          retention-days: 90

@@ -87,11 +87,12 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T22:18:00+02:00
-head: fed6bd3af96bd437740889b538fd16a3246c8291
+updated_at: 2026-07-26T22:50:00+02:00
+head: 3c91758ace75e73a3ea9a4eb7bfc1828f01fd444
+merge_commit: fc210dd68f0998176e3bf2da3bd29b231a511ae7
 branch: feat/residual-pytorch-bounded-m1-execution
 pr: 395
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md
   - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md
@@ -122,18 +123,19 @@ proven:
   - P2 implementation merged as fee90dce7fadd5320d7279a51e45dc91026e903f and its closeout merged as e5317845819fee4ff054ed782f22435b7cd91a20.
   - The declaration-only P3 task merged as 286a97e6dd460f320e7f15f597c4f9883c8a6365 before infrastructure implementation.
   - P3 freezes one 90-day pre-March training window and March-April development coverage with exclusive stop 2026-05-01.
-  - PR 395 adds the inert audit, three comparator tracks, evidence instrumentation and exact-one-file workflow without the canonical run request.
-  - The workflow has no fallback cache restore keys and cannot run from the infrastructure PR.
+  - PR 395 squash-merged as fc210dd68f0998176e3bf2da3bd29b231a511ae7 from exact head 3c91758ace75e73a3ea9a4eb7bfc1828f01fd444 with exactly twenty intended infrastructure paths and no active review blocker.
+  - Final exact-head AI Platform CI 30219312717, Experimental Model Runtime Smoke 30219312715, zizmor 30219312693 and Freqtrade CI 30219312702 succeeded.
+  - The merged infrastructure contains no canonical run request and therefore performed no market-data access, matrix audit, training or backtest.
 derived:
-  - March-April results are historical development evidence, not fresh strict OOS and not selection authorization.
+  - March-April results will be historical development evidence, not fresh strict OOS and not selection authorization.
   - The exact expanded feature count and historical distributions can be resolved only by the guarded real-matrix audit before comparator fitting.
 unknown:
   - Exact FreqAI-expanded feature count and historical NaN, outlier and target distributions.
   - Whether all three frozen models complete the bounded historical-development lifecycle.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: Infrastructure exact-head CI has not completed yet.
+  marker: DEPENDENCY_LIGHT_AND_STATIC_ANALYSIS_GATES
+  evidence: Initial infrastructure imported NumPy and Pandas during dependency-light discovery and later exposed Ruff and mypy violations; lazy runtime imports, conditional numeric tests, formatting and typed dynamic mixin interfaces corrected only the confirmed failures before final exact-head validation.
 rejected_hypotheses:
   - Reuse consumed May-June historical OOS for tuning or selection.
   - Access the protected final holdout.
@@ -161,12 +163,18 @@ changed_paths:
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
   - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
 validation:
-  - command: python -m py_compile generated bounded M1 Python files
+  - command: AI Platform CI 30219312717
     result: PASS
-    evidence: All generated Python modules compiled before publication.
-  - command: parse all generated bounded M1 JSON files
+    evidence: Exact-head run 1720 passed dependency-light tests, Ruff, format, codespell and JSON validation.
+  - command: Experimental Model Runtime Smoke 30219312715
     result: PASS
-    evidence: Contract, configs and manifests parsed as JSON before publication.
+    evidence: Exact-head run 145 passed the dependency-closed canonical PyTorch and RL runtime smoke.
+  - command: Freqtrade CI 30219312702
+    result: PASS
+    evidence: Exact-head run 2076 passed pre-commit, documentation, Python 3.11 through 3.14, coverage, distribution build and CI Gate.
+  - command: zizmor 30219312693
+    result: PASS
+    evidence: Exact-head run 1939 completed successfully.
 blockers: []
-next_action: Verify PR 395 exact-head AI Platform CI, Freqtrade CI, zizmor and review state; fix only confirmed failures, then squash-merge the inert infrastructure if green and create a separate exact-one-file run-request PR without merging it.
+next_action: Add the canonical residual-pytorch-bounded-m1-execution-v1 run request on a separate branch and exact-one-file PR from current develop, monitor the terminal workflow, collect all evidence artifacts, and close the trigger PR without merge.
 ```

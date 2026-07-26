@@ -77,7 +77,9 @@ def install_csrf_middleware(app: FastAPI, service: IdentityService) -> None:
         return await call_next(request)
 
 
-def register_identity_routes(app: FastAPI, service: IdentityService) -> None:
+def register_identity_routes(  # noqa: C901
+    app: FastAPI, service: IdentityService
+) -> None:
     @app.exception_handler(IdentityAuthenticationError)
     async def authentication_error_handler(
         _request: Request,

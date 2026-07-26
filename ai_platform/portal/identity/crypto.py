@@ -28,7 +28,9 @@ class IdentitySecrets:
 class IdentityCrypto:
     def __init__(self, secrets_value: IdentitySecrets):
         self._session_hmac_key = secrets_value.session_hmac_key
-        fernet_key = base64.urlsafe_b64encode(hashlib.sha256(secrets_value.flow_encryption_key).digest())
+        fernet_key = base64.urlsafe_b64encode(
+            hashlib.sha256(secrets_value.flow_encryption_key).digest()
+        )
         self._fernet = Fernet(fernet_key)
 
     @staticmethod

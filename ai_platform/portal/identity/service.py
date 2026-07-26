@@ -11,11 +11,7 @@ from ai_platform.portal.contracts.identity import ActorType, Permission, RoleNam
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.identity.crypto import IdentityCrypto
-from ai_platform.portal.identity.models import (
-    IdentityPrincipalRow,
-    PortalSessionRow,
-    TenantMembershipRow,
-)
+from ai_platform.portal.identity.models import PortalSessionRow, TenantMembershipRow
 from ai_platform.portal.identity.oidc import OidcClientProtocol, pkce_challenge
 from ai_platform.portal.identity.repository import (
     IdentityNotFoundError,

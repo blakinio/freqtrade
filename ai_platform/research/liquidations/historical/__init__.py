@@ -1,4 +1,4 @@
-"""Provider-neutral historical liquidation contracts and acceptance primitives."""
+"""Historical liquidation contracts, adapters and local import primitives."""
 
 from ai_platform.research.liquidations.historical.acceptance import (
     AcceptanceStatus,
@@ -12,6 +12,10 @@ from ai_platform.research.liquidations.historical.contracts import (
     HistoricalLiquidationEvent,
     deterministic_historical_event_id,
     historical_event_fingerprint,
+)
+from ai_platform.research.liquidations.historical.importer import (
+    HistoricalLocalImporter,
+    ImportArtifactSet,
 )
 from ai_platform.research.liquidations.historical.manifests import (
     HistoricalImportManifest,
@@ -33,6 +37,8 @@ __all__ = [
     "HistoricalAcceptanceReport",
     "HistoricalImportManifest",
     "HistoricalLiquidationEvent",
+    "HistoricalLocalImporter",
+    "ImportArtifactSet",
     "RawFileDescriptor",
     "SemanticEra",
     "SemanticEraRegistry",

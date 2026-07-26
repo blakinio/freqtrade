@@ -45,9 +45,10 @@ def test_published_manifest_and_checksum_index_are_coherent() -> None:
         *(artifact["logical_name"] for artifact in artifacts),
         "candle-artifact-manifest.json",
     }
-    assert checksums["candle-artifact-manifest.json"] == hashlib.sha256(
-        MANIFEST_PATH.read_bytes()
-    ).hexdigest()
+    assert (
+        checksums["candle-artifact-manifest.json"]
+        == hashlib.sha256(MANIFEST_PATH.read_bytes()).hexdigest()
+    )
     assert all(checksums[item["logical_name"]] == item["sha256"] for item in artifacts)
     assert all(item["record_count"] == 576 for item in artifacts)
     assert all(item["start_ms"] == 1784851200000 for item in artifacts)
@@ -66,12 +67,14 @@ def test_evidence_envelope_binds_workflow_and_safety_state() -> None:
     assert evidence["workflow_artifact"]["digest"] == (
         "sha256:d3d25327c1b8f70a89638f26d95aae495b27b96a684add830581f2755e146cfd"
     )
-    assert evidence["repository_evidence"]["manifest_file_sha256"] == hashlib.sha256(
-        MANIFEST_PATH.read_bytes()
-    ).hexdigest()
-    assert evidence["repository_evidence"]["checksum_file_sha256"] == hashlib.sha256(
-        CHECKSUM_PATH.read_bytes()
-    ).hexdigest()
+    assert (
+        evidence["repository_evidence"]["manifest_file_sha256"]
+        == hashlib.sha256(MANIFEST_PATH.read_bytes()).hexdigest()
+    )
+    assert (
+        evidence["repository_evidence"]["checksum_file_sha256"]
+        == hashlib.sha256(CHECKSUM_PATH.read_bytes()).hexdigest()
+    )
     assert evidence["independent_verification"]["artifact_count"] == 40
     assert evidence["independent_verification"]["total_records"] == 23040
     assert evidence["independent_verification"]["source_separated"] is True

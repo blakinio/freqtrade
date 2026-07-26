@@ -4,10 +4,12 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 from ai_platform.research.liquidations.datasets.candle_artifact import (
     CandleArtifactError,
     build_artifact,
+    http_json,
     load_request,
 )
 
@@ -17,6 +19,10 @@ DEFAULT_CONTRACT = (
     REPO_ROOT
     / "ai_platform/research/liquidations/datasets/liquid20-candle-artifact-contract-v1.json"
 )
+SOURCE_BY_HOST = {
+    "api.bybit.com": "bybit-linear",
+    "fapi.binance.com": "binance-usdm",
+}
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -27,6 +33,24 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--code-commit")
     parser.add_argument("--validate-only", action="store_true")
     return parser.parse_args(argv)
+
+
+def _request_identity(url: str) -> tuple[str, str]:
+    parsed = urlparse(url)
+    source = SOURCE_BY_HOST.get(parsed.hostname or "", parsed.hostname or "unknown-source")
+    symbol_values = parse_qs(parsed.query).get("symbol", [])
+    symbol = symbol_values[0] if symbol_values else "unknown-symbol"
+    return source, symbol
+
+
+def contextual_http_json(url: str) -> object:
+    try:
+        return http_json(url)
+    except CandleArtifactError as exc:
+        source, symbol = _request_identity(url)
+        raise CandleArtifactError(
+            f"public candle request failed for source={source} symbol={symbol}: {exc}"
+        ) from exc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -65,6 +89,7 @@ def main(argv: list[str] | None = None) -> int:
             output_root=args.output_root.resolve(),
             repo_root=REPO_ROOT,
             code_commit=args.code_commit,
+            fetch_json=contextual_http_json,
         )
         print(json.dumps(manifest, indent=2, sort_keys=True))
         return 0

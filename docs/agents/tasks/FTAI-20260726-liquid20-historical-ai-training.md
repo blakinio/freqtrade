@@ -121,8 +121,8 @@ not be coupled to the initial backfill or model execution.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T08:10:00Z
-head: 12b77e491a741ea1796c7280de9fe63664201a74
+updated_at: 2026-07-26T08:25:00Z
+head: ba9e6bb8fcc1a14428703b48aee3add5fa1fa533
 branch: feat/liquid20-historical-provider-preflight-v1
 pr: "#336"
 status: blocked
@@ -182,13 +182,16 @@ validation:
     evidence: Exact metadata and four sample hashes, sizes and aggregate inspections were emitted; no raw artifact was uploaded.
   - command: python -m pytest -q tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
     result: PASS
-    evidence: 7 passed in 0.03s.
+    evidence: 7 passed in 1.21s, including Draft 2020-12 schema validation.
   - command: JSON Schema Draft 2020-12 validation
     result: PASS
     evidence: Contract validates against provider-decision-v1.schema.json.
   - command: python -m compileall tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
     result: PASS
     evidence: Test module compiled successfully.
+  - command: python tools/agents/checkpoint.py <task> --require-checkpoint and python tools/agents/resume.py --task <task>
+    result: PASS
+    evidence: GitHub Actions run 30194369706 job 89773120359 validated the checkpoint and generated a non-empty continuation prompt containing the exact next action.
 blockers:
   - Owner must approve Tardis commercial access and exact quote.
   - Owner must accept the license classification and raw redistribution restriction.

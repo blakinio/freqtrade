@@ -145,7 +145,7 @@ jobs:
             --config ai_platform/configs/freqai-residual-pytorch-m1-data-audit.example.json \
             --pairs "${{ matrix.pair }}" \
             --timeframes 15m 1h 4h \
-            --timerange 20250801-20260501 \
+            --timerange 1754006400-1777593599 \
             --dl-trades \
             --convert
 

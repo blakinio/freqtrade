@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freqtrade.local/schemas/liquid20/historical-import-acceptance-v1.schema.json",
+  "title": "Liquid20 historical import acceptance report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "import_run_id",
+    "manifest_identity_sha256",
+    "status",
+    "total_records",
+    "accepted_records",
+    "rejected_records",
+    "duplicate_records",
+    "rejection_reasons",
+    "accepted_event_ids_sha256",
+    "earliest_occurred_at_ms",
+    "latest_occurred_at_ms",
+    "minimum_availability_latency_ms",
+    "maximum_availability_latency_ms",
+    "protected_holdout_excluded"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "import_run_id": {"type": "string", "minLength": 1},
+    "manifest_identity_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "status": {"enum": ["pass", "fail"]},
+    "total_records": {"type": "integer", "minimum": 0},
+    "accepted_records": {"type": "integer", "minimum": 0},
+    "rejected_records": {"type": "integer", "minimum": 0},
+    "duplicate_records": {"type": "integer", "minimum": 0},
+    "rejection_reasons": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 1}
+    },
+    "accepted_event_ids_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "earliest_occurred_at_ms": {"type": ["integer", "null"], "minimum": 1},
+    "latest_occurred_at_ms": {"type": ["integer", "null"], "minimum": 1},
+    "minimum_availability_latency_ms": {"type": ["integer", "null"]},
+    "maximum_availability_latency_ms": {"type": ["integer", "null"]},
+    "protected_holdout_excluded": {"const": true}
+  }
+}

@@ -5,158 +5,109 @@ branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "#350"
+related_pr: "#350, #371, #373, #375"
 owned_paths:
-  - ai_platform/research/liquidations/datasets/__init__.py
   - ai_platform/research/liquidations/datasets/candle_artifact.py
   - ai_platform/research/liquidations/datasets/liquid20-candle-artifact-contract-v1.json
   - ai_platform/scripts/liquidation_candle_artifact.py
+  - deploy/synology/liquid20-candle-artifact/
   - tests/ai_platform_integration/test_liquidation_candle_artifact.py
+  - tests/ai_platform_integration/test_liquidation_candle_failure_evidence.py
+  - tests/ai_platform_integration/test_liquidation_candle_synology_runtime.py
   - .github/workflows/ai-platform-liquidation-candle-artifact.yml
-  - pyproject.toml
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md
 required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
-  - docs/ai_platform/ARCHITECTURE.md
-  - docs/ai_platform/ROADMAP.md
-  - docs/ai_platform/LIQUIDATION_MULTI_SOURCE.md
-  - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
-  - docs/ai_platform/portal/LIQUIDATIONS_AI_BOT_IMPLEMENTATION_BLUEPRINT.md
-  - docs/ai_platform/portal/liquidations-ai-bot-artifact-contracts-v1.json
+  - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
 search_first:
-  - current develop, open PR ownership and exact required checks
-  - Synology issue 148 and completed Liquid20 run status
-  - existing candle evidence, download workflows and protected-holdout boundaries
+  - published candle evidence envelope and workflow artifact retention
+  - current Liquid20 final reports and passed true status
+  - durable Synology raw artifact storage
 optional_reads: []
 ---
 
-# LQ-02 source-separated candle artifact infrastructure
+# LQ-02 source-separated candle artifact
 
-## Goal
+## Result
 
-Implement only the deterministic infrastructure needed to create a source-separated, versioned 5-minute candle artifact for the completed failed Liquid20 run. The first request remains diagnostic-only and cannot authorize replay or performance research.
+The infrastructure and bounded Synology runtime are merged. Trigger PR `#375` closed without merge after workflow run `30205769267` successfully created and verified source-separated Bybit linear and Binance USD-M 5-minute candles for `2026-07-24T00:00:00Z` through `2026-07-26T00:00:00Z`.
 
-## Declared artifact
+The package contains 40 source-symbol files, 576 records each and 23,040 records total. Independent verification reproduced the archive digest, exact manifest file hash, manifest self-hash, all 41 checksum entries, continuous timestamp coverage, source/pair identity, protected-holdout exclusion, zero orders and no trading credentials.
 
-The later exact-one-file trigger request will bind:
+Repository evidence is published under `docs/ai_platform/liquidations/datasets/`. The raw GitHub artifact is retained until `2026-10-24T14:17:16Z`; a durable raw Synology archive is not yet proven.
 
-- Liquid20 run `liquid20-20260724T170830Z-1`;
-- UTC window `2026-07-24T00:00:00Z` inclusive through `2026-07-26T00:00:00Z` exclusive;
-- timeframe `5m`;
-- exact ordered `liquid20-v1` membership and Freqtrade futures pair mapping;
-- separate Bybit linear and Binance USD-M trade-price candle files;
-- 576 candles for each of 40 source-symbol files;
-- immutable file hashes, counts, coverage and source identities;
-- `performance_research_authorized: false`.
-
-The selected window ends before the protected holdout and contains only completed candles. A missing, duplicated, malformed or source-mismatched candle fails the entire artifact atomically.
-
-## Execution separation
-
-The merged infrastructure contains no run request and performs no network data download. A separate PR may add exactly:
-
-`ai_platform/research/liquidations/datasets/run-requests/liquid20-candle-diagnostic-20260724-v1.json`
-
-The dedicated workflow accepts only that one added file, uses public endpoints without credentials, writes source-separated evidence, verifies every hash and uploads a bounded 90-day diagnostic artifact. The trigger PR must close without merge after terminal evidence is captured.
-
-The workflow path is an unavoidable dependency because the requested public source files do not exist in the repository and must be generated against a reviewed exact commit. The narrow `pyproject.toml` change adds per-file Ruff exceptions only for the fail-closed validator and frozen HTTPS transport; it changes no global lint rule. No deployment, order, portal, credential or live-capital behavior is added.
-
-## Safety boundaries
-
-- failed Liquid20 evidence remains diagnostic-only;
-- no completed run is relabelled accepted;
-- no cross-exchange deduplication or unlabeled summation;
-- no missing candle becomes zero;
-- no incomplete candle is admitted;
-- no exchange credential is accepted;
-- no order, strategy, replay, model, DCA, leverage or live capital;
-- no protected-holdout access;
-- no browser or portal exposure.
+The bound Liquid20 run remains failed and diagnostic-only. This package does not authorize replay or performance research.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T12:16:00Z
-head: e448c7137e4787525cbba1da2c90a8a98812e219
+updated_at: 2026-07-26T14:30:00Z
+head: a4642ce59116e9e08eab37c0cdabcdbeace02314
 branch: develop
-pr: "#350"
+pr: "#350, #371, #373, #375"
 status: ready
 context_routes:
+  - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
-  - docs/ai_platform/portal/LIQUIDATIONS_AI_BOT_IMPLEMENTATION_BLUEPRINT.md
   - docs/ai_platform/portal/liquidations-ai-bot-artifact-contracts-v1.json
-  - docs/ai_platform/LIQUIDATION_MULTI_SOURCE.md
 owned_paths:
-  - ai_platform/research/liquidations/datasets/__init__.py
   - ai_platform/research/liquidations/datasets/candle_artifact.py
   - ai_platform/research/liquidations/datasets/liquid20-candle-artifact-contract-v1.json
   - ai_platform/scripts/liquidation_candle_artifact.py
+  - deploy/synology/liquid20-candle-artifact/
   - tests/ai_platform_integration/test_liquidation_candle_artifact.py
+  - tests/ai_platform_integration/test_liquidation_candle_failure_evidence.py
+  - tests/ai_platform_integration/test_liquidation_candle_synology_runtime.py
   - .github/workflows/ai-platform-liquidation-candle-artifact.yml
-  - pyproject.toml
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md
 proven:
-  - Blocked LQ-02 dataset-selection preflight is merged as a9f818e1f5f5948fc095f374a554952e3d070e33.
-  - Completed run liquid20-20260724T170830Z-1 failed exactly binance-usdm.maximum_latency_over_threshold_ratio and remains diagnostic-only.
-  - Active run liquid20-20260725T212201Z-1 had no final report at the last Synology status check.
-  - No adequate versioned candle artifact exists yet.
-  - The declared 2026-07-24 through 2026-07-26 window is before the protected 2026-08-01 through 2026-10-01 holdout.
-  - The contract binds source catalog and liquid20-v1 universe SHA-256 identities and preserves ordered source-separated membership.
-  - Focused validation passes 10 deterministic tests, Python compilation, exact Ruff 0.15.21 lint and formatting, mypy and repository pre-commit.
-  - PR 350 merged the eight-file infrastructure package as e448c7137e4787525cbba1da2c90a8a98812e219 with no run request or temporary diagnostic workflow.
-  - Exact candidate head 4320eba3a68fb34359639236675c4d3bf50f7fe3 passed AI Platform CI 1523, Freqtrade CI 1839, GitHub Actions Security Analysis 1704 and Experimental Model Runtime Smoke 124.
-  - Trigger PR 366 passed exact-one-file scope and stopped before network access because the merged checkpoint used unsupported status reviewing.
+  - PR 350 merged deterministic candle artifact infrastructure.
+  - PR 371 merged bounded failure evidence with source and symbol context.
+  - PR 373 merged the non-root bounded Synology runtime.
+  - PR 375 closed without merge after workflow run 30205769267 succeeded.
+  - Artifact 8633031826 has archive digest d3d25327c1b8f70a89638f26d95aae495b27b96a684add830581f2755e146cfd.
+  - The verified package has 40 files, 576 records per file and 23040 records total.
+  - Manifest, manifest self-hash and all 41 checksum entries reproduced independently.
+  - Source separation, no-zero missing policy, no-order boundary and holdout exclusion passed.
 derived:
-  - One 48-hour request fits both source limits with 576 rows per source-symbol file.
-  - Source-separated public candles can remove the candle-identity blocker without changing failed liquidation acceptance.
-  - An exact-one-file trigger prevents infrastructure review from silently executing data collection.
+  - The source-separated candle identity blocker is closed for diagnostic use.
+  - Complete candles do not change the failed Liquid20 acceptance result.
+  - Performance research and replay remain unauthorized.
 unknown:
-  - Whether both public endpoints return complete 576-row coverage for all 20 symbols from GitHub-hosted Linux.
-  - Exact hashes and sizes of the generated 40 files.
-  - Whether the first generated package can later be copied to durable Synology storage without a separate deployment package.
+  - Durable raw artifact storage after GitHub retention expires.
+  - Whether a newer Liquid20 run has explicit passed true and complete immutable run hashes.
 conflicts: []
 first_failure:
-  marker: checkpoint-status-reviewing-not-allowed
-  evidence: Trigger run 30201634582 failed before network access because reviewing is not an allowed governance checkpoint status.
+  marker: NONE
+  evidence: The final Synology trigger completed successfully and published verified evidence.
 rejected_hypotheses:
-  - Add the run request to the infrastructure PR.
-  - Use one exchange candle source for both liquidation venues.
-  - Deduplicate or merge Bybit and Binance candles into an unlabeled artifact.
-  - Fill missing candles or represent unavailable data as zero.
-  - Include the protected holdout or an incomplete current candle.
-  - Treat the diagnostic candle artifact as performance authorization.
-  - Start replay, strategy, model or execution work.
+  - Use a US runner despite Bybit HTTP 403 restrictions.
+  - Replace one venue's candles with the other venue.
+  - Deduplicate exchanges or fill missing candles with zero.
+  - Treat diagnostic candles as performance authorization.
 changed_paths:
-  - ai_platform/research/liquidations/datasets/__init__.py
   - ai_platform/research/liquidations/datasets/candle_artifact.py
   - ai_platform/research/liquidations/datasets/liquid20-candle-artifact-contract-v1.json
   - ai_platform/scripts/liquidation_candle_artifact.py
+  - deploy/synology/liquid20-candle-artifact/Dockerfile
+  - deploy/synology/liquid20-candle-artifact/run.sh
   - tests/ai_platform_integration/test_liquidation_candle_artifact.py
+  - tests/ai_platform_integration/test_liquidation_candle_failure_evidence.py
+  - tests/ai_platform_integration/test_liquidation_candle_synology_runtime.py
   - .github/workflows/ai-platform-liquidation-candle-artifact.yml
-  - pyproject.toml
-  - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md
 validation:
-  - command: PYTHONPATH=. pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_liquidation_candle_artifact.py
+  - command: AI Platform Liquid20 Candle Artifact run 30205769267
     result: PASS
-    evidence: 10 tests passed for parsing, identity, coverage, source separation, determinism, hash drift, atomic failure, credentials, holdout and malformed input.
-  - command: python -m compileall -q ai_platform tests
+    evidence: Exact-one-file, credential refusal, bounded build, collection, verification and upload succeeded.
+  - command: independent archive and record verification
     result: PASS
-    evidence: Candle artifact module, CLI and tests compiled successfully.
-  - command: ruff 0.15.21 check and format plus mypy and repository pre-commit
+    evidence: Archive digest, manifest identities, 41 hashes and 23040 records reproduced.
+  - command: infrastructure exact-head CI
     result: PASS
-    evidence: Exact repository tooling accepted lint, formatting and typing; Freqtrade CI 1839 passed.
-  - command: pull request scope and merge
-    result: PASS
-    evidence: PR 350 contained exactly eight final files and merged as e448c7137e4787525cbba1da2c90a8a98812e219.
-  - command: exact-head repository CI
-    result: PASS
-    evidence: Head 4320eba3a68fb34359639236675c4d3bf50f7fe3 passed AI Platform CI 1523, Freqtrade CI 1839, GitHub Actions Security Analysis 1704 and Experimental Model Runtime Smoke 124.
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md --require-checkpoint
-    result: PASS
-    evidence: The repaired checkpoint uses governance-allowed status ready and a concrete next action.
+    evidence: PR 373 passed Freqtrade CI 1891 and zizmor 1756 before merge a4642ce59116e9e08eab37c0cdabcdbeace02314.
 blockers: []
-next_action: After this checkpoint repair merges, open a new exact-one-file diagnostic candle request trigger PR and close it without merge after terminal artifact evidence is captured.
+next_action: Publish the repository evidence envelope and use it only for diagnostic LQ-02 classification while separately proving durable raw storage before artifact expiry.
 ```

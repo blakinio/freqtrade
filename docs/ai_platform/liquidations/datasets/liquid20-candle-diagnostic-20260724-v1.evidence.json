@@ -1,0 +1,83 @@
+{
+  "bound_identities": {
+    "code_commit": "7e8af31167e7251cb516ee128864a9789dd6cfd0",
+    "contract_sha256": "cc93f0452e406b6de36ee4adfc5c70237f246d99b9b27e71db7a9d17dfb23580",
+    "request_sha256": "12c0d186761afc6a9e400efaa686842d9373aed5d389bde46d36f47e2faef70f",
+    "source_catalog_sha256": "4ead5a062bcd5516178cb954be2c5680610e78973d34688c2490173f23aee59c",
+    "symbol_universe_sha256": "a75bd2734275b837a14db359ff8d380936e01eab93af436433682e47442582f4"
+  },
+  "created_at": "2026-07-26T14:24:08Z",
+  "data_use": {
+    "diagnostic_only": true,
+    "performance_research_authorized": false,
+    "strict_oos": false
+  },
+  "document_id": "liquid20-candle-diagnostic-20260724-v1-evidence",
+  "evidence_sha256": "fc5bf10e02064bca897485ae47a62a307bc8845ecb144a67594898e2dd8ec88a",
+  "execution_safety": {
+    "orders_submitted": 0,
+    "trading_credentials_present": false
+  },
+  "independent_verification": {
+    "all_manifest_and_checksum_hashes_reverified": true,
+    "all_source_symbol_files_have_contiguous_coverage": true,
+    "artifact_count": 40,
+    "checksum_entry_count": 41,
+    "cross_exchange_deduplication": false,
+    "first_open_ms": 1784851200000,
+    "last_open_ms": 1785023700000,
+    "missing_candle_is_zero": false,
+    "protected_holdout_overlap_detected": false,
+    "records_per_file": 576,
+    "source_separated": true,
+    "sources": [
+      "binance-usdm",
+      "bybit-linear"
+    ],
+    "timeframe": "5m",
+    "total_ndjson_bytes": 6645609,
+    "total_records": 23040,
+    "verified_at": "2026-07-26T14:23:30Z"
+  },
+  "performance_research_authorized": false,
+  "purpose_classification": "diagnostic_only",
+  "remaining_blockers": [
+    "No completed Liquid20 run selected for performance research has a final acceptance report with passed true.",
+    "Exact completed-run source NDJSON, summaries, multi-source manifest and acceptance-report hashes are not yet published to the selector.",
+    "The raw candle package is retained by GitHub only until 2026-10-24T14:17:16Z; a durable Synology raw archive is not proven."
+  ],
+  "repository": "blakinio/freqtrade",
+  "repository_evidence": {
+    "checksum_file_sha256": "050415458c25dfbeab7545c13a256120a9b50a1eb5c9acb1150bd9bb68e81cb2",
+    "checksum_logical_name": "docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.sha256",
+    "manifest_file_sha256": "2cf141e114bd348c5b6495c646649dec03f09479f201240fcdd7daa46011bdff",
+    "manifest_logical_name": "docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.manifest.json",
+    "manifest_self_sha256": "1ada830cbbd8532daab78b8c5cc1fbfd095203b5ebbf865b9692125f8fa7371a"
+  },
+  "resolved_blockers": [
+    "Versioned source-separated candle identity, coverage, pair mapping, counts and SHA-256 evidence are now published for the diagnostic interval."
+  ],
+  "schema_version": 1,
+  "target_run_ids": [
+    "liquid20-20260724T170830Z-1"
+  ],
+  "trigger": {
+    "closed_without_merge": true,
+    "head_sha": "7e8af31167e7251cb516ee128864a9789dd6cfd0",
+    "pull_request": 375,
+    "runner_classification": "synology_self_hosted_bounded_container",
+    "workflow_name": "AI Platform Liquid20 Candle Artifact",
+    "workflow_run_id": 30205769267,
+    "workflow_run_number": 4
+  },
+  "workflow_artifact": {
+    "artifact_id": 8633031826,
+    "created_at": "2026-07-26T14:20:47Z",
+    "digest": "sha256:d3d25327c1b8f70a89638f26d95aae495b27b96a684add830581f2755e146cfd",
+    "expires_at": "2026-10-24T14:17:16Z",
+    "name": "liquid20-candle-diagnostic-375",
+    "raw_package_durable_synology_archive_proven": false,
+    "raw_package_repository_committed": false,
+    "size_bytes": 702603
+  }
+}

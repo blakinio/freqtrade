@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 import {
   detailFromPayload,
+  FIXTURE_SESSION_COOKIE_NAME,
   fixtureIdentityMode,
   fixtureIdentityState,
   fixtureSession,
   identityBackendFetch,
   identityErrorResponse,
+  PortalIdentityBoundaryError,
   requireBrowserSession,
   responsePayload,
 } from "@/lib/identity";
 
 export async function GET(request: NextRequest) {
   try {
+    if (fixtureIdentityMode() && !request.cookies.get(FIXTURE_SESSION_COOKIE_NAME)?.value) {
+      throw new PortalIdentityBoundaryError("Portal session is missing", 401, "SESSION_MISSING");
+    }
     requireBrowserSession(request);
     if (fixtureIdentityMode()) {
       return NextResponse.json(fixtureSession(fixtureIdentityState(request)), {

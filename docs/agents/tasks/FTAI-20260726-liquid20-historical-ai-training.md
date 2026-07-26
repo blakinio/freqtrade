@@ -1,18 +1,17 @@
 ---
 task_id: FTAI-20260726-liquid20-historical-ai-training
-status: planned
-branch: docs/liquid20-historical-ai-training-20260726
+status: blocked
+branch: feat/liquid20-historical-provider-preflight-v1
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "#332"
+related_pr: "#336"
 owned_paths:
-  - docs/ai_platform/LIQUID20_HISTORICAL_AI_TRAINING_ARCHITECTURE.md
-  - docs/ai_platform/LIQUIDATION_REVERSAL_RESEARCH.md
-  - docs/ai_platform/ARCHITECTURE.md
-  - docs/ai_platform/ROADMAP.md
+  - docs/ai_platform/LIQUID20_HISTORICAL_PROVIDER_PREFLIGHT.md
+  - ai_platform/research/liquidations/historical/liquid20-provider-decision-v1.json
+  - ai_platform/research/liquidations/historical/provider-decision-v1.schema.json
+  - tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
   - docs/agents/tasks/FTAI-20260726-liquid20-historical-ai-training.md
-  - docs/agents/prompts/FTAI-20260726-liquid20-historical-ai-training.md
 required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -103,88 +102,97 @@ not be coupled to the initial backfill or model execution.
 
 ## Acceptance criteria for the programme
 
-- [ ] Current provider coverage and timestamp semantics are independently verified.
+- [x] Current provider coverage and timestamp semantics are independently verified.
 - [ ] Paid access and license decisions are explicit owner decisions.
 - [ ] Raw history is immutable and SHA-256 bound.
-- [ ] Historical acceptance is separate from live collector acceptance.
-- [ ] Bybit and Binance semantic eras remain explicit.
-- [ ] Event availability uses provider capture time where available.
-- [ ] Missing intervals are not fabricated as zero-volume observations.
+- [x] Historical acceptance is separate from live collector acceptance.
+- [x] Bybit and Binance semantic eras remain explicit.
+- [x] Event availability uses provider capture time where available.
+- [x] Missing intervals are not fabricated as zero-volume observations.
 - [ ] Source-specific features and quality masks exist before cross-source features.
 - [ ] Atomic 5-minute and derived 15-minute datasets reproduce exactly.
 - [ ] No-lookahead and deterministic repeated-generation tests pass.
 - [ ] A chronological split contract is merged before model execution.
 - [ ] The first model experiment is a LightGBM feature ablation.
-- [ ] Existing Phase 6, PyTorch, RL-v2, portal, live collector, and protected-holdout boundaries remain unchanged.
-- [ ] No live-capital or promotion claim is made.
+- [x] Existing Phase 6, PyTorch, RL-v2, portal, live collector, and protected-holdout boundaries remain unchanged.
+- [x] No live-capital or promotion claim is made.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T07:35:00Z
-head: 490c6798e45b2883864c6e7619bc9eb86ec8c7f0
-branch: docs/liquid20-historical-ai-training-20260726
-pr: "#332"
-status: planned
+updated_at: 2026-07-26T08:10:00Z
+head: 12b77e491a741ea1796c7280de9fe63664201a74
+branch: feat/liquid20-historical-provider-preflight-v1
+pr: "#336"
+status: blocked
 context_routes:
-  - docs/ai_platform/ARCHITECTURE.md
-  - docs/ai_platform/ROADMAP.md
-  - docs/ai_platform/LIQUIDATION_REVERSAL_RESEARCH.md
-  - docs/ai_platform/LIQUIDATION_DATA_ONLY_STAGING.md
   - docs/ai_platform/LIQUID20_HISTORICAL_AI_TRAINING_ARCHITECTURE.md
-  - docs/agents/tasks/FTAI-20260724-liquidation-data-only-staging.md
-  - docs/agents/tasks/FTAI-20260725-portal-liquidations-synology.md
+  - docs/ai_platform/LIQUID20_HISTORICAL_PROVIDER_PREFLIGHT.md
+  - ai_platform/research/liquidations/historical/liquid20-provider-decision-v1.json
+  - ai_platform/research/liquidations/historical/provider-decision-v1.schema.json
 owned_paths:
-  - docs/ai_platform/LIQUID20_HISTORICAL_AI_TRAINING_ARCHITECTURE.md
-  - docs/ai_platform/LIQUIDATION_REVERSAL_RESEARCH.md
-  - docs/ai_platform/ARCHITECTURE.md
-  - docs/ai_platform/ROADMAP.md
+  - docs/ai_platform/LIQUID20_HISTORICAL_PROVIDER_PREFLIGHT.md
+  - ai_platform/research/liquidations/historical/liquid20-provider-decision-v1.json
+  - ai_platform/research/liquidations/historical/provider-decision-v1.schema.json
+  - tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
   - docs/agents/tasks/FTAI-20260726-liquid20-historical-ai-training.md
-  - docs/agents/prompts/FTAI-20260726-liquid20-historical-ai-training.md
 proven:
-  - The current Liquid20 collector uses Bybit linear and Binance USD-M public liquidation sources.
-  - The first immutable 24-hour run completed and failed exactly binance-usdm.maximum_latency_over_threshold_ratio.
-  - The failed evidence remains immutable and one unchanged retry is running through Oteryn-Platform.
-  - Portal read-only Synology integration is completed and independent of collector acceptance.
-  - Phase 6 is completed with selected_model = null and cannot be reopened by this track.
-  - The protected final holdout is 20260801-20260930 and remains forbidden before its one-shot evaluation.
-  - Bybit introduced allLiquidation on 2025-02-20 and deprecated the one-per-second legacy topic.
-  - Tardis documents normalized liquidation records with exchange and local capture timestamps for Bybit and Binance futures.
+  - Declaration PR 332 merged as 541cedb61ad0fdc9943d4981ee10217e17f903f5 before H0 began.
+  - Tardis public metadata lists BTCUSDT and ETHUSDT liquidation coverage for Bybit and Binance futures through 2026-07-26.
+  - Four public 2025-03-01 Tardis samples passed gzip, schema, timestamp, side, positive-value, malformed-row and duplicate inspection with exact hashes recorded.
+  - Every inspected row contained provider local_timestamp; no row had local_timestamp before exchange timestamp; every liquidation id was empty.
+  - Bybit introduced allLiquidation on 2025-02-20, while inspected Tardis mapper commit 3e3f4d704d66d1187037d2e2c48f68b82441e808 switches on 2025-02-26.
+  - Binance forceOrder in the requested range is a maximum-one-snapshot-per-symbol-per-1000ms source, not a complete event ledger.
+  - Tardis terms permit licensed internal Customer-System retention and prohibit raw redistribution; bulk dates require paid access and an API key.
+  - Oteryn issue 148 still reported the unchanged second live acceptance run in progress; this does not block historical H0.
 derived:
-  - A historical vendor can accelerate research only through separate provenance, acceptance, and semantic-era contracts.
-  - The first useful model test is a supervised source-aware feature ablation, not RL training.
-  - Five-minute atomic partitions can serve Wick Hunter replay and deterministic 15-minute FreqAI aggregation.
-  - Existing live run directories must remain unchanged; historical imports require a sibling storage tree.
+  - Tardis is adequate as the first event-level provider, with CoinGlass retained only as aggregate comparison or fallback.
+  - The first common import window must start at 2025-02-26 unless Tardis resolves the preceding six-day semantic conflict.
+  - The exact request contains 2056 daily gzip CSV files and has a sample-scaled estimate of 39835514 compressed and 204142810 uncompressed bytes.
+  - Historical provider local_timestamp maps to provider_captured_at_ms and must never populate first-party received_at_ms.
+  - H1 remains a separate provider-neutral contract task and PR; H3 paid access remains owner-gated.
 unknown:
-  - Final result of the unchanged second 24-hour Liquid20 acceptance attempt.
-  - Exact observed Binance latency ratio and distribution from the first failed run.
-  - Current provider price, license, export quota, incident coverage and exact requested-symbol availability.
-  - Owner choice and credentials for any paid historical provider.
-  - Exact chronological model split to freeze after accepted coverage is known.
-conflicts: []
+  - Exact Tardis quote and whether one-off purchase or subscription is preferred.
+  - Owner acceptance of Tardis license and raw redistribution restrictions.
+  - Owner decision on 2025-02-26 start versus provider clarification for 2025-02-20 through 2025-02-25.
+  - Future Tardis API key value and secret provisioning, which are intentionally absent from Git.
+  - Final result of the unchanged second 24-hour live Liquid20 acceptance attempt.
+conflicts:
+  - Bybit official allLiquidation era starts 2025-02-20, but inspected Tardis normalized mapper switches 2025-02-26.
 first_failure:
-  marker: none
-  evidence: This planning package has not executed importer, data, feature, or model paths.
+  marker: bybit-allLiquidation-provider-boundary-conflict
+  evidence: The requested 2025-02-20 start cannot be accepted without silently mixing six days of provider semantics.
 rejected_hypotheses:
-  - Weaken the live Binance latency gate to unblock AI training.
-  - Treat failed or incomplete live acceptance evidence as accepted data.
-  - Move existing live run directories into a new layout.
-  - Convert aggregated vendor candles into fabricated individual events.
-  - Sum exchanges into one feature while hiding source semantics.
-  - Train RL before a supervised feature-ablation baseline.
-  - Purchase provider access or expose credentials from an autonomous documentation task.
+  - Use 2025-02-20 without resolving the Tardis mapper boundary.
+  - Treat Binance forceOrder as a complete event ledger.
+  - Fabricate event IDs, missing events, zero-volume intervals or provider arrival timestamps.
+  - Convert CoinGlass aggregate candles into individual events.
+  - Commit public or licensed raw data to Git or upload it as normal artifacts.
+  - Purchase provider access, request credentials, train models or change live acceptance during H0.
 changed_paths:
-  - docs/ai_platform/LIQUID20_HISTORICAL_AI_TRAINING_ARCHITECTURE.md
+  - docs/ai_platform/LIQUID20_HISTORICAL_PROVIDER_PREFLIGHT.md
+  - ai_platform/research/liquidations/historical/liquid20-provider-decision-v1.json
+  - ai_platform/research/liquidations/historical/provider-decision-v1.schema.json
+  - tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
   - docs/agents/tasks/FTAI-20260726-liquid20-historical-ai-training.md
-  - docs/agents/prompts/FTAI-20260726-liquid20-historical-ai-training.md
 validation:
-  - command: repository and live-state documentation preflight
+  - command: GitHub Actions public metadata and free-sample preflight run 30193642455 job 89771204983
     result: PASS
-    evidence: Current Freqtrade and Oteryn Liquid20 records, issue 148, completed portal task, Phase 6 boundary, and official/provider documentation were inspected.
-  - command: pull request creation
+    evidence: Exact metadata and four sample hashes, sizes and aggregate inspections were emitted; no raw artifact was uploaded.
+  - command: python -m pytest -q tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
     result: PASS
-    evidence: PR #332 opened against develop with exactly three documentation files.
-blockers: []
-next_action: After this declaration PR merges, create feat/liquid20-historical-provider-preflight-v1 and execute H0 only.
+    evidence: 7 passed in 0.03s.
+  - command: JSON Schema Draft 2020-12 validation
+    result: PASS
+    evidence: Contract validates against provider-decision-v1.schema.json.
+  - command: python -m compileall tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
+    result: PASS
+    evidence: Test module compiled successfully.
+blockers:
+  - Owner must approve Tardis commercial access and exact quote.
+  - Owner must accept the license classification and raw redistribution restriction.
+  - Owner must choose the 2025-02-26 start or request provider clarification for the excluded six-day interval.
+  - Owner must authorize future Oteryn-only API-key provisioning before any H3 bulk access.
+next_action: Owner records the Tardis commercial, license, date-boundary and future secret-provisioning decisions before any paid bulk access.
 ```

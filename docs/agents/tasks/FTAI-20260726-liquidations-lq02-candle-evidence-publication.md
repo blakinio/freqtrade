@@ -5,7 +5,7 @@ branch: docs/liquid20-candle-evidence-publication
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: pending
+related_pr: "#377"
 owned_paths:
   - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.manifest.json
   - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.sha256
@@ -47,10 +47,10 @@ This closes the missing candle-identity blocker for diagnostic selection. It doe
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T14:30:00Z
-head: PENDING
+updated_at: 2026-07-26T14:40:00Z
+head: aefebb4e9b53779d6459cdbbe061f88f910a5078
 branch: docs/liquid20-candle-evidence-publication
-pr: NOT_OPEN
+pr: "#377"
 status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md

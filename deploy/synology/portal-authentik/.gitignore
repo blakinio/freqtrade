@@ -1,0 +1,8 @@
+.env
+.env.*
+!.env.example
+!portal-identity.env.example
+bootstrap.env
+*.age
+*.sha256
+restore-work/

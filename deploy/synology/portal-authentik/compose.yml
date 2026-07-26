@@ -1,0 +1,104 @@
+name: portal-authentik
+
+x-authentik-environment: &authentik-environment
+  AUTHENTIK_POSTGRESQL__HOST: postgresql
+  AUTHENTIK_POSTGRESQL__PORT: "5432"
+  AUTHENTIK_POSTGRESQL__NAME: ${AUTHENTIK_POSTGRESQL__NAME:-authentik}
+  AUTHENTIK_POSTGRESQL__USER: ${AUTHENTIK_POSTGRESQL__USER:-authentik}
+  AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_POSTGRESQL__PASSWORD:?set in the runtime env file}
+  AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY:?set in the runtime env file}
+  AUTHENTIK_LISTEN__HTTP: 0.0.0.0:9000
+  AUTHENTIK_LISTEN__HTTPS: 0.0.0.0:9443
+  AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+  AUTHENTIK_BOOTSTRAP_PASSWORD_HASH: ${AUTHENTIK_BOOTSTRAP_PASSWORD_HASH:-}
+
+services:
+  postgresql:
+    image: ${POSTGRES_IMAGE:?set an immutable tag and digest in the runtime env file}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${AUTHENTIK_POSTGRESQL__NAME:-authentik}
+      POSTGRES_USER: ${AUTHENTIK_POSTGRESQL__USER:-authentik}
+      POSTGRES_PASSWORD: ${AUTHENTIK_POSTGRESQL__PASSWORD:?set in the runtime env file}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -d "$${POSTGRES_DB}" -U "$${POSTGRES_USER}"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - postgresql_data:/var/lib/postgresql/data
+    networks:
+      - identity_data
+
+  server:
+    image: ${AUTHENTIK_IMAGE:?set an immutable tag and digest in the runtime env file}
+    command: server
+    restart: unless-stopped
+    environment: *authentik-environment
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - ak
+        - healthcheck
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - ${AUTHENTIK_BIND_ADDRESS:-127.0.0.1}:${AUTHENTIK_HTTP_PORT:-9000}:9000
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    networks:
+      - identity_front
+      - identity_data
+
+  worker:
+    image: ${AUTHENTIK_IMAGE:?set an immutable tag and digest in the runtime env file}
+    command: worker
+    restart: unless-stopped
+    environment: *authentik-environment
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - ak
+        - healthcheck
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+    networks:
+      - identity_data
+
+networks:
+  identity_front:
+    name: portal_authentik_front
+  identity_data:
+    name: portal_authentik_data
+    internal: true
+
+volumes:
+  postgresql_data:
+    name: portal_authentik_postgresql_data
+  authentik_media:
+    name: portal_authentik_media
+  authentik_templates:
+    name: portal_authentik_templates

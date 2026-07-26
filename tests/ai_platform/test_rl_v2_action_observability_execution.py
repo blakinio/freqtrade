@@ -100,9 +100,7 @@ def test_runtime_config_changes_only_declared_fields(tmp_path: Path) -> None:
     base = _read_json(_repo_path(BASE_CONFIG_REPO_PATH), "base config")
 
     expected = json.loads(json.dumps(base))
-    expected["strategy"] = (
-        "AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy"
-    )
+    expected["strategy"] = "AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy"
     expected["freqai"]["identifier"] = runtime_identifier(seed)
     expected["freqai"]["train_period_days"] = 90
     expected["freqai"]["backtest_period_days"] = 61
@@ -207,10 +205,7 @@ def test_contract_json_path_and_request_absence() -> None:
     contract = _read_json(_repo_path(CONTRACT_REPO_PATH), "contract")
     assert contract["request_path"] == REQUEST_REPO_PATH
     assert contract["authorization"]["canonical_request_required"] is True
-    assert (
-        contract["authorization"]["infrastructure_merge_executes_model"]
-        is False
-    )
+    assert contract["authorization"]["infrastructure_merge_executes_model"] is False
     assert not _repo_path(REQUEST_REPO_PATH).exists()
 
 
@@ -220,12 +215,10 @@ def test_observable_strategy_disabled_and_enabled(
 ) -> None:
     pandas = pytest.importorskip("pandas")
     observable_module = importlib.import_module(
-        "ai_platform.strategies."
-        "AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy"
+        "ai_platform.strategies.AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy"
     )
     parent_module = importlib.import_module(
-        "ai_platform.strategies."
-        "AiDesiredPositionRLLifecycleAlignedResearchStrategy"
+        "ai_platform.strategies.AiDesiredPositionRLLifecycleAlignedResearchStrategy"
     )
     observable_strategy = (
         observable_module.AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy
@@ -239,17 +232,13 @@ def test_observable_strategy_disabled_and_enabled(
     )
 
     disabled = object.__new__(observable_strategy)
-    disabled._action_observability_recorder = RLV2ActionObservabilityRecorder(
-        enabled=False
-    )
+    disabled._action_observability_recorder = RLV2ActionObservabilityRecorder(enabled=False)
     disabled._action_observability_pairs = set()
     incomplete = pandas.DataFrame({"unrelated": [1]})
     assert disabled.populate_exit_trend(incomplete, {}) is incomplete
 
     enabled = object.__new__(observable_strategy)
-    enabled._action_observability_recorder = RLV2ActionObservabilityRecorder(
-        enabled=True
-    )
+    enabled._action_observability_recorder = RLV2ActionObservabilityRecorder(enabled=True)
     enabled._action_observability_pairs = set()
     environment = {
         "RL_V2_ACTION_OBSERVABILITY_OUTPUT_DIR": str(tmp_path),

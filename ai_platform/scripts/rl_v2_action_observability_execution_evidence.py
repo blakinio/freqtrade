@@ -89,9 +89,7 @@ def _load_backtest_result(archive: Path) -> dict[str, Any]:
             f"Unable to read raw backtest archive {archive}: {exc}"
         ) from exc
     if not isinstance(payload, dict):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Backtest result root must be an object"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Backtest result root must be an object")
     return payload
 
 
@@ -109,9 +107,7 @@ def _load_backtest_config(archive: Path) -> dict[str, Any]:
             f"Unable to read embedded backtest config {archive}: {exc}"
         ) from exc
     if not isinstance(payload, dict):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Embedded backtest config must be an object"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Embedded backtest config must be an object")
     return payload
 
 
@@ -123,9 +119,7 @@ def _strategy_result(payload: dict[str, Any]) -> dict[str, Any]:
         )
     result = strategies[EXPECTED_STRATEGY]
     if not isinstance(result, dict):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Observable strategy result must be an object"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Observable strategy result must be an object")
     return result
 
 
@@ -137,9 +131,7 @@ def _validate_summary(result: dict[str, Any], seed: int) -> None:
     if result.get("freqai_identifier") != runtime_identifier(seed):
         raise RLV2ActionObservabilityEvidenceError("Runtime identifier drifted")
     if result.get("ignore_roi_if_entry_signal") is not True:
-        raise RLV2ActionObservabilityEvidenceError(
-            "Lifecycle-alignment behavior drifted"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Lifecycle-alignment behavior drifted")
     if result.get("timerange") != EXPECTED_GEOMETRY["execution_timerange"]:
         raise RLV2ActionObservabilityEvidenceError("Execution timerange drifted")
     if result.get("timeframe") != "15m":
@@ -174,17 +166,11 @@ def _validated_trades(result: dict[str, Any]) -> list[dict[str, Any]]:
     validated: list[dict[str, Any]] = []
     for index, trade in enumerate(trades):
         if not isinstance(trade, dict):
-            raise RLV2ActionObservabilityEvidenceError(
-                f"Trade {index} must be an object"
-            )
+            raise RLV2ActionObservabilityEvidenceError(f"Trade {index} must be an object")
         if trade.get("pair") not in EXPECTED_PAIRS:
-            raise RLV2ActionObservabilityEvidenceError(
-                f"Trade {index} pair drifted"
-            )
+            raise RLV2ActionObservabilityEvidenceError(f"Trade {index} pair drifted")
         if trade.get("is_short") is not False:
-            raise RLV2ActionObservabilityEvidenceError(
-                f"Trade {index} violates long-only scope"
-            )
+            raise RLV2ActionObservabilityEvidenceError(f"Trade {index} violates long-only scope")
         open_ts = _integer(
             trade.get("open_timestamp"),
             f"trade {index} open_timestamp",
@@ -194,9 +180,7 @@ def _validated_trades(result: dict[str, Any]) -> list[dict[str, Any]]:
             f"trade {index} close_timestamp",
         )
         if close_ts < open_ts:
-            raise RLV2ActionObservabilityEvidenceError(
-                f"Trade {index} closes before it opens"
-            )
+            raise RLV2ActionObservabilityEvidenceError(f"Trade {index} closes before it opens")
         amount = _finite_number(trade.get("amount"), f"trade {index} amount")
         open_rate = _finite_number(
             trade.get("open_rate"),
@@ -217,14 +201,10 @@ def _validated_trades(result: dict[str, Any]) -> list[dict[str, Any]]:
                 f"Trade {index} accounting does not reconcile"
             )
         if not isinstance(trade.get("exit_reason"), str):
-            raise RLV2ActionObservabilityEvidenceError(
-                f"Trade {index} exit_reason is missing"
-            )
+            raise RLV2ActionObservabilityEvidenceError(f"Trade {index} exit_reason is missing")
         validated.append(trade)
     if _integer(result.get("total_trades"), "total_trades") != len(validated):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Trade count does not reconcile"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Trade count does not reconcile")
     return validated
 
 
@@ -239,14 +219,10 @@ def _normalize_embedded_config(
     embedded_exchange = embedded.get("exchange")
     expected_exchange = expected.get("exchange")
     if not isinstance(embedded_exchange, dict) or not isinstance(expected_exchange, dict):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Embedded exchange configuration is missing"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Embedded exchange configuration is missing")
     for field in ("key", "secret"):
         if embedded_exchange.get(field) not in (None, "", "REDACTED"):
-            raise RLV2ActionObservabilityEvidenceError(
-                f"Unexpected embedded exchange {field}"
-            )
+            raise RLV2ActionObservabilityEvidenceError(f"Unexpected embedded exchange {field}")
         embedded_exchange[field] = expected_exchange.get(field, "")
     return embedded, expected
 
@@ -284,9 +260,7 @@ def _timestamp_ms(value: str) -> int:
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise RLV2ActionObservabilityEvidenceError(
-            f"Invalid telemetry timestamp: {value}"
-        ) from exc
+        raise RLV2ActionObservabilityEvidenceError(f"Invalid telemetry timestamp: {value}") from exc
     return int(parsed.timestamp() * 1000)
 
 
@@ -429,17 +403,13 @@ def _trade_metrics(
         gross += amount * (float(trade["close_rate"]) - float(trade["open_rate"]))
         fees += _fee_amount(trade, "open") + _fee_amount(trade, "close")
         net += float(trade["profit_abs"])
-        durations.append(
-            (int(trade["close_timestamp"]) - int(trade["open_timestamp"])) / 60000
-        )
+        durations.append((int(trade["close_timestamp"]) - int(trade["open_timestamp"])) / 60000)
         exits[str(trade["exit_reason"])] += 1
         pair_counts[str(trade["pair"])] += 1
     return {
         "trade_count": len(trades),
         "pair_trade_counts": {pair: pair_counts[pair] for pair in EXPECTED_PAIRS},
-        "median_duration_minutes": (
-            round(statistics.median(durations), 6) if durations else None
-        ),
+        "median_duration_minutes": (round(statistics.median(durations), 6) if durations else None),
         "gross_price_pnl_usdt": round(gross, 6),
         "fees_usdt": round(fees, 6),
         "net_profit_usdt": round(net, 6),
@@ -472,39 +442,23 @@ def extract_seed_evidence(
     telemetry = validate_action_observability_artifacts(telemetry_dir)
     manifest = telemetry["manifest"]
     if manifest["strategy_name"] != EXPECTED_STRATEGY:
-        raise RLV2ActionObservabilityEvidenceError(
-            "Telemetry strategy name drifted"
-        )
-    if manifest["strategy_sha256"] != _sha256(
-        _repo_path(OBSERVABLE_STRATEGY_REPO_PATH)
-    ):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Telemetry strategy hash drifted"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Telemetry strategy name drifted")
+    if manifest["strategy_sha256"] != _sha256(_repo_path(OBSERVABLE_STRATEGY_REPO_PATH)):
+        raise RLV2ActionObservabilityEvidenceError("Telemetry strategy hash drifted")
     if manifest["freqai_model"] != EXPECTED_MODEL:
         raise RLV2ActionObservabilityEvidenceError("Telemetry model drifted")
     if manifest["freqai_model_sha256"] != _sha256(_repo_path(MODEL_REPO_PATH)):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Telemetry model hash drifted"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Telemetry model hash drifted")
     if manifest["config_sha256"] != runtime_config_sha256:
-        raise RLV2ActionObservabilityEvidenceError(
-            "Telemetry config hash drifted"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Telemetry config hash drifted")
     if manifest["freqai_identifier"] != runtime_identifier(seed):
-        raise RLV2ActionObservabilityEvidenceError(
-            "Telemetry identifier drifted"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Telemetry identifier drifted")
     if manifest["seed"] != seed:
         raise RLV2ActionObservabilityEvidenceError("Telemetry seed drifted")
     if manifest["timerange"] != EXPECTED_GEOMETRY["execution_timerange"]:
-        raise RLV2ActionObservabilityEvidenceError(
-            "Telemetry timerange drifted"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Telemetry timerange drifted")
     if manifest["timeframe"] != "15m":
-        raise RLV2ActionObservabilityEvidenceError(
-            "Telemetry timeframe drifted"
-        )
+        raise RLV2ActionObservabilityEvidenceError("Telemetry timeframe drifted")
     if manifest["pairs"] != list(EXPECTED_PAIRS):
         raise RLV2ActionObservabilityEvidenceError("Telemetry pair set drifted")
 
@@ -550,13 +504,9 @@ def extract_seed_evidence(
 def _load_seed_evidence(path: Path) -> dict[str, Any]:
     payload = _read_json(path.resolve(), "per-seed action evidence")
     if payload.get("classification") != EXPECTED_CLASSIFICATION:
-        raise RLV2ActionObservabilityEvidenceError(
-            f"Evidence classification drifted: {path}"
-        )
+        raise RLV2ActionObservabilityEvidenceError(f"Evidence classification drifted: {path}")
     if payload.get("automatic_decision") is not False:
-        raise RLV2ActionObservabilityEvidenceError(
-            f"Automatic decision is forbidden: {path}"
-        )
+        raise RLV2ActionObservabilityEvidenceError(f"Automatic decision is forbidden: {path}")
     return payload
 
 
@@ -572,9 +522,7 @@ def aggregate_seed_evidence(paths: list[Path]) -> dict[str, Any]:
         seed = _integer(payload.get("seed"), "seed")
         validate_seed(seed)
         if seed in by_seed:
-            raise RLV2ActionObservabilityEvidenceError(
-                f"Duplicate seed evidence: {seed}"
-            )
+            raise RLV2ActionObservabilityEvidenceError(f"Duplicate seed evidence: {seed}")
         by_seed[seed] = payload
     if set(by_seed) != set(NEW_SEEDS):
         raise RLV2ActionObservabilityEvidenceError(
@@ -608,9 +556,7 @@ def aggregate_seed_evidence(paths: list[Path]) -> dict[str, Any]:
                 "trade_count": metrics["trade_count"],
                 "median_duration_minutes": metrics["median_duration_minutes"],
                 "transition_counts": derived["transition_counts"],
-                "long_state_action_gate_counts": (
-                    derived["long_state_action_gate_counts"]
-                ),
+                "long_state_action_gate_counts": (derived["long_state_action_gate_counts"]),
             }
         )
 
@@ -650,9 +596,7 @@ def aggregate_seed_evidence(paths: list[Path]) -> dict[str, Any]:
         "descriptive_cross_seed_metrics": {
             "median_trade_count": statistics.median(trade_counts),
             "median_of_seed_median_duration_minutes": (
-                round(statistics.median(duration_medians), 6)
-                if duration_medians
-                else None
+                round(statistics.median(duration_medians), 6) if duration_medians else None
             ),
         },
         "old_invalid_seed_causality_claim_allowed": False,

@@ -15,8 +15,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_REPO_PATH = (
-    "ai_platform/experimental_model_research/"
-    "rl-v2-action-observability-execution-contract-v1.json"
+    "ai_platform/experimental_model_research/rl-v2-action-observability-execution-contract-v1.json"
 )
 DECLARATION_REPO_PATH = (
     "ai_platform/experimental_model_research/"
@@ -32,21 +31,16 @@ PARENT_STRATEGY_REPO_PATH = (
     "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py"
 )
 OBSERVABLE_STRATEGY_REPO_PATH = (
-    "ai_platform/strategies/"
-    "AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py"
+    "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py"
 )
 RECORDER_REPO_PATH = "ai_platform/scripts/rl_v2_action_observability.py"
 VALIDATOR_REPO_PATH = "ai_platform/scripts/rl_v2_action_observability_execution_run_request.py"
 EVIDENCE_REPO_PATH = "ai_platform/scripts/rl_v2_action_observability_execution_evidence.py"
-WORKFLOW_REPO_PATH = (
-    ".github/workflows/ai-platform-rl-v2-action-observability-execution.yml"
-)
+WORKFLOW_REPO_PATH = ".github/workflows/ai-platform-rl-v2-action-observability-execution.yml"
 INFRA_TASK_REPO_PATH = (
     "docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-infrastructure.md"
 )
-EXECUTION_TASK_REPO_PATH = (
-    "docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution.md"
-)
+EXECUTION_TASK_REPO_PATH = "docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution.md"
 
 EXPECTED_CONTRACT_ID = "rl-v2-action-observability-execution-v1"
 EXPECTED_REQUEST_ID = EXPECTED_CONTRACT_ID
@@ -56,9 +50,7 @@ EXPECTED_DECLARATION_CLOSURE_MERGE = "c04725708fbc229a71cb0bd4217a131959181d01"
 EXPECTED_INFRA_TASK_MERGE = "76e13f37588c766c73e12543885aadf86bdcbb15"
 EXPECTED_CONFIG_SHA256 = "5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de"
 EXPECTED_MODEL_SHA256 = "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb4624cb79d46"
-EXPECTED_PARENT_STRATEGY_SHA256 = (
-    "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7"
-)
+EXPECTED_PARENT_STRATEGY_SHA256 = "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7"
 NEW_SEEDS = (271828182, 628318530, 1414213562, 1618033988)
 EXPECTED_CLASSIFICATION = "fresh_historical_development_action_observability"
 RUNTIME_IDENTIFIER_TEMPLATE = "rl-v2-action-observability-fresh-v1-seed-{seed}"
@@ -161,15 +153,9 @@ def validate_seed(seed: int) -> None:
 
 
 def _validate_temporal_boundaries() -> None:
-    download_start, download_stop = _split_timerange(
-        EXPECTED_GEOMETRY["download_timerange"]
-    )
-    execution_start, execution_stop = _split_timerange(
-        EXPECTED_GEOMETRY["execution_timerange"]
-    )
-    evidence_start, evidence_end = _split_timerange(
-        EXPECTED_GEOMETRY["semantic_evidence_window"]
-    )
+    download_start, download_stop = _split_timerange(EXPECTED_GEOMETRY["download_timerange"])
+    execution_start, execution_stop = _split_timerange(EXPECTED_GEOMETRY["execution_timerange"])
+    evidence_start, evidence_end = _split_timerange(EXPECTED_GEOMETRY["semantic_evidence_window"])
     if evidence_start != execution_start:
         raise RLV2ActionObservabilityExecutionError("Semantic evidence start drifted")
     expected_stop = (_date_token(evidence_end) + timedelta(days=1)).strftime("%Y%m%d")
@@ -188,9 +174,7 @@ def _validate_temporal_boundaries() -> None:
             "Download range does not cover the frozen training period"
         )
     if download_stop != execution_stop:
-        raise RLV2ActionObservabilityExecutionError(
-            "Fresh download and execution stops must match"
-        )
+        raise RLV2ActionObservabilityExecutionError("Fresh download and execution stops must match")
     consumed_start = _date_token("20260501")
     if _date_token(download_stop) >= consumed_start:
         raise RLV2ActionObservabilityExecutionError(
@@ -202,9 +186,7 @@ def _validate_declaration() -> dict[str, Any]:
     declaration = _read_json(_repo_path(DECLARATION_REPO_PATH), "execution declaration")
     if declaration.get("schema_version") != 1:
         raise RLV2ActionObservabilityExecutionError("Declaration schema drifted")
-    if declaration.get("declaration_id") != (
-        "rl-v2-action-observability-execution-declaration-v1"
-    ):
+    if declaration.get("declaration_id") != ("rl-v2-action-observability-execution-declaration-v1"):
         raise RLV2ActionObservabilityExecutionError("Declaration id drifted")
     if declaration.get("status") != "declared_not_implemented_or_executed":
         raise RLV2ActionObservabilityExecutionError("Declaration status drifted")
@@ -246,7 +228,8 @@ def _collect_keys(value: Any) -> set[str]:
     return set()
 
 
-def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+def _validate_contract(  # noqa: C901
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     contract = _read_json(_repo_path(CONTRACT_REPO_PATH), "execution contract")
     if contract.get("schema_version") != 1:
         raise RLV2ActionObservabilityExecutionError("Contract schema_version drifted")
@@ -281,9 +264,7 @@ def _validate_contract() -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
         "parent_strategy": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
         "parent_strategy_path": PARENT_STRATEGY_REPO_PATH,
         "parent_strategy_sha256": EXPECTED_PARENT_STRATEGY_SHA256,
-        "observable_strategy": (
-            "AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy"
-        ),
+        "observable_strategy": ("AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy"),
         "observable_strategy_path": OBSERVABLE_STRATEGY_REPO_PATH,
         "recorder_path": RECORDER_REPO_PATH,
         "base_config_path": BASE_CONFIG_REPO_PATH,
@@ -457,9 +438,7 @@ def materialize_runtime_config(output: Path, seed: int) -> Path:
     contract, _, base_config = _validate_contract()
     output = output.resolve()
     if output == _repo_path(BASE_CONFIG_REPO_PATH):
-        raise RLV2ActionObservabilityExecutionError(
-            "Refusing to overwrite immutable base config"
-        )
+        raise RLV2ActionObservabilityExecutionError("Refusing to overwrite immutable base config")
     runtime = deepcopy(base_config)
     runtime["strategy"] = contract["runtime_binding"]["observable_strategy"]
     freqai = runtime.setdefault("freqai", {})
@@ -472,9 +451,7 @@ def materialize_runtime_config(output: Path, seed: int) -> Path:
         "random_state": 42,
         "shuffle": False,
     }:
-        raise RLV2ActionObservabilityExecutionError(
-            "Materialized data split drifted"
-        )
+        raise RLV2ActionObservabilityExecutionError("Materialized data split drifted")
     if "timerange" in runtime or "live_retrain_hours" in freqai:
         raise RLV2ActionObservabilityExecutionError(
             "Temporary config introduced unauthorized geometry"
@@ -529,9 +506,7 @@ def verify_downloaded_data(
     startdt = timerange.startdt
     stopdt = timerange.stopdt
     if startdt is None or stopdt is None:
-        raise RLV2ActionObservabilityExecutionError(
-            "Expected bounded download timerange"
-        )
+        raise RLV2ActionObservabilityExecutionError("Expected bounded download timerange")
     if stopdt != _date_token("20251101"):
         raise RLV2ActionObservabilityExecutionError(
             "Freqtrade parser did not preserve exclusive 2025-11-01 stop"

@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-portal-bot-operations-completion
-status: review
+status: done
 branch: feat/portal-bot-operations-completion
 base_branch: develop
 created: 2026-07-26
@@ -49,11 +49,11 @@ Make the bot fleet and bot detail routes the primary tenant-scoped operational w
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T09:05:00+02:00
-head: ee626af374dd27d25d01553037b93f1cc2e72786
-branch: feat/portal-bot-operations-completion
+updated_at: 2026-07-26T09:15:00+02:00
+head: 7fc2dde2f40b31b23ef719109af6e54898b09102
+branch: develop
 pr: 320
-status: review
+status: done
 context_routes:
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/README.md
@@ -80,14 +80,13 @@ proven:
   - Open PR 313 owned only Synology preview deployment paths and open PR 109 owned only design-reference documentation paths at preflight.
   - Existing control-plane endpoints provide bot list/get, immutable revision creation and desired-state mutations.
   - Existing canonical runtime evidence, valuation, performance, audit and runtime-observability APIs are server-side and tenant-scoped.
-  - PR 320 is mergeable against current develop.
-  - TypeScript, lint and production build passed in Portal Web CI run 275 on implementation head cb6afe82b215cf9af4356ed12a11b63972242bb3.
-  - Chromium E2E passed in Portal Web CI run 275 and Portal Universal E2E run 280 on implementation head cb6afe82b215cf9af4356ed12a11b63972242bb3.
-  - AI Platform CI run 1314 and Freqtrade CI run 1587 passed on implementation head cb6afe82b215cf9af4356ed12a11b63972242bb3.
+  - Exact final implementation head fc1b7633977e18a1371080f5e365f5698c5f36db passed all required pull-request workflows.
+  - Portal Web CI run 281 passed typecheck, lint, production build and Chromium E2E on the exact final implementation head.
+  - Portal Universal E2E run 286, AI Platform CI run 1322, GitHub Actions Security Analysis run 1475 and Freqtrade CI run 1595 passed on the exact final implementation head.
+  - PR 320 merged by squash as 7fc2dde2f40b31b23ef719109af6e54898b09102.
 derived:
   - Bot Operations is complete as a bounded web/BFF composition package without new execution authority or credential integration.
-unknown:
-  - Exact final-head CI outcome after status-document updates and removal of the temporary diagnostic workflow change.
+unknown: []
 conflicts: []
 first_failure:
   head: fe036d2764039ddb0a23402b74eeeb618b9eb2a5
@@ -117,11 +116,12 @@ changed_paths:
   - docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
   - docs/agents/tasks/FTAI-20260726-portal-bot-operations-completion.md
 validation:
-  - implementation head cb6afe82b215cf9af4356ed12a11b63972242bb3: Portal Web CI 275 success.
-  - implementation head cb6afe82b215cf9af4356ed12a11b63972242bb3: Portal Universal E2E 280 success.
-  - implementation head cb6afe82b215cf9af4356ed12a11b63972242bb3: AI Platform CI 1314 success.
-  - implementation head cb6afe82b215cf9af4356ed12a11b63972242bb3: Freqtrade CI 1587 success.
-  - final-head CI pending.
+  - final implementation head fc1b7633977e18a1371080f5e365f5698c5f36db: Portal Web CI 281 success.
+  - final implementation head fc1b7633977e18a1371080f5e365f5698c5f36db: Portal Universal E2E 286 success.
+  - final implementation head fc1b7633977e18a1371080f5e365f5698c5f36db: AI Platform CI 1322 success.
+  - final implementation head fc1b7633977e18a1371080f5e365f5698c5f36db: GitHub Actions Security Analysis 1475 success.
+  - final implementation head fc1b7633977e18a1371080f5e365f5698c5f36db: Freqtrade CI 1595 success.
+  - merge commit: 7fc2dde2f40b31b23ef719109af6e54898b09102.
 blockers: []
-next_action: Run all required pull-request workflows on the exact final head, mark PR 320 ready, merge it, then record merge and exact CI evidence in a bounded closure update.
+next_action: No further core portal integration package is autonomously authorized; obtain the PI-06 owner/product identity and session-policy decision before starting the next dependency-ordered core package.
 ```

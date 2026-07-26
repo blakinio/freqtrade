@@ -5,7 +5,7 @@ branch: docs/residual-pytorch-bounded-m1-execution-declaration
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: null
+related_pr: 391
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
@@ -81,9 +81,9 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-26T21:34:08+02:00
-head: 8710e0cf45039b2ddbdd90b3325bb2d27204d2b6
+head: fcd15ca61c7869c9173c9aa988e68dbdbe4e3bcc
 branch: docs/residual-pytorch-bounded-m1-execution-declaration
-pr: null
+pr: 391
 status: active
 context_routes:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md

@@ -14,7 +14,7 @@ Build a secure, modern and extensible portal above the existing Freqtrade AI Pla
 
 ## Current program state
 
-Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232 and completed PI-01 through PI-04 repository-side integration packages.
+Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages and completed the Bot Operations convergence package in task `FTAI-20260726-portal-bot-operations-completion` / PR #320.
 
 Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
 
@@ -26,7 +26,7 @@ Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMA
 
 The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side acceptance. PI-05, PI-06, PI-07 and PI-08 remain separately planned and gated.
 
-Current task selection, repair priorities and the exact next autonomous software package are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. The recommended next package is Bot Operations convergence over existing canonical reads and existing immutable-revision/desired-state APIs.
+Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. Bot Operations convergence is complete. The next dependency-ordered core action is the owner/product PI-06 identity, membership and session-policy decision; there is no further autonomously authorized core integration package without that or another explicit provider/security/infrastructure decision.
 
 Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
 
@@ -113,7 +113,7 @@ The historical first implementation task after architecture merge was `FTAI-2026
 
 Post-P12 integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`. PI-01 through PI-04 are complete. PI-06 requires an explicit product IdP and membership/session policy decision, PI-05 requires a provider/channel decision and PI-07 must precede PI-08. No package authorizes live capital.
 
-The current dependency-ordered continuation route is `NEXT_WORK_AND_REPAIR_PLAN.md`. Bot Operations convergence is the next safe autonomous portal product package because existing control-plane revision and desired-state APIs plus canonical operational read models can be composed without credential brokering or execution submission.
+The Bot Operations product completion package is complete. The dependency-ordered continuation route in `NEXT_WORK_AND_REPAIR_PLAN.md` now stops autonomous core integration until the PI-06 owner decision or another explicit provider/security/infrastructure authorization exists.
 
 ## Parallelization policy
 
@@ -167,7 +167,7 @@ Canonical navigation is defined in `docs/ai_platform/portal/UI_INFORMATION_ARCHI
 - Operations/Logs/Risk/Runtime Health/Audit;
 - Exchange Connections/Profile/Security/Notifications/Admin.
 
-The current bot list and detail routes expose basic configuration reads, but the complete bot-scoped operations, filtering, immutable-revision form and desired-state lifecycle workflow remain the next product completion package.
+The bot list and detail routes now expose bounded bot-scoped operational convergence, filtering, immutable-revision creation and desired-state lifecycle controls over existing canonical APIs. They preserve tenant attribution, desired/observed separation, explicit degraded evidence and the private execution boundary.
 
 Third-party private captures are inspiration/evidence only and must not be copied into public product code with personal data or proprietary assets.
 
@@ -190,10 +190,10 @@ Repository-side and simulation-first evidence already cover many of these softwa
 
 ## Next actions by authorization lane
 
-Next autonomous software action: declare and complete the separate Bot Operations convergence task defined in `NEXT_WORK_AND_REPAIR_PLAN.md`. Compose existing canonical bot, operations, valuation, risk, observability and audit evidence; expose existing immutable-revision and desired-state endpoints through the same-origin web boundary; do not implement order submission, credential brokering or live capital.
+Next autonomous core software action: none under the current repository decisions. Read-only feature work may proceed only through separately declared, disjoint tasks; it must not bypass the gates below.
 
 Next owner/product decision: select and document the PI-06 product IdP, tenant-membership source, session, MFA, recovery and revocation policy before PI-06 implementation begins.
 
 Next owner/external action: when the owner intentionally starts the real infrastructure phase, resume P11, provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.
 
-Do not start P14 or enable live capital as part of any of these actions.
+Do not start PI-05, PI-07, PI-08 or P14 without their explicit provider/security/capital decisions. Do not enable live capital as part of any continuation action.

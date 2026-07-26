@@ -66,8 +66,11 @@ jobs:
           python -m pip install --disable-pip-version-check --quiet \
             ruff==0.15.21 pre-commit
 
-      - name: Validate exact changed files
+      - name: Format and validate exact changed files
         run: |
+          ruff format \
+            ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
+            ai_platform/scripts/rl_v2_action_observability_execution_evidence.py
           ruff check \
             ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py \
             ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \

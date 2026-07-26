@@ -1,0 +1,29 @@
+name: Liquid20 H0 Final Validation
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-h0-final-validation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-checkpoint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Validate checkpoint and continuation prompt
+        shell: bash
+        run: |
+          set -euo pipefail
+          task=docs/agents/tasks/FTAI-20260726-liquid20-historical-ai-training.md
+          python tools/agents/checkpoint.py "$task" --require-checkpoint
+          python tools/agents/resume.py --task "$task" > /tmp/liquid20-h0-resume.txt
+          test -s /tmp/liquid20-h0-resume.txt
+          grep -F "Owner records the Tardis commercial" /tmp/liquid20-h0-resume.txt

@@ -8,6 +8,7 @@ from enum import StrEnum
 from hashlib import sha256
 from typing import Any, Self
 
+
 SCHEMA_VERSION = 1
 _HEX_DIGITS = frozenset("0123456789abcdef")
 

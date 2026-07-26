@@ -8,6 +8,7 @@ from ai_platform.market_data.segments import (
     assert_order_book_reconstructible,
 )
 
+
 __all__ = [
     "CaptureManifest",
     "CaptureRequest",

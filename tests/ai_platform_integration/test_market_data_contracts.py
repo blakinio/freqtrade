@@ -33,6 +33,7 @@ from ai_platform.market_data.contracts import (
     validate_contract_payload,
 )
 
+
 COMMIT = "a" * 40
 SOURCE_HASH = "b" * 64
 CONTENT_HASH = "c" * 64

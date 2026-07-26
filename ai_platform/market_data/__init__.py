@@ -36,6 +36,7 @@ from ai_platform.market_data.universe import (
     select_universe,
 )
 
+
 __all__ = [
     "AvailabilityTimestampKind",
     "CaptureManifest",

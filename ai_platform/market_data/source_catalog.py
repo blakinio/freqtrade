@@ -13,6 +13,7 @@ from ai_platform.market_data.contracts import (
     validate_sha256,
 )
 
+
 SOURCE_CATALOG_PATH = Path(__file__).with_name("source-catalog-v1.json")
 _ALLOWED_STATUS = "declared_not_implemented_not_validated"
 

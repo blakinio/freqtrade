@@ -20,6 +20,7 @@ from ai_platform.market_data.universe import (
     select_universe,
 )
 
+
 SOURCE_HASH = "d" * 64
 SELECTION_MS = 1_800_000_000_000
 

@@ -42,6 +42,7 @@ from ai_platform.market_data.events import (
     UniverseSnapshot,
 )
 
+
 __all__ = [
     "SCHEMA_VERSION",
     "AvailabilityTimestampKind",

@@ -9,6 +9,7 @@ import pytest
 from ai_platform.market_data.contracts import validate_contract_payload
 from ai_platform.market_data.source_catalog import SourceCatalog, load_source_catalog
 
+
 CATALOG_PATH = Path("ai_platform/market_data/source-catalog-v1.json")
 
 

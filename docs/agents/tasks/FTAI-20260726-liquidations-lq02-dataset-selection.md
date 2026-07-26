@@ -77,8 +77,8 @@ Only the task record and immutable blocked-preflight evidence are changed. No re
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T09:12:00Z
-head: c1b8b9186cffbd6dcadf6c1df7a395e8b52f51cc
+updated_at: 2026-07-26T09:15:00Z
+head: bfbfd8e104041111fc7ba29dc978d3c4945ae0ea
 branch: feat/liquidations-lq02-dataset-selection-20260726
 pr: "#346"
 status: blocked
@@ -137,7 +137,7 @@ validation:
     evidence: Canonical JSON reproduced 2097a64f7ab9c577745fd20ace5f231611d129df8a6551f94943139b094cf004.
   - command: repository CI on rebased PR head
     result: NOT_RUN
-    evidence: Rebased head has not been created yet.
+    evidence: PR head bfbfd8e104041111fc7ba29dc978d3c4945ae0ea was created from current develop and final exact-head checks are pending.
 blockers:
   - No completed Liquid20 run has a final report with explicit passed true.
   - No adequate versioned candle artifact exists for the requested interval.

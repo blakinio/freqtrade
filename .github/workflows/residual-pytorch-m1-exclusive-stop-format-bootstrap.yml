@@ -1,0 +1,45 @@
+name: Residual PyTorch M1 Exclusive Stop Format Bootstrap
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/residual-pytorch-m1-exclusive-stop-format-bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact fix branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          persist-credentials: true
+      - name: Format only corrected Python files
+        run: |
+          python -m pip install --disable-pip-version-check ruff
+          ruff format \
+            ai_platform/scripts/residual_pytorch_bounded_m1_execution.py \
+            tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
+      - name: Commit formatting when needed
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/scripts/residual_pytorch_bounded_m1_execution.py \
+            tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
+          if git diff --cached --quiet; then
+            echo "No formatting changes required"
+            exit 0
+          fi
+          git commit -m "style(ai-platform): format bounded M1 correction"
+          git push origin "HEAD:${BRANCH_NAME}"

@@ -50,23 +50,23 @@ def _text(value: object, *, field: str) -> str:
 
 
 def _integer(value: object, *, field: str) -> int:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise TypeError(f"{field} must be an integer")
     try:
         parsed = int(value)
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:
         raise TypeError(f"{field} must be an integer") from exc
-    if str(parsed) != str(value).strip() and not isinstance(value, int):
+    if isinstance(value, str) and str(parsed) != value.strip():
         raise TypeError(f"{field} must be an integer")
     return parsed
 
 
 def _number(value: object, *, field: str) -> float:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
         raise TypeError(f"{field} must be numeric")
     try:
         parsed = float(value)
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:
         raise TypeError(f"{field} must be numeric") from exc
     if not parsed == parsed or parsed in (float("inf"), float("-inf")):
         raise ValueError(f"{field} must be finite")

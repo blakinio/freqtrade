@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { csrfFetch } from "@/lib/client-fetch";
 import type { BotInstance, BotSpec } from "@/lib/contracts";
 
 export function BotRevisionForm({
@@ -54,7 +55,7 @@ export function BotRevisionForm({
     setMessage(null);
     setError(null);
     try {
-      const response = await fetch(`/api/bots/${encodeURIComponent(botId)}/revisions`, {
+      const response = await csrfFetch(`/api/bots/${encodeURIComponent(botId)}/revisions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ spec: nextSpec }),

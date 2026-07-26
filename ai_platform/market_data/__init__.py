@@ -26,6 +26,14 @@ from ai_platform.market_data.contracts import (
     refuse_trading_credentials,
     validate_contract_payload,
 )
+from ai_platform.market_data.instrument_adapters import (
+    ADAPTER_VERSION,
+    BLOCKED_ADAPTER_SOURCES,
+    SUPPORTED_ADAPTER_SOURCES,
+    InstrumentCatalogSnapshot,
+    PublicJsonFetcher,
+    collect_instrument_catalog,
+)
 from ai_platform.market_data.source_catalog import SourceCatalog, load_source_catalog
 from ai_platform.market_data.universe import (
     DEFAULT_POLICIES,
@@ -38,7 +46,9 @@ from ai_platform.market_data.universe import (
 
 
 __all__ = [
+    "ADAPTER_VERSION",
     "AvailabilityTimestampKind",
+    "BLOCKED_ADAPTER_SOURCES",
     "CaptureManifest",
     "CaptureRequest",
     "ChannelFamily",
@@ -49,12 +59,15 @@ __all__ = [
     "FrozenJsonObject",
     "GapMarker",
     "GapReason",
+    "InstrumentCatalogSnapshot",
     "InstrumentSnapshot",
     "MarketType",
     "MetricSnapshot",
     "MissingMetricBehavior",
     "OutputImmutabilityState",
+    "PublicJsonFetcher",
     "RawMarketEventEnvelope",
+    "SUPPORTED_ADAPTER_SOURCES",
     "SegmentManifest",
     "SourceCatalog",
     "SourceMode",
@@ -64,6 +77,7 @@ __all__ = [
     "assert_order_book_reconstructible",
     "canonical_instrument_id",
     "canonical_sha256",
+    "collect_instrument_catalog",
     "load_and_validate_contract_json",
     "load_source_catalog",
     "raw_payload_sha256",

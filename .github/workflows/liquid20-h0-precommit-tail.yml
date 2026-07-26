@@ -13,23 +13,18 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
-      - name: Run full pre-commit and show compact result
+      - name: Show exact Ruff patch
         shell: bash
         run: |
           set -euo pipefail
+          target=/tmp/test_liquidation_historical_provider_preflight.py
           curl --fail --silent --show-error --location \
-            https://github.com/blakinio/freqtrade/archive/a4c29686e5376eb8197dba39cb87c46cb676bf16.tar.gz \
-            -o /tmp/source.tar.gz
-          mkdir /tmp/source
-          tar -xzf /tmp/source.tar.gz --strip-components=1 -C /tmp/source
-          cd /tmp/source
-          git init --quiet
-          git add --all
-          python -m pip install --disable-pip-version-check --quiet pre-commit
-          if ! pre-commit run --all-files > /tmp/precommit.log 2>&1; then
-            tail -n 45 /tmp/precommit.log
-            exit 1
-          fi
-          tail -n 30 /tmp/precommit.log
+            https://raw.githubusercontent.com/blakinio/freqtrade/a4c29686e5376eb8197dba39cb87c46cb676bf16/tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py \
+            -o "$target"
+          cp "$target" /tmp/before.py
+          python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
+          ruff check --fix "$target"
+          ruff format "$target"
+          diff -u /tmp/before.py "$target" || true

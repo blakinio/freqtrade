@@ -1,0 +1,100 @@
+{
+  "bound_identities": {
+    "infrastructure_merge_commit": "acdf848c81110f0c03ec37fc9350437374336fce",
+    "policy_id": "okx-liquidation-shadow-smoke-v1",
+    "request_id": "okx-shadow-smoke-20260726-v1",
+    "run_id": "okx-shadow-smoke-20260726-v1",
+    "trigger_head_commit": "5218491fa8b5b0c02d418e6047d88310cc8c5e43"
+  },
+  "created_at": "2026-07-26T19:46:00Z",
+  "data_use": {
+    "liquid20_membership_authorized": false,
+    "model_training_authorized": false,
+    "performance_research_authorized": false,
+    "replay_authorized": false,
+    "transport_smoke_only": true
+  },
+  "document_id": "okx-shadow-smoke-20260726-v1-evidence",
+  "evidence_sha256": "d1c562ec45bbc4bd28538ca56c8bc4c2a5762ab7b79939a8f03e691ef13b7152",
+  "execution_safety": {
+    "execution_enabled": false,
+    "orders_submitted": 0,
+    "trading_credentials_present": false
+  },
+  "independent_verification": {
+    "all_checksum_entries_reverified": true,
+    "archive_file_count": 6,
+    "archive_sha256_reverified": true,
+    "availability_ratio": 0.9933554540994104,
+    "checksum_entry_count": 5,
+    "clock_probes_synchronized": true,
+    "collector_error": null,
+    "connections": 1,
+    "control_messages": 5,
+    "disconnects": 0,
+    "duplicate_ratio": 0.0,
+    "duration_seconds": 120.249,
+    "events_parsed": 0,
+    "events_written": 0,
+    "failed_gate_count": 0,
+    "instrument_contract_count": 2,
+    "instrument_symbols": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ],
+    "liquidation_messages": 2,
+    "manifest_self_hash_reverified": true,
+    "manifest_status": "completed",
+    "messages_received": 7,
+    "parse_failures": 0,
+    "raw_event_bytes": 0,
+    "report_gate_count": 57,
+    "report_passed": true,
+    "report_self_hash_reverified": true,
+    "verified_at": "2026-07-26T19:45:30Z"
+  },
+  "purpose_classification": "transport_smoke_only",
+  "remaining_boundaries": [
+    "Zero accepted liquidation events in this short window provide no activity, latency-distribution or performance evidence.",
+    "A separate prospectively frozen long-run OKX acceptance policy and execution are required before any source acceptance claim.",
+    "OKX remains outside liquid20-v1 and cannot unblock LQ-02, replay, model work or trading."
+  ],
+  "repository": "blakinio/freqtrade",
+  "repository_evidence": {
+    "checksum_file_sha256": "f047347e17972528bb655878b59ab3fc5ab8fc16d9f2fcf728ab3095e28ecd41",
+    "checksum_logical_name": "docs/ai_platform/liquidations/datasets/okx-shadow-smoke-20260726-v1.sha256",
+    "event_file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "instrument_snapshot_file_sha256": "bdc2bc49d880f69fd1e51930612bccc206faef020ea0f9458485eb4339858be6",
+    "manifest_file_sha256": "14edf7764ea75d1c2e970102595a02208fb4c163e8477259e1cb831d450a5ca2",
+    "manifest_logical_name": "docs/ai_platform/liquidations/datasets/okx-shadow-smoke-20260726-v1.manifest.json",
+    "manifest_self_sha256": "f43fde5699d72c582fced4153abfeef7d626ec445c398342df37ca293c29d873",
+    "report_file_sha256": "f9540167413f09a97f8c0ddd77d89f678880d8f481b1c74fc5f7860fa7202006",
+    "report_self_sha256": "2b81430a240383974bbaab97169ec58c500078782ded0966f405aa56c64ed886",
+    "summary_file_sha256": "7767ae14d5ba82cefba7cb96a732ca36763f3c83430c8849268920e357312eca"
+  },
+  "resolved_questions": [
+    "The GitHub-hosted Ubuntu runner can reach the frozen OKX public time, instrument and WebSocket endpoints.",
+    "The merged collector and evaluator can complete the two-minute public transport smoke with coherent immutable artifacts."
+  ],
+  "schema_version": 1,
+  "source_status": "shadow_only_not_in_liquid20_v1",
+  "trigger": {
+    "closed_without_merge": true,
+    "head_sha": "5218491fa8b5b0c02d418e6047d88310cc8c5e43",
+    "pull_request": 393,
+    "runner_classification": "github_hosted_ubuntu_24_04",
+    "workflow_name": "AI Platform OKX Liquidation Shadow Smoke",
+    "workflow_run_id": 30217311200,
+    "workflow_run_number": 1
+  },
+  "workflow_artifact": {
+    "artifact_id": 8636197908,
+    "created_at": "2026-07-26T19:41:58Z",
+    "digest": "sha256:3a2a561d2e64b8ee45fbbf6576217336b113fee95c7edf2a8a7802ef591e1852",
+    "expires_at": "2026-08-25T19:41:58Z",
+    "name": "okx-liquidation-shadow-smoke-393",
+    "raw_event_file_repository_committed": false,
+    "raw_package_durable_archive_proven": false,
+    "size_bytes": 5362
+  }
+}

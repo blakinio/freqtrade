@@ -90,10 +90,7 @@ def test_free_account_blocker_is_frozen() -> None:
     contract = _load(CONTRACT_PATH)
     statuses = contract["coverage_probe"]["per_target_http_statuses"]
     assert set(statuses) == EXPECTED_TARGETS
-    assert all(
-        status == {"metric_listing": 403, "symbol": 403}
-        for status in statuses.values()
-    )
+    assert all(status == {"metric_listing": 403, "symbol": 403} for status in statuses.values())
     assert contract["coverage_probe"]["request_count"] == 8
     assert contract["coverage_probe"]["history_request_attempted"] is False
 

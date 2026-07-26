@@ -5,7 +5,7 @@ branch: docs/okx-shadow-smoke-evidence-publication
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "#386 (merged); trigger #393 (closed without merge); publication pending"
+related_pr: "#386 (merged); trigger #393 (closed without merge); publication #394"
 owned_paths:
   - ai_platform/research/liquidations/okx-liquidation-shadow-smoke-policy-v1.json
   - ai_platform/scripts/liquidation_okx_shadow_smoke.py
@@ -41,10 +41,10 @@ result proves only short-window public transport, parser and artifact compatibil
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T19:48:00Z
-head: pending
+updated_at: 2026-07-26T19:52:00Z
+head: 9a4be759ab5a9897594c13f79d0027be20ce0528
 branch: docs/okx-shadow-smoke-evidence-publication
-pr: pending
+pr: "#394"
 status: validating
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SOURCE.md

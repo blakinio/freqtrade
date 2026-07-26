@@ -1,0 +1,47 @@
+name: Residual PyTorch M1 Failure Log Probe
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/residual-pytorch-m1-failure-log-probe.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Download exact failed data-job logs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p failure-logs
+          for spec in "eth:89840860182" "btc:89840862670"; do
+            slug="${spec%%:*}"
+            job_id="${spec##*:}"
+            curl --fail-with-body --location \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${REPOSITORY}/actions/jobs/${job_id}/logs" \
+              --output "failure-logs/${slug}.log"
+            tail -n 160 "failure-logs/${slug}.log" > "failure-logs/${slug}-tail.log"
+            grep -E "ResidualPyTorchBoundedM1Error|No data for|Data starts too late|Data ends too early|Post-development candle|Traceback" \
+              "failure-logs/${slug}.log" > "failure-logs/${slug}-failure-lines.txt" || true
+          done
+      - name: Upload exact failure evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: residual-pytorch-m1-failure-log-probe
+          path: failure-logs/
+          if-no-files-found: error
+          retention-days: 1

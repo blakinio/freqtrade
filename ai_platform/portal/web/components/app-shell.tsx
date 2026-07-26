@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { portalEnvironment } from "@/lib/portal-api";
 import { EnvironmentBadge } from "./environment-badge";
+import { SessionControls } from "./session-controls";
 
 const navigationGroups = [
   {
@@ -116,6 +117,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="health-dot" aria-hidden="true" />
             Protected portal boundary active
           </div>
+          <SessionControls />
         </header>
         <main className="page-content" id="main-content">
           {children}

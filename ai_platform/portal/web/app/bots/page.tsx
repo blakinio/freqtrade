@@ -58,7 +58,7 @@ export default async function BotsPage({
   return (
     <section className="page-stack">
       <div className="page-heading">
-        <div><span className="eyebrow">Bots</span><h1>Bot operations fleet</h1></div>
+        <div><span className="eyebrow">Bot operations</span><h1>Bot fleet</h1></div>
         <Link className="primary-button link-button" href="/bots/new">Create Bot</Link>
       </div>
       <div className="status-banner status-info">
@@ -94,7 +94,7 @@ export default async function BotsPage({
           </div>
           <div className="status-cluster">
             <button className="primary-button" type="submit">Apply filters</button>
-            <Link className="secondary-button link-button" href="/bots">Clear</Link>
+            <Link className="primary-button link-button" href="/bots">Clear</Link>
           </div>
         </form>
       </article>

@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
+import { csrfFetch } from "@/lib/client-fetch";
 import type { BotInstance } from "@/lib/contracts";
 import type { CreateGridBotConfigRequest } from "@/lib/product-contracts";
 
@@ -34,7 +35,7 @@ export function GridBotForm({ bots }: { bots: BotInstance[] }) {
     };
 
     try {
-      const response = await fetch("/api/grid-bots", {
+      const response = await csrfFetch("/api/grid-bots", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),

@@ -48,7 +48,10 @@ REQUIRED_TOP_LEVEL = {
 SECRET_PATTERNS = (
     re.compile(r"Bearer\s+\S+", re.IGNORECASE),
     re.compile(r"\bCG-API-KEY\s*[:=]\s*\S+", re.IGNORECASE),
-    re.compile(r"\b(?:api[_-]?key|token|secret)\s*[:=]\s*[A-Za-z0-9_./+=-]{12,}", re.IGNORECASE),
+    re.compile(
+        r"\b(?:api[_-]?key|token|secret)\s*[:=]\s*[A-Za-z0-9_./+=-]{12,}",
+        re.IGNORECASE,
+    ),
 )
 
 
@@ -146,8 +149,12 @@ def test_schema_validates_contract_and_requires_contract_fields() -> None:
 
 def test_contract_serialization_and_identity_hash_are_deterministic() -> None:
     contract = _load(CONTRACT_PATH)
-    first = json.dumps(contract, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    second = json.dumps(_load(CONTRACT_PATH), ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    first = json.dumps(
+        contract, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
+    second = json.dumps(
+        _load(CONTRACT_PATH), ensure_ascii=False, separators=(",", ":"), sort_keys=True
+    )
     assert first == second
 
     identity = json.dumps(

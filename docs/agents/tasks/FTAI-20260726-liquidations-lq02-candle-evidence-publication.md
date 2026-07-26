@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-liquidations-lq02-candle-evidence-publication
-status: validating
+status: ready
 branch: docs/liquid20-candle-evidence-publication
 base_branch: develop
 created: 2026-07-26
@@ -47,11 +47,11 @@ This closes the missing candle-identity blocker for diagnostic selection. It doe
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T14:40:00Z
-head: aefebb4e9b53779d6459cdbbe061f88f910a5078
+updated_at: 2026-07-26T15:10:00Z
+head: ce98b7ef01314b184a3c479e4aab297dbf9d92a4
 branch: docs/liquid20-candle-evidence-publication
 pr: "#377"
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-artifact.md
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
@@ -72,6 +72,7 @@ proven:
   - Bybit and Binance source identities remain separate with no cross-exchange deduplication.
   - The interval is complete from 2026-07-24T00:00:00Z through the 2026-07-25T23:55:00Z candle and does not overlap the protected holdout.
   - The manifest records zero orders, no trading credentials and performance_research_authorized false.
+  - Exact candidate head ce98b7ef01314b184a3c479e4aab297dbf9d92a4 passed AI Platform CI 1604, Freqtrade CI 1932 and zizmor 1797.
 derived:
   - Versioned candle identity is no longer the first LQ-02 diagnostic blocker.
   - A failed Liquid20 acceptance report cannot be upgraded by complete candle evidence.
@@ -99,14 +100,14 @@ changed_paths:
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
 validation:
   - command: pytest tests/ai_platform_integration/test_liquidation_candle_evidence_publication.py
-    result: NOT_RUN
-    evidence: Pending exact-head repository CI.
+    result: PASS
+    evidence: AI Platform CI 1604 passed exact manifest, checksum and envelope coherence tests.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Pending exact-head repository CI.
+    result: PASS
+    evidence: Repository pre-commit in Freqtrade CI 1932 accepted checkpoint structure and evidence-state separation.
   - command: repository pre-commit, documentation, AI Platform CI and zizmor
-    result: NOT_RUN
-    evidence: Pending pull-request checks.
+    result: PASS
+    evidence: Candidate head ce98b7ef01314b184a3c479e4aab297dbf9d92a4 passed Freqtrade CI 1932, AI Platform CI 1604 and zizmor 1797.
 blockers:
   - No completed performance-selectable Liquid20 run has explicit passed true.
   - Exact completed-run source, summary, multi-source manifest and final-report hashes are not published to the selector.

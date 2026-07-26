@@ -105,9 +105,7 @@ def validate_contract_payload(
     *,
     schema_path: Path = CONTRACT_SCHEMA_PATH,
 ) -> None:
-    Draft202012Validator(_contract_schema(contract_name, schema_path=schema_path)).validate(
-        payload
-    )
+    Draft202012Validator(_contract_schema(contract_name, schema_path=schema_path)).validate(payload)
 
 
 def load_and_validate_contract_json(

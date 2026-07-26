@@ -55,9 +55,7 @@ def instrument(
         quantity_step=Decimal("0.001"),
         active=active,
         listed_at_ms=1_700_000_000_000,
-        expires_at_ms=(
-            1_900_000_000_000 if market_type is MarketType.DATED_FUTURE else None
-        ),
+        expires_at_ms=(1_900_000_000_000 if market_type is MarketType.DATED_FUTURE else None),
         source_snapshot_id=f"{exchange.value}-{market_type.value}-snapshot",
         source_snapshot_sha256=SOURCE_HASH,
     )
@@ -71,9 +69,7 @@ def metric(item: InstrumentSnapshot, *, missing: bool = False) -> MetricSnapshot
         quote_volume_24h=None if missing else Decimal(1_000_000 - suffix),
         trade_count_24h=None if missing else 100_000 - suffix,
         open_interest_usd=(
-            None
-            if item.market_type is MarketType.SPOT or missing
-            else Decimal(500_000 - suffix)
+            None if item.market_type is MarketType.SPOT or missing else Decimal(500_000 - suffix)
         ),
         spread_bps=None if missing else Decimal("1.0"),
         source_snapshot_ids=("synthetic-metrics-v1",),
@@ -106,12 +102,9 @@ def test_all_active_selection_is_deterministic_and_excludes_inactive() -> None:
 
 
 def test_top100_has_separate_spot_and_derivative_limits() -> None:
-    spots = tuple(
-        instrument(Exchange.BINANCE, MarketType.SPOT, index) for index in range(55)
-    )
+    spots = tuple(instrument(Exchange.BINANCE, MarketType.SPOT, index) for index in range(55))
     derivatives = tuple(
-        instrument(Exchange.BYBIT, MarketType.PERPETUAL, index + 100)
-        for index in range(55)
+        instrument(Exchange.BYBIT, MarketType.PERPETUAL, index + 100) for index in range(55)
     )
     items = spots + derivatives
     snapshot = select_universe(
@@ -129,10 +122,7 @@ def test_top100_has_separate_spot_and_derivative_limits() -> None:
     assert list(selected.values()).count("spot") == 50
     assert list(selected.values()).count("derivatives") == 50
     assert (
-        sum(
-            "outside_spot_profile_limit" in item.exclusion_reasons
-            for item in snapshot.decisions
-        )
+        sum("outside_spot_profile_limit" in item.exclusion_reasons for item in snapshot.decisions)
         == 5
     )
     assert (
@@ -179,9 +169,7 @@ def test_top20_intersection_requires_each_exchange() -> None:
         if item.canonical_instrument_id == missing.canonical_instrument_id
     )
     assert not missing_decision.included
-    assert missing_decision.exclusion_reasons == (
-        "missing_from_required_exchanges:bybit,okx",
-    )
+    assert missing_decision.exclusion_reasons == ("missing_from_required_exchanges:bybit,okx",)
 
 
 def test_stable_tie_breaking_and_rank_last_missing_metrics() -> None:
@@ -198,8 +186,7 @@ def test_stable_tie_breaking_and_rank_last_missing_metrics() -> None:
         canonical_symbol="BETA/USDT",
     )
     derivatives = tuple(
-        instrument(Exchange.BINANCE, MarketType.PERPETUAL, index + 100)
-        for index in range(10)
+        instrument(Exchange.BINANCE, MarketType.PERPETUAL, index + 100) for index in range(10)
     )
     policy = UniverseSelectionPolicy(
         profile_identity="top20-high-frequency-v1",
@@ -299,8 +286,5 @@ def test_missing_metrics_duplicates_and_changed_input_hash() -> None:
         selection_timestamp_ms=SELECTION_MS,
         policy=DEFAULT_POLICIES["all-active-lite-v1"],
     )
-    assert (
-        baseline.source_instrument_snapshot_sha256
-        != changed.source_instrument_snapshot_sha256
-    )
+    assert baseline.source_instrument_snapshot_sha256 != changed.source_instrument_snapshot_sha256
     assert baseline.snapshot_sha256 != changed.snapshot_sha256

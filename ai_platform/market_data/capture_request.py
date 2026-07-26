@@ -72,9 +72,7 @@ class CaptureRequest:
             "market_types": [item.value for item in self.market_types],
             "channel_families": [item.value for item in self.channel_families],
             "start_condition": self.start_condition.to_dict(),
-            "end_condition": (
-                None if self.end_condition is None else self.end_condition.to_dict()
-            ),
+            "end_condition": (None if self.end_condition is None else self.end_condition.to_dict()),
             "raw_segment_policy": self.raw_segment_policy.to_dict(),
             "compression_policy": self.compression_policy.value,
             "clock_policy": self.clock_policy.to_dict(),

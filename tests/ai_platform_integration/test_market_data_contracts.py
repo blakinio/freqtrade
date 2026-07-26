@@ -104,9 +104,7 @@ def derivative_instrument(
 
 def raw_event(
     *,
-    timestamp_kind: AvailabilityTimestampKind = (
-        AvailabilityTimestampKind.LIVE_COLLECTOR_RECEIVE
-    ),
+    timestamp_kind: AvailabilityTimestampKind = (AvailabilityTimestampKind.LIVE_COLLECTOR_RECEIVE),
 ) -> RawMarketEventEnvelope:
     payload = {"price": "100", "quantity": "2"}
     return RawMarketEventEnvelope(
@@ -142,9 +140,7 @@ def segment() -> SegmentManifest:
         source_id="binance-spot",
         channel_family=ChannelFamily.TRADES,
         connection_id="connection-1",
-        instrument_ids=(
-            canonical_instrument_id(Exchange.BINANCE, MarketType.SPOT, "BTCUSDT"),
-        ),
+        instrument_ids=(canonical_instrument_id(Exchange.BINANCE, MarketType.SPOT, "BTCUSDT"),),
         opened_at_ms=1_700_000_000_000,
         closed_at_ms=1_700_000_001_000,
         first_event_id="event-1",
@@ -303,13 +299,9 @@ def test_capture_manifest_self_hash_and_safety_invariants() -> None:
         host_id="synthetic-host",
         started_at_ms=1_700_000_000_000,
         ended_at_ms=1_700_000_001_000,
-        source_channel_states=FrozenJsonObject.from_mapping(
-            {"binance-spot:trades": "closed"}
-        ),
+        source_channel_states=FrozenJsonObject.from_mapping({"binance-spot:trades": "closed"}),
         connection_intervals=(
-            FrozenJsonObject.from_mapping(
-                {"connection_id": "connection-1", "state": "closed"}
-            ),
+            FrozenJsonObject.from_mapping({"connection_id": "connection-1", "state": "closed"}),
         ),
         raw_segments=(segment(),),
         counts=FrozenJsonObject.from_mapping({"events": 2}),
@@ -319,23 +311,26 @@ def test_capture_manifest_self_hash_and_safety_invariants() -> None:
         rejected_records=0,
         output_immutability_state=OutputImmutabilityState.CLOSED_IMMUTABLE,
     )
-    assert manifest.manifest_sha256 == CaptureManifest.create(
-        request_sha256=request.request_sha256,
-        collector_commit=COMMIT,
-        capture_run_id="capture-1",
-        host_id="synthetic-host",
-        started_at_ms=1_700_000_000_000,
-        ended_at_ms=1_700_000_001_000,
-        source_channel_states=manifest.source_channel_states,
-        connection_intervals=manifest.connection_intervals,
-        raw_segments=manifest.raw_segments,
-        counts=manifest.counts,
-        gaps=(),
-        reconnects=manifest.reconnects,
-        clock_evidence=manifest.clock_evidence,
-        rejected_records=0,
-        output_immutability_state=OutputImmutabilityState.CLOSED_IMMUTABLE,
-    ).manifest_sha256
+    assert (
+        manifest.manifest_sha256
+        == CaptureManifest.create(
+            request_sha256=request.request_sha256,
+            collector_commit=COMMIT,
+            capture_run_id="capture-1",
+            host_id="synthetic-host",
+            started_at_ms=1_700_000_000_000,
+            ended_at_ms=1_700_000_001_000,
+            source_channel_states=manifest.source_channel_states,
+            connection_intervals=manifest.connection_intervals,
+            raw_segments=manifest.raw_segments,
+            counts=manifest.counts,
+            gaps=(),
+            reconnects=manifest.reconnects,
+            clock_evidence=manifest.clock_evidence,
+            rejected_records=0,
+            output_immutability_state=OutputImmutabilityState.CLOSED_IMMUTABLE,
+        ).manifest_sha256
+    )
     validate_contract_payload("CaptureManifest", manifest.as_json_dict())
     with pytest.raises(ValueError, match="execution_disabled"):
         replace(manifest, execution_disabled=False)

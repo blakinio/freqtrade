@@ -33,12 +33,9 @@ def test_source_catalog_is_bounded_declarative_and_schema_valid() -> None:
             "sources": [],
         }
         assert all(
-            channel.implementation_status == "not_implemented"
-            for channel in source.channels
+            channel.implementation_status == "not_implemented" for channel in source.channels
         )
-        assert all(
-            channel.validation_status == "not_validated" for channel in source.channels
-        )
+        assert all(channel.validation_status == "not_validated" for channel in source.channels)
         assert all(not channel.source_acceptance for channel in source.channels)
     validate_contract_payload("SourceCatalog", catalog.as_json_dict())
 

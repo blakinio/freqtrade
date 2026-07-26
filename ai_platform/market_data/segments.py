@@ -51,9 +51,7 @@ class SegmentManifest:
             "last_event_id",
         ):
             _require_text(str(getattr(self, field_name)), field=field_name)
-        if not self.instrument_ids or len(set(self.instrument_ids)) != len(
-            self.instrument_ids
-        ):
+        if not self.instrument_ids or len(set(self.instrument_ids)) != len(self.instrument_ids):
             raise ValueError("instrument_ids must be non-empty and unique")
         _require_int(self.opened_at_ms, field="opened_at_ms", minimum=1)
         _require_int(self.closed_at_ms, field="closed_at_ms", minimum=1)
@@ -62,9 +60,7 @@ class SegmentManifest:
         _require_int(self.event_count, field="event_count", minimum=1)
         _require_int(self.byte_count, field="byte_count", minimum=1)
         if (self.first_sequence is None) != (self.last_sequence is None):
-            raise ValueError(
-                "first_sequence and last_sequence must both be present or absent"
-            )
+            raise ValueError("first_sequence and last_sequence must both be present or absent")
         if self.first_sequence is not None and self.last_sequence is not None:
             _require_int(self.first_sequence, field="first_sequence")
             _require_int(self.last_sequence, field="last_sequence")
@@ -202,12 +198,10 @@ class GapMarker:
             _require_text(self.instrument_id, field="instrument_id")
         _require_int(self.detected_at_ms, field="detected_at_ms", minimum=1)
         sequence_fields_present = (
-            self.missing_from_sequence is not None
-            and self.missing_to_sequence is not None
+            self.missing_from_sequence is not None and self.missing_to_sequence is not None
         )
         interval_fields_present = (
-            self.interval_started_at_ms is not None
-            and self.interval_ended_at_ms is not None
+            self.interval_started_at_ms is not None and self.interval_ended_at_ms is not None
         )
         if self.reason is GapReason.SEQUENCE_GAP:
             if not sequence_fields_present:
@@ -247,9 +241,7 @@ class GapMarker:
                 }
                 and self.resynchronization_segment_id is None
             ):
-                raise ValueError(
-                    "resolved order-book gaps require resynchronization segment"
-                )
+                raise ValueError("resolved order-book gaps require resynchronization segment")
         elif self.resolved_at_ms is not None or self.resynchronization_segment_id is not None:
             raise ValueError("unresolved gaps must not claim resolution evidence")
         if self.gap_id != f"gap:{canonical_sha256(self.identity_payload())[:32]}":
@@ -312,10 +304,14 @@ class GapMarker:
 
     @property
     def invalidates_order_book(self) -> bool:
-        return self.channel_family in {
-            ChannelFamily.ORDER_BOOK_SNAPSHOT,
-            ChannelFamily.ORDER_BOOK_DELTA,
-        } and not self.resolved
+        return (
+            self.channel_family
+            in {
+                ChannelFamily.ORDER_BOOK_SNAPSHOT,
+                ChannelFamily.ORDER_BOOK_DELTA,
+            }
+            and not self.resolved
+        )
 
     def identity_payload(self) -> dict[str, Any]:
         return {

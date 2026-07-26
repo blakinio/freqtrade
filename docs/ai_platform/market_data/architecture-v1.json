@@ -1,0 +1,65 @@
+{
+  "architecture_document": "docs/ai_platform/market_data/ARCHITECTURE.md",
+  "classification": "foundation_contracts_only_no_runtime_capture",
+  "cross_exchange_deduplication_allowed": false,
+  "document_id": "market-data-fabric-architecture-v1",
+  "execution_enabled": false,
+  "immutable_source_of_truth": "closed_raw_segments_by_sha256",
+  "implementation_program": [
+    "foundation_contracts",
+    "source_and_instrument_catalog_live_preflight",
+    "instrument_snapshot_adapters",
+    "one_source_bounded_raw_collector",
+    "order_book_sequence_and_resynchronization_validation",
+    "multi_source_bounded_capture",
+    "deterministic_normalization_and_compaction",
+    "deterministic_replay",
+    "consumer_adapters"
+  ],
+  "initial_venues": [
+    "binance",
+    "bybit",
+    "okx"
+  ],
+  "live_capture_implemented": false,
+  "manifest_sha256": "19e5e62471814e3cca7d2a56fec87d3b5844d140e857da788d965f9fd2e920fa",
+  "market_types": [
+    "spot",
+    "perpetual",
+    "dated_future"
+  ],
+  "missing_data_implicit_zero_allowed": false,
+  "next_package": "source_and_instrument_catalog_live_preflight",
+  "normalized_reproducibility_inputs": [
+    "raw_segment_sha256",
+    "normalizer_commit",
+    "contract_version"
+  ],
+  "order_and_account_endpoints_allowed": false,
+  "order_book_rule": "unresolved_gap_invalid_until_closed_snapshot_resynchronization_segment",
+  "package_root": "ai_platform/market_data/",
+  "profiles": {
+    "all-active-lite-v1": {
+      "selection": "source_union",
+      "tier": "all_active_lightweight"
+    },
+    "top100-microstructure-v1": {
+      "derivatives_limit": 50,
+      "selection": "source_union",
+      "spot_limit": 50,
+      "tier": "trades_and_reconstructible_l2"
+    },
+    "top20-high-frequency-v1": {
+      "derivatives_limit": 10,
+      "selection": "source_intersection",
+      "spot_limit": 10,
+      "tier": "high_frequency"
+    }
+  },
+  "schema_version": 1,
+  "timestamp_kinds": [
+    "live_collector_receive",
+    "provider_capture"
+  ],
+  "trading_credentials_allowed": false
+}

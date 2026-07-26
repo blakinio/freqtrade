@@ -269,8 +269,8 @@ def select_universe(  # noqa: C901
     if unknown_metrics:
         raise ValueError(f"metrics reference unknown instruments: {unknown_metrics}")
     metric_by_id = {metric.canonical_instrument_id: metric for metric in metrics}
-    for metric in metrics:
-        if metric.measured_at_ms > selection_timestamp_ms:
+    for metric_snapshot in metrics:
+        if metric_snapshot.measured_at_ms > selection_timestamp_ms:
             raise ValueError("metric snapshots must not be from the future")
 
     exchange_set = set(policy.required_exchanges)

@@ -1,15 +1,16 @@
 ---
 task_id: FTAI-20260726-portal-pi06-product-identity-lifecycle
-status: implementing
+status: reviewing
 branch: feat/portal-pi06-product-identity-lifecycle
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: null
+related_pr: 341
 owned_paths:
   - ai_platform/portal/identity/
   - ai_platform/portal/control_plane/database.py
   - tests/ai_platform/portal/identity/
+  - .github/workflows/ai-platform.yml
   - docs/ai_platform/portal/PI06_PRODUCT_IDENTITY_IMPLEMENTATION.md
   - docs/agents/tasks/FTAI-20260726-portal-pi06-product-identity-lifecycle.md
 required_reads:
@@ -40,11 +41,11 @@ Implement the bounded repository backend for real product identity: OIDC Authori
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T10:10:00+02:00
-head: d1e728690fb74b346f1ffe61265281feab810e6b
+updated_at: 2026-07-26T11:08:00+02:00
+head: 45b6819bd9d71985d5d64892ae00d8e97c9f98bc
 branch: feat/portal-pi06-product-identity-lifecycle
-pr: null
-status: implementing
+pr: 341
+status: reviewing
 context_routes:
   - docs/ai_platform/portal/PI06_IDENTITY_AND_SESSION_DECISION.md
   - docs/ai_platform/portal/PI06_PRODUCT_IDENTITY_IMPLEMENTATION.md
@@ -54,40 +55,47 @@ owned_paths:
   - ai_platform/portal/identity/
   - ai_platform/portal/control_plane/database.py
   - tests/ai_platform/portal/identity/
+  - .github/workflows/ai-platform.yml
   - docs/ai_platform/portal/PI06_PRODUCT_IDENTITY_IMPLEMENTATION.md
   - docs/agents/tasks/FTAI-20260726-portal-pi06-product-identity-lifecycle.md
 proven:
-  - develop head at task declaration is d1e728690fb74b346f1ffe61265281feab810e6b.
-  - Open PR 322 owns isolated RL-v2 files and open PR 109 owns only an inert design reference; neither overlaps this task.
-  - PR 335 merged before declaration and owns only Liquidations AI-bot planning paths.
-  - The accepted PI-06 decision selects authentik, portal-owned memberships, BFF OIDC plus PKCE, opaque local sessions, CSRF, MFA, five-minute step-up and synchronous revocation.
-  - Existing control-plane create_app fails closed without an explicitly supplied trusted identity provider.
-  - A local focused harness passes 12 identity lifecycle, OIDC and migration tests.
+  - develop head at task declaration was d1e728690fb74b346f1ffe61265281feab810e6b.
+  - The branch was rebuilt on RL-v2 implementation merge 3c2959545a6570d24e6bf8477a9442dbf3772bb2 and then merged cleanly with current develop 7163382aad52e59326d02114508f40585252dd01; no owned path conflicted.
+  - PR 341 contains exactly the bounded Python identity backend, migration, tests, implementation documentation and required lightweight CI dependencies.
+  - OIDC discovery, signed JWKS validation, issuer, audience, nonce, PKCE and one-time state are enforced server-side.
+  - Portal sessions are opaque; storage contains keyed token hashes rather than browser tokens or IdP access, ID or refresh tokens.
+  - Tenant and capability context is derived from a current portal-owned membership, with MFA, five-minute step-up, CSRF and synchronous membership/session revocation.
+  - Focused local validation passed 12 identity lifecycle, OIDC and migration tests before PR creation.
+  - Candidate head 034ee8436a45d85ddb6c7282d1314257aed4fbd0 passed AI Platform CI 1412 and GitHub Actions Security Analysis 1576; pre-commit and documentation passed in Freqtrade CI 1709 before that run was superseded by the develop merge.
 derived:
-  - The first reviewable implementation package can deliver the Python identity backend without combining Next.js BFF work or external authentik provisioning.
+  - The repository backend is independently reviewable without combining Next.js BFF work or real authentik/Cloudflare provisioning.
+  - Full PI-06 remains active after this package because browser BFF integration, browser E2E and target-environment provisioning are separate evidence gates.
 unknown:
-  - Exact repository CI outcome after files are committed.
-  - Exact integration adjustments required by the full repository rather than the focused local harness.
+  - Exact final CI outcome on the checkpoint-update head.
 conflicts: []
-first_failure: null
+first_failure:
+  marker: AI_PLATFORM_LIGHTWEIGHT_DEPENDENCIES
+  evidence: The first PR run could not collect the identity tests because the lightweight AI workflow omitted pyjwt and cryptography; after adding the existing project dependencies, the next full suite exposed a duplicate test module name, followed by deterministic Ruff/format findings. All three defects were repaired, and temporary diagnostic workflows were removed from the final diff.
 rejected_hypotheses:
   - Replace product authorization with Cloudflare Access or IdP groups.
   - Store IdP tokens or raw portal session identifiers in the database.
   - Combine external Authentik deployment secrets with this repository backend package.
+  - Retain a temporary diagnostic workflow in the merge candidate.
 changed_paths:
+  - .github/workflows/ai-platform.yml
+  - ai_platform/portal/control_plane/database.py
   - ai_platform/portal/identity/__init__.py
   - ai_platform/portal/identity/crypto.py
   - ai_platform/portal/identity/http.py
+  - ai_platform/portal/identity/migrations/0001_identity_lifecycle.sql
   - ai_platform/portal/identity/models.py
   - ai_platform/portal/identity/oidc.py
   - ai_platform/portal/identity/repository.py
   - ai_platform/portal/identity/runtime.py
   - ai_platform/portal/identity/schema.py
   - ai_platform/portal/identity/service.py
-  - ai_platform/portal/identity/migrations/0001_identity_lifecycle.sql
-  - ai_platform/portal/control_plane/database.py
   - tests/ai_platform/portal/identity/test_identity_lifecycle.py
-  - tests/ai_platform/portal/identity/test_migration.py
+  - tests/ai_platform/portal/identity/test_identity_migration.py
   - tests/ai_platform/portal/identity/test_oidc.py
   - docs/ai_platform/portal/PI06_PRODUCT_IDENTITY_IMPLEMENTATION.md
   - docs/agents/tasks/FTAI-20260726-portal-pi06-product-identity-lifecycle.md
@@ -95,9 +103,15 @@ validation:
   - command: focused local pytest identity harness
     result: PASS
     evidence: 12 tests passed for OIDC, sessions, CSRF, MFA, revocation and migration behavior.
-  - command: python py_compile and AST parse
+  - command: candidate AI Platform CI 1412
     result: PASS
-    evidence: all new Python files and tests parse and compile.
+    evidence: full AI tests, Ruff, Ruff format, codespell and JSON validation passed.
+  - command: candidate GitHub Actions Security Analysis 1576
+    result: PASS
+    evidence: zizmor completed successfully and no temporary diagnostic workflow remained.
+  - command: candidate Freqtrade CI 1709
+    result: SUPERSEDED
+    evidence: pre-commit and documentation passed; the run was superseded when current develop was merged before completion.
 blockers: []
-next_action: Commit the bounded implementation, open a PR, run exact-head repository CI and repair the first deterministic failure without expanding into BFF or deployment scope.
+next_action: Require AI Platform, Freqtrade and security CI to pass on the exact updated PR head, then mark PR 341 ready and squash-merge without expanding into browser BFF or external deployment scope.
 ```

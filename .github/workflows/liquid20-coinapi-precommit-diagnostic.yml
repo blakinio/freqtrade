@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Run pre-commit and print concise failure
+      - name: Show exact formatter patch
         shell: bash
         run: |
           set -euo pipefail
@@ -35,9 +35,13 @@ jobs:
           set +e
           (
             cd source
-            pre-commit run --all-files
+            pre-commit run ruff-format --all-files
           ) > /tmp/precommit.log 2>&1
           rc=$?
           set -e
-          tail --lines=160 /tmp/precommit.log
+          cat /tmp/precommit.log
+          (
+            cd source
+            git diff -- tests/ai_platform_integration/test_liquidation_historical_coinapi_authenticated_trial.py
+          )
           exit "$rc"

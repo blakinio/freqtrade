@@ -1,0 +1,42 @@
+name: Diagnostic RL-v2 Action Observability Infrastructure Lint
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - feat/rl-v2-action-observability-execution-infrastructure
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact diagnostic commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install exact Ruff
+        run: python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
+
+      - name: Report exact lint and format defects
+        run: |
+          ruff check \
+            ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py \
+            ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
+            ai_platform/scripts/rl_v2_action_observability_execution_evidence.py \
+            tests/ai_platform/test_rl_v2_action_observability_execution.py
+          ruff format --check \
+            ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py \
+            ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
+            ai_platform/scripts/rl_v2_action_observability_execution_evidence.py \
+            tests/ai_platform/test_rl_v2_action_observability_execution.py

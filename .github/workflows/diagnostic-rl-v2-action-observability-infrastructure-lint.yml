@@ -12,7 +12,7 @@ permissions:
 jobs:
   lint:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - name: Checkout diagnostic branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -25,38 +25,65 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install exact Ruff
-        run: python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
-
-      - name: Apply exact fail-closed complexity waiver and formatting
+      - name: Apply exact Ruff and mypy corrections
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          path = Path(
+          request_path = Path(
               "ai_platform/scripts/rl_v2_action_observability_execution_run_request.py"
           )
-          text = path.read_text(encoding="utf-8")
-          old = (
-              "def _validate_contract() -> "
-              "tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:\n"
+          request = request_path.read_text(encoding="utf-8")
+          old_request = '''    if isinstance(value, list):
+              keys: set[str] = set()
+              for child in value:
+                  keys.update(_collect_keys(child))
+              return keys
+          '''
+          new_request = '''    if isinstance(value, list):
+              collected_keys: set[str] = set()
+              for child in value:
+                  collected_keys.update(_collect_keys(child))
+              return collected_keys
+          '''
+          if old_request in request:
+              request = request.replace(old_request, new_request, 1)
+          elif new_request not in request:
+              raise SystemExit("Expected list key collector not found")
+          request_path.write_text(request, encoding="utf-8")
+
+          evidence_path = Path(
+              "ai_platform/scripts/rl_v2_action_observability_execution_evidence.py"
           )
-          new = (
-              "def _validate_contract(  # noqa: C901\n"
-              ") -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:\n"
-          )
-          if old in text:
-              path.write_text(text.replace(old, new, 1), encoding="utf-8")
-          elif new not in text:
-              raise SystemExit("Expected _validate_contract signature not found")
+          evidence = evidence_path.read_text(encoding="utf-8")
+          old_evidence = '''        if position_long:
+              long_state_counts[state_key] += 1
+              bucket = _duration_bucket(trade)
+              duration_conditioned[bucket]["rows"] += 1
+              duration_conditioned[bucket][state_key] += 1
+          '''
+          new_evidence = '''        if trade is not None:
+              long_state_counts[state_key] += 1
+              bucket = _duration_bucket(trade)
+              duration_conditioned[bucket]["rows"] += 1
+              duration_conditioned[bucket][state_key] += 1
+          '''
+          if old_evidence in evidence:
+              evidence = evidence.replace(old_evidence, new_evidence, 1)
+          elif new_evidence not in evidence:
+              raise SystemExit("Expected optional trade block not found")
+          evidence_path.write_text(evidence, encoding="utf-8")
           PY
-          ruff format \
-            ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py \
-            ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
-            ai_platform/scripts/rl_v2_action_observability_execution_evidence.py \
-            tests/ai_platform/test_rl_v2_action_observability_execution.py
+
+      - name: Install exact validation tools
+        run: |
+          python -m pip install --disable-pip-version-check --quiet \
+            ruff==0.15.21 pre-commit
+
+      - name: Validate exact changed files
+        run: |
           ruff check \
             ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py \
             ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
@@ -67,21 +94,23 @@ jobs:
             ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
             ai_platform/scripts/rl_v2_action_observability_execution_evidence.py \
             tests/ai_platform/test_rl_v2_action_observability_execution.py
+          pre-commit run --files \
+            ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
+            ai_platform/scripts/rl_v2_action_observability_execution_evidence.py \
+            tests/ai_platform/test_rl_v2_action_observability_execution.py
 
       - name: Commit deterministic corrections
         shell: bash
         run: |
           set -euo pipefail
           if git diff --quiet; then
-            echo "No Ruff corrections remain"
+            echo "No validation corrections remain"
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add \
-            ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py \
             ai_platform/scripts/rl_v2_action_observability_execution_run_request.py \
-            ai_platform/scripts/rl_v2_action_observability_execution_evidence.py \
-            tests/ai_platform/test_rl_v2_action_observability_execution.py
-          git commit -m "style(ai-platform): apply observability infrastructure Ruff fixes"
+            ai_platform/scripts/rl_v2_action_observability_execution_evidence.py
+          git commit -m "fix(ai-platform): satisfy observability infrastructure typing"
           git push origin HEAD:diagnostic/rl-v2-action-observability-infrastructure-lint

@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "document_id": "liquidations-lq02-dataset-selection-preflight-20260726-v1",
+  "created_at": "2026-07-26T08:33:46Z",
+  "repository": "blakinio/freqtrade",
+  "develop_head_checked": "c1b8b9186cffbd6dcadf6c1df7a395e8b52f51cc",
+  "purpose_classification": "diagnostic_only",
+  "dataset_selection_manifest_emitted": false,
+  "checked_liquid20_runs": [
+    {
+      "run_id": "liquid20-20260724T170830Z-1",
+      "status": "completed",
+      "final_report_present": true,
+      "passed": false,
+      "failed_gates": [
+        "binance-usdm.maximum_latency_over_threshold_ratio"
+      ],
+      "collector_commit": "c00a091c5adc67cf75c46db5805e358ffc72fad7",
+      "collector_image": "ghcr.io/blakinio/liquid20-collector:c00a091c5adc67cf75c46db5805e358ffc72fad7",
+      "duration_seconds": 86400,
+      "event_counts": {
+        "bybit-linear": 771,
+        "binance-usdm": 1777
+      },
+      "observed_symbol_counts": {
+        "bybit-linear": 20,
+        "binance-usdm": 20
+      },
+      "artifact_hash_verification_reported": true,
+      "source_artifact_hashes_available_to_selector": false,
+      "research_classification": "diagnostic_only",
+      "strict_oos_eligible": false
+    },
+    {
+      "run_id": "liquid20-20260725T212201Z-1",
+      "status": "in_progress",
+      "final_report_present": false,
+      "passed": null,
+      "failed_gates": [],
+      "collector_commit": "c00a091c5adc67cf75c46db5805e358ffc72fad7",
+      "collector_image": "ghcr.io/blakinio/liquid20-collector:c00a091c5adc67cf75c46db5805e358ffc72fad7",
+      "started_at": "2026-07-25T21:22:01.739056785Z",
+      "expected_not_before_completion": "2026-07-26T21:22:01.739056785Z",
+      "research_classification": "not_selectable"
+    }
+  ],
+  "candle_evidence": {
+    "adequate_versioned_artifact_located": false,
+    "required_missing_identity_fields": [
+      "logical_name",
+      "source_and_version",
+      "sha256",
+      "record_count",
+      "start_ms",
+      "end_ms",
+      "timeframe",
+      "pair_mapping"
+    ]
+  },
+  "protected_holdout_check": {
+    "policy_interval": {
+      "start": "2026-08-01T00:00:00Z",
+      "end": "2026-10-01T00:00:00Z"
+    },
+    "current_run_overlap_detected": false,
+    "passed": true,
+    "diagnostic_use_blocks_future_strict_oos_for_first_run_interval": true
+  },
+  "performance_research_authorized": false,
+  "blockers": [
+    "No completed Liquid20 run currently has a final report with passed true.",
+    "No adequate versioned candle artifact with coverage, timeframe, pair mapping, record count and SHA-256 identity was located.",
+    "Exact source NDJSON, summary, manifest and acceptance-report hashes are not connector-readable until an explicit non-mutating collect operation publishes the completed run artifacts."
+  ],
+  "preflight_sha256": "2097a64f7ab9c577745fd20ace5f231611d129df8a6551f94943139b094cf004"
+}

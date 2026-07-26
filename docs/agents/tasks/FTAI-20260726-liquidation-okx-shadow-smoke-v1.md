@@ -35,8 +35,8 @@ separate exact-one-file trigger. Keep OKX outside `liquid20-v1`, LQ-02, replay, 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T18:50:00Z
-head: 968f1b1c85ab1d86b3854a9941231ec02d250eff
+updated_at: 2026-07-26T19:07:00Z
+head: 16be62197773db288d7d9fc8770374ab0a8ac130
 branch: feat/liquidation-okx-shadow-smoke-v1
 pr: "#386"
 status: validating
@@ -54,9 +54,12 @@ owned_paths:
 proven:
   - PR 339 merged as 11ad81870c0b199b0739af9dcfa239cb32d455cc.
   - OKX remains shadow_only_not_in_liquid20_v1.
-  - Infrastructure commit 968f1b1c85ab1d86b3854a9941231ec02d250eff is published in PR 386.
+  - Infrastructure and mypy repair are published in PR 386 at 16be62197773db288d7d9fc8770374ab0a8ac130.
   - The merged collector uses public endpoints, refuses recognized trading credentials and freezes instrument metadata.
   - Official OKX contracts still expose the public WebSocket, public time and public SWAP instrument metadata used by the collector.
+  - AI Platform CI 1669 passed compile, all AI tests, Ruff, Ruff format, codespell and JSON validation on code head c53601d5399118f6398b7c2928e8d43163d2085c.
+  - Zizmor 1880 passed the production workflow on code head c53601d5399118f6398b7c2928e8d43163d2085c.
+  - Two pre-commit mypy findings were narrowed without ignores, and both temporary diagnostic workflows are absent from the six-file PR diff.
 derived:
   - The next safe liquidation package is a short transport smoke with zero event minimum.
   - A separate prospective long-run acceptance policy is required after transport compatibility is proven.
@@ -73,6 +76,7 @@ rejected_hypotheses:
   - Add OKX directly to liquid20-v1.
   - Require a liquidation event during a two-minute transport smoke.
   - Run the smoke from an infrastructure PR before its policy is merged.
+  - Suppress mypy findings instead of narrowing accepted JSON scalar types.
   - Treat smoke success as performance or trading authorization.
 changed_paths:
   - ai_platform/research/liquidations/okx-liquidation-shadow-smoke-policy-v1.json
@@ -82,12 +86,18 @@ changed_paths:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SMOKE.md
   - docs/agents/tasks/FTAI-20260726-liquidation-okx-shadow-smoke-v1.md
 validation:
-  - command: Python syntax and JSON parsing
+  - command: AI Platform CI
     result: PASS
-    evidence: The new Python sources parse and the frozen policy is valid JSON before publication.
-  - command: repository CI on exact PR head
+    evidence: Run 30215867040 passed compile, all AI tests, Ruff, Ruff format, codespell and JSON validation on c53601d5399118f6398b7c2928e8d43163d2085c.
+  - command: GitHub Actions Security Analysis with zizmor
+    result: PASS
+    evidence: Run 30215867061 passed on c53601d5399118f6398b7c2928e8d43163d2085c.
+  - command: pre-commit diagnostic before mypy repair
+    result: FAIL
+    evidence: Artifact 8635823799 isolated exactly two numeric input narrowing errors; all other hooks passed and the errors were fixed at 16be62197773db288d7d9fc8770374ab0a8ac130.
+  - command: repository CI on exact current PR head
     result: NOT_RUN
-    evidence: Exact-head CI is running on PR 386.
+    evidence: Run after this checkpoint update triggers exact-head workflows.
 blockers: []
 next_action: Merge the prospective smoke infrastructure after exact-head CI, then open a separate exact-one-file trigger PR and close it without merge after terminal evidence is captured.
 ```

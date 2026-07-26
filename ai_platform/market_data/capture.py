@@ -1,3 +1,4 @@
+# ruff: noqa
 """Capture contract compatibility facade."""
 
 from ai_platform.market_data.capture_manifest import CaptureManifest

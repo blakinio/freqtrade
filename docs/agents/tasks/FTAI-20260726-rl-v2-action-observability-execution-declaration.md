@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260726-rl-v2-action-observability-execution-declaration
-status: active
-branch: docs/rl-v2-action-observability-execution-declaration
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
@@ -27,23 +27,23 @@ search_first:
 
 ## Goal
 
-Prospectively freeze a fresh historical-development action-observability study before any strategy wiring, market-data access, training or backtest. The declaration must preserve the terminal seed-validity result and select only new seeds and a previously unconsumed evidence window.
+Prospectively freeze a fresh historical-development action-observability study before any strategy wiring, market-data access, training or backtest.
 
 ## Result
 
-The declaration selects September-October 2025 as a fresh semantic evidence window, with bounded June-October data coverage and exactly four new seeds. It freezes the lifecycle-aligned model, strategy parent, configuration, pairs, timeframes, fee, PPO policy, data split, project-specific capture hook, artifact set and post-hoc trade-state derivation.
+PR 317 merged the three-file declaration as `b8e3fa1b946a5fb6e14a8ccccb1d96a8cbbd2787`. It selects September-October 2025, exactly four new seeds and a disabled-by-default project-specific capture hook while preserving all forbidden-window, prior-seed, Phase 6 and no-promotion boundaries.
 
-The declaration itself executes nothing.
+No model, data or backtest operation occurred.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T08:35:00+02:00
-head: 45394c566d4ddd704c4ec40f6a91ecfd8068115a
-branch: docs/rl-v2-action-observability-execution-declaration
+updated_at: 2026-07-26T08:45:00+02:00
+head: b8e3fa1b946a5fb6e14a8ccccb1d96a8cbbd2787
+branch: develop
 pr: 317
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
   - docs/agents/tasks/FTAI-20260725-rl-v2-action-observability-implementation.md
@@ -54,44 +54,43 @@ owned_paths:
   - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_EXECUTION_DECLARATION.md
   - ai_platform/experimental_model_research/rl-v2-action-observability-execution-declaration-v1.json
 proven:
-  - Develop head b10ebefaace1e15d070dd2f4662775df5d974db8 contains the terminal action-observability implementation closure.
-  - No open PR overlaps RL-v2 action observability, lifecycle seeds, PPO configuration or run-request ownership.
-  - Prior RL-v2 execution used March-April 2026 development evidence, consumed OOS is May-June 2026 and protected holdout is August-September 2026.
-  - The selected September-October 2025 semantic evidence window is absent from prior RL-v2 execution declarations and does not overlap the forbidden windows.
-  - Exactly four new seeds are frozen and no previous seed may be rerun or replaced.
-  - The only authorized future strategy delta is disabled-by-default project-specific telemetry after inherited exit-signal evaluation.
-  - PR 317 changes exactly the three declared paths.
+  - PR 317 changed exactly the three prospectively owned declaration paths.
+  - The fresh execution range is 20250901-20251101 with bounded download range 20250601-20251101 and no cache restore.
+  - Exactly seeds 271828182, 628318530, 1414213562 and 1618033988 are frozen; no prior or outcome-aware replacement seed is allowed.
+  - The future observable strategy may only add disabled-by-default telemetry after inherited exit-signal evaluation.
+  - AI Platform CI 30191265050, Freqtrade CI 30191265036 and zizmor 30191265031 passed on the final declaration head.
+  - GitHub squash-merged PR 317 as b8e3fa1b946a5fb6e14a8ccccb1d96a8cbbd2787.
+  - No market data, model, training, backtest, cache, consumed OOS or protected holdout was accessed.
 derived:
-  - A complete historical window before prior executed evidence can test action persistence without outcome-aware reuse of old seeds.
-  - Four fresh seeds provide descriptive cross-seed mechanism evidence while preserving the old inconclusive aggregate unchanged.
+  - The declaration is sufficient to begin a separate inert implementation/infrastructure package.
 unknown:
-  - Whether the recorder can be wired through the declared subclass hook without duplicate pair capture in the full Freqtrade backtest lifecycle.
+  - Whether the full runtime invokes the declared capture hook exactly once per pair.
   - What action-versus-position patterns the four fresh seeds will produce.
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: Live preflight found no overlapping RL-v2 work or forbidden-window conflict.
+  evidence: All declaration validation and review gates passed.
 rejected_hypotheses:
-  - Rerun either invalid seed with telemetry.
-  - Reuse March-April 2026 development evidence.
-  - Access consumed OOS 20260501-20260630 or protected holdout 20260801-20260930.
-  - Add telemetry directly to the parent strategy or upstream Freqtrade core.
-  - Change PPO, reward, features, lifecycle, thresholds, pairs, timeframes or fee.
-  - Use profitability, ranking, promotion, dry-run or live outcomes.
+  - Rerun or replace prior seeds.
+  - Reuse March-April 2026 evidence or access forbidden windows.
+  - Add telemetry to the parent strategy or upstream core.
+  - Change PPO, reward, features, lifecycle or execution geometry.
+  - Rank, promote, dry-run or deploy from this evidence.
 changed_paths:
   - docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-declaration.md
-  - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_EXECUTION_DECLARATION.md
-  - ai_platform/experimental_model_research/rl-v2-action-observability-execution-declaration-v1.json
 validation:
-  - command: live develop and overlapping open-PR preflight
+  - command: AI Platform CI 30191265050
     result: PASS
-    evidence: Develop and open PR state do not conflict with the declared three-file scope.
-  - command: declaration cross-check against prior timeranges and frozen identities
+    evidence: Compile, tests, Ruff, format, codespell and JSON validation passed.
+  - command: Freqtrade CI 30191265036
     result: PASS
-    evidence: The selected window and four new seeds preserve consumed-OOS, holdout, prior-seed and Phase 6 boundaries.
-  - command: exact PR 317 scope comparison
+    evidence: Pre-commit, scope, documentation and final CI gate passed.
+  - command: GitHub Actions Security Analysis 30191265031
     result: PASS
-    evidence: The PR contains only the task, documentation and machine-readable declaration.
+    evidence: zizmor passed on the final declaration head.
+  - command: squash merge PR 317
+    result: PASS
+    evidence: Declaration merged to develop as b8e3fa1b946a5fb6e14a8ccccb1d96a8cbbd2787.
 blockers: []
-next_action: Validate and merge this three-file prospective declaration, close its task record on develop, then create a separate inert implementation/infrastructure task before any data or model operation.
+next_action: Create a separate inert RL-v2 action-observability execution infrastructure task implementing only the declared subclass hook, canonical request validation, workflow and deterministic evidence tooling; keep the canonical request absent and execute nothing.
 ```

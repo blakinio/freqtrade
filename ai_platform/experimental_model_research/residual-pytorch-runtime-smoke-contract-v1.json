@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "contract_id": "residual-pytorch-runtime-smoke-v1",
+  "stage": "P1",
+  "status": "implemented_pending_exact_head_runtime_evidence",
+  "model": "ResidualPyTorchRegressor",
+  "resolver": "FreqaiModelResolver.load_freqaimodel",
+  "outcomes": [
+    "runtime_supported",
+    "runtime_not_supported",
+    "runtime_inconclusive"
+  ],
+  "paths": {
+    "model": "ai_platform/freqaimodels/ResidualPyTorchRegressor.py",
+    "script": "ai_platform/scripts/residual_pytorch_runtime_smoke.py",
+    "validator": "ai_platform/scripts/residual_pytorch_runtime_smoke_contract.py",
+    "workflow": ".github/workflows/residual-pytorch-runtime-smoke.yml",
+    "documentation": "docs/ai_platform/RESIDUAL_PYTORCH_RUNTIME_SMOKE.md",
+    "task": "docs/agents/tasks/FTAI-20260726-residual-pytorch-runtime-smoke.md",
+    "tests": "tests/ai_platform/test_residual_pytorch_runtime_smoke_contract.py"
+  },
+  "synthetic_data": {
+    "deterministic": true,
+    "start": "2025-01-01T00:00:00+00:00",
+    "historical_oos_start": "2026-05-01T00:00:00+00:00",
+    "protected_holdout_start": "2026-08-01T00:00:00+00:00",
+    "exchange_download": false,
+    "market_data": false
+  },
+  "required_checks": {
+    "official_resolver": true,
+    "cpu_construct_forward_fit_predict_save_load_predict": true,
+    "cuda_when_available_without_forcing": true,
+    "same_seed_same_runtime_identical_parameters": true,
+    "same_seed_same_runtime_identical_predictions": true,
+    "tensor_shapes": true,
+    "parameter_count": true,
+    "finite_weights_and_predictions": true,
+    "checkpoint_metadata": true,
+    "exactly_one_target": true,
+    "fresh_train_save_restore_prediction_identity": true,
+    "fail_closed_multiple_targets": true,
+    "fail_closed_invalid_dimensions": true,
+    "fail_closed_missing_checkpoint": true,
+    "fail_closed_invalid_config": true,
+    "fail_closed_continual_learning": true
+  },
+  "frozen_model_parameters": {
+    "research_seed": 42,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0001,
+    "loss_beta": 0.01,
+    "hidden_dim": 128,
+    "n_blocks": 3,
+    "expansion_factor": 2,
+    "dropout_percent": 0.1,
+    "residual_scale": 1.0
+  },
+  "isolation": {
+    "phase5_entry_threshold": 0.006,
+    "phase5_exit_threshold": -0.009,
+    "phase6_selected_model": null,
+    "consumed_historical_oos": "20260501-20260630",
+    "protected_final_holdout": "20260801-20260930",
+    "rl_promotion_comparison": false,
+    "liquidation_features": false
+  },
+  "authorization": {
+    "synthetic_training": true,
+    "market_data_access": false,
+    "market_training": false,
+    "backtesting": false,
+    "hyperopt": false,
+    "feature_search": false,
+    "model_parameter_change": false,
+    "historical_oos_access": false,
+    "protected_holdout_access": false,
+    "dry_run_deployment": false,
+    "live_trading": false,
+    "promotion": false,
+    "profitability_claim": false
+  }
+}

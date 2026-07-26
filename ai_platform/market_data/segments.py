@@ -39,7 +39,7 @@ class SegmentManifest:
     closure_state: str
     manifest_sha256: str
 
-    def __post_init__(self) -> None:  # noqa: C901
+    def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         for field_name in (

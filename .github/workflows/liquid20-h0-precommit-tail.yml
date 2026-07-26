@@ -20,7 +20,7 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --location \
-            https://github.com/blakinio/freqtrade/archive/001a9bc3c0ece507c081a9bd091ab062b7aa197b.tar.gz \
+            https://github.com/blakinio/freqtrade/archive/a4c29686e5376eb8197dba39cb87c46cb676bf16.tar.gz \
             -o /tmp/source.tar.gz
           mkdir /tmp/source
           tar -xzf /tmp/source.tar.gz --strip-components=1 -C /tmp/source

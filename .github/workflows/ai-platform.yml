@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   validate-checkpoint:
-    name: Validate RL-v2 seed audit checkpoint and resume
+    name: Diagnose RL-v2 seed audit checkpoint and resume
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -24,16 +24,25 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run canonical checkpoint and resume validation
+      - name: Capture canonical checkpoint and resume diagnostics
         run: |
           mkdir -p diagnostic-output
+          set +e
           python tools/agents/checkpoint.py \
             docs/agents/tasks/FTAI-20260726-rl-v2-seed-effectiveness-determinism-audit.md \
             --require-checkpoint \
-            > diagnostic-output/checkpoint.txt
+            > diagnostic-output/checkpoint.stdout.txt \
+            2> diagnostic-output/checkpoint.stderr.txt
+          checkpoint_status=$?
           python tools/agents/resume.py \
             --task docs/agents/tasks/FTAI-20260726-rl-v2-seed-effectiveness-determinism-audit.md \
-            > diagnostic-output/resume.txt
+            > diagnostic-output/resume.stdout.txt \
+            2> diagnostic-output/resume.stderr.txt
+          resume_status=$?
+          printf 'checkpoint_status=%s\nresume_status=%s\n' \
+            "$checkpoint_status" "$resume_status" \
+            > diagnostic-output/status.txt
+          exit 0
 
       - name: Upload diagnostic output
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

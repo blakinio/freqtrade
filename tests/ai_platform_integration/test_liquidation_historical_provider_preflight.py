@@ -8,8 +8,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-import pytest
 from jsonschema import Draft202012Validator
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = (
@@ -81,30 +81,26 @@ def _walk_strings(value: object) -> list[str]:
     return strings
 
 
-def _validate_contract(contract: dict[str, Any]) -> None:
-    missing = REQUIRED_TOP_LEVEL - set(contract)
-    if missing:
-        raise ValueError(f"missing required fields: {sorted(missing)}")
-    if contract["schema_version"] != 1:
-        raise ValueError("schema_version must be 1")
+def _validate_date_range(date_range: dict[str, Any], label: str) -> datetime:
+    start = _parse_utc(date_range["start_inclusive"])
+    end = _parse_utc(date_range["end_exclusive"])
+    if start >= end:
+        raise ValueError(f"{label} date range must be increasing")
+    return end
 
-    requested = contract["requested_date_range"]
-    requested_start = _parse_utc(requested["start_inclusive"])
-    requested_end = _parse_utc(requested["end_exclusive"])
-    if requested_start >= requested_end:
-        raise ValueError("requested date range must be increasing")
 
+def _validate_recommended_range(contract: dict[str, Any]) -> None:
     recommended = contract["recommended_import_request"]
-    recommended_start = _parse_utc(recommended["start_inclusive"])
-    recommended_end = _parse_utc(recommended["end_exclusive"])
-    if recommended_start >= recommended_end:
-        raise ValueError("recommended date range must be increasing")
+    recommended_end = _validate_date_range(recommended, "recommended")
     if recommended_end > PROTECTED_HOLDOUT_START:
         raise ValueError("recommended range touches the protected final holdout")
     if not recommended["protected_final_holdout_excluded"]:
         raise ValueError("protected final holdout must remain excluded")
 
+
+def _validate_semantic_eras(contract: dict[str, Any]) -> None:
     semantic_eras: list[str] = []
+    recommended = contract["recommended_import_request"]
     for dataset in recommended["exchange_datasets"]:
         semantic_eras.extend(dataset["semantic_eras"])
     for source in contract["source_decisions"]:
@@ -118,10 +114,14 @@ def _validate_contract(contract: dict[str, Any]) -> None:
     if invalid_eras:
         raise ValueError(f"invalid semantic eras: {sorted(invalid_eras)}")
 
+
+def _validate_no_secrets(contract: dict[str, Any]) -> None:
     for value in _walk_strings(contract):
         if any(pattern.search(value) for pattern in SECRET_PATTERNS):
             raise ValueError("secret-shaped value is forbidden")
 
+
+def _validate_identity(contract: dict[str, Any]) -> None:
     canonical_identity = json.dumps(
         contract["identity_material"],
         ensure_ascii=False,
@@ -131,6 +131,19 @@ def _validate_contract(contract: dict[str, Any]) -> None:
     observed_hash = hashlib.sha256(canonical_identity).hexdigest()
     if observed_hash != contract["identity_sha256"]:
         raise ValueError("identity_sha256 does not match canonical identity material")
+
+
+def _validate_contract(contract: dict[str, Any]) -> None:
+    missing = REQUIRED_TOP_LEVEL - set(contract)
+    if missing:
+        raise ValueError(f"missing required fields: {sorted(missing)}")
+    if contract["schema_version"] != 1:
+        raise ValueError("schema_version must be 1")
+    _validate_date_range(contract["requested_date_range"], "requested")
+    _validate_recommended_range(contract)
+    _validate_semantic_eras(contract)
+    _validate_no_secrets(contract)
+    _validate_identity(contract)
 
 
 def test_provider_decision_contract_validates() -> None:

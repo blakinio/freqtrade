@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import base64
 import importlib.util
 import json
 from pathlib import Path
 
+
 ROOT = Path(__file__).resolve().parents[4]
 DEPLOYMENT = ROOT / "deploy" / "synology" / "portal-authentik"
-SPEC = importlib.util.spec_from_file_location("authentik_deployment_validate", DEPLOYMENT / "validate.py")
+SPEC = importlib.util.spec_from_file_location(
+    "authentik_deployment_validate",
+    DEPLOYMENT / "validate.py",
+)
 assert SPEC and SPEC.loader
 validator = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(validator)
@@ -114,8 +119,6 @@ def test_placeholder_runtime_secrets_fail_closed() -> None:
 
 
 def test_base64_helper_requires_32_decoded_bytes() -> None:
-    import base64
-
     assert validator.decoded_key_is_long_enough(base64.b64encode(b"x" * 32).decode())
     assert not validator.decoded_key_is_long_enough(base64.b64encode(b"x" * 31).decode())
     assert not validator.decoded_key_is_long_enough("not-base64")

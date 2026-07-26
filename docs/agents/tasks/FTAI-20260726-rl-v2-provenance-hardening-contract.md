@@ -5,7 +5,7 @@ branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "403"
+related_pr: "403, 405"
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
 required_reads:
@@ -42,7 +42,7 @@ The completed RL-v2 action-observability evidence remains descriptive and inconc
 
 ## Terminal outcome
 
-Declaration PR 403 added exactly this task record and squash-merged to `develop` as `a1feddb2a942230ca5164aa65696cda856e85dd0` from exact head `eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d`.
+Declaration PR 403 added exactly this task record and squash-merged to `develop` as `a1feddb2a942230ca5164aa65696cda856e85dd0` from exact head `eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d`. Terminal closeout is tracked by PR 405.
 
 Exact-head Freqtrade CI run `30220358588` and zizmor run `30220358533` completed successfully. Pre-commit Types update run `30220358532` was skipped because the one-file documentation change did not trigger its update scope.
 
@@ -251,11 +251,11 @@ This declaration is complete only when:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T23:18:00+02:00
-head: eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d
+updated_at: 2026-07-26T23:22:00+02:00
+head: 538b62f22261d061fe01013d25b3720e3286d3ff
 merge_commit: a1feddb2a942230ca5164aa65696cda856e85dd0
 branch: docs/rl-v2-provenance-hardening-contract-closeout
-pr: 403
+pr: 405
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-seed-effectiveness-determinism-audit.md
@@ -268,6 +268,7 @@ owned_paths:
 proven:
   - Live-state preflight found no overlapping RL-v2 provenance task, branch, PR or execution authorization.
   - Declaration PR 403 changed exactly one task-record path and merged as a1feddb2a942230ca5164aa65696cda856e85dd0 from exact head eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d.
+  - Terminal task closure is isolated to one task-record path in PR 405.
   - Exact-head Freqtrade CI 30220358588 and zizmor 30220358533 succeeded; Pre-commit Types update 30220358532 was skipped.
   - Local checkpoint.py validation returned status 0 and output Validated 1 checkpoint task(s).
   - Local resume.py validation returned status 0 and rendered the expected task continuation bundle.
@@ -276,13 +277,12 @@ proven:
   - Consumed historical OOS and the protected final holdout were not accessed.
   - PPO, reward, strategy, lifecycle, feature, target and action semantics were unchanged.
   - Phase 6 remains authoritative with selected_model null and no ranking, selection or promotion authority.
-  - The declaration distinguishes identical policies from distinct policies that produce identical actions.
   - Missing provenance from the completed experiment remains unknown and cannot be filled by rerun.
 derived:
   - Prospective canonical policy-state, optimizer and RNG digests can distinguish diagnostic cases unavailable in completed evidence.
   - A separate inert tooling implementation is required before any future RL-v2 execution declaration.
 unknown:
-  - Terminal closeout PR number, closeout merge SHA and closeout exact-head CI run identifiers.
+  - Terminal closeout merge SHA and closeout exact-head CI run identifiers.
 conflicts: []
 first_failure:
   marker: NONE_DECLARATION

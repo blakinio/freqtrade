@@ -31,14 +31,14 @@ NUMERIC_RUNTIME_AVAILABLE = (
     and importlib.util.find_spec("pandas") is not None
 )
 
-execution: Any = None
-np: Any = None
-pd: Any = None
-if NUMERIC_RUNTIME_AVAILABLE:
+
+def _numeric_runtime() -> tuple[Any, Any, Any]:
     import numpy as np
     import pandas as pd
 
     from ai_platform.scripts import residual_pytorch_bounded_m1_execution as execution
+
+    return np, pd, execution
 
 
 class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
@@ -91,6 +91,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
 
     @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")
     def test_contract_and_all_frozen_inputs_validate_without_request(self) -> None:
+        _, _, execution = _numeric_runtime()
         report = execution.build_contract_report()
 
         self.assertEqual(report["status"], "infrastructure_ready_execution_not_requested")
@@ -101,6 +102,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
 
     @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")
     def test_contract_rejects_consumed_oos_authorization(self) -> None:
+        _, _, execution = _numeric_runtime()
         contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
         changed = deepcopy(contract)
         changed["authorization"]["historical_oos_used"] = True
@@ -113,6 +115,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
 
     @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")
     def test_raw_matrix_audit_records_exact_feature_and_target_geometry(self) -> None:
+        np, pd, execution = _numeric_runtime()
         rows = 2200
         dates = pd.date_range("2025-12-01", periods=rows, freq="15min", tz="UTC")
         target = np.linspace(-0.01, 0.01, rows)
@@ -149,6 +152,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
 
     @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")
     def test_cross_pair_audit_requires_identical_feature_identity(self) -> None:
+        _, _, execution = _numeric_runtime()
         base = {
             "outcome": "audit_supported_for_bounded_m1",
             "expanded_feature_count": 2,
@@ -174,6 +178,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
 
     @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")
     def test_prediction_diagnostics_are_development_only_and_descriptive(self) -> None:
+        np, pd, execution = _numeric_runtime()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for pair, slug, offset in (
@@ -222,6 +227,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
 
     @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")
     def test_summary_rejects_forbidden_execution_boundary(self) -> None:
+        _, _, execution = _numeric_runtime()
         payload = {
             "status": "success",
             "experiment_id": "residual-pytorch-m1-lightgbm-v1",

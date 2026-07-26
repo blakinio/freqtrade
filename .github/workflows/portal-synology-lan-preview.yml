@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - develop
-      - feat/portal-liquidations-synology-20260725
     paths:
       - .github/workflows/portal-synology-lan-preview.yml
       - deploy/synology/portal/Dockerfile

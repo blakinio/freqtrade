@@ -3,295 +3,245 @@
 Status: **accepted**  
 Decision date: `2026-07-26`  
 Decision owner: repository owner  
-Implementation status: **not started**
+Implementation status: **active — repository backend and BFF/browser integration complete; target deployment pending**
 
 ## 1. Decision
 
-The portal will use **authentik** as the product identity provider for human users.
+The portal uses **Authen­tik** as the product identity provider for human users.
 
-The application integration will use OpenID Connect Authorization Code Flow with PKCE through the portal BFF. Identity-provider tokens and refresh material remain server-side and are never stored in browser JavaScript-accessible storage.
+Application integration uses OpenID Connect Authorization Code Flow with PKCE through the portal BFF. Identity-provider tokens and refresh material remain server-side and are never stored in browser JavaScript-accessible storage.
 
-**Cloudflare Access remains a supplemental ingress control for privileged administrative, research, infrastructure and E2E surfaces. It is not the product identity provider, tenant-membership source or application authorization boundary.**
-
-The authoritative split is:
+**Cloudflare Access remains a supplemental ingress control for privileged administrative, research, infrastructure and E2E surfaces. It is not the product IdP, tenant-membership source or application authorization boundary.**
 
 | Concern | Authority |
 |---|---|
-| Primary credentials, login, authenticator enrollment, MFA challenge, identity-provider session and recovery flow | authentik |
-| Product user identity mapping | portal database keyed by immutable OIDC `iss` + `sub` |
-| Tenant definitions, tenant membership, product roles and capabilities | portal database |
+| Primary credentials, login, authenticator enrollment, MFA challenge, IdP session and recovery | Authentik |
+| Product user mapping | portal database keyed by immutable OIDC `iss` + `sub` |
+| Tenants, memberships, roles and capabilities | portal database |
 | Request authorization and tenant isolation | portal API/BFF on every protected request |
-| Additional privileged ingress policy, device posture and independent edge MFA where configured | Cloudflare Access |
-| Exchange credentials and runtime secret injection | future PI-07 only |
+| Additional privileged ingress/device posture | Cloudflare Access where configured |
+| Exchange credentials/runtime injection | future PI-07 only |
 
-Email addresses, display names, IdP groups and Cloudflare claims are attributes, not authoritative product tenant identifiers. A browser-supplied `tenant_id`, email domain or route visibility never grants membership or capability.
+Email, display name, IdP groups and Cloudflare claims are attributes, not authoritative product tenant identifiers. Browser-supplied `tenant_id`, email domain and route visibility never grant membership or capability.
 
-## 2. Why authentik
+## 2. Why Authentik
 
-The selected target is a small Linux-container deployment on Synology behind Cloudflare Tunnel. authentik provides the required OIDC provider, back-channel logout support, configurable authentication/recovery flows, WebAuthn/passkeys, TOTP, recovery codes and group administration while remaining deployable through Docker Compose.
+The selected target is a small Linux-container deployment on Synology behind Cloudflare Tunnel. Authentik provides OIDC, back-channel logout, configurable authentication/recovery flows, WebAuthn/passkeys, TOTP, recovery codes and group administration while remaining deployable through Docker Compose.
 
-The official Docker Compose guidance explicitly describes the deployment mode as suitable for test and small-scale production setups and specifies a minimum host of 2 CPU cores and 2 GB RAM. The portal will still treat a single Synology host as a single failure domain; this decision does not prove high availability, real P11 acceptance or P14 readiness.
+The single Synology host remains a documented single failure domain. Repository configuration or a small-host deployment does not prove high availability, P11 acceptance or P14 readiness.
 
-The choice minimizes recurring managed-identity dependency for the current deployment while preserving standard OIDC boundaries so a later migration to another compliant IdP remains possible.
+Auth0 remains the managed fallback if Authentik operations become unacceptable. Keycloak remains a scale/federation fallback. Cloudflare Access-only identity, automatic email-domain tenancy and browser-trusted authorization remain rejected.
 
-## 3. Alternatives considered
-
-### Cloudflare Access as the only identity layer — rejected
-
-Cloudflare Access is appropriate for controlling who can reach a protected application and can enforce IdP-based or independent MFA. It does not replace the portal's application-owned tenant membership, product session lifecycle, per-resource authorization and audit requirements. Using email rules or Access policy membership as the product tenancy source would couple customer authorization to infrastructure ingress policy and violate the existing security architecture.
-
-### Auth0 — viable managed fallback, not selected
-
-Auth0 provides OIDC, Organizations, MFA and session-management capabilities. It removes most self-hosting operations but introduces a managed external dependency and plan/organization/advanced-security limits that can change over time. It remains the preferred fallback if operating authentik becomes an unacceptable reliability or maintenance burden.
-
-### Keycloak — viable scale-up fallback, not selected
-
-Keycloak provides mature OIDC, session/token controls and organization capabilities. It is operationally heavier for the current small Synology deployment and has a broader administration surface than required for the first PI-06 package. It remains a viable migration target if future scale, federation or organization-administration requirements exceed the selected design.
-
-### Microsoft Entra External ID — not selected
-
-Entra External ID is suitable when the product is intentionally coupled to a Microsoft identity tenant and its administration model. The current portal has no approved Microsoft-tenant dependency, so introducing one would add an unnecessary external owner and licensing boundary.
-
-## 4. OIDC client contract
+## 3. OIDC client contract
 
 The portal is a confidential OIDC client implemented at the BFF/server boundary.
 
 Required protocol behavior:
 
-- Authorization Code Flow with PKCE (`S256`).
-- Exact issuer and audience/client validation.
-- Signed ID-token validation using the issuer discovery/JWKS document.
-- `state` and `nonce` generated with cryptographically secure randomness and consumed once.
-- Redirect URI allow-listing; no wildcard callbacks.
-- OIDC `iss` + `sub` is the immutable external identity key.
-- `email`, `preferred_username`, groups and display-name claims are non-authoritative attributes.
-- Refresh tokens, when enabled, are encrypted or stored only behind the server-side session/secret boundary.
-- Front-channel logout is convenience only; back-channel logout and local revocation provide the security boundary.
-- No access token, ID token or refresh token is written to `localStorage`, `sessionStorage`, browser-readable cookies, logs, audit payloads or URLs.
+- Authorization Code Flow with PKCE `S256`;
+- exact issuer and audience/client validation;
+- signed ID-token validation through discovery/JWKS;
+- cryptographically secure one-time `state` and `nonce`;
+- redirect URI allow-listing with no wildcard callback;
+- immutable external key `iss` plus `sub`;
+- email, username, groups and display name treated as non-authoritative attributes;
+- refresh tokens, when enabled, encrypted and server-side only;
+- local revocation and back-channel logout as the security boundary;
+- no access, ID or refresh token in localStorage, sessionStorage, browser-readable cookies, logs, audit payloads or URLs.
 
-## 5. Portal session policy v1
+## 4. Portal session policy v1
 
 The portal creates an opaque server-side session after successful OIDC validation.
 
 ### Cookie
 
-- Name: `__Host-portal_session`.
-- Attributes: `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, no `Domain` attribute.
-- Value: at least 256 bits of cryptographically random entropy.
-- Only a keyed hash of the session identifier is persisted.
-- Session cookies are never accepted over HTTP in non-test deployments.
+- name `__Host-portal_session`;
+- `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, no `Domain`;
+- at least 256 bits of random entropy;
+- only a keyed hash is persisted;
+- non-test deployments never accept the session over HTTP.
 
 ### Lifetimes
 
 | Session class | Idle timeout | Absolute timeout |
 |---|---:|---:|
-| Standard authenticated human session | 30 minutes | 12 hours |
-| Privileged human session | 15 minutes | 4 hours |
-| Re-authentication window for high-impact actions | not applicable | 5 minutes since fresh IdP authentication |
+| Standard human | 30 minutes | 12 hours |
+| Privileged human | 15 minutes | 4 hours |
+| High-impact re-authentication | n/a | five minutes since fresh IdP authentication |
 
-The BFF should request short-lived OIDC access material, targeting a five-minute access-token lifetime where supported. A refresh token, when enabled, has a maximum seven-day lifetime, uses rotation where supported and remains server-side. The portal session limits above remain authoritative even if the IdP or Cloudflare session is longer.
+A deployment may shorten these values. Increasing them requires a reviewed policy update and security tests.
 
-A deployment may shorten these values without an architecture change. Increasing them requires a reviewed policy update and security tests.
+### Immediate invalidation
 
-### Immediate invalidation conditions
+Every protected request fails closed when:
 
-Every protected request fails closed when any of the following applies:
+- the local session is expired, idle-expired, revoked or invalid;
+- issuer, subject, audience or authentication context is missing/mismatched;
+- the portal principal is disabled;
+- active membership is absent, disabled or version-mismatched;
+- required capability is absent;
+- back-channel logout or administrative revocation invalidated the IdP session;
+- required session/membership storage is unavailable for a privileged mutation.
 
-- local session is expired, idle-expired, revoked or structurally invalid;
-- expected issuer, subject, audience or authentication context is missing or mismatched;
-- mapped portal user is disabled;
-- active tenant membership is absent, disabled or version-mismatched;
-- requested capability is not present in the current server-side role mapping;
-- back-channel logout or an administrative revocation has invalidated the IdP session;
-- the session store or required membership source is unavailable for a privileged mutation.
+PI-06 v1 has no browser-trusted fallback.
 
-Read-only behavior during a session-store outage may be introduced only by a separate reviewed availability policy. PI-06 v1 has no browser-trusted fallback.
-
-## 6. Tenant and membership policy
+## 5. Tenant and membership policy
 
 The portal database is the source of truth for product tenancy and authorization.
 
 Minimum records:
 
-- `IdentityPrincipal`: portal user ID, OIDC issuer, OIDC subject, status and audit timestamps;
-- `TenantMembership`: principal ID, tenant ID, role set, status, membership version and validity timestamps;
-- `PortalSession`: hashed session ID, principal ID, active membership ID, IdP `sid` where available, authentication/MFA context, created/last-seen/absolute-expiry/revoked timestamps;
-- `SessionRevocation`: principal/session/IdP-session scope, actor, reason and correlation context.
+- `IdentityPrincipal`;
+- `TenantMembership` with role set, status, validity and membership version;
+- `PortalSession` with hashed ID, active membership, IdP `sid`, authentication/MFA context and expiry/revocation timestamps;
+- `SessionRevocation` with actor, reason and correlation context.
 
 Rules:
 
-- `(issuer, subject)` is globally unique within the portal identity store.
-- One principal may have memberships in multiple tenants.
-- Active tenant selection is allowed only from current server-side memberships.
-- Tenant context is placed into the trusted request context by middleware, never copied from a browser `tenant_id` without validation.
-- Role and capability evaluation uses the portal's current server-side permission model.
-- IdP groups may assist bootstrap or operational routing but cannot silently create tenant membership on each login.
-- Membership creation, role change, disable and deletion are audited.
-- A membership or role change increments `membership_version` and synchronously revokes affected local sessions in v1.
-- No positive authorization cache is used in v1. A later cache requires a maximum staleness bound, invalidation channel and denial tests.
+- `(issuer, subject)` is globally unique;
+- one principal may have memberships in multiple tenants;
+- active tenant selection is allowed only from current server-side memberships;
+- trusted request context derives tenant from membership, never unvalidated browser input;
+- role/capability evaluation uses current portal permission mappings;
+- IdP groups may assist controlled bootstrap but cannot silently create membership on login;
+- membership/role changes are audited, increment `membership_version` and synchronously revoke affected sessions;
+- v1 uses no positive authorization cache;
+- initial platform administration requires an explicit migration/restricted command with audit evidence, never first-login email matching.
 
-The initial platform administrator is created through an explicit migration or restricted administrative command with audit evidence. First-login email matching does not create an administrator.
+## 6. MFA and step-up policy
 
-## 7. MFA and step-up policy
-
-MFA is mandatory for every human principal holding at least one mutation or privileged capability, including current equivalents of:
-
-- bot creation or lifecycle mutation;
-- manual trade-intent submission;
-- model training or promotion;
-- risk-policy management;
-- audit or platform administration where sensitive data is exposed;
-- future exchange-secret, credential-broker or live-capital capabilities.
+MFA is mandatory for every human principal holding mutation or privileged capabilities, including bot lifecycle changes, manual intents, model/risk administration, audit/platform administration and future credential or capital capabilities.
 
 Preferred factor order:
 
-1. WebAuthn/FIDO2/passkey or hardware security key;
-2. TOTP as a compatibility fallback;
-3. single-use recovery codes stored offline.
+1. WebAuthn/FIDO2/passkey or hardware key;
+2. TOTP fallback;
+3. offline single-use recovery codes.
 
-SMS and email OTP are not accepted as the sole MFA factor for privileged roles. Email may participate in account recovery but does not by itself satisfy privileged MFA.
+SMS or email OTP cannot be the sole factor for privileged roles.
 
-High-impact actions require fresh authentication no older than five minutes. The initial list includes:
+Fresh authentication no older than five minutes is required for MFA authenticator changes, recovery completion, membership/role administration, future credential administration, model promotion and any future live-capital authorization.
 
-- adding/removing MFA authenticators;
-- account recovery completion;
-- tenant membership or role administration;
-- future exchange credential creation/rotation/revocation;
-- model promotion;
-- any future live-capital authorization.
+Page visibility is never MFA or authorization evidence.
 
-Normal page navigation is never evidence of MFA or authorization. The application validates authentication context and permission server-side.
+## 7. Recovery and break-glass policy
 
-## 8. Recovery and break-glass policy
+The Authentik recovery flow uses a generic response that does not reveal account existence.
 
-The standard authentik recovery flow must use a generic response that does not reveal whether an account exists.
+For an MFA-enrolled principal, recovery requires verified recovery-channel control plus an existing authenticator or recovery code, revokes all prior portal sessions and emits secret-free security/audit evidence.
 
-For a principal with MFA enrolled, recovery requires:
+When all factors/codes are unavailable, administrator-assisted recovery requires separate identity verification, audited reason, session revocation and forced MFA re-enrollment. Security questions and email-only privileged bypass are prohibited.
 
-1. control of the verified recovery email channel;
-2. successful validation of an existing MFA authenticator or a recovery code;
-3. revocation of all prior portal sessions after credential recovery;
-4. a security/audit event with no secret values.
+A break-glass administrator is reserved for IdP administration failure, uses multiple hardware authenticators where supported, stores recovery material offline, is restricted by Access/network policy, alerts on every use and is tested on a fixed schedule.
 
-When all MFA factors and recovery codes are unavailable, recovery is administrator-assisted. It requires separate identity verification, an audited reason, revocation of existing sessions and forced MFA re-enrollment. The portal must not implement security questions or an email-only privileged bypass.
+## 8. Revocation and logout
 
-A break-glass platform administrator is allowed only for recovery from IdP administration failure. It must:
+- local logout revokes the local session before IdP logout;
+- logout-all revokes every local session before attempting IdP-wide logout/revocation;
+- Authentik back-channel logout maps `sid` or subject to affected portal sessions;
+- Authentik outage cannot prevent local revocation;
+- user disablement, membership disablement, role reduction, suspected compromise and recovery revoke sessions immediately;
+- service identities use a separate machine identity contract.
 
-- not be used for routine access;
-- use at least two registered hardware authenticators where supported;
-- have recovery material stored offline;
-- be restricted by Cloudflare Access and network policy;
-- generate alerts on every successful use;
-- be reviewed and tested on a fixed schedule.
+Revocation evidence excludes tokens, cookie values and recovery material.
 
-## 9. Revocation and logout policy
+## 9. Cloudflare Access boundary
 
-- Local logout revokes the local portal session first, then initiates IdP logout.
-- `logout all` revokes every local session for the principal before attempting IdP-wide logout/revocation.
-- authentik OIDC back-channel logout is registered and maps an IdP `sid` or subject to affected portal sessions.
-- If authentik is unavailable during logout, local revocation still succeeds and future portal requests remain denied.
-- Administrative user disable, membership disable, role reduction, suspected compromise and credential recovery revoke local sessions immediately.
-- A service identity is not represented by a human browser session and requires a separate narrow machine identity contract.
+Access is an additional gate for privileged administration, research, infrastructure and autonomous E2E control surfaces.
 
-Revocation events include actor, tenant where applicable, principal/session scope, reason code, request/correlation IDs and timestamps. Tokens, cookie values and recovery material are excluded.
+Requirements:
 
-## 10. Cloudflare Access boundary
+- explicit allow rules and no unrestricted OTP policy;
+- MFA/authentication-method requirements for privileged users;
+- short Access sessions consistent with the portal maximum;
+- service-auth credentials for machines, never reused human credentials;
+- no protected-route bypass policy;
+- direct-origin denial independent of Access;
+- application session/RBAC checks after Access succeeds.
 
-Cloudflare Access is required as an additional gate for privileged deployment routes such as administration, research operations, infrastructure management and autonomous E2E control surfaces.
+Cloudflare headers/tokens may be defense-in-depth context but never create portal principals, memberships or capabilities.
 
-Policy requirements:
+## 10. Synology deployment posture
 
-- explicit allow rules; no unrestricted one-time-password policy;
-- MFA or an IdP authentication-method requirement for privileged users;
-- short privileged Access session duration consistent with the four-hour portal maximum;
-- service-auth credentials for machine clients, never reused human credentials;
-- no Access `Bypass` policy on protected production-like routes;
-- direct-origin ingress denied independently of Access;
-- application session and RBAC checks still occur after Access succeeds.
+The selected target is a dedicated Authentik Docker Compose stack on Synology or another Linux host.
 
-Cloudflare identity headers or tokens may be validated as defense-in-depth context, but they do not create portal principals, memberships or capabilities.
+Required controls:
 
-## 11. Synology deployment posture
-
-The selected target is a dedicated authentik Docker Compose stack on the Synology Linux container runtime or another Linux host.
-
-Required deployment controls:
-
-- pin an explicitly tested authentik image version and image digest; do not deploy an unbounded `latest` tag;
-- dedicated PostgreSQL database/volume and dedicated application secret values;
+- pin explicitly tested image versions and digests; no unbounded `latest`;
+- dedicated PostgreSQL database/volume and application secrets;
 - no committed passwords, client secrets, cookie keys or private endpoints;
-- remove the Docker socket mount when automatic outpost management is not required, or use a narrowly configured socket proxy;
-- expose authentik only through the intended Cloudflare Tunnel/private network route;
-- restrict the administrative interface with Cloudflare Access;
-- encrypted daily database/configuration backups and a quarterly restore exercise;
-- stage upgrades before production-like use and follow supported sequential upgrade requirements;
-- health checks for authentik server, worker and PostgreSQL;
-- monitoring for login failures, MFA changes, session revocations and administrator actions.
+- no Docker socket mount unless required; otherwise use a narrow socket proxy;
+- expose Authentik only through intended private/Tunnel routing;
+- restrict administration with Access;
+- encrypted daily backups and periodic restore exercise;
+- stage sequential upgrades;
+- health checks for server, worker and PostgreSQL;
+- monitoring for login failures, MFA changes, revocation and administrator actions.
 
-Running authentik, the portal and their databases on one Synology host is accepted only for the current bounded development/test and small production-like target. It is a documented availability and blast-radius limitation. It cannot be used as evidence of high availability, P11 completion, PI-07 readiness or live-capital readiness.
+Running Authentik, portal and databases on one host is accepted only as a bounded small target and cannot prove HA, P11, PI-07 or live-capital readiness.
 
-## 12. PI-06 implementation sequence
+## 11. Implementation evidence
 
-A separate implementation task must use the following dependency order:
+### Completed repository backend
 
-1. add versioned identity/session/membership contracts and database migrations;
-2. implement server-side OIDC discovery, callback, PKCE/state/nonce validation and opaque local sessions;
-3. replace the trusted development identity dependency on protected API routes;
-4. enforce membership-derived tenant context and existing capabilities on every request;
-5. implement CSRF protection for state-changing browser/BFF routes;
-6. implement logout, logout-all, local revocation and OIDC back-channel logout;
-7. add MFA/authentication-context and five-minute step-up enforcement for declared actions;
-8. add audited membership administration and session revocation controls;
-9. add deterministic IdP test doubles plus denied, expired, revoked, cross-tenant, recovery and back-channel-logout E2E;
-10. add a separate Synology/authentik deployment package with secret placeholders and no credentials;
-11. run real target-environment acceptance only after owner-managed authentik and Cloudflare resources exist.
+Task `FTAI-20260726-portal-pi06-product-identity-lifecycle`, PR #341, merge `41834d18f3a05b0dfa44dc5af9b97942e685d2a1` implemented identity/session/membership persistence, OIDC discovery/PKCE/JWKS validation, opaque sessions, CSRF, MFA/step-up, logout, revocation, back-channel logout, migrations and deterministic security tests.
 
-The implementation must be split if one PR would combine database identity contracts, web login behavior and external deployment provisioning into an unreviewable change.
+Exact backend head `c258567cabd1c9ddf3d90c63f36319be99463978` passed AI Platform CI #1415, Freqtrade CI #1713 and security #1580.
 
-Recommended first implementation task:
+### Completed BFF and browser-session integration
 
-`FTAI-YYYYMMDD-portal-pi06-product-identity-lifecycle`
+Task `FTAI-20260726-portal-pi06-bff-browser-session-integration`, PR #361, merge `4f76eecadcb8dda964a8d247327db9dc6ef1c931` implemented same-origin login/callback/session/logout routes, safe redirects, opaque cookie forwarding, Proxy/Route Handler protection, browser CSRF, session controls and deterministic denied/expired/revoked/MFA/step-up/cross-tenant E2E.
 
-## 13. PI-06 acceptance gates
+Exact final head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passed Portal Web CI #287, Portal Universal E2E #292, AI Platform CI #1521, Freqtrade CI #1837 and security #1702. Portal Web passed all 37 Chromium tests.
+
+### Remaining deployment and real acceptance
+
+Next task: `FTAI-YYYYMMDD-portal-pi06-authentik-synology-deployment`.
+
+It must add secret-free pinned deployment definitions, private networking, restricted bootstrap, health/migration ordering, backup/restore, recovery and rollback runbooks, and deterministic configuration validation. Real owner-managed probes remain blocked until target resources, secrets, users and MFA devices exist.
+
+Cloudflare P11 acceptance remains separate.
+
+## 12. PI-06 acceptance gates
 
 PI-06 can be marked `done` only when:
 
-1. protected APIs reject missing, expired and revoked sessions;
-2. tenant context is derived exclusively from current portal membership;
+1. protected APIs and browser paths reject missing, expired and revoked sessions;
+2. tenant context derives exclusively from current portal membership;
 3. cross-tenant requests fail closed in unit, integration and browser/security E2E;
-4. privileged capabilities require the declared MFA context and step-up age;
-5. membership and role changes revoke or invalidate affected sessions within the documented bound;
-6. recovery does not reveal account existence or bypass privileged MFA;
-7. local logout, logout-all and authentik back-channel logout are tested;
-8. state-changing BFF routes have tested CSRF protection;
-9. browser-visible storage and responses contain no IdP tokens, refresh tokens, client secrets or private endpoints;
+4. privileged capabilities require declared MFA context and step-up age;
+5. membership/role changes invalidate affected sessions within the documented bound;
+6. recovery does not reveal account existence or bypass MFA;
+7. local logout, logout-all and Authentik back-channel logout are tested;
+8. state-changing BFF routes have tested CSRF;
+9. browser storage/responses contain no IdP tokens, refresh tokens, client secrets or private endpoints;
 10. unavailable identity/session infrastructure fails closed;
-11. Cloudflare Access remains supplemental and direct origin remains denied in real P11 acceptance;
-12. all required portal web, AI Platform, security, universal E2E and repository CI pass on the exact final implementation head.
+11. owner-managed target evidence proves Authentik login, MFA enrollment/challenge, revocation, recovery and restore;
+12. Cloudflare Access remains supplemental and direct origin is denied in real P11 acceptance;
+13. required web, AI, security, universal E2E and repository CI pass on exact final implementation heads.
 
-## 14. Non-goals
+## 13. Non-goals
 
 - storing primary passwords in the portal database;
-- using an email domain, IdP group or Cloudflare rule as automatic tenant authority;
-- exposing authentik administration or tokens to browser code;
-- implementing SCIM, enterprise federation or social login in the first package;
-- implementing PI-05 external notification delivery;
-- implementing PI-07 credential brokering or PI-08 execution submission;
-- claiming real P11 acceptance from repository or fixture tests;
-- enabling live capital.
+- automatic tenancy from email domain, IdP group or Cloudflare rule;
+- exposing Authentik administration or tokens to browser code;
+- SCIM, enterprise federation or social login in the initial package;
+- PI-05, PI-07 or PI-08;
+- real P11 claims from repository/fixture tests;
+- live capital.
 
-## 15. Official references
+## 14. Official references
 
-- authentik OAuth2/OIDC provider: <https://docs.goauthentik.io/add-secure-apps/providers/oauth2/>
-- authentik front-channel and back-channel logout: <https://docs.goauthentik.io/add-secure-apps/providers/oauth2/frontchannel_and_backchannel_logout/>
-- authentik WebAuthn/FIDO2/passkeys: <https://docs.goauthentik.io/add-secure-apps/flows-stages/stages/authenticator_webauthn/>
-- authentik TOTP: <https://docs.goauthentik.io/add-secure-apps/flows-stages/stages/authenticator_totp/>
-- authentik authenticator validation and recovery-code support: <https://docs.goauthentik.io/add-secure-apps/flows-stages/stages/authenticator_validate/>
-- authentik recovery-flow model: <https://docs.goauthentik.io/add-secure-apps/flows-stages/flow/>
-- authentik Docker Compose deployment: <https://docs.goauthentik.io/install-config/install/docker-compose/>
+- Authentik OAuth2/OIDC provider: <https://docs.goauthentik.io/add-secure-apps/providers/oauth2/>
+- Authentik front/back-channel logout: <https://docs.goauthentik.io/add-secure-apps/providers/oauth2/frontchannel_and_backchannel_logout/>
+- Authentik WebAuthn/passkeys: <https://docs.goauthentik.io/add-secure-apps/flows-stages/stages/authenticator_webauthn/>
+- Authentik TOTP: <https://docs.goauthentik.io/add-secure-apps/flows-stages/stages/authenticator_totp/>
+- Authentik authenticator/recovery-code validation: <https://docs.goauthentik.io/add-secure-apps/flows-stages/stages/authenticator_validate/>
+- Authentik recovery flow: <https://docs.goauthentik.io/add-secure-apps/flows-stages/flow/>
+- Authentik Docker Compose: <https://docs.goauthentik.io/install-config/install/docker-compose/>
 - Cloudflare Access policies: <https://developers.cloudflare.com/cloudflare-one/access-controls/policies/>
-- Cloudflare Access MFA enforcement: <https://developers.cloudflare.com/cloudflare-one/access-controls/policies/mfa-requirements/>
+- Cloudflare Access MFA: <https://developers.cloudflare.com/cloudflare-one/access-controls/policies/mfa-requirements/>
 - Auth0 Organizations: <https://auth0.com/docs/manage-users/organizations>
 - Auth0 session management: <https://auth0.com/docs/manage-users/sessions/manage-user-sessions-with-auth0-management-api>
-- Keycloak server administration: <https://www.keycloak.org/docs/latest/server_admin/>
-- Keycloak OIDC endpoints and revocation: <https://www.keycloak.org/securing-apps/oidc-layers>
+- Keycloak administration: <https://www.keycloak.org/docs/latest/server_admin/>
+- Keycloak OIDC endpoints: <https://www.keycloak.org/securing-apps/oidc-layers>

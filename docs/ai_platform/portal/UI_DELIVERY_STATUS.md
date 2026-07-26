@@ -4,155 +4,132 @@
 
 Track the difference between a route/shell being present and a product surface being functionally integrated with an authoritative backend read model.
 
-A stage is not complete merely because a first web shell exists. UI status must be evaluated against `UI_INFORMATION_ARCHITECTURE.md` and the stage deliverables in `DELIVERY_ROADMAP.md`.
+A stage is not complete merely because a first web shell exists. UI status is evaluated against `UI_INFORMATION_ARCHITECTURE.md`, canonical backend contracts and stage deliverables.
 
 ## Status vocabulary
 
-- **integrated** — route exists and reads canonical server-side portal data;
-- **partially integrated** — a bounded authoritative read model is integrated, while a broader source such as a real target-environment backend remains intentionally unavailable;
-- **shell** — intentional route and safety/authorization UX exist, but the owning mutating capability is not implemented;
-- **read-model gap** — route exists and fails closed in API mode because no canonical query API exists yet;
-- **fixture preview** — deterministic development/E2E data is available only when explicit fixture mode is enabled;
+- **integrated** — route exists and reads or mutates canonical server-side portal data;
+- **partially integrated** — a bounded authoritative model is integrated, while a broader target-environment source remains intentionally unavailable;
+- **shell** — intentional route and safety/authorization UX exist, but the owning capability is not implemented;
+- **read-model gap** — route exists and fails closed because no canonical query API exists;
+- **fixture preview** — deterministic development/E2E data is available only in explicit fixture mode;
 - **blocked** — external infrastructure or separately authorized lifecycle work is required.
 
-## Delivery correction
+## Delivery correction and completed convergence
 
-Historical PR #135 delivered the **P6.1 Web Shell Foundation**, not the whole target P6 product UI. It delivered the shell, Dashboard, bot fleet, basic Create Bot and state/error/denied foundations.
+Historical PR #135 delivered the P6.1 Web Shell Foundation, not the entire target P6 product UI. Later bounded tasks closed presentation and canonical read-model gaps.
 
-The full P6 stage remained incomplete because Bot Detail, exchange metadata, runtime health/log views, profile/security/notifications surfaces and the wider navigation contract were not all delivered.
+Completed integration packages include:
 
-P8 PR #147 delivered the Trade Intelligence backend foundation but did not deliver the roadmap-declared Trade Analysis UI or Insights UI.
+- `FTAI-20260723-portal-ui-completion` for wider navigation and truthful product surfaces;
+- `FTAI-20260723-portal-operational-read-models` for tenant-scoped order, position, trade, risk and audit evidence;
+- `FTAI-20260724-portal-pi01-runtime-read-reconciliation` for authoritative private runtime reads with freshness and reconciliation;
+- `FTAI-20260724-portal-pi02-authoritative-valuation` for exact-runtime mark-to-entry valuation with explicit unavailable/unpriced states;
+- `FTAI-20260724-portal-pi03-inference-drift-telemetry` for attributable aggregate inference and PSI-v1 drift evidence;
+- `FTAI-20260724-portal-pi04-central-runtime-observability` for permission-gated private runtime logs and correlation evidence;
+- `FTAI-20260723-portal-remaining-product-capabilities` for signals, strategy metadata, grid configuration, in-app notification preferences, profile/security and RBAC surfaces;
+- `FTAI-20260726-portal-bot-operations-completion` for bounded bot fleet/detail convergence and immutable revision/lifecycle commands;
+- the Liquid20 read-only packages for source-labelled liquidation research preview;
+- `FTAI-20260726-portal-pi06-product-identity-lifecycle` for the authoritative repository identity/session backend;
+- `FTAI-20260726-portal-pi06-bff-browser-session-integration` for same-origin login, callback, session, logout, logout-all, CSRF and protected browser behavior.
 
-P9 PR #158 delivered the Safe Continual Learning backend foundation but did not deliver the roadmap-declared Learning History UI.
+PR #361 connects the browser/BFF boundary to the merged PI-06 backend contract. It adds optimistic Proxy denial and Route Handler defense in depth, safe redirects, opaque session/CSRF cookies, visible tenant/MFA session state and deterministic security E2E. It does not provision a real Authentik instance, user, MFA device, recovery flow, Synology deployment or Cloudflare resource.
 
-`FTAI-20260723-portal-ui-completion` closed the presentation/read-model gaps that could be backed by the then-existing control-plane, intelligence and learning APIs.
-
-`FTAI-20260723-portal-operational-read-models` added a bounded tenant-scoped operational mirror for order/open-position evidence and exposed existing persisted trade-outcome, risk-decision and audit evidence through trusted read APIs. It did not expose private runtime endpoints.
-
-`FTAI-20260724-portal-pi01-runtime-read-reconciliation` adds authoritative private runtime reads for open positions, orders and trades, normalizes them into the operational mirror and makes freshness, completeness and reconciliation explicit. Browser and BFF code still receive no Freqtrade endpoint or credential.
-
-`FTAI-20260724-portal-pi03-inference-drift-telemetry` adds aggregate-only inference windows, explicit source status and reproducible PSI-v1 drift assessments attributed to the exact model, feature schema, bot configuration and runtime. It stores no raw feature values or individual predictions and cannot mutate model lifecycle or promotion state.
-
-`FTAI-20260724-portal-pi04-central-runtime-observability` adds a permission-gated, tenant-scoped private runtime-log query boundary, explicit source availability and retention metadata, correlation/trace linkage and OpenTelemetry Collector routing contracts. Runtime telemetry remains separate from append-only audit evidence, and API mode fails closed when the private target-environment source is not configured.
-
-`FTAI-20260724-portal-pi02-authoritative-valuation` adds exact-runtime `mark-to-entry-v1` valuation with explicit `CURRENT`, `STALE`, `SOURCE_UNAVAILABLE` and `UNPRICED` states. Realized PNL remains separate closed-trade evidence and unsupported currency conversion or leverage never produces a numeric guess. The task is complete and PR #267 merged as `0c8fdfe6fb50ff635403ae963484bf4e6883e1e1`.
-
-`FTAI-20260723-portal-remaining-product-capabilities` closes the remaining software-addressable shell/read-model gaps with tenant-scoped signal evidence, immutable strategy metadata, dry-run grid configuration, in-app notification preferences, trusted profile/security context, permission-gated RBAC overview, truthful model-health telemetry availability and explicit runtime-log availability. It does not fabricate unavailable runtime, market-price or drift sources.
-
-`FTAI-20260726-portal-bot-operations-completion` converges existing canonical bot, runtime-evidence, performance, valuation, risk, observability and audit reads into the bot fleet and Bot Detail routes. PR #320 also exposes the existing immutable-revision and desired-state control-plane commands through same-origin BFF routes with capability, confirmation, stale-state, conflict and idempotency behavior. It creates no order-submission or credential authority.
-
-`FTAI-20260725-portal-liquidations-read-model`, `FTAI-20260725-portal-liquidations-ui` and `FTAI-20260725-portal-liquidations-synology` integrate the read-only Liquid20 market-data surface. The browser reads same-origin versioned contracts, while the non-root server reads the authoritative Synology evidence tree through a read-only mount. The module explicitly reports research-preview and no-trading status; it is not a validated liquidation strategy.
-
-Remaining authoritative-source and external/private integration work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Current task selection and repair ordering are routed through `NEXT_WORK_AND_REPAIR_PLAN.md`. Liquid20 strategy and AI-bot expansion is routed through `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md`. A mapped package is planning evidence only and does not activate implementation or authorize live capital.
+Remaining authoritative-source and external/private work is routed through `POST_P12_INTEGRATION_BACKLOG.md`. Current task ordering is in `NEXT_WORK_AND_REPAIR_PLAN.md`. A mapped package does not authorize live capital.
 
 ## Current surface matrix
 
 | Product surface | Route | Current delivery | Data boundary |
 |---|---|---|---|
-| Dashboard | `/` | integrated | bot/control-plane snapshot |
-| PNL & Performance | `/performance` | integrated for realized and bounded unrealized evidence | realized PNL from persisted closed trades plus tenant-scoped exact-runtime mark-to-entry valuation; stale, unavailable, cross-currency and leveraged positions remain explicitly non-current |
-| Open Positions | `/positions` | integrated for runtime evidence | private collector -> tenant/bot/runtime-scoped operational mirror; rows and empty states distinguish `CURRENT`, `STALE`, `PARTIAL` and `SOURCE_UNAVAILABLE` |
-| Liquidations | `/market/liquidations` | integrated read-only research preview | same-origin BFF -> bounded server-side Liquid20 read-model -> `/liquid20-data:ro`; source identity, freshness and acceptance state are retained; `trading_authorized=false` |
-| Trading Terminal | `/terminal` | integrated, execution still fail-closed | deterministic risk intent API |
-| Orders | `/orders` | integrated for runtime evidence | private collector -> operational mirror with source identity, freshness and reconciliation; unattributed runtime orders are `MISMATCH` |
-| Trade History | `/trades` | integrated for runtime evidence | canonical runtime trade mirror with source timestamps, realized fields when present and explicit mismatch/unavailable semantics; no fabricated current price |
-| View Bots | `/bots` | integrated operational fleet | bounded server-side composition of control-plane bots plus attributable runtime-evidence, performance, valuation, risk and audit summaries; filters are server-rendered and private endpoints remain hidden |
-| Bot Detail | `/bots/detail/[botId]` | integrated bot-scoped operations and lifecycle workflow | tenant/bot-filtered configuration, runtime source status, positions, orders, trades, valuation, risk, audit and runtime logs plus same-origin immutable-revision and desired-state BFF commands |
-| Create Bot | `/bots/new` | integrated for dry-run | same-origin BFF -> control plane |
-| Signal Wizard | `/bots/signals` | integrated | tenant-scoped advisory SignalEvent persistence; never grants execution authority |
-| Strategy Catalog | `/bots/strategies` | integrated | immutable server-side portal strategy metadata; no research promotion authority |
-| Grid Bots | `/bots/grid` | partially integrated | persisted dry-run-only grid configuration; private runtime activation remains separately controlled |
+| Dashboard | `/` | integrated | bot/control-plane snapshot behind protected same-origin session boundary |
+| PNL & Performance | `/performance` | integrated for realized and bounded unrealized evidence | persisted closed trades plus exact-runtime mark-to-entry valuation; stale, unavailable, cross-currency and leveraged evidence remains non-current |
+| Open Positions | `/positions` | integrated for runtime evidence | private collector -> tenant/bot/runtime mirror with `CURRENT`, `STALE`, `PARTIAL`, `SOURCE_UNAVAILABLE` |
+| Liquidations | `/market/liquidations` | integrated read-only research preview | same-origin BFF -> bounded Liquid20 read model -> read-only evidence mount; `trading_authorized=false` |
+| Trading Terminal | `/terminal` | integrated, execution fail-closed | same-origin CSRF-protected BFF -> deterministic risk intent API; submission remains `ORDER_SUBMISSION_NOT_IMPLEMENTED` |
+| Orders | `/orders` | integrated for runtime evidence | private collector -> operational mirror with attribution, freshness and reconciliation |
+| Trade History | `/trades` | integrated for runtime evidence | canonical runtime trade mirror with source timestamps and explicit mismatch/unavailable semantics |
+| View Bots | `/bots` | integrated operational fleet | bounded server composition of bots, runtime evidence, performance, valuation, risk and audit summaries |
+| Bot Detail | `/bots/detail/[botId]` | integrated operations/lifecycle workflow | tenant/bot-scoped evidence plus same-origin CSRF-protected immutable-revision and desired-state commands |
+| Create Bot | `/bots/new` | integrated for dry-run | protected same-origin BFF -> control plane |
+| Signal Wizard | `/bots/signals` | integrated | protected advisory SignalEvent persistence; no execution authority |
+| Strategy Catalog | `/bots/strategies` | integrated | immutable server-side strategy metadata |
+| Grid Bots | `/bots/grid` | partially integrated | protected persisted dry-run grid configuration; runtime activation separately controlled |
 | AI Overview | `/ai` | integrated | model/intelligence/learning read APIs |
-| Trade Analysis | `/ai/trade-analysis` | integrated | P8 TradeAnalysis read API |
-| Insights | `/ai/insights` | integrated | P8 TradeInsight read API |
-| Model Health | `/ai/model-health` | integrated | tenant-scoped aggregate inference telemetry, source availability, exact model/feature-schema/bot-config/runtime attribution and reproducible PSI-v1 reference/observation evidence |
-| Experiments | `/ai/experiments` | integrated | P9 learning history read API |
-| Learning History | `/ai/learning` | integrated | P9 aggregate history read API |
-| Execution Activity | `/operations/execution-logs` | partially integrated for private runtime observability | `AUDIT_READ`-gated tenant-scoped runtime-log source with bounded correlation/runtime/bot/time filters and retention-aware availability plus separately rendered append-only AuditEvent evidence; real target-environment Loki/Tempo/Prometheus connectivity remains deployment-owned |
-| Signal Logs | `/operations/signal-logs` | integrated | same tenant-scoped persisted SignalEvent source as Signal Wizard |
+| Trade Analysis | `/ai/trade-analysis` | integrated | TradeAnalysis read API |
+| Insights | `/ai/insights` | integrated | TradeInsight read API |
+| Model Health | `/ai/model-health` | integrated | tenant-scoped aggregate inference telemetry and reproducible drift evidence |
+| Experiments | `/ai/experiments` | integrated | learning history read API |
+| Learning History | `/ai/learning` | integrated | aggregate learning history |
+| Execution Activity | `/operations/execution-logs` | partially integrated | permission-gated runtime-log source plus append-only audit; real target telemetry connectivity remains deployment-owned |
+| Signal Logs | `/operations/signal-logs` | integrated | same tenant-scoped persisted SignalEvent source |
 | Risk Events | `/operations/risk-events` | integrated | persisted deterministic RiskDecision evidence |
-| Runtime Health | `/operations/runtime-health` | integrated | bot desired/observed runtime state |
-| Audit Events | `/operations/audit` | integrated | tenant-scoped AuditEvent query requiring `AUDIT_READ` |
-| Exchange Connections | `/platform/exchanges` | integrated metadata-only | opaque refs derived from bot configs; secrets hidden |
-| Notifications | `/platform/notifications` | partially integrated | persisted actor preferences and in-app entries derived from canonical signal/risk/own execution evidence; external delivery channels are not claimed |
-| Profile & Security | `/platform/profile` | partially integrated | trusted actor/tenant/permission context; MFA credentials and session revocation remain external-IdP-owned |
-| Administration | `/platform/admin` | partially integrated | `ADMIN_MANAGE`-gated built-in RBAC overview; tenant membership lifecycle remains external-IdP-owned |
+| Runtime Health | `/operations/runtime-health` | integrated | bot desired/observed state |
+| Audit Events | `/operations/audit` | integrated | tenant-scoped append-only AuditEvent query requiring `AUDIT_READ` |
+| Exchange Connections | `/platform/exchanges` | integrated metadata-only | opaque references; secrets hidden |
+| Notifications | `/platform/notifications` | partially integrated | actor preferences and in-app entries; external channels remain PI-05 |
+| Product login | `/login`, `/api/identity/*` | integrated repository/BFF boundary; real IdP blocked | same-origin OIDC initiation/callback/session/logout, opaque cookies, CSRF and backend-authoritative authorization; real Authentik target not provisioned |
+| Profile & Security | `/platform/profile` | partially integrated | authenticated session exposes tenant/MFA state and logout controls; real enrollment, recovery and target identity administration remain Authentik-owned |
+| Administration | `/platform/admin` | partially integrated | `ADMIN_MANAGE`-gated RBAC overview; full membership administration/recovery target flows remain PI-06 deployment work |
 
-## Bot Operations completion
+## PI-06 browser identity semantics
 
-The bot fleet and Bot Detail routes now compose existing canonical APIs instead of creating a second operational source or execution authority.
+The same-origin browser boundary now follows these rules:
 
-Delivered behavior:
+- protected pages redirect anonymous/expired/revoked sessions to a neutral login surface;
+- protected APIs return fail-closed 401/403 responses rather than rendering authorization as page visibility;
+- unsafe browser methods require a readable CSRF cookie and matching `x-csrf-token` header;
+- the opaque session cookie remains HttpOnly and browser code never reads it;
+- login accepts only an HTTPS IdP authorization redirect from the private backend;
+- callback accepts only safe relative application returns and copies backend session/CSRF cookies without exposing IdP tokens;
+- Proxy checks are optimistic; Route Handlers and the identity-enabled control plane remain authoritative;
+- fixture identity exists only when fixture data mode, test environment and explicit fixture identity mode are all enabled;
+- fixture states prove anonymous, expired, revoked, MFA-required, step-up-required and cross-tenant browser behavior, but are not real Authentik evidence.
 
-- `/bots` exposes attributable open-position count, realized PNL, unrealized-PNL availability, risk state, runtime health, last attributable activity and bounded environment/status/exchange/strategy/model/market/risk filters;
-- `/bots/detail/[botId]` exposes bot-scoped source status, positions, orders, trades, valuations, risk decisions, runtime logs and append-only audit evidence;
-- immutable configuration changes use a same-origin BFF over `POST /v1/bots/{bot_id}/revisions` and require the next revision identity;
-- start/pause/stop controls use a same-origin BFF over `POST /v1/bots/{bot_id}/desired-state`, preserve desired/observed separation and reject stale expected state;
-- permission-denied, conflict, stale, partial, unavailable, unpriced, empty and mutation-pending states remain explicit;
-- browser code receives no private Freqtrade, exchange, observability or secret-store endpoint or credential.
+Exact final head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passed Portal Web CI #287, Portal Universal E2E #292, AI Platform CI #1521, Freqtrade CI #1837 and security #1702. Portal Web CI passed typecheck, lint, production build and 37 Chromium tests.
 
-The package does not implement `submit_approved_intent`, exchange credential injection, external notification delivery, P11 infrastructure or live capital.
+## Operational evidence semantics
 
-## Liquidations semantics
+### Bot Operations
 
-The Liquidations page presents public market-data evidence only.
+The fleet and Bot Detail compose canonical APIs instead of creating a second source or execution authority. Permission-denied, stale, conflict, partial, unavailable, unpriced, empty and mutation-pending states remain explicit. Lifecycle controls do not submit orders.
 
-- Bybit and Binance feed semantics remain source-labelled.
-- Cross-exchange events are not deduplicated.
-- A cache-truncated result is not represented as a complete 24-hour aggregate.
-- A final report is accepted only when it explicitly contains `passed: true`.
-- An active retry does not hide the latest completed failed acceptance evidence.
-- The browser receives no Synology path, collector endpoint, Docker socket, exchange credential, Freqtrade endpoint, signal, recommendation or execution authority.
+### Liquidations
 
-Future strategy, model and execution packages must follow `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` and remain separate from this read-only surface.
+The page presents public market-data research evidence only. Source semantics remain labelled, cross-exchange events are not deduplicated, truncated results are not complete aggregates, and a report is accepted only with explicit `passed: true`. Browser code receives no Synology path, Docker socket, exchange credential, signal or execution authority.
 
-## PI-01 freshness and reconciliation semantics
+### PI-01 runtime evidence
 
-The Open Positions, Orders and Trade History pages read one canonical `/v1/runtime-evidence` snapshot in API mode.
+Open Positions, Orders and Trade History distinguish current/synced, stale, partial, unavailable and mismatch states. API mode never falls back to fixture rows.
 
-- `CURRENT` + `SYNCED` means the private source returned a complete authoritative batch inside the freshness bound.
-- `STALE` means preserved evidence exists but is not represented as current.
-- `PARTIAL` means pagination or record validation was incomplete; the UI does not convert it to a confirmed empty result.
-- `SOURCE_UNAVAILABLE` means no authoritative source batch was available.
-- `MISMATCH` means source identities or expected attribution/outcome fields conflict with mirror evidence.
+### PI-02 valuation
 
-Explicit fixture mode remains available only for development/E2E. API mode never falls back to fixture rows.
+Numeric unrealized PNL requires a current reconciled position, exact source match, timestamped mark, unit leverage and compatible quote currency. Missing or conflicting evidence produces degraded state, never a fallback number.
 
-## PI-03 inference and drift semantics
+### PI-03 drift
 
-Model Health derives `HEALTHY`, `ATTENTION`, `DEGRADED`, `INSUFFICIENT_EVIDENCE` or `UNAVAILABLE` only from persisted aggregate windows and explicit source status. Rows expose exact attribution, window identities, sample counts and PSI/feature-quality evidence. No status triggers retraining, promotion or lifecycle mutation, and raw feature values, individual predictions and protected final-holdout observations are excluded.
+Model Health derives status only from persisted aggregate windows and explicit source state. No drift status triggers retraining, promotion or lifecycle mutation; raw feature values, individual predictions and protected-holdout observations are excluded.
 
-## PI-04 runtime observability semantics
+### PI-04 observability
 
-Execution Activity presents two independent evidence classes. Runtime logs are operational, retention-bound and queryable only through the private tenant-scoped source using `audit.read`; AuditEvent rows remain append-only business/security evidence. A missing or failed log backend produces explicit `UNAVAILABLE`, never a healthy claim or a fabricated empty success. Browser contracts contain source identity, retention and runbook metadata but no private backend endpoint or credential.
-
-## PI-02 valuation semantics
-
-The PNL & Performance page keeps closed-trade realized evidence separate from open-position valuation. Numeric unrealized PNL requires a current reconciled position, an exact source-position match, the pinned runtime's timestamped mark identity, unit leverage and quote currency equal to the bot capital currency. Missing, stale, cross-currency, leveraged or conflicting evidence produces `STALE`, `SOURCE_UNAVAILABLE` or `UNPRICED`, never a fallback number.
+Runtime logs are operational, retention-bound and permission-gated; AuditEvent evidence remains independent and append-only. Missing target telemetry is `UNAVAILABLE`, not healthy or empty success.
 
 ## Remaining hard boundaries
 
-The remaining partial states depend on authoritative sources or separately reviewed private integrations that do not currently exist in this repository or target environment:
-
 | Boundary | Canonical package/stage |
 |---|---|
-| real target-environment Loki/Tempo/Prometheus connectivity and dashboards | PI-04 deployment configuration |
-| external email/webhook/push delivery | `PI-05` External Notification Delivery |
-| product authentication, MFA, session revocation and tenant membership lifecycle | `PI-06` Product Identity and Session Lifecycle |
-| runtime exchange credential injection/rotation | `PI-07` Runtime Credential Broker and Rotation |
-| private risk-approved dry-run Freqtrade submission | `PI-08` Private Dry-Run Approved Execution Submission |
-| real protected Cloudflare staging acceptance | P11 external infrastructure gate |
+| real Authentik/Synology deployment, MFA enrollment, recovery, backup/restore and identity acceptance | remaining `PI-06` deployment subpackage |
+| real target Loki/Tempo/Prometheus connectivity and dashboards | PI-04 deployment configuration |
+| external email/webhook/push delivery | `PI-05` |
+| runtime exchange credential injection/rotation | `PI-07` |
+| private risk-approved dry-run Freqtrade submission | `PI-08` |
+| real protected Cloudflare staging acceptance | P11 |
 
-P13 remains deferred until measured need. P14 remains blocked and separately owner-approved; neither is an ordinary UI completion package.
+P13 remains deferred until measured need. P14 remains blocked and separately owner-approved.
 
 ## Safety behavior
 
-API mode never fabricates PNL, valuation, position, order, trade, signal, log, drift, security or audit records. It returns canonical data where a trusted source exists and a truthful empty/unavailable result otherwise. PI-03 drift evidence is derived only from persisted aggregate telemetry and explicit source status. PI-04 runtime-log absence never changes audit records or runtime-health claims.
+API mode never fabricates PNL, valuation, position, order, trade, signal, log, drift, security, identity or audit records. It returns canonical data where a trusted source exists and truthful empty/unavailable/denied state otherwise.
 
-The normalized operational mirror is the only portal-facing runtime trade evidence boundary. `FreqtradeExecutionAdapter.get_open_positions`, `get_orders` and `get_trades` use the private collector but return records only for complete, current and synced reads; stale, partial, unavailable and mismatched evidence fails closed or remains explicitly degraded in the mirror.
+The operational mirror remains the portal-facing runtime evidence boundary. Bot Operations composes those reads server-side and forwards only same-origin commands. Signals remain advisory, grid configuration remains `dry_run`, and browsers have no direct Freqtrade, exchange, secret-store or observability path.
 
-Bot Operations composes those reads server-side and forwards only same-origin immutable-revision and desired-state commands. Lifecycle controls never submit exchange orders, and desired state never substitutes for observed runtime reconciliation.
-
-Signal evidence is advisory and cannot create execution authority. Grid configuration is constrained to `dry_run`. Browser code still has no direct Freqtrade, exchange, secret-store or observability-backend path.
-
-Explicit `PORTAL_WEB_DATA_MODE=fixture` may show deterministic preview rows for development and browser E2E. Those rows are test evidence only and cannot authorize execution or model promotion.
+Explicit fixture mode may show deterministic preview rows and identity states for development/E2E. They cannot authorize execution, model promotion, real identity acceptance or live capital.

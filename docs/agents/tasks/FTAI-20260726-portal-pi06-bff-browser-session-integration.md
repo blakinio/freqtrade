@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260726-portal-pi06-bff-browser-session-integration
-status: reviewing
-branch: feat/portal-pi06-bff-browser-session-integration
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
@@ -59,11 +59,11 @@ Connect the same-origin Next.js portal boundary to the merged PI-06 identity bac
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T13:55:00+02:00
-head: 16ee08b3f58a35a78bd5e64ad3e56470e6d48e4b
-branch: feat/portal-pi06-bff-browser-session-integration
+updated_at: 2026-07-26T14:02:00+02:00
+head: 4f76eecadcb8dda964a8d247327db9dc6ef1c931
+branch: develop
 pr: 361
-status: reviewing
+status: done
 context_routes:
   - docs/ai_platform/portal/PI06_IDENTITY_AND_SESSION_DECISION.md
   - docs/ai_platform/portal/PI06_PRODUCT_IDENTITY_IMPLEMENTATION.md
@@ -86,23 +86,22 @@ proven:
   - develop head at declaration was bef49bdf4d914c2aa363d99621cdb7b80fd16c9d.
   - PR 341 merged the authoritative Python identity backend as 41834d18f3a05b0dfa44dc5af9b97942e685d2a1.
   - PR 359 merged the truthful PI-06 active-state closure as bef49bdf4d914c2aa363d99621cdb7b80fd16c9d.
-  - Open PRs at declaration owned RL-v2, liquidation research and inert design-reference paths; none owned the declared web/BFF paths.
+  - PR 361 squash-merged the bounded same-origin BFF/browser-session package as 4f76eecadcb8dda964a8d247327db9dc6ef1c931.
   - Next.js Proxy performs only bounded cookie and CSRF checks; changed Route Handlers repeat the browser boundary and the identity-enabled control-plane remains authoritative.
   - Same-origin login and callback accept only safe relative application returns, and login accepts only an HTTPS authorization redirect produced by the private backend.
   - Browser code receives only opaque portal session and CSRF cookies; no IdP access, ID or refresh token is stored in browser-readable storage.
   - Fixture identity is available only when fixture data mode, test environment and explicit fixture identity mode are all enabled.
-  - Candidate head 898e13b0fbc8c754e7028abf5ad1ff442563de40 passed Portal Web CI 285: typecheck, lint, production build and all 37 Chromium tests.
-  - Earlier candidate head ba6b693502b36db7e153637642b58becdae4be39 passed AI Platform CI 1507 and GitHub Actions Security Analysis 1686.
+  - Exact final implementation head ec1970a9272bec241a1bab3c447ebd36f53afa58 passed Portal Web CI 287, Portal Universal E2E 292, AI Platform CI 1521, Freqtrade CI 1837 and GitHub Actions Security Analysis 1702.
+  - Portal Web CI 287 passed typecheck, lint, production build and all 37 Chromium tests without a diagnostic workflow in the final diff.
 derived:
-  - The repository BFF and browser-session boundary is independently reviewable without provisioning a real IdP or external ingress.
-  - Deterministic fixture E2E proves browser and BFF state handling but is not Authentik, recovery or P11 evidence.
+  - The repository backend and same-origin browser boundary are complete bounded PI-06 subpackages.
+  - PI-06 remains active because real Authentik/Synology deployment, MFA enrollment, recovery, backup/restore and target-environment acceptance are not repository browser evidence.
 unknown:
-  - Exact final CI outcome after removing temporary Playwright diagnostics and writing this checkpoint.
   - Real Authentik, MFA enrollment, recovery, browser cookie and Cloudflare ingress behavior in the target Synology environment.
 conflicts: []
 first_failure:
   marker: LEGACY_DIRECT_API_TESTS_WITHOUT_SESSION
-  evidence: The first Chromium run passed 34 of 37 tests. Two bot-operation contract tests and one liquidation read-only contract test called protected BFF routes through a fresh APIRequestContext without establishing a fixture session; they correctly received 401 instead of their intended domain responses. The tests were updated to establish the explicit fixture session, and unsafe bot requests now include the matching CSRF header. Portal Web CI 285 then passed all 37 tests.
+  evidence: The first Chromium run passed 34 of 37 tests. Two bot-operation contract tests and one liquidation read-only contract test called protected BFF routes through a fresh APIRequestContext without establishing a fixture session; they correctly received 401 instead of their intended domain responses. The tests were updated to establish the explicit fixture session, and unsafe bot requests now include the matching CSRF header. Portal Web CI 285 then passed all 37 tests, and the exact final head passed Portal Web CI 287.
 rejected_hypotheses:
   - Treat Cloudflare Access or page visibility as product authorization.
   - Store or expose IdP tokens in browser-readable storage.
@@ -144,15 +143,21 @@ changed_paths:
   - docs/agents/tasks/FTAI-20260726-portal-pi06-bff-browser-session-integration.md
   - docs/ai_platform/portal/PI06_BFF_BROWSER_SESSION_INTEGRATION.md
 validation:
-  - command: Portal Web CI 285 on candidate head 898e13b0fbc8c754e7028abf5ad1ff442563de40
+  - command: Portal Web CI 287 on exact final head ec1970a9272bec241a1bab3c447ebd36f53afa58
     result: PASS
-    evidence: Typecheck, lint, production build and 37 Chromium tests passed; the temporary failure-evidence step was skipped.
-  - command: AI Platform CI 1507 on initial implementation head ba6b693502b36db7e153637642b58becdae4be39
+    evidence: Typecheck, lint, production build and all 37 Chromium tests passed.
+  - command: Portal Universal E2E 292 on exact final head ec1970a9272bec241a1bab3c447ebd36f53afa58
     result: PASS
-    evidence: Full AI platform validation passed before test-only repair.
-  - command: GitHub Actions Security Analysis 1686 on initial implementation head ba6b693502b36db7e153637642b58becdae4be39
+    evidence: Universal fixture browser workflow completed successfully.
+  - command: AI Platform CI 1521 on exact final head ec1970a9272bec241a1bab3c447ebd36f53afa58
+    result: PASS
+    evidence: Full AI tests, Ruff, Ruff format, codespell and JSON validation passed.
+  - command: Freqtrade CI 1837 on exact final head ec1970a9272bec241a1bab3c447ebd36f53afa58
+    result: PASS
+    evidence: Required repository CI gate completed successfully.
+  - command: GitHub Actions Security Analysis 1702 on exact final head ec1970a9272bec241a1bab3c447ebd36f53afa58
     result: PASS
     evidence: Zizmor completed successfully.
 blockers: []
-next_action: Require Portal Web, Portal Universal E2E, AI Platform, Freqtrade and security CI to pass on the exact final head without temporary diagnostics, then mark PR 361 ready and squash-merge. Keep real Authentik/Synology and Cloudflare evidence in separate packages.
+next_action: Declare a separate Authentik/Synology deployment package after a fresh develop and path-ownership preflight. Pin container images, use runtime-injected secret placeholders, restrict bootstrap, add backup/restore and recovery runbooks, and prove real login, MFA, logout, revocation and recovery only against owner-managed target resources. Keep Cloudflare P11 acceptance, PI-07, PI-08 and live capital separate.
 ```

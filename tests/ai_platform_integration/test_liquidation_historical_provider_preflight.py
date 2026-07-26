@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = (
@@ -134,10 +135,13 @@ def test_provider_decision_contract_validates() -> None:
     _validate_contract(contract)
 
 
-def test_schema_is_json_and_requires_contract_fields() -> None:
+def test_schema_validates_contract_and_requires_contract_fields() -> None:
     schema = _load(SCHEMA_PATH)
+    contract = _load(CONTRACT_PATH)
     assert schema["$schema"] == "https://json-schema.org/draft/2020-12/schema"
     assert set(schema["required"]) == REQUIRED_TOP_LEVEL
+    Draft202012Validator.check_schema(schema)
+    Draft202012Validator(schema).validate(contract)
 
 
 def test_contract_serialization_and_identity_hash_are_deterministic() -> None:

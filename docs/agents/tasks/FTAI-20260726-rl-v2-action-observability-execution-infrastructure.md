@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260726-rl-v2-action-observability-execution-infrastructure
-status: active
-branch: feat/rl-v2-action-observability-execution-infrastructure
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
@@ -46,11 +46,11 @@ The request validator freezes the fresh geometry, four new seeds and all runtime
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T09:58:00+02:00
-head: bd4fcba80fce6d02767fe74d20b7ed306312259a
-branch: feat/rl-v2-action-observability-execution-infrastructure
+updated_at: 2026-07-26T10:08:00+02:00
+head: 3c2959545a6570d24e6bf8477a9442dbf3772bb2
+branch: develop
 pr: 322
-status: validating
+status: done
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-declaration.md
   - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_EXECUTION_DECLARATION.md
@@ -68,8 +68,8 @@ owned_paths:
   - .github/workflows/ai-platform-rl-v2-action-observability-execution.yml
 proven:
   - Develop contains the merged and closed prospective execution declaration and bounded infrastructure task.
-  - PR 322 changes exactly the eight prospectively owned paths.
-  - The canonical request path is absent from the branch and develop.
+  - PR 322 changed exactly the eight prospectively owned paths.
+  - The canonical request path remained absent throughout infrastructure review and merge.
   - The observable subclass leaves inherited signals unchanged and records only after super populate_exit_trend.
   - Disabled telemetry returns after inherited evaluation without inspecting inference columns or writing files.
   - Enabled telemetry captures each pair once and fails closed on duplicates or missing provenance.
@@ -79,12 +79,12 @@ proven:
   - Per-seed evidence validates telemetry, runtime config, raw archive accounting and action-versus-position reconciliation.
   - The aggregate accepts exactly four frozen seed files and emits no automatic mechanism decision.
   - Focused AI Platform tests, Ruff, Ruff format and changed-file repository pre-commit pass after the validated corrections.
-  - Diagnostic PRs 325, 327, 328 and 329 were closed without merge; no diagnostic workflow remains in PR 322.
-  - Exact implementation blobs passed AI Platform CI 30193041417, Freqtrade CI 30193041416 and zizmor 30193041431 before synchronization.
-  - The branch was rebuilt on current develop d1e728690fb74b346f1ffe61265281feab810e6b with the same eight implementation blobs and no portal-path delta.
+  - Diagnostic PRs 325, 327, 328 and 329 were closed without merge; no diagnostic workflow entered develop.
+  - Exact synchronized head 729326de427fd9463f353a19e892b73984966ea4 passed AI Platform CI 30193742086, Freqtrade CI 30193742090 and zizmor 30193742094.
+  - PR 322 was squash-merged as 3c2959545a6570d24e6bf8477a9442dbf3772bb2.
 derived:
-  - Infrastructure review remains execution-inert because the only workflow trigger path is absent.
-  - A separate execution task and exact canonical request can later activate the frozen workflow without changing runtime inputs.
+  - The merged infrastructure remains execution-inert until a separately declared task materializes the exact canonical request.
+  - The later execution can activate the frozen workflow without changing runtime inputs.
 unknown:
   - Whether the full backtest lifecycle calls the subclass capture hook exactly once per pair.
   - Whether all four fresh runs complete and retain both pair timelines.
@@ -93,7 +93,7 @@ first_failure:
   marker: RESOLVED_TEST_FORMAT_AND_TYPING_DEFECTS
   evidence: Initial CI exposed a synthetic trade interval mismatch, canonical Ruff formatting plus one intentional C901 waiver, a reused local variable name and Optional trade narrowing. All were corrected without weakening tests, changing execution behavior, expanding the eight-file scope or merging diagnostic workflows.
 rejected_hypotheses:
-  - Add or merge the canonical request in this task.
+  - Add or merge the canonical request in the infrastructure task.
   - Suppress tests, Ruff or mypy instead of correcting confirmed defects.
   - Restore a prior cache or reuse the March-April 2026 runtime identifiers.
   - Execute a previous seed, baseline or anchor.
@@ -119,21 +119,18 @@ validation:
   - command: repository pre-commit on changed Python files
     result: PASS
     evidence: mypy, Ruff, format, AST, whitespace, codespell and applicable hooks pass.
-  - command: AI Platform CI 30193041417 / run 1344
+  - command: AI Platform CI 30193742086 / run 1353
     result: PASS
-    evidence: Focused tests, compilation, Ruff, format, codespell and JSON validation passed.
-  - command: Freqtrade CI 30193041416 / run 1624
+    evidence: Focused tests, compilation, Ruff, format, codespell and JSON validation passed on the exact merged implementation head.
+  - command: Freqtrade CI 30193742090 / run 1643
     result: PASS
     evidence: Pre-commit, scope, documentation, Python 3.11-3.14 core matrix, coverage, smoke tests, Ruff, mypy, distribution build and CI Gate passed.
-  - command: GitHub Actions Security Analysis 30193041431 / run 1491
+  - command: GitHub Actions Security Analysis 30193742094 / run 1510
     result: PASS
-    evidence: zizmor passed on the exact validated implementation blobs.
-  - command: exact current-develop tree synchronization
-    result: PASS
-    evidence: The feature branch now has current develop as its parent and retains only the eight owned implementation paths.
+    evidence: zizmor passed on the exact merged implementation head.
   - command: canonical request absence check
     result: PASS
-    evidence: The trigger file does not exist on the implementation branch.
+    evidence: The trigger file did not exist in PR 322 or its merge.
 blockers: []
-next_action: Obtain exact-current-head AI Platform, Freqtrade and zizmor validation after synchronization, merge the inert eight-file infrastructure, close this task, then create a separate execution task before materializing the exact canonical request.
+next_action: Create a separate prospective execution task before materializing the exact canonical request; do not change the frozen contract, seeds, data geometry, model, reward, features, lifecycle policy or evidence semantics.
 ```

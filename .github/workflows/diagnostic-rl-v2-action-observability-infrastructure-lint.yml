@@ -36,21 +36,15 @@ jobs:
               "ai_platform/scripts/rl_v2_action_observability_execution_run_request.py"
           )
           request = request_path.read_text(encoding="utf-8")
-          old_request = '''    if isinstance(value, list):
-              keys: set[str] = set()
-              for child in value:
-                  keys.update(_collect_keys(child))
-              return keys
-          '''
-          new_request = '''    if isinstance(value, list):
-              collected_keys: set[str] = set()
-              for child in value:
-                  collected_keys.update(_collect_keys(child))
-              return collected_keys
-          '''
-          if old_request in request:
-              request = request.replace(old_request, new_request, 1)
-          elif new_request not in request:
+          replacements = (
+              ("        keys: set[str] = set()\n", "        collected_keys: set[str] = set()\n"),
+              ("            keys.update(_collect_keys(child))\n", "            collected_keys.update(_collect_keys(child))\n"),
+              ("        return keys\n", "        return collected_keys\n"),
+          )
+          if "        keys: set[str] = set()\n" in request:
+              for old, new in replacements:
+                  request = request.replace(old, new, 1)
+          elif "        collected_keys: set[str] = set()\n" not in request:
               raise SystemExit("Expected list key collector not found")
           request_path.write_text(request, encoding="utf-8")
 
@@ -58,21 +52,11 @@ jobs:
               "ai_platform/scripts/rl_v2_action_observability_execution_evidence.py"
           )
           evidence = evidence_path.read_text(encoding="utf-8")
-          old_evidence = '''        if position_long:
-              long_state_counts[state_key] += 1
-              bucket = _duration_bucket(trade)
-              duration_conditioned[bucket]["rows"] += 1
-              duration_conditioned[bucket][state_key] += 1
-          '''
-          new_evidence = '''        if trade is not None:
-              long_state_counts[state_key] += 1
-              bucket = _duration_bucket(trade)
-              duration_conditioned[bucket]["rows"] += 1
-              duration_conditioned[bucket][state_key] += 1
-          '''
-          if old_evidence in evidence:
-              evidence = evidence.replace(old_evidence, new_evidence, 1)
-          elif new_evidence not in evidence:
+          old = "        if position_long:\n            long_state_counts[state_key] += 1\n"
+          new = "        if trade is not None:\n            long_state_counts[state_key] += 1\n"
+          if old in evidence:
+              evidence = evidence.replace(old, new, 1)
+          elif new not in evidence:
               raise SystemExit("Expected optional trade block not found")
           evidence_path.write_text(evidence, encoding="utf-8")
           PY

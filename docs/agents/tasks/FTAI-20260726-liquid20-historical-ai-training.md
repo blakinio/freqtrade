@@ -121,8 +121,9 @@ not be coupled to the initial backfill or model execution.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T08:25:00Z
-head: ba9e6bb8fcc1a14428703b48aee3add5fa1fa533
+updated_at: 2026-07-26T09:02:00Z
+head: f9cbedd2093fa1258234ebdfae25e78f6f57625c
+merge_commit: 3a0e7f99e2c44f1fd2a6343a6d3cd13eb3f64652
 branch: feat/liquid20-historical-provider-preflight-v1
 pr: "#336"
 status: blocked
@@ -139,6 +140,7 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260726-liquid20-historical-ai-training.md
 proven:
   - Declaration PR 332 merged as 541cedb61ad0fdc9943d4981ee10217e17f903f5 before H0 began.
+  - H0 PR 336 merged into develop as 3a0e7f99e2c44f1fd2a6343a6d3cd13eb3f64652 from exact head f9cbedd2093fa1258234ebdfae25e78f6f57625c.
   - Tardis public metadata lists BTCUSDT and ETHUSDT liquidation coverage for Bybit and Binance futures through 2026-07-26.
   - Four public 2025-03-01 Tardis samples passed gzip, schema, timestamp, side, positive-value, malformed-row and duplicate inspection with exact hashes recorded.
   - Every inspected row contained provider local_timestamp; no row had local_timestamp before exchange timestamp; every liquidation id was empty.
@@ -192,6 +194,9 @@ validation:
   - command: python tools/agents/checkpoint.py <task> --require-checkpoint and python tools/agents/resume.py --task <task>
     result: PASS
     evidence: GitHub Actions run 30194369706 job 89773120359 validated the checkpoint and generated a non-empty continuation prompt containing the exact next action.
+  - command: repository CI for exact H0 head f9cbedd2093fa1258234ebdfae25e78f6f57625c
+    result: PASS
+    evidence: AI Platform CI 30195166219, Freqtrade CI 30195166226 including CI Gate, and zizmor 30195166217 completed successfully.
 blockers:
   - Owner must approve Tardis commercial access and exact quote.
   - Owner must accept the license classification and raw redistribution restriction.

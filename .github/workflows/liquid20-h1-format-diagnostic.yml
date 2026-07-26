@@ -1,0 +1,29 @@
+name: Liquid20 H1 Format Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-h1-format-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Show focused formatter patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir source
+          curl --fail --silent --show-error --location \
+            https://api.github.com/repos/blakinio/freqtrade/tarball/4129a84f945d9d6edb12641102e69f95ae6f2c38 \
+            | tar --extract --gzip --strip-components=1 --directory=source
+          python -m pip install --quiet ruff==0.15.21
+          ruff format --check --diff \
+            source/ai_platform/research/liquidations/historical \
+            source/tests/ai_platform_integration/test_liquidation_history_contracts.py

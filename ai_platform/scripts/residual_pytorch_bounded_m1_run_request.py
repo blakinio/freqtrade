@@ -4,22 +4,25 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 from typing import Any
 
-from ai_platform.scripts.residual_pytorch_bounded_m1_execution import (
-    CONTRACT_PATH,
-    CONTRACT_REPO_PATH,
-    REPO_ROOT,
-    REQUEST_REPO_PATH,
-    ResidualPyTorchBoundedM1Error,
-    canonical_inputs,
-    sha256_file,
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CONTRACT_REPO_PATH = (
+    "ai_platform/experimental_model_research/"
+    "residual-pytorch-bounded-m1-execution-contract-v1.json"
 )
-
-
+CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
+REQUEST_REPO_PATH = (
+    "ai_platform/experimental_model_research/run-requests/"
+    "residual-pytorch-bounded-m1-execution-v1.json"
+)
 EXPECTED_REQUEST_ID = "residual-pytorch-bounded-m1-execution-v1"
 EXPECTED_ACTION = "execute_residual_pytorch_bounded_m1_development_comparison"
 
@@ -28,30 +31,52 @@ class ResidualPyTorchBoundedM1RunRequestError(RuntimeError):
     """Raised when the one-shot request is not the exact canonical payload."""
 
 
+def _execution_module() -> ModuleType:
+    """Import the NumPy/Pandas-backed execution validator only when runtime work is requested."""
+    try:
+        return import_module("ai_platform.scripts.residual_pytorch_bounded_m1_execution")
+    except ModuleNotFoundError as exc:
+        if exc.name in {"numpy", "pandas"}:
+            raise ResidualPyTorchBoundedM1RunRequestError(
+                "Canonical request generation requires the full numeric validation profile"
+            ) from exc
+        raise
+
+
+def _sha256_file(path: Path) -> str:
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ResidualPyTorchBoundedM1RunRequestError(
+            f"Unable to hash canonical input {path}: {exc}"
+        ) from exc
+
+
 def _track_binding(track: dict[str, Any]) -> dict[str, Any]:
     binding = {
         "track_id": track["track_id"],
         "manifest_path": track["manifest"],
-        "manifest_sha256": sha256_file(REPO_ROOT / track["manifest"]),
+        "manifest_sha256": _sha256_file(REPO_ROOT / track["manifest"]),
         "config_path": track["config"],
-        "config_sha256": sha256_file(REPO_ROOT / track["config"]),
+        "config_sha256": _sha256_file(REPO_ROOT / track["config"]),
         "freqai_model": track["freqai_model"],
         "model_path": track["model_file"],
-        "model_sha256": sha256_file(REPO_ROOT / track["model_file"]),
+        "model_sha256": _sha256_file(REPO_ROOT / track["model_file"]),
         "identifier": track["identifier"],
     }
     underlying = track.get("underlying_model_file")
     if underlying:
         binding["underlying_model_path"] = underlying
-        binding["underlying_model_sha256"] = sha256_file(REPO_ROOT / underlying)
+        binding["underlying_model_sha256"] = _sha256_file(REPO_ROOT / underlying)
     return binding
 
 
 def canonical_run_request() -> dict[str, Any]:
     """Return the only request authorized by the bounded M1 workflow."""
+    execution = _execution_module()
     try:
-        inputs = canonical_inputs()
-    except ResidualPyTorchBoundedM1Error as exc:
+        inputs = execution.canonical_inputs()
+    except execution.ResidualPyTorchBoundedM1Error as exc:
         raise ResidualPyTorchBoundedM1RunRequestError(str(exc)) from exc
     contract = inputs["contract"]
     return {
@@ -59,11 +84,11 @@ def canonical_run_request() -> dict[str, Any]:
         "request_id": EXPECTED_REQUEST_ID,
         "action": EXPECTED_ACTION,
         "contract_path": CONTRACT_REPO_PATH,
-        "contract_sha256": sha256_file(CONTRACT_PATH),
+        "contract_sha256": _sha256_file(CONTRACT_PATH),
         "strategy_path": str(inputs["strategy_path"].relative_to(REPO_ROOT)),
-        "strategy_sha256": sha256_file(inputs["strategy_path"]),
+        "strategy_sha256": _sha256_file(inputs["strategy_path"]),
         "instrumentation_path": str(inputs["instrumentation_path"].relative_to(REPO_ROOT)),
-        "instrumentation_sha256": sha256_file(inputs["instrumentation_path"]),
+        "instrumentation_sha256": _sha256_file(inputs["instrumentation_path"]),
         "geometry": contract["geometry"],
         "market_data": contract["market_data"],
         "audit_track": _track_binding(contract["audit_track"]),

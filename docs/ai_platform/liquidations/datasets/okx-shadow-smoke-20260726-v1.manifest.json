@@ -1,0 +1,68 @@
+{
+  "artifacts": {
+    "events": {
+      "file_name": "okx-usdt-swap.ndjson",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0
+    },
+    "instruments": {
+      "file_name": "okx-usdt-swap-instruments.json",
+      "sha256": "bdc2bc49d880f69fd1e51930612bccc206faef020ea0f9458485eb4339858be6",
+      "size_bytes": 1083
+    },
+    "summary": {
+      "file_name": "okx-usdt-swap-summary.json",
+      "sha256": "7767ae14d5ba82cefba7cb96a732ca36763f3c83430c8849268920e357312eca",
+      "size_bytes": 2722
+    }
+  },
+  "clock_probes": {
+    "end": {
+      "absolute_skew_ms": 15,
+      "checked_at_ms": 1785094918377,
+      "error": null,
+      "round_trip_ms": 241,
+      "server_time_url": "https://www.okx.com/api/v5/public/time",
+      "synchronized": true,
+      "tolerance_ms": 2000
+    },
+    "start": {
+      "absolute_skew_ms": 14,
+      "checked_at_ms": 1785094797884,
+      "error": null,
+      "round_trip_ms": 293,
+      "server_time_url": "https://www.okx.com/api/v5/public/time",
+      "synchronized": true,
+      "tolerance_ms": 2000
+    }
+  },
+  "collector_commit": "5218491fa8b5b0c02d418e6047d88310cc8c5e43",
+  "collector_error": null,
+  "duration_seconds": 120,
+  "ended_at_ms": 1785094918377,
+  "endpoints": {
+    "clock": "https://www.okx.com/api/v5/public/time",
+    "instruments": "https://www.okx.com/api/v5/public/instruments?instType=SWAP",
+    "websocket": "wss://ws.okx.com:8443/ws/v5/public"
+  },
+  "host_id": "github-hosted-ubuntu-24.04",
+  "manifest_sha256": "f43fde5699d72c582fced4153abfeef7d626ec445c398342df37ca293c29d873",
+  "manifest_type": "okx_liquidation_shadow_smoke",
+  "policy_id": "okx-liquidation-shadow-smoke-v1",
+  "request_id": "okx-shadow-smoke-20260726-v1",
+  "run_id": "okx-shadow-smoke-20260726-v1",
+  "safety": {
+    "execution_enabled": false,
+    "orders_submitted": 0,
+    "performance_research_authorized": false,
+    "trading_credentials_present": false
+  },
+  "schema_version": 1,
+  "source": "okx-usdt-swap",
+  "started_at_ms": 1785094797143,
+  "status": "completed",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ]
+}

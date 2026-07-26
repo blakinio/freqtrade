@@ -1,0 +1,40 @@
+name: Residual PyTorch M1 Request Probe
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/residual-pytorch-m1-request-probe.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout probe commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v6.0.0
+        with:
+          python-version: "3.12"
+      - name: Install generator dependencies
+        run: python -m pip install numpy pandas
+      - name: Generate canonical request
+        run: |
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_run_request \
+            --print-canonical > canonical-request.json
+      - name: Upload canonical request
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: residual-pytorch-m1-canonical-request-probe
+          path: canonical-request.json
+          if-no-files-found: error
+          retention-days: 1

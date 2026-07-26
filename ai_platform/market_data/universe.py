@@ -62,13 +62,19 @@ class MetricSnapshot:
             "canonical_instrument_id": self.canonical_instrument_id,
             "measured_at_ms": self.measured_at_ms,
             "quote_volume_24h": (
-                None if self.quote_volume_24h is None else decimal_text(self.quote_volume_24h)
+                None
+                if self.quote_volume_24h is None
+                else decimal_text(self.quote_volume_24h)
             ),
             "trade_count_24h": self.trade_count_24h,
             "open_interest_usd": (
-                None if self.open_interest_usd is None else decimal_text(self.open_interest_usd)
+                None
+                if self.open_interest_usd is None
+                else decimal_text(self.open_interest_usd)
             ),
-            "spread_bps": None if self.spread_bps is None else decimal_text(self.spread_bps),
+            "spread_bps": (
+                None if self.spread_bps is None else decimal_text(self.spread_bps)
+            ),
             "source_snapshot_ids": list(self.source_snapshot_ids),
         }
 
@@ -104,7 +110,9 @@ class UniverseSelectionPolicy:
                 raise ValueError("ranked profiles require spot and derivatives limits")
             if self.spot_limit < 0 or self.derivatives_limit < 0:
                 raise ValueError("profile limits must be >= 0")
-            expected_total = 100 if self.profile_identity == "top100-microstructure-v1" else 20
+            expected_total = (
+                100 if self.profile_identity == "top100-microstructure-v1" else 20
+            )
             if self.spot_limit + self.derivatives_limit != expected_total:
                 raise ValueError(f"profile limits must sum to {expected_total}")
 
@@ -186,7 +194,9 @@ def _ranking_components(
     missing = _missing_metric_names(instrument, metric)
     return FrozenJsonObject.from_mapping(
         {
-            "policy_family": "spot" if instrument.market_type is MarketType.SPOT else "derivatives",
+            "policy_family": (
+                "spot" if instrument.market_type is MarketType.SPOT else "derivatives"
+            ),
             "quote_volume_24h": (
                 None
                 if metric is None or metric.quote_volume_24h is None
@@ -219,7 +229,9 @@ def _ranking_key(
         else metric.quote_volume_24h
     )
     trade_count = (
-        -1 if metric is None or metric.trade_count_24h is None else metric.trade_count_24h
+        -1
+        if metric is None or metric.trade_count_24h is None
+        else metric.trade_count_24h
     )
     spread = (
         Decimal("Infinity")
@@ -279,7 +291,9 @@ def select_universe(  # noqa: C901
     active_by_key: dict[tuple[MarketType, str], set[Exchange]] = {}
     for instrument in instruments:
         if instrument.active and instrument.exchange in exchange_set:
-            active_by_key.setdefault(_market_key(instrument), set()).add(instrument.exchange)
+            active_by_key.setdefault(_market_key(instrument), set()).add(
+                instrument.exchange
+            )
 
     prequalified_spot: list[InstrumentSnapshot] = []
     prequalified_derivatives: list[InstrumentSnapshot] = []
@@ -296,7 +310,9 @@ def select_universe(  # noqa: C901
             observed = active_by_key.get(_market_key(instrument), set())
             missing_exchanges = sorted(item.value for item in exchange_set - observed)
             if missing_exchanges:
-                reasons.append("missing_from_required_exchanges:" + ",".join(missing_exchanges))
+                reasons.append(
+                    "missing_from_required_exchanges:" + ",".join(missing_exchanges)
+                )
 
         metric = metric_by_id.get(instrument.canonical_instrument_id)
         missing_metrics = _missing_metric_names(instrument, metric)
@@ -320,14 +336,20 @@ def select_universe(  # noqa: C901
         key=lambda instrument: (
             _stable_tie_breaker(instrument)
             if policy.profile_identity == "all-active-lite-v1"
-            else _ranking_key(instrument, metric_by_id.get(instrument.canonical_instrument_id))
+            else _ranking_key(
+                instrument,
+                metric_by_id.get(instrument.canonical_instrument_id),
+            )
         )
     )
     prequalified_derivatives.sort(
         key=lambda instrument: (
             _stable_tie_breaker(instrument)
             if policy.profile_identity == "all-active-lite-v1"
-            else _ranking_key(instrument, metric_by_id.get(instrument.canonical_instrument_id))
+            else _ranking_key(
+                instrument,
+                metric_by_id.get(instrument.canonical_instrument_id),
+            )
         )
     )
 
@@ -342,7 +364,9 @@ def select_universe(  # noqa: C901
         included_spot = prequalified_spot[:spot_limit]
         included_derivatives = prequalified_derivatives[:derivatives_limit]
         for instrument in prequalified_spot[spot_limit:]:
-            exclusion_reasons[instrument.canonical_instrument_id] = ["outside_spot_profile_limit"]
+            exclusion_reasons[instrument.canonical_instrument_id] = [
+                "outside_spot_profile_limit"
+            ]
         for instrument in prequalified_derivatives[derivatives_limit:]:
             exclusion_reasons[instrument.canonical_instrument_id] = [
                 "outside_derivatives_profile_limit"

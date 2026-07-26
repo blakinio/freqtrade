@@ -295,7 +295,7 @@ class UniverseSnapshot:
     decisions: tuple[UniverseDecision, ...]
     snapshot_sha256: str
 
-    def __post_init__(self) -> None:  # noqa: C901
+    def __post_init__(self) -> None:
         if self.schema_version != SCHEMA_VERSION:
             raise ValueError(f"schema_version must be {SCHEMA_VERSION}")
         if self.profile_identity not in {

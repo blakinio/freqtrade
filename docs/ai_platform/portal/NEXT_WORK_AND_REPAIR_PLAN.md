@@ -40,7 +40,7 @@ Snapshot date: `2026-07-26`.
 - PI-03 Canonical Inference and Drift Telemetry: `done`, PR #239 with closure PR #260.
 - PI-04 Centralized Runtime Observability: `done` for repository-side contracts, PR #261; target-environment backend connectivity remains deployment-owned and must fail closed when absent.
 - PI-05 External Notification Delivery: `planned`; provider/channel and privacy policy are unresolved.
-- PI-06 Product Identity and Session Lifecycle: `planned`; the IdP, membership, session, MFA, recovery and revocation decision is accepted in `PI06_IDENTITY_AND_SESSION_DECISION.md`, while implementation has not started.
+- PI-06 Product Identity and Session Lifecycle: `active`; the architecture decision is accepted and the repository identity backend merged in PR #341, while same-origin BFF/browser integration, browser E2E and target-environment authentik provisioning remain.
 - PI-07 Runtime Credential Broker and Rotation: `planned`; requires a selected secret backend and security review.
 - PI-08 Private Dry-Run Approved Execution Submission: `planned`; depends on PI-07 and must remain dry-run-only.
 
@@ -85,20 +85,39 @@ Selected boundaries:
 - Cloudflare Access remains an additional privileged-ingress control and never replaces application session, tenant or RBAC enforcement;
 - Synology Docker Compose is accepted as the initial bounded target but remains a documented single-host failure domain and is not P11 or P14 evidence.
 
-The decision resolves the PI-06 owner/product entry gate. It does not provision authentik, Cloudflare resources, secrets, users or a production identity environment and does not mark PI-06 implementation complete.
+### 4.3 PI-06 repository identity backend — complete
 
-### 4.3 External and owner-gated integrations
+Task `FTAI-20260726-portal-pi06-product-identity-lifecycle` and PR #341, squash merge `41834d18f3a05b0dfa44dc5af9b97942e685d2a1`, complete the bounded Python repository backend.
+
+Delivered behavior:
+
+- Authentik-compatible OIDC discovery, Authorization Code plus PKCE, JWKS signature, issuer, audience and nonce validation;
+- one-time expiring login state and encrypted PKCE verifier material;
+- immutable external principal mapping by OIDC `iss` plus `sub`;
+- portal-owned tenant memberships, roles, validity and membership versions;
+- opaque 256-bit browser sessions with keyed hashes only in storage;
+- secure host-only session cookie and server-verified CSRF for unsafe portal routes;
+- tenant and capability context derived from current membership rather than browser tenant input;
+- MFA enforcement for mutation-capable roles and five-minute step-up for membership administration;
+- logout, logout-all, role/membership-change revocation and OIDC back-channel logout;
+- identity migration, deterministic runtime configuration and focused security regression tests.
+
+Exact final head `c258567cabd1c9ddf3d90c63f36319be99463978` passed AI Platform CI #1415, Freqtrade CI #1713 and GitHub Actions Security Analysis #1580.
+
+This package does not connect the Next.js portal to the backend, deploy authentik, provision users/secrets, prove recovery against a real IdP, configure Cloudflare Access or complete P11.
+
+### 4.4 External and owner-gated integrations
 
 The following are not ordinary autonomous UI repair tasks:
 
-- PI-06 implementation must follow the accepted identity/session decision and remain a separate reviewed package;
+- real authentik/Cloudflare target provisioning remains separately controlled after repository BFF/browser integration;
 - email/webhook/push delivery requires the PI-05 provider and destination policy decision;
 - runtime credential injection requires PI-07 and a security-reviewed secret backend;
 - approved private Freqtrade dry-run submission requires PI-08 after PI-07;
 - real Cloudflare production-like staging requires intentional owner provisioning under P11;
 - live-small remains P14 and requires a separate explicit authorization package.
 
-### 4.4 Deployment-owned observability
+### 4.5 Deployment-owned observability
 
 Repository-side PI-04 contracts are complete, but a real Loki/Tempo/Prometheus-compatible target environment, retention policy, dashboards and credentials are deployment-owned. UI and API mode must report `UNAVAILABLE` when these sources are not configured; they must not fabricate successful empty results.
 
@@ -134,17 +153,18 @@ Turn the bot fleet and Bot Detail routes into the primary tenant-scoped operatio
 - no live-capital state is introduced;
 - frozen thresholds, Phase 6 evidence and protected holdout policy remain unchanged.
 
-## 6. Dependency-ordered continuation after the PI-06 decision
+## 6. Dependency-ordered continuation after the PI-06 backend
 
 Unless live repository evidence changes the order:
 
-1. declare and implement the separate PI-06 Product Identity and Session Lifecycle package from `PI06_IDENTITY_AND_SESSION_DECISION.md`;
-2. implement PI-05 one external channel at a time after provider and privacy decisions;
-3. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
-4. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
-5. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
-6. keep P13 deferred until measured bottleneck/SLO evidence exists;
-7. keep P14 blocked until separately authorized.
+1. declare the bounded PI-06 same-origin BFF and browser-session integration package; connect Next.js login/logout/session behavior to the merged backend and prove denied, expired, revoked, CSRF, MFA/step-up and cross-tenant browser states with deterministic E2E;
+2. after repository browser integration is stable, declare a separate authentik/Synology deployment package with pinned images, secret placeholders, bootstrap/recovery/restore runbooks and no committed credentials;
+3. implement PI-05 one external channel at a time after provider and privacy decisions;
+4. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
+5. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
+6. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
+7. keep P13 deferred until measured bottleneck/SLO evidence exists;
+8. keep P14 blocked until separately authorized.
 
 Liquid20 and other read-only feature integrations may proceed in parallel only with disjoint paths and explicit task ownership. They must not silently change the core identity, execution, credential, P11 or live-capital gates.
 
@@ -177,4 +197,4 @@ Stop and record a blocker instead of improvising when:
 
 ## 9. Current next action
 
-Declare a separate `FTAI-YYYYMMDD-portal-pi06-product-identity-lifecycle` implementation task after a fresh `develop` and path-ownership preflight. Implement versioned identity/session/membership contracts, OIDC Authorization Code + PKCE through the BFF, opaque server-side sessions, membership-derived tenant context, CSRF, MFA/step-up enforcement, logout/revocation/back-channel logout and deterministic denied/expired/revoked/cross-tenant/recovery E2E. Keep authentik/Cloudflare target provisioning, secrets and real P11 acceptance in separately controlled deployment evidence, and do not start PI-07, PI-08 or live capital.
+Declare a separate `FTAI-YYYYMMDD-portal-pi06-bff-browser-session-integration` task after a fresh `develop`, open-PR and path-ownership preflight. Connect the same-origin Next.js BFF and protected portal navigation to the merged PI-06 backend; add deterministic browser E2E for anonymous denial, successful session, CSRF failure, MFA/step-up denial, idle/absolute expiry, membership revocation, logout-all and cross-tenant denial. Keep real authentik/Synology and Cloudflare provisioning in a later deployment package, and do not start PI-07, PI-08, P11 acceptance or live capital.

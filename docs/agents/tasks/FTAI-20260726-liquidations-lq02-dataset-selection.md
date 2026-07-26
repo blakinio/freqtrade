@@ -54,8 +54,8 @@ Do not start replay while any required performance interval lacks a final `passe
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T14:40:00Z
-head: aefebb4e9b53779d6459cdbbe061f88f910a5078
+updated_at: 2026-07-26T15:10:00Z
+head: ce98b7ef01314b184a3c479e4aab297dbf9d92a4
 branch: docs/liquid20-candle-evidence-publication
 pr: "#377"
 status: blocked
@@ -78,6 +78,7 @@ proven:
   - Bybit and Binance are preserved separately with no missing-candle zero fill or cross-exchange deduplication.
   - The candle interval does not overlap the protected 2026-08-01 through 2026-10-01 holdout.
   - Performance research remains explicitly unauthorized.
+  - Exact candidate head ce98b7ef01314b184a3c479e4aab297dbf9d92a4 passed AI Platform CI 1604, Freqtrade CI 1932 and zizmor 1797.
 derived:
   - Versioned candle identity is resolved for diagnostic use.
   - Failed run acceptance and unpublished immutable run hashes independently block dataset selection.
@@ -108,11 +109,11 @@ validation:
     result: PASS
     evidence: All 40 files had 576 contiguous records and all 41 checksum entries reproduced.
   - command: repository evidence coherence tests
-    result: NOT_RUN
-    evidence: Pending exact-head repository CI.
+    result: PASS
+    evidence: AI Platform CI 1604 passed the exact manifest, checksum and evidence-envelope coherence tests.
   - command: checkpoint, pre-commit, documentation and zizmor
-    result: NOT_RUN
-    evidence: Pending pull-request checks.
+    result: PASS
+    evidence: Freqtrade CI 1932 and zizmor 1797 accepted checkpoint structure, pre-commit, documentation and workflow analysis.
 blockers:
   - No completed performance-selectable Liquid20 run has explicit passed true.
   - Exact completed-run source, summary, multi-source manifest and final-report hashes are not published.

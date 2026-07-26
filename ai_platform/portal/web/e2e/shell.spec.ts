@@ -25,8 +25,8 @@ test("opens immutable bot detail from the fleet", async ({ page }) => {
   await page.goto("/bots");
   await page.getByRole("link", { name: "Open", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "BTC AI Dry Run" })).toBeVisible();
-  await expect(page.getByText("model-validated-2026-07", { exact: true })).toBeVisible();
-  await expect(page.getByText("risk-default-v1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "model-validated-2026-07" })).toBeVisible();
+  await expect(page.getByRole("definition").filter({ hasText: "risk-default-v1" })).toBeVisible();
 });
 
 test("renders AI intelligence surfaces from deterministic fixture read models", async ({ page }) => {

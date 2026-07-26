@@ -65,7 +65,7 @@ After the bounded P0-P12 software platform and software-addressable portal surfa
 
 ## Current continuation snapshot
 
-PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side acceptance. The recommended next autonomous product package is Bot Operations convergence over existing canonical reads plus the existing immutable-revision and desired-state control-plane endpoints. PI-05 through PI-08 remain separately planned and gated; P11 is blocked on real external infrastructure, P13 is deferred and P14 remains blocked.
+PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side acceptance. Bot Operations convergence is complete through `FTAI-20260726-portal-bot-operations-completion` and PR #320, so the fleet and Bot Detail routes now compose canonical bot-scoped reads and expose existing immutable-revision and desired-state commands through the same-origin web boundary. No further core portal integration package is autonomously authorized without an owner/provider decision. PI-05 through PI-08 remain separately planned and gated; P11 is blocked on real external infrastructure, P13 is deferred and P14 remains blocked.
 
 ## Documentation map
 

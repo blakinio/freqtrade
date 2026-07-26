@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "policy_id": "okx-liquidation-shadow-smoke-v1",
+  "classification": "transport_smoke_only",
+  "source": "okx-usdt-swap",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "duration_seconds": 120,
+  "endpoints": {
+    "websocket": "wss://ws.okx.com:8443/ws/v5/public",
+    "clock": "https://www.okx.com/api/v5/public/time",
+    "instruments": "https://www.okx.com/api/v5/public/instruments?instType=SWAP"
+  },
+  "thresholds": {
+    "minimum_duration_seconds": 110,
+    "minimum_messages_received": 1,
+    "minimum_control_messages": 1,
+    "minimum_connections": 1,
+    "maximum_parse_failures": 0,
+    "minimum_availability_ratio": 0.9,
+    "maximum_disconnects": 1,
+    "maximum_duplicate_ratio": 0.01,
+    "latency_threshold_ms": 10000,
+    "maximum_latency_over_threshold_ratio": 0.05,
+    "minimum_events_total": 0,
+    "minimum_observed_symbols": 0,
+    "clock_tolerance_ms": 2000
+  },
+  "requirements": {
+    "execution_enabled": false,
+    "trading_credentials_present": false,
+    "performance_research_authorized": false,
+    "orders_submitted": 0,
+    "new_output": true,
+    "collector_commit": true,
+    "instrument_snapshot": true
+  },
+  "boundary": "Passing proves only public transport, parser compatibility and artifact integrity for the declared short smoke. It does not add OKX to liquid20-v1 or authorize replay, model work, trading or performance research."
+}

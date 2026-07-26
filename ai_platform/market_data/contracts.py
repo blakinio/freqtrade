@@ -15,7 +15,6 @@ from ai_platform.market_data.capture import (
     assert_order_book_reconstructible,
 )
 from ai_platform.market_data.common import (
-    SCHEMA_VERSION,
     AvailabilityTimestampKind,
     ChannelFamily,
     CompressionPolicy,
@@ -25,6 +24,7 @@ from ai_platform.market_data.common import (
     GapReason,
     MarketType,
     OutputImmutabilityState,
+    SCHEMA_VERSION,
     canonical_instrument_id,
     canonical_json_bytes,
     canonical_sha256,
@@ -104,7 +104,9 @@ def validate_contract_payload(
     *,
     schema_path: Path = CONTRACT_SCHEMA_PATH,
 ) -> None:
-    Draft202012Validator(_contract_schema(contract_name, schema_path=schema_path)).validate(payload)
+    Draft202012Validator(_contract_schema(contract_name, schema_path=schema_path)).validate(
+        payload
+    )
 
 
 def load_and_validate_contract_json(

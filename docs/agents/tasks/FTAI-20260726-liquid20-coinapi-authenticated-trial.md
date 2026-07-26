@@ -47,8 +47,8 @@ event-level replacement and is only a conditional aggregate-feature candidate.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T10:20:00Z
-head: pending-final-head
+updated_at: 2026-07-26T10:23:00Z
+head: 898ef311aa13e407116ad9abc6c4693e30dd17b4
 branch: feat/liquid20-coinapi-authenticated-trial
 pr: "#352"
 status: in_progress
@@ -67,6 +67,7 @@ proven:
   - Coverage probe run 30197961324 job 89782783001 made 8 bounded requests across four exact targets.
   - Every exact-symbol metadata and exact-symbol liquidation metric-listing request returned HTTP 403.
   - Quota probe run 30198031682 job 89782989299 returned QuotaKey BA, Insufficient Usage Credits or Subscription, Organization Limit, QuotaValue 0 $, and current usage 0 $.
+  - Temporary authenticated workflow and script were removed from the durable change set at implementation head 898ef311aa13e407116ad9abc6c4693e30dd17b4.
   - No raw market records, market values, private key value, paid history, importer, training, backtest, collector change, Synology mutation or protected-holdout access occurred.
 derived:
   - The free account is not usable for the Liquid20 CoinAPI trial.
@@ -98,6 +99,9 @@ validation:
   - command: GitHub Actions exact quota probe
     result: PASS
     evidence: Run 30198031682 job 89782989299 completed successfully and froze the non-secret quota metadata.
+  - command: Durable exact-head repository validation
+    result: PENDING
+    evidence: Run after the temporary workflow and script were removed.
 blockers: []
-next_action: Remove the temporary authenticated workflow and script, validate the durable evidence on the exact final head, and merge PR 352 if CI and review are clean.
+next_action: Validate the durable evidence on the exact PR head and merge PR 352 if CI and review are clean.
 ```

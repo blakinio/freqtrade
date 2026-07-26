@@ -21,9 +21,14 @@ test("renders bounded bot fleet operations and filters by market", async ({ page
   await expect(page.getByRole("heading", { name: "Bot fleet" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "Positions" })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "PNL" })).toBeVisible();
-  await expect(page.getByText("R 11.60 USDT", { exact: true })).toBeVisible();
-  await expect(page.getByText("U 10 USDT", { exact: true })).toBeVisible();
-  await expect(page.getByText("NORMAL", { exact: true })).toBeVisible();
+
+  const btcRow = page.getByRole("row").filter({ hasText: "BTC AI Dry Run" });
+  await expect(btcRow.getByText("R 11.60 USDT", { exact: true })).toBeVisible();
+  await expect(btcRow.getByText("NORMAL", { exact: true })).toBeVisible();
+
+  const ethRow = page.getByRole("row").filter({ hasText: "ETH Validation Bot" });
+  await expect(ethRow.getByText("1", { exact: true })).toBeVisible();
+  await expect(ethRow.getByText("UNAVAILABLE", { exact: true })).toBeVisible();
 
   await page.getByLabel("Market").fill("ETH/USDT");
   await page.getByRole("button", { name: "Apply filters" }).click();

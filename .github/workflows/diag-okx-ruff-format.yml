@@ -1,9 +1,13 @@
 name: Diagnostic OKX Ruff format
 
 on:
-  push:
-    branches:
-      - feat/liquidation-okx-shadow-source-v1
+  pull_request:
+    paths:
+      - ai_platform/research/liquidations/okx.py
+      - ai_platform/scripts/liquidation_okx_collector.py
+      - tests/ai_platform_integration/test_liquidation_okx_source.py
+      - tests/ai_platform_integration/test_liquidation_binance_source.py
+      - .github/workflows/diag-okx-ruff-format.yml
 
 permissions:
   contents: read

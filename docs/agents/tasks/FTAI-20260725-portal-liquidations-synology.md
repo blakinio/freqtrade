@@ -1,10 +1,10 @@
 ---
 task_id: FTAI-20260725-portal-liquidations-synology
-status: implementing
+status: reviewing
 branch: feat/portal-liquidations-synology-20260725
 base_branch: develop
 created: 2026-07-25
-updated: 2026-07-25
+updated: 2026-07-26
 related_pr: "#313"
 owned_paths:
   - .github/workflows/portal-synology-lan-preview.yml
@@ -31,11 +31,11 @@ Mount the authoritative Liquid20 Synology evidence directory read-only into the 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T23:15:00Z
-head: pending-feature-validation
+updated_at: 2026-07-26T06:30:00Z
+head: 8ec78c8e77cb7bfdba123efe10f5ac75cbbb344e
 branch: feat/portal-liquidations-synology-20260725
 pr: 313
-status: implementing
+status: reviewing
 context_routes:
   - docs/agents/tasks/FTAI-20260725-portal-synology-lan-staging.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md
@@ -48,20 +48,22 @@ owned_paths:
 proven:
   - PR 307 read-model merged to develop as aa2f193b970588e478b5d57f58d2ddfd7f4aab67.
   - PR 311 BFF and UI merged to develop as 228b5ad3eb12c6adab300ab86461d3fa67acaa47.
-  - The private Synology portal preview remains bound to 192.168.1.2:3031 with exact-SHA images, isolated candidate validation and rollback.
-  - The authoritative Liquid20 root is /volume1/docker/freqtrade-liquidations/data and is mountable read-only through the Synology Docker daemon.
-  - Liquid20 directories are root:root mode 750 and event files are root:root mode 640; the image's non-root Node user cannot traverse them without a supplementary group.
-  - Isolated run 30178801452 proved that adding only supplementary GID 0 keeps the process non-root and returns HTTP 200 for health, summary, bounded list and page against real Liquid20 data.
-  - The portal container does not require or receive the Docker socket, exchange credentials or trading authority.
+  - The authoritative Liquid20 root is /volume1/docker/freqtrade-liquidations/data and is mounted at /liquid20-data read-only.
+  - Liquid20 directories are root:root mode 750 and event files are root:root mode 640.
+  - The deployment derives and validates the shared numeric read GID through a root-only metadata preflight container, then adds only that supplementary group to the non-root Node process.
+  - Host permissions and Liquid20 evidence contents remain unchanged.
+  - Exact feature commit e48c421aea4adb46854578264d80622803498a87 deployed successfully in workflow run 30191045808.
+  - The exact deployment passed image build, isolated candidate health, real-data health, summary, bounded list and page probes, LAN probes on 192.168.1.2:3031 and final health-contract validation.
+  - The running portal remains non-root, has no Docker socket mount, exposes no credentials and carries no trading authority.
+  - The temporary feature-branch deployment trigger was removed after successful proof; authoritative future deployments run from develop only.
 derived:
-  - The deployment must derive and validate the numeric read GID through a short root-only metadata preflight container, then add only that GID to the non-root portal process.
-  - Host permissions and Liquid20 evidence contents must remain unchanged.
+  - The final merge can preserve the existing running exact feature image until the develop deployment replaces it with the merge SHA.
 unknown:
-  - Final acceptance outcome of active run liquid20-20260725T212201Z-1.
+  - Final acceptance outcome of active run liquid20-20260725T212201Z-1; this is independent of portal integration completion.
 conflicts: []
 first_failure:
   marker: LIQUID20_GROUP_TRAVERSE
-  evidence: Real-data candidate routes returned HTTP 500 with EACCES permission denied scandir /liquid20-data; permission diagnostics showed root:root 750 directories and root:root 640 event files.
+  evidence: Real-data candidate routes initially returned HTTP 500 with EACCES permission denied scandir /liquid20-data; permission diagnostics identified the required group-only access boundary.
 rejected_hypotheses:
   - Run the portal container as root.
   - Change or recursively chmod the immutable Liquid20 evidence tree.
@@ -81,7 +83,10 @@ validation:
     evidence: Root, run directories and event files consistently use uid 0, gid 0 with directory mode 750 and file mode 640.
   - command: supplementary-group candidate run 30178801452
     result: PASS
-    evidence: Non-root process included GID 0 and health, summary, list and page all returned HTTP 200 against real data.
+    evidence: Non-root process included the verified group and health, summary, list and page all returned HTTP 200 against real data.
+  - command: exact feature deployment run 30191045808
+    result: PASS
+    evidence: Build and deploy, LAN Liquid20 surface and final status all completed successfully for e48c421aea4adb46854578264d80622803498a87.
 blockers: []
-next_action: Deploy the clean exact-SHA feature candidate with dynamically verified group-only access, remove the temporary feature-branch trigger after proof, then merge and verify the develop deployment.
+next_action: Complete final PR checks, verify review threads remain empty, squash-merge PR 313 and verify the authoritative develop deployment.
 ```

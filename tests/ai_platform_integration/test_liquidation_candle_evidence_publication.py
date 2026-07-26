@@ -24,11 +24,19 @@ def _canonical_sha256(payload: dict[str, object], self_field: str) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def _checksum_map(lines: list[str]) -> dict[str, str]:
+    checksums: dict[str, str] = {}
+    for line in lines:
+        digest, logical_name = line.split("  ", 1)
+        checksums[logical_name] = digest
+    return checksums
+
+
 def test_published_manifest_and_checksum_index_are_coherent() -> None:
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
     artifacts = manifest["artifacts"]
     checksum_lines = CHECKSUM_PATH.read_text(encoding="utf-8").splitlines()
-    checksums = dict(line.split("  ", 1)[::-1] for line in checksum_lines)
+    checksums = _checksum_map(checksum_lines)
 
     assert manifest["manifest_sha256"] == _canonical_sha256(manifest, "manifest_sha256")
     assert len(artifacts) == 40

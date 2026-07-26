@@ -18,8 +18,11 @@ jobs:
     env:
       COINAPI_KEY: ${{ secrets.COINAPI_KEY }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-
       - name: Probe exact CoinAPI liquidation coverage
-        run: python .github/scripts/liquid20_coinapi_authenticated_trial.py
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            https://raw.githubusercontent.com/blakinio/freqtrade/070d31efb84c309781f21786d22532c7bca8fd7b/.github/scripts/liquid20_coinapi_authenticated_trial.py \
+            --output /tmp/liquid20_coinapi_authenticated_trial.py
+          python /tmp/liquid20_coinapi_authenticated_trial.py

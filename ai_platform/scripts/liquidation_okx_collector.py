@@ -9,7 +9,6 @@ import urllib.parse
 import urllib.request
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any
 
 import websockets
 from websockets.exceptions import WebSocketException

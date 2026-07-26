@@ -12,9 +12,7 @@ from pathlib import Path
 
 
 DIGEST_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
-AUTHENTIK_IMAGE_RE = re.compile(
-    r"^docker\.io/authentik/server:2026\.5\.5@sha256:[0-9a-f]{64}$"
-)
+AUTHENTIK_IMAGE_RE = re.compile(r"^docker\.io/authentik/server:2026\.5\.5@sha256:[0-9a-f]{64}$")
 POSTGRES_IMAGE_RE = re.compile(
     r"^docker\.io/library/postgres:16\.13-alpine3\.23@sha256:[0-9a-f]{64}$"
 )
@@ -71,8 +69,7 @@ def validate_environment(values: dict[str, str], *, example: bool) -> list[str]:
     postgres_image = values.get("POSTGRES_IMAGE", "")
     if not AUTHENTIK_IMAGE_RE.fullmatch(authentik_image):
         errors.append(
-            "AUTHENTIK_IMAGE must pin docker.io/authentik/server:2026.5.5 "
-            "by full sha256 digest"
+            "AUTHENTIK_IMAGE must pin docker.io/authentik/server:2026.5.5 by full sha256 digest"
         )
     if not POSTGRES_IMAGE_RE.fullmatch(postgres_image):
         errors.append(
@@ -102,8 +99,7 @@ def validate_environment(values: dict[str, str], *, example: bool) -> list[str]:
         secret_key = values.get("AUTHENTIK_SECRET_KEY", "")
         if has_placeholder(password) or not (32 <= len(password) <= 99):
             errors.append(
-                "AUTHENTIK_POSTGRESQL__PASSWORD must be a non-placeholder "
-                "32-99 character value"
+                "AUTHENTIK_POSTGRESQL__PASSWORD must be a non-placeholder 32-99 character value"
             )
         if has_placeholder(secret_key) or len(secret_key) < 50:
             errors.append(
@@ -163,8 +159,7 @@ def validate_portal_identity_example(path: Path) -> list[str]:
         "PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64",
     }
     errors = [
-        f"portal identity example is missing {key}"
-        for key in sorted(required - values.keys())
+        f"portal identity example is missing {key}" for key in sorted(required - values.keys())
     ]
     if not values.get("PORTAL_IDENTITY_ISSUER", "").startswith("https://"):
         errors.append("PORTAL_IDENTITY_ISSUER must use HTTPS")

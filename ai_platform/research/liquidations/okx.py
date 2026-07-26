@@ -178,8 +178,7 @@ def _normalize_position_side(
         if normalized_order == "buy":
             return LiquidatedPositionSide.SHORT
     raise ValueError(
-        "unsupported OKX liquidation side combination: "
-        f"side={order_side}, posSide={position_side}"
+        f"unsupported OKX liquidation side combination: side={order_side}, posSide={position_side}"
     )
 
 

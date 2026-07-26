@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "contract_id": "rl-v2-action-observability-execution-v1",
+  "infrastructure_task": "docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-infrastructure.md",
+  "infrastructure_task_merge": "76e13f37588c766c73e12543885aadf86bdcbb15",
+  "execution_task": "docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution.md",
+  "declaration_path": "ai_platform/experimental_model_research/rl-v2-action-observability-execution-declaration-v1.json",
+  "declaration_merge": "b8e3fa1b946a5fb6e14a8ccccb1d96a8cbbd2787",
+  "declaration_closure_merge": "c04725708fbc229a71cb0bd4217a131959181d01",
+  "request_path": "ai_platform/experimental_model_research/run-requests/rl-v2-action-observability-execution-v1.json",
+  "trigger": {
+    "event": "pull_request_opened",
+    "base_branch": "develop",
+    "exact_one_file": true
+  },
+  "runtime_binding": {
+    "freqai_model": "DesiredPositionReinforcementLearner",
+    "freqai_model_path": "ai_platform/freqaimodels/DesiredPositionReinforcementLearner.py",
+    "freqai_model_sha256": "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb4624cb79d46",
+    "parent_strategy": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
+    "parent_strategy_path": "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedResearchStrategy.py",
+    "parent_strategy_sha256": "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7",
+    "observable_strategy": "AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy",
+    "observable_strategy_path": "ai_platform/strategies/AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy.py",
+    "recorder_path": "ai_platform/scripts/rl_v2_action_observability.py",
+    "base_config_path": "ai_platform/configs/rl_v2_training_research.json",
+    "base_config_sha256": "5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de",
+    "model_type": "PPO",
+    "policy_type": "MlpPolicy",
+    "n_steps": 128,
+    "batch_size": 64,
+    "data_split_random_state": 42,
+    "data_split_shuffle": false,
+    "only_strategy_delta": "disabled-by-default action telemetry after inherited exit-signal evaluation",
+    "runtime_identifier_template": "rl-v2-action-observability-fresh-v1-seed-{seed}"
+  },
+  "seed_matrix": {
+    "ordered_execution_seeds": [
+      271828182,
+      628318530,
+      1414213562,
+      1618033988
+    ],
+    "execution_count": 4,
+    "prior_seed_executions": 0,
+    "baseline_executions": 0,
+    "outcome_aware_replacement_allowed": false
+  },
+  "execution_geometry": {
+    "mode": "four_new_seed_action_observability_matrix",
+    "download_timerange": "20250601-20251101",
+    "execution_timerange": "20250901-20251101",
+    "semantic_evidence_window": "20250901-20251031",
+    "freqtrade_stop_semantics": "end_exclusive",
+    "train_period_days": 90,
+    "backtest_period_days": 61,
+    "exchange": "kraken",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "fee": 0.002,
+    "cache_restore_allowed": false
+  },
+  "wiring": {
+    "capture_hook": "populate_exit_trend_after_super",
+    "capture_once_per_pair": true,
+    "enabled_environment_variable": "RL_V2_ACTION_OBSERVABILITY_ENABLED",
+    "output_directory_environment_variable": "RL_V2_ACTION_OBSERVABILITY_OUTPUT_DIR",
+    "metadata_environment_prefix": "RL_V2_ACTION_OBSERVABILITY_",
+    "input_dataframe_mutation_allowed": false,
+    "signal_mutation_allowed": false,
+    "upstream_core_change_allowed": false,
+    "parent_strategy_change_allowed": false,
+    "fail_closed": true
+  },
+  "artifact_contract": {
+    "timeline": "rl-v2-action-observability-timeline-v1.jsonl",
+    "manifest": "rl-v2-action-observability-manifest-v1.json",
+    "summary": "rl-v2-action-observability-summary-v1.json",
+    "raw_backtest_archive": "raw-backtest.zip",
+    "effective_runtime_config": "effective-runtime-config.json",
+    "data_coverage": "data-coverage.json",
+    "per_seed_evidence": "seed-action-evidence.json",
+    "aggregate_evidence": "action-observability-aggregate.json",
+    "retention_days": 90
+  },
+  "evidence": {
+    "classification": "fresh_historical_development_action_observability",
+    "strict_oos": false,
+    "protected_final_validation": false,
+    "profitability_is_non_gating": true,
+    "automatic_decision": false,
+    "automatic_ranking": false,
+    "automatic_promotion": false,
+    "position_interval_semantics": "open_timestamp <= candle_timestamp < close_timestamp",
+    "transition_classes": [
+      "hold_flat",
+      "enter_long",
+      "hold_long",
+      "exit_long"
+    ],
+    "long_state_breakdown": [
+      "accepted_target_long",
+      "accepted_target_flat",
+      "rejected_target_long",
+      "rejected_target_flat"
+    ]
+  },
+  "isolation": {
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "prior_seed_rerun_or_replacement_allowed": false,
+    "phase6_authoritative_selected_model": null
+  },
+  "authorization": {
+    "infrastructure_merge_executes_model": false,
+    "canonical_request_required": true,
+    "execution_task_required_before_trigger": true,
+    "four_seed_training_backtests_allowed_after_canonical_request": true,
+    "market_data_download_allowed_after_canonical_request": true,
+    "cache_restore_allowed": false,
+    "strict_oos_scoring_allowed": false,
+    "consumed_historical_oos_access_allowed": false,
+    "protected_final_holdout_access_allowed": false,
+    "retuning_allowed": false,
+    "behavioral_changes_allowed": false,
+    "prior_seed_execution_allowed": false,
+    "cross_track_selection_allowed": false,
+    "profitability_claim_allowed": false,
+    "statistical_proof_claim_allowed": false,
+    "promotion_allowed": false,
+    "dry_run_or_live_allowed": false
+  }
+}

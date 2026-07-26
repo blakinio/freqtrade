@@ -1,13 +1,11 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 const fixtureCsrfToken = "fixture-csrf-token";
-
-async function authenticateFixture(request: APIRequestContext) {
-  const response = await request.post("/api/identity/fixture-state", {
-    data: { state: "authenticated" },
-  });
-  expect(response.status()).toBe(200);
-}
+const fixtureMutationHeaders = {
+  cookie:
+    "portal_fixture_identity_state=authenticated; portal_fixture_session=fixture-session-authenticated; portal_fixture_csrf=fixture-csrf-token",
+  "x-csrf-token": fixtureCsrfToken,
+};
 
 const btcSpec = {
   tenant_id: "tenant-demo",
@@ -81,11 +79,10 @@ test("requests lifecycle intent with confirmation and keeps execution authority 
 });
 
 test("lifecycle BFF is idempotent and rejects stale expected state", async ({ request }) => {
-  await authenticateFixture(request);
   const idempotent = await request.post(
     "/api/bots/bot-btc-dryrun-01/desired-state",
     {
-      headers: { "x-csrf-token": fixtureCsrfToken },
+      headers: fixtureMutationHeaders,
       data: { desired_state: "RUNNING", expected_current_state: "RUNNING" },
     },
   );
@@ -95,7 +92,7 @@ test("lifecycle BFF is idempotent and rejects stale expected state", async ({ re
   const stale = await request.post(
     "/api/bots/bot-btc-dryrun-01/desired-state",
     {
-      headers: { "x-csrf-token": fixtureCsrfToken },
+      headers: fixtureMutationHeaders,
       data: { desired_state: "PAUSED", expected_current_state: "STOPPED" },
     },
   );
@@ -106,11 +103,10 @@ test("lifecycle BFF is idempotent and rejects stale expected state", async ({ re
 });
 
 test("revision BFF rejects stale and execution-mode-changing requests", async ({ request }) => {
-  await authenticateFixture(request);
   const stale = await request.post(
     "/api/bots/bot-btc-dryrun-01/revisions",
     {
-      headers: { "x-csrf-token": fixtureCsrfToken },
+      headers: fixtureMutationHeaders,
       data: { spec: { ...btcSpec, config_revision: 3 } },
     },
   );
@@ -119,7 +115,7 @@ test("revision BFF rejects stale and execution-mode-changing requests", async ({
   const modeChange = await request.post(
     "/api/bots/bot-btc-dryrun-01/revisions",
     {
-      headers: { "x-csrf-token": fixtureCsrfToken },
+      headers: fixtureMutationHeaders,
       data: { spec: { ...btcSpec, config_revision: 2, execution_mode: "simulated" } },
     },
   );

@@ -110,7 +110,7 @@ Raw backtest archive SHA-256 values:
 
 The raw ZIP hashes match the per-seed evidence. Every archive contains the result JSON, effective config, observable strategy source, market-change Feather and wallet Feather.
 
-No `ERROR`, `CRITICAL`, traceback or exception was found in the four retained logs. Each stderr log contains nine non-fatal warnings: one FreqAI exchange-check override, six declared data-start notices, and two further normal runtime notices. The fresh-model logs explicitly state that no existing model, data drawer or historic prediction was found before training.
+No `ERROR`, `CRITICAL`, traceback or exception was found in the four retained logs. Each stderr log contains nine non-fatal warnings: one FreqAI exchange-check override and eight declared data-start notices. The fresh-model logs explicitly state that no existing model, data drawer or historic prediction was found before training.
 
 General Freqtrade CI `30195095355` and zizmor `30195095344` passed on the trigger head. General AI Platform CI `30195095338` failed at its intentional inertness assertion because the canonical request exists on the unmerged execution trigger; the dedicated request-gated workflow is the execution authority and completed successfully.
 

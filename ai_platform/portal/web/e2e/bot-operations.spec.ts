@@ -1,4 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+
+const fixtureCsrfToken = "fixture-csrf-token";
+
+async function authenticateFixture(request: APIRequestContext) {
+  const response = await request.post("/api/identity/fixture-state", {
+    data: { state: "authenticated" },
+  });
+  expect(response.status()).toBe(200);
+}
 
 const btcSpec = {
   tenant_id: "tenant-demo",
@@ -72,16 +81,23 @@ test("requests lifecycle intent with confirmation and keeps execution authority 
 });
 
 test("lifecycle BFF is idempotent and rejects stale expected state", async ({ request }) => {
+  await authenticateFixture(request);
   const idempotent = await request.post(
     "/api/bots/bot-btc-dryrun-01/desired-state",
-    { data: { desired_state: "RUNNING", expected_current_state: "RUNNING" } },
+    {
+      headers: { "x-csrf-token": fixtureCsrfToken },
+      data: { desired_state: "RUNNING", expected_current_state: "RUNNING" },
+    },
   );
   expect(idempotent.status()).toBe(200);
   expect(idempotent.headers()["x-idempotent-replay"]).toBe("true");
 
   const stale = await request.post(
     "/api/bots/bot-btc-dryrun-01/desired-state",
-    { data: { desired_state: "PAUSED", expected_current_state: "STOPPED" } },
+    {
+      headers: { "x-csrf-token": fixtureCsrfToken },
+      data: { desired_state: "PAUSED", expected_current_state: "STOPPED" },
+    },
   );
   expect(stale.status()).toBe(409);
   await expect(stale.json()).resolves.toMatchObject({
@@ -90,15 +106,22 @@ test("lifecycle BFF is idempotent and rejects stale expected state", async ({ re
 });
 
 test("revision BFF rejects stale and execution-mode-changing requests", async ({ request }) => {
+  await authenticateFixture(request);
   const stale = await request.post(
     "/api/bots/bot-btc-dryrun-01/revisions",
-    { data: { spec: { ...btcSpec, config_revision: 3 } } },
+    {
+      headers: { "x-csrf-token": fixtureCsrfToken },
+      data: { spec: { ...btcSpec, config_revision: 3 } },
+    },
   );
   expect(stale.status()).toBe(409);
 
   const modeChange = await request.post(
     "/api/bots/bot-btc-dryrun-01/revisions",
-    { data: { spec: { ...btcSpec, config_revision: 2, execution_mode: "simulated" } } },
+    {
+      headers: { "x-csrf-token": fixtureCsrfToken },
+      data: { spec: { ...btcSpec, config_revision: 2, execution_mode: "simulated" } },
+    },
   );
   expect(modeChange.status()).toBe(422);
   await expect(modeChange.json()).resolves.toMatchObject({

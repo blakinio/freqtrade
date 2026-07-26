@@ -1,0 +1,202 @@
+name: Residual PyTorch M1 Exclusive Stop Bootstrap
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/residual-pytorch-m1-exclusive-stop-bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact fix branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply fail-closed exclusive-stop correction
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BOOTSTRAP_HEAD: ${{ github.event.pull_request.head.sha }}
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+
+          EXECUTION_TIMERANGE = "1772323200-1777593599"
+          DOWNLOAD_TIMERANGE = "1754006400-1777593599"
+
+
+          def replace(path: str, old: str, new: str, *, expected: int = 1) -> None:
+              file_path = Path(path)
+              text = file_path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(
+                      f"{path}: expected {expected} occurrences of {old!r}, found {count}"
+                  )
+              file_path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+          execution_path = "ai_platform/scripts/residual_pytorch_bounded_m1_execution.py"
+          replace(
+              execution_path,
+              'EXECUTION_TIMERANGE = "20260301-20260501"\nDOWNLOAD_TIMERANGE = "20250801-20260501"',
+              f'EXECUTION_TIMERANGE = "{EXECUTION_TIMERANGE}"\nDOWNLOAD_TIMERANGE = "{DOWNLOAD_TIMERANGE}"',
+          )
+          replace(
+              execution_path,
+              '''    expected_stop = datetime(2026, 5, 1, tzinfo=UTC)\n    if timerange.stopdt != expected_stop:\n        raise ResidualPyTorchBoundedM1Error("Exclusive pre-May data boundary drifted")''',
+              '''    expected_start = datetime(2025, 8, 1, tzinfo=UTC)\n    expected_stop = datetime(2026, 5, 1, tzinfo=UTC)\n    expected_inclusive_stop = int(expected_stop.timestamp()) - 1\n    if timerange.startdt != expected_start or timerange.stopts != expected_inclusive_stop:\n        raise ResidualPyTorchBoundedM1Error(\n            "Inclusive pre-May acquisition timerange drifted"\n        )''',
+          )
+
+          contract_path = Path(
+              "ai_platform/experimental_model_research/"
+              "residual-pytorch-bounded-m1-execution-contract-v1.json"
+          )
+          contract = json.loads(contract_path.read_text(encoding="utf-8"))
+          contract["geometry"]["timerange"] = EXECUTION_TIMERANGE
+          contract["geometry"]["download_timerange"] = DOWNLOAD_TIMERANGE
+          contract_path.write_text(
+              json.dumps(contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+          )
+
+          manifest_paths = [
+              "ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json",
+              "ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json",
+              "ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json",
+              "ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json",
+          ]
+          for path in manifest_paths:
+              file_path = Path(path)
+              manifest = json.loads(file_path.read_text(encoding="utf-8"))
+              manifest["timerange"] = EXECUTION_TIMERANGE
+              manifest["download_timerange"] = DOWNLOAD_TIMERANGE
+              file_path.write_text(
+                  json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+              )
+
+          workflow_path = ".github/workflows/residual-pytorch-bounded-m1-execution.yml"
+          replace(
+              workflow_path,
+              "--timerange 20250801-20260501",
+              f"--timerange {DOWNLOAD_TIMERANGE}",
+          )
+
+          test_path = "tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py"
+          replace(
+              test_path,
+              "import unittest\nfrom copy import deepcopy",
+              "import unittest\nfrom copy import deepcopy\nfrom datetime import UTC, datetime",
+          )
+          replace(test_path, '"20260301-20260501"', f'"{EXECUTION_TIMERANGE}"', expected=3)
+          replace(test_path, '"20250801-20260501"', f'"{DOWNLOAD_TIMERANGE}"', expected=3)
+          replace(
+              test_path,
+              "--timerange 20250801-20260501",
+              f"--timerange {DOWNLOAD_TIMERANGE}",
+          )
+          replace(
+              test_path,
+              '''        self.assertFalse(REQUEST_PATH.exists())\n\n    def test_request_module_import_is_dependency_light(self) -> None:''',
+              f'''        self.assertFalse(REQUEST_PATH.exists())\n\n    @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")\n    def test_encoded_timeranges_stop_before_consumed_oos(self) -> None:\n        from freqtrade.configuration import TimeRange\n\n        _, _, execution = _numeric_runtime()\n        expected_exclusive_stop = int(\n            datetime(2026, 5, 1, tzinfo=UTC).timestamp()\n        )\n        for encoded in (execution.EXECUTION_TIMERANGE, execution.DOWNLOAD_TIMERANGE):\n            timerange = TimeRange.parse_timerange(encoded)\n            self.assertEqual(timerange.stopts, expected_exclusive_stop - 1)\n            self.assertEqual(\n                datetime.fromtimestamp(timerange.stopts, tz=UTC),\n                datetime(2026, 4, 30, 23, 59, 59, tzinfo=UTC),\n            )\n\n    def test_request_module_import_is_dependency_light(self) -> None:''',
+          )
+
+          docs_path = "docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md"
+          replace(
+              docs_path,
+              "| Freqtrade backtest timerange | `20260301-20260501` |",
+              f"| Freqtrade backtest timerange | `{EXECUTION_TIMERANGE}` (`2026-03-01T00:00:00Z` through `2026-04-30T23:59:59Z` inclusive) |",
+          )
+          replace(
+              docs_path,
+              "| Download timerange | `20250801-20260501` |",
+              f"| Download timerange | `{DOWNLOAD_TIMERANGE}` (`2025-08-01T00:00:00Z` through `2026-04-30T23:59:59Z` inclusive) |",
+          )
+          replace(
+              docs_path,
+              "The May-June 2026 historical OOS has already been consumed and is forbidden.",
+              "Freqtrade trims timerange stops inclusively, so both encoded ranges end one second before the frozen exclusive `2026-05-01T00:00:00Z` boundary. The May-June 2026 historical OOS has already been consumed and is forbidden.",
+          )
+
+          task_path = Path(
+              "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md"
+          )
+          task = task_path.read_text(encoding="utf-8")
+          task = task.replace(
+              "branch: feat/residual-pytorch-bounded-m1-execution",
+              f"branch: {os.environ['BRANCH_NAME']}",
+              1,
+          )
+          task = task.replace("related_pr: 395", f"related_pr: {os.environ['PR_NUMBER']}", 1)
+          task = task.replace(
+              "- use historical-development prediction/evaluation coverage `20260301-20260430`, encoded as Freqtrade timerange `20260301-20260501` with an exclusive stop;\n- use download coverage ending at the same exclusive `20260501` boundary and never read consumed May-June historical OOS;",
+              f"- use historical-development prediction/evaluation coverage `20260301-20260430`, encoded as Freqtrade timerange `{EXECUTION_TIMERANGE}` so its inclusive stop is exactly `2026-04-30T23:59:59Z`;\n- use download coverage `{DOWNLOAD_TIMERANGE}`, ending one second before the exclusive `2026-05-01T00:00:00Z` boundary, and never read consumed May-June historical OOS;",
+              1,
+          )
+          prefix = task.split("## Context checkpoint\n", 1)[0]
+          checkpoint = f'''## Context checkpoint\n\n```yaml\ncheckpoint_version: 1\nupdated_at: 2026-07-26T22:10:00Z\nhead: {os.environ['BOOTSTRAP_HEAD']}\nmerge_commit: null\nbranch: {os.environ['BRANCH_NAME']}\npr: {os.environ['PR_NUMBER']}\nstatus: active\ncontext_routes:\n  - docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md\n  - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md\n  - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EXECUTION.md\n  - ai_platform/scripts/run_experiment.py\nowned_paths:\n  - .github/workflows/residual-pytorch-bounded-m1-execution.yml\n  - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json\n  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py\n  - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md\n  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md\n  - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py\nproven:\n  - P2 implementation and closeout are merged, and P3 infrastructure merged through PR 395 as fc210dd68f0998176e3bf2da3bd29b231a511ae7.\n  - Exact-one-file trigger PRs 400, 401 and 402 each passed request validation and completed both authorized Kraken trade downloads without starting any model.\n  - Runs 30220022577, 30220023431 and 30220063748 all failed closed during pair coverage verification; cache publication, matrix audit, training and backtesting were skipped.\n  - Exact terminal evidence from run 30220022577 reported `Post-development candle was loaded for ETH/USDT 15m` and the same failure for BTC/USDT 15m.\n  - Freqtrade `trim_dataframe` applies date-form stop boundaries inclusively with `<=`, while the frozen P3 contract requires an exclusive stop at `2026-05-01T00:00:00Z`.\nderived:\n  - Encoding both acquisition and backtest timeranges with Unix-second stop `1777593599` preserves the frozen March-April geometry and excludes the first consumed-OOS second.\n  - The failed executions provide no feature-count, matrix-distribution, training, prediction or backtest evidence.\nunknown:\n  - Exact FreqAI-expanded feature count and historical NaN, outlier and target distributions.\n  - Whether all three frozen models complete the bounded historical-development lifecycle after the boundary correction.\nconflicts: []\nfirst_failure:\n  marker: POST_DEVELOPMENT_BOUNDARY_CANDLE\n  evidence: All three guarded attempts downloaded data but failed before cache publication because the inclusive 15m load admitted the `2026-05-01T00:00:00Z` candle for both pairs.\nrejected_hypotheses:\n  - Kraken history was unavailable; both pair downloads completed successfully.\n  - A model or matrix-audit defect caused the run; those stages were never entered.\n  - Consumed May-June OOS or the protected holdout may be used to repair the run.\nchanged_paths:\n  - .github/workflows/residual-pytorch-bounded-m1-execution.yml\n  - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json\n  - ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json\n  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py\n  - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md\n  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md\n  - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py\nvalidation:\n  - command: python -m unittest discover -s tests/ai_platform -p test_residual_pytorch_bounded_m1_execution.py\n    result: PASS\n    evidence: Bootstrap validation exercises frozen contract, exact timerange encoding, matrix and diagnostic guards without market access.\n  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md --require-checkpoint\n    result: PASS\n    evidence: Active compact checkpoint remains governance-valid with exactly one next action.\n  - command: python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract\n    result: PASS\n    evidence: Corrected contract and all frozen manifests validate without market-data access or execution.\nblockers: []\nnext_action: Validate the exact-head exclusive-stop correction in CI, merge it, then open one fresh canonical exact-one-file request PR and collect terminal guarded evidence without changing the frozen research geometry.\n```\n'''
+          task_path.write_text(prefix + checkpoint, encoding="utf-8")
+
+          guarded_paths = [
+              execution_path,
+              workflow_path,
+              test_path,
+              docs_path,
+              str(task_path),
+              str(contract_path),
+              *manifest_paths,
+          ]
+          for path in guarded_paths:
+              text = Path(path).read_text(encoding="utf-8")
+              if "20260301-20260501" in text or "20250801-20260501" in text:
+                  raise SystemExit(f"stale inclusive date-form timerange remains in {path}")
+          PY
+      - name: Validate corrected bounded infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check numpy pandas
+          python -m unittest discover -s tests/ai_platform \
+            -p 'test_residual_pytorch_bounded_m1_execution.py'
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md \
+            --require-checkpoint
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = [
+              Path("ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json"),
+              *Path("ai_platform/experiments").glob("residual-pytorch-m1-*-v1.json"),
+          ]
+          for path in paths:
+              json.loads(path.read_text(encoding="utf-8"))
+          PY
+      - name: Commit corrected infrastructure and remove bootstrap
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/residual-pytorch-m1-exclusive-stop-bootstrap.yml
+          git add -A
+          git commit -m "fix(ai-platform): enforce bounded M1 exclusive stop"
+          git push origin "HEAD:${BRANCH_NAME}"

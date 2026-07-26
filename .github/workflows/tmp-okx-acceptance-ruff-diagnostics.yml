@@ -1,56 +1,57 @@
-name: Temporary OKX Acceptance Ruff Diagnostics
+name: Temporary OKX Acceptance Ruff Autofix
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    types: [synchronize]
     branches:
       - develop
     paths:
       - "ai_platform/scripts/liquidation_okx_shadow_acceptance.py"
-      - "ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py"
       - "tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance.py"
       - ".github/workflows/tmp-okx-acceptance-ruff-diagnostics.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnostics:
+  autofix:
+    if: >-
+      github.event.pull_request.number == 417 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/okx-shadow-long-run-acceptance-v1'
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout
+      - name: Checkout exact PR head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.12"
 
-      - name: Apply Ruff fixes in disposable checkout
+      - name: Apply and push exact Ruff result
+        env:
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
           python -m pip install --disable-pip-version-check ruff==0.14.14
           files=(
             ai_platform/scripts/liquidation_okx_shadow_acceptance.py
-            ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py
             tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance.py
           )
           ruff check --fix "${files[@]}"
           ruff format "${files[@]}"
           ruff check "${files[@]}"
           ruff format --check "${files[@]}"
-          mkdir -p formatted/ai_platform/scripts formatted/tests/ai_platform_integration
-          cp ai_platform/scripts/liquidation_okx_shadow_acceptance.py formatted/ai_platform/scripts/
-          cp ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py formatted/ai_platform/scripts/
-          cp tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance.py \
-            formatted/tests/ai_platform_integration/
-          ruff --version > formatted/ruff-version.txt
-
-      - name: Upload formatted files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: okx-acceptance-ruff-formatted
-          path: formatted
-          retention-days: 1
+          if git diff --quiet -- "${files[@]}"; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- "${files[@]}"
+          git commit -m "style(ai-platform): format OKX acceptance infrastructure"
+          git push origin HEAD:refs/heads/feat/okx-shadow-long-run-acceptance-v1

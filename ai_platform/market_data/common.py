@@ -151,9 +151,9 @@ def _json_compatible(value: object) -> object:
         return value.to_dict()
     if isinstance(value, Mapping):
         return {str(key): _json_compatible(item) for key, item in value.items()}
-    if isinstance(value, (tuple, list)):
+    if isinstance(value, tuple | list):
         return [_json_compatible(item) for item in value]
-    if value is None or isinstance(value, (str, int, float, bool)):
+    if value is None or isinstance(value, str | int | float | bool):
         return value
     raise TypeError(f"value is not JSON-compatible: {type(value).__name__}")
 

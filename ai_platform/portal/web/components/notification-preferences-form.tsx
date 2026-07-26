@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
+import { csrfFetch } from "@/lib/client-fetch";
 import type { NotificationPreference } from "@/lib/product-contracts";
 
 export function NotificationPreferencesForm({ preference }: { preference: NotificationPreference }) {
@@ -23,7 +24,7 @@ export function NotificationPreferencesForm({ preference }: { preference: Notifi
     };
 
     try {
-      const response = await fetch("/api/notifications/preferences", {
+      const response = await csrfFetch("/api/notifications/preferences", {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   validate-checkpoint:
-    name: Diagnose RL-v2 seed audit checkpoint and resume
+    name: Validate RL-v2 seed audit checkpoint and resume
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -51,3 +51,8 @@ jobs:
           path: diagnostic-output/
           if-no-files-found: error
           retention-days: 1
+
+      - name: Enforce successful checkpoint and resume
+        run: |
+          grep -Fx 'checkpoint_status=0' diagnostic-output/status.txt
+          grep -Fx 'resume_status=0' diagnostic-output/status.txt

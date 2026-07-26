@@ -15,14 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Run focused checks
+      - name: Show focused formatter diff
         shell: bash
         run: |
           set -euo pipefail
+          target=/tmp/test_liquidation_historical_provider_preflight.py
           curl --fail --silent --show-error --location \
             https://raw.githubusercontent.com/blakinio/freqtrade/a9df62e5d558d684b3ef4aba103bc7f4b02fe330/tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py \
-            -o /tmp/test_liquidation_historical_provider_preflight.py
-          python -m pip install --disable-pip-version-check --quiet ruff==0.15.21 codespell==2.4.2
-          ruff check /tmp/test_liquidation_historical_provider_preflight.py
-          ruff format --check /tmp/test_liquidation_historical_provider_preflight.py
-          codespell /tmp/test_liquidation_historical_provider_preflight.py
+            -o "$target"
+          cp "$target" /tmp/before.py
+          python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
+          ruff format "$target"
+          diff -u /tmp/before.py "$target" || true

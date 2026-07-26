@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-rl-v2-provenance-hardening-contract
-status: active
-branch: docs/rl-v2-provenance-hardening-contract
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "pending"
+related_pr: "403"
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
 required_reads:
@@ -39,6 +39,14 @@ optional_reads:
 Prospectively declare the minimum provenance that must exist before any separately authorized future RL-v2 execution. This task is declaration-only and creates no runtime capability, request, workflow, execution script or model behavior.
 
 The completed RL-v2 action-observability evidence remains descriptive and inconclusive about why seeds `271828182` and `628318530` produced identical complete trajectories and why BTC outputs were invariant across all four seeds. The static determinism audit supports effective repository seed wiring but cannot distinguish byte-identical trained policies from distinct policies that emit identical deterministic actions.
+
+## Terminal outcome
+
+Declaration PR 403 added exactly this task record and squash-merged to `develop` as `a1feddb2a942230ca5164aa65696cda856e85dd0` from exact head `eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d`.
+
+Exact-head Freqtrade CI run `30220358588` and zizmor run `30220358533` completed successfully. Pre-commit Types update run `30220358532` was skipped because the one-file documentation change did not trigger its update scope.
+
+The canonical RL-v2 action-observability request remains absent from `develop`. No model or market data was accessed; no training, backtest, inference, replay, rerun, cache restore, protected-range access, ranking, selection, promotion, dry-run or live action occurred.
 
 ## Applicability
 
@@ -243,11 +251,12 @@ This declaration is complete only when:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T23:03:00+02:00
-head: 83c836f32904d8fb201b59ae4dc74c6946cdc91e
-branch: docs/rl-v2-provenance-hardening-contract
-pr: pending
-status: implementing
+updated_at: 2026-07-26T23:18:00+02:00
+head: eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d
+merge_commit: a1feddb2a942230ca5164aa65696cda856e85dd0
+branch: docs/rl-v2-provenance-hardening-contract-closeout
+pr: 403
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-seed-effectiveness-determinism-audit.md
   - docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution.md
@@ -257,24 +266,27 @@ context_routes:
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
 proven:
-  - develop HEAD was 83c836f32904d8fb201b59ae4dc74c6946cdc91e at preflight and compared identical to that commit.
-  - Open PRs 109, 392, 394, 400, 401 and 402 do not claim RL-v2 provenance-hardening ownership.
-  - The seed-effectiveness audit task is terminal with frontmatter done, checkpoint ready, no blockers and one provenance-hardening next action.
-  - The completed audit supports effective repository seed wiring but retains no exact dependency, device, initial-policy, final-policy or serialized-policy provenance.
-  - The canonical RL-v2 action-observability request is absent from develop.
-  - No existing task or branch with this task id or equivalent provenance-hardening scope was found.
-  - Governance allows checkpoint status investigating, implementing, validating, blocked or ready.
-  - This declaration owns one documentation path and creates no runtime, workflow or request path.
+  - Live-state preflight found no overlapping RL-v2 provenance task, branch, PR or execution authorization.
+  - Declaration PR 403 changed exactly one task-record path and merged as a1feddb2a942230ca5164aa65696cda856e85dd0 from exact head eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d.
+  - Exact-head Freqtrade CI 30220358588 and zizmor 30220358533 succeeded; Pre-commit Types update 30220358532 was skipped.
+  - Local checkpoint.py validation returned status 0 and output Validated 1 checkpoint task(s).
+  - Local resume.py validation returned status 0 and rendered the expected task continuation bundle.
+  - The canonical RL-v2 action-observability request is absent from develop after declaration merge.
+  - No market data, model, training, backtest, inference, replay, seed rerun or cache restore occurred.
+  - Consumed historical OOS and the protected final holdout were not accessed.
+  - PPO, reward, strategy, lifecycle, feature, target and action semantics were unchanged.
+  - Phase 6 remains authoritative with selected_model null and no ranking, selection or promotion authority.
+  - The declaration distinguishes identical policies from distinct policies that produce identical actions.
+  - Missing provenance from the completed experiment remains unknown and cannot be filled by rerun.
 derived:
-  - Missing historical provenance cannot be recreated faithfully without an unauthorized rerun.
-  - Prospective policy-state and RNG digests can distinguish diagnostic cases that identical action timelines cannot.
-  - A separate inert tooling task is required before any future execution declaration.
+  - Prospective canonical policy-state, optimizer and RNG digests can distinguish diagnostic cases unavailable in completed evidence.
+  - A separate inert tooling implementation is required before any future RL-v2 execution declaration.
 unknown:
-  - Declaration PR number, exact PR head, merge SHA and terminal CI run identifiers.
+  - Terminal closeout PR number, closeout merge SHA and closeout exact-head CI run identifiers.
 conflicts: []
 first_failure:
-  marker: NONE_PREFLIGHT
-  evidence: Live-state preflight found no conflicting RL-v2 provenance task, branch, PR or canonical request.
+  marker: NONE_DECLARATION
+  evidence: Declaration exact-head checks passed and no review thread, ownership conflict or execution side effect was found.
 rejected_hypotheses:
   - Treat identical trajectories as proof of a seed defect.
   - Rerun completed seeds to fill missing provenance.
@@ -286,13 +298,22 @@ changed_paths:
 validation:
   - command: live-state repository preflight
     result: PASS
-    evidence: develop, open PRs, terminal task state, canonical request absence, similar tasks and governance were checked before branch creation.
+    evidence: develop, overlapping PRs, terminal audit task, canonical request absence, similar tasks and governance were checked before branch creation.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Pending local validation after the initial declaration file is materialized.
+    result: PASS
+    evidence: Local exact checkpoint and routing content returned Validated 1 checkpoint task(s). with exit status 0.
   - command: python tools/agents/resume.py --task docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
-    result: NOT_RUN
-    evidence: Pending local validation after the initial declaration file is materialized.
+    result: PASS
+    evidence: Local exact checkpoint and routing content rendered the expected continuation bundle with exit status 0.
+  - command: Freqtrade CI 30220358588
+    result: PASS
+    evidence: Exact declaration head eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d completed successfully.
+  - command: zizmor 30220358533
+    result: PASS
+    evidence: Exact declaration head eebce530f7a3db329d89ffdd5bfc48dbcd1e5f9d completed successfully.
+  - command: canonical RL-v2 request absence on develop
+    result: PASS
+    evidence: The canonical action-observability request path returned Not Found after declaration merge a1feddb2a942230ca5164aa65696cda856e85dd0.
 blockers: []
-next_action: Run checkpoint and resume validation, open the one-file declaration PR, resolve only confirmed CI failures, merge it, then create a minimal terminal closure PR recording exact merge and validation evidence.
+next_action: Create a separate task that implements only static or inert RL-v2 provenance schemas, canonical serializers, digest helpers and validators; do not execute a model, read market data, create a canonical request or add an execution workflow.
 ```

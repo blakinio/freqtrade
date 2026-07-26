@@ -5,7 +5,7 @@ branch: docs/rl-v2-action-observability-execution-declaration
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "pending"
+related_pr: "317"
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-declaration.md
   - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_EXECUTION_DECLARATION.md
@@ -39,10 +39,10 @@ The declaration itself executes nothing.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T08:30:00+02:00
-head: pending
+updated_at: 2026-07-26T08:35:00+02:00
+head: 45394c566d4ddd704c4ec40f6a91ecfd8068115a
 branch: docs/rl-v2-action-observability-execution-declaration
-pr: pending
+pr: 317
 status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260725-rl-v2-seed-validity-diagnosis.md
@@ -60,6 +60,7 @@ proven:
   - The selected September-October 2025 semantic evidence window is absent from prior RL-v2 execution declarations and does not overlap the forbidden windows.
   - Exactly four new seeds are frozen and no previous seed may be rerun or replaced.
   - The only authorized future strategy delta is disabled-by-default project-specific telemetry after inherited exit-signal evaluation.
+  - PR 317 changes exactly the three declared paths.
 derived:
   - A complete historical window before prior executed evidence can test action persistence without outcome-aware reuse of old seeds.
   - Four fresh seeds provide descriptive cross-seed mechanism evidence while preserving the old inconclusive aggregate unchanged.
@@ -88,6 +89,9 @@ validation:
   - command: declaration cross-check against prior timeranges and frozen identities
     result: PASS
     evidence: The selected window and four new seeds preserve consumed-OOS, holdout, prior-seed and Phase 6 boundaries.
+  - command: exact PR 317 scope comparison
+    result: PASS
+    evidence: The PR contains only the task, documentation and machine-readable declaration.
 blockers: []
 next_action: Validate and merge this three-file prospective declaration, close its task record on develop, then create a separate inert implementation/infrastructure task before any data or model operation.
 ```

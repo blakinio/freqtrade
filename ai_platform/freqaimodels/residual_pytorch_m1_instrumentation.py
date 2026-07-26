@@ -73,13 +73,17 @@ class _RecordingLogger:
 class ResidualPyTorchM1EvidenceMixin:
     """Capture training and prediction evidence without changing model algorithms."""
 
+    identifier: str
+    freqai_info: dict[str, Any]
+    tb_logger: Any
+
     def fit(self, data_dictionary: dict[str, Any], dk: FreqaiDataKitchen, **kwargs) -> Any:
         training_root_value = os.environ.get(TRAINING_ENV)
         original_logger = getattr(self, "tb_logger", None)
         recorder = _RecordingLogger(original_logger)
         self.tb_logger = recorder
 
-        model = super().fit(data_dictionary, dk, **kwargs)
+        model = super().fit(data_dictionary, dk, **kwargs)  # type: ignore[misc]
 
         if not training_root_value:
             raise RuntimeError(f"{TRAINING_ENV} is required for bounded M1 model execution")
@@ -131,7 +135,9 @@ class ResidualPyTorchM1EvidenceMixin:
         dk: FreqaiDataKitchen,
         **kwargs,
     ) -> tuple[DataFrame, np.ndarray]:
-        pred_df, do_predict = super().predict(unfiltered_df, dk, **kwargs)
+        pred_df, do_predict = super().predict(  # type: ignore[misc]
+            unfiltered_df, dk, **kwargs
+        )
         prediction_root_value = os.environ.get(PREDICTION_ENV)
         if not prediction_root_value:
             raise RuntimeError(f"{PREDICTION_ENV} is required for bounded M1 model execution")

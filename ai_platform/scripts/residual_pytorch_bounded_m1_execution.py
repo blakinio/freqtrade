@@ -456,6 +456,10 @@ def _series_stats(series: pd.Series) -> dict[str, Any]:
     nan_count = int(np.isnan(numeric).sum())
     positive_infinity_count = int(np.isposinf(numeric).sum())
     negative_infinity_count = int(np.isneginf(numeric).sum())
+    mean: float | None
+    standard_deviation: float | None
+    minimum: float | None
+    maximum: float | None
 
     if finite.size:
         q1 = float(np.quantile(finite, 0.25))

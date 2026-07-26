@@ -1,0 +1,269 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "coinapi-provider-preflight-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "preflight_id",
+    "provider",
+    "product",
+    "decision",
+    "target",
+    "documented_metrics",
+    "historical_contract",
+    "current_contract",
+    "runtime_probe",
+    "verified",
+    "not_verified",
+    "next_action"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "coinapi-provider-preflight-v1.schema.json"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "preflight_id": {
+      "const": "liquid20-coinapi-provider-preflight-v1"
+    },
+    "provider": {
+      "const": "coinapi"
+    },
+    "product": {
+      "const": "market-data-api-metrics-v1"
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_level_replay",
+        "aggregate_feature_source",
+        "preferred_provider_unchanged",
+        "reason"
+      ],
+      "properties": {
+        "event_level_replay": {
+          "const": "rejected"
+        },
+        "aggregate_feature_source": {
+          "enum": [
+            "conditional",
+            "rejected",
+            "accepted"
+          ]
+        },
+        "preferred_provider_unchanged": {
+          "const": "tardis"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exchanges",
+        "symbols",
+        "requested_start_inclusive",
+        "requested_end_exclusive"
+      ],
+      "properties": {
+        "exchanges": {
+          "type": "array",
+          "const": [
+            "BYBIT",
+            "BINANCEFTS"
+          ]
+        },
+        "symbols": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "requested_start_inclusive": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requested_end_exclusive": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "documented_metrics": {
+      "type": "object",
+      "required": [
+        "BYBIT",
+        "BINANCEFTS"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "BYBIT": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "BINANCEFTS": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    },
+    "historical_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "endpoint",
+        "authentication_required",
+        "default_period_id",
+        "max_limit",
+        "response_fields",
+        "historical_provider_receive_time_available",
+        "event_identifier_available",
+        "separate_metric_series_require_join",
+        "multi_event_bucket_pairing_proven_safe"
+      ],
+      "properties": {
+        "endpoint": {
+          "const": "/v1/metrics/symbol/history"
+        },
+        "authentication_required": {
+          "const": true
+        },
+        "default_period_id": {
+          "const": "1SEC"
+        },
+        "max_limit": {
+          "const": 100000
+        },
+        "response_fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "historical_provider_receive_time_available": {
+          "const": false
+        },
+        "event_identifier_available": {
+          "const": false
+        },
+        "separate_metric_series_require_join": {
+          "const": true
+        },
+        "multi_event_bucket_pairing_proven_safe": {
+          "const": false
+        }
+      }
+    },
+    "current_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "endpoint",
+        "provider_time_fields",
+        "historical_equivalence_documented"
+      ],
+      "properties": {
+        "endpoint": {
+          "const": "/v1/metrics/symbol/current"
+        },
+        "provider_time_fields": {
+          "const": [
+            "entry_time",
+            "recv_time"
+          ]
+        },
+        "historical_equivalence_documented": {
+          "const": false
+        }
+      }
+    },
+    "runtime_probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "credential",
+        "endpoint",
+        "http_status",
+        "response_is_json",
+        "response_keys",
+        "raw_records_emitted",
+        "workflow_run_id",
+        "workflow_job_id",
+        "verified_at"
+      ],
+      "properties": {
+        "credential": {
+          "const": "documented-public-sample-placeholder"
+        },
+        "endpoint": {
+          "const": "/v1/metrics/listing"
+        },
+        "http_status": {
+          "const": 401
+        },
+        "response_is_json": {
+          "const": true
+        },
+        "response_keys": {
+          "const": [
+            "error"
+          ]
+        },
+        "raw_records_emitted": {
+          "const": false
+        },
+        "workflow_run_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "workflow_job_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "verified_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "verified": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "not_verified": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "next_action": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

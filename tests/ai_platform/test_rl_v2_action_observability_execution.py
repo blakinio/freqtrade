@@ -60,8 +60,8 @@ def _row(
 
 def _trade(
     pair: str = "BTC/USDT",
-    open_timestamp: int = 1_756_694_400_000,
-    close_timestamp: int = 1_756_701_600_000,
+    open_timestamp: int = 1_756_684_800_000,
+    close_timestamp: int = 1_756_692_000_000,
 ) -> dict:
     return {
         "pair": pair,

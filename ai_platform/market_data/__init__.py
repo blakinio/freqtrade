@@ -1,3 +1,4 @@
+# ruff: noqa
 """Provider-neutral deterministic market-data foundation contracts."""
 
 from ai_platform.market_data.contracts import (

@@ -50,13 +50,13 @@ def test_published_okx_smoke_manifest_and_checksum_index_are_coherent() -> None:
         "okx-shadow-smoke-manifest.json",
         "okx-shadow-smoke-report.json",
     }
-    assert checksums["okx-shadow-smoke-manifest.json"] == hashlib.sha256(
-        MANIFEST_PATH.read_bytes()
-    ).hexdigest()
+    assert (
+        checksums["okx-shadow-smoke-manifest.json"]
+        == hashlib.sha256(MANIFEST_PATH.read_bytes()).hexdigest()
+    )
     assert checksums["okx-usdt-swap.ndjson"] == hashlib.sha256(b"").hexdigest()
     assert all(
-        checksums[entry["file_name"]] == entry["sha256"]
-        for entry in manifest["artifacts"].values()
+        checksums[entry["file_name"]] == entry["sha256"] for entry in manifest["artifacts"].values()
     )
     assert manifest["safety"] == {
         "execution_enabled": False,
@@ -83,12 +83,14 @@ def test_published_okx_smoke_evidence_binds_terminal_workflow_and_boundaries() -
     assert evidence["workflow_artifact"]["digest"] == (
         "sha256:3a2a561d2e64b8ee45fbbf6576217336b113fee95c7edf2a8a7802ef591e1852"
     )
-    assert evidence["repository_evidence"]["manifest_file_sha256"] == hashlib.sha256(
-        MANIFEST_PATH.read_bytes()
-    ).hexdigest()
-    assert evidence["repository_evidence"]["checksum_file_sha256"] == hashlib.sha256(
-        CHECKSUM_PATH.read_bytes()
-    ).hexdigest()
+    assert (
+        evidence["repository_evidence"]["manifest_file_sha256"]
+        == hashlib.sha256(MANIFEST_PATH.read_bytes()).hexdigest()
+    )
+    assert (
+        evidence["repository_evidence"]["checksum_file_sha256"]
+        == hashlib.sha256(CHECKSUM_PATH.read_bytes()).hexdigest()
+    )
     verification = evidence["independent_verification"]
     assert verification["report_passed"] is True
     assert verification["report_gate_count"] == 57

@@ -1,0 +1,198 @@
+name: Liquid20 H0 Public Sample Preflight
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-h0-public-sample-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-public-samples:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download and inspect public metadata and samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/samples work/metadata
+
+          curl --fail --location --retry 3 --retry-all-errors \
+            https://api.tardis.dev/v1/exchanges/bybit \
+            -o work/metadata/bybit.json
+          curl --fail --location --retry 3 --retry-all-errors \
+            https://api.tardis.dev/v1/exchanges/binance-futures \
+            -o work/metadata/binance-futures.json
+
+          for exchange in bybit binance-futures; do
+            for symbol in BTCUSDT ETHUSDT; do
+              filename="${exchange}_liquidations_2025-03-01_${symbol}.csv.gz"
+              url="https://datasets.tardis.dev/v1/${exchange}/liquidations/2025/03/01/${symbol}.csv.gz"
+              curl --fail --location --retry 3 --retry-all-errors "$url" -o "work/samples/${filename}"
+            done
+          done
+
+          python - <<'PY'
+          from __future__ import annotations
+
+          import csv
+          import gzip
+          import hashlib
+          import io
+          import json
+          from collections import Counter
+          from datetime import UTC, datetime
+          from pathlib import Path
+
+          ROOT = Path("work")
+          TARGETS = {"BTCUSDT", "ETHUSDT"}
+          REQUIRED_HEADER = [
+              "exchange",
+              "symbol",
+              "timestamp",
+              "local_timestamp",
+              "id",
+              "side",
+              "price",
+              "amount",
+          ]
+
+          def sha256(data: bytes) -> str:
+              return hashlib.sha256(data).hexdigest()
+
+          def micros_to_iso(value: str) -> str | None:
+              if not value:
+                  return None
+              return datetime.fromtimestamp(int(value) / 1_000_000, tz=UTC).isoformat().replace("+00:00", "Z")
+
+          def find_target_symbols(value: object) -> list[dict[str, object]]:
+              found: list[dict[str, object]] = []
+              if isinstance(value, dict):
+                  identifier = value.get("id")
+                  if identifier in TARGETS:
+                      found.append(value)
+                  for child in value.values():
+                      found.extend(find_target_symbols(child))
+              elif isinstance(value, list):
+                  for child in value:
+                      found.extend(find_target_symbols(child))
+              return found
+
+          for path in sorted((ROOT / "metadata").glob("*.json")):
+              raw = path.read_bytes()
+              data = json.loads(raw)
+              target_entries = find_target_symbols(data)
+              summary = {
+                  "kind": "metadata",
+                  "filename": path.name,
+                  "size_bytes": len(raw),
+                  "sha256": sha256(raw),
+                  "top_level_keys": sorted(data) if isinstance(data, dict) else [],
+                  "target_symbols": target_entries,
+                  "datasets_exported_from": data.get("datasets", {}).get("exportedFrom") if isinstance(data, dict) else None,
+                  "datasets_exported_until": data.get("datasets", {}).get("exportedUntil") if isinstance(data, dict) else None,
+                  "incidents": data.get("incidents", []) if isinstance(data, dict) else [],
+              }
+              print("LIQUID20_H0_RESULT=" + json.dumps(summary, sort_keys=True, separators=(",", ":")))
+
+          for path in sorted((ROOT / "samples").glob("*.csv.gz")):
+              compressed = path.read_bytes()
+              with gzip.GzipFile(fileobj=io.BytesIO(compressed), mode="rb") as stream:
+                  uncompressed = stream.read()
+              text = uncompressed.decode("utf-8")
+              reader = csv.DictReader(io.StringIO(text))
+              rows = list(reader)
+              header = reader.fieldnames or []
+
+              malformed_rows = 0
+              null_counts = Counter()
+              sides = Counter()
+              symbols = Counter()
+              exchanges = Counter()
+              timestamp_values: list[int] = []
+              local_timestamp_values: list[int] = []
+              exact_rows = Counter()
+              identity_rows = Counter()
+              non_positive_price = 0
+              non_positive_amount = 0
+
+              for row in rows:
+                  if set(row) != set(REQUIRED_HEADER) or None in row:
+                      malformed_rows += 1
+                  for key in REQUIRED_HEADER:
+                      if row.get(key, "") == "":
+                          null_counts[key] += 1
+                  sides[row.get("side", "")] += 1
+                  symbols[row.get("symbol", "")] += 1
+                  exchanges[row.get("exchange", "")] += 1
+                  if row.get("timestamp"):
+                      timestamp_values.append(int(row["timestamp"]))
+                  if row.get("local_timestamp"):
+                      local_timestamp_values.append(int(row["local_timestamp"]))
+                  exact_tuple = tuple(row.get(key, "") for key in REQUIRED_HEADER)
+                  exact_rows[exact_tuple] += 1
+                  identity_tuple = (
+                      row.get("exchange", ""),
+                      row.get("symbol", ""),
+                      row.get("timestamp", ""),
+                      row.get("local_timestamp", ""),
+                      row.get("id", ""),
+                      row.get("side", ""),
+                      row.get("price", ""),
+                      row.get("amount", ""),
+                  )
+                  identity_rows[identity_tuple] += 1
+                  try:
+                      if float(row.get("price", "nan")) <= 0:
+                          non_positive_price += 1
+                  except ValueError:
+                      non_positive_price += 1
+                  try:
+                      if float(row.get("amount", "nan")) <= 0:
+                          non_positive_amount += 1
+                  except ValueError:
+                      non_positive_amount += 1
+
+              summary = {
+                  "kind": "sample",
+                  "filename": path.name,
+                  "source_url": "https://datasets.tardis.dev/v1/" + path.name.replace("_liquidations_2025-03-01_", "/liquidations/2025/03/01/").replace(".csv.gz", ".csv.gz"),
+                  "compression": "gzip",
+                  "format": "csv",
+                  "compressed_size_bytes": len(compressed),
+                  "uncompressed_size_bytes": len(uncompressed),
+                  "compressed_sha256": sha256(compressed),
+                  "uncompressed_sha256": sha256(uncompressed),
+                  "gzip_integrity": True,
+                  "header": header,
+                  "header_matches_contract": header == REQUIRED_HEADER,
+                  "row_count": len(rows),
+                  "exchanges": dict(sorted(exchanges.items())),
+                  "symbols": dict(sorted(symbols.items())),
+                  "sides": dict(sorted(sides.items())),
+                  "null_counts": dict(sorted(null_counts.items())),
+                  "malformed_rows": malformed_rows,
+                  "exact_duplicate_rows": sum(count - 1 for count in exact_rows.values() if count > 1),
+                  "duplicate_identity_rows": sum(count - 1 for count in identity_rows.values() if count > 1),
+                  "non_positive_price_rows": non_positive_price,
+                  "non_positive_amount_rows": non_positive_amount,
+                  "timestamp_unit": "microseconds_since_unix_epoch",
+                  "timestamp_timezone": "UTC",
+                  "timestamp_min": micros_to_iso(str(min(timestamp_values))) if timestamp_values else None,
+                  "timestamp_max": micros_to_iso(str(max(timestamp_values))) if timestamp_values else None,
+                  "local_timestamp_min": micros_to_iso(str(min(local_timestamp_values))) if local_timestamp_values else None,
+                  "local_timestamp_max": micros_to_iso(str(max(local_timestamp_values))) if local_timestamp_values else None,
+                  "provider_capture_timestamp_present_rows": len(local_timestamp_values),
+                  "provider_capture_timestamp_missing_rows": len(rows) - len(local_timestamp_values),
+                  "local_before_exchange_timestamp_rows": sum(
+                      1 for row in rows
+                      if row.get("timestamp") and row.get("local_timestamp")
+                      and int(row["local_timestamp"]) < int(row["timestamp"])
+                  ),
+              }
+              print("LIQUID20_H0_RESULT=" + json.dumps(summary, sort_keys=True, separators=(",", ":")))
+          PY

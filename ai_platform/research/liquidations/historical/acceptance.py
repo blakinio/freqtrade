@@ -114,10 +114,10 @@ def evaluate_historical_import(
     policy = policy or HistoricalAcceptancePolicy()
     event_list = list(events)
     reasons: Counter[str] = Counter()
-    for reason, count in (pre_rejection_reasons or {}).items():
-        if not reason.strip() or isinstance(count, bool) or count <= 0:
+    for pre_reason, count in (pre_rejection_reasons or {}).items():
+        if not pre_reason.strip() or isinstance(count, bool) or count <= 0:
             raise ValueError("pre-rejection reasons require non-empty names and positive counts")
-        reasons[reason] += count
+        reasons[pre_reason] += count
     accepted: list[HistoricalLiquidationEvent] = []
     seen_fingerprints: set[str] = set()
     duplicate_records = 0

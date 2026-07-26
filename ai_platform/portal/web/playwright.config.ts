@@ -23,6 +23,7 @@ export default defineConfig({
       ...process.env,
       PORTAL_WEB_DATA_MODE: "fixture",
       PORTAL_ENVIRONMENT: "test",
+      PORTAL_IDENTITY_FIXTURE_MODE: "enabled",
     },
   },
 });

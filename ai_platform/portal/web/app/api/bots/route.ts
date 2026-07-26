@@ -2,13 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 import type { CreateBotRequest } from "@/lib/contracts";
 import {
+  forwardControlPlaneMutation,
+  identityErrorResponse,
+  requireBrowserMutation,
+  requireBrowserSession,
+} from "@/lib/identity";
+import {
   createBot,
+  dataMode,
   listBots,
   PortalApiConfigurationError,
   PortalApiResponseError,
 } from "@/lib/portal-api";
 
 function errorResponse(error: unknown) {
+  const identityResponse = identityErrorResponse(error);
+  if (identityResponse) return identityResponse;
   if (error instanceof PortalApiResponseError) {
     return NextResponse.json({ detail: error.message }, { status: error.status });
   }
@@ -60,6 +69,7 @@ function isCreateBotRequest(value: unknown): value is CreateBotRequest {
 
 export async function GET(request: NextRequest) {
   try {
+    requireBrowserSession(request);
     return NextResponse.json(await listBots(request.headers.get("cookie")));
   } catch (error) {
     return errorResponse(error);
@@ -68,6 +78,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    requireBrowserMutation(request);
     const payload: unknown = await request.json();
     if (!isCreateBotRequest(payload)) {
       return NextResponse.json(
@@ -75,7 +86,10 @@ export async function POST(request: NextRequest) {
         { status: 422 },
       );
     }
-    const bot = await createBot(payload, request.headers.get("cookie"));
+    const bot =
+      dataMode() === "fixture"
+        ? await createBot(payload, request.headers.get("cookie"))
+        : await forwardControlPlaneMutation(request, "/v1/bots", "POST", payload);
     return NextResponse.json(bot, { status: 201 });
   } catch (error) {
     return errorResponse(error);

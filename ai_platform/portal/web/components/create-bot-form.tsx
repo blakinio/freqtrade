@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 
+import { csrfFetch } from "@/lib/client-fetch";
 import type { CreateBotRequest, PortalEnvironment } from "@/lib/contracts";
 
 const wizardSteps = [
@@ -50,7 +51,7 @@ export function CreateBotForm({ environment }: { environment: PortalEnvironment 
     };
 
     try {
-      const response = await fetch("/api/bots", {
+      const response = await csrfFetch("/api/bots", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),

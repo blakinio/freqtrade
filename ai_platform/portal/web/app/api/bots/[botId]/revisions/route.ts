@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import type { BotSpec } from "@/lib/contracts";
 import { reviseBot, sameBotSpec } from "@/lib/bot-operations";
+import type { BotInstance, BotSpec } from "@/lib/contracts";
 import {
+  forwardControlPlaneMutation,
+  identityErrorResponse,
+  requireBrowserMutation,
+} from "@/lib/identity";
+import {
+  dataMode,
   getBot,
   PortalApiConfigurationError,
   PortalApiResponseError,
 } from "@/lib/portal-api";
 
 function errorResponse(error: unknown) {
+  const identityResponse = identityErrorResponse(error);
+  if (identityResponse) return identityResponse;
   if (error instanceof PortalApiResponseError) {
     return NextResponse.json({ detail: error.message }, { status: error.status });
   }
@@ -56,6 +64,7 @@ export async function POST(
   context: { params: Promise<{ botId: string }> },
 ) {
   try {
+    requireBrowserMutation(request);
     const { botId } = await context.params;
     const payload: unknown = await request.json();
     const spec =
@@ -98,7 +107,15 @@ export async function POST(
       );
     }
 
-    const updated = await reviseBot(botId, spec, cookieHeader);
+    const updated =
+      dataMode() === "fixture"
+        ? await reviseBot(botId, spec, cookieHeader)
+        : await forwardControlPlaneMutation<BotInstance>(
+            request,
+            `/v1/bots/${encodeURIComponent(botId)}/revisions`,
+            "POST",
+            { spec },
+          );
     return NextResponse.json(updated, { headers: { "x-idempotent-replay": "false" } });
   } catch (error) {
     return errorResponse(error);

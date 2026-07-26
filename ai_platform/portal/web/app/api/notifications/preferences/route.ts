@@ -1,13 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import {
+  forwardControlPlaneMutation,
+  identityErrorResponse,
+  requireBrowserMutation,
+  requireBrowserSession,
+} from "@/lib/identity";
 import type { NotificationPreference } from "@/lib/product-contracts";
 import {
   getNotificationPreferences,
   updateNotificationPreferences,
 } from "@/lib/product-api";
-import { PortalApiConfigurationError, PortalApiResponseError } from "@/lib/portal-api";
+import {
+  dataMode,
+  PortalApiConfigurationError,
+  PortalApiResponseError,
+} from "@/lib/portal-api";
 
 function errorResponse(error: unknown) {
+  const identityResponse = identityErrorResponse(error);
+  if (identityResponse) return identityResponse;
   if (error instanceof PortalApiResponseError) {
     return NextResponse.json({ detail: error.message }, { status: error.status });
   }
@@ -32,6 +44,7 @@ function validRequest(value: unknown): value is PreferenceUpdate {
 
 export async function GET(request: NextRequest) {
   try {
+    requireBrowserSession(request);
     return NextResponse.json(await getNotificationPreferences(request.headers.get("cookie")));
   } catch (error) {
     return errorResponse(error);
@@ -40,13 +53,21 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    requireBrowserMutation(request);
     const payload: unknown = await request.json();
     if (!validRequest(payload)) {
       return NextResponse.json({ detail: "Invalid notification preference request" }, { status: 422 });
     }
-    return NextResponse.json(
-      await updateNotificationPreferences(payload, request.headers.get("cookie")),
-    );
+    const preference =
+      dataMode() === "fixture"
+        ? await updateNotificationPreferences(payload, request.headers.get("cookie"))
+        : await forwardControlPlaneMutation<NotificationPreference>(
+            request,
+            "/v1/notifications/preferences",
+            "PUT",
+            payload,
+          );
+    return NextResponse.json(preference);
   } catch (error) {
     return errorResponse(error);
   }

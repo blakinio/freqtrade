@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import type { TerminalIntentRequest } from "@/lib/contracts";
+import type { TerminalIntentRequest, TerminalIntentResult } from "@/lib/contracts";
 import {
+  forwardControlPlaneMutation,
+  identityErrorResponse,
+  requireBrowserMutation,
+} from "@/lib/identity";
+import {
+  dataMode,
   PortalApiConfigurationError,
   PortalApiResponseError,
   submitTerminalIntent,
 } from "@/lib/portal-api";
 
 function errorResponse(error: unknown) {
+  const identityResponse = identityErrorResponse(error);
+  if (identityResponse) return identityResponse;
   if (error instanceof PortalApiResponseError) {
     return NextResponse.json({ detail: error.message }, { status: error.status });
   }
@@ -40,6 +48,7 @@ function isTerminalIntentRequest(value: unknown): value is TerminalIntentRequest
 
 export async function POST(request: NextRequest) {
   try {
+    requireBrowserMutation(request);
     const payload: unknown = await request.json();
     if (!isTerminalIntentRequest(payload)) {
       return NextResponse.json(
@@ -47,7 +56,16 @@ export async function POST(request: NextRequest) {
         { status: 422 },
       );
     }
-    return NextResponse.json(await submitTerminalIntent(payload, request.headers.get("cookie")));
+    const result =
+      dataMode() === "fixture"
+        ? await submitTerminalIntent(payload, request.headers.get("cookie"))
+        : await forwardControlPlaneMutation<TerminalIntentResult>(
+            request,
+            "/v1/terminal/intents",
+            "POST",
+            payload,
+          );
+    return NextResponse.json(result);
   } catch (error) {
     return errorResponse(error);
   }

@@ -1,4 +1,13 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+
+const fixtureCsrfToken = "fixture-csrf-token";
+
+async function authenticateFixture(request: APIRequestContext) {
+  const response = await request.post("/api/identity/fixture-state", {
+    data: { state: "authenticated" },
+  });
+  expect(response.status()).toBe(200);
+}
 
 test("renders responsive shell with explicit environment and full product navigation", async ({ page }) => {
   await page.goto("/");
@@ -143,7 +152,9 @@ test("submits manual intent through deterministic risk gate and fails closed at 
 });
 
 test("terminal BFF rejects browser-supplied risk snapshot authority", async ({ request }) => {
+  await authenticateFixture(request);
   const response = await request.post("/api/terminal", {
+    headers: { "x-csrf-token": fixtureCsrfToken },
     data: {
       bot_id: "bot-btc-dryrun-01",
       pair: "BTC/USDT",
@@ -166,7 +177,9 @@ test("renders an intentional authorization denied state", async ({ page }) => {
 });
 
 test("rejects non-dry-run bot creation at the same-origin BFF", async ({ request }) => {
+  await authenticateFixture(request);
   const response = await request.post("/api/bots", {
+    headers: { "x-csrf-token": fixtureCsrfToken },
     data: {
       bot_id: "bot-live-rejected",
       name: "Rejected Live Bot",

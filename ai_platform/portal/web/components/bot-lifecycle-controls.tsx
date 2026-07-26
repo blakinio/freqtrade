@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { csrfFetch } from "@/lib/client-fetch";
 import type { BotDesiredState, BotObservedState } from "@/lib/contracts";
 import type { BotMutationPermissions } from "@/lib/bot-operations";
 
@@ -41,7 +42,7 @@ export function BotLifecycleControls({
     setMessage(null);
     setError(null);
     try {
-      const response = await fetch(
+      const response = await csrfFetch(
         `/api/bots/${encodeURIComponent(botId)}/desired-state`,
         {
           method: "POST",

@@ -85,15 +85,68 @@ jobs:
           --validate-only
 
       - name: Build public diagnostic candle artifact
+        id: build
+        shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: >-
-          python -m ai_platform.scripts.liquidation_candle_artifact
-          --request "$REQUEST_PATH"
-          --contract "$CONTRACT_PATH"
-          --output-root "$EVIDENCE_ROOT"
-          --code-commit "$HEAD_SHA"
-          > candle-artifact-result.json
+        run: |
+          set -uo pipefail
+          set +e
+          python -m ai_platform.scripts.liquidation_candle_artifact \
+            --request "$REQUEST_PATH" \
+            --contract "$CONTRACT_PATH" \
+            --output-root "$EVIDENCE_ROOT" \
+            --code-commit "$HEAD_SHA" \
+            > candle-artifact-result.json \
+            2> candle-artifact-error.txt
+          status=$?
+          set -e
+
+          python - "$status" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          status = int(sys.argv[1])
+          payload = {
+              "schema_version": 1,
+              "artifact_type": "Liquid20CandleArtifactFailure",
+              "purpose_classification": "diagnostic_only",
+              "request_path": os.environ["REQUEST_PATH"],
+              "code_commit": os.environ["HEAD_SHA"],
+              "exit_code": status,
+              "partial_artifact_published": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+              "performance_research_authorized": False,
+          }
+          Path("candle-artifact-failure.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          if (( status != 0 )); then
+            if [[ -e "$EVIDENCE_ROOT" || -e ".$EVIDENCE_ROOT.partial" ]]; then
+              echo "Failed build left a partial or final candle artifact" >&2
+              exit 97
+            fi
+            cat candle-artifact-error.txt >&2
+            exit "$status"
+          fi
+          test ! -s candle-artifact-error.txt
+
+      - name: Upload bounded failure evidence
+        if: ${{ failure() && steps.build.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: liquid20-candle-diagnostic-failure-${{ github.event.pull_request.number }}
+          path: |
+            candle-artifact-error.txt
+            candle-artifact-failure.json
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Verify artifact hashes and safety boundary
         shell: bash

@@ -33,8 +33,8 @@ DEVELOPMENT_START = "2026-03-01T00:00:00Z"
 DEVELOPMENT_STOP_EXCLUSIVE = "2026-05-01T00:00:00Z"
 CONSUMED_OOS_START = "2026-05-01T00:00:00Z"
 PROTECTED_HOLDOUT = "20260801-20260930"
-EXECUTION_TIMERANGE = "20260301-20260501"
-DOWNLOAD_TIMERANGE = "20250801-20260501"
+EXECUTION_TIMERANGE = "1772323200-1777593599"
+DOWNLOAD_TIMERANGE = "1754006400-1777593599"
 EXPECTED_PAIRS = ["BTC/USDT", "ETH/USDT"]
 EXPECTED_TIMEFRAMES = ["15m", "1h", "4h"]
 TIMEFRAME_SECONDS = {"15m": 15 * 60, "1h": 60 * 60, "4h": 4 * 60 * 60}
@@ -697,9 +697,11 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
     timerange = TimeRange.parse_timerange(DOWNLOAD_TIMERANGE)
     if timerange.startdt is None or timerange.stopdt is None:
         raise ResidualPyTorchBoundedM1Error("Expected a bounded download timerange")
+    expected_start = datetime(2025, 8, 1, tzinfo=UTC)
     expected_stop = datetime(2026, 5, 1, tzinfo=UTC)
-    if timerange.stopdt != expected_stop:
-        raise ResidualPyTorchBoundedM1Error("Exclusive pre-May data boundary drifted")
+    expected_inclusive_stop = int(expected_stop.timestamp()) - 1
+    if timerange.startdt != expected_start or timerange.stopts != expected_inclusive_stop:
+        raise ResidualPyTorchBoundedM1Error("Inclusive pre-May acquisition timerange drifted")
 
     coverage: dict[str, dict[str, str | int]] = {}
     for pair in selected_pairs:

@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-residual-pytorch-bounded-m1-execution
 status: active
-branch: feat/residual-pytorch-bounded-m1-execution
+branch: fix/residual-pytorch-bounded-m1-exclusive-stop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: 395
+related_pr: 409
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
@@ -62,8 +62,8 @@ The package must:
 - use Kraken spot `BTC/USDT` and `ETH/USDT` at `15m`, `1h` and `4h`;
 - use `AiFrozenCandidateStrategy`, target `&-future_return`, future offsets `t+1` through `t+12`, entry threshold `0.006`, exit threshold `-0.009` and fee ratio `0.002` unchanged;
 - use one frozen 90-day training window ending before March 2026;
-- use historical-development prediction/evaluation coverage `20260301-20260430`, encoded as Freqtrade timerange `20260301-20260501` with an exclusive stop;
-- use download coverage ending at the same exclusive `20260501` boundary and never read consumed May-June historical OOS;
+- use historical-development prediction/evaluation coverage `20260301-20260430`, encoded as Freqtrade timerange `1772323200-1777593599` so its inclusive stop is exactly `2026-04-30T23:59:59Z`;
+- use download coverage `1754006400-1777593599`, ending one second before the exclusive `2026-05-01T00:00:00Z` boundary, and never read consumed May-June historical OOS;
 - use seed `42` for every stochastic model or library setting that exposes a seed;
 - execute at most once per declared model after a separate exact-one-file run-request PR;
 - measure the exact FreqAI-expanded feature count plus historical feature NaN, outlier and label distributions before model execution and fail closed if this evidence is absent or non-finite;
@@ -87,12 +87,12 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T22:50:00+02:00
-head: 3c91758ace75e73a3ea9a4eb7bfc1828f01fd444
-merge_commit: fc210dd68f0998176e3bf2da3bd29b231a511ae7
-branch: feat/residual-pytorch-bounded-m1-execution
-pr: 395
-status: ready
+updated_at: 2026-07-26T22:10:00Z
+head: d8aa4453d64a2cadefc9cf00ed74c8416904f7ab
+merge_commit: null
+branch: fix/residual-pytorch-bounded-m1-exclusive-stop
+pr: 409
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md
   - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md
@@ -100,81 +100,56 @@ context_routes:
   - ai_platform/scripts/run_experiment.py
 owned_paths:
   - .github/workflows/residual-pytorch-bounded-m1-execution.yml
-  - ai_platform/configs/freqai-residual-pytorch-m1-data-audit.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-lightgbm.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-residual-mlp.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-seeded-mlp.example.json
   - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json
   - ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json
   - ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json
   - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json
   - ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json
-  - ai_platform/freqaimodels/M1LightGBMRegressor.py
-  - ai_platform/freqaimodels/M1ResidualPyTorchRegressor.py
-  - ai_platform/freqaimodels/M1SeededPyTorchMLPRegressor.py
-  - ai_platform/freqaimodels/ResidualPyTorchM1DataAuditRegressor.py
-  - ai_platform/freqaimodels/residual_pytorch_m1_instrumentation.py
   - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
-  - ai_platform/scripts/residual_pytorch_bounded_m1_run_request.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
   - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
 proven:
-  - P2 implementation merged as fee90dce7fadd5320d7279a51e45dc91026e903f and its closeout merged as e5317845819fee4ff054ed782f22435b7cd91a20.
-  - The declaration-only P3 task merged as 286a97e6dd460f320e7f15f597c4f9883c8a6365 before infrastructure implementation.
-  - P3 freezes one 90-day pre-March training window and March-April development coverage with exclusive stop 2026-05-01.
-  - PR 395 squash-merged as fc210dd68f0998176e3bf2da3bd29b231a511ae7 from exact head 3c91758ace75e73a3ea9a4eb7bfc1828f01fd444 with exactly twenty intended infrastructure paths and no active review blocker.
-  - Final exact-head AI Platform CI 30219312717, Experimental Model Runtime Smoke 30219312715, zizmor 30219312693 and Freqtrade CI 30219312702 succeeded.
-  - The merged infrastructure contains no canonical run request and therefore performed no market-data access, matrix audit, training or backtest.
+  - P2 implementation and closeout are merged, and P3 infrastructure merged through PR 395 as fc210dd68f0998176e3bf2da3bd29b231a511ae7.
+  - Exact-one-file trigger PRs 400, 401 and 402 each passed request validation and completed both authorized Kraken trade downloads without starting any model.
+  - Runs 30220022577, 30220023431 and 30220063748 all failed closed during pair coverage verification; cache publication, matrix audit, training and backtesting were skipped.
+  - Exact terminal evidence from run 30220022577 reported `Post-development candle was loaded for ETH/USDT 15m` and the same failure for BTC/USDT 15m.
+  - Freqtrade `trim_dataframe` applies date-form stop boundaries inclusively with `<=`, while the frozen P3 contract requires an exclusive stop at `2026-05-01T00:00:00Z`.
 derived:
-  - March-April results will be historical development evidence, not fresh strict OOS and not selection authorization.
-  - The exact expanded feature count and historical distributions can be resolved only by the guarded real-matrix audit before comparator fitting.
+  - Encoding both acquisition and backtest timeranges with Unix-second stop `1777593599` preserves the frozen March-April geometry and excludes the first consumed-OOS second.
+  - The failed executions provide no feature-count, matrix-distribution, training, prediction or backtest evidence.
 unknown:
   - Exact FreqAI-expanded feature count and historical NaN, outlier and target distributions.
-  - Whether all three frozen models complete the bounded historical-development lifecycle.
+  - Whether all three frozen models complete the bounded historical-development lifecycle after the boundary correction.
 conflicts: []
 first_failure:
-  marker: DEPENDENCY_LIGHT_AND_STATIC_ANALYSIS_GATES
-  evidence: Initial infrastructure imported NumPy and Pandas during dependency-light discovery and later exposed Ruff and mypy violations; lazy runtime imports, conditional numeric tests, formatting and typed dynamic mixin interfaces corrected only the confirmed failures before final exact-head validation.
+  marker: POST_DEVELOPMENT_BOUNDARY_CANDLE
+  evidence: All three guarded attempts downloaded data but failed before cache publication because the inclusive 15m load admitted the `2026-05-01T00:00:00Z` candle for both pairs.
 rejected_hypotheses:
-  - Reuse consumed May-June historical OOS for tuning or selection.
-  - Access the protected final holdout.
-  - Change feature or strategy contracts between comparators.
-  - Execute directly from an infrastructure merge.
+  - Kraken history was unavailable; both pair downloads completed successfully.
+  - A model or matrix-audit defect caused the run; those stages were never entered.
+  - Consumed May-June OOS or the protected holdout may be used to repair the run.
 changed_paths:
   - .github/workflows/residual-pytorch-bounded-m1-execution.yml
-  - ai_platform/configs/freqai-residual-pytorch-m1-data-audit.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-lightgbm.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-residual-mlp.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-seeded-mlp.example.json
   - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json
   - ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json
   - ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json
   - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json
   - ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json
-  - ai_platform/freqaimodels/M1LightGBMRegressor.py
-  - ai_platform/freqaimodels/M1ResidualPyTorchRegressor.py
-  - ai_platform/freqaimodels/M1SeededPyTorchMLPRegressor.py
-  - ai_platform/freqaimodels/ResidualPyTorchM1DataAuditRegressor.py
-  - ai_platform/freqaimodels/residual_pytorch_m1_instrumentation.py
   - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
-  - ai_platform/scripts/residual_pytorch_bounded_m1_run_request.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
   - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
 validation:
-  - command: AI Platform CI 30219312717
+  - command: python -m unittest discover -s tests/ai_platform -p test_residual_pytorch_bounded_m1_execution.py
     result: PASS
-    evidence: Exact-head run 1720 passed dependency-light tests, Ruff, format, codespell and JSON validation.
-  - command: Experimental Model Runtime Smoke 30219312715
+    evidence: Bootstrap validation exercises frozen contract, exact timerange encoding, matrix and diagnostic guards without market access.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md --require-checkpoint
     result: PASS
-    evidence: Exact-head run 145 passed the dependency-closed canonical PyTorch and RL runtime smoke.
-  - command: Freqtrade CI 30219312702
+    evidence: Active compact checkpoint remains governance-valid with exactly one next action.
+  - command: python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract
     result: PASS
-    evidence: Exact-head run 2076 passed pre-commit, documentation, Python 3.11 through 3.14, coverage, distribution build and CI Gate.
-  - command: zizmor 30219312693
-    result: PASS
-    evidence: Exact-head run 1939 completed successfully.
+    evidence: Corrected contract and all frozen manifests validate without market-data access or execution.
 blockers: []
-next_action: Add the canonical residual-pytorch-bounded-m1-execution-v1 run request on a separate branch and exact-one-file PR from current develop, monitor the terminal workflow, collect all evidence artifacts, and close the trigger PR without merge.
+next_action: Validate the exact-head exclusive-stop correction in CI, merge it, then open one fresh canonical exact-one-file request PR and collect terminal guarded evidence without changing the frozen research geometry.
 ```

@@ -16,8 +16,9 @@ required_reads:
   - docs/agents/tasks/FTAI-20260725-portal-synology-lan-staging.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-ui.md
+  - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
 search_first:
-  - current Synology preview workflow and Liquid20 issue 148
+  - current Synology preview workflow, running image, Liquid20 collector and newest acceptance evidence
 optional_reads: []
 ---
 
@@ -31,12 +32,13 @@ Mount the authoritative Liquid20 Synology evidence directory read-only into the 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T06:52:00Z
+updated_at: 2026-07-26T07:04:00Z
 head: 1bf106fb5919706cca4db4f8245e00d2a1932df9
-branch: feat/portal-liquidations-synology-20260725
+branch: develop
 pr: 313
 status: completed
 context_routes:
+  - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
   - docs/agents/tasks/FTAI-20260725-portal-synology-lan-staging.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-ui.md
@@ -59,7 +61,8 @@ proven:
   - Build, isolated candidate, health, summary, bounded list, page and private-LAN probes all passed on 192.168.1.2:3031.
   - Automatic Synology deployment is restricted to develop after the feature proof.
 derived:
-  - The portal integration is terminal and independent of the still-running Liquid20 acceptance decision.
+  - The portal integration is terminal and independent of the Liquid20 acceptance decision.
+  - Every future task must reverify the current running image, collector and newest run because they are mutable runtime facts.
 unknown:
   - Final acceptance outcome of active run liquid20-20260725T212201Z-1; this does not block or reopen the completed portal integration.
 conflicts: []
@@ -69,6 +72,7 @@ first_failure:
 rejected_hypotheses:
   - Run the portal container as root.
   - Change or recursively chmod the immutable Liquid20 evidence tree.
+  - Copy evidence into a writable portal directory.
   - Mount the Docker socket or expose collector files directly.
   - Treat the HTTP 500 as a read-model schema or route failure.
 changed_paths:

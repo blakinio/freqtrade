@@ -1,25 +1,23 @@
 ---
 task_id: FTAI-20260725-portal-liquidations-read-model
-status: implementing
-branch: feat/portal-liquidations-read-model-20260725
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-25
-updated: 2026-07-25
-related_pr: ""
+updated: 2026-07-26
+related_pr: "#307"
 owned_paths:
   - ai_platform/portal/web/lib/liquidations/
   - ai_platform/portal/web/fixtures/liquidations/
   - ai_platform/portal/web/e2e/liquidation-read-model.spec.ts
-  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/LIQUIDATIONS_READ_MODEL.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md
 required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
-  - docs/ai_platform/portal/README.md
-  - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
-  - docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
-  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
+  - docs/ai_platform/portal/LIQUIDATIONS_READ_MODEL.md
 search_first:
   - open portal, Liquid20 and Synology pull requests
   - active task ownership for portal web and deployment paths
@@ -37,46 +35,70 @@ Deliver the smallest complete versioned, bounded and read-only server-side read-
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-25T22:05:00Z
-head: 48b894017aef517e1be2cd944bc05538d3c4e94d
-branch: feat/portal-liquidations-read-model-20260725
-pr: none
-status: implementing
+updated_at: 2026-07-26T07:04:00Z
+head: aa2f193b970588e478b5d57f58d2ddfd7f4aab67
+branch: develop
+pr: "#307"
+status: done
 context_routes:
-  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
-  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
+  - docs/ai_platform/portal/LIQUIDATIONS_READ_MODEL.md
   - docs/ai_platform/LIQUIDATION_MULTI_SOURCE.md
 owned_paths:
   - ai_platform/portal/web/lib/liquidations/
   - ai_platform/portal/web/fixtures/liquidations/
   - ai_platform/portal/web/e2e/liquidation-read-model.spec.ts
-  - docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
+  - docs/ai_platform/portal/LIQUIDATIONS_READ_MODEL.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md
 proven:
-  - develop head 48b894017aef517e1be2cd944bc05538d3c4e94d includes the private Synology portal preview on port 3031.
-  - Liquid20 collector run liquid20-20260725T212201Z-1 is active on Synology with immutable image c00a091c5adc67cf75c46db5805e358ffc72fad7.
-  - The previous complete 24-hour run failed only binance-usdm.maximum_latency_over_threshold_ratio under the unchanged frozen acceptance policy.
-  - The portal deployment currently runs the Next.js application in explicit fixture mode and does not deploy the Python control plane.
-  - A Next.js server-only bounded reader is the smallest deployable architecture that preserves the browser-to-BFF boundary.
+  - PR #307 merged to develop as aa2f193b970588e478b5d57f58d2ddfd7f4aab67.
+  - The reader discovers only fixed non-symlinked Liquid20 runs and source files below the configured root.
+  - Incremental reads handle partial final lines, file replacement, truncation and run rotation.
+  - The cache, request limits, metadata size and NDJSON line size are bounded and truncation is explicit.
+  - Ordering and cursor pagination are deterministic.
+  - Decimal aggregation remains exact and source-labelled for 5m, 1h and 24h windows.
+  - Deduplication is limited to source plus source_event_id; Bybit and Binance are never deduplicated across sources.
+  - Health exposes live, stale and historical modes, current acceptance, latest completed acceptance, research_preview true and trading_authorized false.
+  - Portal Web CI, Portal Universal E2E, AI Platform CI, Freqtrade CI and zizmor passed on the final PR head.
 derived:
-  - The first package must not own navigation, page UI or deployment paths; those remain separate PRs.
-  - The read-model must expose source-labelled aggregates and must never deduplicate events across exchanges.
-unknown:
-  - Exact final acceptance result of the currently active 24-hour retry.
+  - Browser publication must remain behind a same-origin BFF.
+  - Future strategy or AI work must consume a separately frozen dataset and cannot reinterpret portal availability as strategy validation.
+unknown: []
 conflicts: []
 first_failure:
   marker: PROMPT_PR_PRECOMMIT
-  evidence: Prompt PR 304 documentation build and zizmor passed, while Freqtrade CI pre-commit failed; implementation does not depend on merging that documentation-only PR.
+  evidence: The earlier prompt-only PR initially exposed a documentation pre-commit issue; it did not affect the read-model implementation and was resolved separately.
 rejected_hypotheses:
   - Expose Liquid20 files, collector, Freqtrade REST or WebSocket directly to the browser.
   - Add a new microservice or Docker socket mount for the first read-only package.
   - Relax or reinterpret the frozen Liquid20 acceptance policy.
+  - Treat source-unlabelled cross-exchange totals as authoritative liquidation volume.
 changed_paths:
+  - ai_platform/portal/web/lib/liquidations/contracts.ts
+  - ai_platform/portal/web/lib/liquidations/decimal.ts
+  - ai_platform/portal/web/lib/liquidations/event.ts
+  - ai_platform/portal/web/lib/liquidations/index.ts
+  - ai_platform/portal/web/lib/liquidations/reader.ts
+  - ai_platform/portal/web/fixtures/liquidations/
+  - ai_platform/portal/web/e2e/liquidation-read-model.spec.ts
+  - docs/ai_platform/portal/LIQUIDATIONS_READ_MODEL.md
   - docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md
 validation:
-  - command: live-state preflight
+  - command: Portal Web CI run 30177413997
     result: PASS
-    evidence: Repository heads, open PRs, issue 148, portal deployment, collector state and ownership were checked before declaration.
+    evidence: TypeScript, lint, production build and portal web tests passed.
+  - command: Portal Universal E2E run 30177414016
+    result: PASS
+    evidence: Universal Chromium portal tests passed.
+  - command: AI Platform CI run 30177413992
+    result: PASS
+    evidence: AI Platform validation passed.
+  - command: Freqtrade CI run 30177413983
+    result: PASS
+    evidence: Repository pre-commit and test gates passed.
+  - command: GitHub Actions Security Analysis run 30177413981
+    result: PASS
+    evidence: Zizmor completed successfully.
 blockers: []
-next_action: Implement the versioned bounded Liquid20 reader and focused Playwright-runner contract tests on this branch.
+next_action: Use docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md before declaring any new Liquid20 portal, replay, strategy, AI-model or execution package.
 ```

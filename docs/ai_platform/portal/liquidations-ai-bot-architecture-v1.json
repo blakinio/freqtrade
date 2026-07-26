@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "document_id": "portal-liquidations-ai-bot-architecture-v1",
+  "updated_at": "2026-07-26T07:04:00Z",
+  "classification": "read_only_market_data_and_research_preview",
+  "portal_integration": {
+    "status": "integrated",
+    "implementation_prs": [
+      {
+        "number": 307,
+        "merge_sha": "aa2f193b970588e478b5d57f58d2ddfd7f4aab67",
+        "scope": "bounded_server_side_read_model"
+      },
+      {
+        "number": 311,
+        "merge_sha": "228b5ad3eb12c6adab300ab86461d3fa67acaa47",
+        "scope": "same_origin_bff_and_responsive_ui"
+      },
+      {
+        "number": 313,
+        "merge_sha": "1bf106fb5919706cca4db4f8245e00d2a1932df9",
+        "scope": "synology_read_only_real_data_deployment"
+      }
+    ],
+    "deployment_evidence": {
+      "feature_sha": "e48c421aea4adb46854578264d80622803498a87",
+      "feature_run_id": 30191045808,
+      "develop_sha": "1bf106fb5919706cca4db4f8245e00d2a1932df9",
+      "develop_run_id": 30191687921,
+      "private_lan_url": "http://192.168.1.2:3031"
+    }
+  },
+  "sources": [
+    {
+      "id": "bybit-linear",
+      "stream": "allLiquidation",
+      "semantics": "source_published_liquidation_events"
+    },
+    {
+      "id": "binance-usdm",
+      "stream": "forceOrder",
+      "semantics": "latest_liquidation_order_per_symbol_in_approximately_1000_ms_window"
+    }
+  ],
+  "evidence": {
+    "host_root": "/volume1/docker/freqtrade-liquidations/data",
+    "container_root": "/liquid20-data",
+    "mount_mode": "read_only",
+    "run_id_pattern": "^liquid20-\\d{8}T\\d{6}Z-\\d+$",
+    "fixed_files": [
+      "bybit-linear.ndjson",
+      "binance-usdm.ndjson",
+      "bybit-linear-summary.json",
+      "binance-usdm-summary.json",
+      "multi-source-manifest.json",
+      "multi-source-acceptance-report.json"
+    ]
+  },
+  "portal": {
+    "page": "/market/liquidations",
+    "endpoints": [
+      "/api/market/liquidations",
+      "/api/market/liquidations/summary",
+      "/api/market/liquidations/health"
+    ],
+    "query_limit_max": 200,
+    "read_model_defaults": {
+      "maximum_cached_events": 250000,
+      "stale_after_ms": 300000,
+      "maximum_metadata_bytes": 2097152,
+      "maximum_line_bytes": 131072
+    },
+    "required_health_invariants": {
+      "schema_version": 1,
+      "research_preview": true,
+      "trading_authorized": false
+    }
+  },
+  "authority": {
+    "model_can_submit_orders": false,
+    "portal_liquidations_can_create_signals": false,
+    "portal_liquidations_can_create_intents": false,
+    "collector_has_trading_credentials": false,
+    "browser_can_access_evidence_files": false,
+    "browser_can_access_freqtrade": false,
+    "cross_exchange_deduplication_allowed": false,
+    "risk_gate_required_before_execution": true,
+    "freqtrade_owns_order_and_trade_lifecycle": true
+  },
+  "synchronization": {
+    "event_time_field": "occurred_at_ms",
+    "availability_time_field": "received_at_ms",
+    "decision_not_before": "received_at_ms",
+    "features_use_completed_candles_only": true,
+    "containing_candle_final_values_allowed_without_intrabar_evidence": false,
+    "replay_ordering_contract_status": "must_be_frozen_prospectively"
+  },
+  "strategy_research": {
+    "status": "research_only_not_validated",
+    "entry_shape": [
+      "trusted_liquidation_event",
+      "minimum_notional_passes",
+      "price_outside_declared_vwap_or_vwma_band",
+      "deterministic_filters_pass",
+      "counter_trade_candidate"
+    ],
+    "dca_enabled": false,
+    "tp_sl_selected": false,
+    "leverage_selected": false,
+    "execution_adapter_enabled": false,
+    "profitability_claim_authorized": false
+  },
+  "ai_bot": {
+    "authority_order": [
+      "data",
+      "features",
+      "model_prediction_optional",
+      "deterministic_strategy",
+      "deterministic_risk",
+      "approved_intent",
+      "private_execution_adapter",
+      "freqtrade"
+    ],
+    "lifecycle": [
+      "experiment",
+      "candidate",
+      "validated",
+      "dry_run",
+      "shadow",
+      "live_small",
+      "production",
+      "retired"
+    ],
+    "immutable_attribution_required": [
+      "tenant_id",
+      "bot_id",
+      "runtime_id",
+      "bot_config_revision_id",
+      "strategy_version_id",
+      "model_version_id_or_no_model_baseline",
+      "feature_schema_version",
+      "risk_policy_version_id",
+      "dataset_or_evidence_manifest",
+      "collector_commit",
+      "candle_source_and_hashes",
+      "decision_id",
+      "correlation_id"
+    ]
+  },
+  "next_packages": [
+    "LQ-02_accepted_dataset_selection",
+    "LQ-03_deterministic_replay_contract_and_engine",
+    "LQ-04_deterministic_strategy_baseline",
+    "LQ-05_signal_only_live_observation",
+    "LQ-06_optional_ai_experiment",
+    "LQ-07_freqtrade_dry_run_integration",
+    "LQ-08_shadow_review",
+    "LQ-09_owner_gated_live_small"
+  ],
+  "must_reverify": [
+    "develop_head_and_open_path_ownership",
+    "running_portal_image",
+    "running_collector_image_and_state",
+    "newest_liquid20_run_id",
+    "newest_completed_acceptance_report",
+    "storage_memory_and_retention_state",
+    "frozen_replay_dataset_status",
+    "pi07_pi08_execution_dependency_status"
+  ],
+  "canonical_document": "docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md"
+}

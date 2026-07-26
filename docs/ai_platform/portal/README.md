@@ -67,6 +67,8 @@ After the bounded P0-P12 software platform and software-addressable portal surfa
 
 PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side acceptance. Bot Operations convergence is complete through `FTAI-20260726-portal-bot-operations-completion` and PR #320, so the fleet and Bot Detail routes now compose canonical bot-scoped reads and expose existing immutable-revision and desired-state commands through the same-origin web boundary. No further core portal integration package is autonomously authorized without an owner/provider decision. PI-05 through PI-08 remain separately planned and gated; P11 is blocked on real external infrastructure, P13 is deferred and P14 remains blocked.
 
+The read-only Liquid20 portal path is separately integrated through the server-side read-model, same-origin BFF, responsive Likwidacje page and Synology read-only evidence mount. It remains market-data and research preview only. Use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` before extending it into a strategy, model, or execution package.
+
 ## Documentation map
 
 - `SYSTEM_ARCHITECTURE.md` — components, planes, trust boundaries and deployment evolution.
@@ -76,6 +78,8 @@ PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side ac
 - `QUALITY_AND_AUTONOMOUS_E2E.md` — full-platform testing, user simulation and bounded agent-assisted repair.
 - `UI_INFORMATION_ARCHITECTURE.md` — target portal navigation and major product surfaces.
 - `UI_DELIVERY_STATUS.md` — truthful per-surface implementation/integration status and remaining read-model gaps.
+- `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` — canonical Liquid20 portal, strategy-research, AI-bot, Synology and future-expansion contract.
+- `LIQUIDATIONS_READ_MODEL.md` — focused implementation contract for the bounded server-side Liquid20 reader.
 - `NEXT_WORK_AND_REPAIR_PLAN.md` — current continuation ledger, repair priorities, next bounded task and stop conditions.
 - `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
 - `DELIVERY_ROADMAP.md` — staged delivery plan and gates.

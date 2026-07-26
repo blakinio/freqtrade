@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - develop
-      - fix/portal-synology-port-3030
+      - feat/portal-liquidations-synology-20260725
     paths:
       - .github/workflows/portal-synology-lan-preview.yml
       - deploy/synology/portal/Dockerfile
@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           payload=$(cat <<EOF
-          {"state":"pending","context":"portal-synology-lan-preview","description":"Building and deploying portal on Synology","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
+          {"state":"pending","context":"portal-synology-lan-preview","description":"Building portal with read-only Liquid20 data","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
           EOF
           )
           curl --fail --silent --show-error \
@@ -52,20 +52,36 @@ jobs:
 
       - name: Build and deploy preview
         id: deploy
-        continue-on-error: true
         env:
           PORTAL_BIND_ADDRESS: 192.168.1.2
           PORTAL_PORT: "3031"
+          PORTAL_LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
         run: bash deploy/synology/portal/deploy-preview.sh
 
-      - name: Verify LAN endpoint
+      - name: Verify LAN Liquid20 surface
         id: probe
-        if: steps.deploy.outcome == 'success'
-        continue-on-error: true
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --max-time 15 \
-            http://192.168.1.2:3031/ >/dev/null
+          for path in \
+            /market/liquidations \
+            /api/market/liquidations/health \
+            /api/market/liquidations/summary \
+            '/api/market/liquidations?limit=1'; do
+            curl --fail --silent --show-error --max-time 15 \
+              "http://192.168.1.2:3031${path}" >/dev/null
+          done
+          docker exec freqtrade-portal-staging node -e '
+            fetch("http://127.0.0.1:3000/api/market/liquidations/health")
+              .then(async (response) => {
+                if (!response.ok) process.exit(1);
+                const health = await response.json();
+                if (health.schema_version !== 1) process.exit(1);
+                if (health.research_preview !== true) process.exit(1);
+                if (health.trading_authorized !== false) process.exit(1);
+                if (!health.run_id || !Array.isArray(health.active_sources)) process.exit(1);
+              })
+              .catch(() => process.exit(1));
+          '
 
       - name: Publish final status
         if: always()
@@ -81,7 +97,7 @@ jobs:
           else
             state=failure
           fi
-          description="Portal preview: deploy=$DEPLOY_OUTCOME probe=$PROBE_OUTCOME"
+          description="Portal Liquid20 preview: deploy=$DEPLOY_OUTCOME probe=$PROBE_OUTCOME"
           payload=$(cat <<EOF
           {"state":"$state","context":"portal-synology-lan-preview","description":"$description","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
           EOF
@@ -93,7 +109,3 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
             --data "$payload" >/dev/null
-
-      - name: Fail after reporting
-        if: steps.deploy.outcome != 'success' || steps.probe.outcome != 'success'
-        run: exit 1

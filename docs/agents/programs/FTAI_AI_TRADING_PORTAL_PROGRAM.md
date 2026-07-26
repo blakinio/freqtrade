@@ -14,7 +14,7 @@ Build a secure, modern and extensible portal above the existing Freqtrade AI Pla
 
 ## Current program state
 
-Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages, completed Bot Operations convergence in PR #320 and completed the bounded PI-06 repository identity backend in PR #341.
+Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages, completed Bot Operations convergence in PR #320, completed the bounded PI-06 repository identity backend in PR #341 and completed the same-origin BFF/browser-session package in PR #361.
 
 Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
 
@@ -24,9 +24,9 @@ Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMA
 - P13 measured-need assessment completed with NO-GO, so scale/service extraction is deferred until evidence demonstrates a need;
 - P14 remains separately blocked and this program does not authorize live capital.
 
-The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 is active: the architecture decision and repository identity backend are complete, while same-origin BFF/browser integration, browser security E2E and target-environment authentik provisioning remain. PI-05, PI-07 and PI-08 remain separately planned and gated.
+The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 is active: the architecture decision, repository identity backend and same-origin BFF/browser-session integration are complete, while real Authentik/Synology provisioning, MFA enrollment, recovery, backup/restore and target-environment acceptance remain. PI-05, PI-07 and PI-08 remain separately planned and gated.
 
-Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. The next dependency-ordered core software action is a bounded PI-06 same-origin BFF and browser-session integration package using the merged backend. Real authentik/Synology and Cloudflare provisioning remains a later deployment-owned package.
+Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. The next dependency-ordered identity action is a separate Authentik/Synology deployment package. It may add pinned deployment definitions and runbooks without credentials, but real acceptance remains owner-managed target-environment evidence. Cloudflare P11 remains separate.
 
 Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
 
@@ -113,9 +113,9 @@ Canonical stage order, current statuses and acceptance boundaries are defined in
 
 The historical first implementation task after architecture merge was `FTAI-20260722-portal-p1-contracts-security`. That sequence has now progressed through completed P12 simulation-first acceptance; it is no longer the program's next software action.
 
-Post-P12 integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`. PI-01 through PI-04 are complete. PI-06 has an accepted Authentik architecture and a merged repository backend; its next bounded package is same-origin BFF/browser-session integration, followed later by separately controlled target-environment provisioning. PI-05 requires a provider/channel decision and PI-07 must precede PI-08. No package authorizes live capital.
+Post-P12 integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`. PI-01 through PI-04 are complete. PI-06 has an accepted Authentik architecture, a merged repository backend and merged same-origin browser integration; its remaining work is separately controlled target-environment provisioning and real identity acceptance. PI-05 requires a provider/channel decision and PI-07 must precede PI-08. No package authorizes live capital.
 
-The Bot Operations product completion package is complete. The continuation route in `NEXT_WORK_AND_REPAIR_PLAN.md` authorizes only the next bounded PI-06 browser integration package; it does not authorize real Authentik/Cloudflare provisioning, PI-07, PI-08, P11 acceptance or P14.
+The Bot Operations product completion package is complete. The continuation route in `NEXT_WORK_AND_REPAIR_PLAN.md` authorizes only a bounded Authentik/Synology deployment package after a fresh path-ownership preflight. It does not authorize Cloudflare P11 acceptance, PI-07, PI-08 or P14.
 
 ## PI-06 repository backend evidence
 
@@ -134,7 +134,26 @@ The package includes:
 - logout, logout-all, membership-change revocation and OIDC back-channel logout;
 - migrations, deterministic configuration and security regression tests.
 
-Exact final head `c258567cabd1c9ddf3d90c63f36319be99463978` passed AI Platform CI #1415, Freqtrade CI #1713 and GitHub Actions Security Analysis #1580. This is repository evidence only; the Next.js portal is not yet connected and no real authentik instance, user, secret, recovery flow or Cloudflare resource has been provisioned.
+Exact final backend head `c258567cabd1c9ddf3d90c63f36319be99463978` passed AI Platform CI #1415, Freqtrade CI #1713 and GitHub Actions Security Analysis #1580.
+
+## PI-06 BFF and browser-session evidence
+
+Task `FTAI-20260726-portal-pi06-bff-browser-session-integration` delivered the same-origin Next.js boundary in PR #361, squash merge `4f76eecadcb8dda964a8d247327db9dc6ef1c931`.
+
+The package includes:
+
+- same-origin login, callback, session, logout and logout-all routes;
+- HTTPS-only authorization redirects and relative-only application return redirects;
+- forwarding of opaque backend session/CSRF cookies without exposing IdP tokens;
+- optimistic Proxy checks plus Route Handler defense in depth;
+- double-submit CSRF for existing browser mutations;
+- visible tenant/MFA session state and logout controls;
+- deterministic fixture states for anonymous, expired, revoked, MFA-missing, stale-step-up and cross-tenant denial;
+- 37 Chromium tests covering the identity lifecycle while preserving existing product E2E.
+
+Exact final implementation head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passed Portal Web CI #287, Portal Universal E2E #292, AI Platform CI #1521, Freqtrade CI #1837 and GitHub Actions Security Analysis #1702.
+
+This remains repository and fixture browser evidence. No real Authentik instance, user, MFA device, recovery flow, secret, Synology deployment or Cloudflare resource has been provisioned or accepted.
 
 ## Parallelization policy
 
@@ -188,9 +207,9 @@ Canonical navigation is defined in `docs/ai_platform/portal/UI_INFORMATION_ARCHI
 - Operations/Logs/Risk/Runtime Health/Audit;
 - Exchange Connections/Profile/Security/Notifications/Admin.
 
-The bot list and detail routes now expose bounded bot-scoped operational convergence, filtering, immutable-revision creation and desired-state lifecycle controls over existing canonical APIs. They preserve tenant attribution, desired/observed separation, explicit degraded evidence and the private execution boundary.
+The bot list and detail routes expose bounded bot-scoped operational convergence, filtering, immutable-revision creation and desired-state lifecycle controls over existing canonical APIs. They preserve tenant attribution, desired/observed separation, explicit degraded evidence and the private execution boundary.
 
-The merged PI-06 backend does not yet change the browser product surface. Until the BFF/browser package is complete, the current web fixture identity must not be described as real product authentication.
+Protected browser paths now use the same-origin PI-06 BFF boundary with opaque session cookies, CSRF, optimistic anonymous denial and backend-authoritative tenant/capability enforcement. Fixture identity remains explicit test evidence and must not be described as real Authentik acceptance.
 
 Third-party private captures are inspiration/evidence only and must not be copied into public product code with personal data or proprietary assets.
 
@@ -213,9 +232,9 @@ Repository-side and simulation-first evidence already cover many of these softwa
 
 ## Next actions by authorization lane
 
-Next autonomous core software action: declare `FTAI-YYYYMMDD-portal-pi06-bff-browser-session-integration`; connect the same-origin Next.js portal to the merged identity backend and add deterministic browser E2E for anonymous denial, successful session, CSRF failure, MFA/step-up denial, expiry, revocation, logout-all and cross-tenant denial.
+Next autonomous identity/deployment action: declare a separate `FTAI-YYYYMMDD-portal-pi06-authentik-synology-deployment` task after a fresh `develop`, open-PR and path-ownership preflight. Add pinned Authentik/PostgreSQL deployment definitions, runtime-injected secret placeholders, restricted bootstrap, health checks, backup/restore and recovery runbooks, and deterministic configuration validation. Do not commit credentials or claim real acceptance without owner-managed target probes.
 
-Next identity deployment action after browser integration: declare a separate Authentik/Synology package with pinned container images, runtime-injected secret placeholders, restricted bootstrap, recovery/restore runbooks and no committed credentials. This package must not claim real acceptance until owner-managed target resources exist and pass their probes.
+Next real identity acceptance action: on owner-managed Synology resources, prove OIDC login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, recovery and restore. Record unavailability rather than simulating successful target connectivity.
 
 Next owner/external action: when the owner intentionally starts the real infrastructure phase, resume P11, provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.
 

@@ -16,15 +16,15 @@ The comparison is descriptive research evidence only. It defines no winner, sele
 |---|---|
 | Training window | `2025-12-01T00:00:00Z` through `2026-03-01T00:00:00Z` exclusive |
 | Development window | `2026-03-01T00:00:00Z` through `2026-05-01T00:00:00Z` exclusive |
-| Freqtrade backtest timerange | `20260301-20260501` |
-| Download timerange | `20250801-20260501` |
+| Freqtrade backtest timerange | `1772323200-1777593599` (`2026-03-01T00:00:00Z` through `2026-04-30T23:59:59Z` inclusive) |
+| Download timerange | `1754006400-1777593599` (`2025-08-01T00:00:00Z` through `2026-04-30T23:59:59Z` inclusive) |
 | Training days | `90` |
 | Development/backtest days | `61` |
 | Pairs | `BTC/USDT`, `ETH/USDT` |
 | Timeframes | `15m`, `1h`, `4h` |
 | Fee ratio per side | `0.002` |
 
-The May-June 2026 historical OOS has already been consumed and is forbidden. The August-September 2026 final holdout remains protected and forbidden.
+Freqtrade trims timerange stops inclusively, so both encoded ranges end one second before the frozen exclusive `2026-05-01T00:00:00Z` boundary. The May-June 2026 historical OOS has already been consumed and is forbidden. The August-September 2026 final holdout remains protected and forbidden.
 
 ## Frozen strategy and data contract
 

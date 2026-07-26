@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from copy import deepcopy
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from unittest import mock
@@ -39,8 +40,8 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 
         self.assertEqual(contract["contract_id"], "residual-pytorch-bounded-m1-execution-v1")
-        self.assertEqual(contract["geometry"]["timerange"], "20260301-20260501")
-        self.assertEqual(contract["geometry"]["download_timerange"], "20250801-20260501")
+        self.assertEqual(contract["geometry"]["timerange"], "1772323200-1777593599")
+        self.assertEqual(contract["geometry"]["download_timerange"], "1754006400-1777593599")
         self.assertEqual(contract["geometry"]["executions_per_track"], 1)
         self.assertEqual(len(contract["tracks"]), 3)
         self.assertFalse(contract["authorization"]["historical_oos_used"])
@@ -48,6 +49,22 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         self.assertFalse(contract["authorization"]["winner_selection_allowed"])
         self.assertFalse(contract["feature_target_contract"]["liquidation_features_allowed"])
         self.assertFalse(REQUEST_PATH.exists())
+
+    @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")
+    def test_encoded_timeranges_stop_before_consumed_oos(self) -> None:
+        from freqtrade.configuration import TimeRange
+
+        _, _, execution = _numeric_runtime()
+        expected_exclusive_stop = int(
+            datetime(2026, 5, 1, tzinfo=UTC).timestamp()
+        )
+        for encoded in (execution.EXECUTION_TIMERANGE, execution.DOWNLOAD_TIMERANGE):
+            timerange = TimeRange.parse_timerange(encoded)
+            self.assertEqual(timerange.stopts, expected_exclusive_stop - 1)
+            self.assertEqual(
+                datetime.fromtimestamp(timerange.stopts, tz=UTC),
+                datetime(2026, 4, 30, 23, 59, 59, tzinfo=UTC),
+            )
 
     def test_request_module_import_is_dependency_light(self) -> None:
         missing = ModuleNotFoundError("No module named 'numpy'")
@@ -66,7 +83,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         self.assertIn(run_request.REQUEST_REPO_PATH, workflow)
         self.assertIn("expected=$'A\\t", workflow)
         self.assertNotIn("restore-keys:", workflow)
-        self.assertIn("--timerange 20250801-20260501", workflow)
+        self.assertIn("--timerange 1754006400-1777593599", workflow)
         self.assertEqual(workflow.count("run_track \\\n"), 3)
         self.assertNotIn("selection-decision", workflow)
 
@@ -88,8 +105,8 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         report = execution.build_contract_report()
 
         self.assertEqual(report["status"], "infrastructure_ready_execution_not_requested")
-        self.assertEqual(report["timerange"], "20260301-20260501")
-        self.assertEqual(report["download_timerange"], "20250801-20260501")
+        self.assertEqual(report["timerange"], "1772323200-1777593599")
+        self.assertEqual(report["download_timerange"], "1754006400-1777593599")
         self.assertFalse(report["run_request_present"])
         self.assertEqual(len(report["tracks"]), 4)
 
@@ -225,8 +242,8 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
             "status": "success",
             "experiment_id": "residual-pytorch-m1-lightgbm-v1",
             "git_commit": "abc",
-            "timerange": "20260301-20260501",
-            "download_timerange": "20250801-20260501",
+            "timerange": "1772323200-1777593599",
+            "download_timerange": "1754006400-1777593599",
             "commands": [["freqtrade", "backtesting", "--timerange", "20260301-20260701"]],
         }
         with tempfile.TemporaryDirectory() as directory:

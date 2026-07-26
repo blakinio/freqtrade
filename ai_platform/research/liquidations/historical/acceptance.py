@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from hashlib import sha256
-from typing import Any, Iterable
+from typing import Any
 
 from ai_platform.research.liquidations.historical.contracts import HistoricalLiquidationEvent
 from ai_platform.research.liquidations.historical.manifests import HistoricalImportManifest
@@ -12,8 +13,8 @@ from ai_platform.research.liquidations.historical.semantic_eras import SemanticE
 
 
 class AcceptanceStatus(StrEnum):
-    PASS = "pass"
-    FAIL = "fail"
+    ACCEPTED = "pass"
+    REJECTED = "fail"
 
 
 class RejectionReason(StrEnum):
@@ -68,6 +69,40 @@ class HistoricalAcceptanceReport:
         return payload
 
 
+def _base_rejection_reason(
+    *,
+    event: HistoricalLiquidationEvent,
+    manifest: HistoricalImportManifest,
+    semantic_eras: SemanticEraRegistry,
+    policy: HistoricalAcceptancePolicy,
+    declared_symbols: set[str],
+) -> RejectionReason | None:
+    if event.import_run_id != manifest.import_run_id:
+        return RejectionReason.WRONG_IMPORT_RUN
+    if event.historical_provider != manifest.provider_id:
+        return RejectionReason.WRONG_PROVIDER
+    if event.symbol.upper() not in declared_symbols:
+        return RejectionReason.WRONG_SYMBOL
+    if not manifest.requested_start_ms <= event.occurred_at_ms < manifest.requested_end_ms:
+        return RejectionReason.OUTSIDE_REQUESTED_WINDOW
+    if event.occurred_at_ms >= manifest.protected_holdout_start_ms:
+        return RejectionReason.PROTECTED_HOLDOUT_OVERLAP
+
+    try:
+        era = semantic_eras.resolve(
+            provider_id=event.historical_provider,
+            source=event.source,
+            timestamp_ms=event.occurred_at_ms,
+        )
+    except LookupError:
+        return RejectionReason.UNKNOWN_SEMANTIC_ERA
+    if event.semantic_era != era.era_id:
+        return RejectionReason.SEMANTIC_ERA_MISMATCH
+    if event.availability_latency_ms < -policy.max_negative_latency_tolerance_ms:
+        return RejectionReason.NEGATIVE_AVAILABILITY_LATENCY
+    return None
+
+
 def evaluate_historical_import(
     *,
     events: Iterable[HistoricalLiquidationEvent],
@@ -84,39 +119,13 @@ def evaluate_historical_import(
     declared_symbols = {symbol.upper() for symbol in manifest.symbols}
 
     for event in event_list:
-        reason: RejectionReason | None = None
-        if event.import_run_id != manifest.import_run_id:
-            reason = RejectionReason.WRONG_IMPORT_RUN
-        elif event.historical_provider != manifest.provider_id:
-            reason = RejectionReason.WRONG_PROVIDER
-        elif event.symbol.upper() not in declared_symbols:
-            reason = RejectionReason.WRONG_SYMBOL
-        elif not (
-            manifest.requested_start_ms
-            <= event.occurred_at_ms
-            < manifest.requested_end_ms
-        ):
-            reason = RejectionReason.OUTSIDE_REQUESTED_WINDOW
-        elif event.occurred_at_ms >= manifest.protected_holdout_start_ms:
-            reason = RejectionReason.PROTECTED_HOLDOUT_OVERLAP
-        else:
-            try:
-                era = semantic_eras.resolve(
-                    provider_id=event.historical_provider,
-                    source=event.source,
-                    timestamp_ms=event.occurred_at_ms,
-                )
-            except LookupError:
-                reason = RejectionReason.UNKNOWN_SEMANTIC_ERA
-            else:
-                if event.semantic_era != era.era_id:
-                    reason = RejectionReason.SEMANTIC_ERA_MISMATCH
-                elif (
-                    event.availability_latency_ms
-                    < -policy.max_negative_latency_tolerance_ms
-                ):
-                    reason = RejectionReason.NEGATIVE_AVAILABILITY_LATENCY
-
+        reason = _base_rejection_reason(
+            event=event,
+            manifest=manifest,
+            semantic_eras=semantic_eras,
+            policy=policy,
+            declared_symbols=declared_symbols,
+        )
         fingerprint = event.event_fingerprint_sha256
         if reason is None and fingerprint in seen_fingerprints:
             duplicate_records += 1
@@ -133,11 +142,11 @@ def evaluate_historical_import(
     rejected = total - len(accepted)
     rejected_ratio = rejected / total if total else 1.0
     status = (
-        AcceptanceStatus.PASS
+        AcceptanceStatus.ACCEPTED
         if total > 0
         and rejected_ratio <= policy.max_rejected_ratio
         and manifest.protected_holdout_excluded
-        else AcceptanceStatus.FAIL
+        else AcceptanceStatus.REJECTED
     )
     accepted_ids = "\n".join(sorted(event.source_event_id for event in accepted))
     latencies = [event.availability_latency_ms for event in accepted]

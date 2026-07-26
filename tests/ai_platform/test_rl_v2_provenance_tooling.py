@@ -87,7 +87,7 @@ def manifest() -> dict[str, object]:
             "manifest_sha256": SHA,
             "dynamic_installation_performed": False,
             "distributions": [
-                {"name": "python", "version": "3.12.0", "artifact_sha256": None}
+                {"name": "python", "version": "3.12.0", "artifact_sha256": None},
             ],
         },
         "code_configuration_identity": {
@@ -158,8 +158,8 @@ def manifest() -> dict[str, object]:
                     "byte_size": 1,
                     "required": True,
                     "present": True,
-                }
-            ]
+                },
+            ],
         },
         "final_evidence_manifest": {
             "logical_artifacts": [
@@ -169,8 +169,8 @@ def manifest() -> dict[str, object]:
                     "byte_size": 1,
                     "required": True,
                     "present": True,
-                }
-            ]
+                },
+            ],
         },
         "missing_optional_fields": [],
         "self_hash_sha256": "0" * 64,

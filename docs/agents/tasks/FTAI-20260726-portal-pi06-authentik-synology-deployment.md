@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260726-portal-pi06-authentik-synology-deployment
-status: reviewing
-branch: feat/portal-pi06-authentik-synology-deployment
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
@@ -55,11 +55,11 @@ Add a bounded, secret-free and deterministic Authentik/PostgreSQL deployment pac
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T21:12:00+02:00
-head: 8d7e4e1f6b06bc51db2f5820c79cfd6631d1a6c2
-branch: feat/portal-pi06-authentik-synology-deployment
+updated_at: 2026-07-26T21:30:00+02:00
+head: cd15070301227842dc74b2cfa2a4795b6677a48b
+branch: develop
 pr: 385
-status: reviewing
+status: done
 context_routes:
   - docs/ai_platform/portal/PI06_IDENTITY_AND_SESSION_DECISION.md
   - docs/ai_platform/portal/PI06_PRODUCT_IDENTITY_IMPLEMENTATION.md
@@ -73,13 +73,14 @@ owned_paths:
   - docs/ai_platform/portal/runbooks/PI06_AUTHENTIK_SYNOLOGY.md
   - docs/agents/tasks/FTAI-20260726-portal-pi06-authentik-synology-deployment.md
 proven:
-  - Develop at declaration was 11ad81870c0b199b0739af9dcfa239cb32d455cc after isolated OKX PR 339; open PRs 376 and 109 owned disjoint paths.
+  - Develop at declaration was 11ad81870c0b199b0739af9dcfa239cb32d455cc after isolated OKX PR 339; concurrent residual PyTorch PR 376 and closure PR 387 changed only disjoint paths.
   - PI-06 repository backend merged in PR 341 and same-origin BFF/browser sessions merged in PR 361.
+  - PR 385 squash-merged the secret-free Authentik/Synology deployment package as cd15070301227842dc74b2cfa2a4795b6677a48b.
   - The package pins Authentik 2026.5.5 and PostgreSQL 16.13-alpine3.23 by full multi-platform digests.
   - PostgreSQL has no host port and uses an internal network; Authentik publishes loopback HTTP only.
   - No Redis, docker.sock, host network, privileged container or timezone mount is present.
   - Bootstrap is hash-only, one-shot and empty-database restricted; backup streams directly into age encryption and restore verifies checksums.
-  - Candidate head 8d7e4e1f6b06bc51db2f5820c79cfd6631d1a6c2 passed Portal Authentik Deployment CI 10, AI Platform CI 1678 and security 1889.
+  - Exact final implementation head b4fba695402c4dce2d1a5a79661250d3920cb856 passed Portal Authentik Deployment CI 11, AI Platform CI 1679, Freqtrade CI 2027 and security 1890.
 derived:
   - Repository deployment artifacts and deterministic validation are complete without owner credentials or network access.
   - Real Synology and identity acceptance cannot be inferred from Compose rendering or repository tests.
@@ -90,7 +91,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: RUFF_FORMATTING_ONLY
-  evidence: Initial deployment tests, Compose rendering and security passed, while AI Platform Ruff and repository pre-commit rejected import spacing, six long lines and exact Ruff formatting in validate.py and its focused test. Exact Ruff output was applied and both temporary diagnostic workflows were removed; candidate CI 10 and AI Platform CI 1678 then passed Ruff and Ruff-format.
+  evidence: Initial deployment tests, Compose rendering and security passed, while AI Platform Ruff and repository pre-commit rejected import spacing, six long lines and exact Ruff formatting in validate.py and its focused test. Exact Ruff output was applied and both temporary diagnostic workflows were removed; final exact-head CI passed all formatting and repository gates.
 rejected_hypotheses:
   - Commit generated secrets or private target endpoints.
   - Mount docker.sock for managed outposts.
@@ -114,19 +115,19 @@ changed_paths:
   - docs/ai_platform/portal/runbooks/PI06_AUTHENTIK_SYNOLOGY.md
   - tests/ai_platform/portal/deployment/test_authentik_synology_deployment.py
 validation:
-  - command: Portal Authentik Deployment CI 10 on candidate head 8d7e4e1f6b06bc51db2f5820c79cfd6631d1a6c2
+  - command: Portal Authentik Deployment CI 11 on exact final head b4fba695402c4dce2d1a5a79661250d3920cb856
     result: PASS
     evidence: Runtime/example validation, Compose rendering, Ruff, Ruff-format and all 9 focused tests passed.
-  - command: AI Platform CI 1678 on candidate head 8d7e4e1f6b06bc51db2f5820c79cfd6631d1a6c2
+  - command: AI Platform CI 1679 on exact final head b4fba695402c4dce2d1a5a79661250d3920cb856
     result: PASS
     evidence: AI tests, compile, Ruff, Ruff-format, codespell and JSON validation passed.
-  - command: GitHub Actions Security Analysis 1889 on candidate head 8d7e4e1f6b06bc51db2f5820c79cfd6631d1a6c2
+  - command: Freqtrade CI 2027 on exact final head b4fba695402c4dce2d1a5a79661250d3920cb856
+    result: PASS
+    evidence: Pre-commit, documentation, Python 3.11-3.14 jobs, distribution build and CI gate passed.
+  - command: GitHub Actions Security Analysis 1890 on exact final head b4fba695402c4dce2d1a5a79661250d3920cb856
     result: PASS
     evidence: Zizmor completed successfully.
-  - command: Freqtrade CI on exact final review head
-    result: PENDING
-    evidence: Final pre-commit, documentation and Python matrix are required before merge.
 blockers:
   - Real target acceptance requires owner-managed Synology resources, secrets, users and MFA devices.
-next_action: Require all exact-head CI for PR 385 to pass, squash-merge the repository deployment package, then close it while leaving real login, MFA, revocation, recovery and restore in a separate owner-managed acceptance task.
+next_action: Declare a separate owner-managed PI-06 target acceptance task only when Synology access, runtime secrets, DNS/TLS route, test users, MFA devices and an age recovery key are intentionally available. Prove real login, MFA, logout, revocation, recovery, encrypted backup and isolated restore without committing credentials. Keep Cloudflare P11 acceptance separate.
 ```

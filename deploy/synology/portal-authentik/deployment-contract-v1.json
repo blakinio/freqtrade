@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "status": "repository_validated_target_not_accepted",
+  "target": "synology_docker_compose_small_scale",
+  "images": {
+    "authentik": "docker.io/authentik/server:2026.5.5@sha256:50a833c48a714709f15d4f8846ec6b81a41d0d6a6bd2975087dfed3000d0d72e",
+    "postgresql": "docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777"
+  },
+  "required_services": ["postgresql", "server", "worker"],
+  "forbidden_services": ["redis"],
+  "controls": {
+    "database_has_no_published_port": true,
+    "authentik_host_bind": "127.0.0.1",
+    "database_network_internal": true,
+    "docker_socket_mount": false,
+    "host_network": false,
+    "privileged_containers": false,
+    "timezone_mounts": false,
+    "healthchecks": ["postgresql", "server", "worker"],
+    "bootstrap_is_one_shot": true,
+    "backup_encryption_required": "age",
+    "restore_confirmation_required": true
+  },
+  "excluded_acceptance": [
+    "real_authentik_login",
+    "real_mfa_enrollment_or_challenge",
+    "real_recovery",
+    "real_synology_restore",
+    "cloudflare_p11",
+    "pi07",
+    "pi08",
+    "live_capital"
+  ],
+  "sources": [
+    "https://docs.goauthentik.io/install-config/install/docker-compose/",
+    "https://docs.goauthentik.io/releases/2026.5/",
+    "https://docs.goauthentik.io/install-config/configuration/"
+  ]
+}

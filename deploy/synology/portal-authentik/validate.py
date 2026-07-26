@@ -10,6 +10,7 @@ import re
 import sys
 from pathlib import Path
 
+
 DIGEST_RE = re.compile(r"@sha256:[0-9a-f]{64}$")
 AUTHENTIK_IMAGE_RE = re.compile(
     r"^docker\.io/authentik/server:2026\.5\.5@sha256:[0-9a-f]{64}$"
@@ -69,12 +70,20 @@ def validate_environment(values: dict[str, str], *, example: bool) -> list[str]:
     authentik_image = values.get("AUTHENTIK_IMAGE", "")
     postgres_image = values.get("POSTGRES_IMAGE", "")
     if not AUTHENTIK_IMAGE_RE.fullmatch(authentik_image):
-        errors.append("AUTHENTIK_IMAGE must pin docker.io/authentik/server:2026.5.5 by full sha256 digest")
+        errors.append(
+            "AUTHENTIK_IMAGE must pin docker.io/authentik/server:2026.5.5 "
+            "by full sha256 digest"
+        )
     if not POSTGRES_IMAGE_RE.fullmatch(postgres_image):
         errors.append(
-            "POSTGRES_IMAGE must pin docker.io/library/postgres:16.13-alpine3.23 by full sha256 digest"
+            "POSTGRES_IMAGE must pin docker.io/library/postgres:16.13-alpine3.23 "
+            "by full sha256 digest"
         )
-    for key, value in (("AUTHENTIK_IMAGE", authentik_image), ("POSTGRES_IMAGE", postgres_image)):
+    image_values = (
+        ("AUTHENTIK_IMAGE", authentik_image),
+        ("POSTGRES_IMAGE", postgres_image),
+    )
+    for key, value in image_values:
         if value and not DIGEST_RE.search(value):
             errors.append(f"{key} is not digest pinned")
 
@@ -84,15 +93,22 @@ def validate_environment(values: dict[str, str], *, example: bool) -> list[str]:
     if not port.isdigit() or not (1024 <= int(port) <= 65535):
         errors.append("AUTHENTIK_HTTP_PORT must be a non-privileged TCP port")
     if values.get("AUTHENTIK_BOOTSTRAP_PASSWORD_HASH", ""):
-        errors.append("AUTHENTIK_BOOTSTRAP_PASSWORD_HASH must be empty in the steady-state env file")
+        errors.append(
+            "AUTHENTIK_BOOTSTRAP_PASSWORD_HASH must be empty in the steady-state env file"
+        )
 
     if not example:
         password = values.get("AUTHENTIK_POSTGRESQL__PASSWORD", "")
         secret_key = values.get("AUTHENTIK_SECRET_KEY", "")
         if has_placeholder(password) or not (32 <= len(password) <= 99):
-            errors.append("AUTHENTIK_POSTGRESQL__PASSWORD must be a non-placeholder 32-99 character value")
+            errors.append(
+                "AUTHENTIK_POSTGRESQL__PASSWORD must be a non-placeholder "
+                "32-99 character value"
+            )
         if has_placeholder(secret_key) or len(secret_key) < 50:
-            errors.append("AUTHENTIK_SECRET_KEY must be a non-placeholder value of at least 50 characters")
+            errors.append(
+                "AUTHENTIK_SECRET_KEY must be a non-placeholder value of at least 50 characters"
+            )
     return errors
 
 
@@ -146,7 +162,10 @@ def validate_portal_identity_example(path: Path) -> list[str]:
         "PORTAL_IDENTITY_SESSION_HMAC_KEY_B64",
         "PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64",
     }
-    errors = [f"portal identity example is missing {key}" for key in sorted(required - values.keys())]
+    errors = [
+        f"portal identity example is missing {key}"
+        for key in sorted(required - values.keys())
+    ]
     if not values.get("PORTAL_IDENTITY_ISSUER", "").startswith("https://"):
         errors.append("PORTAL_IDENTITY_ISSUER must use HTTPS")
     if not values.get("PORTAL_IDENTITY_REDIRECT_URI", "").startswith("https://"):

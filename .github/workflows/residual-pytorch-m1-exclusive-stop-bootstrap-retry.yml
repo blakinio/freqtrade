@@ -45,6 +45,7 @@ jobs:
               dedent(source[start:end]), encoding="utf-8"
           )
           PY
+          sed -i 's/status: active/status: validating/' /tmp/apply-exclusive-stop.py
           python /tmp/apply-exclusive-stop.py
       - name: Validate corrected bounded infrastructure
         shell: bash

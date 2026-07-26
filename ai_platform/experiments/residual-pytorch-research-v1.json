@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "experiment_id": "residual-pytorch-research-v1",
+  "status": "declared_not_executed",
+  "description": "Isolated single-target residual PyTorch research candidate using the frozen strategy and feature/target contract.",
+  "config": "ai_platform/configs/freqai-residual-pytorch-research.example.json",
+  "strategy": "AiFrozenCandidateStrategy",
+  "strategy_path": "ai_platform/strategies",
+  "freqai_model": "ResidualPyTorchRegressor",
+  "freqai_model_path": "ai_platform/freqaimodels",
+  "target": "&-future_return",
+  "target_semantics": "future average close over 12 candles divided by current close minus one",
+  "pairs": [
+    "BTC/USDT",
+    "ETH/USDT"
+  ],
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "fee": 0.002,
+  "baseline_comparators": [
+    "LightGBMRegressor",
+    "SeededPyTorchMLPRegressor"
+  ],
+  "execution_timerange": null,
+  "download_timerange": null,
+  "run_request": null,
+  "strict_oos": false,
+  "protected_final_validation": false,
+  "phase6_candidate": false,
+  "automatic_promotion": false,
+  "output_root": "ai_platform/artifacts/experimental-model-research/residual-pytorch"
+}

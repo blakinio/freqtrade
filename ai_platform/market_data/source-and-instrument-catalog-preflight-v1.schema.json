@@ -1,0 +1,330 @@
+{
+  "$defs": {
+    "mapping": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "base_asset": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "contract_value": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contract_value_unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expires_at_ms": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "listed_at_ms": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "quantity_step": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "quote_asset": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "settlement_asset": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "ready_with_rule",
+            "blocked"
+          ]
+        },
+        "tick_size": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "unresolved": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "status",
+        "base_asset",
+        "quote_asset",
+        "settlement_asset",
+        "contract_value",
+        "contract_value_unit",
+        "tick_size",
+        "quantity_step",
+        "active",
+        "listed_at_ms",
+        "expires_at_ms",
+        "unresolved"
+      ],
+      "type": "object"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "catalog_endpoint": {
+          "pattern": "^https://",
+          "type": "string"
+        },
+        "constraints": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "decision": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "exchange": {
+          "enum": [
+            "binance",
+            "bybit",
+            "okx"
+          ]
+        },
+        "mapping": {
+          "$ref": "#/$defs/mapping"
+        },
+        "market_types": {
+          "items": {
+            "enum": [
+              "spot",
+              "perpetual",
+              "dated_future"
+            ]
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "official_docs": {
+          "items": {
+            "pattern": "^https://",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "pagination": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sample_evidence": {
+          "const": "official_documentation_example"
+        },
+        "source_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "websocket_endpoint": {
+          "pattern": "^wss://",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "exchange",
+        "market_types",
+        "catalog_endpoint",
+        "pagination",
+        "websocket_endpoint",
+        "constraints",
+        "mapping",
+        "sample_evidence",
+        "decision",
+        "official_docs"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://blakinio.github.io/freqtrade/ai-platform/market-data/source-and-instrument-catalog-preflight-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "boundaries": {
+      "additionalProperties": false,
+      "properties": {
+        "accounts": {
+          "const": false
+        },
+        "adapters_included": {
+          "const": false
+        },
+        "broad_capture": {
+          "const": false
+        },
+        "credentials": {
+          "const": false
+        },
+        "live_requests": {
+          "const": false
+        },
+        "orders": {
+          "const": false
+        },
+        "public_only": {
+          "const": true
+        },
+        "raw_records": {
+          "const": false
+        },
+        "source_acceptance": {
+          "const": false
+        }
+      },
+      "required": [
+        "public_only",
+        "credentials",
+        "orders",
+        "accounts",
+        "live_requests",
+        "raw_records",
+        "broad_capture",
+        "source_acceptance",
+        "adapters_included"
+      ],
+      "type": "object"
+    },
+    "classification": {
+      "const": "current_official_documentation_preflight_no_live_capture"
+    },
+    "decision": {
+      "additionalProperties": false,
+      "properties": {
+        "blocked": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "ready": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "status": {
+          "const": "partial_pass"
+        }
+      },
+      "required": [
+        "status",
+        "ready",
+        "blocked"
+      ],
+      "type": "object"
+    },
+    "document_id": {
+      "const": "market-data-source-instrument-preflight-v1"
+    },
+    "document_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "foundation_catalog": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "const": "ai_platform/market_data/source-catalog-v1.json"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "version": {
+          "const": "market-data-source-catalog-v1"
+        }
+      },
+      "required": [
+        "path",
+        "version",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "next_package": {
+      "additionalProperties": false,
+      "properties": {
+        "broad_capture": {
+          "const": false
+        },
+        "name": {
+          "const": "bounded_instrument_snapshot_adapters_v1"
+        },
+        "scope": {
+          "const": "ready_sources_only_binance_usdm_fail_closed"
+        }
+      },
+      "required": [
+        "name",
+        "scope",
+        "broad_capture"
+      ],
+      "type": "object"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/source"
+      },
+      "maxItems": 6,
+      "minItems": 6,
+      "type": "array"
+    },
+    "verified_at": {
+      "format": "date-time",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "document_id",
+    "verified_at",
+    "classification",
+    "foundation_catalog",
+    "boundaries",
+    "decision",
+    "sources",
+    "next_package",
+    "document_sha256"
+  ],
+  "title": "Market Data source and instrument catalog preflight v1",
+  "type": "object"
+}

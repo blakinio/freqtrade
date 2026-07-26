@@ -6,7 +6,6 @@ on:
       - develop
     paths:
       - .github/workflows/liquid20-h0-public-sample-preflight.yml
-      - .github/scripts/liquid20_h0_public_sample_preflight.py
 
 permissions:
   contents: read
@@ -16,9 +15,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
       - name: Download and inspect public metadata and samples
         shell: bash
-        run: python .github/scripts/liquid20_h0_public_sample_preflight.py
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-all-errors \
+            https://raw.githubusercontent.com/blakinio/freqtrade/c996cf18fe2e5eaa1babd83ee7ff6b18efb76f7e/.github/scripts/liquid20_h0_public_sample_preflight.py \
+            -o /tmp/liquid20_h0_public_sample_preflight.py
+          python /tmp/liquid20_h0_public_sample_preflight.py

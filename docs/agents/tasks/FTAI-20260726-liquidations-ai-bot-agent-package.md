@@ -5,7 +5,7 @@ branch: docs/liquidations-ai-bot-agent-package-20260726
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: null
+related_pr: "#335"
 owned_paths:
   - docs/ai_platform/portal/LIQUIDATIONS_AI_BOT_IMPLEMENTATION_BLUEPRINT.md
   - docs/ai_platform/portal/liquidations-ai-bot-artifact-contracts-v1.json
@@ -40,10 +40,10 @@ Create a practical continuation package for future agents: target repository lay
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T10:05:00+02:00
-head: c937633fad9b766702be272cee04e8f7eaa31aa8
+updated_at: 2026-07-26T10:12:00+02:00
+head: acc37e8a9ea8849a74fcdc5399f85478765eaf8d
 branch: docs/liquidations-ai-bot-agent-package-20260726
-pr: null
+pr: 335
 status: reviewing
 context_routes:
   - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
@@ -60,7 +60,8 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260726-liquidations-ai-bot-agent-package.md
 proven:
   - develop HEAD at declaration was bff49117b6572a065527ba75127c9aa938bf3119.
-  - Open PR #334 owns only docs/agents/tasks/FTAI-20260726-portal-pi06-identity-decision.md and does not overlap this package.
+  - PR #334 later merged as 6fc43760317c1c40388659e0d30cbf4a2489af3c and changed only the disjoint PI-06 identity-decision task path.
+  - PR #335 is open against current develop and is mergeable with no owned-path conflict.
   - The canonical architecture and machine-readable v1 architecture manifest already exist on develop.
   - Existing code provides canonical LiquidationEvent, deterministic source event identity, conservative candle alignment and a pure counter-trade signal-policy foundation.
   - Existing collection packages provide Bybit, Binance, data-only staging, liquid20-v1 universe, multi-source acceptance and Synology collector deployment.
@@ -74,7 +75,7 @@ derived:
 unknown:
   - Current mutable Synology collector image, newest run and newest completed acceptance result.
   - Whether valid versioned candle evidence currently exists for an accepted interval.
-  - Exact CI outcome for this documentation package.
+  - Exact current-head CI outcome for PR #335.
 conflicts: []
 first_failure: null
 rejected_hypotheses:
@@ -99,5 +100,5 @@ validation:
     result: PASS
     evidence: Artifact manifest and all examples contain no comments or trailing commas.
 blockers: []
-next_action: Open a documentation PR against develop, require exact-head pre-commit, documentation, AI Platform CI, Freqtrade CI and zizmor, then close this task with the merge SHA.
+next_action: Require exact-current-head pre-commit, documentation, AI Platform CI, Freqtrade CI and zizmor for PR #335, then squash-merge and close this task with the merge SHA.
 ```

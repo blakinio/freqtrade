@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260726-liquidations-ai-bot-agent-package
-status: reviewing
-branch: docs/liquidations-ai-bot-agent-package-20260726
+status: done
+branch: develop
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
@@ -40,42 +40,30 @@ Create a practical continuation package for future agents: target repository lay
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T10:12:00+02:00
-head: acc37e8a9ea8849a74fcdc5399f85478765eaf8d
-branch: docs/liquidations-ai-bot-agent-package-20260726
+updated_at: 2026-07-26T10:25:00+02:00
+head: d1e728690fb74b346f1ffe61265281feab810e6b
+branch: develop
 pr: 335
-status: reviewing
+status: done
 context_routes:
   - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
   - docs/ai_platform/portal/LIQUIDATIONS_AI_BOT_IMPLEMENTATION_BLUEPRINT.md
   - docs/ai_platform/portal/liquidations-ai-bot-artifact-contracts-v1.json
   - docs/agents/prompts/FTAI_LIQUIDATIONS_AI_BOT_NEXT_AGENT.md
-owned_paths:
-  - docs/ai_platform/portal/LIQUIDATIONS_AI_BOT_IMPLEMENTATION_BLUEPRINT.md
-  - docs/ai_platform/portal/liquidations-ai-bot-artifact-contracts-v1.json
-  - docs/ai_platform/portal/examples/liquidations-dataset-selection-v1.example.json
-  - docs/ai_platform/portal/examples/liquidations-replay-request-v1.example.json
-  - docs/ai_platform/portal/examples/liquidations-decision-snapshot-v1.example.json
-  - docs/agents/prompts/FTAI_LIQUIDATIONS_AI_BOT_NEXT_AGENT.md
-  - docs/agents/tasks/FTAI-20260726-liquidations-ai-bot-agent-package.md
 proven:
-  - develop HEAD at declaration was bff49117b6572a065527ba75127c9aa938bf3119.
-  - PR #334 later merged as 6fc43760317c1c40388659e0d30cbf4a2489af3c and changed only the disjoint PI-06 identity-decision task path.
-  - PR #335 is open against current develop and is mergeable with no owned-path conflict.
-  - The canonical architecture and machine-readable v1 architecture manifest already exist on develop.
-  - Existing code provides canonical LiquidationEvent, deterministic source event identity, conservative candle alignment and a pure counter-trade signal-policy foundation.
-  - Existing collection packages provide Bybit, Binance, data-only staging, liquid20-v1 universe, multi-source acceptance and Synology collector deployment.
-  - The new blueprint maps LQ-02 through LQ-07 into bounded paths and explicitly prevents one-PR implementation of the entire future tree.
-  - The artifact manifest defines DatasetSelectionManifest, ReplayRequest, ReplayEvidenceReport, DecisionSnapshot, SignalObservationReport, ModelCandidateEvidence and ApprovedDryRunIntent.
-  - Three valid JSON examples provide dataset-selection, replay-request and decision-snapshot starting structures.
-  - The next-agent prompt starts with LQ-02 and contains explicit stop conditions when accepted data or versioned candles are absent.
+  - PR #335 squash-merged to develop as d1e728690fb74b346f1ffe61265281feab810e6b.
+  - The package adds a dependency-ordered implementation blueprint for LQ-02 through LQ-07 without creating the future code tree prematurely.
+  - The machine-readable artifact manifest defines DatasetSelectionManifest, ReplayRequest, ReplayEvidenceReport, DecisionSnapshot, SignalObservationReport, ModelCandidateEvidence and ApprovedDryRunIntent.
+  - Valid JSON examples exist for dataset selection, replay request and decision snapshot.
+  - The ready-to-paste next-agent prompt starts only LQ-02 accepted dataset selection and contains explicit stop conditions for missing accepted evidence or versioned candles.
+  - Existing canonical LiquidationEvent, deterministic event identity, conservative alignment, pure counter-trade policy, source adapters, acceptance contracts and read-only portal boundaries remain unchanged.
+  - Exact PR head 4a2fe259bee5af91cc3639d54758798642db6d50 passed AI Platform CI 30193517992, Freqtrade CI 30193517927, pre-commit, documentation build, CI Gate and zizmor 30193518002.
 derived:
-  - Future agents no longer need to infer file placement, artifact identities or the first legal package from dispersed documents.
-  - The next legal implementation remains dataset selection; replay, strategy, AI and execution stay gated.
+  - Future agents have one practical file map and artifact vocabulary instead of reconstructing them from dispersed documents.
+  - Replay, strategy, AI and execution remain gated behind accepted immutable data and versioned candle evidence.
 unknown:
   - Current mutable Synology collector image, newest run and newest completed acceptance result.
   - Whether valid versioned candle evidence currently exists for an accepted interval.
-  - Exact current-head CI outcome for PR #335.
 conflicts: []
 first_failure: null
 rejected_hypotheses:
@@ -93,12 +81,18 @@ changed_paths:
   - docs/agents/prompts/FTAI_LIQUIDATIONS_AI_BOT_NEXT_AGENT.md
   - docs/agents/tasks/FTAI-20260726-liquidations-ai-bot-agent-package.md
 validation:
-  - command: live repository and path-ownership preflight
+  - command: AI Platform CI run 30193517992 on head 4a2fe259bee5af91cc3639d54758798642db6d50
     result: PASS
-    evidence: develop head, AGENTS.md, CONTEXT_HANDOFF.md, canonical architecture, current manifest, existing liquidation contracts and open PR ownership were inspected before writing.
-  - command: manual strict-JSON structure review
+    evidence: AI Platform tests, lint, format, codespell and JSON validation completed successfully.
+  - command: Freqtrade CI run 30193517927 on head 4a2fe259bee5af91cc3639d54758798642db6d50
     result: PASS
-    evidence: Artifact manifest and all examples contain no comments or trailing commas.
+    evidence: Scope classification, pre-commit, documentation build and CI Gate passed; unrelated core jobs were correctly skipped for documentation-only scope.
+  - command: GitHub Actions Security Analysis run 30193518002 on head 4a2fe259bee5af91cc3639d54758798642db6d50
+    result: PASS
+    evidence: Zizmor completed successfully.
+  - command: PR #335 review state
+    result: PASS
+    evidence: No inline review threads remained before squash merge.
 blockers: []
-next_action: Require exact-current-head pre-commit, documentation, AI Platform CI, Freqtrade CI and zizmor for PR #335, then squash-merge and close this task with the merge SHA.
+next_action: Start LQ-02 only after a fresh develop/open-PR/runtime preflight; require a completed Liquid20 report with explicit passed true and valid versioned candle evidence, otherwise record the exact blocker and do not start replay.
 ```

@@ -1,0 +1,43 @@
+name: Liquid20 H2 Pre-commit Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-h2-precommit-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Run pre-commit and print concise failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir source
+          curl --fail --silent --show-error --location \
+            https://api.github.com/repos/blakinio/freqtrade/tarball/769fef45e01ab493d526b3c16f2cf384b1756586 \
+            | tar --extract --gzip --strip-components=1 --directory=source
+          (
+            cd source
+            git init --quiet
+            git config user.name ci
+            git config user.email ci@example.invalid
+            git add --all
+            git commit --quiet --message snapshot
+          )
+          python -m pip install --quiet pre-commit
+          set +e
+          (
+            cd source
+            pre-commit run --all-files
+          ) > /tmp/precommit.log 2>&1
+          rc=$?
+          set -e
+          tail --lines=160 /tmp/precommit.log
+          exit "$rc"

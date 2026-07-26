@@ -23,7 +23,7 @@ Repository and merged-task evidence override stale status sentences. Chat histor
 
 ## 3. Verified program snapshot
 
-Snapshot date: `2026-07-25`.
+Snapshot date: `2026-07-26`.
 
 ### Roadmap stages
 
@@ -46,33 +46,33 @@ Snapshot date: `2026-07-25`.
 
 The concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. Deterministic simulator execution is not evidence of private Freqtrade order submission.
 
-## 4. Known product gaps that remain software-addressable
+## 4. Product completion packages
 
-### 4.1 Bot Operations convergence
+### 4.1 Bot Operations convergence — complete
 
-The backend already exposes:
+Task `FTAI-20260726-portal-bot-operations-completion` and PR #320 complete the software-addressable bot operations workflow by composing existing backend contracts:
 
 - `GET /v1/bots/{bot_id}`;
 - `POST /v1/bots/{bot_id}/revisions` for immutable configuration revision;
 - `POST /v1/bots/{bot_id}/desired-state` for capability-gated desired lifecycle state;
 - canonical operations, valuation, risk, telemetry, runtime-observability and audit reads.
 
-The current web client and bot pages do not provide a complete bot-scoped operations workflow. The bot fleet and detail surfaces need to converge existing canonical evidence instead of forcing users to navigate unrelated global tables.
-
-Missing or incomplete behavior includes:
+Delivered behavior includes:
 
 - fleet columns for open-position count, realized/unrealized PNL state, risk state, runtime health and last attributable activity;
 - environment, status, exchange, strategy, model, market and risk filters;
 - bot-scoped positions, orders, trades, valuations, risk decisions, runtime logs and audit evidence;
 - browser/BFF support for immutable revision creation;
-- browser/BFF support for desired-state changes with permission, confirmation, conflict and unavailable states;
-- explicit separation of runtime lifecycle controls from trade execution authority.
+- browser/BFF support for desired-state changes with permission, confirmation, conflict, stale-state and unavailable behavior;
+- explicit separation of runtime lifecycle controls from trade execution authority;
+- bounded server-side composition rather than unbounded browser N+1 calls;
+- regression coverage for immutable revision, desired-state idempotency, conflict handling and fail-closed valuation attribution.
 
-This is the recommended next autonomous portal product package because the required backend contracts already exist and the work can remain independent of exchange credentials, PI-08 and live capital.
+The package does not implement credential brokering, PI-08 order submission, external notification delivery, P11 infrastructure or live capital.
 
 ### 4.2 External and owner-gated integrations
 
-The following are not ordinary UI repair tasks:
+The following are not ordinary autonomous UI repair tasks:
 
 - real product identity/MFA/session lifecycle requires the PI-06 owner decision;
 - email/webhook/push delivery requires the PI-05 provider and destination policy decision;
@@ -85,36 +85,28 @@ The following are not ordinary UI repair tasks:
 
 Repository-side PI-04 contracts are complete, but a real Loki/Tempo/Prometheus-compatible target environment, retention policy, dashboards and credentials are deployment-owned. UI and API mode must report `UNAVAILABLE` when these sources are not configured; they must not fabricate successful empty results.
 
-## 5. Recommended next bounded task
+## 5. Completed Bot Operations task record
 
-Recommended task ID:
+Completed task ID:
 
-`FTAI-YYYYMMDD-portal-bot-operations-completion`
+`FTAI-20260726-portal-bot-operations-completion`
 
 ### Goal
 
 Turn the bot fleet and Bot Detail routes into the primary tenant-scoped operational workflow by composing existing canonical APIs and exposing existing immutable-revision and desired-state mutations safely.
 
-### Required preflight
-
-- inspect current `develop`, open portal PRs and active task ownership;
-- verify no active PR owns the selected bot web/BFF paths;
-- read `UI_INFORMATION_ARCHITECTURE.md`, `UI_DELIVERY_STATUS.md`, security architecture and the control-plane bot API contracts;
-- confirm current permissions for bot read, revision and desired-state mutations;
-- declare exact owned paths before editing shared web contracts.
-
-### Deliverables
+### Delivered acceptance
 
 1. Bot fleet enrichment from existing canonical read models without N+1 unbounded browser calls.
 2. Bot-scoped detail sections for configuration, runtime state, positions, orders, trades, valuation, risk, observability and audit evidence.
 3. Immutable-revision form using `POST /v1/bots/{bot_id}/revisions`.
-4. Start/pause/stop or equivalent desired-state controls using `POST /v1/bots/{bot_id}/desired-state`.
-5. Permission-denied, conflict, stale, partial, unavailable, empty, loading and mutation-pending states.
+4. Start/pause/stop desired-state controls using `POST /v1/bots/{bot_id}/desired-state`.
+5. Permission-denied, conflict, stale, partial, unavailable, empty and mutation-pending states.
 6. Confirmation and idempotency behavior for lifecycle changes.
-7. Targeted backend contract tests where aggregation changes are introduced, plus TypeScript, build and Chromium E2E coverage.
-8. Documentation updates to `UI_DELIVERY_STATUS.md` and this plan.
+7. TypeScript, lint, production build, Chromium E2E, AI Platform, security and repository CI validation on the final implementation head.
+8. Documentation updates to `UI_DELIVERY_STATUS.md`, the program record and this plan.
 
-### Acceptance criteria
+### Preserved boundaries
 
 - browser clients communicate only with portal/BFF routes and receive no private runtime endpoint or credential;
 - every bot-scoped row is tenant and bot attributed;
@@ -123,31 +115,19 @@ Turn the bot fleet and Bot Detail routes into the primary tenant-scoped operatio
 - desired-state mutation is capability-gated and produces attributable audit evidence;
 - lifecycle controls do not call exchange order endpoints and do not implement PI-08;
 - no live-capital state is introduced;
-- required portal web, AI Platform, universal E2E, security and repository CI pass on the exact final head.
-
-### Non-goals
-
-- implementing `submit_approved_intent`;
-- exchange credential storage or injection;
-- external notification delivery;
-- selecting an IdP;
-- real Cloudflare provisioning;
-- P13 service extraction;
-- P14 or live capital;
-- changing frozen thresholds, Phase 6 evidence or protected holdout policy.
+- frozen thresholds, Phase 6 evidence and protected holdout policy remain unchanged.
 
 ## 6. Dependency-ordered continuation after Bot Operations
 
 Unless live repository evidence changes the order:
 
-1. complete Bot Operations convergence;
-2. obtain and record the PI-06 identity/IdP decision, then implement PI-06 as a separate package;
-3. implement PI-05 one external channel at a time after provider and privacy decisions;
-4. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
-5. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
-6. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
-7. keep P13 deferred until measured bottleneck/SLO evidence exists;
-8. keep P14 blocked until separately authorized.
+1. obtain and record the PI-06 identity/IdP decision, then implement PI-06 as a separate package;
+2. implement PI-05 one external channel at a time after provider and privacy decisions;
+3. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
+4. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
+5. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
+6. keep P13 deferred until measured bottleneck/SLO evidence exists;
+7. keep P14 blocked until separately authorized.
 
 Liquid20 and other read-only feature integrations may proceed in parallel only with disjoint paths and explicit task ownership. They must not silently change the core execution, credential, P11 or live-capital gates.
 
@@ -180,4 +160,4 @@ Stop and record a blocker instead of improvising when:
 
 ## 9. Current next action
 
-Declare and execute the separate Bot Operations completion task after a fresh path-ownership check. Keep PI-05 through PI-08, P11, P13 and P14 behind their existing decisions and gates.
+No further core portal integration package is autonomously authorized by the current repository state. The next dependency-ordered action is an owner/product decision for PI-06 covering the product IdP, tenant-membership source, session, MFA, recovery and revocation policy. PI-05, PI-07, PI-08, P11 and P14 remain behind their explicit provider, security, infrastructure or capital gates; P13 remains deferred.

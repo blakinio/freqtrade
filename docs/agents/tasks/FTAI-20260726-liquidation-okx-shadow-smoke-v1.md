@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-liquidation-okx-shadow-smoke-v1
-status: validating
+status: ready
 branch: docs/okx-shadow-smoke-evidence-publication
 base_branch: develop
 created: 2026-07-26
@@ -33,11 +33,11 @@ The isolated, public and credential-free OKX transport smoke completed successfu
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T23:18:00+02:00
-head: c0b584b0a0317b8cefe12540b77f5ca0a2214cf9
+updated_at: 2026-07-26T23:32:00+02:00
+head: 9c302435aa42717b43cdf70eff9ea9b4e5eec3f3
 branch: docs/okx-shadow-smoke-evidence-publication
 pr: "#394"
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SOURCE.md
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_SMOKE.md
@@ -56,19 +56,19 @@ proven:
   - Independent verification reproduced five checksum entries, both self-hashes and all 57 passing gates.
   - The two-minute smoke had synchronized clocks, exact BTCUSDT/ETHUSDT metadata, no credentials, zero orders and zero accepted events permitted by policy.
   - PR 394 publishes exactly five durable evidence and coherence files without the raw event file.
-  - Publication head 800e0e644dcc024b0fb6eec30ba0cf6085a8b42d passed AI Platform CI 30217949701, Freqtrade CI 30217949666 and zizmor 30217949672.
-  - Current develop 83c836f32904d8fb201b59ae4dc74c6946cdc91e changed only unrelated residual-PyTorch paths.
-  - The publication branch was rebuilt from current develop and the five publication files were restored without a file conflict at content head c0b584b0a0317b8cefe12540b77f5ca0a2214cf9.
+  - The publication branch was rebuilt from current develop 83c836f32904d8fb201b59ae4dc74c6946cdc91e without a file conflict and is zero commits behind.
+  - Reconciled head 9c302435aa42717b43cdf70eff9ea9b4e5eec3f3 passed AI Platform CI 30220449132, Freqtrade CI 30220449119 and zizmor 30220449126.
 derived:
-  - The original behind-develop blocker is resolved at the file-content level.
+  - The evidence publication is complete and reconciled with current develop.
   - The successful short smoke does not establish representative activity or long-run source acceptance.
   - A separate prospectively frozen long-run acceptance task remains required before any Liquid20 membership or research authorization.
 unknown:
-  - Final exact-head CI outcome for the reconciled publication branch.
+  - Representative OKX liquidation-event yield over a long declared interval.
+  - Event latency, duplicate and parser behavior when accepted liquidation events are observed.
 conflicts: []
 first_failure:
-  marker: reconciled-publication-ci-pending
-  evidence: The branch is reconciled with current develop, but required exact-head CI has not reached a terminal result.
+  marker: long-run-okx-acceptance-not-executed
+  evidence: The successful two-minute transport smoke is not a prospectively declared long-run source acceptance run.
 rejected_hypotheses:
   - Add OKX directly to liquid20-v1 after the short smoke.
   - Treat two received liquidation messages as accepted normalized events.
@@ -87,13 +87,12 @@ validation:
   - command: independent archive and evidence verification
     result: PASS
     evidence: Archive hash, five checksums, both self-hashes and all 57 gates reproduced exactly.
-  - command: previous exact-head publication repository CI
+  - command: exact-head publication repository CI after develop reconciliation
     result: PASS
-    evidence: AI Platform CI 30217949701, Freqtrade CI 30217949666 and zizmor 30217949672 passed on 800e0e644dcc024b0fb6eec30ba0cf6085a8b42d before develop advanced.
-  - command: reconciled exact-head publication repository CI
-    result: NOT_RUN
-    evidence: Required checks must complete on the reconciled publication head.
-blockers:
-  - Exact-head AI Platform CI, Freqtrade CI and zizmor must pass before PR 394 can merge.
-next_action: Verify exact-head CI for the reconciled publication head and merge PR 394 only if all required checks pass.
+    evidence: AI Platform CI 30220449132, Freqtrade CI 30220449119 and zizmor 30220449126 passed on 9c302435aa42717b43cdf70eff9ea9b4e5eec3f3.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-liquidation-okx-shadow-smoke-v1.md --require-checkpoint
+    result: PASS
+    evidence: AI Platform CI validated the compact checkpoint against GOVERNANCE_CONTRACT.json on reconciled head 9c302435aa42717b43cdf70eff9ea9b4e5eec3f3.
+blockers: []
+next_action: Create a separate prospective OKX long-run acceptance policy and execution task; keep OKX outside liquid20-v1 and do not authorize performance research, replay, model work or trading unless that acceptance passes.
 ```

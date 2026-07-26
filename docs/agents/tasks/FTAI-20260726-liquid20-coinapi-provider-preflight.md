@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-liquid20-coinapi-provider-preflight
-status: in_progress
+status: completed
 branch: feat/liquid20-coinapi-provider-preflight
 base_branch: develop
 created: 2026-07-26
@@ -18,7 +18,7 @@ required_reads:
   - docs/ai_platform/LIQUID20_HISTORICAL_PROVIDER_PREFLIGHT.md
   - docs/agents/tasks/FTAI-20260726-liquid20-historical-ai-training.md
 search_first:
-  - current develop HEAD, PR 349 and exact-head CI
+  - current develop HEAD and any later approved CoinAPI aggregate-source task
   - current CoinAPI Metrics V1 historical and metadata contracts
 optional_reads: []
 ---
@@ -37,11 +37,12 @@ CoinAPI is rejected as a Tardis event-level replacement because its documented h
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T09:40:00Z
-head: 6f2869ab27ad0a25813778121156402211fd428b
+updated_at: 2026-07-26T09:58:00Z
+head: 0d46ae488a51ffff009e22af149bddc982fa46c8
+merge_commit: c1e1e8c00b55feccce4cd58451efa526eed8719a
 branch: feat/liquid20-coinapi-provider-preflight
 pr: "#349"
-status: in_progress
+status: completed
 context_routes:
   - docs/ai_platform/LIQUID20_COINAPI_PROVIDER_PREFLIGHT.md
   - ai_platform/research/liquidations/historical/liquid20-coinapi-provider-preflight-v1.json
@@ -57,6 +58,8 @@ proven:
   - The Metrics V1 historical symbol endpoint requires authentication, defaults to 1SEC buckets and returns first/last/min/max/count/sum bucket fields.
   - The historical response contract omits entry_time, recv_time and an event identifier; the current endpoint documents entry_time and recv_time separately.
   - Public sample placeholder probe returned HTTP 401 JSON error in workflow run 30196686123 job 89779333914 and emitted no raw records.
+  - PR 349 merged exact implementation head 0d46ae488a51ffff009e22af149bddc982fa46c8 as c1e1e8c00b55feccce4cd58451efa526eed8719a.
+  - Exact-head AI Platform CI 30196922991, Freqtrade CI 30196922989 including CI Gate, and zizmor 30196922994 completed successfully.
   - No private credential, purchase, bulk download, importer, training, backtest, live collector change or protected-holdout access occurred.
 derived:
   - Separate historical metric series cannot be represented as joined liquidation events without fabricating identity or pairings.
@@ -66,7 +69,7 @@ derived:
 unknown:
   - Exact authenticated live metric listing for all four target symbols.
   - Earliest available history for each target symbol.
-  - Exact CoinAPI license, retention, redistribution and cost terms for this request.
+  - Exact CoinAPI license, retention, redistribution and cost terms for an optional aggregate-source request.
 conflicts: []
 first_failure:
   marker: historical-event-provenance-contract-mismatch
@@ -86,9 +89,12 @@ validation:
   - command: GitHub Actions CoinAPI public sample probe
     result: PASS
     evidence: Run 30196686123 job 89779333914 returned HTTP 401 with a JSON error object and no raw market records.
-  - command: Draft 2020-12 schema construction and contract validation
+  - command: Draft 2020-12 schema and focused CoinAPI preflight tests
     result: PASS
-    evidence: The CoinAPI preflight contract validates against coinapi-provider-preflight-v1.schema.json.
+    evidence: AI Platform CI run 30196922991 compiled sources, validated JSON, ran tests, Ruff, format and codespell successfully.
+  - command: Exact-head repository CI for 0d46ae488a51ffff009e22af149bddc982fa46c8
+    result: PASS
+    evidence: Freqtrade CI run 30196922989 passed pre-commit, documentation, Python 3.11-3.14 matrices, coverage, package build and CI Gate; zizmor run 30196922994 passed.
 blockers: []
-next_action: Remove the temporary diagnostic workflow, run exact-head repository validation, and merge PR 349 if CI and review are clean.
+next_action: Do not purchase CoinAPI as an event-level replacement; declare a separate aggregate-feature trial only if the owner explicitly approves that scope.
 ```

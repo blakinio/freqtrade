@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import type { CreateGridBotConfigRequest } from "@/lib/product-contracts";
+import {
+  forwardControlPlaneMutation,
+  identityErrorResponse,
+  requireBrowserMutation,
+  requireBrowserSession,
+} from "@/lib/identity";
+import type { CreateGridBotConfigRequest, GridBotConfig } from "@/lib/product-contracts";
 import { createGridBotConfig, listGridBotConfigs } from "@/lib/product-api";
-import { PortalApiConfigurationError, PortalApiResponseError } from "@/lib/portal-api";
+import {
+  dataMode,
+  PortalApiConfigurationError,
+  PortalApiResponseError,
+} from "@/lib/portal-api";
 
 function errorResponse(error: unknown) {
+  const identityResponse = identityErrorResponse(error);
+  if (identityResponse) return identityResponse;
   if (error instanceof PortalApiResponseError) {
     return NextResponse.json({ detail: error.message }, { status: error.status });
   }
@@ -32,6 +44,7 @@ function validRequest(value: unknown): value is CreateGridBotConfigRequest {
 
 export async function GET(request: NextRequest) {
   try {
+    requireBrowserSession(request);
     return NextResponse.json(await listGridBotConfigs(request.headers.get("cookie")));
   } catch (error) {
     return errorResponse(error);
@@ -40,14 +53,21 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    requireBrowserMutation(request);
     const payload: unknown = await request.json();
     if (!validRequest(payload)) {
       return NextResponse.json({ detail: "Invalid dry-run grid configuration" }, { status: 422 });
     }
-    return NextResponse.json(
-      await createGridBotConfig(payload, request.headers.get("cookie")),
-      { status: 201 },
-    );
+    const grid =
+      dataMode() === "fixture"
+        ? await createGridBotConfig(payload, request.headers.get("cookie"))
+        : await forwardControlPlaneMutation<GridBotConfig>(
+            request,
+            "/v1/grid-bots",
+            "POST",
+            payload,
+          );
+    return NextResponse.json(grid, { status: 201 });
   } catch (error) {
     return errorResponse(error);
   }

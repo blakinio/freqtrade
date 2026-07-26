@@ -252,7 +252,7 @@ def _instrument_snapshot_hash(instruments: tuple[InstrumentSnapshot, ...]) -> st
     return canonical_sha256(ordered)
 
 
-def select_universe(  # noqa: C901
+def select_universe(
     *,
     instruments: tuple[InstrumentSnapshot, ...],
     metrics: tuple[MetricSnapshot, ...],

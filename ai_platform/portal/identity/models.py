@@ -17,12 +17,8 @@ class IdentityPrincipalRow(Base):
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("issuer", "subject", name="uq_portal_identity_issuer_subject"),
@@ -40,15 +36,9 @@ class TenantMembershipRow(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     membership_version: Mapped[int] = mapped_column(Integer, nullable=False)
     valid_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    valid_until: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
         UniqueConstraint(
@@ -70,25 +60,13 @@ class PortalSessionRow(Base):
     membership_id: Mapped[str] = mapped_column(String(36), nullable=False)
     membership_version: Mapped[int] = mapped_column(Integer, nullable=False)
     idp_session_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    authentication_time: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    authentication_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     mfa_satisfied: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    last_seen_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    idle_expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    absolute_expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    revoked_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    idle_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    absolute_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     revocation_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     __table_args__ = (
@@ -104,23 +82,13 @@ class OidcLoginFlowRow(Base):
     state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     nonce: Mapped[str] = mapped_column(String(255), nullable=False)
     verifier_ciphertext: Mapped[str] = mapped_column(Text, nullable=False)
-    requested_tenant_id: Mapped[str | None] = mapped_column(
-        String(255), nullable=True
-    )
+    requested_tenant_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     return_to: Mapped[str] = mapped_column(String(2048), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
-    consumed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    __table_args__ = (
-        Index("ix_portal_oidc_flow_expiry", "expires_at", "consumed_at"),
-    )
+    __table_args__ = (Index("ix_portal_oidc_flow_expiry", "expires_at", "consumed_at"),)
 
 
 class SessionRevocationRow(Base):
@@ -132,14 +100,10 @@ class SessionRevocationRow(Base):
     idp_session_id: Mapped[str | None] = mapped_column(String(512), nullable=True)
     actor_id: Mapped[str] = mapped_column(String(255), nullable=False)
     reason: Mapped[str] = mapped_column(String(255), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     correlation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
-    __table_args__ = (
-        Index("ix_portal_revocation_principal_time", "principal_id", "occurred_at"),
-    )
+    __table_args__ = (Index("ix_portal_revocation_principal_time", "principal_id", "occurred_at"),)
 
 
 class IdentityAuditEventRow(Base):
@@ -153,9 +117,7 @@ class IdentityAuditEventRow(Base):
     membership_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     result: Mapped[str] = mapped_column(String(32), nullable=False)
     reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    occurred_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     correlation_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
 
     __table_args__ = (

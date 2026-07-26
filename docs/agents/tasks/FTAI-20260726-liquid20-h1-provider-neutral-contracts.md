@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-liquid20-h1-provider-neutral-contracts
-status: in_progress
+status: completed
 branch: feat/liquid20-h1-provider-neutral-contracts
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: pending
+related_pr: "#360"
 owned_paths:
   - ai_platform/research/liquidations/historical/
   - tests/ai_platform_integration/test_liquidation_history_contracts.py
@@ -31,11 +31,12 @@ Implement the provider-neutral historical event, manifest, semantic-era, accepta
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T11:30:00Z
-head: pending
+updated_at: 2026-07-26T12:05:00Z
+head: e2def4e06822b2f933fdeaadb66df96afcef0e24
+merge_commit: cc30499eb843de7f611c7e81e6484c054881f417
 branch: feat/liquid20-h1-provider-neutral-contracts
-pr: pending
-status: in_progress
+pr: "#360"
+status: completed
 context_routes:
   - docs/ai_platform/LIQUID20_HISTORICAL_CONTRACTS.md
   - docs/ai_platform/LIQUID20_HISTORICAL_AI_TRAINING_ARCHITECTURE.md
@@ -45,10 +46,16 @@ owned_paths:
   - docs/ai_platform/LIQUID20_HISTORICAL_CONTRACTS.md
   - docs/agents/tasks/FTAI-20260726-liquid20-h1-provider-neutral-contracts.md
 proven:
-  - H0 and the CoinAPI authenticated trial are merged and leave H1/H2 as the autonomous next action.
+  - H0 and the CoinAPI authenticated trial are merged.
+  - Historical events preserve provider occurrence and availability provenance without populating first-party received_at_ms.
+  - Deterministic event, manifest and acceptance identities are implemented with Draft 2020-12 schemas.
+  - Explicit Tardis and first-party semantic eras are frozen while the 2025-02-20 through 2025-02-25 Bybit interval remains unresolved.
+  - Protected final holdout overlap, negative provider latency, semantic-era mismatch and duplicate fingerprints fail closed.
+  - PR 360 merged as cc30499eb843de7f611c7e81e6484c054881f417.
 derived:
-  - H1 can be completed without network access or provider credentials.
-unknown: []
+  - H2 can implement a local Tardis normalized-CSV adapter and deterministic importer without credentials or paid bulk data.
+unknown:
+  - Paid full-history availability and license approval remain deferred to H3.
 conflicts: []
 first_failure: null
 rejected_hypotheses:
@@ -61,9 +68,15 @@ changed_paths:
   - docs/ai_platform/LIQUID20_HISTORICAL_CONTRACTS.md
   - docs/agents/tasks/FTAI-20260726-liquid20-h1-provider-neutral-contracts.md
 validation:
-  - command: targeted H1 tests and repository CI
-    result: PENDING
-    evidence: Run after the implementation commit.
+  - command: AI Platform CI
+    result: PASS
+    evidence: Run 30200707575 completed successfully with tests, compile, Ruff, formatting, codespell and JSON validation.
+  - command: Freqtrade CI
+    result: PASS
+    evidence: Run 30200707560 completed successfully through Python 3.11-3.14, pre-commit, docs, package build and CI Gate.
+  - command: GitHub Actions Security Analysis with zizmor
+    result: PASS
+    evidence: Run 30200707605 completed successfully.
 blockers: []
-next_action: Validate the H1 implementation, open a PR, merge it when CI and review are clean, then begin H2 on a fresh branch.
+next_action: Implement H2 as a fresh local-only Tardis normalized-CSV adapter and deterministic importer using synthetic fixtures and public free samples, without paid access or bulk download.
 ```

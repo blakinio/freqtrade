@@ -20,13 +20,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Run full pre-commit and show failure tail
+      - name: Run full pre-commit and show compact result
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --quiet pre-commit
           if ! pre-commit run --all-files > /tmp/precommit.log 2>&1; then
-            tail -n 160 /tmp/precommit.log
+            tail -n 45 /tmp/precommit.log
             exit 1
           fi
-          tail -n 40 /tmp/precommit.log
+          tail -n 30 /tmp/precommit.log

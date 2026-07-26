@@ -1,0 +1,272 @@
+{
+  "boundaries": {
+    "accounts": false,
+    "adapters_included": false,
+    "broad_capture": false,
+    "credentials": false,
+    "live_requests": false,
+    "orders": false,
+    "public_only": true,
+    "raw_records": false,
+    "source_acceptance": false
+  },
+  "classification": "current_official_documentation_preflight_no_live_capture",
+  "decision": {
+    "blocked": [
+      "binance-usdm"
+    ],
+    "ready": [
+      "binance-spot",
+      "bybit-spot",
+      "bybit-linear",
+      "okx-spot",
+      "okx-swap-futures"
+    ],
+    "status": "partial_pass"
+  },
+  "document_id": "market-data-source-instrument-preflight-v1",
+  "document_sha256": "9cf6bcd602d149b5a2ea1bb3660ccea79e2604aee86e7903adc8fe2b708d1b01",
+  "foundation_catalog": {
+    "path": "ai_platform/market_data/source-catalog-v1.json",
+    "sha256": "f6cfc683feac9d9fa91bb019e7427316abafe7ef80e6319f6278320b83c51c30",
+    "version": "market-data-source-catalog-v1"
+  },
+  "next_package": {
+    "broad_capture": false,
+    "name": "bounded_instrument_snapshot_adapters_v1",
+    "scope": "ready_sources_only_binance_usdm_fail_closed"
+  },
+  "schema_version": 1,
+  "sources": [
+    {
+      "catalog_endpoint": "https://api.binance.com/api/v3/exchangeInfo",
+      "constraints": [
+        "rateLimits_from_exchangeInfo",
+        "5_incoming_messages_per_second",
+        "1024_streams_per_connection",
+        "300_connection_attempts_per_5_minutes_per_ip"
+      ],
+      "decision": "ready_for_bounded_adapter",
+      "exchange": "binance",
+      "mapping": {
+        "active": "status == TRADING",
+        "base_asset": "baseAsset",
+        "contract_value": null,
+        "contract_value_unit": null,
+        "expires_at_ms": null,
+        "listed_at_ms": null,
+        "quantity_step": "LOT_SIZE.stepSize",
+        "quote_asset": "quoteAsset",
+        "settlement_asset": null,
+        "status": "ready",
+        "tick_size": "PRICE_FILTER.tickSize",
+        "unresolved": [
+          "listed_at_ms"
+        ]
+      },
+      "market_types": [
+        "spot"
+      ],
+      "official_docs": [
+        "https://developers.binance.com/en/docs/products/spot/rest-api",
+        "https://github.com/binance/binance-spot-api-docs/blob/master/rest-api.md",
+        "https://github.com/binance/binance-spot-api-docs/blob/master/web-socket-streams.md"
+      ],
+      "pagination": "none",
+      "sample_evidence": "official_documentation_example",
+      "source_id": "binance-spot",
+      "websocket_endpoint": "wss://stream.binance.com:9443"
+    },
+    {
+      "catalog_endpoint": "https://fapi.binance.com/fapi/v1/exchangeInfo",
+      "constraints": [
+        "rateLimits_from_exchangeInfo",
+        "exact_current_websocket_limits_not_frozen"
+      ],
+      "decision": "blocked_pending_contract_value_semantics",
+      "exchange": "binance",
+      "mapping": {
+        "active": "status == TRADING",
+        "base_asset": "baseAsset",
+        "contract_value": null,
+        "contract_value_unit": null,
+        "expires_at_ms": "deliveryDate_for_dated_futures",
+        "listed_at_ms": "onboardDate",
+        "quantity_step": "LOT_SIZE.stepSize",
+        "quote_asset": "quoteAsset",
+        "settlement_asset": "marginAsset",
+        "status": "blocked",
+        "tick_size": "PRICE_FILTER.tickSize",
+        "unresolved": [
+          "explicit_contract_value",
+          "explicit_contract_value_unit",
+          "exact_current_websocket_limits"
+        ]
+      },
+      "market_types": [
+        "perpetual",
+        "dated_future"
+      ],
+      "official_docs": [
+        "https://developers.binance.com/en/docs/products/derivatives-trading-usds-futures/Introduction",
+        "https://developers.binance.com/docs/derivatives/usds-margined-futures/market-data/rest-api/Exchange-Information",
+        "https://github.com/binance/binance-futures-connector-python"
+      ],
+      "pagination": "none",
+      "sample_evidence": "official_documentation_example",
+      "source_id": "binance-usdm",
+      "websocket_endpoint": "wss://fstream.binance.com"
+    },
+    {
+      "catalog_endpoint": "https://api.bybit.com/v5/market/instruments-info?category=spot",
+      "constraints": [
+        "600_http_requests_per_5_seconds_per_ip_default",
+        "500_connections_per_5_minutes_per_domain",
+        "1000_market_data_connections_per_ip_per_market",
+        "10_args_per_spot_subscription_request"
+      ],
+      "decision": "ready_for_bounded_adapter",
+      "exchange": "bybit",
+      "mapping": {
+        "active": "status == Trading",
+        "base_asset": "baseCoin",
+        "contract_value": null,
+        "contract_value_unit": null,
+        "expires_at_ms": null,
+        "listed_at_ms": null,
+        "quantity_step": "lotSizeFilter.basePrecision",
+        "quote_asset": "quoteCoin",
+        "settlement_asset": null,
+        "status": "ready",
+        "tick_size": "priceFilter.tickSize",
+        "unresolved": [
+          "listed_at_ms"
+        ]
+      },
+      "market_types": [
+        "spot"
+      ],
+      "official_docs": [
+        "https://bybit-exchange.github.io/docs/v5/market/instrument",
+        "https://bybit-exchange.github.io/docs/v5/rate-limit",
+        "https://bybit-exchange.github.io/docs/v5/ws/connect"
+      ],
+      "pagination": "not_supported_for_spot",
+      "sample_evidence": "official_documentation_example",
+      "source_id": "bybit-spot",
+      "websocket_endpoint": "wss://stream.bybit.com/v5/public/spot"
+    },
+    {
+      "catalog_endpoint": "https://api.bybit.com/v5/market/instruments-info?category=linear&limit=1000",
+      "constraints": [
+        "600_http_requests_per_5_seconds_per_ip_default",
+        "500_connections_per_5_minutes_per_domain",
+        "1000_market_data_connections_per_ip_per_market"
+      ],
+      "decision": "ready_for_bounded_adapter_with_base_coin_quantity_rule",
+      "exchange": "bybit",
+      "mapping": {
+        "active": "status == Trading",
+        "base_asset": "baseCoin",
+        "contract_value": "1",
+        "contract_value_unit": "base_asset",
+        "expires_at_ms": "deliveryTime_for_dated_futures",
+        "listed_at_ms": "launchTime",
+        "quantity_step": "lotSizeFilter.qtyStep",
+        "quote_asset": "quoteCoin",
+        "settlement_asset": "settleCoin",
+        "status": "ready_with_rule",
+        "tick_size": "priceFilter.tickSize",
+        "unresolved": []
+      },
+      "market_types": [
+        "perpetual",
+        "dated_future"
+      ],
+      "official_docs": [
+        "https://bybit-exchange.github.io/docs/v5/market/instrument",
+        "https://bybit-exchange.github.io/docs/v5/order/batch-place",
+        "https://bybit-exchange.github.io/docs/v5/rate-limit",
+        "https://bybit-exchange.github.io/docs/v5/ws/connect"
+      ],
+      "pagination": "cursor_until_nextPageCursor_empty",
+      "sample_evidence": "official_documentation_example",
+      "source_id": "bybit-linear",
+      "websocket_endpoint": "wss://stream.bybit.com/v5/public/linear"
+    },
+    {
+      "catalog_endpoint": "https://www.okx.com/api/v5/public/instruments?instType=SPOT",
+      "constraints": [
+        "3_connection_requests_per_second_per_ip",
+        "480_control_requests_per_connection_per_hour",
+        "ping_pong_before_30_seconds_without_data"
+      ],
+      "decision": "ready_for_bounded_adapter",
+      "exchange": "okx",
+      "mapping": {
+        "active": "state == live",
+        "base_asset": "baseCcy",
+        "contract_value": null,
+        "contract_value_unit": null,
+        "expires_at_ms": "expTime_when_non_empty",
+        "listed_at_ms": "listTime",
+        "quantity_step": "lotSz",
+        "quote_asset": "quoteCcy",
+        "settlement_asset": null,
+        "status": "ready",
+        "tick_size": "tickSz",
+        "unresolved": []
+      },
+      "market_types": [
+        "spot"
+      ],
+      "official_docs": [
+        "https://www.okx.com/docs-v5/en/",
+        "https://www.okx.com/docs-v5/log_en/"
+      ],
+      "pagination": "none_by_instType",
+      "sample_evidence": "official_documentation_example",
+      "source_id": "okx-spot",
+      "websocket_endpoint": "wss://ws.okx.com:8443/ws/v5/public"
+    },
+    {
+      "catalog_endpoint": "https://www.okx.com/api/v5/public/instruments?instType=SWAP_or_FUTURES",
+      "constraints": [
+        "3_connection_requests_per_second_per_ip",
+        "480_control_requests_per_connection_per_hour",
+        "use_seqId_and_prevSeqId_not_deprecated_checksum"
+      ],
+      "decision": "ready_for_bounded_adapter_with_fail_closed_ctMult",
+      "exchange": "okx",
+      "mapping": {
+        "active": "state == live",
+        "base_asset": "underlying_base_from_uly_or_instFamily",
+        "contract_value": "ctVal",
+        "contract_value_unit": "ctValCcy",
+        "expires_at_ms": "expTime",
+        "listed_at_ms": "listTime",
+        "quantity_step": "lotSz",
+        "quote_asset": "quote_or_settlement_from_instFamily",
+        "settlement_asset": "settleCcy",
+        "status": "ready_with_rule",
+        "tick_size": "tickSz",
+        "unresolved": [
+          "reject_unrepresentable_non_unit_ctMult"
+        ]
+      },
+      "market_types": [
+        "perpetual",
+        "dated_future"
+      ],
+      "official_docs": [
+        "https://www.okx.com/docs-v5/en/",
+        "https://www.okx.com/docs-v5/log_en/"
+      ],
+      "pagination": "one_request_per_instType",
+      "sample_evidence": "official_documentation_example",
+      "source_id": "okx-swap-futures",
+      "websocket_endpoint": "wss://ws.okx.com:8443/ws/v5/public"
+    }
+  ],
+  "verified_at": "2026-07-26T20:36:00+02:00"
+}

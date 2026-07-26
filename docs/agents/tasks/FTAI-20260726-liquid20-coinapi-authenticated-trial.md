@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260726-liquid20-coinapi-authenticated-trial
-status: in_progress
+status: completed
 branch: feat/liquid20-coinapi-authenticated-trial
 base_branch: develop
 created: 2026-07-26
@@ -18,7 +18,7 @@ required_reads:
   - docs/ai_platform/LIQUID20_HISTORICAL_PROVIDER_PREFLIGHT.md
   - docs/ai_platform/LIQUID20_COINAPI_PROVIDER_PREFLIGHT.md
 search_first:
-  - current develop HEAD, PR 352 and exact-head CI
+  - current develop HEAD and merged PR 352
   - exact authenticated CoinAPI workflow evidence
 optional_reads: []
 ---
@@ -47,11 +47,12 @@ event-level replacement and is only a conditional aggregate-feature candidate.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T10:38:00Z
-head: 7141d06a663be23836eaf8abc703b8716569ca00
+updated_at: 2026-07-26T10:53:00Z
+head: e09c66613b8c37c64baed1b32d382fa6424f15bc
+merge_commit: 5535e8bfd36a23d5e53e8033ff8440d47c46f9c7
 branch: feat/liquid20-coinapi-authenticated-trial
 pr: "#352"
-status: in_progress
+status: completed
 context_routes:
   - docs/ai_platform/LIQUID20_COINAPI_AUTHENTICATED_TRIAL.md
   - ai_platform/research/liquidations/historical/liquid20-coinapi-authenticated-trial-v1.json
@@ -68,7 +69,8 @@ proven:
   - Every exact-symbol metadata and exact-symbol liquidation metric-listing request returned HTTP 403.
   - Quota probe run 30198031682 job 89782989299 returned QuotaKey BA, Insufficient Usage Credits or Subscription, Organization Limit, QuotaValue 0 $, and current usage 0 $.
   - Temporary authenticated and pre-commit diagnostic workflows and scripts were removed from the durable change set.
-  - Pre-commit diagnosis identified only ruff-format on the new test; the exact formatter patch was applied before head 7141d06a663be23836eaf8abc703b8716569ca00.
+  - PR 352 merged exact implementation head e09c66613b8c37c64baed1b32d382fa6424f15bc as 5535e8bfd36a23d5e53e8033ff8440d47c46f9c7.
+  - Exact-head AI Platform CI 30198605466, Freqtrade CI 30198605460 including CI Gate, and zizmor 30198605467 completed successfully.
   - No raw market records, market values, private key value, paid history, importer, training, backtest, collector change, Synology mutation or protected-holdout access occurred.
 derived:
   - The free account is not usable for the Liquid20 CoinAPI trial.
@@ -100,12 +102,12 @@ validation:
   - command: GitHub Actions exact quota probe
     result: PASS
     evidence: Run 30198031682 job 89782989299 completed successfully and froze the non-secret quota metadata.
-  - command: Pre-commit formatter diagnostic
+  - command: Draft 2020-12 schema and focused authenticated-trial tests
     result: PASS
-    evidence: Run 30198537394 job 89784345431 identified one ruff-format-only change, which was applied exactly.
-  - command: Durable exact-head repository validation
-    result: PENDING
-    evidence: Run on the final durable five-file change set after temporary diagnostics were removed.
+    evidence: AI Platform CI run 30198605466 compiled sources, validated JSON, ran tests, Ruff, format and codespell successfully.
+  - command: Exact-head repository CI for e09c66613b8c37c64baed1b32d382fa6424f15bc
+    result: PASS
+    evidence: Freqtrade CI run 30198605460 passed pre-commit, documentation, Python 3.11-3.14 matrices, coverage, package build and CI Gate; zizmor run 30198605467 passed.
 blockers: []
-next_action: Validate the durable evidence on the exact PR head and merge PR 352 if CI and review are clean.
+next_action: Continue the provider-neutral H1 and H2 work while keeping Tardis owner-gated for event-level history; do not purchase CoinAPI unless a separate aggregate-feature scope is explicitly approved.
 ```

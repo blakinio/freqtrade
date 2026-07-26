@@ -6,6 +6,9 @@ from ai_platform.research.liquidations.historical.providers.base import (
     ProviderParseResult,
     ProviderRowRejection,
 )
+from ai_platform.research.liquidations.historical.providers.tardis import (
+    TardisLiquidationsAdapter,
+)
 
 
 __all__ = [
@@ -13,4 +16,5 @@ __all__ = [
     "ProviderParseContext",
     "ProviderParseResult",
     "ProviderRowRejection",
+    "TardisLiquidationsAdapter",
 ]

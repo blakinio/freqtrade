@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "request_id": "liquid20-candle-diagnostic-20260724-v1",
+  "contract_id": "liquid20-source-separated-candle-artifact-v1",
+  "purpose_classification": "diagnostic_only",
+  "performance_research_authorized": false,
+  "target_run_ids": [
+    "liquid20-20260724T170830Z-1"
+  ],
+  "window": {
+    "start": "2026-07-24T00:00:00Z",
+    "end": "2026-07-26T00:00:00Z",
+    "start_ms": 1784851200000,
+    "end_ms": 1785024000000,
+    "timeframe": "5m",
+    "expected_rows_per_file": 576
+  },
+  "pair_mapping": [
+    {"symbol": "BTCUSDT", "pair": "BTC/USDT:USDT"},
+    {"symbol": "ETHUSDT", "pair": "ETH/USDT:USDT"},
+    {"symbol": "SOLUSDT", "pair": "SOL/USDT:USDT"},
+    {"symbol": "XRPUSDT", "pair": "XRP/USDT:USDT"},
+    {"symbol": "DOGEUSDT", "pair": "DOGE/USDT:USDT"},
+    {"symbol": "BNBUSDT", "pair": "BNB/USDT:USDT"},
+    {"symbol": "ADAUSDT", "pair": "ADA/USDT:USDT"},
+    {"symbol": "SUIUSDT", "pair": "SUI/USDT:USDT"},
+    {"symbol": "LINKUSDT", "pair": "LINK/USDT:USDT"},
+    {"symbol": "AVAXUSDT", "pair": "AVAX/USDT:USDT"},
+    {"symbol": "TRXUSDT", "pair": "TRX/USDT:USDT"},
+    {"symbol": "DOTUSDT", "pair": "DOT/USDT:USDT"},
+    {"symbol": "LTCUSDT", "pair": "LTC/USDT:USDT"},
+    {"symbol": "BCHUSDT", "pair": "BCH/USDT:USDT"},
+    {"symbol": "ETCUSDT", "pair": "ETC/USDT:USDT"},
+    {"symbol": "APTUSDT", "pair": "APT/USDT:USDT"},
+    {"symbol": "NEARUSDT", "pair": "NEAR/USDT:USDT"},
+    {"symbol": "UNIUSDT", "pair": "UNI/USDT:USDT"},
+    {"symbol": "FILUSDT", "pair": "FIL/USDT:USDT"},
+    {"symbol": "ATOMUSDT", "pair": "ATOM/USDT:USDT"}
+  ],
+  "sources": [
+    "bybit-linear",
+    "binance-usdm"
+  ]
+}

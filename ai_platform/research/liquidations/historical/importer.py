@@ -26,8 +26,7 @@ from ai_platform.research.liquidations.historical.semantic_eras import SemanticE
 
 def _json_bytes(payload: object) -> bytes:
     return (
-        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-        + "\n"
+        json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True) + "\n"
     ).encode("utf-8")
 
 
@@ -68,9 +67,7 @@ class HistoricalLocalImporter:
         input_root = input_root.resolve()
         output_parent = output_root.resolve().parent
         output_parent.mkdir(parents=True, exist_ok=True)
-        temporary_root = Path(
-            tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_parent)
-        )
+        temporary_root = Path(tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_parent))
         try:
             result = self._build(
                 input_root=input_root,
@@ -146,9 +143,7 @@ class HistoricalLocalImporter:
         index_path = temporary_root / "artifacts.json"
 
         manifest_path.write_bytes(_json_bytes(manifest.as_json_dict()))
-        events_path.write_bytes(
-            b"".join(_json_bytes(event.as_json_dict()) for event in events)
-        )
+        events_path.write_bytes(b"".join(_json_bytes(event.as_json_dict()) for event in events))
         rejections_path.write_bytes(_json_bytes(rejections))
         acceptance_path.write_bytes(_json_bytes(acceptance.as_json_dict()))
         hashes = {

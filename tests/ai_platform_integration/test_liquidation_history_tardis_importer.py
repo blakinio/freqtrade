@@ -143,8 +143,7 @@ def test_tardis_adapter_rejects_unknown_side_and_header(tmp_path: Path) -> None:
     invalid_side = tmp_path / "side.csv.gz"
     _write_gzip(
         invalid_side,
-        HEADER
-        + "bybit,BTCUSDT,1740787200000000,1740787200001000,,unknown,100,1\n",
+        HEADER + "bybit,BTCUSDT,1740787200000000,1740787200001000,,unknown,100,1\n",
     )
     side_manifest = _manifest(invalid_side)
     side_result = TardisLiquidationsAdapter().parse_file(
@@ -200,8 +199,7 @@ def test_tardis_adapter_maps_binance_semantic_era(tmp_path: Path) -> None:
     path = tmp_path / "raw/binance-futures/BTCUSDT/2025-03-01.csv.gz"
     _write_gzip(
         path,
-        HEADER
-        + "binance-futures,BTCUSDT,1740787200000000,1740787200001000,,buy,100000,0.2\n",
+        HEADER + "binance-futures,BTCUSDT,1740787200000000,1740787200001000,,buy,100000,0.2\n",
     )
     manifest = _manifest(path, provider_exchange="binance-futures")
     result = TardisLiquidationsAdapter().parse_file(

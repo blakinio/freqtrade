@@ -44,18 +44,14 @@ class TardisExchangeSpec:
 
 EXCHANGE_SPECS = {
     "bybit": TardisExchangeSpec(source="bybit-linear", native_channel="allLiquidation"),
-    "binance-futures": TardisExchangeSpec(
-        source="binance-usdm", native_channel="forceOrder"
-    ),
+    "binance-futures": TardisExchangeSpec(source="binance-usdm", native_channel="forceOrder"),
 }
 
 
 class TardisLiquidationsAdapter(HistoricalProviderAdapter):
     provider_id = "tardis"
 
-    def parse_file(
-        self, path: Path, *, context: ProviderParseContext
-    ) -> ProviderParseResult:
+    def parse_file(self, path: Path, *, context: ProviderParseContext) -> ProviderParseResult:
         self._validate_file(path, context=context)
         events: list[HistoricalLiquidationEvent] = []
         rejections: list[ProviderRowRejection] = []
@@ -75,9 +71,7 @@ class TardisLiquidationsAdapter(HistoricalProviderAdapter):
                 )
             for row_number, row in enumerate(reader, start=2):
                 try:
-                    events.append(
-                        self._parse_row(row, row_number=row_number, context=context)
-                    )
+                    events.append(self._parse_row(row, row_number=row_number, context=context))
                 except (KeyError, LookupError, TypeError, ValueError) as exc:
                     rejections.append(
                         ProviderRowRejection(

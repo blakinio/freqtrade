@@ -1,0 +1,136 @@
+{
+  "schema_version": 1,
+  "declaration_id": "rl-v2-action-observability-execution-declaration-v1",
+  "status": "declared_not_implemented_or_executed",
+  "task": "docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-declaration.md",
+  "documentation": "docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_EXECUTION_DECLARATION.md",
+  "source_state": {
+    "declaration": "ai_platform/experimental_model_research/rl-v2-action-observability-declaration-v1.json",
+    "implementation": "ai_platform/experimental_model_research/rl-v2-action-observability-implementation-v1.json",
+    "implementation_merge": "488372e20e804d19cd1370aff26b9394c3836345",
+    "seed_validity_diagnosis": "ai_platform/experimental_model_research/rl-v2-seed-validity-diagnosis-v1.json",
+    "seed_validity_decision": "inconclusive"
+  },
+  "research_question": {
+    "primary": "On a fresh historical-development window, do long-held lifecycle-aligned positions coincide with repeated accepted target_long actions, absent accepted target_flat actions, or prediction-gated target_flat actions?",
+    "old_invalid_seed_causality_claim_allowed": false,
+    "profitability_gating_allowed": false
+  },
+  "fresh_window": {
+    "download_timerange": "20250601-20251101",
+    "execution_timerange": "20250901-20251101",
+    "semantic_evidence_window": "20250901-20251031",
+    "freqtrade_stop_semantics": "end_exclusive",
+    "train_period_days": 90,
+    "backtest_period_days": 61,
+    "previously_consumed_by_rl_v2_execution": false,
+    "cache_restore_allowed": false
+  },
+  "runtime": {
+    "exchange": "kraken",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "fee": 0.002,
+    "strategy_parent": "AiDesiredPositionRLLifecycleAlignedResearchStrategy",
+    "strategy_parent_sha256": "366785129798d1332ce593f919c54aa23eefb2b15b2d850ab32d5c5cbdf0d5b7",
+    "observable_strategy": "AiDesiredPositionRLLifecycleAlignedObservableResearchStrategy",
+    "observable_strategy_allowed_delta": "disabled-by-default action telemetry after inherited exit-signal evaluation",
+    "freqai_model": "DesiredPositionReinforcementLearner",
+    "freqai_model_sha256": "3cec25cc7b43e3214a8e22d153107307a7a7bfbfd48b6bf313ecb4624cb79d46",
+    "base_config": "ai_platform/configs/rl_v2_training_research.json",
+    "base_config_sha256": "5adc805deadcfe6dc3c52d0745f62546952a96b38b3bd06bc28ac9987063f6de",
+    "model_type": "PPO",
+    "policy_type": "MlpPolicy",
+    "seeds": [
+      271828182,
+      628318530,
+      1414213562,
+      1618033988
+    ],
+    "data_split_random_state": 42,
+    "data_split_shuffle": false,
+    "identifier_template": "rl-v2-action-observability-fresh-v1-seed-{seed}"
+  },
+  "wiring": {
+    "upstream_freqtrade_core_change_allowed": false,
+    "parent_strategy_change_allowed": false,
+    "new_project_strategy_subclass_required": true,
+    "capture_hook": "populate_exit_trend_after_super",
+    "capture_once_per_pair_required": true,
+    "explicit_enable_environment_variable": "RL_V2_ACTION_OBSERVABILITY_ENABLED",
+    "output_directory_environment_variable": "RL_V2_ACTION_OBSERVABILITY_OUTPUT_DIR",
+    "runtime_metadata_environment_variables_required": true,
+    "dataframe_mutation_by_recorder_allowed": false,
+    "signal_or_action_mutation_allowed": false,
+    "fail_closed_on_duplicate_or_malformed_telemetry": true
+  },
+  "artifacts": {
+    "timeline": "rl-v2-action-observability-timeline-v1.jsonl",
+    "manifest": "rl-v2-action-observability-manifest-v1.json",
+    "summary": "rl-v2-action-observability-summary-v1.json",
+    "raw_backtest_archive_required": true,
+    "effective_runtime_config_required": true,
+    "data_coverage_required": true,
+    "per_seed_immutable_artifact_required": true,
+    "aggregate_evidence_required": true
+  },
+  "analysis": {
+    "position_state_source": "immutable completed-trade intervals",
+    "candle_boundary_assumption": "trade open is long from its open candle through the candle preceding its close boundary; force-open terminal trades are reported separately",
+    "required_transition_classes": [
+      "hold_flat",
+      "enter_long",
+      "hold_long",
+      "exit_long"
+    ],
+    "required_long_state_breakdown": [
+      "accepted_target_long",
+      "accepted_target_flat",
+      "rejected_target_long",
+      "rejected_target_flat"
+    ],
+    "descriptive_outputs": [
+      "action fractions",
+      "accepted action streaks",
+      "trade-duration-conditioned action counts",
+      "prediction gate counts",
+      "completed trade metrics"
+    ],
+    "automatic_supported_or_not_supported_decision_allowed": false
+  },
+  "isolation": {
+    "classification": "fresh_historical_development_action_observability",
+    "strict_oos": false,
+    "protected_final_validation": false,
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "prior_seed_rerun_or_replacement_allowed": false,
+    "new_seed_replacement_after_outcome_allowed": false,
+    "phase6_authoritative_selected_model": null,
+    "ranking_allowed": false,
+    "promotion_allowed": false,
+    "dry_run_or_live_allowed": false
+  },
+  "authorization": {
+    "declaration_merge_executes_model": false,
+    "implementation_requires_separate_task": true,
+    "execution_requires_exact_one_file_canonical_request": true,
+    "request_pr_must_close_without_merge": true,
+    "market_data_access_before_request_allowed": false,
+    "training_before_request_allowed": false,
+    "backtest_before_request_allowed": false
+  }
+}

@@ -5,7 +5,7 @@ branch: docs/lq02-h3-deferral-sync-20260726
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: pending
+related_pr: "#383"
 owned_paths:
   - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.manifest.json
   - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.sha256
@@ -36,10 +36,10 @@ PR `#377` published durable repository identity for the successful source-separa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T18:23:00Z
-head: 0693c9f7bad2c5f68000c256e11a60603827bd9c
+updated_at: 2026-07-26T18:25:00Z
+head: 9f3e55f8a555d6c93749c37cfca9c9dcec7d15e3
 branch: docs/lq02-h3-deferral-sync-20260726
-pr: pending
+pr: "#383"
 status: blocked
 context_routes:
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
@@ -61,7 +61,7 @@ proven:
   - Bybit and Binance remain source-separated with continuous 5-minute coverage, no protected-holdout overlap, zero orders and performance_research_authorized false.
   - PR 380 merged the prior live-state refresh as 5d09e00bd270046394a189ae36b8aa2fb9a2474f after exact-head Freqtrade CI and zizmor passed.
   - PR 381 merged as 93f044075f2362c83d77fcdf1fa3cfbab680bdcb and explicitly deferred provider purchase, licence, credentials and H3 paid backfill.
-  - Current develop is 0693c9f7bad2c5f68000c256e11a60603827bd9c after Market Data Fabric PR 368, whose declared boundary does not modify Liquid20.
+  - Current develop is 9f3e55f8a555d6c93749c37cfca9c9dcec7d15e3 after the Market Data Fabric foundation merge and checkpoint closure; that package does not modify Liquid20.
   - No open PR owns the LQ-02 evidence or dataset-selector paths; open PR 339 remains an isolated OKX shadow source outside liquid20-v1.
 derived:
   - The versioned candle-identity blocker remains closed only for diagnostic LQ-02 use.
@@ -91,10 +91,10 @@ validation:
     evidence: AI Platform CI 1616 passed exact manifest, checksum and envelope coherence tests on PR 377.
   - command: live GitHub develop, Liquid20 report and open-path ownership review
     result: PASS
-    evidence: Develop is 0693c9f7bad2c5f68000c256e11a60603827bd9c; PR 381 defers H3 and no published passed true report or conflicting LQ-02 ownership was found.
+    evidence: Develop is 9f3e55f8a555d6c93749c37cfca9c9dcec7d15e3; PR 381 defers H3 and no published passed true report or conflicting LQ-02 ownership was found.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md --require-checkpoint
     result: NOT_RUN
-    evidence: The sandbox has no repository checkout and outbound DNS prevents cloning; exact-head GitHub CI is required for this refresh.
+    evidence: The sandbox has no repository checkout and outbound DNS prevents cloning; exact-head GitHub CI is required for PR 383.
 blockers:
   - No completed performance-selectable Liquid20 run has an explicit passed true final report in published evidence.
   - Exact completed-run source, summary, multi-source manifest and final-report hashes are not published.

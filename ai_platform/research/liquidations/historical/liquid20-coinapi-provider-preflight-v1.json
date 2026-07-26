@@ -1,0 +1,105 @@
+{
+  "$schema": "coinapi-provider-preflight-v1.schema.json",
+  "schema_version": 1,
+  "preflight_id": "liquid20-coinapi-provider-preflight-v1",
+  "provider": "coinapi",
+  "product": "market-data-api-metrics-v1",
+  "decision": {
+    "event_level_replay": "rejected",
+    "aggregate_feature_source": "conditional",
+    "preferred_provider_unchanged": "tardis",
+    "reason": "Historical symbol metrics are bucketed time series and do not expose historical provider receive time or a join-safe event identity."
+  },
+  "target": {
+    "exchanges": [
+      "BYBIT",
+      "BINANCEFTS"
+    ],
+    "symbols": [
+      "BYBIT_PERP_BTC_USDT",
+      "BYBIT_PERP_ETH_USDT",
+      "BINANCEFTS_PERP_BTC_USDT",
+      "BINANCEFTS_PERP_ETH_USDT"
+    ],
+    "requested_start_inclusive": "2025-02-26T00:00:00Z",
+    "requested_end_exclusive": "2026-07-25T00:00:00Z"
+  },
+  "documented_metrics": {
+    "BYBIT": [
+      "LIQUIDATION_PRICE",
+      "LIQUIDATION_QUANTITY",
+      "LIQUIDATION_SIDE",
+      "LIQUIDATION_SYMBOL",
+      "LIQUIDATION_TIME"
+    ],
+    "BINANCEFTS": [
+      "LIQUIDATION_AVERAGE_PRICE",
+      "LIQUIDATION_FILLED_ACCUMULATED_QUANTITY",
+      "LIQUIDATION_ORDER_LAST_FILLED_QUANTITY",
+      "LIQUIDATION_ORDER_STATUS",
+      "LIQUIDATION_ORDER_TRADE_TIME",
+      "LIQUIDATION_ORDER_TYPE",
+      "LIQUIDATION_PRICE",
+      "LIQUIDATION_QUANTITY",
+      "LIQUIDATION_SYMBOL",
+      "LIQUIDATION_TIME_IN_FORCE"
+    ]
+  },
+  "historical_contract": {
+    "endpoint": "/v1/metrics/symbol/history",
+    "authentication_required": true,
+    "default_period_id": "1SEC",
+    "max_limit": 100000,
+    "response_fields": [
+      "time_period_start",
+      "time_period_end",
+      "time_open",
+      "time_close",
+      "first",
+      "last",
+      "min",
+      "max",
+      "count",
+      "sum"
+    ],
+    "historical_provider_receive_time_available": false,
+    "event_identifier_available": false,
+    "separate_metric_series_require_join": true,
+    "multi_event_bucket_pairing_proven_safe": false
+  },
+  "current_contract": {
+    "endpoint": "/v1/metrics/symbol/current",
+    "provider_time_fields": [
+      "entry_time",
+      "recv_time"
+    ],
+    "historical_equivalence_documented": false
+  },
+  "runtime_probe": {
+    "credential": "documented-public-sample-placeholder",
+    "endpoint": "/v1/metrics/listing",
+    "http_status": 401,
+    "response_is_json": true,
+    "response_keys": [
+      "error"
+    ],
+    "raw_records_emitted": false,
+    "workflow_run_id": 30196686123,
+    "workflow_job_id": 89779333914,
+    "verified_at": "2026-07-26T09:34:02Z"
+  },
+  "verified": [
+    "CoinAPI documents liquidation metric families for BYBIT and BINANCEFTS.",
+    "CoinAPI historical symbol metrics require an API key.",
+    "The documented historical response is an aggregate bucket series with a default 1SEC period.",
+    "The documented historical response omits entry_time and recv_time.",
+    "The documented public sample credential is not an active API key and returned HTTP 401."
+  ],
+  "not_verified": [
+    "Exact live metric listing for all four target symbols.",
+    "Earliest available liquidation history for each target symbol.",
+    "Observed count greater than one in any one-second bucket.",
+    "CoinAPI commercial license, retention, redistribution and exact cost terms for this request."
+  ],
+  "next_action": "Do not buy CoinAPI as a Tardis event-level replacement. Only run an authenticated aggregate-feature trial if a separate aggregate-source work package is approved."
+}

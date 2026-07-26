@@ -19,9 +19,9 @@ from ai_platform.scripts.liquidation_okx_shadow_acceptance import (
     verify_evidence_package,
 )
 
+
 POLICY_PATH = Path(
-    "ai_platform/research/liquidations/"
-    "okx-liquidation-shadow-acceptance-policy-v1.json"
+    "ai_platform/research/liquidations/okx-liquidation-shadow-acceptance-policy-v1.json"
 )
 
 
@@ -75,14 +75,10 @@ def _prepare_run(
     instruments_path = run_root / INSTRUMENTS_NAME
 
     rows = [
-        _event(index, "BTCUSDT" if index % 2 == 0 else "ETHUSDT")
-        for index in range(event_count)
+        _event(index, "BTCUSDT" if index % 2 == 0 else "ETHUSDT") for index in range(event_count)
     ]
     events_path.write_text(
-        "".join(
-            json.dumps(row, separators=(",", ":"), sort_keys=True) + "\n"
-            for row in rows
-        ),
+        "".join(json.dumps(row, separators=(",", ":"), sort_keys=True) + "\n" for row in rows),
         encoding="utf-8",
     )
 
@@ -149,9 +145,7 @@ def _prepare_run(
                 ),
                 "price": "bankruptcy price (bkPx)",
                 "raw_quantity": "contract count (sz)",
-                "normalized_quantity": (
-                    "base quantity using frozen public ctVal metadata"
-                ),
+                "normalized_quantity": ("base quantity using frozen public ctVal metadata"),
                 "status": "shadow_only_not_in_liquid20_v1",
             },
         },

@@ -38,9 +38,9 @@ from ai_platform.scripts.liquidation_okx_shadow_smoke import (
     _valid_file_name,
 )
 
+
 POLICY_PATH = Path(
-    "ai_platform/research/liquidations/"
-    "okx-liquidation-shadow-acceptance-policy-v1.json"
+    "ai_platform/research/liquidations/okx-liquidation-shadow-acceptance-policy-v1.json"
 )
 MANIFEST_NAME = "okx-shadow-acceptance-manifest.json"
 REPORT_NAME = "okx-shadow-acceptance-report.json"
@@ -107,10 +107,13 @@ class OkxShadowAcceptancePolicy:
         if host.get("exact_host_id_required") is not True:
             raise ValueError("policy must require an exact host_id")
         thresholds = dict(_mapping(payload.get("thresholds"), field="thresholds"))
-        if _integer(
-            thresholds.get("minimum_duration_seconds"),
-            field="thresholds.minimum_duration_seconds",
-        ) != minimum_duration_seconds:
+        if (
+            _integer(
+                thresholds.get("minimum_duration_seconds"),
+                field="thresholds.minimum_duration_seconds",
+            )
+            != minimum_duration_seconds
+        ):
             raise ValueError("policy duration thresholds disagree")
         requirements = dict(_mapping(payload.get("requirements"), field="requirements"))
         for key, expected in (
@@ -234,9 +237,7 @@ def validate_request(
         "host_id": host_id,
         "host_class": policy.required_host_class,
         "duration_seconds": duration_seconds,
-        "durable_storage_uri": _validated_durable_uri(
-            request.get("durable_storage_uri")
-        ),
+        "durable_storage_uri": _validated_durable_uri(request.get("durable_storage_uri")),
     }
 
 
@@ -368,9 +369,7 @@ def _outcome(
         for gate in failed_gates
         if gate in ACTIVITY_GATES or gate.startswith("minimum_events_per_observed_symbol_")
     )
-    non_activity_failures = tuple(
-        gate for gate in failed_gates if gate not in activity_failures
-    )
+    non_activity_failures = tuple(gate for gate in failed_gates if gate not in activity_failures)
     if non_activity_failures:
         outcome = "rejected"
     elif activity_failures:

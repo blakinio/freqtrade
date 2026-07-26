@@ -1,0 +1,35 @@
+name: Liquid20 CoinAPI Pre-commit Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-coinapi-precommit-diagnostic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Run pre-commit and print concise failure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir source
+          curl --fail --silent --show-error --location \
+            https://api.github.com/repos/blakinio/freqtrade/tarball/c0469091c1dd9f283df58650c7251869b542963f \
+            | tar --extract --gzip --strip-components=1 --directory=source
+          python -m pip install --quiet pre-commit
+          set +e
+          (
+            cd source
+            pre-commit run --all-files
+          ) > /tmp/precommit.log 2>&1
+          rc=$?
+          set -e
+          tail --lines=120 /tmp/precommit.log
+          exit "$rc"

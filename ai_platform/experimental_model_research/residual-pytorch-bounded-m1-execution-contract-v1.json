@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "contract_id": "residual-pytorch-bounded-m1-execution-v1",
+  "task": "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md",
+  "request_path": "ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json",
+  "trigger": {
+    "event": "pull_request_opened",
+    "base_branch": "develop",
+    "exact_one_file": true
+  },
+  "geometry": {
+    "training_window": "20251201-20260228",
+    "training_start": "2025-12-01T00:00:00Z",
+    "training_stop_exclusive": "2026-03-01T00:00:00Z",
+    "development_window": "20260301-20260430",
+    "development_start": "2026-03-01T00:00:00Z",
+    "development_stop_exclusive": "2026-05-01T00:00:00Z",
+    "timerange": "20260301-20260501",
+    "download_timerange": "20250801-20260501",
+    "train_period_days": 90,
+    "backtest_period_days": 61,
+    "executions_per_track": 1
+  },
+  "market_data": {
+    "exchange": "kraken",
+    "pairs": [
+      "BTC/USDT",
+      "ETH/USDT"
+    ],
+    "timeframes": [
+      "15m",
+      "1h",
+      "4h"
+    ],
+    "fee": 0.002,
+    "cache_namespace": "residual-pytorch-m1-pre-may-v1",
+    "fallback_cache_restore_allowed": false
+  },
+  "feature_target_contract": {
+    "strategy": "AiFrozenCandidateStrategy",
+    "strategy_file": "ai_platform/strategies/AiFrozenCandidateStrategy.py",
+    "target": "&-future_return",
+    "target_horizon_candles": 12,
+    "target_offsets": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "entry_prediction_threshold": 0.006,
+    "exit_prediction_threshold": -0.009,
+    "feature_parameters": {
+      "include_timeframes": [
+        "15m",
+        "1h",
+        "4h"
+      ],
+      "include_corr_pairlist": [
+        "BTC/USDT",
+        "ETH/USDT"
+      ],
+      "label_period_candles": 12,
+      "include_shifted_candles": 2,
+      "DI_threshold": 1.0,
+      "weight_factor": 0.9,
+      "principal_component_analysis": false,
+      "use_SVM_to_remove_outliers": false,
+      "use_DBSCAN_to_remove_outliers": false,
+      "indicator_periods_candles": [
+        14,
+        50
+      ],
+      "plot_feature_importances": 0,
+      "shuffle_after_split": false,
+      "buffer_train_data_candles": 0
+    },
+    "data_split_parameters": {
+      "test_size": 0.2,
+      "random_state": 42,
+      "shuffle": false
+    },
+    "liquidation_features_allowed": false
+  },
+  "audit_track": {
+    "track_id": "residual-pytorch-m1-data-audit-v1",
+    "config": "ai_platform/configs/freqai-residual-pytorch-m1-data-audit.example.json",
+    "manifest": "ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json",
+    "freqai_model": "ResidualPyTorchM1DataAuditRegressor",
+    "model_file": "ai_platform/freqaimodels/ResidualPyTorchM1DataAuditRegressor.py",
+    "identifier": "ai-platform-residual-pytorch-m1-data-audit-v1"
+  },
+  "tracks": [
+    {
+      "track_id": "residual-pytorch-m1-lightgbm-v1",
+      "config": "ai_platform/configs/freqai-residual-pytorch-m1-lightgbm.example.json",
+      "manifest": "ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json",
+      "freqai_model": "M1LightGBMRegressor",
+      "model_file": "ai_platform/freqaimodels/M1LightGBMRegressor.py",
+      "underlying_model_file": "freqtrade/freqai/prediction_models/LightGBMRegressor.py",
+      "identifier": "ai-platform-residual-pytorch-m1-lightgbm-v1",
+      "model_training_parameters": {
+        "n_estimators": 400,
+        "learning_rate": 0.03,
+        "num_leaves": 31,
+        "n_jobs": -1,
+        "random_state": 42,
+        "deterministic": true,
+        "force_col_wise": true,
+        "verbosity": -1
+      }
+    },
+    {
+      "track_id": "residual-pytorch-m1-seeded-mlp-v1",
+      "config": "ai_platform/configs/freqai-residual-pytorch-m1-seeded-mlp.example.json",
+      "manifest": "ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json",
+      "freqai_model": "M1SeededPyTorchMLPRegressor",
+      "model_file": "ai_platform/freqaimodels/M1SeededPyTorchMLPRegressor.py",
+      "underlying_model_file": "ai_platform/freqaimodels/SeededPyTorchMLPRegressor.py",
+      "identifier": "ai-platform-residual-pytorch-m1-seeded-mlp-v1",
+      "model_training_parameters": {
+        "research_seed": 42,
+        "learning_rate": 0.0003,
+        "trainer_kwargs": {
+          "n_epochs": 3,
+          "batch_size": 64,
+          "early_stopping_patience": 0
+        },
+        "model_kwargs": {
+          "hidden_dim": 64,
+          "dropout_percent": 0.0,
+          "n_layer": 1
+        }
+      }
+    },
+    {
+      "track_id": "residual-pytorch-m1-residual-mlp-v1",
+      "config": "ai_platform/configs/freqai-residual-pytorch-m1-residual-mlp.example.json",
+      "manifest": "ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json",
+      "freqai_model": "M1ResidualPyTorchRegressor",
+      "model_file": "ai_platform/freqaimodels/M1ResidualPyTorchRegressor.py",
+      "underlying_model_file": "ai_platform/freqaimodels/ResidualPyTorchRegressor.py",
+      "identifier": "ai-platform-residual-pytorch-m1-residual-mlp-v1",
+      "model_training_parameters": {
+        "research_seed": 42,
+        "learning_rate": 0.0003,
+        "weight_decay": 0.0001,
+        "loss_beta": 0.01,
+        "trainer_kwargs": {
+          "n_epochs": 8,
+          "batch_size": 64,
+          "early_stopping_patience": 2
+        },
+        "model_kwargs": {
+          "hidden_dim": 128,
+          "n_blocks": 3,
+          "expansion_factor": 2,
+          "dropout_percent": 0.1,
+          "residual_scale": 1.0
+        }
+      }
+    }
+  ],
+  "data_audit": {
+    "required_before_model_execution": true,
+    "raw_expanded_feature_count_required": true,
+    "per_column_nonfinite_counts_required": true,
+    "iqr_outlier_diagnostics_required": true,
+    "target_distribution_required": true,
+    "target_trailing_null_rows": 12,
+    "minimum_eligible_rows_per_pair": 1000,
+    "cross_pair_feature_identity_required": true
+  },
+  "consumed_historical_oos": {
+    "timerange": "20260501-20260630",
+    "start": "2026-05-01T00:00:00Z",
+    "usage": "forbidden"
+  },
+  "protected_final_holdout": {
+    "timerange": "20260801-20260930",
+    "used": false,
+    "usage": "forbidden"
+  },
+  "phase6_isolation": {
+    "member": false,
+    "may_change_candidates": false,
+    "may_change_selection_policy": false,
+    "may_consume_results": false,
+    "selected_model_remains_null": true
+  },
+  "authorization": {
+    "historical_development_data_access": true,
+    "matrix_audit_allowed": true,
+    "training_allowed": true,
+    "backtesting_allowed": true,
+    "historical_oos_used": false,
+    "final_holdout_used": false,
+    "hyperopt_allowed": false,
+    "retuning_allowed": false,
+    "feature_changes_allowed": false,
+    "threshold_changes_allowed": false,
+    "liquidation_features_allowed": false,
+    "winner_selection_allowed": false,
+    "promotion_allowed": false,
+    "live_trading_allowed": false,
+    "profitability_claim_allowed": false,
+    "superiority_claim_allowed": false
+  }
+}

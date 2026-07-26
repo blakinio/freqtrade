@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-liquidations-lq02-candle-artifact
 status: ready
-branch: develop
+branch: docs/liquid20-candle-evidence-publication
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "#350, #371, #373, #375"
+related_pr: "#350, #371, #373, #375, #377"
 owned_paths:
   - ai_platform/research/liquidations/datasets/candle_artifact.py
   - ai_platform/research/liquidations/datasets/liquid20-candle-artifact-contract-v1.json
@@ -36,7 +36,7 @@ The infrastructure and bounded Synology runtime are merged. Trigger PR `#375` cl
 
 The package contains 40 source-symbol files, 576 records each and 23,040 records total. Independent verification reproduced the archive digest, exact manifest file hash, manifest self-hash, all 41 checksum entries, continuous timestamp coverage, source/pair identity, protected-holdout exclusion, zero orders and no trading credentials.
 
-Repository evidence is published under `docs/ai_platform/liquidations/datasets/`. The raw GitHub artifact is retained until `2026-10-24T14:17:16Z`; a durable raw Synology archive is not yet proven.
+PR `#377` publishes the exact manifest, checksum index and self-hashed evidence envelope under `docs/ai_platform/liquidations/datasets/`. The raw GitHub artifact is retained until `2026-10-24T14:17:16Z`; a durable raw Synology archive is not yet proven.
 
 The bound Liquid20 run remains failed and diagnostic-only. This package does not authorize replay or performance research.
 
@@ -44,10 +44,10 @@ The bound Liquid20 run remains failed and diagnostic-only. This package does not
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T14:30:00Z
-head: a4642ce59116e9e08eab37c0cdabcdbeace02314
-branch: develop
-pr: "#350, #371, #373, #375"
+updated_at: 2026-07-26T15:10:00Z
+head: ce98b7ef01314b184a3c479e4aab297dbf9d92a4
+branch: docs/liquid20-candle-evidence-publication
+pr: "#377"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md
@@ -72,6 +72,8 @@ proven:
   - The verified package has 40 files, 576 records per file and 23040 records total.
   - Manifest, manifest self-hash and all 41 checksum entries reproduced independently.
   - Source separation, no-zero missing policy, no-order boundary and holdout exclusion passed.
+  - PR 377 publishes the exact manifest, checksum index and evidence envelope with coherence tests.
+  - Exact candidate head ce98b7ef01314b184a3c479e4aab297dbf9d92a4 passed AI Platform CI 1604, Freqtrade CI 1932 and zizmor 1797.
 derived:
   - The source-separated candle identity blocker is closed for diagnostic use.
   - Complete candles do not change the failed Liquid20 acceptance result.
@@ -98,6 +100,9 @@ changed_paths:
   - tests/ai_platform_integration/test_liquidation_candle_failure_evidence.py
   - tests/ai_platform_integration/test_liquidation_candle_synology_runtime.py
   - .github/workflows/ai-platform-liquidation-candle-artifact.yml
+  - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.manifest.json
+  - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.sha256
+  - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.evidence.json
 validation:
   - command: AI Platform Liquid20 Candle Artifact run 30205769267
     result: PASS
@@ -105,9 +110,9 @@ validation:
   - command: independent archive and record verification
     result: PASS
     evidence: Archive digest, manifest identities, 41 hashes and 23040 records reproduced.
-  - command: infrastructure exact-head CI
+  - command: evidence publication exact-head CI
     result: PASS
-    evidence: PR 373 passed Freqtrade CI 1891 and zizmor 1756 before merge a4642ce59116e9e08eab37c0cdabcdbeace02314.
+    evidence: Candidate head ce98b7ef01314b184a3c479e4aab297dbf9d92a4 passed AI Platform CI 1604, Freqtrade CI 1932 and zizmor 1797.
 blockers: []
-next_action: Publish the repository evidence envelope and use it only for diagnostic LQ-02 classification while separately proving durable raw storage before artifact expiry.
+next_action: Prove durable raw Synology storage before 2026-10-24 and separately publish exact immutable run hashes only for a completed Liquid20 run whose final report explicitly contains passed true; do not start replay meanwhile.
 ```

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 from hashlib import sha256
@@ -109,10 +109,15 @@ def evaluate_historical_import(
     manifest: HistoricalImportManifest,
     semantic_eras: SemanticEraRegistry,
     policy: HistoricalAcceptancePolicy | None = None,
+    pre_rejection_reasons: Mapping[str, int] | None = None,
 ) -> HistoricalAcceptanceReport:
     policy = policy or HistoricalAcceptancePolicy()
     event_list = list(events)
     reasons: Counter[str] = Counter()
+    for reason, count in (pre_rejection_reasons or {}).items():
+        if not reason.strip() or isinstance(count, bool) or count <= 0:
+            raise ValueError("pre-rejection reasons require non-empty names and positive counts")
+        reasons[reason] += count
     accepted: list[HistoricalLiquidationEvent] = []
     seen_fingerprints: set[str] = set()
     duplicate_records = 0
@@ -138,7 +143,8 @@ def evaluate_historical_import(
         else:
             reasons[reason.value] += 1
 
-    total = len(event_list)
+    pre_rejected = sum((pre_rejection_reasons or {}).values())
+    total = len(event_list) + pre_rejected
     rejected = total - len(accepted)
     rejected_ratio = rejected / total if total else 1.0
     status = (

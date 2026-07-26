@@ -1,3 +1,4 @@
+# ruff: noqa: I001
 from __future__ import annotations
 
 import json
@@ -5,9 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-# isort: off
 from jsonschema import Draft202012Validator
-# isort: on
 
 from ai_platform.market_data.capture import (
     CaptureManifest,

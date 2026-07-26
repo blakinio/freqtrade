@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -73,7 +73,9 @@ def _manifest() -> HistoricalImportManifest:
     )
 
 
-def _event(*, row_number: int = 2, local_offset_us: int = 123_000) -> HistoricalLiquidationEvent:
+def _event(
+    *, row_number: int = 2, local_offset_us: int = 123_000
+) -> HistoricalLiquidationEvent:
     timestamp_us = 1_740_787_200_123_456
     local_timestamp_us = timestamp_us + local_offset_us
     price = Decimal("100000.50")
@@ -177,7 +179,7 @@ def test_acceptance_passes_clean_event_and_rejects_duplicate() -> None:
     clean = evaluate_historical_import(
         events=[event], manifest=manifest, semantic_eras=DEFAULT_SEMANTIC_ERAS
     )
-    assert clean.status is AcceptanceStatus.PASS
+    assert clean.status is AcceptanceStatus.ACCEPTED
     assert clean.accepted_records == 1
 
     duplicate = evaluate_historical_import(
@@ -185,7 +187,7 @@ def test_acceptance_passes_clean_event_and_rejects_duplicate() -> None:
         manifest=manifest,
         semantic_eras=DEFAULT_SEMANTIC_ERAS,
     )
-    assert duplicate.status is AcceptanceStatus.FAIL
+    assert duplicate.status is AcceptanceStatus.REJECTED
     assert duplicate.duplicate_records == 1
     assert duplicate.rejection_reasons == {"duplicate_fingerprint": 1}
 
@@ -195,7 +197,7 @@ def test_acceptance_rejects_negative_provider_latency() -> None:
     report = evaluate_historical_import(
         events=[event], manifest=_manifest(), semantic_eras=DEFAULT_SEMANTIC_ERAS
     )
-    assert report.status is AcceptanceStatus.FAIL
+    assert report.status is AcceptanceStatus.REJECTED
     assert report.rejection_reasons == {"negative_availability_latency": 1}
 
 

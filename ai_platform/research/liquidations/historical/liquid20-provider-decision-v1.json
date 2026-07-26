@@ -1,0 +1,500 @@
+{
+  "$schema": "provider-decision-v1.schema.json",
+  "decision_package_id": "liquid20-historical-provider-preflight-v1",
+  "decision_status": "owner_action_required",
+  "identity_material": {
+    "decision_package_id": "liquid20-historical-provider-preflight-v1",
+    "end_exclusive": "2026-07-25T00:00:00Z",
+    "exchanges": [
+      "binance-futures",
+      "bybit"
+    ],
+    "native_symbols": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ],
+    "product": "downloadable-csv-liquidations",
+    "provider": "tardis",
+    "schema_version": 1,
+    "start_inclusive": "2025-02-26T00:00:00Z"
+  },
+  "identity_sha256": "896bb917aac8e362f894423b06bd45970c66245f7a14364ab2abd06e880fb9cb",
+  "owner_decisions": [
+    {
+      "cost_category": "paid-minimum-order-300-usd-exact-quote-required",
+      "decision": "choose one-off purchase or subscription and approve exact quote",
+      "id": "tardis-commercial-access",
+      "required": true
+    },
+    {
+      "decision": "accept internal-use storage on the Customer System and no raw redistribution; obtain legal review if external sharing is planned",
+      "id": "tardis-license",
+      "required": true
+    },
+    {
+      "decision": "provision only through Oteryn secret injection after H3 authorization",
+      "id": "tardis-api-key",
+      "required": true
+    },
+    {
+      "decision": "accept common start 2025-02-26 or authorize provider clarification for 2025-02-20 through 2025-02-25",
+      "id": "bybit-six-day-semantic-gap",
+      "required": true
+    },
+    {
+      "decision": "reserve 10 GiB and verify free space during H3 preflight",
+      "id": "synology-storage",
+      "required": false
+    }
+  ],
+  "preferred_provider": "tardis",
+  "provider_dependency_risks": [
+    "provider local capture timestamps cannot be reconstructed from exchange-only archives",
+    "format or normalization changes require pinned raw files and parser commits",
+    "license limits raw-data redistribution and GitHub artifact use",
+    "subscription history depth depends on billing interval and plan",
+    "provider incident metadata can be incomplete even when the current endpoint reports no incidents"
+  ],
+  "public_sample_evidence": {
+    "common_assertions": {
+      "compression": "gzip",
+      "exact_duplicate_rows": 0,
+      "format": "csv",
+      "gzip_integrity": true,
+      "header": [
+        "exchange",
+        "symbol",
+        "timestamp",
+        "local_timestamp",
+        "id",
+        "side",
+        "price",
+        "amount"
+      ],
+      "malformed_rows": 0,
+      "non_positive_amount_rows": 0,
+      "non_positive_price_rows": 0,
+      "provider_capture_before_exchange_timestamp_rows": 0,
+      "provider_capture_timestamp_present_all_rows": true,
+      "timestamp_timezone": "UTC",
+      "timestamp_unit": "microseconds_since_unix_epoch"
+    },
+    "metadata": [
+      {
+        "datasets_exported_from": "2019-11-07T00:00:00Z",
+        "datasets_exported_until": "2026-07-26T00:00:00Z",
+        "filename": "bybit.json",
+        "incident_count": 0,
+        "sha256": "edd2ae8ae020a7464dda28604224279db9fcf25c42f420f802ad59909f91f70d",
+        "size_bytes": 651818
+      },
+      {
+        "datasets_exported_from": "2019-11-17T00:00:00Z",
+        "datasets_exported_until": "2026-07-26T00:00:00Z",
+        "filename": "binance-futures.json",
+        "incident_count": 0,
+        "sha256": "8a8f634cfdee60f652cbdf555e0e9a1d5d6cef18540ab22e52c6e8a91c7c1731",
+        "size_bytes": 354894
+      }
+    ],
+    "raw_files_committed_to_git": false,
+    "representative_rows_committed": false,
+    "representative_rows_inspected": true,
+    "sample_date": "2025-03-01",
+    "samples": [
+      {
+        "compressed_sha256": "7fae926819808b32cd08c7d55b8a875a3aec13d28c63cfcdab42971523371e1f",
+        "compressed_size_bytes": 24661,
+        "exchange": "bybit",
+        "filename": "bybit_liquidations_2025-03-01_BTCUSDT.csv.gz",
+        "null_id_rows": 2092,
+        "row_count": 2092,
+        "side_counts": {
+          "buy": 1529,
+          "sell": 563
+        },
+        "source_url": "https://datasets.tardis.dev/v1/bybit/liquidations/2025/03/01/BTCUSDT.csv.gz",
+        "symbol": "BTCUSDT",
+        "uncompressed_sha256": "330156e8b7ba54a828a4d74c5e5d916116f9ec35f1b9441fffc7aea971600746",
+        "uncompressed_size_bytes": 140039
+      },
+      {
+        "compressed_sha256": "ef25b4b786a03b82007e65bc3a87bea15304519646cf756b83fcb4885e04c861",
+        "compressed_size_bytes": 16482,
+        "exchange": "bybit",
+        "filename": "bybit_liquidations_2025-03-01_ETHUSDT.csv.gz",
+        "null_id_rows": 1283,
+        "row_count": 1283,
+        "side_counts": {
+          "buy": 443,
+          "sell": 840
+        },
+        "source_url": "https://datasets.tardis.dev/v1/bybit/liquidations/2025/03/01/ETHUSDT.csv.gz",
+        "symbol": "ETHUSDT",
+        "uncompressed_sha256": "b5460e5b54e8d6f07daa4ee9637ed14b890c6e46fbfadb92ae88cb94815eb45b",
+        "uncompressed_size_bytes": 85227
+      },
+      {
+        "compressed_sha256": "59c546d4d65ae682b50697ac63715970b1974a72190b3c4827e8358915b381ba",
+        "compressed_size_bytes": 17842,
+        "exchange": "binance-futures",
+        "filename": "binance-futures_liquidations_2025-03-01_BTCUSDT.csv.gz",
+        "null_id_rows": 1082,
+        "row_count": 1082,
+        "side_counts": {
+          "buy": 592,
+          "sell": 490
+        },
+        "source_url": "https://datasets.tardis.dev/v1/binance-futures/liquidations/2025/03/01/BTCUSDT.csv.gz",
+        "symbol": "BTCUSDT",
+        "uncompressed_sha256": "fcf1695902786817cf8c495b8adcbf3d3c65cb2857f3c9f8f9c5b0bbeb88c596",
+        "uncompressed_size_bytes": 84695
+      },
+      {
+        "compressed_sha256": "f89832b8c7d0c59eb687f957e3b74e72de16cb0b623ee9756f9b6b0250f1b79a",
+        "compressed_size_bytes": 18516,
+        "exchange": "binance-futures",
+        "filename": "binance-futures_liquidations_2025-03-01_ETHUSDT.csv.gz",
+        "null_id_rows": 1128,
+        "row_count": 1128,
+        "side_counts": {
+          "buy": 487,
+          "sell": 641
+        },
+        "source_url": "https://datasets.tardis.dev/v1/binance-futures/liquidations/2025/03/01/ETHUSDT.csv.gz",
+        "symbol": "ETHUSDT",
+        "uncompressed_sha256": "98c33dd8f44311801a5a14edb43d17680532a2b77b1c424b8b0a78841618df45",
+        "uncompressed_size_bytes": 87204
+      }
+    ]
+  },
+  "recommended_import_request": {
+    "authentication_requirement": "paid bulk access requires owner-provided Tardis API key",
+    "day_count": 514,
+    "end_exclusive": "2026-07-25T00:00:00Z",
+    "exchange_datasets": [
+      {
+        "exchange": "bybit",
+        "market_type": "linear-perpetual",
+        "native_symbols": [
+          "BTCUSDT",
+          "ETHUSDT"
+        ],
+        "normalized_symbols": [
+          "BTC/USDT:USDT",
+          "ETH/USDT:USDT"
+        ],
+        "semantic_eras": [
+          "bybit-tardis-all-liquidation-v1-from-2025-02-26"
+        ]
+      },
+      {
+        "exchange": "binance-futures",
+        "market_type": "usd-m-perpetual",
+        "native_symbols": [
+          "BTCUSDT",
+          "ETHUSDT"
+        ],
+        "normalized_symbols": [
+          "BTC/USDT:USDT",
+          "ETH/USDT:USDT"
+        ],
+        "semantic_eras": [
+          "binance-force-order-snapshot-1s-from-2021-04-27"
+        ]
+      }
+    ],
+    "expected_compressed_storage_bytes_sample_scaled": 39835514,
+    "expected_uncompressed_storage_bytes_sample_scaled": 204142810,
+    "file_partition": "one-gzip-csv-per-exchange-symbol-utc-local-capture-day",
+    "owner_decision_required": true,
+    "planning_storage_reservation_bytes": 10737418240,
+    "protected_final_holdout_excluded": true,
+    "provider": "tardis",
+    "provider_file_count": 2056,
+    "provider_product": "downloadable-csv-liquidations",
+    "purchase_requirement": "one-off purchase or subscription required for non-sample dates",
+    "required_generated_manifests": [
+      "historical-import-manifest.json",
+      "historical-file-hashes.json",
+      "historical-import-acceptance-report.json",
+      "historical-source-summary-bybit.json",
+      "historical-source-summary-binance-futures.json",
+      "historical-rejected-records-summary.json"
+    ],
+    "required_raw_integrity": [
+      "http-status",
+      "content-length",
+      "gzip-decompression",
+      "sha256",
+      "provider-url",
+      "downloaded-at"
+    ],
+    "start_inclusive": "2025-02-26T00:00:00Z",
+    "storage_category": "small",
+    "storage_estimate_basis": "2025-03-01 public samples multiplied by 514 days; planning estimate only",
+    "synology_destination": "/volume1/docker/freqtrade-liquidations/data/historical/imports/tardis/<import-run-id>/raw/<exchange>/<market>/<symbol>/<year>/<month>/"
+  },
+  "requested_date_range": {
+    "end_exclusive": "2026-07-25T00:00:00Z",
+    "start_inclusive": "2025-02-20T00:00:00Z"
+  },
+  "schema_version": 1,
+  "source_decisions": [
+    {
+      "authentication_requirement": "none for first day of month; API key for bulk dates",
+      "compression": "gzip",
+      "decision_status": "selected-with-narrowed-start",
+      "exchange": "bybit",
+      "expected_storage_category": "small",
+      "file_format": "csv",
+      "granularity": "event",
+      "immutable_retention_permission": "permitted on Customer System for licensed internal use",
+      "licensing_classification": "commercial-internal-use",
+      "market_type": "linear-perpetual",
+      "native_publication_semantics": {
+        "amount_semantics": "executed size",
+        "event_payload_may_contain_multiple_updates": true,
+        "price_semantics": "bankruptcy price",
+        "push_frequency": "500ms",
+        "side_semantics": "Bybit Buy means long position liquidated; normalized Tardis side is sell",
+        "topic": "allLiquidation.<symbol>"
+      },
+      "native_symbols": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "normalized_symbols": [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT"
+      ],
+      "partitioning": "daily by provider local_timestamp UTC",
+      "provider_capture_time_available": true,
+      "provider_dataset_product_identity": "downloadable-csv-liquidations",
+      "provider_identity": "tardis",
+      "recommended_date_range": {
+        "end_exclusive": "2026-07-25T00:00:00Z",
+        "start_inclusive": "2025-02-26T00:00:00Z"
+      },
+      "redistribution_classification": "raw-redistribution-prohibited",
+      "requested_date_range": {
+        "end_exclusive": "2026-07-25T00:00:00Z",
+        "start_inclusive": "2025-02-20T00:00:00Z"
+      },
+      "semantic_conflicts": [
+        {
+          "conflict": "Bybit introduced allLiquidation on 2025-02-20, while the inspected Tardis normalizer switches to allLiquidation on 2025-02-26",
+          "range_end_exclusive": "2025-02-26T00:00:00Z",
+          "range_start_inclusive": "2025-02-20T00:00:00Z",
+          "resolution": "exclude from first import unless Tardis confirms raw and normalized semantics"
+        }
+      ],
+      "semantic_eras": [
+        {
+          "id": "bybit-all-liquidation-exchange-contract-from-2025-02-20",
+          "start_inclusive": "2025-02-20T00:00:00Z",
+          "status": "official_exchange_contract"
+        },
+        {
+          "id": "bybit-tardis-all-liquidation-v1-from-2025-02-26",
+          "start_inclusive": "2025-02-26T00:00:00Z",
+          "status": "provider_normalized_mapper_boundary"
+        }
+      ],
+      "timestamp_fields": {
+        "imported_at_ms": "future importer processing time; not present in provider file",
+        "local_timestamp": "Tardis message-arrival timestamp in microseconds",
+        "occurred_at_ms": "deterministic floor division of timestamp by 1000",
+        "provider_captured_at_ms": "deterministic floor division of local_timestamp by 1000",
+        "received_at_ms": "reserved for first-party live collector; never populated from Tardis",
+        "timestamp": "exchange-provided event/update timestamp in microseconds in Tardis CSV"
+      },
+      "unresolved_owner_decisions": [
+        "approve Tardis purchase and license",
+        "approve exclusion of 2025-02-20 through 2025-02-25 or request provider clarification"
+      ],
+      "verified_available_date_ranges": {
+        "BTCUSDT": {
+          "end_exclusive": "2026-07-26T00:00:00Z",
+          "liquidations_listed": true,
+          "liquidations_start_inclusive": "2020-12-18T00:00:00Z",
+          "symbol_available_since": "2020-05-28T00:00:00Z"
+        },
+        "ETHUSDT": {
+          "end_exclusive": "2026-07-26T00:00:00Z",
+          "liquidations_listed": true,
+          "liquidations_start_inclusive": "2020-12-18T00:00:00Z",
+          "symbol_available_since": "2020-10-21T00:00:00Z"
+        }
+      }
+    },
+    {
+      "authentication_requirement": "none for first day of month; API key for bulk dates",
+      "compression": "gzip",
+      "decision_status": "selected",
+      "exchange": "binance-futures",
+      "expected_storage_category": "small",
+      "file_format": "csv",
+      "granularity": "event-snapshot",
+      "immutable_retention_permission": "permitted on Customer System for licensed internal use",
+      "licensing_classification": "commercial-internal-use",
+      "market_type": "usd-m-perpetual",
+      "native_publication_semantics": {
+        "amount_semantics": "filled accumulated quantity z for FILLED orders",
+        "completeness": "not a complete liquidation event ledger",
+        "price_semantics": "force-order price field p",
+        "push_frequency": "maximum one snapshot per symbol per 1000ms",
+        "side_semantics": "Tardis normalized buy means short liquidated; sell means long liquidated",
+        "topic": "<symbol>@forceOrder"
+      },
+      "native_symbols": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "normalized_symbols": [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT"
+      ],
+      "partitioning": "daily by provider local_timestamp UTC",
+      "provider_capture_time_available": true,
+      "provider_dataset_product_identity": "downloadable-csv-liquidations",
+      "provider_identity": "tardis",
+      "recommended_date_range": {
+        "end_exclusive": "2026-07-25T00:00:00Z",
+        "start_inclusive": "2025-02-26T00:00:00Z"
+      },
+      "redistribution_classification": "raw-redistribution-prohibited",
+      "requested_date_range": {
+        "end_exclusive": "2026-07-25T00:00:00Z",
+        "start_inclusive": "2025-02-20T00:00:00Z"
+      },
+      "semantic_conflicts": [],
+      "semantic_eras": [
+        {
+          "end_exclusive": "2021-04-27T00:00:00Z",
+          "id": "binance-force-order-realtime-before-2021-04-27",
+          "status": "historical-exchange-contract"
+        },
+        {
+          "id": "binance-force-order-snapshot-1s-from-2021-04-27",
+          "start_inclusive": "2021-04-27T00:00:00Z",
+          "status": "official-current-exchange-contract"
+        }
+      ],
+      "timestamp_fields": {
+        "imported_at_ms": "future importer processing time; not present in provider file",
+        "local_timestamp": "Tardis message-arrival timestamp in microseconds",
+        "occurred_at_ms": "deterministic floor division of timestamp by 1000",
+        "provider_captured_at_ms": "deterministic floor division of local_timestamp by 1000",
+        "received_at_ms": "reserved for first-party live collector; never populated from Tardis",
+        "timestamp": "Binance force-order trade time T normalized to microseconds"
+      },
+      "unresolved_owner_decisions": [
+        "approve Tardis purchase and license"
+      ],
+      "verified_available_date_ranges": {
+        "BTCUSDT": {
+          "end_exclusive": "2026-07-26T00:00:00Z",
+          "liquidations_listed": true,
+          "start_inclusive": "2019-11-17T00:00:00Z"
+        },
+        "ETHUSDT": {
+          "end_exclusive": "2026-07-26T00:00:00Z",
+          "liquidations_listed": true,
+          "start_inclusive": "2019-11-27T00:00:00Z"
+        }
+      }
+    },
+    {
+      "authentication_requirement": "CG-API-KEY required",
+      "compression": "https-json-response",
+      "decision_status": "fallback-comparison-only",
+      "exchange": "multiple",
+      "expected_storage_category": "small",
+      "file_format": "json",
+      "granularity": "aggregate-candle",
+      "immutable_retention_permission": "unknown-owner-review-required",
+      "licensing_classification": "commercial-license-not-preflighted",
+      "market_type": "futures-aggregate",
+      "native_publication_semantics": {
+        "event_replay": false,
+        "intervals": [
+          "1m",
+          "3m",
+          "5m",
+          "15m",
+          "30m",
+          "1h",
+          "4h",
+          "6h",
+          "8h",
+          "12h",
+          "1d",
+          "1w"
+        ],
+        "limit": 1000,
+        "pagination": "start_time and end_time in milliseconds",
+        "values": [
+          "long_liquidation_usd",
+          "short_liquidation_usd"
+        ]
+      },
+      "native_symbols": [
+        "BTCUSDT",
+        "ETHUSDT"
+      ],
+      "normalized_symbols": [
+        "BTC/USDT:USDT",
+        "ETH/USDT:USDT"
+      ],
+      "partitioning": "request pagination",
+      "provider_capture_time_available": false,
+      "provider_dataset_product_identity": "pair-liquidation-history-v4",
+      "provider_identity": "coinglass",
+      "recommended_date_range": null,
+      "redistribution_classification": "unknown-owner-review-required",
+      "requested_date_range": {
+        "end_exclusive": "2026-07-25T00:00:00Z",
+        "start_inclusive": "2025-02-20T00:00:00Z"
+      },
+      "semantic_conflicts": [],
+      "semantic_eras": [],
+      "timestamp_fields": {
+        "availability_policy": "lag by at least one completed feature interval unless separately proven",
+        "provider_capture_time": "not documented by inspected endpoint",
+        "time": "aggregate interval timestamp in milliseconds"
+      },
+      "unresolved_owner_decisions": [
+        "do not purchase unless Tardis is rejected or aggregate comparison is approved"
+      ],
+      "verified_available_date_ranges": {}
+    }
+  ],
+  "source_urls": [
+    "https://bybit-exchange.github.io/docs/v5/websocket/public/all-liquidation",
+    "https://bybit-exchange.github.io/docs/changelog/v5",
+    "https://developers.binance.com/en/docs/catalog",
+    "https://github.com/binance/binance-futures-connector-python/blob/main/binance/websocket/um_futures/websocket_client.py",
+    "https://docs.tardis.dev/downloadable-csv-files",
+    "https://docs.tardis.dev/downloadable-csv-files/api",
+    "https://docs.tardis.dev/historical-data-details/bybit",
+    "https://docs.tardis.dev/historical-data-details/binance-futures",
+    "https://docs.tardis.dev/faq/data",
+    "https://docs.tardis.dev/faq/billing-and-subscriptions",
+    "https://docs.tardis.dev/legal/terms-of-service",
+    "https://api.tardis.dev/v1/exchanges/bybit",
+    "https://api.tardis.dev/v1/exchanges/binance-futures",
+    "https://docs.coinglass.com/reference/liquidation-history",
+    "https://github.com/tardis-dev/tardis-node/blob/3e3f4d704d66d1187037d2e2c48f68b82441e808/src/mappers/bybit.ts",
+    "https://github.com/tardis-dev/tardis-node/blob/3e3f4d704d66d1187037d2e2c48f68b82441e808/src/mappers/binance.ts"
+  ],
+  "verification": {
+    "branch": "feat/liquid20-historical-provider-preflight-v1",
+    "method": "official-documentation-public-metadata-and-free-sample-preflight",
+    "pull_request": "#336",
+    "sample_workflow_job_id": 89771204983,
+    "sample_workflow_run_id": 30193642455,
+    "verification_commit": "541cedb61ad0fdc9943d4981ee10217e17f903f5",
+    "verified_at": "2026-07-26T07:54:51Z"
+  }
+}

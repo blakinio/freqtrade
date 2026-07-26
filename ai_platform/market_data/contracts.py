@@ -5,7 +5,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
 from ai_platform.market_data.capture import (
     CaptureManifest,
     CaptureRequest,
@@ -40,6 +39,7 @@ from ai_platform.market_data.events import (
     UniverseDecision,
     UniverseSnapshot,
 )
+from jsonschema import Draft202012Validator
 
 __all__ = [
     "SCHEMA_VERSION",

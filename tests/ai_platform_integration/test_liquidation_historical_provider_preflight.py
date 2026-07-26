@@ -8,8 +8,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from jsonschema import Draft202012Validator
 import pytest
+from jsonschema import Draft202012Validator
+
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = (
@@ -162,9 +163,7 @@ def test_schema_validates_contract_and_requires_contract_fields() -> None:
 
 def test_contract_serialization_and_identity_hash_are_deterministic() -> None:
     contract = _load(CONTRACT_PATH)
-    first = json.dumps(
-        contract, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-    )
+    first = json.dumps(contract, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
     second = json.dumps(
         _load(CONTRACT_PATH), ensure_ascii=False, separators=(",", ":"), sort_keys=True
     )

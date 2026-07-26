@@ -40,9 +40,7 @@ class SemanticEra:
             raise ValueError("end_ms must be greater than start_ms")
 
     def contains(self, timestamp_ms: int) -> bool:
-        return self.start_ms <= timestamp_ms and (
-            self.end_ms is None or timestamp_ms < self.end_ms
-        )
+        return self.start_ms <= timestamp_ms and (self.end_ms is None or timestamp_ms < self.end_ms)
 
     def as_json_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -62,9 +60,7 @@ class SemanticEraRegistry:
                 left_end = left.end_ms if left.end_ms is not None else 2**63 - 1
                 right_end = right.end_ms if right.end_ms is not None else 2**63 - 1
                 if left.start_ms < right_end and right.start_ms < left_end:
-                    raise ValueError(
-                        f"overlapping semantic eras: {left.era_id} and {right.era_id}"
-                    )
+                    raise ValueError(f"overlapping semantic eras: {left.era_id} and {right.era_id}")
 
     @property
     def eras(self) -> tuple[SemanticEra, ...]:
@@ -87,9 +83,7 @@ class SemanticEraRegistry:
 
     def as_json_dict(self) -> dict[str, Any]:
         eras = [era.as_json_dict() for era in self._eras]
-        canonical = json.dumps(
-            eras, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-        )
+        canonical = json.dumps(eras, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
         return {
             "schema_version": 1,
             "eras": eras,

@@ -135,9 +135,7 @@ class HistoricalImportManifest:
             "storage_root": self.storage_root,
             "raw_files": [
                 descriptor.as_json_dict()
-                for descriptor in sorted(
-                    self.raw_files, key=lambda item: item.relative_path
-                )
+                for descriptor in sorted(self.raw_files, key=lambda item: item.relative_path)
             ],
             "protected_holdout_start_ms": self.protected_holdout_start_ms,
             "protected_holdout_excluded": self.protected_holdout_excluded,

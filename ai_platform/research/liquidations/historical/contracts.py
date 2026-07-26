@@ -188,9 +188,7 @@ class HistoricalLiquidationEvent:
             if self.provider_local_timestamp_us is None:
                 raise ValueError("vendor capture semantics require provider_local_timestamp_us")
             if self.available_at_ms != self.provider_local_timestamp_us // 1000:
-                raise ValueError(
-                    "available_at_ms must be derived from provider_local_timestamp_us"
-                )
+                raise ValueError("available_at_ms must be derived from provider_local_timestamp_us")
         elif self.provider_local_timestamp_us is not None:
             if self.available_at_ms != self.provider_local_timestamp_us // 1000:
                 raise ValueError("available_at_ms must preserve provider local timestamp")
@@ -247,13 +245,9 @@ def historical_event_from_json_dict(
             available_at_ms=integer_value(
                 payload["available_at_ms"], field="available_at_ms", minimum=1
             ),
-            available_at_semantics=AvailableAtSemantics(
-                str(payload["available_at_semantics"])
-            ),
+            available_at_semantics=AvailableAtSemantics(str(payload["available_at_semantics"])),
             price=canonical_decimal(payload["price"], field="price", positive=True),
-            quantity=canonical_decimal(
-                payload["quantity"], field="quantity", positive=True
-            ),
+            quantity=canonical_decimal(payload["quantity"], field="quantity", positive=True),
             notional_usd=canonical_decimal(
                 payload["notional_usd"], field="notional_usd", positive=True
             ),

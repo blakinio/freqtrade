@@ -73,9 +73,7 @@ def _manifest() -> HistoricalImportManifest:
     )
 
 
-def _event(
-    *, row_number: int = 2, local_offset_us: int = 123_000
-) -> HistoricalLiquidationEvent:
+def _event(*, row_number: int = 2, local_offset_us: int = 123_000) -> HistoricalLiquidationEvent:
     timestamp_us = 1_740_787_200_123_456
     local_timestamp_us = timestamp_us + local_offset_us
     price = Decimal("100000.50")

@@ -38,9 +38,7 @@ class HistoricalProviderAdapter(ABC):
     provider_id: str
 
     @abstractmethod
-    def parse_file(
-        self, path: Path, *, context: ProviderParseContext
-    ) -> ProviderParseResult:
+    def parse_file(self, path: Path, *, context: ProviderParseContext) -> ProviderParseResult:
         """Parse one immutable local provider file without network access."""
 
     def iter_events(

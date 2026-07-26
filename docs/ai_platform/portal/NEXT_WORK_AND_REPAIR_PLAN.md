@@ -40,13 +40,13 @@ Snapshot date: `2026-07-26`.
 - PI-03 Canonical Inference and Drift Telemetry: `done`, PR #239 with closure PR #260.
 - PI-04 Centralized Runtime Observability: `done` for repository-side contracts, PR #261; target-environment backend connectivity remains deployment-owned and must fail closed when absent.
 - PI-05 External Notification Delivery: `planned`; provider/channel and privacy policy are unresolved.
-- PI-06 Product Identity and Session Lifecycle: `planned`; product IdP, membership source and session/MFA policy are unresolved.
+- PI-06 Product Identity and Session Lifecycle: `planned`; the IdP, membership, session, MFA, recovery and revocation decision is accepted in `PI06_IDENTITY_AND_SESSION_DECISION.md`, while implementation has not started.
 - PI-07 Runtime Credential Broker and Rotation: `planned`; requires a selected secret backend and security review.
 - PI-08 Private Dry-Run Approved Execution Submission: `planned`; depends on PI-07 and must remain dry-run-only.
 
 The concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. Deterministic simulator execution is not evidence of private Freqtrade order submission.
 
-## 4. Product completion packages
+## 4. Product completion and decision packages
 
 ### 4.1 Bot Operations convergence — complete
 
@@ -70,18 +70,35 @@ Delivered behavior includes:
 
 The package does not implement credential brokering, PI-08 order submission, external notification delivery, P11 infrastructure or live capital.
 
-### 4.2 External and owner-gated integrations
+### 4.2 PI-06 identity and session decision — complete
+
+Task `FTAI-20260726-portal-pi06-identity-decision` records the accepted product identity architecture in `PI06_IDENTITY_AND_SESSION_DECISION.md`.
+
+Selected boundaries:
+
+- authentik is the product IdP and owns primary authentication, authenticator enrollment, MFA challenge, IdP session and recovery flows;
+- the portal database owns product principals, tenants, memberships, roles, capabilities and local session revocation;
+- immutable OIDC `iss` + `sub` maps the external identity to the portal principal;
+- the BFF uses Authorization Code Flow with PKCE and opaque server-side sessions; browser-readable storage receives no IdP token or refresh material;
+- privileged mutation capabilities require MFA, and declared high-impact actions require authentication no older than five minutes;
+- membership and role changes invalidate affected portal sessions synchronously in v1;
+- Cloudflare Access remains an additional privileged-ingress control and never replaces application session, tenant or RBAC enforcement;
+- Synology Docker Compose is accepted as the initial bounded target but remains a documented single-host failure domain and is not P11 or P14 evidence.
+
+The decision resolves the PI-06 owner/product entry gate. It does not provision authentik, Cloudflare resources, secrets, users or a production identity environment and does not mark PI-06 implementation complete.
+
+### 4.3 External and owner-gated integrations
 
 The following are not ordinary autonomous UI repair tasks:
 
-- real product identity/MFA/session lifecycle requires the PI-06 owner decision;
+- PI-06 implementation must follow the accepted identity/session decision and remain a separate reviewed package;
 - email/webhook/push delivery requires the PI-05 provider and destination policy decision;
 - runtime credential injection requires PI-07 and a security-reviewed secret backend;
 - approved private Freqtrade dry-run submission requires PI-08 after PI-07;
 - real Cloudflare production-like staging requires intentional owner provisioning under P11;
 - live-small remains P14 and requires a separate explicit authorization package.
 
-### 4.3 Deployment-owned observability
+### 4.4 Deployment-owned observability
 
 Repository-side PI-04 contracts are complete, but a real Loki/Tempo/Prometheus-compatible target environment, retention policy, dashboards and credentials are deployment-owned. UI and API mode must report `UNAVAILABLE` when these sources are not configured; they must not fabricate successful empty results.
 
@@ -117,11 +134,11 @@ Turn the bot fleet and Bot Detail routes into the primary tenant-scoped operatio
 - no live-capital state is introduced;
 - frozen thresholds, Phase 6 evidence and protected holdout policy remain unchanged.
 
-## 6. Dependency-ordered continuation after Bot Operations
+## 6. Dependency-ordered continuation after the PI-06 decision
 
 Unless live repository evidence changes the order:
 
-1. obtain and record the PI-06 identity/IdP decision, then implement PI-06 as a separate package;
+1. declare and implement the separate PI-06 Product Identity and Session Lifecycle package from `PI06_IDENTITY_AND_SESSION_DECISION.md`;
 2. implement PI-05 one external channel at a time after provider and privacy decisions;
 3. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
 4. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
@@ -129,7 +146,7 @@ Unless live repository evidence changes the order:
 6. keep P13 deferred until measured bottleneck/SLO evidence exists;
 7. keep P14 blocked until separately authorized.
 
-Liquid20 and other read-only feature integrations may proceed in parallel only with disjoint paths and explicit task ownership. They must not silently change the core execution, credential, P11 or live-capital gates.
+Liquid20 and other read-only feature integrations may proceed in parallel only with disjoint paths and explicit task ownership. They must not silently change the core identity, execution, credential, P11 or live-capital gates.
 
 ## 7. Documentation repair rules
 
@@ -152,7 +169,7 @@ Stop and record a blocker instead of improvising when:
 
 - required owner/provider/IdP/secret-backend policy is absent;
 - an active PR owns the same paths;
-- the proposed change exposes Freqtrade, exchange or observability credentials to the browser;
+- the proposed change exposes IdP, Freqtrade, exchange or observability credentials to the browser;
 - the work would enable real capital or withdrawals;
 - the work would weaken deterministic risk, audit, tenant isolation or safety tests;
 - evidence would be mislabeled as real P11 acceptance;
@@ -160,4 +177,4 @@ Stop and record a blocker instead of improvising when:
 
 ## 9. Current next action
 
-No further core portal integration package is autonomously authorized by the current repository state. The next dependency-ordered action is an owner/product decision for PI-06 covering the product IdP, tenant-membership source, session, MFA, recovery and revocation policy. PI-05, PI-07, PI-08, P11 and P14 remain behind their explicit provider, security, infrastructure or capital gates; P13 remains deferred.
+Declare a separate `FTAI-YYYYMMDD-portal-pi06-product-identity-lifecycle` implementation task after a fresh `develop` and path-ownership preflight. Implement versioned identity/session/membership contracts, OIDC Authorization Code + PKCE through the BFF, opaque server-side sessions, membership-derived tenant context, CSRF, MFA/step-up enforcement, logout/revocation/back-channel logout and deterministic denied/expired/revoked/cross-tenant/recovery E2E. Keep authentik/Cloudflare target provisioning, secrets and real P11 acceptance in separately controlled deployment evidence, and do not start PI-07, PI-08 or live capital.

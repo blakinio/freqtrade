@@ -1,8 +1,8 @@
 # Liquidations Portal Module and AI Bot Architecture
 
-## 1. Purpose
+## 1. Purpose and authority
 
-This document is the canonical continuation route for work involving:
+This is the canonical continuation route for work involving:
 
 - the Liquid20 public liquidation collectors;
 - the read-only **Likwidacje** portal module;
@@ -10,63 +10,74 @@ This document is the canonical continuation route for work involving:
 - a future liquidation-aware AI bot;
 - later dry-run, shadow, and separately authorized live-small execution.
 
-It exists to prevent future agents from treating these as one component or from assuming that a working market-data page is a validated trading strategy.
+It prevents future agents from treating these as one component or from assuming that a working market-data page is a validated trading strategy.
 
-Repository state, merged pull requests, immutable run evidence, current task checkpoints, and current deployment evidence override this document when they conflict. Chat history is not authoritative.
+Source-of-truth order:
 
-## 2. Current verified implementation snapshot
+1. current repository state and `develop` head;
+2. merged pull requests and required CI;
+3. immutable Liquid20 run evidence and acceptance reports;
+4. current deployment evidence;
+5. durable task checkpoints;
+6. this document;
+7. chat history and old prompts.
+
+When sources conflict, stop and resolve the conflict from the higher-authority source. Do not silently choose the most convenient statement.
+
+## 2. Current verified snapshot
 
 Snapshot date: `2026-07-26`.
 
 ### 2.1 Portal integration
 
-The first complete read-only portal integration has been delivered in three bounded packages:
+The read-only portal integration is complete in three bounded packages:
 
-1. PR `#307`, merge `aa2f193b970588e478b5d57f58d2ddfd7f4aab67`:
-   - versioned server-side Liquid20 read-model;
-   - bounded incremental NDJSON reader;
-   - exact decimal aggregation;
-   - health and acceptance-state contracts;
-   - deterministic fixtures and contract tests.
-2. PR `#311`, merge `228b5ad3eb12c6adab300ab86461d3fa67acaa47`:
-   - same-origin BFF routes;
-   - responsive `/market/liquidations` page;
-   - filters, summaries, rankings, source semantics, and E2E coverage.
-3. PR `#313`, merge `1bf106fb5919706cca4db4f8245e00d2a1932df9`:
-   - read-only Synology evidence mount;
-   - non-root portal access through a verified supplementary read group;
-   - exact-SHA candidate validation, rollback, and private-LAN probes.
+| Package | PR | Merge SHA | Delivered |
+|---|---:|---|---|
+| Liquid20 read-model | `#307` | `aa2f193b970588e478b5d57f58d2ddfd7f4aab67` | versioned contracts, bounded incremental NDJSON reader, exact decimal aggregation, health and acceptance semantics, deterministic tests |
+| BFF and UI | `#311` | `228b5ad3eb12c6adab300ab86461d3fa67acaa47` | same-origin routes, responsive `/market/liquidations`, filters, summaries, rankings, source semantics, E2E |
+| Synology integration | `#313` | `1bf106fb5919706cca4db4f8245e00d2a1932df9` | read-only evidence mount, non-root access through a verified supplementary group, exact-SHA candidate validation, rollback and LAN probes |
 
-The exact feature deployment `e48c421aea4adb46854578264d80622803498a87` passed Synology workflow run `30191045808` against real Liquid20 files before PR `#313` was merged.
+Real-data deployment evidence:
 
-### 2.2 Research and collection foundation
+- feature candidate SHA: `e48c421aea4adb46854578264d80622803498a87`;
+- feature deployment run: `30191045808`;
+- authoritative merged deployment run: `30191687921`;
+- private-LAN URL at that checkpoint: `http://192.168.1.2:3031`.
 
-The supporting research/data sequence includes:
+The current running image, collector image, active run and newest acceptance result are mutable runtime facts. Reverify them before every operational task.
 
-- PR `#236`: canonical liquidation event, Bybit parser/collector, completed-candle alignment, pure counter-trade policy, disabled profile;
-- PR `#247`: measurable data-only staging and a frozen acceptance policy;
-- PR `#250`: Binance USD-M source with explicit sampled-feed semantics;
-- PR `#254`: frozen `liquid20-v1` universe of 20 USDT perpetual symbols;
-- PR `#256`: deterministic 24-hour multi-source acceptance package;
-- PR `#258`: hardened Synology collector deployment project.
+### 2.2 Collector and research foundation
 
-These packages establish data collection and evidence contracts. They do not establish strategy profitability or trading authorization.
+The supporting sequence includes:
+
+| PR | Purpose |
+|---:|---|
+| `#236` | canonical liquidation event, Bybit parser/collector, completed-candle helper, pure counter-trade policy, disabled research profile |
+| `#247` | measurable data-only staging and frozen acceptance policy |
+| `#250` | Binance USD-M source with explicit sampled-feed semantics |
+| `#254` | frozen `liquid20-v1` universe of 20 USDT perpetual symbols |
+| `#256` | deterministic 24-hour multi-source acceptance package |
+| `#258` | hardened Synology collector deployment project |
+
+These packages establish collection and evidence contracts. They do not establish profitability, model validity or trading authorization.
 
 ### 2.3 Truthful current claim
 
-The portal can display real source-labelled liquidation evidence from Synology as a research preview.
+The portal can display real, source-labelled liquidation evidence from Synology as a research preview.
 
-The following claims are not authorized merely because the page works:
+The portal does not prove:
 
-- that the data set passed the frozen acceptance policy;
-- that liquidation observations create trade signals;
+- that the newest data set passed the frozen acceptance policy;
+- that a liquidation observation creates a trade signal;
 - that the Wick Hunter-inspired strategy is profitable;
-- that an AI model has been validated for this data;
-- that any order submission, DCA, leverage, or live capital is enabled.
+- that an AI model has been validated for liquidation data;
+- that TP, SL, DCA or leverage has been selected;
+- that any order submission or live capital is enabled.
 
-The most recent completed acceptance result and the current active-run state must always be re-read from the evidence tree. An earlier completed run failed only `binance-usdm.maximum_latency_over_threshold_ratio`; a later retry must not be assumed accepted without an explicit report containing `passed: true`.
+An earlier completed run failed only `binance-usdm.maximum_latency_over_threshold_ratio`. A later run is accepted only when its own final report explicitly contains `passed: true`.
 
-## 3. Terminology and ownership
+## 3. Component definitions
 
 ### 3.1 Liquid20 collector
 
@@ -75,116 +86,119 @@ A public-market-data process that:
 - subscribes to fixed Bybit linear and Binance USD-M liquidation feeds;
 - normalizes events into the canonical schema;
 - writes source-separated append-only NDJSON;
-- writes source summaries, a multi-source manifest, and acceptance evidence;
-- has no exchange trading keys and no execution authority.
+- writes source summaries, a multi-source manifest and acceptance evidence;
+- has no exchange trading keys;
+- has no order, account or capital authority.
 
 ### 3.2 Liquid20 evidence
 
-The immutable or append-only run directory containing raw normalized events and evidence metadata. It is the source of truth for the portal module and future research dataset selection.
+The immutable or append-only run directory containing normalized events and evidence metadata. It is the source of truth for portal presentation and future research dataset selection.
 
 ### 3.3 Portal Liquidations module
 
-A server-side read-model, same-origin BFF, and browser page that present bounded market-data observations. It is not a strategy and cannot submit intents or orders.
+A server-side read-model, same-origin BFF and browser page that present bounded market-data observations. It is not a strategy and cannot create a signal, intent or order.
 
-### 3.4 Wick Hunter-inspired research strategy
+### 3.4 Wick Hunter-inspired research track
 
-A separate, independently implemented research track whose proposed entry shape is:
+A separate, independently implemented hypothesis with the proposed shape:
 
 ```text
 trusted liquidation event
 AND event notional >= declared minimum
 AND price is outside a declared VWAP or VWMA band
 AND deterministic filters pass
-=> create a counter-trade candidate
+=> counter-trade candidate
 ```
 
-It is inspired only by publicly described behavior. It does not claim source-code compatibility with, or reproduction of, a third-party product.
+It is inspired only by publicly described behavior. It does not claim third-party source-code compatibility or exact product reproduction.
 
 ### 3.5 AI bot
 
-A portal-managed `BotInstance` with immutable configuration, strategy, model, feature-schema, and risk-policy identities. An AI model may produce predictions, but only deterministic strategy and risk layers may convert them into an approved execution intent. Freqtrade owns the order and trade lifecycle.
+A portal-managed `BotInstance` with immutable configuration, strategy, model, feature-schema and risk-policy identities.
 
-## 4. System context
+An AI model may produce a prediction or ranking. Only deterministic strategy and risk layers may convert that output into an approved intent. Freqtrade owns the order and trade lifecycle.
 
-### 4.1 Current read-only data path
+## 4. Architecture overview
+
+### 4.1 Current read-only path
 
 ```text
-Bybit linear public feed          Binance USD-M public feed
-             |                               |
-             +---------------+---------------+
-                             |
-                             v
-                  Liquid20 collector process
-                  - no trading credentials
-                  - source-specific adapters
-                  - canonical event schema
-                             |
-                             v
-             append-only / immutable run evidence
-             - source NDJSON
-             - source summaries
-             - multi-source manifest
-             - acceptance report when completed
-                             |
-                  read-only Synology bind mount
-                             |
-                             v
-                 Next.js server read-model
-                 - fixed-path discovery
-                 - incremental reads
-                 - bounded cache
-                 - exact aggregation
-                             |
-                             v
-                  same-origin portal BFF
-                             |
-                             v
-                  browser Likwidacje page
+Bybit public liquidation feed      Binance USD-M forceOrder feed
+                |                               |
+                +---------------+---------------+
+                                |
+                                v
+                     Liquid20 collector
+                     - public endpoints only
+                     - source-specific adapters
+                     - canonical event schema
+                                |
+                                v
+                append-only / immutable run evidence
+                - source NDJSON
+                - source summaries
+                - multi-source manifest
+                - final acceptance report when available
+                                |
+                     Synology read-only bind mount
+                                |
+                                v
+                    Next.js server read-model
+                    - fixed-path discovery
+                    - incremental reads
+                    - bounded cache
+                    - exact aggregation
+                                |
+                                v
+                     same-origin portal BFF
+                                |
+                                v
+                    browser Likwidacje page
 ```
 
 ### 4.2 Future strategy path
 
 ```text
 accepted and frozen Liquid20 evidence
-             +
+              +
 versioned candle evidence
-             |
-             v
+              |
+              v
 deterministic event/candle replay
-             |
-             v
+              |
+              v
 versioned feature builder
-             |
-             +-------------------------+
-             |                         |
-             v                         v
-deterministic baseline          optional AI prediction
-             |                         |
-             +------------+------------+
-                          |
-                          v
-                deterministic strategy
-                          |
-                          v
-                 deterministic risk gate
-                          |
-                          v
-            approved intent in dry-run only
-                          |
-                          v
-               private ExecutionAdapter
-                          |
-                          v
-               isolated Freqtrade runtime
+              |
+              +-----------------------------+
+              |                             |
+              v                             v
+deterministic baseline              optional AI prediction
+              |                             |
+              +--------------+--------------+
+                             |
+                             v
+                   deterministic strategy
+                             |
+                             v
+                    deterministic risk gate
+                             |
+                             v
+                 approved dry-run intent only
+                             |
+                             v
+                   private ExecutionAdapter
+                             |
+                             v
+                  isolated Freqtrade runtime
 ```
 
-No component may shortcut the risk gate or call an exchange directly from the browser, research worker, or model.
+No browser, collector, research worker or model may bypass the risk and execution boundaries.
 
-## 5. Current component architecture
+## 5. Canonical data contract
 
-### 5.1 Source adapters and canonical event
+### 5.1 Event fields
 
-The canonical event preserves:
+Every normalized event preserves:
 
 ```text
 schema_version
@@ -206,16 +220,17 @@ Portal output additionally derives:
 ingest_latency_ms = received_at_ms - occurred_at_ms
 ```
 
-Important invariants:
+### 5.2 Invariants
 
-- `liquidated_position_side` describes the position that was liquidated, not the exchange order-side token;
-- `price`, `quantity`, and `notional_usd` remain decimal strings or exact decimal values;
-- source identity is part of event identity;
-- cross-exchange observations are never silently deduplicated;
-- malformed records are rejected, not repaired with invented values;
-- missing intervals remain gaps.
+- `liquidated_position_side` describes the position that was liquidated, not the exchange order-side token.
+- `price`, `quantity` and `notional_usd` remain decimal strings or exact decimal values.
+- `source` is part of event identity and attribution.
+- Cross-exchange observations are never silently deduplicated.
+- Malformed records are rejected, not repaired with invented values.
+- Missing intervals remain explicit gaps.
+- Source or clock failure never becomes a healthy zero.
 
-### 5.2 Source semantics
+### 5.3 Source semantics
 
 Bybit and Binance are not interchangeable feeds.
 
@@ -224,32 +239,37 @@ Bybit and Binance are not interchangeable feeds.
 
 Consequences:
 
-- totals must retain `source` labels;
-- a Binance count or notional is not proof of complete venue liquidation volume;
-- identical-looking events on two exchanges remain two venue observations;
-- future models must receive source identity or source-specific features, not an unlabeled merged total.
+- totals retain source labels;
+- Binance counts and notional are not proof of complete venue liquidation volume;
+- similar events on different exchanges remain separate venue observations;
+- models receive source identity or source-specific features;
+- no unlabeled merged total is treated as a canonical volume measure.
 
-### 5.3 Evidence layout
+## 6. Evidence layout and selection
 
-The authoritative Synology root is currently:
+### 6.1 Synology paths
+
+Authoritative host root at the verified checkpoint:
 
 ```text
 /volume1/docker/freqtrade-liquidations/data
 ```
 
-The portal container sees:
+Portal container root:
 
 ```text
 /liquid20-data:ro
 ```
 
-Supported run roots are either the configured root itself or its `runs/` child. Valid run IDs match:
+Supported discovery roots are the configured root itself or its fixed `runs/` child.
+
+Valid run IDs match:
 
 ```text
 liquid20-YYYYMMDDTHHMMSSZ-attempt
 ```
 
-Fixed children of a run include:
+Fixed run children:
 
 ```text
 bybit-linear.ndjson
@@ -257,14 +277,30 @@ binance-usdm.ndjson
 bybit-linear-summary.json
 binance-usdm-summary.json
 multi-source-manifest.json
-multi-source-acceptance-report.json   # when final evaluation exists
+multi-source-acceptance-report.json   # only when final evaluation exists
 ```
 
-No browser parameter can select a host path, run path, or filename.
+No user-controlled request may select a host path, run path or filename.
 
-### 5.4 Read-model
+### 6.2 Dataset selection rule
 
-Current implementation location:
+Before performance research, create a separate immutable dataset-selection record containing:
+
+- run IDs and file hashes;
+- collector, parser and evaluator commits;
+- final acceptance status and failed gates;
+- accepted, rejected and quarantined intervals;
+- source clock and latency evidence;
+- candle source, version and hashes;
+- declared train, tune, validation and OOS windows;
+- protected-holdout exclusion evidence;
+- data-use classification.
+
+A failed run may be used for diagnostics only when it remains labelled failed or quarantined. It cannot support a profitability claim.
+
+## 7. Read-model architecture
+
+Implementation root:
 
 ```text
 ai_platform/portal/web/lib/liquidations/
@@ -277,20 +313,19 @@ The reader:
 - reads fixed source files only;
 - reads incrementally from remembered offsets;
 - tolerates a partially written final line;
-- detects file replacement, inode change, truncation, and run rotation;
-- removes stale source-cache entries after source replacement;
+- detects inode change, file replacement, truncation and run rotation;
+- removes stale source-cache entries after replacement;
 - validates every event against its expected source;
 - deduplicates only `source + source_event_id`;
 - rejects conflicting records with the same identity;
 - keeps a bounded in-memory cache;
-- reports truncation explicitly;
-- sorts deterministically by event time, source, and source event ID;
+- reports cache truncation explicitly;
+- sorts deterministically by event time, source and source event ID;
 - paginates with a stable cursor;
-- limits one list request to 200 records;
-- bounds metadata and line sizes;
+- bounds request, metadata and line sizes;
 - never writes to the evidence tree.
 
-Default implementation bounds are currently:
+Current default bounds:
 
 ```text
 maximum cached events: 250000
@@ -300,17 +335,19 @@ maximum metadata file: 2 MiB
 maximum NDJSON line:   128 KiB
 ```
 
-Any future change to these values must consider Synology memory, request latency, active-run growth, and explicit cache-truncation semantics.
+Any change must evaluate Synology memory, request latency, active-run growth and truncation semantics.
 
-### 5.5 Versioned portal contracts
+## 8. Portal contracts and UI
 
-List endpoint:
+### 8.1 Endpoints
 
 ```text
 GET /api/market/liquidations
+GET /api/market/liquidations/summary
+GET /api/market/liquidations/health
 ```
 
-Accepted query fields:
+List parameters:
 
 ```text
 source = all | bybit-linear | binance-usdm
@@ -322,62 +359,51 @@ limit = 1..200
 cursor
 ```
 
-Summary endpoint:
+The summary endpoint returns exact, source-labelled 5-minute, 1-hour and 24-hour aggregates, long/short split and 24-hour symbol ranking.
 
-```text
-GET /api/market/liquidations/summary
-```
+The health endpoint returns:
 
-Returns:
-
-- 5-minute, 1-hour, and 24-hour windows;
-- total event count and exact notional;
-- long/short split;
-- source-specific totals;
-- 24-hour symbol ranking;
-- `truncated` when the read cache cannot represent the complete requested history.
-
-Health endpoint:
-
-```text
-GET /api/market/liquidations/health
-```
-
-Returns:
-
-- run ID and data mode;
+- selected run and data mode;
 - current acceptance status and failed gates;
 - latest completed acceptance evidence;
 - active sources and observed-symbol count;
-- per-source event, availability, disconnect, and freshness fields;
+- source event, availability, disconnect and freshness fields;
 - source-semantics descriptions;
 - `research_preview: true`;
 - `trading_authorized: false`.
 
-### 5.6 Status semantics
+### 8.2 Status semantics
 
 Data mode:
 
-- `live`: latest run has no final acceptance report and activity is fresh;
-- `stale`: latest unfinished run exceeded the freshness threshold;
-- `historical`: latest run has a final acceptance report.
+- `live`: unfinished run with fresh source activity;
+- `stale`: unfinished run beyond the freshness threshold;
+- `historical`: run with a final acceptance report.
 
 Acceptance status:
 
-- `accepted`: current run report explicitly contains `passed: true`;
-- `failed`: current run report explicitly contains `passed: false`;
-- `in-progress`: current run is live or stale and has no final report;
+- `accepted`: current final report explicitly contains `passed: true`;
+- `failed`: current final report explicitly contains `passed: false`;
+- `in-progress`: current run has no final report;
 - `missing`: no accepted final report can be derived for the current historical context.
 
-The latest completed acceptance result remains visible while a newer run is active. This prevents an unfinished retry from hiding the last known failed gate.
+The latest completed acceptance result remains visible while a newer run is active. An unfinished retry must not hide the last known failed gate.
 
-### 5.7 BFF and UI
+### 8.3 BFF behavior
 
-Current server routes:
+The BFF:
 
-```text
-ai_platform/portal/web/app/api/market/liquidations/
-```
+- runs in the Node.js server runtime;
+- creates the reader only from server configuration;
+- requires `PORTAL_LIQUIDATIONS_DATA_ROOT` outside explicit fixture mode;
+- validates every parameter;
+- returns `422` for invalid input;
+- returns `503` when data is unavailable;
+- returns a bounded `500` for unexpected failures;
+- sets `cache-control: no-store`;
+- never returns host paths, Docker metadata, credentials or unrestricted logs.
+
+### 8.4 Browser page
 
 Current page:
 
@@ -385,128 +411,118 @@ Current page:
 /market/liquidations
 ```
 
-The BFF:
+It includes:
 
-- runs in the Node.js server runtime;
-- creates the reader only from server configuration;
-- requires `PORTAL_LIQUIDATIONS_DATA_ROOT` outside explicit fixture mode;
-- returns `422` for invalid query input;
-- returns `503` when data is unavailable;
-- returns a bounded `500` response for unexpected failures;
-- sets `cache-control: no-store`;
-- never returns the host path, Docker metadata, credentials, or raw unrestricted logs.
-
-The UI includes:
-
-- current data and acceptance status;
+- data and acceptance status;
 - failed gate names;
-- 5-minute, 1-hour, and 24-hour summaries;
-- source, symbol, side, and time filters;
+- 5-minute, 1-hour and 24-hour summaries;
+- source, symbol, side and time filters;
 - recent events;
 - 24-hour symbol ranking;
 - long/short split;
 - source-semantics explanation;
-- loading, empty, stale, unavailable, failed, and responsive states;
+- loading, empty, stale, unavailable, failed and responsive states;
 - explicit research-preview and no-trading language.
 
-## 6. Synology deployment architecture
+It contains no buy, sell, long, short, order, DCA or leverage action.
 
-### 6.1 Runtime topology
+## 9. Synology deployment boundary
+
+### 9.1 Runtime topology
 
 ```text
 Synology Container Manager / Docker daemon
   |
-  +-- liquid20 collector container
+  +-- Liquid20 collector container
   |     writes /volume1/docker/freqtrade-liquidations/data
   |
   +-- portal candidate/final container
-        reads the same root through /liquid20-data:ro
-        binds only to 192.168.1.2:3031
+        reads /liquid20-data:ro
+        binds to the verified private-LAN interface and port
 ```
 
-### 6.2 Permission boundary
+### 9.2 Permission model
 
-Observed evidence permissions were:
+Observed evidence permissions:
 
 ```text
 directories: root:root 750
 files:       root:root 640
 ```
 
-The deployment does not solve this by:
+The deployment does not solve access by:
 
 - running the portal as root;
 - changing ownership or modes;
 - copying evidence;
-- adding write access;
+- adding evidence write access;
 - mounting the Docker socket.
 
-Instead, a short root-only metadata preflight container verifies:
+A short root-only metadata preflight verifies:
 
 - valid non-symlinked run paths;
-- required fixed files;
-- group read/traverse bits;
+- fixed required files;
+- group read and traverse bits;
 - one consistent numeric GID.
 
-The final non-root Node container receives only that numeric supplementary group and the evidence bind remains read-only.
+The final non-root Node container receives only that supplementary group. The evidence bind remains read-only.
 
-### 6.3 Deployment gates
+### 9.3 Deployment gates
 
-The deployment builds an exact-commit image, starts an isolated candidate, and checks:
+Candidate validation checks:
 
+- immutable image and exact commit identity;
 - Docker health;
-- health, summary, bounded list, and page endpoints;
+- health, summary, bounded list and page endpoints;
 - `schema_version=1`;
 - `research_preview=true`;
 - `trading_authorized=false`;
 - non-root UID;
-- expected read group;
+- expected supplementary GID;
 - read-only evidence mount;
 - absence of `/var/run/docker.sock`;
 - private-LAN reachability;
 - rollback viability.
 
-The private preview URL is currently:
+The private-LAN preview is not proof of Cloudflare P11 production-like staging and is not a public production deployment.
 
-```text
-http://192.168.1.2:3031
-```
+## 10. Security and authority boundaries
 
-This is not proof of Cloudflare P11 production-like staging and is not a public production deployment.
-
-## 7. Security and authority boundaries
-
-### 7.1 Browser boundary
+### 10.1 Browser boundary
 
 The browser may call only same-origin portal routes. It must never receive or connect to:
 
 - Synology file paths;
-- the collector WebSocket/process;
+- the collector process;
 - Bybit or Binance WebSocket endpoints for this module;
 - Freqtrade REST or WebSocket endpoints;
 - exchange credentials;
-- a secret store;
-- the Docker socket;
-- an observability backend credential.
+- secret-store endpoints;
+- Docker socket access;
+- private observability credentials.
 
-### 7.2 Collector boundary
+### 10.2 Collector boundary
 
-The collector uses public market-data endpoints only. It must reject common trading credential environment variables and must not contain order or account code.
+The collector:
 
-### 7.3 Research boundary
+- uses public market-data endpoints only;
+- rejects common trading credential environment variables;
+- contains no order or account logic;
+- cannot create a signal or intent;
+- cannot mutate completed evidence.
 
-A research worker can read approved evidence and create immutable artifacts. It cannot:
+### 10.3 Research boundary
+
+A research worker may read approved evidence and create immutable artifacts. It cannot:
 
 - read production exchange credentials;
-- alter completed evidence;
-- relabel a failed run as accepted;
+- mutate completed evidence;
+- relabel failed evidence as accepted;
 - promote its own model;
 - submit orders;
 - use protected holdout data for iterative tuning.
 
-### 7.4 Capital authority
-
-Capital authority remains outside the model and outside the portal market-data page.
+### 10.4 Capital authority
 
 ```text
 prediction or observation
@@ -517,26 +533,26 @@ prediction or observation
     -> Freqtrade
 ```
 
-A liquidation event is evidence, not authorization.
+A liquidation event is evidence, not authorization. Model confidence is not capital authority.
 
-## 8. AI bot architecture assumptions
+## 11. AI bot architecture
 
-### 8.1 Stable authority split
+### 11.1 Stable layer split
 
-A future AI-enabled liquidation bot must preserve this split:
+A future liquidation-aware AI bot preserves:
 
-1. **Data layer** records what was observed and when it became available.
-2. **Feature layer** derives only versioned, reproducible features from allowed information.
-3. **Model layer** produces a prediction, score, regime, or desired-position proposal.
-4. **Strategy layer** deterministically interprets model output and market context.
-5. **Risk layer** approves, rejects, or resizes the candidate under a versioned policy.
-6. **Execution layer** sends only approved dry-run or separately authorized intents to Freqtrade.
-7. **Post-trade layer** records outcomes and diagnoses without rewriting decision-time evidence.
-8. **Learning layer** may create candidates but cannot silently replace the active model.
+1. **Data layer** — records observations and availability time.
+2. **Feature layer** — derives versioned reproducible features.
+3. **Model layer** — emits prediction, score, regime or ranking.
+4. **Strategy layer** — deterministically interprets market context and optional model output.
+5. **Risk layer** — approves, rejects or resizes under a versioned policy.
+6. **Execution layer** — submits only approved dry-run or separately authorized intents.
+7. **Post-trade layer** — records fills and outcomes without rewriting decision evidence.
+8. **Learning layer** — creates candidates but cannot replace the active model silently.
 
-### 8.2 Immutable identities
+### 11.2 Immutable attribution
 
-Every decision must be attributable to at least:
+Every decision must identify at least:
 
 ```text
 tenant_id
@@ -547,7 +563,7 @@ strategy_version_id
 model_version_id or explicit no-model baseline
 feature_schema_version
 risk_policy_version_id
-dataset_id / evidence manifest
+dataset_id or evidence manifest
 collector commit
 candle source and hashes
 decision_id
@@ -556,7 +572,7 @@ correlation_id
 
 Display names are not identities.
 
-### 8.3 BotInstance and runtime
+### 11.3 Bot and runtime isolation
 
 Initial isolation remains:
 
@@ -564,18 +580,18 @@ Initial isolation remains:
 one BotInstance -> one isolated Freqtrade runtime
 ```
 
-A `BotConfigRevision` is immutable. Changing symbols, timeframes, thresholds, model assignment, risk limits, DCA, exits, leverage, or data-source policy creates a new revision.
+A `BotConfigRevision` is immutable. Changes to symbols, timeframes, thresholds, model assignment, risk limits, DCA, exits, leverage or data-source policy create a new revision.
 
 Desired lifecycle state and observed runtime state remain separate.
 
-### 8.4 Decision black box
+### 11.4 Decision black box
 
 Before execution outcome is known, persist a versioned decision snapshot containing only information available at decision time:
 
 ```text
 decision_id
-occurred_at / decision_available_at
-bot/config/strategy/model/risk identities
+decision_available_at
+bot, config, strategy, model and risk identities
 market and liquidation evidence references
 feature schema and feature artifact hash
 model output and acceptance state
@@ -584,82 +600,84 @@ risk result and reason codes
 proposed exposure
 ```
 
-Later trade fills, PNL, MFE/MAE, exit reason, and post-trade diagnosis belong to separate outcome evidence.
+Later fills, fees, PNL, MFE, MAE, exit reason and diagnosis belong to separate outcome evidence.
 
-### 8.5 AI is optional
+### 11.5 AI is optional
 
-The first valid strategy candidate should have a deterministic non-AI baseline. An AI component should be added only when it answers a declared question such as:
+The first valid candidate should have a deterministic non-AI baseline.
+
+Add AI only for a declared question, for example:
 
 - filter false reversals;
 - estimate rebound probability;
-- classify market regime;
+- classify regime;
 - rank candidate events;
 - propose bounded holding-time or exit classes.
 
-The AI model must be compared against the deterministic baseline using the same frozen evidence and execution assumptions. A complex model is not justified merely because data exists.
+Compare AI against the same deterministic baseline using the same frozen evidence, fees, slippage, latency and execution assumptions. Data availability alone does not justify a complex model.
 
-## 9. Deterministic event and candle synchronization contract
+## 12. Deterministic event and candle synchronization
 
-This contract is required before historical strategy claims.
+### 12.1 Required timestamps
 
-### 9.1 Required timestamps
-
-For every liquidation event preserve:
+For every event preserve:
 
 ```text
 occurred_at_ms  # source event time
-received_at_ms  # local collector availability time
+received_at_ms  # collector availability time
 ```
 
-For every candle preserve a versioned source, timeframe, open time, close boundary, and artifact identity.
+For every candle preserve source, timeframe, open time, close boundary and artifact identity.
 
-### 9.2 Availability rule
+### 12.2 Availability rule
 
 A historical decision cannot occur before `received_at_ms`.
 
-The source occurrence timestamp may locate the event in market time, but it does not prove that the bot had received the event at that moment.
+`occurred_at_ms` locates the event in market time but does not prove that the bot had received it at that time.
 
-### 9.3 Completed-candle rule
+### 12.3 Completed-candle rule
 
 For an event inside candle interval `[open, close)`:
 
-- the containing candle may be recorded for evidence linkage;
-- strategy features may use only candles that were fully closed before the event became available;
-- the final high, low, close, or volume of the containing candle is forbidden unless a separately recorded intrabar stream proves the exact state available at decision time.
+- the containing candle may be linked as evidence;
+- features may use only candles fully closed before event availability;
+- final high, low, close or volume of the containing candle is forbidden unless a separately recorded intrabar stream proves the exact state available then.
 
-The conservative current helper uses the last completed candle and sets decision availability from `received_at_ms`.
+The conservative current helper uses the last completed candle and decision availability from `received_at_ms`.
 
-### 9.4 Deterministic replay ordering
+### 12.4 Replay contract to freeze prospectively
 
-Before a replay package is implemented, prospectively freeze:
+Before implementation, declare:
 
-- the primary event ordering key;
+- primary event ordering key;
 - tie-breakers for equal timestamps;
-- whether a later-received but earlier-occurred event can affect an already made decision;
+- handling of later-received but earlier-occurred events;
 - maximum event age;
 - duplicate and conflicting-ID behavior;
 - missing-candle and missing-event behavior;
 - source outage and quarantine behavior;
-- the exact entry-price sampling rule after decision availability.
+- exact entry-price sampling after decision availability;
+- fees, slippage and latency model;
+- train, tune, validation and OOS windows.
 
-Do not invent these rules after observing strategy results.
+Do not choose these rules after observing strategy results.
 
-### 9.5 No-lookahead tests
+### 12.5 No-lookahead proofs
 
-Required tests must prove that changing future values cannot alter an earlier decision:
+Tests must prove that changing future values cannot alter an earlier decision:
 
 - containing-candle final OHLCV;
 - later liquidation events;
 - later acceptance metadata;
-- future model labels;
-- outcome or PNL fields;
+- future labels;
+- later outcomes or PNL;
 - later source summaries.
 
-## 10. Future feature architecture
+## 13. Feature architecture
 
-### 10.1 Feature groups
+### 13.1 Candidate feature families
 
-Potential liquidation feature families include:
+Potential features include:
 
 - source-specific event count by rolling window;
 - source-specific notional by rolling window;
@@ -669,14 +687,14 @@ Potential liquidation feature families include:
 - source availability and latency state;
 - price distance from completed-candle VWAP or VWMA bands;
 - completed-candle volatility and volume context;
-- cross-source agreement while retaining separate identities;
+- cross-source agreement with separate identities retained;
 - cluster or burst descriptors.
 
 These are candidate families, not approved features.
 
-### 10.2 Feature contract requirements
+### 13.2 Feature schema requirements
 
-Every feature schema must state:
+Every feature schema states:
 
 ```text
 name and version
@@ -685,43 +703,43 @@ availability timestamp rule
 window boundaries
 missing-data policy
 source-outage policy
-normalization/calibration window
+normalization or calibration window
 numeric precision
 warm-up requirement
-training/inference equivalence test
+training and inference equivalence test
 ```
 
-Missing or stale source data must not silently become zero unless zero is explicitly the frozen semantic value.
+Missing or stale source data must not silently become zero unless zero is the prospectively frozen semantic value.
 
-### 10.3 Cross-source policy
+### 13.3 Cross-source rules
 
 Allowed:
 
 - source-specific channels;
 - explicitly labelled aggregate features;
-- agreement/disagreement features;
+- agreement and disagreement features;
 - source-health inputs.
 
 Forbidden:
 
 - unlabeled summation;
-- cross-source event deduplication based only on approximate time/price;
-- treating Binance sampled semantics as complete liquidation volume;
-- training on a source field that is unavailable at inference time.
+- cross-source deduplication based only on approximate time and price;
+- treating Binance sampled semantics as complete volume;
+- training on fields unavailable at inference time.
 
-## 11. Strategy architecture
+## 14. Strategy architecture
 
-### 11.1 Deterministic baseline
+### 14.1 Deterministic baseline
 
-The baseline should remain a pure, testable decision function with explicit inputs:
+The baseline remains a pure testable decision function with explicit inputs:
 
 ```text
 liquidation event
 source health and age
-allowed symbol/source/direction policy
+allowed symbol, source and direction policy
 minimum notional
 completed-candle band values
-optional declared volume/volatility filters
+optional declared volume or volatility filters
 current position and cooldown state
 ```
 
@@ -733,44 +751,46 @@ reason codes
 input evidence references
 ```
 
-### 11.2 Separate policy packages
+### 14.2 Separate policy packages
 
-Do not combine all behavior in one experiment. Declare separately:
+Declare and validate separately:
 
-- entry/filter policy;
+- entry and filter policy;
 - position sizing;
 - stop-loss;
 - take-profit;
 - time exit;
 - trailing exit;
-- cooldown/re-entry;
+- cooldown and re-entry;
 - DCA;
 - leverage;
 - portfolio and cross-bot limits.
 
-Each package changes the hypothesis and risk surface and requires its own frozen declaration and evidence.
+Each changes the hypothesis and risk surface.
 
-### 11.3 DCA
+### 14.3 DCA
 
-DCA remains disabled until a separate package prospectively defines:
+DCA remains disabled until a separate package defines:
 
 - maximum additional entries;
 - spacing rule;
 - total exposure cap;
 - margin and liquidation-distance stress tests;
-- stop behavior after the final DCA;
+- stop behavior after the final entry;
 - correlated multi-symbol exposure;
 - kill-switch behavior.
 
-DCA must never be introduced merely to hide a poor initial entry.
+DCA must not hide a poor initial entry.
 
-### 11.4 Exits and leverage
+### 14.4 Exits and leverage
 
-TP, SL, trailing, holding-time, and leverage must be frozen before the evaluated window is read. Leverage does not create edge and materially increases liquidation and gap risk.
+TP, SL, trailing, holding time and leverage are frozen before the evaluated window is read.
 
-## 12. Model lifecycle
+Leverage does not create edge. It increases liquidation, gap and operational risk.
 
-A future liquidation-aware model follows:
+## 15. Model lifecycle and evidence
+
+Lifecycle:
 
 ```text
 experiment
@@ -779,7 +799,7 @@ experiment
   -> dry-run
   -> shadow
   -> live-small (owner-gated)
-  -> production (separate evidence and authorization)
+  -> production (separate authorization)
   -> retired
 ```
 
@@ -791,44 +811,43 @@ Minimum candidate evidence:
 - frozen dataset manifest;
 - feature schema version;
 - target definition;
-- train/tune/OOS windows;
-- fees, slippage, latency, and entry rule;
+- train, tune, validation and OOS windows;
+- fees, slippage, latency and entry rule;
 - deterministic baseline comparison;
-- repeated-run determinism or declared seed policy;
-- minimum sample/trade count;
+- deterministic repetition or declared seed policy;
+- minimum event and trade count;
 - drawdown and tail-risk gates;
-- source-gap stress;
-- latency stress;
-- no-lookahead tests;
-- negative-result preservation.
+- source-gap and latency stress;
+- no-lookahead proofs;
+- preserved negative results.
 
-The protected final holdout must remain isolated according to the current research policy. Earlier use of a period for tuning or diagnosis cannot later be relabelled as strict OOS.
+The protected final holdout remains isolated under current research policy. A period used for tuning or diagnosis cannot later be relabelled strict OOS.
 
-## 13. Execution integration
+## 16. Execution integration
 
-### 13.1 Current state
+### 16.1 Current state
 
-The portal Liquidations module has no execution integration.
+The Liquidations portal module has no execution integration.
 
-The general portal execution path remains fail-closed where private approved-intent submission is not implemented. Deterministic simulator evidence is not proof of private Freqtrade order submission.
+The general portal execution path remains fail-closed where private approved-intent submission is not implemented. Simulator evidence is not proof of real private Freqtrade submission.
 
-### 13.2 First allowed execution stage
+### 16.2 First allowed execution stage
 
-The first execution package must remain:
+The first execution package remains:
 
 ```text
 Freqtrade dry_run: true
 DCA: disabled
-fixed bounded leverage or no leverage
-strict exposure limits
+no leverage or prospectively fixed bounded leverage
+strict position and loss limits
 new-entry kill switch
 audit and decision snapshots enabled
-separate credentials without withdrawal permission when credentials become required
+credentials without withdrawal permission when credentials are required
 ```
 
-It must respect the portal's credential-broker and approved-intent dependency order. A liquidation strategy must not create a side channel that bypasses PI-07 or PI-08 security contracts.
+It must respect portal credential-broker and approved-intent dependency order. No liquidation strategy may bypass PI-07 or PI-08 boundaries.
 
-### 13.3 Shadow and live-small
+### 16.3 Shadow and live-small
 
 Shadow mode compares hypothetical decisions and fills without capital.
 
@@ -837,78 +856,80 @@ Live-small requires a separate owner-approved package containing:
 - exact capital cap;
 - per-trade and total exposure;
 - daily loss and drawdown stops;
-- exchange credentials with withdrawals disabled;
-- alerting and operator runbook;
+- credentials with withdrawals disabled;
+- alerts and operator runbook;
 - rollback and kill-switch tests;
-- approved model/strategy/risk/config identities;
+- approved strategy, model, risk and config identities;
 - evidence that dry-run and shadow gates passed.
 
 Nothing in this document authorizes live capital.
 
-## 14. Observability and audit
+## 17. Observability and audit
 
-### 14.1 Collector metrics
+### 17.1 Collector metrics
 
 Track per source:
 
 - connection intervals and availability;
-- message and event counts;
+- messages and events;
 - parse failures;
 - duplicates and conflicts;
-- reconnects/disconnects;
+- reconnects and disconnects;
 - event latency distribution;
-- latest message/event age;
+- latest message and event age;
 - clock-probe state;
 - storage growth;
 - observed symbol coverage.
 
-### 14.2 Read-model metrics
+### 17.2 Read-model metrics
 
 Track:
 
 - refresh duration and failures;
-- active run ID;
+- selected run ID;
 - bytes and lines consumed per source;
 - cache size and truncation;
 - rejected records;
-- run rotation/file replacement;
-- endpoint request rate, latency, and status;
-- stale/unavailable transitions.
+- run rotation and file replacement;
+- endpoint rate, latency and status;
+- stale and unavailable transitions.
 
-### 14.3 Strategy/model metrics
+### 17.3 Strategy and model metrics
 
 Track with immutable attribution:
 
 - observed events;
-- accepted/rejected signals by reason;
+- accepted and rejected signals by reason;
 - feature warm-up and missing-source rejects;
 - prediction availability and rejection;
 - strategy and risk decisions;
 - intended and executed entries;
-- latency from event receipt to decision and intent;
-- fills, slippage, fees, MFE/MAE, exits, and PNL;
-- divergence between replay, signal-only, dry-run, and shadow.
+- event-receipt to decision and intent latency;
+- fills, slippage, fees, MFE, MAE, exits and PNL;
+- replay, signal-only, dry-run and shadow divergence.
 
-### 14.4 Audit rules
+### 17.4 Audit rules
 
-Audit and operational logs are separate. Never log:
+Audit and operational logs remain separate.
+
+Never log:
 
 - exchange secrets;
 - Freqtrade control credentials;
 - session tokens;
 - private keys;
-- unrestricted raw request bodies containing sensitive data.
+- unrestricted sensitive request bodies.
 
-## 15. Failure behavior
+## 18. Failure behavior
 
 Fail closed or degrade explicitly for:
 
 - missing data root;
-- no valid run directory;
-- symlink/path escape;
+- no valid run;
+- symlink or path escape;
 - unreadable files;
-- malformed metadata;
-- oversized metadata or line;
+- malformed or oversized metadata;
+- oversized NDJSON lines;
 - invalid event schema;
 - source mismatch;
 - conflicting event identity;
@@ -919,19 +940,19 @@ Fail closed or degrade explicitly for:
 - collector gap;
 - unavailable candle evidence;
 - feature warm-up failure;
-- model artifact/hash mismatch;
-- risk source unavailable;
-- execution adapter unavailable.
+- model artifact or hash mismatch;
+- unavailable risk source;
+- unavailable execution adapter.
 
 Never convert an unavailable state into a healthy empty result or a trading signal.
 
-## 16. Test architecture
+## 19. Test architecture
 
-### 16.1 Collector and parser
+### 19.1 Collector and parser
 
 - valid Bybit and Binance messages;
 - side normalization;
-- decimal precision;
+- exact decimal precision;
 - deterministic IDs;
 - malformed rows;
 - reconnect and duplicate accounting;
@@ -939,51 +960,51 @@ Never convert an unavailable state into a healthy empty result or a trading sign
 - credential-environment refusal;
 - append-only output and immutable hashes.
 
-### 16.2 Read-model
+### 19.2 Read-model
 
 - fixed-path and symlink rejection;
 - partial final line;
 - malformed and conflicting records;
 - incremental offsets;
-- file replacement/truncation;
+- replacement and truncation;
 - run rotation;
-- source/symbol/side/time filtering;
-- bounded limit and cursor validation;
+- source, symbol, side and time filtering;
+- bounded limits and cursor validation;
 - deterministic ordering;
 - exact aggregation;
 - no cross-source deduplication;
 - cache truncation;
-- live/stale/historical and acceptance states;
-- read-only file access.
+- live, stale, historical and acceptance states;
+- read-only evidence access.
 
-### 16.3 BFF and UI
+### 19.3 BFF and UI
 
-- 422, 503, and safe 500 responses;
+- `422`, `503` and safe `500` responses;
 - no-store headers;
-- loading, empty, stale, failed, and unavailable states;
+- loading, empty, stale, failed and unavailable states;
 - filters and pagination;
 - source warning and failed gates;
 - responsive 390 px viewport;
 - no trading action;
-- no direct collector/Freqtrade/public data-plane request;
-- fixture data clearly labelled.
+- no direct collector, exchange or Freqtrade request;
+- fixture data explicitly labelled.
 
-### 16.4 Replay and strategy
+### 19.4 Replay and strategy
 
-Before strategy promotion add:
+Before promotion add:
 
-- event/candle alignment;
+- event and candle alignment;
 - no-lookahead mutation tests;
 - deterministic repeated replay;
 - receive-time delayed decision;
-- duplicate/out-of-order events;
-- source outage/quarantine;
-- fees, slippage, and delayed-entry stress;
+- duplicate and out-of-order events;
+- source outage and quarantine;
+- fees, slippage and delayed-entry stress;
 - rejected-signal reason reconciliation;
-- baseline versus AI comparison;
+- deterministic baseline versus AI comparison;
 - risk and kill-switch behavior.
 
-### 16.5 Deployment
+### 19.5 Deployment
 
 - exact image SHA;
 - non-root UID;
@@ -991,47 +1012,49 @@ Before strategy promotion add:
 - read-only evidence mount;
 - no Docker socket;
 - no exchange credentials;
-- internal page/API probes;
-- LAN probes;
+- internal API and page probes;
+- private-LAN probes;
 - rollback.
 
-## 17. Dependency-ordered expansion plan
+## 20. Dependency-ordered expansion plan
 
-Future work should use separate dated tasks and small PRs.
+Use separate dated tasks and small reversible PRs.
 
 ### LQ-01 — Documentation and state closure
 
-- keep this architecture document current;
-- close stale task checkpoints;
-- record exact merged PR/CI/deployment evidence;
-- add portal delivery-status routing.
+Delivered by the architecture task:
+
+- canonical human-readable architecture;
+- machine-readable versioned manifest;
+- repaired stale checkpoints;
+- portal documentation and ADR routing.
 
 ### LQ-02 — Accepted dataset selection
 
 Entry gate:
 
-- a completed run report explicitly passes the unchanged frozen policy, or a failed/quarantined result is selected only for non-performance diagnostics.
+- completed run explicitly passes the unchanged policy, or failed evidence is selected only for diagnostics.
 
 Deliverables:
 
-- immutable run and file hashes;
-- collector/parser commits;
+- immutable file hashes;
+- collector and parser commits;
 - accepted and quarantined intervals;
 - candle source and hashes;
-- declared data-use classification;
-- no protected-holdout contamination.
+- data-use classification;
+- holdout-contamination check.
 
 ### LQ-03 — Deterministic replay contract and engine
 
-- prospectively freeze ordering, alignment, price sampling, fees, slippage, latency, gaps, and split windows;
+- freeze ordering, alignment, price sampling, fees, slippage, latency, gaps and windows;
 - implement deterministic replay and evidence package;
 - add no-lookahead and repeatability tests.
 
 ### LQ-04 — Deterministic strategy baseline
 
 - freeze entry and filter policy;
-- keep DCA, leverage optimization, and adaptive exits out;
-- compare against simple no-trade and declared conventional baselines;
+- keep DCA, leverage optimization and adaptive exits out;
+- compare with no-trade and declared conventional baselines;
 - preserve negative results.
 
 ### LQ-05 — Signal-only live observation
@@ -1043,10 +1066,10 @@ Deliverables:
 
 ### LQ-06 — Optional AI experiment
 
-- declare a specific model question;
-- freeze features, target, windows, and baseline;
+- declare one model question;
+- freeze features, target, windows and baseline;
 - train candidates only;
-- require independent lifecycle promotion.
+- use independent lifecycle promotion.
 
 This package is optional and must not block a valid deterministic baseline.
 
@@ -1055,8 +1078,8 @@ This package is optional and must not block a valid deterministic baseline.
 Dependencies:
 
 - accepted replay and signal-only evidence;
-- portal credential/execution contracts where applicable;
-- approved immutable strategy/model/risk/config versions.
+- required credential and execution contracts;
+- approved immutable strategy, model, risk and config versions.
 
 Boundaries:
 
@@ -1067,30 +1090,30 @@ Boundaries:
 
 ### LQ-08 — Shadow review
 
-- compare intended decisions, simulated fills, and real market outcomes;
-- measure latency, slippage, divergence, and operational stability;
+- compare intended decisions, simulated fills and real market outcomes;
+- measure latency, slippage, divergence and operational stability;
 - no capital.
 
 ### LQ-09 — Live-small authorization package
 
-Owner-gated and separate. It cannot be inferred from completion of any prior package.
+Owner-gated and separate. Completion of previous packages does not authorize it automatically.
 
-## 18. Agent start protocol
+## 21. Agent start protocol
 
 Before changing this area, a future agent must:
 
-1. inspect current `develop`, open PRs, active branches, and required checks;
+1. inspect current `develop`, open PRs, active branches and required checks;
 2. read root `AGENTS.md` and `docs/agents/CONTEXT_HANDOFF.md`;
-3. read this document and the latest active task checkpoint;
-4. inspect current Liquid20 collector and portal deployment evidence;
-5. verify the newest completed acceptance report and active run instead of trusting a status sentence;
-6. identify exact owned paths and overlap with portal, research, deployment, and bot-operation work;
-7. declare one bounded task, branch, acceptance criteria, and non-goals;
-8. preserve source identity, immutable evidence, no-lookahead, risk, credential, and capital gates;
-9. open a PR and use current-head CI as the merge gate;
+3. read this document, its JSON manifest and the latest task checkpoint;
+4. inspect current collector and portal deployment evidence;
+5. verify the newest completed acceptance report and active run;
+6. identify exact owned paths and overlap with portal, research, deployment and bot-operation work;
+7. declare one bounded task, branch, acceptance criteria and non-goals;
+8. preserve source identity, immutable evidence, no-lookahead, risk, credential and capital gates;
+9. use a PR and exact-current-head CI as the merge gate;
 10. update durable checkpoints after every material state change.
 
-## 19. Canonical file map
+## 22. Canonical file map
 
 ### Collector and research
 
@@ -1123,7 +1146,7 @@ deploy/synology/portal/
 .github/workflows/portal-synology-lan-preview.yml
 ```
 
-### Platform architecture and governance
+### Architecture and governance
 
 ```text
 docs/ai_platform/ARCHITECTURE.md
@@ -1133,79 +1156,80 @@ docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
 docs/ai_platform/portal/DATA_AND_OBSERVABILITY_ARCHITECTURE.md
 docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
 docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
+docs/ai_platform/portal/liquidations-ai-bot-architecture-v1.json
 ```
 
-## 20. Known facts, unknowns, and decisions
+## 23. Known facts, mutable facts and open decisions
 
-### Proven
+### 23.1 Proven
 
-- the collector/data contracts and multi-source acceptance evaluator exist;
-- the portal read-model, BFF, UI, and Synology read-only integration are merged;
-- real files were read successfully by a non-root candidate on Synology;
+- collector and multi-source acceptance contracts exist;
+- portal read-model, BFF, UI and Synology read-only integration are merged;
+- a non-root candidate read real Synology evidence successfully;
 - the portal has no trading authority for liquidation data;
-- the Wick Hunter-inspired foundation has a pure signal policy but no validated trading strategy;
-- DCA, TP/SL, leverage, and execution remain separate work.
+- the Wick Hunter-inspired foundation has a pure signal policy but no validated strategy;
+- DCA, TP, SL, leverage, AI and execution remain separate work.
 
-### Must be reverified before new work
+### 23.2 Must be reverified
 
-- current `develop` head and open path ownership;
-- current running portal image and deployment run;
-- current collector container/image;
-- current newest run ID;
-- current completed acceptance result;
-- current available disk/memory and retention state;
-- whether a replay dataset has since been frozen;
-- whether PI-07/PI-08 or related execution dependencies have changed.
+- current `develop` head and path ownership;
+- current portal image and deployment run;
+- current collector image and state;
+- newest run ID;
+- newest final acceptance result;
+- disk, memory and retention state;
+- whether a replay dataset has been frozen;
+- whether PI-07, PI-08 or related execution dependencies changed.
 
-### Unresolved design decisions
+### 23.3 Unresolved decisions
 
-These must be made prospectively in separate tasks:
+These require prospective declarations:
 
 - exact accepted dataset and candle source;
 - replay ordering and entry-price rule;
-- volume filter definition;
-- VWAP versus VWMA candidate definition;
-- exit and cooldown policies;
+- volume-filter definition;
+- VWAP versus VWMA definition;
+- exit and cooldown policy;
 - position sizing and portfolio limits;
-- DCA policy, if ever justified;
+- DCA policy, if justified;
 - leverage policy;
-- whether and where AI adds measurable value;
+- whether AI adds measurable value;
 - model target and validation gates;
 - live-small capital and operator policy.
 
-## 21. Non-negotiable no-go conditions
+## 24. No-go conditions
 
 Stop and record a blocker when work would:
 
-- weaken or reinterpret a frozen acceptance policy after seeing results;
-- mutate completed Liquid20 evidence;
-- expose file paths, collector, Freqtrade, Docker, or credentials to the browser;
+- weaken or reinterpret the frozen acceptance policy after results are known;
+- mutate completed evidence;
+- expose files, collector, Freqtrade, Docker or credentials to the browser;
 - remove source identity or deduplicate across exchanges;
 - use unfinished-candle final values without intrabar evidence;
 - use future outcome data in decision features;
-- silently replace unavailable data with zero or healthy state;
-- let a model bypass strategy or deterministic risk;
-- enable DCA, leverage, order submission, or live capital outside a separately declared package;
+- replace unavailable data with zero or healthy state silently;
+- let a model bypass deterministic strategy or risk;
+- enable DCA, leverage, order submission or live capital outside a separate package;
 - use protected holdout data iteratively;
-- mark an experiment promoted because training completed;
-- bypass required PR, review, or CI gates.
+- mark a model promoted because training completed;
+- bypass PR, review or CI gates.
 
-## 22. Completion definition for a future production-capable liquidation bot
+## 25. Production-capable completion definition
 
-A production-capable claim requires all of the following, not merely a working page:
+A production-capable liquidation bot claim requires all of the following:
 
-- accepted and immutable source data;
+- accepted immutable source data;
 - deterministic synchronization and replay;
 - no-lookahead evidence;
 - declared deterministic baseline;
-- frozen features/target/model and independent validation;
-- fees, slippage, latency, gaps, and tail-risk stress;
-- sufficient event/trade sample count;
+- frozen features, target and model with independent validation;
+- fees, slippage, latency, gaps and tail-risk stress;
+- sufficient event and trade sample count;
 - accepted dry-run and shadow operation;
-- immutable strategy/model/config/risk attribution;
+- immutable strategy, model, config and risk attribution;
 - private credential and execution boundaries;
-- risk limits, kill switches, alerts, and rollback;
+- risk limits, kill switches, alerts and rollback;
 - owner-approved live-small package;
-- successful post-live review before any broader promotion.
+- successful post-live review before broader promotion.
 
-Until then, the correct product label remains **read-only market-data and research preview**.
+Until then, the correct product label is **read-only market-data and research preview**.

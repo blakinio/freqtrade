@@ -701,9 +701,7 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
     expected_stop = datetime(2026, 5, 1, tzinfo=UTC)
     expected_inclusive_stop = int(expected_stop.timestamp()) - 1
     if timerange.startdt != expected_start or timerange.stopts != expected_inclusive_stop:
-        raise ResidualPyTorchBoundedM1Error(
-            "Inclusive pre-May acquisition timerange drifted"
-        )
+        raise ResidualPyTorchBoundedM1Error("Inclusive pre-May acquisition timerange drifted")
 
     coverage: dict[str, dict[str, str | int]] = {}
     for pair in selected_pairs:

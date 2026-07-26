@@ -55,9 +55,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         from freqtrade.configuration import TimeRange
 
         _, _, execution = _numeric_runtime()
-        expected_exclusive_stop = int(
-            datetime(2026, 5, 1, tzinfo=UTC).timestamp()
-        )
+        expected_exclusive_stop = int(datetime(2026, 5, 1, tzinfo=UTC).timestamp())
         for encoded in (execution.EXECUTION_TIMERANGE, execution.DOWNLOAD_TIMERANGE):
             timerange = TimeRange.parse_timerange(encoded)
             self.assertEqual(timerange.stopts, expected_exclusive_stop - 1)

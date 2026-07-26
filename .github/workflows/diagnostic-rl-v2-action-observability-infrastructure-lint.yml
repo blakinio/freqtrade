@@ -36,15 +36,23 @@ jobs:
               "ai_platform/scripts/rl_v2_action_observability_execution_run_request.py"
           )
           request = request_path.read_text(encoding="utf-8")
-          replacements = (
-              ("        keys: set[str] = set()\n", "        collected_keys: set[str] = set()\n"),
-              ("            keys.update(_collect_keys(child))\n", "            collected_keys.update(_collect_keys(child))\n"),
-              ("        return keys\n", "        return collected_keys\n"),
+          old_request = (
+              "    if isinstance(value, list):\n"
+              "        keys: set[str] = set()\n"
+              "        for child in value:\n"
+              "            keys.update(_collect_keys(child))\n"
+              "        return keys\n"
           )
-          if "        keys: set[str] = set()\n" in request:
-              for old, new in replacements:
-                  request = request.replace(old, new, 1)
-          elif "        collected_keys: set[str] = set()\n" not in request:
+          new_request = (
+              "    if isinstance(value, list):\n"
+              "        collected_keys: set[str] = set()\n"
+              "        for child in value:\n"
+              "            collected_keys.update(_collect_keys(child))\n"
+              "        return collected_keys\n"
+          )
+          if old_request in request:
+              request = request.replace(old_request, new_request, 1)
+          elif new_request not in request:
               raise SystemExit("Expected list key collector not found")
           request_path.write_text(request, encoding="utf-8")
 

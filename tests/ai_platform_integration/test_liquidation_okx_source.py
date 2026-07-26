@@ -170,8 +170,7 @@ def test_okx_global_channel_filters_unrequested_instruments_before_metadata_look
 
 def test_okx_subscription_is_public_global_swap_channel() -> None:
     assert _subscription() == (
-        '{"op":"subscribe","args":[{"channel":"liquidation-orders",'
-        '"instType":"SWAP"}]}'
+        '{"op":"subscribe","args":[{"channel":"liquidation-orders","instType":"SWAP"}]}'
     )
 
 

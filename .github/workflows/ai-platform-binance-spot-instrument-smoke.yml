@@ -1,0 +1,106 @@
+name: AI Platform Binance Spot Instrument Smoke
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/market_data/run-requests/binance-spot-instrument-smoke-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binance-spot-instrument-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/market_data/run-requests/binance-spot-instrument-smoke-v1.json
+  POLICY_PATH: ai_platform/market_data/binance-spot-instrument-smoke-policy-v1.json
+  EVIDENCE_ROOT: binance-spot-instrument-smoke-v1
+
+jobs:
+  smoke:
+    name: Run one public Binance Spot instrument snapshot
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/market_data/run-requests/binance-spot-instrument-smoke-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Binance Spot smoke trigger must add exactly the canonical request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Run frozen single-request smoke
+        id: smoke
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python -m ai_platform.market_data.binance_spot_instrument_smoke \
+            --request "$REQUEST_PATH" \
+            --policy "$POLICY_PATH" \
+            --collector-commit "$HEAD_SHA" \
+            --output-root "$EVIDENCE_ROOT"
+
+      - name: Upload bounded failure evidence
+        if: ${{ failure() && steps.smoke.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-spot-instrument-smoke-failure-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload immutable smoke evidence
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-spot-instrument-smoke-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/
+          if-no-files-found: error
+          retention-days: 30

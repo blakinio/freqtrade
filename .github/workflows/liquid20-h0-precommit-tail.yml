@@ -15,14 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Show exact Ruff patch
+      - name: Show exact repository Ruff patch
         shell: bash
         run: |
           set -euo pipefail
-          target=/tmp/test_liquidation_historical_provider_preflight.py
           curl --fail --silent --show-error --location \
-            https://raw.githubusercontent.com/blakinio/freqtrade/a4c29686e5376eb8197dba39cb87c46cb676bf16/tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py \
-            -o "$target"
+            https://github.com/blakinio/freqtrade/archive/a4c29686e5376eb8197dba39cb87c46cb676bf16.tar.gz \
+            -o /tmp/source.tar.gz
+          mkdir /tmp/source
+          tar -xzf /tmp/source.tar.gz --strip-components=1 -C /tmp/source
+          cd /tmp/source
+          target=tests/ai_platform_integration/test_liquidation_historical_provider_preflight.py
           cp "$target" /tmp/before.py
           python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
           ruff check --fix "$target"

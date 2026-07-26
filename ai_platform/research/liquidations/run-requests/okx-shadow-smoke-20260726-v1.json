@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "request_id": "okx-shadow-smoke-20260726-v1",
+  "run_id": "okx-shadow-smoke-20260726-v1",
+  "host_id": "github-hosted-ubuntu-24.04",
+  "policy_id": "okx-liquidation-shadow-smoke-v1",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "duration_seconds": 120,
+  "execution_enabled": false,
+  "performance_research_authorized": false,
+  "orders_submitted": 0
+}

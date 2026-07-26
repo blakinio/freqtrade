@@ -97,8 +97,8 @@ class ResidualPyTorchM1EvidenceMixin:
             "training_stop_exclusive": (
                 training_timerange.stopdt.isoformat() if training_timerange is not None else None
             ),
-            "train_rows": int(len(data_dictionary["train_features"])),
-            "test_rows": int(len(data_dictionary["test_features"])),
+            "train_rows": len(data_dictionary["train_features"]),
+            "test_rows": len(data_dictionary["test_features"]),
             "feature_count": int(data_dictionary["train_features"].shape[1]),
             "recorded_scalar_events": recorder.events,
             "model_training_parameters": self.freqai_info.get("model_training_parameters", {}),
@@ -108,18 +108,16 @@ class ResidualPyTorchM1EvidenceMixin:
             "protected_final_holdout_used": False,
         }
         if hasattr(model, "evals_result_"):
-            payload["lightgbm_evals_result"] = getattr(model, "evals_result_")
+            payload["lightgbm_evals_result"] = model.evals_result_
         if hasattr(model, "best_score_"):
-            payload["lightgbm_best_score"] = getattr(model, "best_score_")
+            payload["lightgbm_best_score"] = model.best_score_
         if hasattr(model, "model_meta_data"):
-            payload["pytorch_model_meta_data"] = getattr(model, "model_meta_data")
+            payload["pytorch_model_meta_data"] = model.model_meta_data
         if hasattr(model, "best_val_loss"):
-            best_val_loss = float(getattr(model, "best_val_loss"))
-            payload["pytorch_best_val_loss"] = (
-                best_val_loss if np.isfinite(best_val_loss) else None
-            )
+            best_val_loss = float(model.best_val_loss)
+            payload["pytorch_best_val_loss"] = best_val_loss if np.isfinite(best_val_loss) else None
         if hasattr(model, "n_epochs"):
-            payload["pytorch_declared_epochs"] = getattr(model, "n_epochs")
+            payload["pytorch_declared_epochs"] = model.n_epochs
 
         output = training_root / f"{_slug(dk.pair)}.json"
         if output.exists():

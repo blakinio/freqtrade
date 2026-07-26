@@ -14,21 +14,14 @@ from ai_platform.scripts import residual_pytorch_bounded_m1_run_request as run_r
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = (
-    REPO_ROOT
-    / "ai_platform/experimental_model_research/"
+    REPO_ROOT / "ai_platform/experimental_model_research/"
     "residual-pytorch-bounded-m1-execution-contract-v1.json"
 )
 REQUEST_PATH = REPO_ROOT / run_request.REQUEST_REPO_PATH
-WORKFLOW_PATH = (
-    REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-execution.yml"
-)
-TASK_PATH = (
-    REPO_ROOT
-    / "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md"
-)
+WORKFLOW_PATH = REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-execution.yml"
+TASK_PATH = REPO_ROOT / "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md"
 NUMERIC_RUNTIME_AVAILABLE = (
-    importlib.util.find_spec("numpy") is not None
-    and importlib.util.find_spec("pandas") is not None
+    importlib.util.find_spec("numpy") is not None and importlib.util.find_spec("pandas") is not None
 )
 
 

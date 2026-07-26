@@ -18,17 +18,14 @@ import pandas as pd
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_REPO_PATH = (
-    "ai_platform/experimental_model_research/"
-    "residual-pytorch-bounded-m1-execution-contract-v1.json"
+    "ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json"
 )
 CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
 REQUEST_REPO_PATH = (
     "ai_platform/experimental_model_research/run-requests/"
     "residual-pytorch-bounded-m1-execution-v1.json"
 )
-TASK_REPO_PATH = (
-    "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md"
-)
+TASK_REPO_PATH = "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md"
 TARGET = "&-future_return"
 TRAINING_START = "2025-12-01T00:00:00Z"
 TRAINING_STOP_EXCLUSIVE = "2026-03-01T00:00:00Z"
@@ -160,9 +157,7 @@ def _repo_path(value: str) -> Path:
     try:
         candidate.relative_to(REPO_ROOT)
     except ValueError as exc:
-        raise ResidualPyTorchBoundedM1Error(
-            f"Repository path escapes root: {value}"
-        ) from exc
+        raise ResidualPyTorchBoundedM1Error(f"Repository path escapes root: {value}") from exc
     return candidate
 
 
@@ -338,7 +333,7 @@ def validate_contract(contract: dict[str, Any]) -> None:  # noqa: C901
         )
 
 
-def _load_and_validate_config(track: dict[str, Any]) -> dict[str, Any]:  # noqa: C901
+def _load_and_validate_config(track: dict[str, Any]) -> dict[str, Any]:
     config = _read_json(_repo_path(track["config"]), f"{track['track_id']} config")
     if config.get("dry_run") is not True:
         raise ResidualPyTorchBoundedM1Error(f"{track['track_id']} must remain dry_run")
@@ -369,9 +364,7 @@ def _load_and_validate_config(track: dict[str, Any]) -> dict[str, Any]:  # noqa:
     }
     for field, expected in expected_common.items():
         if freqai.get(field) != expected:
-            raise ResidualPyTorchBoundedM1Error(
-                f"{track['track_id']} config field {field} drifted"
-            )
+            raise ResidualPyTorchBoundedM1Error(f"{track['track_id']} config field {field} drifted")
     return config
 
 
@@ -513,13 +506,13 @@ def _consecutive_nulls(mask: np.ndarray, *, from_end: bool) -> int:
     return count
 
 
-def build_raw_matrix_audit(
+def build_raw_matrix_audit(  # noqa: C901
     dataframe: pd.DataFrame,
     feature_names: list[str],
     label_names: list[str],
     *,
     pair: str,
-) -> dict[str, Any]:  # noqa: C901
+) -> dict[str, Any]:
     """Audit the exact expanded raw training matrix before FreqAI filtering and fitting."""
     if pair not in EXPECTED_PAIRS:
         raise ResidualPyTorchBoundedM1Error(f"Unexpected audit pair: {pair}")
@@ -588,7 +581,7 @@ def build_raw_matrix_audit(
         "pair": pair,
         "training_start": TRAINING_START,
         "training_stop_exclusive": TRAINING_STOP_EXCLUSIVE,
-        "raw_rows": int(len(frame)),
+        "raw_rows": len(frame),
         "expanded_feature_count": len(feature_names),
         "expanded_feature_names": feature_names,
         "expanded_feature_names_sha256": hashlib.sha256(feature_name_basis).hexdigest(),
@@ -733,7 +726,7 @@ def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> 
                     f"Post-development candle was loaded for {pair} {timeframe}"
                 )
             coverage[f"{pair}:{timeframe}"] = {
-                "rows": int(len(frame)),
+                "rows": len(frame),
                 "first": first_date.isoformat(),
                 "last": last_date.isoformat(),
             }
@@ -775,7 +768,7 @@ def _prediction_metrics(frame: pd.DataFrame) -> dict[str, Any]:
     )
     directional = np.sign(actual) == np.sign(predicted)
     return {
-        "rows": int(len(frame)),
+        "rows": len(frame),
         "mae": float(np.mean(absolute_error)),
         "smooth_l1_beta": beta,
         "smooth_l1": float(np.mean(smooth_l1)),
@@ -795,7 +788,7 @@ def _prediction_metrics(frame: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def build_prediction_diagnostics(path: Path, *, track_id: str) -> dict[str, Any]:  # noqa: C901
+def build_prediction_diagnostics(path: Path, *, track_id: str) -> dict[str, Any]:
     if track_id not in EXPECTED_TRACKS:
         raise ResidualPyTorchBoundedM1Error(f"Unknown model track: {track_id}")
     files = sorted(path.glob("*.csv"))
@@ -844,8 +837,8 @@ def build_prediction_diagnostics(path: Path, *, track_id: str) -> dict[str, Any]
         "track_id": track_id,
         "development_start": DEVELOPMENT_START,
         "development_stop_exclusive": DEVELOPMENT_STOP_EXCLUSIVE,
-        "raw_prediction_rows": int(len(combined)),
-        "valid_prediction_rows": int(len(valid)),
+        "raw_prediction_rows": len(combined),
+        "valid_prediction_rows": len(valid),
         "invalid_or_rejected_rows": int(len(combined) - len(valid)),
         "combined": _prediction_metrics(valid),
         "per_pair": per_pair,
@@ -857,7 +850,9 @@ def build_prediction_diagnostics(path: Path, *, track_id: str) -> dict[str, Any]
     }
 
 
-def validate_training_directory(path: Path, *, track_id: str) -> dict[str, Any]:
+def validate_training_directory(  # noqa: C901
+    path: Path, *, track_id: str
+) -> dict[str, Any]:
     if track_id not in EXPECTED_TRACKS:
         raise ResidualPyTorchBoundedM1Error(f"Unknown training-evidence track: {track_id}")
     files = sorted(path.glob("*.json"))
@@ -881,16 +876,12 @@ def validate_training_directory(path: Path, *, track_id: str) -> dict[str, Any]:
             raise ResidualPyTorchBoundedM1Error(f"{pair} training feature count is empty")
         if report.get("training_start") != TRAINING_START.replace("Z", "+00:00"):
             raise ResidualPyTorchBoundedM1Error(f"{pair} training start drifted")
-        if report.get("training_stop_exclusive") != TRAINING_STOP_EXCLUSIVE.replace(
-            "Z", "+00:00"
-        ):
+        if report.get("training_stop_exclusive") != TRAINING_STOP_EXCLUSIVE.replace("Z", "+00:00"):
             raise ResidualPyTorchBoundedM1Error(f"{pair} training stop drifted")
         scalar_events = report.get("recorded_scalar_events", {})
         if track_id == "residual-pytorch-m1-lightgbm-v1":
             if not report.get("lightgbm_evals_result"):
-                raise ResidualPyTorchBoundedM1Error(
-                    f"{pair} LightGBM evaluation history is absent"
-                )
+                raise ResidualPyTorchBoundedM1Error(f"{pair} LightGBM evaluation history is absent")
         else:
             if not scalar_events.get("train_loss") or not scalar_events.get("test_loss"):
                 raise ResidualPyTorchBoundedM1Error(

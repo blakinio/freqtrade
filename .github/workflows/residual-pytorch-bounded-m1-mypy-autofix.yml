@@ -1,0 +1,85 @@
+name: Residual PyTorch Bounded M1 Mypy Autofix
+
+on:
+  push:
+    branches:
+      - feat/residual-pytorch-bounded-m1-execution
+    paths:
+      - "ai_platform/freqaimodels/residual_pytorch_m1_instrumentation.py"
+      - "ai_platform/scripts/residual_pytorch_bounded_m1_execution.py"
+      - ".github/workflows/residual-pytorch-bounded-m1-mypy-autofix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  autofix:
+    if: >-
+      github.repository == 'blakinio/freqtrade' &&
+      github.ref == 'refs/heads/feat/residual-pytorch-bounded-m1-execution'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: feat/residual-pytorch-bounded-m1-execution
+          fetch-depth: 0
+      - name: Apply bounded type fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          execution_path = Path("ai_platform/scripts/residual_pytorch_bounded_m1_execution.py")
+          execution = execution_path.read_text(encoding="utf-8")
+          execution = execution.replace(
+              "    negative_infinity_count = int(np.isneginf(numeric).sum())\n\n    if finite.size:\n",
+              "    negative_infinity_count = int(np.isneginf(numeric).sum())\n"
+              "    mean: float | None\n"
+              "    standard_deviation: float | None\n"
+              "    minimum: float | None\n"
+              "    maximum: float | None\n\n"
+              "    if finite.size:\n",
+              1,
+          )
+          execution_path.write_text(execution, encoding="utf-8")
+
+          mixin_path = Path("ai_platform/freqaimodels/residual_pytorch_m1_instrumentation.py")
+          mixin = mixin_path.read_text(encoding="utf-8")
+          mixin = mixin.replace(
+              "class ResidualPyTorchM1EvidenceMixin:\n"
+              "    \"\"\"Capture training and prediction evidence without changing model algorithms.\"\"\"\n\n",
+              "class ResidualPyTorchM1EvidenceMixin:\n"
+              "    \"\"\"Capture training and prediction evidence without changing model algorithms.\"\"\"\n\n"
+              "    identifier: str\n"
+              "    freqai_info: dict[str, Any]\n"
+              "    tb_logger: Any\n\n",
+              1,
+          )
+          mixin = mixin.replace(
+              "        model = super().fit(data_dictionary, dk, **kwargs)\n",
+              "        model = super().fit(data_dictionary, dk, **kwargs)  # type: ignore[misc]\n",
+              1,
+          )
+          mixin = mixin.replace(
+              "        pred_df, do_predict = super().predict(unfiltered_df, dk, **kwargs)\n",
+              "        pred_df, do_predict = super().predict(  # type: ignore[misc]\n"
+              "            unfiltered_df, dk, **kwargs\n"
+              "        )\n",
+              1,
+          )
+          mixin_path.write_text(mixin, encoding="utf-8")
+          PY
+
+      - name: Commit fixes when needed
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/freqaimodels/residual_pytorch_m1_instrumentation.py \
+            ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
+          git commit -m "fix(ai-platform): type bounded M1 instrumentation"
+          git push origin HEAD:feat/residual-pytorch-bounded-m1-execution

@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   validate-checkpoint:
-    name: Validate RL-v2 seed audit checkpoint and resume
+    name: Validate final RL-v2 seed audit checkpoint and resume
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

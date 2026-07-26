@@ -54,12 +54,3 @@ jobs:
           PORTAL_WEB_DATA_MODE: fixture
           PORTAL_ENVIRONMENT: test
         run: npm run test:e2e
-
-      - name: Retain Playwright failure evidence
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: portal-web-playwright-failure
-          path: ai_platform/portal/web/test-results
-          if-no-files-found: warn
-          retention-days: 1

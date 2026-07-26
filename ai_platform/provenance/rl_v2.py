@@ -195,51 +195,73 @@ def _frame(value: bytes) -> bytes:
     return len(value).to_bytes(8, "big") + value
 
 
+def _tensor_identity(record: TensorRecord, seen: set[str]) -> str:
+    name = record.logical_name
+    if not isinstance(name, str) or not _ID_RE.fullmatch(name):
+        raise RLV2ProvenanceError(f"Invalid logical tensor identity: {name}")
+    if name in seen:
+        raise RLV2ProvenanceError(f"Duplicate logical tensor identity: {name}")
+    seen.add(name)
+    return name
+
+
+def _tensor_width(record: TensorRecord) -> int:
+    if record.role not in TENSOR_ROLES:
+        raise RLV2ProvenanceError(f"Unknown tensor role: {record.role}")
+    if record.element_type != "dense_tensor":
+        raise RLV2ProvenanceError(f"Unknown tensor element type: {record.element_type}")
+    width = DTYPE_BYTE_WIDTHS.get(record.dtype)
+    if width is None:
+        raise RLV2ProvenanceError(f"Unknown tensor dtype: {record.dtype}")
+    if record.byte_order not in {"little", "big", "not_applicable"}:
+        raise RLV2ProvenanceError(f"Invalid tensor byte order: {record.byte_order}")
+    byte_order_optional = record.dtype in {"bool", "uint8", "int8"}
+    if not byte_order_optional and record.byte_order == "not_applicable":
+        raise RLV2ProvenanceError("Multi-byte tensor dtype requires explicit byte order")
+    return width
+
+
+def _validate_tensor_storage(record: TensorRecord, width: int, name: str) -> None:
+    invalid_shape = any(
+        isinstance(size, bool) or not isinstance(size, int) or size < 0
+        for size in record.shape
+    )
+    if invalid_shape:
+        raise RLV2ProvenanceError(f"Invalid tensor shape: {record.shape}")
+    expected = math.prod(record.shape) * width
+    if len(record.raw_bytes) != expected:
+        raise RLV2ProvenanceError(
+            f"Tensor byte length mismatch for {name}: expected {expected}, "
+            f"got {len(record.raw_bytes)}"
+        )
+
+
+def _tensor_entry(
+    record: TensorRecord,
+    seen: set[str],
+) -> tuple[str, dict[str, Any], bytes]:
+    name = _tensor_identity(record, seen)
+    width = _tensor_width(record)
+    _validate_tensor_storage(record, width, name)
+    metadata = {
+        "byte_order": record.byte_order,
+        "device": normalize_device(record.device),
+        "dtype": record.dtype,
+        "element_type": record.element_type,
+        "logical_name": name,
+        "role": record.role,
+        "shape": list(record.shape),
+    }
+    return name, metadata, bytes(record.raw_bytes)
+
+
 def semantic_tensor_state_digest(records: Iterable[TensorRecord]) -> str:
     """Hash semantic tensor state independently of archive and filesystem metadata."""
 
     entries: list[tuple[str, dict[str, Any], bytes]] = []
     seen: set[str] = set()
     for record in records:
-        name = record.logical_name
-        if not isinstance(name, str) or not _ID_RE.fullmatch(name):
-            raise RLV2ProvenanceError(f"Invalid logical tensor identity: {name}")
-        if name in seen:
-            raise RLV2ProvenanceError(f"Duplicate logical tensor identity: {name}")
-        seen.add(name)
-        if record.role not in TENSOR_ROLES:
-            raise RLV2ProvenanceError(f"Unknown tensor role: {record.role}")
-        if record.element_type != "dense_tensor":
-            raise RLV2ProvenanceError(f"Unknown tensor element type: {record.element_type}")
-        width = DTYPE_BYTE_WIDTHS.get(record.dtype)
-        if width is None:
-            raise RLV2ProvenanceError(f"Unknown tensor dtype: {record.dtype}")
-        if record.byte_order not in {"little", "big", "not_applicable"}:
-            raise RLV2ProvenanceError(f"Invalid tensor byte order: {record.byte_order}")
-        byte_order_optional = record.dtype in {"bool", "uint8", "int8"}
-        if not byte_order_optional and record.byte_order == "not_applicable":
-            raise RLV2ProvenanceError("Multi-byte tensor dtype requires explicit byte order")
-        if any(
-            isinstance(size, bool) or not isinstance(size, int) or size < 0
-            for size in record.shape
-        ):
-            raise RLV2ProvenanceError(f"Invalid tensor shape: {record.shape}")
-        expected = math.prod(record.shape) * width
-        if len(record.raw_bytes) != expected:
-            raise RLV2ProvenanceError(
-                f"Tensor byte length mismatch for {name}: expected {expected}, "
-                f"got {len(record.raw_bytes)}"
-            )
-        metadata = {
-            "byte_order": record.byte_order,
-            "device": normalize_device(record.device),
-            "dtype": record.dtype,
-            "element_type": record.element_type,
-            "logical_name": name,
-            "role": record.role,
-            "shape": list(record.shape),
-        }
-        entries.append((name, metadata, bytes(record.raw_bytes)))
+        entries.append(_tensor_entry(record, seen))
     digest = hashlib.sha256(b"rl-v2-semantic-tensor-state-v1\x00")
     for _, metadata, raw_bytes in sorted(entries, key=lambda item: item[0]):
         digest.update(_frame(canonical_json_bytes(metadata)))
@@ -508,11 +530,9 @@ def _validate_seed_rng(value: Any) -> None:
     for field in hash_fields:
         _sha256(item[field], f"{label}.{field}", True)
     seen: set[str] = set()
-    cuda_states = _list(
-        item["cuda_initial_state_sha256"],
-        f"{label}.cuda_initial_state_sha256",
-    )
-    for index, raw in enumerate(cuda_states):
+    for index, raw in enumerate(
+        _list(item["cuda_initial_state_sha256"], f"{label}.cuda_initial_state_sha256")
+    ):
         row_label = f"{label}.cuda_initial_state_sha256[{index}]"
         row = _object(raw, row_label)
         _exact_keys(row, {"device", "sha256"}, row_label)
@@ -522,11 +542,7 @@ def _validate_seed_rng(value: Any) -> None:
         seen.add(device)
         _sha256(row["sha256"], f"{row_label}.sha256")
     _string_list(item["initialization_order"], f"{label}.initialization_order")
-    _boolean(
-        item["consumed_before_snapshot"],
-        f"{label}.consumed_before_snapshot",
-        True,
-    )
+    _boolean(item["consumed_before_snapshot"], f"{label}.consumed_before_snapshot", True)
 
 
 def _validate_nullable_hashes(value: Any, label: str, fields: set[str]) -> None:
@@ -559,16 +575,8 @@ def _validate_artifacts(value: Any, label: str, model_artifact: bool) -> None:
         if model_artifact:
             _string(row["format"], f"{row_label}.format")
             _string_list(row["writer_versions"], f"{row_label}.writer_versions")
-            _sha256(
-                row["semantic_digest_sha256"],
-                f"{row_label}.semantic_digest_sha256",
-                True,
-            )
-            _sha256(
-                row["file_digest_sha256"],
-                f"{row_label}.file_digest_sha256",
-                True,
-            )
+            _sha256(row["semantic_digest_sha256"], f"{row_label}.semantic_digest_sha256", True)
+            _sha256(row["file_digest_sha256"], f"{row_label}.file_digest_sha256", True)
             _integer(row["byte_size"], f"{row_label}.byte_size", True)
             _boolean(row["reread_verified"], f"{row_label}.reread_verified", True)
         else:
@@ -592,9 +600,7 @@ def _validate_dataset(value: Any, expected_digest: str) -> None:
     }
     _exact_keys(item, fields, label)
     if _sha256(item["manifest_sha256"], f"{label}.manifest_sha256") != expected_digest:
-        raise RLV2ProvenanceError(
-            "Dataset manifest identity does not match code/config binding"
-        )
+        raise RLV2ProvenanceError("Dataset manifest identity does not match code/config binding")
     _string(item["source_identity"], f"{label}.source_identity")
     if _boolean(item["cache_restore_used"], f"{label}.cache_restore_used"):
         raise RLV2ProvenanceError("Cache restore must be false")
@@ -614,9 +620,7 @@ def _path_value(value: Mapping[str, Any], path: str) -> Any:
     current: Any = value
     for segment in path.split("."):
         if not isinstance(current, dict) or segment not in current:
-            raise RLV2ProvenanceError(
-                f"Optional field path is structurally missing: {path}"
-            )
+            raise RLV2ProvenanceError(f"Optional field path is structurally missing: {path}")
         current = current[segment]
     return current
 
@@ -624,9 +628,7 @@ def _path_value(value: Mapping[str, Any], path: str) -> Any:
 def collect_missing_optional_fields(manifest: Mapping[str, Any]) -> list[str]:
     """Return sorted nullable schema paths whose explicit value is null."""
 
-    return sorted(
-        path for path in OPTIONAL_FIELD_PATHS if _path_value(manifest, path) is None
-    )
+    return sorted(path for path in OPTIONAL_FIELD_PATHS if _path_value(manifest, path) is None)
 
 
 def _validate_structure(manifest: Mapping[str, Any]) -> None:
@@ -651,16 +653,12 @@ def _validate_structure(manifest: Mapping[str, Any]) -> None:
     }
     _exact_keys(manifest, fields, "manifest")
     if manifest["schema_version"] != SCHEMA_VERSION:
-        raise RLV2ProvenanceError(
-            f"Unsupported schema_version: {manifest['schema_version']}"
-        )
+        raise RLV2ProvenanceError(f"Unsupported schema_version: {manifest['schema_version']}")
     manifest_id = _string(manifest["manifest_id"], "manifest.manifest_id") or ""
     if not _ID_RE.fullmatch(manifest_id):
         raise RLV2ProvenanceError("manifest.manifest_id has invalid syntax")
     if manifest["classification"] not in PROVENANCE_CLASSIFICATIONS:
-        raise RLV2ProvenanceError(
-            f"Unknown classification: {manifest['classification']}"
-        )
+        raise RLV2ProvenanceError(f"Unknown classification: {manifest['classification']}")
     _validate_authorization(manifest["authorization"])
     _validate_environment(manifest["execution_environment"])
     _validate_dependencies(manifest["runtime_dependencies"])
@@ -682,10 +680,7 @@ def _validate_structure(manifest: Mapping[str, Any]) -> None:
         "optimizer_state",
         {"state_digest_sha256"},
     )
-    model_artifacts = _object(
-        manifest["serialized_model_artifacts"],
-        "serialized_model_artifacts",
-    )
+    model_artifacts = _object(manifest["serialized_model_artifacts"], "serialized_model_artifacts")
     _exact_keys(model_artifacts, {"artifacts"}, "serialized_model_artifacts")
     _validate_artifacts(
         model_artifacts["artifacts"],

@@ -5,7 +5,7 @@ branch: docs/lq02-candle-evidence-live-state-20260726
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: pending
+related_pr: "#380"
 owned_paths:
   - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.manifest.json
   - docs/ai_platform/liquidations/datasets/liquid20-candle-diagnostic-20260724-v1.sha256
@@ -36,10 +36,10 @@ PR `#377` is merged. Repository evidence binds the successful source-separated d
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T16:34:42Z
+updated_at: 2026-07-26T16:37:00Z
 head: b807029a308127e68079d684cfa634cc7068fa87
 branch: docs/lq02-candle-evidence-live-state-20260726
-pr: pending
+pr: "#380"
 status: blocked
 context_routes:
   - docs/agents/tasks/FTAI-20260726-liquidations-lq02-dataset-selection.md
@@ -102,7 +102,7 @@ validation:
     evidence: Develop advanced to b807029a308127e68079d684cfa634cc7068fa87 through PR 378; no published accepted run or conflicting open LQ-02 ownership was found.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-liquidations-lq02-candle-evidence-publication.md --require-checkpoint
     result: NOT_RUN
-    evidence: The supplied local checkout path is absent in this sandbox; GitHub CI is authoritative for the documentation branch.
+    evidence: The supplied local checkout path is absent in this sandbox; GitHub CI is authoritative for PR 380.
 blockers:
   - No completed performance-selectable Liquid20 run has an explicit passed true final report in published evidence.
   - Exact completed-run source, summary, multi-source manifest and final-report hashes are not published.

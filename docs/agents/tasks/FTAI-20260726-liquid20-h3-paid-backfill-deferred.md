@@ -5,7 +5,7 @@ branch: docs/liquid20-h3-purchase-deferred
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: pending
+related_pr: "#381"
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-liquid20-h3-paid-backfill-deferred.md
 required_reads:
@@ -120,9 +120,9 @@ After approval, the next technical sequence is:
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-26T16:40:00Z
-head: pending
+head: 549da6a405997d8da5363afe7a524b169c12e2ff
 branch: docs/liquid20-h3-purchase-deferred
-pr: pending
+pr: "#381"
 status: blocked
 blocker: owner intentionally deferred historical data purchase and licence
 context_routes:

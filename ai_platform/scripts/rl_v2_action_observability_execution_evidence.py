@@ -358,7 +358,7 @@ def analyze_rows_and_trades(
         gate = "accepted" if row["prediction_accepted"] else "rejected"
         action = str(row["action_label"])
         state_key = f"{gate}_{action}"
-        if position_long:
+        if trade is not None:
             long_state_counts[state_key] += 1
             bucket = _duration_bucket(trade)
             duration_conditioned[bucket]["rows"] += 1

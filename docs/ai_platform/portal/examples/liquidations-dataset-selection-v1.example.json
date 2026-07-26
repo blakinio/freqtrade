@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "document_id": "dataset-selection-YYYYMMDD-v1",
+  "created_at": "YYYY-MM-DDTHH:MM:SSZ",
+  "code_commit": "<exact-develop-or-feature-sha>",
+  "dataset_id": "liquid20-dataset-YYYYMMDD-v1",
+  "purpose_classification": "performance_research",
+  "liquid20_runs": [
+    {
+      "run_id": "liquid20-YYYYMMDDTHHMMSSZ-1",
+      "run_root_identity": "<non-secret-logical-identity>",
+      "collector_commit": "<sha>",
+      "parser_contract_version": 1,
+      "source_catalog_version": 1,
+      "symbol_universe_version": "liquid20-v1"
+    }
+  ],
+  "source_files": [
+    {
+      "run_id": "liquid20-YYYYMMDDTHHMMSSZ-1",
+      "source": "bybit-linear",
+      "logical_name": "bybit-linear.ndjson",
+      "sha256": "<sha256>",
+      "size_bytes": 0,
+      "record_count": 0
+    },
+    {
+      "run_id": "liquid20-YYYYMMDDTHHMMSSZ-1",
+      "source": "binance-usdm",
+      "logical_name": "binance-usdm.ndjson",
+      "sha256": "<sha256>",
+      "size_bytes": 0,
+      "record_count": 0
+    }
+  ],
+  "acceptance_reports": [
+    {
+      "run_id": "liquid20-YYYYMMDDTHHMMSSZ-1",
+      "logical_name": "multi-source-acceptance-report.json",
+      "sha256": "<sha256>",
+      "passed": true,
+      "failed_gates": []
+    }
+  ],
+  "accepted_intervals": [
+    {
+      "start_ms": 0,
+      "end_ms": 0,
+      "sources": [
+        "bybit-linear",
+        "binance-usdm"
+      ]
+    }
+  ],
+  "quarantined_intervals": [],
+  "candle_artifacts": [
+    {
+      "source": "<exchange-or-versioned-provider>",
+      "pair": "BTC/USDT:USDT",
+      "timeframe": "5m",
+      "start_ms": 0,
+      "end_ms": 0,
+      "logical_name": "<artifact-name>",
+      "sha256": "<sha256>",
+      "record_count": 0
+    }
+  ],
+  "protected_holdout_check": {
+    "policy_version": "<policy-version>",
+    "overlap_detected": false,
+    "passed": true,
+    "evidence": []
+  },
+  "performance_research_authorized": true,
+  "manifest_sha256": "<sha256-of-canonical-manifest-with-this-field-excluded>"
+}

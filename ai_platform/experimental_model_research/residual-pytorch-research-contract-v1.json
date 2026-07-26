@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "contract_id": "residual-pytorch-research-foundation-v1",
+  "status": "implemented_not_executed",
+  "purpose": "Introduce a FreqAI-compatible residual MLP candidate and a staged custom-model research architecture without executing or promoting it.",
+  "paths": {
+    "architecture": "docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md",
+    "config": "ai_platform/configs/freqai-residual-pytorch-research.example.json",
+    "experiment": "ai_platform/experiments/residual-pytorch-research-v1.json",
+    "model": "ai_platform/freqaimodels/ResidualPyTorchRegressor.py",
+    "components": "ai_platform/freqaimodels/residual_mlp_components.py",
+    "validator": "ai_platform/scripts/residual_pytorch_research_contract.py",
+    "tests": "tests/ai_platform/test_residual_pytorch_research_contract.py"
+  },
+  "current_candidate": {
+    "model": "ResidualPyTorchRegressor",
+    "architecture": "pre_norm_residual_mlp",
+    "target_count": 1,
+    "target": "&-future_return",
+    "loss": "SmoothL1Loss",
+    "optimizer": "AdamW",
+    "deterministic_seed": 42,
+    "continual_learning": false
+  },
+  "comparators": [
+    {
+      "model": "LightGBMRegressor",
+      "role": "tree_baseline"
+    },
+    {
+      "model": "SeededPyTorchMLPRegressor",
+      "role": "neural_baseline"
+    }
+  ],
+  "roadmap": [
+    {
+      "stage": "M1",
+      "model": "ResidualPyTorchRegressor",
+      "status": "implemented_not_executed"
+    },
+    {
+      "stage": "M2",
+      "model": "ResidualMultiTaskRegressor",
+      "status": "blocked_on_multi_target_contract"
+    },
+    {
+      "stage": "M3",
+      "model": "TemporalConvolutionalNetwork",
+      "status": "blocked_on_sequence_dataset_contract"
+    },
+    {
+      "stage": "M4",
+      "model": "OOFStackingEnsemble",
+      "status": "blocked_on_validated_base_predictions"
+    },
+    {
+      "stage": "M5",
+      "model": "PatchTST_or_TFT",
+      "status": "deferred_until_data_scale_justifies_complexity"
+    }
+  ],
+  "isolation": {
+    "phase5_entry_threshold": 0.006,
+    "phase5_exit_threshold": -0.009,
+    "phase6_selected_model": null,
+    "phase6_mutation_allowed": false,
+    "consumed_historical_oos": {
+      "timerange": "20260501-20260630",
+      "usage": "forbidden"
+    },
+    "protected_final_holdout": {
+      "timerange": "20260801-20260930",
+      "usage": "forbidden"
+    },
+    "liquidation_features": "forbidden_until_historical_source_and_alignment_contract_are_accepted"
+  },
+  "evaluation_policy": {
+    "execution_requires_separate_task": true,
+    "run_request_required": true,
+    "same_features_target_strategy_and_costs_for_comparators": true,
+    "walk_forward_required": true,
+    "lookahead_analysis_required": true,
+    "recursive_analysis_required": true,
+    "minimum_trade_count_gate_required": true,
+    "drawdown_gate_required": true,
+    "single_profitable_backtest_is_sufficient": false,
+    "primary_trading_metrics": [
+      "strict_oos_net_return",
+      "max_drawdown",
+      "cross_window_stability",
+      "trade_count",
+      "fee_sensitivity"
+    ],
+    "diagnostic_model_metrics": [
+      "mae",
+      "smooth_l1_loss",
+      "directional_accuracy",
+      "spearman_rank_ic",
+      "prediction_distribution"
+    ]
+  },
+  "authorization": {
+    "market_data_access": false,
+    "training": false,
+    "backtesting": false,
+    "hyperparameter_search": false,
+    "feature_search": false,
+    "protected_holdout_access": false,
+    "phase6_reopening": false,
+    "cross_track_selection": false,
+    "dry_run_deployment": false,
+    "live_deployment": false,
+    "promotion": false,
+    "profitability_claim": false
+  }
+}

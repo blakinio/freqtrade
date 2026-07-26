@@ -899,6 +899,7 @@ def evaluate_run(
             "Liquid20 membership or trading."
         ),
     }
+    report = json.loads(json.dumps(report, sort_keys=True))
     report["report_sha256"] = _canonical_hash(report, field="report_sha256")
     return report
 

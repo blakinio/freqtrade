@@ -5,7 +5,7 @@ branch: docs/rl-v2-action-observability-execution-infrastructure-task
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: "pending"
+related_pr: "319"
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-infrastructure.md
   - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_EXECUTION_INFRASTRUCTURE.md
@@ -40,11 +40,11 @@ The canonical request file must remain absent. Infrastructure review must perfor
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T08:55:00+02:00
-head: pending
+updated_at: 2026-07-26T09:00:00+02:00
+head: 9c5f34e0cf9fa72a3104cc85ff59e5cd87712b65
 branch: docs/rl-v2-action-observability-execution-infrastructure-task
-pr: pending
-status: ready
+pr: 319
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-action-observability-execution-declaration.md
   - docs/ai_platform/RL_V2_ACTION_OBSERVABILITY_EXECUTION_DECLARATION.md
@@ -64,6 +64,7 @@ proven:
   - The declaration freezes the fresh window, four new seeds, runtime inputs, project-specific hook and evidence contract.
   - The reusable recorder and validator are already merged and validated.
   - No open PR overlaps the declared RL-v2 paths.
+  - PR 319 changes exactly this task record.
 derived:
   - The infrastructure can remain inert by triggering only on an exact canonical request path that is absent from develop.
 unknown:
@@ -85,6 +86,9 @@ validation:
   - command: live develop and overlapping open-PR preflight
     result: PASS
     evidence: No conflicting RL-v2 ownership exists.
+  - command: exact PR 319 scope comparison
+    result: PASS
+    evidence: The PR contains only the bounded task declaration.
 blockers: []
 next_action: Merge this one-file task declaration, then implement and validate exactly the eight owned paths with the canonical request absent and zero execution.
 ```

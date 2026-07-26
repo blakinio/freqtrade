@@ -1,0 +1,320 @@
+{
+  "$id": "coinapi-authenticated-trial-v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "coinapi-authenticated-trial-v1.schema.json"
+    },
+    "boundaries": {
+      "additionalProperties": {
+        "const": false
+      },
+      "minProperties": 8,
+      "type": "object"
+    },
+    "coverage_probe": {
+      "additionalProperties": false,
+      "properties": {
+        "history_request_attempted": {
+          "const": false
+        },
+        "per_target_http_statuses": {
+          "additionalProperties": {
+            "additionalProperties": false,
+            "properties": {
+              "metric_listing": {
+                "const": 403
+              },
+              "symbol": {
+                "const": 403
+              }
+            },
+            "required": [
+              "symbol",
+              "metric_listing"
+            ],
+            "type": "object"
+          },
+          "maxProperties": 4,
+          "minProperties": 4,
+          "type": "object"
+        },
+        "raw_market_records_emitted": {
+          "const": false
+        },
+        "reason_history_not_attempted": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "request_count": {
+          "const": 8
+        },
+        "requested_endpoints": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "workflow_job_id": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "workflow_run_id": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "workflow_run_id",
+        "workflow_job_id",
+        "request_count",
+        "requested_endpoints",
+        "per_target_http_statuses",
+        "history_request_attempted",
+        "reason_history_not_attempted",
+        "raw_market_records_emitted"
+      ],
+      "type": "object"
+    },
+    "decision": {
+      "additionalProperties": false,
+      "properties": {
+        "coinapi_event_level_replacement_for_tardis": {
+          "const": false
+        },
+        "coinapi_free_account_usable_for_liquid20_trial": {
+          "const": false
+        },
+        "conditional_future_scope": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "paid_or_credited_access_required_for_any_further_coinapi_probe": {
+          "const": true
+        },
+        "paid_probe_recommended_for_event_level_replacement": {
+          "const": false
+        },
+        "preferred_event_level_provider_remains": {
+          "const": "tardis"
+        }
+      },
+      "required": [
+        "coinapi_free_account_usable_for_liquid20_trial",
+        "coinapi_event_level_replacement_for_tardis",
+        "preferred_event_level_provider_remains",
+        "paid_or_credited_access_required_for_any_further_coinapi_probe",
+        "paid_probe_recommended_for_event_level_replacement",
+        "conditional_future_scope"
+      ],
+      "type": "object"
+    },
+    "identity_material": {
+      "additionalProperties": false,
+      "properties": {
+        "account_tier": {
+          "const": "free-account"
+        },
+        "history_end_exclusive": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "history_start_inclusive": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "provider": {
+          "const": "coinapi"
+        },
+        "schema_version": {
+          "const": 1
+        },
+        "targets": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "trial_id": {
+          "const": "liquid20-coinapi-authenticated-trial-v1"
+        }
+      },
+      "required": [
+        "trial_id",
+        "provider",
+        "account_tier",
+        "targets",
+        "history_start_inclusive",
+        "history_end_exclusive",
+        "schema_version"
+      ],
+      "type": "object"
+    },
+    "identity_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "quota_probe": {
+      "additionalProperties": false,
+      "properties": {
+        "endpoint": {
+          "const": "/v1/metrics/symbol/listing"
+        },
+        "http_status": {
+          "const": 403
+        },
+        "quota_key": {
+          "const": "BA"
+        },
+        "quota_name": {
+          "const": "Insufficient Usage Credits or Subscription"
+        },
+        "quota_type": {
+          "const": "Organization Limit"
+        },
+        "quota_value": {
+          "const": 0
+        },
+        "quota_value_adjustable": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "quota_value_current_usage": {
+          "const": 0
+        },
+        "quota_value_unit": {
+          "const": "$"
+        },
+        "response_title": {
+          "const": "Forbidden"
+        },
+        "symbol_id": {
+          "const": "BYBIT_PERP_BTC_USDT"
+        },
+        "workflow_job_id": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "workflow_run_id": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "workflow_run_id",
+        "workflow_job_id",
+        "endpoint",
+        "symbol_id",
+        "http_status",
+        "quota_key",
+        "quota_name",
+        "quota_type",
+        "quota_value",
+        "quota_value_current_usage",
+        "quota_value_unit",
+        "quota_value_adjustable",
+        "response_title"
+      ],
+      "type": "object"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "secret_handling": {
+      "additionalProperties": false,
+      "properties": {
+        "committed_to_git": {
+          "const": false
+        },
+        "masked_in_logs": {
+          "const": true
+        },
+        "present_in_actions": {
+          "const": true
+        },
+        "raw_value_recorded": {
+          "const": false
+        },
+        "repository_secret_name": {
+          "const": "COINAPI_KEY"
+        }
+      },
+      "required": [
+        "repository_secret_name",
+        "present_in_actions",
+        "masked_in_logs",
+        "committed_to_git",
+        "raw_value_recorded"
+      ],
+      "type": "object"
+    },
+    "source_urls": {
+      "items": {
+        "format": "uri",
+        "type": "string"
+      },
+      "minItems": 4,
+      "type": "array"
+    },
+    "targets": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "exchange_id": {
+            "enum": [
+              "BYBIT",
+              "BINANCEFTS"
+            ]
+          },
+          "symbol_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "exchange_id",
+          "symbol_id"
+        ],
+        "type": "object"
+      },
+      "maxItems": 4,
+      "minItems": 4,
+      "type": "array"
+    },
+    "trial_id": {
+      "const": "liquid20-coinapi-authenticated-trial-v1"
+    },
+    "verified_at": {
+      "format": "date-time",
+      "type": "string"
+    },
+    "verified_observations": {
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "minProperties": 6,
+      "type": "object"
+    }
+  },
+  "required": [
+    "$schema",
+    "schema_version",
+    "trial_id",
+    "identity_material",
+    "identity_sha256",
+    "verified_at",
+    "secret_handling",
+    "targets",
+    "coverage_probe",
+    "quota_probe",
+    "verified_observations",
+    "decision",
+    "boundaries",
+    "source_urls"
+  ],
+  "type": "object"
+}

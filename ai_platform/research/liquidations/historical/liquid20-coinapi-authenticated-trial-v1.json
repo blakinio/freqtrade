@@ -1,0 +1,123 @@
+{
+  "$schema": "coinapi-authenticated-trial-v1.schema.json",
+  "boundaries": {
+    "backtest_run": false,
+    "importer_changed": false,
+    "live_collector_changed": false,
+    "paid_history_downloaded": false,
+    "protected_holdout_accessed": false,
+    "purchase_made": false,
+    "synology_changed": false,
+    "training_run": false
+  },
+  "coverage_probe": {
+    "history_request_attempted": false,
+    "per_target_http_statuses": {
+      "BINANCEFTS_PERP_BTC_USDT": {
+        "metric_listing": 403,
+        "symbol": 403
+      },
+      "BINANCEFTS_PERP_ETH_USDT": {
+        "metric_listing": 403,
+        "symbol": 403
+      },
+      "BYBIT_PERP_BTC_USDT": {
+        "metric_listing": 403,
+        "symbol": 403
+      },
+      "BYBIT_PERP_ETH_USDT": {
+        "metric_listing": 403,
+        "symbol": 403
+      }
+    },
+    "raw_market_records_emitted": false,
+    "reason_history_not_attempted": "No liquidation metric could be selected because symbol metadata and metric listing were forbidden by the account quota.",
+    "request_count": 8,
+    "requested_endpoints": [
+      "/v1/symbols/{exchange_id}/active",
+      "/v1/metrics/symbol/listing"
+    ],
+    "workflow_job_id": 89782783001,
+    "workflow_run_id": 30197961324
+  },
+  "decision": {
+    "coinapi_event_level_replacement_for_tardis": false,
+    "coinapi_free_account_usable_for_liquid20_trial": false,
+    "conditional_future_scope": "aggregate completed-interval feature evaluation only, under a separate owner-approved work package",
+    "paid_or_credited_access_required_for_any_further_coinapi_probe": true,
+    "paid_probe_recommended_for_event_level_replacement": false,
+    "preferred_event_level_provider_remains": "tardis"
+  },
+  "identity_material": {
+    "account_tier": "free-account",
+    "history_end_exclusive": "2025-03-02T00:00:00Z",
+    "history_start_inclusive": "2025-02-26T00:00:00Z",
+    "provider": "coinapi",
+    "schema_version": 1,
+    "targets": [
+      "BYBIT_PERP_BTC_USDT",
+      "BYBIT_PERP_ETH_USDT",
+      "BINANCEFTS_PERP_BTC_USDT",
+      "BINANCEFTS_PERP_ETH_USDT"
+    ],
+    "trial_id": "liquid20-coinapi-authenticated-trial-v1"
+  },
+  "identity_sha256": "475d5720d6c83729b38d2c8e9b726e36ffc989e0e4ebfdb5f17a8cad0f2f3241",
+  "quota_probe": {
+    "endpoint": "/v1/metrics/symbol/listing",
+    "http_status": 403,
+    "quota_key": "BA",
+    "quota_name": "Insufficient Usage Credits or Subscription",
+    "quota_type": "Organization Limit",
+    "quota_value": 0,
+    "quota_value_adjustable": "Yes, acquire or upgrade subscription, add service credits manually or setup auto-recharge.",
+    "quota_value_current_usage": 0,
+    "quota_value_unit": "$",
+    "response_title": "Forbidden",
+    "symbol_id": "BYBIT_PERP_BTC_USDT",
+    "workflow_job_id": 89782989299,
+    "workflow_run_id": 30198031682
+  },
+  "schema_version": 1,
+  "secret_handling": {
+    "committed_to_git": false,
+    "masked_in_logs": true,
+    "present_in_actions": true,
+    "raw_value_recorded": false,
+    "repository_secret_name": "COINAPI_KEY"
+  },
+  "source_urls": [
+    "https://www.coinapi.io/products/market-data-api/docs/rest-api/metadata/symbols/exchange_id/active/get",
+    "https://www.coinapi.io/products/market-data-api/docs/rest-api/metricsv1/metrics/symbol/listing/get",
+    "https://www.coinapi.io/products/market-data-api/docs/rest-api/metrics-v1/metrics/symbol/history/get",
+    "https://www.coinapi.io/products/market-data-api/docs/rest-api/metricsv1/metrics/symbol/current/get"
+  ],
+  "targets": [
+    {
+      "exchange_id": "BYBIT",
+      "symbol_id": "BYBIT_PERP_BTC_USDT"
+    },
+    {
+      "exchange_id": "BYBIT",
+      "symbol_id": "BYBIT_PERP_ETH_USDT"
+    },
+    {
+      "exchange_id": "BINANCEFTS",
+      "symbol_id": "BINANCEFTS_PERP_BTC_USDT"
+    },
+    {
+      "exchange_id": "BINANCEFTS",
+      "symbol_id": "BINANCEFTS_PERP_ETH_USDT"
+    }
+  ],
+  "trial_id": "liquid20-coinapi-authenticated-trial-v1",
+  "verified_at": "2026-07-26T10:19:20Z",
+  "verified_observations": {
+    "exact_target_liquidation_metrics_verified": false,
+    "exact_target_symbol_coverage_verified": false,
+    "free_account_rest_access_for_tested_endpoints": false,
+    "historical_provider_receive_time_verified_with_account": false,
+    "historical_response_shape_verified_with_account": false,
+    "requested_history_access_verified": false
+  }
+}

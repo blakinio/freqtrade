@@ -40,8 +40,8 @@ This package uses a deterministic synthetic close series only. It performs no ex
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T20:45:00+02:00
-head: b48a7bd778d4a659de88c8a66ab33a2ecc76b15e
+updated_at: 2026-07-26T20:53:00+02:00
+head: 55d62a78737f3da6207e4cc7afa21f7c257d34cc
 branch: feat/residual-pytorch-data-target-audit
 pr: 376
 status: validating
@@ -60,31 +60,26 @@ owned_paths:
   - tests/ai_platform/test_residual_pytorch_data_target_audit.py
 proven:
   - P1 implementation merged as b51b8850db32e0050b9fa876dd141a49c0cf68c5 and its closeout merged as 41c04518cdb67bb2f7d70916ab4dd396d233a8a9.
-  - P2 architecture requires a development-only window, target alignment, feature count, NaN/outlier and label-distribution evidence, and liquidation exclusion.
-  - Existing geometry defines training 20251201-20260228 and tuning/prediction-only coverage 20260301-20260430.
-  - Consumed historical OOS 20260501-20260630 and protected holdout 20260801-20260930 remain forbidden.
-  - Strategy target source uses shift(-12) followed by rolling(12), producing future offsets t+1 through t+12.
-  - Current authorization permits deterministic synthetic target validation but not historical market-data access.
-  - PR 376 is reconstructed as a six-file single commit on develop 11ad81870c0b199b0739af9dcfa239cb32d455cc.
+  - P2 uses only a deterministic synthetic close series and forbids market data, training, backtesting, consumed historical OOS, protected holdout and liquidation features.
+  - The frozen development window is 2025-12-01T00:00:00Z through 2026-05-01T00:00:00Z exclusive.
+  - Strategy target semantics use future offsets t+1 through t+12.
+  - PR 376 contains exactly the six declared owned paths and the task Markdown is restored at its correct path.
+  - Residual PyTorch Data Target Audit run 30215214117, AI Platform CI run 30215214118 and zizmor run 30215214124 passed on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc.
 derived:
-  - The bounded P2 window is 2025-12-01T00:00:00Z through 2026-05-01T00:00:00Z exclusive.
-  - Actual FreqAI feature count and historical distributions cannot be honestly reported from static source alone.
-  - The only valid current outcome is audit_inconclusive even when synthetic semantics pass.
+  - The only honest current audit outcome is audit_inconclusive because historical feature and label evidence is not authorized.
 unknown:
-  - Exact FreqAI-expanded feature count on the frozen historical matrix.
-  - Historical feature NaN and outlier distributions.
-  - Historical target distribution and pair/timeframe coverage.
+  - Exact FreqAI-expanded feature count and historical NaN, outlier and label distributions.
+  - Final Freqtrade CI outcome for the live checkpoint-updated PR head.
 conflicts: []
 first_failure:
   marker: CHECKPOINT_PATH_BLOB_MISMATCH
-  evidence: Final reconstruction mapped the auditor blob into the task path, so checkpoint validation stopped before any audit execution.
-  correction: Restore the task Markdown, retain the six-file scope, and rerun exact-head governance and CI validation.
+  evidence: Earlier reconstruction mapped the auditor blob into the task path, so checkpoint validation stopped before audit execution; the task Markdown was restored before run 30215214117 passed.
 rejected_hypotheses:
-  - Infer the expanded feature count from source declarations.
-  - Download exchange candles or reuse local historical data without a separate authorization.
-  - Use consumed historical OOS or the protected holdout for data-quality inspection.
-  - Train or compare models during P2.
-  - Treat skipped runtime steps after checkpoint failure as model or audit failures.
+  - Infer the expanded feature count from static source declarations.
+  - Download exchange candles or reuse historical data without separate authorization.
+  - Use consumed historical OOS or the protected holdout for inspection.
+  - Train, compare or promote models during P2.
+  - Treat skipped runtime steps after the earlier checkpoint failure as an audit-model failure.
 changed_paths:
   - .github/workflows/residual-pytorch-data-target-audit.yml
   - ai_platform/experimental_model_research/residual-pytorch-data-target-audit-contract-v1.json
@@ -94,12 +89,20 @@ changed_paths:
   - tests/ai_platform/test_residual_pytorch_data_target_audit.py
 validation:
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md --require-checkpoint
+    result: PASS
+    evidence: Compact checkpoint validates locally against GOVERNANCE_CONTRACT v1 before publication.
+  - command: Residual PyTorch Data Target Audit on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc
+    result: PASS
+    evidence: Workflow run 30215214117 completed successfully.
+  - command: AI Platform CI on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc
+    result: PASS
+    evidence: Workflow run 30215214118 completed successfully.
+  - command: GitHub Actions Security Analysis with zizmor on code head 55d62a78737f3da6207e4cc7afa21f7c257d34cc
+    result: PASS
+    evidence: Workflow run 30215214124 completed successfully.
+  - command: Freqtrade CI on live checkpoint-updated PR head
     result: NOT_RUN
-    evidence: Awaiting the corrected exact-head workflow after task Markdown restoration.
-  - command: Residual PyTorch Data Target Audit exact-head workflow
-    result: NOT_RUN
-    evidence: Awaiting corrected task checkpoint validation before audit execution.
-blockers:
-  - Historical feature count and distributions remain intentionally unavailable under the current authorization.
-next_action: Publish the corrected six-file tree, require exact-head checkpoint, audit, Ruff, format, mypy, documentation, core tests and CI Gate success, then update this checkpoint with final evidence.
+    evidence: Exact-head workflow must complete after this checkpoint-only update.
+blockers: []
+next_action: Verify all required workflows on the current live PR 376 head after this checkpoint-only update; if they pass and the PR remains mergeable, merge PR 376 with expected_head_sha, verify develop, and close the task record with a compact checkpoint update.
 ```

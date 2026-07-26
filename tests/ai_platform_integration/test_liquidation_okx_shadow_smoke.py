@@ -17,9 +17,7 @@ from ai_platform.scripts.liquidation_okx_shadow_smoke import (
 )
 
 
-POLICY_PATH = Path(
-    "ai_platform/research/liquidations/okx-liquidation-shadow-smoke-policy-v1.json"
-)
+POLICY_PATH = Path("ai_platform/research/liquidations/okx-liquidation-shadow-smoke-policy-v1.json")
 
 
 def _clock() -> dict[str, object]:
@@ -96,9 +94,7 @@ def _prepare_run(tmp_path: Path) -> tuple[Path, OkxShadowSmokePolicy]:
                 ),
                 "price": "bankruptcy price (bkPx)",
                 "raw_quantity": "contract count (sz)",
-                "normalized_quantity": (
-                    "base quantity using frozen public ctVal metadata"
-                ),
+                "normalized_quantity": ("base quantity using frozen public ctVal metadata"),
                 "status": "shadow_only_not_in_liquid20_v1",
             },
         },

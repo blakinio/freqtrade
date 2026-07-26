@@ -21,9 +21,7 @@ from ai_platform.scripts.liquidation_okx_collector import (
 )
 
 
-POLICY_PATH = Path(
-    "ai_platform/research/liquidations/okx-liquidation-shadow-smoke-policy-v1.json"
-)
+POLICY_PATH = Path("ai_platform/research/liquidations/okx-liquidation-shadow-smoke-policy-v1.json")
 SOURCE_ID = "okx-usdt-swap"
 MANIFEST_NAME = "okx-shadow-smoke-manifest.json"
 REPORT_NAME = "okx-shadow-smoke-report.json"
@@ -766,7 +764,7 @@ async def execute_request(
 ) -> dict[str, object]:
     if not _valid_commit(collector_commit):
         raise ValueError("collector_commit must be 40 lowercase hexadecimal characters")
-    if output_root.exists():
+    if await asyncio.to_thread(output_root.exists):
         raise FileExistsError(f"output root already exists: {output_root}")
     policy = OkxShadowSmokePolicy.load(policy_path)
     if policy.source != SOURCE_ID:
@@ -774,7 +772,7 @@ async def execute_request(
     request = _load_json(request_path, field="request")
     request_id, run_id = _validate_request(request, policy=policy)
     host_id = _text(request.get("host_id"), field="request.host_id")
-    output_root.mkdir(parents=True)
+    await asyncio.to_thread(output_root.mkdir, parents=True)
     events_path = output_root / EVENTS_NAME
     summary_path = output_root / SUMMARY_NAME
     instruments_path = output_root / INSTRUMENTS_NAME
@@ -854,8 +852,8 @@ async def execute_request(
             ("summary", summary_path),
             ("instruments", instruments_path),
         ):
-            if candidate.exists():
-                artifacts[key] = _artifact_entry(candidate)
+            if await asyncio.to_thread(candidate.exists):
+                artifacts[key] = await asyncio.to_thread(_artifact_entry, candidate)
         _write_manifest(
             manifest_path,
             request_id=request_id,

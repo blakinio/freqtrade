@@ -119,8 +119,8 @@ After approval, the next technical sequence is:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T16:40:00Z
-head: 549da6a405997d8da5363afe7a524b169c12e2ff
+updated_at: 2026-07-26T16:45:00Z
+head: f66ceb9f9b2ba85daa807a7c0ae6c4c959e56ef0
 branch: docs/liquid20-h3-purchase-deferred
 pr: "#381"
 status: blocked
@@ -149,9 +149,12 @@ rejected_hypotheses:
 changed_paths:
   - docs/agents/tasks/FTAI-20260726-liquid20-h3-paid-backfill-deferred.md
 validation:
-  - command: documentation-only repository CI
-    result: PENDING
-    evidence: Run on the exact PR head before merge.
+  - command: Freqtrade CI
+    result: PASS
+    evidence: Run 30210923845 completed successfully through pre-commit, documentation build and CI Gate on head f66ceb9f9b2ba85daa807a7c0ae6c4c959e56ef0.
+  - command: GitHub Actions Security Analysis with zizmor
+    result: PASS
+    evidence: Run 30210923895 completed successfully on head f66ceb9f9b2ba85daa807a7c0ae6c4c959e56ef0.
 blockers:
   - Owner intentionally postponed the provider purchase and licence.
 next_action: Wait. Resume only after the owner explicitly authorizes the historical data purchase and H3 execution.

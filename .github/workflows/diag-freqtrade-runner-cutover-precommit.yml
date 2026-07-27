@@ -1,4 +1,4 @@
-name: Diagnose Freqtrade Runner Cutover Pre-commit
+name: Diagnose Freqtrade Runner Cutover Zizmor
 
 on:
   pull_request:
@@ -7,17 +7,15 @@ on:
     paths:
       - ".github/workflows/diag-freqtrade-runner-cutover-precommit.yml"
       - ".github/workflows/freqtrade-synology-runner-dedicated-cutover.yml"
-      - "tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_isolation.py"
-      - "docs/agents/tasks/FTAI-20260727-freqtrade-synology-runner-dedicated-cutover.md"
 
 permissions:
   contents: read
   statuses: write
 
 jobs:
-  hooks:
+  zizmor:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Checkout exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -29,85 +27,69 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Run changed-file hooks independently
+      - name: Publish exact zizmor findings
         env:
           GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check pre-commit
 
-          files=(
-            .github/workflows/freqtrade-synology-runner-dedicated-cutover.yml
-            tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_isolation.py
-            docs/agents/tasks/FTAI-20260727-freqtrade-synology-runner-dedicated-cutover.md
-          )
-          hooks=(
-            mypy
-            ruff
-            ruff-format
-            end-of-file-fixer
-            mixed-line-ending
-            debug-statements
-            check-ast
-            trailing-whitespace
-            codespell
-            zizmor
-          )
+          set +e
+          pre-commit run zizmor \
+            --files .github/workflows/freqtrade-synology-runner-dedicated-cutover.yml \
+            > /tmp/zizmor-output.txt 2>&1
+          hook_result=$?
+          set -e
+
+          python3 - /tmp/zizmor-output.txt > /tmp/zizmor-contexts.txt <<'PY'
+          import re
+          import sys
+
+          ansi = re.compile(r"\x1b\[[0-9;]*m")
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              text = ansi.sub("", handle.read())
+
+          current: str | None = None
+          findings: list[str] = []
+          for line in text.splitlines():
+              audit = re.search(r"(?:error|warning)\[([A-Za-z0-9_-]+)\]", line)
+              if audit:
+                  current = audit.group(1)
+                  continue
+              location = re.search(r"-->\s+.*:(\d+):\d+", line)
+              if current and location:
+                  findings.append(f"{current}-L{location.group(1)}")
+                  current = None
+          if current:
+              findings.append(current)
+          for finding in sorted(set(findings)):
+              print(finding)
+          PY
 
           post_status() {
-            local hook="$1"
+            local context="$1"
             local state="$2"
             local payload
-            payload="$(printf '{\"state\":\"%s\",\"description\":\"pre-commit hook %s\",\"context\":\"diag/precommit/%s\"}' "$state" "$state" "$hook")"
+            payload="$(printf '{\"state\":\"%s\",\"description\":\"zizmor diagnostic %s\",\"context\":\"diag/zizmor/%s\"}' "$state" "$state" "$context")"
             curl --fail-with-body --silent --show-error \
               --request POST \
               --header "Accept: application/vnd.github+json" \
               --header "Authorization: Bearer $GH_TOKEN" \
               --header "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
               --data "$payload" >/dev/null
           }
 
-          for hook in "${hooks[@]}"; do
-            git restore --worktree --staged -- "${files[@]}"
-            if pre-commit run "$hook" --files "${files[@]}"; then
-              post_status "$hook" success
-              continue
-            fi
+          finding_count=0
+          while IFS= read -r finding; do
+            [[ -n "$finding" ]] || continue
+            finding_count=$((finding_count + 1))
+            post_status "$finding" failure
+          done < /tmp/zizmor-contexts.txt
 
-            post_status "$hook" failure
-            if [[ "$hook" != "zizmor" ]]; then
-              continue
-            fi
-
-            set +e
-            pre-commit run zizmor --files "${files[@]}" > /tmp/zizmor-output.txt 2>&1
-            set -e
-            python3 - /tmp/zizmor-output.txt > /tmp/zizmor-contexts.txt <<'PY'
-            import re
-            import sys
-
-            ansi = re.compile(r"\x1b\[[0-9;]*m")
-            text = ansi.sub("", open(sys.argv[1], encoding="utf-8").read())
-            current: str | None = None
-            findings: list[str] = []
-            for line in text.splitlines():
-                audit = re.search(r"(?:error|warning)\[([A-Za-z0-9_-]+)\]", line)
-                if audit:
-                    current = audit.group(1)
-                    continue
-                location = re.search(r"-->\s+.*:(\d+):\d+", line)
-                if current and location:
-                    findings.append(f"{current}-L{location.group(1)}")
-                    current = None
-            if current:
-                findings.append(current)
-            for finding in sorted(set(findings)):
-                print(finding)
-            PY
-
-            while IFS= read -r finding; do
-              [[ -n "$finding" ]] || continue
-              post_status "zizmor-$finding" failure
-            done < /tmp/zizmor-contexts.txt
-          done
+          if [[ $hook_result -eq 0 ]]; then
+            post_status clean success
+          elif [[ $finding_count -eq 0 ]]; then
+            post_status unknown failure
+          fi

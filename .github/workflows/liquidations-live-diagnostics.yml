@@ -1,0 +1,74 @@
+name: Liquidations Live Diagnostics
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquidations-live-diagnostics.yml
+      - ai_platform/scripts/liquidation_live_stream.py
+      - ai_platform/portal/web/**
+      - tests/ai_platform_integration/test_liquidation_live_stream.py
+      - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
+
+permissions: {}
+
+jobs:
+  diagnose:
+    name: Capture bounded lint and type diagnostics
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Capture Ruff output and exact patch
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.15.21
+          set +e
+          ruff check ai_platform tests/ai_platform_integration/test_liquidation_live_stream.py tests/ai_platform_integration/test_synology_liquid20_live_deployment.py > "$RUNNER_TEMP/ruff.log" 2>&1
+          printf '%s\n' "$?" > "$RUNNER_TEMP/ruff.status"
+          set -e
+          ruff check --fix ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_stream.py tests/ai_platform_integration/test_synology_liquid20_live_deployment.py >/dev/null 2>&1 || true
+          ruff format ai_platform/scripts/liquidation_live_stream.py tests/ai_platform_integration/test_liquidation_live_stream.py tests/ai_platform_integration/test_synology_liquid20_live_deployment.py >/dev/null 2>&1 || true
+          git diff --binary > "$RUNNER_TEMP/ruff.patch"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: ai_platform/portal/web/package-lock.json
+
+      - name: Capture portal typecheck output
+        working-directory: ai_platform/portal/web
+        run: |
+          set -euo pipefail
+          npm ci
+          set +e
+          npm run typecheck > "$RUNNER_TEMP/typecheck.log" 2>&1
+          printf '%s\n' "$?" > "$RUNNER_TEMP/typecheck.status"
+          exit 0
+
+      - name: Upload bounded diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: liquidations-live-diagnostics-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/ruff.log
+            ${{ runner.temp }}/ruff.status
+            ${{ runner.temp }}/ruff.patch
+            ${{ runner.temp }}/typecheck.log
+            ${{ runner.temp }}/typecheck.status
+          if-no-files-found: error
+          retention-days: 1

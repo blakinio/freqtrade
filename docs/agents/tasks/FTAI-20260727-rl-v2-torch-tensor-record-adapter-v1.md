@@ -5,7 +5,7 @@ branch: docs/rl-v2-torch-tensor-record-adapter-v1-closeout
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#455 declaration; #457 implementation; terminal closeout pending"
+related_pr: "#455 declaration; #457 implementation; #472 terminal closeout"
 depends_on:
   - FTAI-20260726-rl-v2-provenance-tooling-v1
 owned_paths:
@@ -66,11 +66,11 @@ The adapter does not discover, load, construct, traverse, execute or save models
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T15:08:00+02:00
-head: PENDING
+updated_at: 2026-07-27T15:11:00+02:00
+head: cf165d866f0dfb96deef33783f0f127b177974f3
 base_develop: 22981a5e1a898f12730bb69354a8141a268598b2
 branch: docs/rl-v2-torch-tensor-record-adapter-v1-closeout
-pr: not_opened
+pr: "#472"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
@@ -93,11 +93,12 @@ proven:
   - Synthetic tests cover 25 CPU cases including scalar, empty, contiguous, non-contiguous, all supported dtypes and fail-closed rejection paths.
   - No model, state dictionary, optimizer, checkpoint, archive, cache, network, market data, consumed OOS or protected holdout was accessed.
   - No canonical request, execution workflow, ranking, selection, promotion, runner behavior or Phase 6 state changed.
+  - Closeout PR 472 changes only this task record.
 derived:
-  - The adapter task is implementation-complete; only this one-file terminal closeout remains.
+  - The adapter task is implementation-complete; only the one-file terminal closeout merge remains.
   - Any model traversal, artifact loading, canonical request or runtime execution requires a separate governed task.
 unknown:
-  - Closeout PR number, exact head, CI run IDs and merge SHA until the one-file closeout is opened and validated.
+  - Closeout exact-head CI run IDs and merge SHA until PR 472 is validated and merged.
 conflicts: []
 first_failure:
   marker: RUFF_AND_FORMAT_DIAGNOSTICS_RESOLVED
@@ -120,10 +121,13 @@ validation:
   - command: implementation changed-path and review audit
     result: PASS
     evidence: Exactly five owned paths changed and no review threads were open before merge.
+  - command: closeout PR 472 changed-path audit
+    result: PASS
+    evidence: GitHub reports exactly one changed task-record path.
   - command: terminal closeout exact-head repository CI
     result: PENDING
-    evidence: The one-file closeout PR has not yet been opened.
+    evidence: Required workflows must complete on the current closeout checkpoint.
 blockers:
-  - Open and validate the one-file terminal closeout PR.
-next_action: Open the one-file closeout PR, record its exact head and CI evidence, and merge it only after all required checks pass.
+  - Closeout PR 472 exact-head CI and security analysis are not yet terminal.
+next_action: Validate closeout PR 472 exact head and merge it only if all required checks pass, it remains one-file, and no review thread is open.
 ```

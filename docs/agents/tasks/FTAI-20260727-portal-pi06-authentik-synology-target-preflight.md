@@ -1,11 +1,13 @@
 ---
 task_id: FTAI-20260727-portal-pi06-authentik-synology-target-preflight
-status: validating
-branch: feat/portal-pi06-authentik-synology-target-preflight
+status: blocked
+branch: develop
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#431"
+related_prs:
+  - "#431"
+  - "#445"
 owned_paths:
   - .github/workflows/portal-authentik-synology-target-preflight.yml
   - deploy/synology/portal-authentik/target_preflight.py
@@ -35,7 +37,8 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 - No secret value, password, client secret, private key, endpoint or user identity in Git or artifacts.
 - No Authentik bootstrap, OIDC application creation, login, MFA, recovery, backup or restore claim.
 - No Cloudflare P11, PI-07, PI-08, P14, exchange credential or live-capital behavior.
-- The future exact-one-file request PR is closed without merge after evidence capture.
+- The exact-one-file request PR is closed without merge only after terminal evidence is captured.
+- No duplicate trigger, hosted-runner fallback, proxy or runner-label substitution.
 
 ## Acceptance
 
@@ -54,12 +57,14 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T10:43:00+02:00
-head: caf4c24af8599340f66e0ca1355d2a326c5afeec
-base_develop: 6d4883f63e0db2d64480827ef54f6c0e4c0a848b
-branch: feat/portal-pi06-authentik-synology-target-preflight
-pr: "#431"
-status: validating
+updated_at: 2026-07-27T11:25:00+02:00
+infrastructure_head: 564a73ba016b038e750fe44f1434b8d0e198abb5
+infrastructure_merge: 15bb0ecc0fa61f8fb87a55f06aec46bb810a9f5f
+request_head: a2cf19d861eeb1f1816b26c71aaacae21759a799
+branch: develop
+infrastructure_pr: "#431"
+request_pr: "#445"
+status: blocked
 context_routes:
   - docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_DEPLOYMENT.md
   - docs/ai_platform/portal/runbooks/PI06_AUTHENTIK_SYNOLOGY.md
@@ -72,57 +77,48 @@ owned_paths:
   - tests/ai_platform/portal/deployment/test_authentik_synology_target_preflight.py
   - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
 proven:
-  - Develop 6d4883f63e0db2d64480827ef54f6c0e4c0a848b contains only disjoint post-declaration Binance smoke and epoch-timerange changes.
-  - Open PR 424 independently maps runner oteryn-synology-staging, labels self-hosted/Linux/oteryn-staging, environment synology-staging and OTERYN_STAGING_STATE_DIR.
-  - PR 424 owns only OKX staging-preflight paths and does not overlap this task.
-  - PR 431 adds an exact-one-file PI-06 request gate and a read-only probe with no Docker mutation commands.
-  - Secrets are scoped only to the local probe step; validation and the artifact expose names and booleans only.
-  - AI Platform CI 1831, Portal Authentik Deployment CI 19 and security 2100 passed after exact Ruff formatting.
-  - Freqtrade CI 2237 isolated pre-commit failures to import ordering and C901 in check_docker; all other hooks passed.
-  - The Docker checks were split into bounded capacity, named-inventory and container-inventory helpers; Ruff 0.15.21 fixed import order and the one-shot workflow removed itself.
+  - PR 431 merged to develop as 15bb0ecc0fa61f8fb87a55f06aec46bb810a9f5f.
+  - Exact infrastructure head 564a73ba016b038e750fe44f1434b8d0e198abb5 passed Portal Authentik Deployment CI 24, AI Platform CI 1852, Security Analysis 2122 and Freqtrade CI 2259.
+  - Freqtrade CI 2259 passed pre-commit, Python 3.11 through 3.14, documentation, distribution build and CI Gate.
+  - PR 445 adds exactly deploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json.
+  - PR 445 scheduled Portal PI-06 Synology Target Preflight run 30253743388 and job 89937454422.
+  - Job 89937454422 remains queued with no executed step; therefore no target command, storage probe or secret-format check has run.
+  - The same owner-managed runner outage was independently recorded for the OKX staging preflight in merged PR 444.
 derived:
-  - Terminal preflight can prove actual runner and protected-input readiness without fabricating target acceptance.
-  - Passing preflight permits a separate controlled deployment request but does not authorize bootstrap, restore or P11.
+  - Repository implementation is valid and merged; the current failure boundary is runner availability rather than preflight code.
+  - A passing terminal preflight may permit a separate controlled deployment request but does not authorize bootstrap, restore, P11 or target acceptance.
 unknown:
-  - Exact-head CI and security outcome after the pre-commit refactor.
   - Whether all required PI-06 protected variables and secrets exist in synology-staging.
   - Actual Docker, storage, DNS and tool readiness on oteryn-synology-staging.
   - Terminal preflight artifact and concrete blocker list.
+  - Login, MFA, session lifecycle, membership revocation, recovery and encrypted backup/isolated-restore acceptance.
 conflicts: []
 first_failure:
-  marker: PRECOMMIT_RUFF_I001_C901
-  evidence: Freqtrade CI 2237 showed all pre-commit hooks passing except Ruff import ordering and check_docker complexity 19 over limit 12. Import order was auto-fixed and check_docker was decomposed without changing mutation boundaries.
+  marker: SELF_HOSTED_RUNNER_QUEUED_NO_STEPS
+  evidence: Portal PI-06 Synology Target Preflight run 30253743388, job 89937454422, stayed queued and exposed no steps; no target-side execution occurred.
 rejected_hypotheses:
-  - Suppress C901 instead of reducing the function's responsibilities.
+  - Create a duplicate trigger PR while 445 is authoritative.
+  - Fall back to a GitHub-hosted runner or substitute runner labels.
   - Run bootstrap before a non-mutating target preflight.
   - Print or upload protected secret values for diagnostics.
-  - Reuse or modify the OKX preflight owned by PR 424.
   - Treat runner reachability as OIDC, MFA, recovery or restore acceptance.
-changed_paths:
-  - .github/workflows/portal-authentik-synology-target-preflight.yml
-  - deploy/synology/portal-authentik/target_preflight.py
-  - docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_TARGET_PREFLIGHT.md
-  - tests/ai_platform/portal/deployment/test_authentik_synology_target_preflight.py
-  - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
 validation:
-  - command: AI Platform CI 1831 on head 5601f5715b043878ded7c213366da2b5e626d151
+  - command: Portal Authentik Deployment CI 24 on head 564a73ba016b038e750fe44f1434b8d0e198abb5
     result: PASS
-    evidence: Compile, focused tests, Ruff lint, Ruff format and documentation checks passed.
-  - command: Portal Authentik Deployment CI 19 on head 5601f5715b043878ded7c213366da2b5e626d151
+    evidence: Deployment package validation and focused tests passed.
+  - command: AI Platform CI 1852 on head 564a73ba016b038e750fe44f1434b8d0e198abb5
     result: PASS
-    evidence: Existing package validation and focused deployment tests passed.
-  - command: GitHub Actions Security Analysis 2100 on head 5601f5715b043878ded7c213366da2b5e626d151
+    evidence: Compile, tests, Ruff lint, Ruff format and documentation checks passed.
+  - command: GitHub Actions Security Analysis 2122 on head 564a73ba016b038e750fe44f1434b8d0e198abb5
     result: PASS
     evidence: Zizmor completed successfully.
-  - command: Freqtrade CI 2237 pre-commit on head 5601f5715b043878ded7c213366da2b5e626d151
-    result: FAIL
-    evidence: Exact log showed only I001 and C901; both are resolved by head caf4c24af8599340f66e0ca1355d2a326c5afeec.
-  - command: exact-head repository CI and security analysis
-    result: RUNNING
-    evidence: This owner-authored checkpoint commit re-triggers normal workflows after the bot-authored refactor commit was marked action_required.
-  - command: terminal self-hosted target preflight
-    result: NOT_RUN
-    evidence: Infrastructure must merge before the exact-one-file request is created.
-blockers: []
-next_action: Fix only confirmed exact-head CI or review failures on PR 431, merge when green, then create the exact-one-file target-preflight request PR and close it without merge after the terminal artifact is captured.
+  - command: Freqtrade CI 2259 on head 564a73ba016b038e750fe44f1434b8d0e198abb5
+    result: PASS
+    evidence: Pre-commit, Python 3.11-3.14, docs, distribution build and CI Gate passed.
+  - command: Portal PI-06 Synology Target Preflight run 30253743388 job 89937454422
+    result: BLOCKED
+    evidence: Queued with no executed step because oteryn-synology-staging is unavailable.
+blockers:
+  - Restore owner-managed runner oteryn-synology-staging with labels self-hosted, Linux and oteryn-staging.
+next_action: Keep PR 445 open as the sole authoritative request. After the runner is restored, let its existing job complete, inspect the bounded non-sensitive artifact, record the concrete readiness result, and close PR 445 without merge. Do not declare deployment or target acceptance from preflight alone.
 ```

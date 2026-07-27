@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: okx-acceptance-staging-preflight-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   REQUEST_PATH: ai_platform/research/liquidations/run-requests/okx-shadow-acceptance-staging-preflight-20260727-v1.json

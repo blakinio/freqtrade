@@ -41,9 +41,7 @@ def _unbound_section(
                 f"manifest.{section_name} missing required field: {field_name}"
             )
         if section[field_name] is not None:
-            raise RLV2ProvenanceError(
-                f"manifest.{section_name}.{field_name} is already bound"
-            )
+            raise RLV2ProvenanceError(f"manifest.{section_name}.{field_name} is already bound")
     return section
 
 

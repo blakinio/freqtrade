@@ -192,12 +192,8 @@ def test_digest_binds_key_role_value_dtype_and_shape() -> None:
         return adapter.semantic_state_dict_digest(state_dict={name: tensor}, role=role)
 
     base = digest(tensor=torch.tensor([1, 2], dtype=torch.int32))
-    assert base != digest(
-        name="policy.other", tensor=torch.tensor([1, 2], dtype=torch.int32)
-    )
-    assert base != digest(
-        role="buffer", tensor=torch.tensor([1, 2], dtype=torch.int32)
-    )
+    assert base != digest(name="policy.other", tensor=torch.tensor([1, 2], dtype=torch.int32))
+    assert base != digest(role="buffer", tensor=torch.tensor([1, 2], dtype=torch.int32))
     assert base != digest(tensor=torch.tensor([1, 3], dtype=torch.int32))
     assert base != digest(tensor=torch.tensor([1, 2], dtype=torch.int64))
     assert base != digest(tensor=torch.tensor([[1, 2]], dtype=torch.int32))

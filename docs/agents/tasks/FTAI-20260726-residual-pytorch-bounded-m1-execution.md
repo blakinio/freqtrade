@@ -90,48 +90,57 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T19:58:00Z
+updated_at: 2026-07-27T20:47:33Z
 head: d88cf99ea2453b00d4314d804a73ff0eb04bad3d
 branch: run/residual-pytorch-bounded-m1-execution-v10
 pr: 517
-status: running
+status: blocked
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
+  - ai_platform/strategies/AiFrozenCandidateStrategy.py
+  - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json
   - .github/workflows/residual-pytorch-bounded-m1-execution.yml
-  - ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json
 owned_paths:
-  - ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 proven:
   - Evidence-order correction PR 512 passed exact-head AI Platform CI 30298314438, Freqtrade CI 30298314378 and zizmor 30298314579, then squash-merged as c47679f75c2853ad8b145185afe9d2f9afcd5ce9.
-  - Exact-one-file PR 517 was created from c47679f75c2853ad8b145185afe9d2f9afcd5ce9 with head d88cf99ea2453b00d4314d804a73ff0eb04bad3d and only the canonical request path added.
-  - Guarded run 30299203871 passed trigger scope, active checkpoint, canonical request and frozen-infrastructure validation.
-  - Both authorized pair jobs entered fresh pre-May Kraken download after the exact cache was unavailable; matrix audit and all three frozen model executions have not started.
+  - Exact-one-file PR 517 used head d88cf99ea2453b00d4314d804a73ff0eb04bad3d and passed trigger-scope, active-checkpoint, canonical-request and frozen-infrastructure validation.
+  - Guarded run 30299203871 completed both BTC/USDT and ETH/USDT pre-May Kraken acquisition, exact pair coverage verification and the combined pre-fit coverage check successfully.
+  - Audit artifact residual-pytorch-bounded-m1-audit-517, artifact id 8667673779 and digest sha256:f02fa4e18350c4feb745ca80c105be1c4245f6a79af18d9a6359b8c0bf346575, preserved runtime/backtest.log before workflow validation.
+  - The first BTC/USDT training attempt raised ValueError with message Expanded feature %-volume-change_gen_BTC/USDT_15m contains infinity.
+  - The ETH/USDT training attempt independently raised ValueError with message Expanded feature %-volume-change_gen_ETH/USDT_15m contains infinity.
+  - The matrix audit failed closed, all three frozen comparator executions were skipped, no consumed May-June historical OOS or protected holdout was used, and PR 517 was closed without merge.
 derived:
-  - The exact cache is not available to this pull-request scope, so terminal evidence requires fresh bounded trade acquisition and conversion for both pairs.
-  - PR 517 must remain unmerged and be closed after terminal evidence collection.
+  - The frozen strategy defines %-volume-change as dataframe["volume"].pct_change(); infinity is consistent with a zero prior-volume denominator, but the exact offending timestamps and counts were not persisted.
+  - Contract v1 explicitly sets feature_changes_allowed to false, so sanitizing or replacing this feature cannot be performed under the existing authorization.
+  - A repeat of the unchanged v1 request would reproduce the same fail-closed condition and would not be an authorized remediation.
 unknown:
-  - The exact FreqAI training exception that the newly durable runtime may expose.
-  - The exact expanded feature count and historical NaN, outlier and target distributions.
-  - Whether all three frozen models complete exactly once after the matrix audit passes.
-conflicts: []
+  - The exact expanded feature count and complete per-column NaN, non-finite, outlier and target distributions because the audit aborted on the first invalid expanded feature.
+  - The exact rows, signs and frequencies of the infinite volume-change values for each pair.
+  - Whether a separately authorized versioned remediation would pass the full matrix audit and allow the three comparator executions.
+conflicts:
+  - The Freqtrade subprocess returned exit code 0 and run-summary status success while the workflow audit job failed; runtime evidence reconciles this because FreqAI caught both pair-level training ValueErrors, skipped training and emitted no valid raw matrix audit.
 first_failure:
-  marker: FREQAI_TRAINING_EXCEPTION_RUNTIME_NOT_PERSISTED
-  evidence: Prior run 30273644346 returned a successful audit subprocess and run path but produced no raw audit files; validation failed before the workflow copied the runtime directory containing backtest.log.
+  marker: EXPANDED_VOLUME_CHANGE_INFINITY
+  evidence: runtime/backtest.log in artifact 8667673779 records the first caught training exception for BTC/USDT at build_raw_matrix_audit, followed by the same feature-class failure for ETH/USDT.
 rejected_hypotheses:
-  - The new request drifted from the canonical inputs; request validation passed.
-  - The trigger branch contains additional files; exact scope validation passed.
-  - A matrix audit or frozen comparator has already failed in run 30299203871; neither stage has started.
+  - The canonical request or frozen infrastructure drifted; request validation passed.
+  - Pre-May market-data coverage was incomplete; both pair jobs and the combined pre-fit verification passed.
+  - The training exception remained unavailable; the reordered durable runtime exposed it exactly.
+  - Any comparator model produced a result or failed independently; all three comparator executions were skipped before fit.
 changed_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 validation:
-  - command: Compare c47679f75c2853ad8b145185afe9d2f9afcd5ce9...d88cf99ea2453b00d4314d804a73ff0eb04bad3d
+  - command: Residual PyTorch Bounded M1 Execution run 30299203871
+    result: FAIL_CLOSED_AS_DESIGNED
+    evidence: Request and data validation passed; exact expanded-matrix audit failed before comparator execution.
+  - command: Inspect residual-pytorch-bounded-m1-audit-517 artifact 8667673779
     result: PASS
-    evidence: The trigger diff adds exactly the canonical run-request path.
-  - command: Residual PyTorch Bounded M1 Execution 30299203871 request validation job
+    evidence: Durable runtime contains both exact volume-change infinity exceptions, empty audit stderr, audit subprocess exit code 0 and no raw valid matrix-audit files.
+  - command: Close PR 517 without merge
     result: PASS
-    evidence: Scope, checkpoint, canonical request and frozen infrastructure passed before data access.
+    evidence: PR 517 is closed, merged false.
 blockers:
-  - Run 30299203871 is active in fresh BTC/USDT and ETH/USDT pre-May acquisition; terminal audit/model evidence does not yet exist.
-next_action: Observe run 30299203871 to terminal, collect and inspect its artifacts and logs, close PR 517 without merge, and update this checkpoint with the exact first failure or completed evidence.
+  - Frozen contract v1 forbids the feature-definition change required to remediate the confirmed non-finite volume-change feature.
+next_action: Create a separate bounded remediation task that explicitly decides whether to retire v1 or authorizes a versioned v2 strategy and contract with finite %-volume-change semantics plus regression tests; do not modify or rerun v1.
 ```

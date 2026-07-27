@@ -1,143 +1,95 @@
+---
+task_id: FTAI-20260727-liquidations-live-stream-repair
+status: validating
+branch: fix/liquidations-live-synology-identity-paths-20260727
+base_branch: develop
+updated: 2026-07-27
+related_pr: 510
+required_reads:
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
+  - docs/ai_platform/portal/LIQUIDATIONS_LIVE_STREAM_ARCHITECTURE.md
+search_first:
+  - .github/workflows/liquidations-live-synology.yml
+  - deploy/synology/liquid20/deploy-live.sh
+  - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
+optional_reads:
+  - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
+---
+
 # FTAI-20260727-liquidations-live-stream-repair
 
-Status: implementation complete; exact-head repository validation and controlled Synology operational proof pending.
+The continuous read-only liquidation stream and truthful portal status model were merged through PR #489. The remaining work is the controlled Synology collector cutover and operational proof; PR #510 repairs the proven deployment identity and runner/host path blockers.
 
-Branch: `fix/liquidations-live-stream-repair-20260727`
-Base: `develop`
-PR: `#489`
-Implementation head before this checkpoint update: `eee109783c78b39caccb7b8f2d3713c31cc0967e`
+## Context checkpoint
 
-## Required reads completed
-
-Read before editing:
-
-1. `AGENTS.md`
-2. `docs/agents/CONTEXT_HANDOFF.md`
-3. `docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md`
-4. `docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md`
-5. `docs/ai_platform/portal/LIQUIDATIONS_READ_MODEL.md`
-6. `docs/agents/tasks/FTAI-20260725-portal-liquidations-read-model.md`
-7. `docs/agents/tasks/FTAI-20260725-portal-liquidations-ui.md`
-8. Liquid20 collector checkpoints and deployment documentation
-9. Current portal and Liquid20 Synology deployment workflows
-10. Open PRs touching collector, market-data, portal, Synology and bot-management areas
-
-No active PR was found that implemented a continuous liquidation stream or changed the portal liquidation read-model. Active Synology runner work was adjacent and did not overlap with the liquidation-owned paths. The branch was synchronized with the latest reviewed `develop` through PR `#494` before final validation.
-
-## Proven root cause
-
-- `deploy/synology/liquid20/compose.yaml` configured the only collector with `restart: "no"`.
-- `deploy/synology/liquid20/entrypoint.sh` allowed only bounded `smoke` or exact 24-hour `acceptance` modes.
-- The entrypoint ran collection, evaluation and artifact hashing, then exited.
-- `liquidation_multi_source_runner.py` started the Bybit and Binance collectors that wrote `bybit-linear.ndjson`, `binance-usdm.ndjson`, source summaries and `multi-source-manifest.json`.
-- The evidence entrypoint wrote `multi-source-acceptance-report.json` and artifact hashes after the bounded run.
-- The portal mounted `/volume1/docker/freqtrade-liquidations/data` as `/liquid20-data:ro` with `PORTAL_LIQUIDATIONS_DATA_ROOT=/liquid20-data`.
-- The existing read-model selected the lexicographically newest `liquid20-*` directory and classified a run with an acceptance report as historical.
-- No separate long-running process wrote a live dataset after the accepted run completed.
-- The UI displayed BFF `refreshed_at_ms` as `Aktualizacja`, which proved only portal read time.
-
-The accepted historical run was not defective and remains immutable. The missing component was a separate service lifecycle and explicit live-state contract.
-
-## Implemented architecture
-
-### Historical evidence
-
-- Existing accepted runs stay under `data/runs/`.
-- The live service never appends to, renames, chmods, chowns or rewrites them.
-- Acceptance reports and hashes remain the source of research/replay evidence.
-- Portal fallback represents them only as `HISTORICAL`.
-
-### Continuous live/shadow stream
-
-- New module: `ai_platform/scripts/liquidation_live_stream.py`.
-- New root: `data/live/`.
-- Fixed atomic pointer: `data/live/live-state-v1.json`.
-- Daily rotating runs: `data/live/runs/liquid20-*/`.
-- Bybit Linear and Binance USD-M public liquidation streams.
-- Dynamic bounded USDT perpetual symbol discovery.
-- Deterministic canonical event IDs retained.
-- Append-only NDJSON, periodic flush/fsync and partial-final-line compatibility.
-- Collector/source heartbeat, last event/receive time, ingest lag, reconnect/error counters, observed/subscribed symbols and redacted latest error.
-- Independent bounded reconnect loops capped at 60 seconds.
-- OKX source reserved in the versioned health contract as disabled.
-- Explicit false assertions for execution, trading authority and credential presence.
-
-### Portal
-
-- New live-aware wrapper: `LiquidationLiveReadModel`.
-- Explicit live pointer wins over historical selection; roots are separate.
-- Pointer must identify the newest valid live run and pass containment, regular-file, symlink and size checks.
-- Configurable transitions: `LIVE`, `STALE`, `OFFLINE`, `HISTORICAL`.
-- Separate UI timestamps:
-  - `Ostatnie zdarzenie`;
-  - `Ostatni heartbeat collectora`;
-  - `Ostatnie sprawdzenie przez portal`.
-- Source health for Bybit, Binance and disabled OKX.
-- Existing no-store BFF and no-trading contract retained.
-
-### Synology deployment
-
-- Default Compose service: `liquid20-live`, `restart: unless-stopped`.
-- Existing bounded evidence workflow retained as opt-in `liquid20-evidence` profile with `restart: "no"`.
-- New exact-SHA `develop`-only workflow and `deploy-live.sh`.
-- Isolated candidate validation before production replacement.
-- Prior-image rollback with the previous verified collector commit.
-- Non-root runtime, read-only root filesystem, no ports, no Docker socket.
-- Accepted-evidence digest compared before and after deployment.
-- Operational JSON report records two heartbeat observations, subscriptions, file sizes and whether a real event happened; no-event windows are labelled honestly.
-
-## Tests added or updated
-
-- Live manager heartbeat, append, fsync-compatible newline and daily rotation.
-- Source disconnect/reconnect counters and error redaction.
-- Dynamic symbol discovery and resource bounds.
-- No-trading authority contract.
-- Live run wins over lexicographically newer historical evidence.
-- Completed accepted run stays historical without a live contract.
-- Heartbeat can advance without changing event time.
-- Configurable stale and offline transitions.
-- Appended events are visible without portal restart.
-- File replacement/truncation recovery and run rotation.
-- Truthful timestamp labels and source health.
-- 390 px mobile layout.
-- no-store health/list/summary API behavior.
-- Synology lifecycle, security, exact-SHA, candidate and rollback assertions.
-
-## Validation evidence
-
-Local focused validation:
-
-- `python -m py_compile` for the live collector and focused Python tests: passed.
-- Focused isolated pytest harness for live manager/discovery/security tests: `5 passed`.
-- `sh -n deploy/synology/liquid20/live-entrypoint.sh`: passed.
-- `bash -n deploy/synology/liquid20/deploy-live.sh`: passed.
-- Ruff `0.15.21` check: passed.
-- Ruff `0.15.21` format check: all checked files formatted.
-
-Repository validation on the implementation head before this checkpoint-only commit:
-
-- AI Platform CI: passed.
-- Portal Web CI typecheck, lint, production build and Chromium E2E: passed on the preceding implementation revision; rerun after base synchronization was in progress when this checkpoint was written.
-- Portal Universal E2E: passed on the preceding implementation revision; rerun after base synchronization was in progress when this checkpoint was written.
-- GitHub Actions security analysis with zizmor: passed.
-- Full Freqtrade CI matrix: in progress when this checkpoint was written.
-- PR review threads: no unresolved threads at the synchronized implementation head.
-- PR `#489`: open, unmerged and mergeable after synchronization with `develop`.
-
-The checkpoint update changes the branch SHA and therefore requires the normal exact-head checks to complete again before merge eligibility can be claimed.
-
-## Operational proof status
-
-Not yet claimed.
-
-The production workflow intentionally runs only after a reviewed commit reaches `develop`; this branch has not mutated the Synology production collector or portal. Required live Synology evidence, portal health observations and rollback proof remain pending. Absence of a real liquidation during a bounded observation window will not be presented as a successful real-event proof; the deployment report distinguishes heartbeat/subscription evidence from a real exchange event.
-
-## Remaining blockers
-
-1. All required checks must complete successfully on the final checkpoint commit SHA.
-2. Review threads must be rechecked on that exact SHA.
-3. Controlled Synology collector deployment, portal read-only integration validation and rollback evidence can run only through the reviewed `develop` mechanism.
-
-## Exact next action
-
-Wait for exact-head CI on PR `#489`, fix any failure and recheck unresolved review threads. Keep the PR unmerged. After it is review-clean and all required checks pass, use the controlled `develop` deployment path to obtain the Synology operational evidence without weakening the trusted-branch boundary.
+```yaml
+checkpoint_version: 1
+updated_at: 2026-07-27T20:11:30Z
+head: 01e5bd2eb331b9273f269a7617e95fbbd51611a1
+branch: fix/liquidations-live-synology-identity-paths-20260727
+pr: 510
+status: validating
+context_routes:
+  - docs/agents/tasks/FTAI-20260727-liquidations-live-stream-repair.md
+  - .github/workflows/liquidations-live-synology.yml
+  - deploy/synology/liquid20/deploy-live.sh
+  - deploy/synology/liquid20/LIVE_STREAM.md
+  - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
+  - docs/ai_platform/portal/LIQUIDATIONS_LIVE_STREAM_ARCHITECTURE.md
+owned_paths:
+  - deploy/synology/liquid20/deploy-live.sh
+  - deploy/synology/liquid20/LIVE_STREAM.md
+  - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
+  - docs/agents/tasks/FTAI-20260727-liquidations-live-stream-repair.md
+proven:
+  - PR #489 merged as 51591d89c0fba9917abb4b087a91b49c45911606 and introduced the separate continuous live/shadow stream, immutable historical fallback and truthful LIVE/STALE/OFFLINE/HISTORICAL portal semantics.
+  - The first controlled collector deployment stopped before build because LIQUID20_PUID was unset; the dedicated runner path and Docker-host bind path were different, and data/live did not yet exist.
+  - PR #510 resolves a non-root UID, derives the existing host data-root GID, separates runner and host candidate paths, bounds live-directory bootstrap and preserves accepted-evidence digest checks.
+  - Exact implementation head 01e5bd2eb331b9273f269a7617e95fbbd51611a1 passed Freqtrade CI run 30299336099 and zizmor run 30299336054.
+  - PR #510 has no inline review threads.
+  - Current develop head is 1f89f6f566525894b785a8488698cf605398e593; PR #510 is seven commits ahead and two commits behind it.
+  - This checkpoint update is documentation-only and will advance the branch beyond the recorded implementation head.
+derived:
+  - The previously green exact-head merge gate is stale because develop advanced after 01e5bd2eb331b9273f269a7617e95fbbd51611a1.
+  - Collector operational proof remains pending until the repair is synchronized, reviewed, merged and deployed through the trusted develop-only workflow.
+  - The portal cannot truthfully present LIVE until the collector writes a fresh live-state pointer and advancing heartbeats.
+unknown:
+  - Whether PR #510 remains conflict-free after synchronization with current develop.
+  - Whether the repaired Synology deployment produces two advancing candidate and production heartbeats.
+  - Whether a real exchange liquidation occurs during the bounded observation window; a quiet window is not a deployment failure.
+  - Whether rollback evidence succeeds after the first production collector cutover.
+conflicts: []
+first_failure:
+  marker: LIQUID20_DEPLOY_IDENTITY_AND_HOST_PATH_MISMATCH
+  evidence: The controlled collector run failed before image deployment because LIQUID20_PUID was missing, the runner-visible state root was not the Docker-host bind root, and the live data directory had not been safely bootstrapped.
+rejected_hypotheses:
+  - The accepted historical Liquid20 evidence was defective; it remains valid and immutable.
+  - Portal polling every ten seconds implied fresh market data; it only refreshed the historical read result.
+  - Running the collector as root was an acceptable workaround; the deployment contract requires a non-root runtime.
+  - Runner-visible filesystem paths could be used directly as Docker-host bind paths.
+changed_paths:
+  - deploy/synology/liquid20/deploy-live.sh
+  - deploy/synology/liquid20/LIVE_STREAM.md
+  - tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
+  - docs/agents/tasks/FTAI-20260727-liquidations-live-stream-repair.md
+validation:
+  - command: GitHub Freqtrade CI run 30299336099 on 01e5bd2eb331b9273f269a7617e95fbbd51611a1
+    result: PASS
+    evidence: Full Linux matrix, distribution build and CI Gate completed successfully.
+  - command: GitHub zizmor run 30299336054 on 01e5bd2eb331b9273f269a7617e95fbbd51611a1
+    result: PASS
+    evidence: Security analysis completed successfully.
+  - command: PR #510 inline review-thread query
+    result: PASS
+    evidence: No review threads were returned.
+  - command: Compare develop with fix/liquidations-live-synology-identity-paths-20260727
+    result: FAIL
+    evidence: Branch is diverged, seven commits ahead and two commits behind current develop; GitHub reports the PR non-mergeable.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-liquidations-live-stream-repair.md --require-checkpoint
+    result: PASS
+    evidence: Compact checkpoint contract validated locally before handoff.
+blockers:
+  - PR #510 is behind current develop by two commits and GitHub currently reports mergeable=false.
+  - Controlled Synology collector deployment and operational JSON evidence have not been rerun after the repair.
+next_action: Merge current develop head 1f89f6f566525894b785a8488698cf605398e593 into PR #510, resolve only task-owned conflicts, rerun exact-head CI and review-thread checks, and merge only if green before triggering the controlled Synology collector deployment.
+```

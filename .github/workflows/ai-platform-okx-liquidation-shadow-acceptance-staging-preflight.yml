@@ -72,6 +72,7 @@ jobs:
 
       - name: Verify runner, durable storage and public OKX endpoints
         id: verify
+        continue-on-error: true
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -221,20 +222,30 @@ jobs:
           print(json.dumps(report, indent=2, sort_keys=True))
           PY
           status=$?
-          set -e
 
           if [[ -s "$stderr_path" ]]; then
             cat "$stderr_path" >&2
           fi
 
-          if (( status != 0 )); then
-            python - "$stderr_path" <<'PY'
+          exit "$status"
+
+      - name: Write bounded failure report
+        if: steps.verify.outcome == 'failure'
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+          REPORT_PATH: ${{ runner.temp }}/okx-acceptance-staging-preflight-report.json
+        run: |
+          set -euo pipefail
+          python - <<'PY'
           import json
           import os
-          import sys
           from pathlib import Path
 
-          stderr_path = Path(sys.argv[1])
+          stderr_path = Path(os.environ["RUNNER_TEMP"]) / "okx-acceptance-staging-preflight.stderr"
           stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
           lines = [line.strip() for line in stderr_text.splitlines() if line.strip()]
           message = lines[-1] if lines else "preflight verification failed without stderr"
@@ -272,9 +283,6 @@ jobs:
           report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           print(json.dumps(report, indent=2, sort_keys=True))
           PY
-          fi
-
-          exit "$status"
 
       - name: Upload bounded preflight report
         if: always() && steps.verify.outcome != 'skipped'
@@ -284,3 +292,8 @@ jobs:
           path: ${{ runner.temp }}/okx-acceptance-staging-preflight-report.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Enforce readiness result
+        if: steps.verify.outcome == 'failure'
+        shell: bash
+        run: exit 1

@@ -65,8 +65,12 @@ def test_staging_preflight_uploads_bounded_success_or_failure_report() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "id: verify" in workflow
+    assert "continue-on-error: true" in workflow
     assert 'stderr_path="${RUNNER_TEMP}/okx-acceptance-staging-preflight.stderr"' in workflow
+    assert "- name: Write bounded failure report" in workflow
+    assert "if: steps.verify.outcome == 'failure'" in workflow
     assert '"failure": {' in workflow
     assert '"message": message[:1000]' in workflow
     assert '"ready_for_acceptance_workflow_mapping": False' in workflow
     assert "if: always() && steps.verify.outcome != 'skipped'" in workflow
+    assert "- name: Enforce readiness result" in workflow

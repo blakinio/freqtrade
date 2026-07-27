@@ -52,6 +52,8 @@ def test_workflow_is_exact_request_gated_and_self_hosted() -> None:
     assert 'git diff --name-status "$BASE_SHA...$HEAD_SHA"' in text
     assert 'git diff --name-status "$BASE_SHA" "$HEAD_SHA"' not in text
     assert "github.event.pull_request.head.repo.full_name == github.repository" in text
+    assert "FREQTRADE_STAGING_STATE_DIR: ${{ vars.FREQTRADE_STAGING_STATE_DIR }}" in text
+    assert "OTERYN_STAGING_STATE_DIR" not in text
 
 
 def test_workflow_maps_only_declared_identity_material() -> None:
@@ -102,7 +104,10 @@ def test_frozen_request_forbids_deployment_bootstrap_and_restore() -> None:
     assert request["expected_runner_name"] == "freqtrade-synology-staging"
     assert request["expected_runner_label"] == "freqtrade-staging"
     assert request["expected_environment"] == "synology-staging"
-    assert request["expected_state_dir"] == "/var/lib/oteryn-staging-state"
+    assert request["expected_state_dir"] == "/var/lib/freqtrade-staging-state"
+    assert request["target_root"] == "/var/lib/freqtrade-staging-state/portal-authentik"
+    assert request["backup_root"] == "/var/lib/freqtrade-staging-state/portal-authentik-backups"
+    assert request["restore_root"] == "/var/lib/freqtrade-staging-state/portal-authentik-restore"
     assert request["bounded_storage_probe_authorized"] is True
     assert request["deployment_mutation_authorized"] is False
     assert request["bootstrap_authorized"] is False

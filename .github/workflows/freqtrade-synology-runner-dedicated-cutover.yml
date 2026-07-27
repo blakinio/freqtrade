@@ -10,7 +10,6 @@ on:
 
 permissions:
   contents: read
-  statuses: write
 
 concurrency:
   group: freqtrade-synology-runner-dedicated-cutover
@@ -252,6 +251,9 @@ jobs:
   verify-live-cutover:
     if: needs.stabilization-delay.result == 'success' && github.ref == 'refs/heads/develop'
     needs: stabilization-delay
+    permissions:
+      contents: read
+      statuses: write
     runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
@@ -373,6 +375,9 @@ jobs:
   cutover-watchdog:
     if: always() && github.ref == 'refs/heads/develop'
     needs: launch-cutover
+    permissions:
+      contents: read
+      statuses: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

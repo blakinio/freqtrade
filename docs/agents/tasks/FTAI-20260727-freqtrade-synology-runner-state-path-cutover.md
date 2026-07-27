@@ -22,8 +22,8 @@ required_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T19:53:00Z
-head: 2a157ac59e75da664220f17fa26509fd8357d20d
+updated_at: 2026-07-27T20:02:00Z
+head: 72e2874e31c9509b7733be7244fc1ed79def0098
 branch: fix/freqtrade-synology-runner-state-path-cutover-20260727
 pr: "#516"
 status: implementation-complete-ci-pending
@@ -41,7 +41,9 @@ proven:
   - The repair writes through the runner-visible state mount and passes the corresponding host path only to the Docker daemon.
   - Registration volumes, canonical project/service/name, exact image and state mount remain unchanged.
   - A bounded rollback Compose definition restores the prior image if target verification fails.
-  - Focused tests pass; Ruff lint passes; Ruff canonical formatting is applied; temporary diagnostics are absent from the final diff.
+  - Focused tests, Ruff lint, Ruff format and AI Platform validation passed on synchronized implementation head 72e2874e31c9509b7733be7244fc1ed79def0098.
+  - GitHub Actions security analysis passed on synchronized implementation head 72e2874e31c9509b7733be7244fc1ed79def0098.
+  - Temporary diagnostic workflows are absent from the final diff.
 derived:
   - The path translation is required before controlled Liquid20 collector deployment can produce trustworthy Synology evidence.
 unknown:
@@ -59,14 +61,17 @@ changed_paths:
   - tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_state_path_cutover.py
   - docs/agents/tasks/FTAI-20260727-freqtrade-synology-runner-state-path-cutover.md
 validation:
-  - command: focused repository tests and Ruff lint
+  - command: AI Platform CI run 30300521150
     result: PASS
-    evidence: AI Platform CI completed tests and lint before the formatter-only failure; the canonical Ruff diff was applied.
-  - command: exact-head repository CI and security analysis
-    result: PENDING
-    evidence: Required on the checkpoint-only final head.
+    evidence: Focused tests, compile, Ruff lint, Ruff format and repository AI Platform checks passed.
+  - command: GitHub Actions Security Analysis run 30300521062
+    result: PASS
+    evidence: Zizmor passed with no unresolved findings.
+  - command: Freqtrade CI run 30300521131
+    result: IN_PROGRESS
+    evidence: Pre-commit and scope passed; matrix validation was running when this checkpoint-only commit was created.
 blockers:
-  - Exact-head CI and review are pending.
+  - Exact-head CI and review are pending on the checkpoint-only commit.
   - Real state-path cutover runs only after reviewed merge to develop.
 next_action: Complete exact-head CI and review on PR #516, then merge so the trusted develop workflow can verify the dedicated runner before Liquid20 deployment.
 ```

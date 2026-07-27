@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260727-portal-bot-management-architecture-and-agent-plan
-status: active
+status: validating
 branch: docs/portal-bot-management-architecture-v1
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: null
+related_pr: "#438"
 owned_paths:
   - docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
   - docs/ai_platform/portal/BOT_MANAGEMENT_AGENT_PLAN.md
@@ -74,7 +74,8 @@ Define the product architecture, target repository structure, bounded package de
 - Current portal software foundation and Bot Operations are complete for their bounded scopes.
 - Real bot product completeness still requires richer configuration policies, exchange connection workflows, PI-07 credential brokering, PI-08 private dry-run submission, position/order commands and full E2E closure.
 - PR #431 owns only PI-06 Synology target-preflight workflow, script, tests and documentation; this task uses disjoint documentation paths.
+- PR #438 contains exactly the four declared documentation paths and no runtime change.
 - The recommended model is one BM-00 contract lead, then five to six parallel feature agents plus one shared integration owner and one E2E owner.
 - The new architecture does not activate implementation packages automatically.
 
-next_action: Open the documentation PR, record its number here, and verify the changed-file set contains only the four declared documentation paths.
+next_action: Verify PR #438 exact-head documentation/security CI and merge only after confirming no shared documentation ownership conflict appeared.

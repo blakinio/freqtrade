@@ -104,10 +104,10 @@ No dynamic `pip install torch` is permitted. The adapter is not complete unless 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T12:36:00+02:00
-head: e3c065c5d094e908e6d313323c082658740020b9
+updated_at: 2026-07-27T12:48:00+02:00
+head: 9f52b033dc8ccdbfe1cfca7a92184ff611998658
 branch: docs/rl-v2-torch-tensor-record-adapter-v1
-pr: not_opened
+pr: "#455"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
@@ -138,7 +138,7 @@ derived:
   - Static tests can preserve lightweight AI Platform CI while a minimal full-CI routing change supplies the required real-Torch verification.
   - Reinterpreting a contiguous CPU uint8 view can expose exact tensor bytes without dtype conversion.
 unknown:
-  - Declaration PR number, exact declaration head, CI run IDs and merge SHA until GitHub creates and completes them.
+  - Declaration exact final head, CI run IDs and merge SHA until PR 455 completes.
   - Implementation and closeout exact heads, CI evidence and merge SHAs until those PRs exist.
 conflicts: []
 first_failure:
@@ -157,6 +157,9 @@ validation:
   - command: live develop, open-PR, branch, task and equivalent-scope preflight
     result: PASS
     evidence: Develop, active work and relevant task/API searches were inspected with no overlapping adapter ownership.
+  - command: declaration PR 455 changed-path audit
+    result: PASS
+    evidence: GitHub reports exactly docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md changed.
   - command: approved Torch CI lane and routing preflight
     result: PASS
     evidence: Freqtrade CI installs pinned Torch, but ai_platform-only changes do not currently trigger core tests; the declaration owns a minimal routing and mypy-target correction without dependency changes.
@@ -170,5 +173,5 @@ validation:
     result: PASS
     evidence: The repository resume generator rendered a valid continuation with exactly one concrete next action.
 blockers: []
-next_action: Create and merge the one-file declaration PR after checkpoint, resume, exact-head CI, review and mergeability checks pass; then create a fresh implementation branch from current develop.
+next_action: Merge declaration PR 455 only after exact-head CI, review and mergeability checks pass; then create a fresh implementation branch from current develop.
 ```

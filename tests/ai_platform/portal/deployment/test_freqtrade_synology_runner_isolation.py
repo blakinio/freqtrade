@@ -12,6 +12,9 @@ ENV_EXAMPLE = RUNNER_ROOT / ".env.example"
 BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "freqtrade-synology-runner-image.yml"
 PI06_WORKFLOW = ROOT / ".github" / "workflows" / "portal-authentik-synology-target-preflight.yml"
 PI06_PREFLIGHT = ROOT / "deploy" / "synology" / "portal-authentik" / "target_preflight.py"
+OKX_WORKFLOW = (
+    ROOT / ".github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml"
+)
 
 
 def test_runner_compose_is_owned_only_by_freqtrade() -> None:
@@ -56,11 +59,11 @@ def test_runner_build_workflow_publishes_only_freqtrade_image() -> None:
     assert "oteryn-deploy-runner" not in text.casefold()
 
 
-def test_pi06_uses_freqtrade_owned_state_contract() -> None:
-    workflow = PI06_WORKFLOW.read_text(encoding="utf-8")
-    preflight = PI06_PREFLIGHT.read_text(encoding="utf-8")
-    combined = workflow + preflight
-    assert "FREQTRADE_STAGING_STATE_DIR" in combined
-    assert "/var/lib/freqtrade-staging-state" in combined
-    assert "OTERYN_STAGING_STATE_DIR" not in combined
-    assert "/var/lib/oteryn-staging-state" not in combined
+def test_active_staging_workflows_use_freqtrade_owned_state_contract() -> None:
+    pi06 = PI06_WORKFLOW.read_text(encoding="utf-8") + PI06_PREFLIGHT.read_text(encoding="utf-8")
+    okx = OKX_WORKFLOW.read_text(encoding="utf-8")
+    for text in (pi06, okx):
+        assert "FREQTRADE_STAGING_STATE_DIR" in text
+        assert "/var/lib/freqtrade-staging-state" in text
+        assert "OTERYN_STAGING_STATE_DIR" not in text
+        assert "/var/lib/oteryn-staging-state" not in text

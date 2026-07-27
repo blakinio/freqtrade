@@ -154,10 +154,28 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          source_b64="$(base64 -w0 ai_platform/provenance/rl_v2_torch_state_dict.py)"
-          tests_b64="$(base64 -w0 tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py)"
-          body="<!-- ruff-format-diagnostic -->\nSOURCE_B64:${source_b64}\nTESTS_B64:${tests_b64}"
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -f body="$body"
+          python - <<'PY'
+          import base64
+          import json
+          from pathlib import Path
+
+          entries = (
+              ("SOURCE", Path("ai_platform/provenance/rl_v2_torch_state_dict.py")),
+              ("TESTS", Path("tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py")),
+          )
+          for label, path in entries:
+              body = "<!-- ruff-format-diagnostic -->\n" + label + "_B64:" + base64.b64encode(path.read_bytes()).decode("ascii")
+              Path(f"/tmp/{label.lower()}.json").write_text(json.dumps({"body": body}), encoding="utf-8")
+          PY
+          for payload in /tmp/source.json /tmp/tests.json; do
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              --data-binary "@${payload}" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments"
+          done
 
   docs-check:
     name: "Documentation build"

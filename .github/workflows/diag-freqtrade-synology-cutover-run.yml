@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Inspect exact failed push run and comment bounded evidence
+      - name: Inspect exact failed push run and comment job evidence
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -28,129 +28,65 @@ jobs:
           TARGET_PR: "509"
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import io
+
+          runs="$(gh api \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$REPOSITORY/actions/runs?head_sha=$TARGET_SHA&per_page=100")"
+
+          run_id="$(python3 - "$runs" "$TARGET_WORKFLOW" <<'PY'
           import json
-          import os
-          import re
-          import urllib.error
-          import urllib.request
-          import zipfile
+          import sys
 
-          token = os.environ["GH_TOKEN"]
-          repository = os.environ["REPOSITORY"]
-          target_sha = os.environ["TARGET_SHA"]
-          target_workflow = os.environ["TARGET_WORKFLOW"]
-          target_pr = os.environ["TARGET_PR"]
-          api = "https://api.github.com"
+          payload = json.loads(sys.argv[1])
+          name = sys.argv[2]
+          matches = [run for run in payload.get("workflow_runs", []) if run.get("name") == name]
+          matches.sort(key=lambda run: run.get("run_attempt", 0), reverse=True)
+          if not matches:
+              raise SystemExit("No matching workflow run found")
+          print(matches[0]["id"])
+          PY
+          )"
 
-          def request(path: str, *, method: str = "GET", payload: dict | None = None) -> bytes:
-              data = None if payload is None else json.dumps(payload).encode()
-              req = urllib.request.Request(
-                  f"{api}{path}",
-                  data=data,
-                  method=method,
-                  headers={
-                      "Accept": "application/vnd.github+json",
-                      "Authorization": f"Bearer {token}",
-                      "X-GitHub-Api-Version": "2022-11-28",
-                      "User-Agent": "freqtrade-cutover-diagnostic",
-                  },
-              )
-              with urllib.request.urlopen(req, timeout=60) as response:
-                  return response.read()
+          jobs="$(gh api \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
 
-          runs_payload = json.loads(
-              request(f"/repos/{repository}/actions/runs?head_sha={target_sha}&per_page=100")
-          )
-          runs = [
-              run
-              for run in runs_payload.get("workflow_runs", [])
-              if run.get("name") == target_workflow
-          ]
-          runs.sort(key=lambda run: run.get("run_attempt", 0), reverse=True)
+          python3 - "$jobs" "$TARGET_SHA" "$TARGET_WORKFLOW" "$run_id" > "$RUNNER_TEMP/comment.md" <<'PY'
+          import json
+          import sys
+
+          payload = json.loads(sys.argv[1])
+          target_sha = sys.argv[2]
+          workflow = sys.argv[3]
+          run_id = sys.argv[4]
 
           lines = [
               "## Bounded Synology cutover diagnostic",
               "",
               f"- target commit: `{target_sha}`",
-              f"- workflow: `{target_workflow}`",
+              f"- workflow: `{workflow}`",
+              f"- run id: `{run_id}`",
+              "",
+              "### Jobs and steps",
           ]
-
-          if not runs:
-              lines.append("- result: no matching workflow run found")
-          else:
-              run = runs[0]
-              run_id = run["id"]
-              lines.extend(
-                  [
-                      f"- run id: `{run_id}`",
-                      f"- run status: `{run.get('status')}`",
-                      f"- run conclusion: `{run.get('conclusion')}`",
-                      "",
-                      "### Jobs",
-                  ]
+          for job in payload.get("jobs", []):
+              lines.append(
+                  f"- `{job.get('name')}`: status=`{job.get('status')}`, "
+                  f"conclusion=`{job.get('conclusion')}`, id=`{job.get('id')}`"
               )
-              jobs_payload = json.loads(
-                  request(f"/repos/{repository}/actions/runs/{run_id}/jobs?per_page=100")
-              )
-              jobs = jobs_payload.get("jobs", [])
-              for job in jobs:
+              for step in job.get("steps") or []:
                   lines.append(
-                      f"- `{job.get('name')}`: status=`{job.get('status')}`, "
-                      f"conclusion=`{job.get('conclusion')}`, id=`{job.get('id')}`"
+                      f"  - `{step.get('name')}`: "
+                      f"status=`{step.get('status')}`, conclusion=`{step.get('conclusion')}`"
                   )
-                  for step in job.get("steps") or []:
-                      lines.append(
-                          f"  - step `{step.get('name')}`: `{step.get('conclusion') or step.get('status')}`"
-                      )
-
-              failed_jobs = [
-                  job
-                  for job in jobs
-                  if job.get("conclusion") not in (None, "success", "skipped")
-              ]
-              error_pattern = re.compile(
-                  r"(##\[error\]|permission denied|operation not permitted|"
-                  r"no such file|not found|cannot|failed|error|exit code)",
-                  re.IGNORECASE,
-              )
-              redact_pattern = re.compile(
-                  r"(?i)(authorization:\s*bearer\s+)[^\s]+|"
-                  r"(?i)(token[=:]\s*)[^\s]+"
-              )
-              evidence: list[str] = []
-
-              for job in failed_jobs:
-                  try:
-                      raw = request(f"/repos/{repository}/actions/jobs/{job['id']}/logs")
-                  except urllib.error.HTTPError as exc:
-                      evidence.append(f"job {job['id']}: log download failed with HTTP {exc.code}")
-                      continue
-
-                  text = ""
-                  if raw.startswith(b"PK"):
-                      with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-                          for name in archive.namelist():
-                              text += archive.read(name).decode("utf-8", errors="replace") + "\n"
-                  else:
-                      text = raw.decode("utf-8", errors="replace")
-
-                  matched = [line.strip() for line in text.splitlines() if error_pattern.search(line)]
-                  for line in matched[-60:]:
-                      line = redact_pattern.sub(r"\1\2***", line)
-                      evidence.append(line[:1000])
-
-              lines.extend(["", "### Failure evidence", "", "```text"])
-              lines.extend(evidence[-80:] or ["No matching error lines were extracted from failed job logs."])
-              lines.append("```")
-
-          body = "\n".join(lines)
-          if len(body) > 60000:
-              body = body[:60000] + "\n\n[diagnostic truncated]"
-          request(
-              f"/repos/{repository}/issues/{target_pr}/comments",
-              method="POST",
-              payload={"body": body},
-          )
+          print("\n".join(lines))
           PY
+
+          gh api \
+            --method POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/$REPOSITORY/issues/$TARGET_PR/comments" \
+            --field body="$(cat "$RUNNER_TEMP/comment.md")" >/dev/null

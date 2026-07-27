@@ -87,8 +87,8 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T10:15:00Z
-head: 7cfdcdf8ed2b8a6798739353bcd5a2ef37cd6c8f
+updated_at: 2026-07-27T10:19:00Z
+head: 5a09335b03ec020182441b859c5aa924d5e4a6ea
 branch: fix/residual-pytorch-failure-evidence
 pr: 450
 status: validating
@@ -139,7 +139,7 @@ validation:
     result: PASS
     evidence: The temporary bootstrap workflow is absent and exactly three declared paths remain changed.
   - command: Exact-head AI Platform CI, Freqtrade CI and zizmor
-    result: PENDING
+    result: NOT_RUN
     evidence: Required workflows must complete on the checkpoint commit before merge.
 blockers:
   - Exact-head AI Platform CI, Freqtrade CI and zizmor are not yet terminal on the checkpoint commit.

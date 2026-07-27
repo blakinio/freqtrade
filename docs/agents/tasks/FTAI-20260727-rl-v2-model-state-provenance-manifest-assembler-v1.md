@@ -5,7 +5,7 @@ branch: docs/rl-v2-model-state-provenance-manifest-assembler-v1-terminal-closeou
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#495 declaration; #498 implementation; terminal closeout pending"
+related_pr: "#495 declaration; #498 implementation; #502 terminal closeout"
 depends_on:
   - FTAI-20260726-rl-v2-provenance-tooling-v1
   - FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1
@@ -71,11 +71,11 @@ Freqtrade core and the existing schema, canonicalization and hash format remain 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T20:20:00+02:00
-head: pending-closeout-head
+updated_at: 2026-07-27T20:25:00+02:00
+head: c63983e2b873a123f42b5deea141af049c23ef78
 base_develop: 00ab09632b98a9a8e18219f323702824f4f5c47b
 branch: docs/rl-v2-model-state-provenance-manifest-assembler-v1-terminal-closeout
-pr: pending
+pr: "#502"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
@@ -100,6 +100,7 @@ proven:
   - Implementation PR 498 final exact head 8cbb0d489013728d8a4bdd8d2d680556e78051bd passed AI Platform CI 30292301982, Freqtrade CI 30292301995 including CI Gate, and zizmor 30292301773.
   - Implementation PR 498 changed exactly five declared paths and had zero review threads at the final audit.
   - Implementation PR 498 merged exact head 8cbb0d489013728d8a4bdd8d2d680556e78051bd as 00ab09632b98a9a8e18219f323702824f4f5c47b.
+  - Terminal closeout PR 502 was created from implementation merge 00ab09632b98a9a8e18219f323702824f4f5c47b and changes exactly this task record.
   - The assembler reuses the existing schema, canonical JSON, missing-field calculation, finalization, validation and self-hash contract without an alternate manifest or hash format.
   - Parameter and buffer digests are mandatory and separately bound; optimizer state is optional only through the existing nullable schema field.
   - Equivalent explicit inputs produce identical canonical bytes and hashes; changing a semantic model-state identity changes the final self-hash.
@@ -107,10 +108,9 @@ proven:
   - No Torch import, model traversal, loading, execution, training, inference, replay, backtest, market-data or protected-data path exists.
   - Phase 6 remains unchanged and selected_model remains null.
 derived:
-  - The task is terminal when the one-file closeout PR passes exact-head repository CI and security validation with zero review threads and merges.
+  - This task is terminal when PR 502 merges after its final evidence head passes repository CI and security validation with zero review threads.
   - Any model discovery, traversal, artifact loading or runtime execution requires a separate declared governed task.
-unknown:
-  - Closeout PR number, exact head, workflow evidence and merge SHA until the closeout PR exists and completes.
+unknown: []
 conflicts: []
 first_failure:
   marker: RUFF_FORMATTING_DIAGNOSTIC_RESOLVED
@@ -138,9 +138,12 @@ validation:
   - command: implementation merge
     result: PASS
     evidence: PR 498 merged exact head 8cbb0d489013728d8a4bdd8d2d680556e78051bd as 00ab09632b98a9a8e18219f323702824f4f5c47b.
-  - command: terminal closeout exact-head CI and audit
+  - command: terminal closeout PR 502 exact-head CI
     result: NOT_RUN
-    evidence: Closeout branch created from the implementation merge; PR not opened yet.
+    evidence: The final evidence head created by this one-file update must pass Freqtrade CI including CI Gate and zizmor before merge.
+  - command: terminal closeout changed-path and review audit
+    result: PASS
+    evidence: PR 502 changes exactly this task record; zero review threads must remain open at the final evidence audit.
 blockers: []
-next_action: Open the one-file terminal closeout PR, record its number and exact-head evidence, then merge only after repository CI, security analysis and zero-thread audits pass.
+next_action: Merge PR 502 only after its final evidence head passes Freqtrade CI including CI Gate and zizmor and the one-file plus zero-open-thread audits remain true; then treat the task as closed.
 ```

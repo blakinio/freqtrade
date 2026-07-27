@@ -46,7 +46,7 @@ It reacts only when a same-repository pull request against `develop` adds exactl
 ai_platform/research/liquidations/run-requests/okx-shadow-acceptance-staging-preflight-20260727-v1.json
 ```
 
-The request must be the only changed path. The trigger PR is closed without merge after the terminal report is captured.
+The request must be the only changed path. Synchronizing or reopening the trigger cancels any stale preflight for the same pull request, so only the newest request HEAD may proceed. The trigger PR is closed without merge after the terminal report is captured.
 
 ## Verified properties
 

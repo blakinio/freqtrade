@@ -136,7 +136,7 @@ def verify_ready(result: ExchangeConnectionService) -> None:
             withdrawals_enabled=False,
             observed_at=NOW + timedelta(minutes=2),
             evidence_ref="evidence-verification-1",
-        )
+        ),
     )
     assert verification.status == ConnectionVerificationStatus.VERIFIED
 
@@ -251,7 +251,7 @@ def test_withdrawal_enabled_probe_is_rejected_without_permission_observation() -
             withdrawals_enabled=True,
             observed_at=NOW + timedelta(minutes=2),
             evidence_ref="evidence-withdrawals-enabled",
-        )
+        ),
     )
     product = result.get_connection(tenant_id="tenant-a", connection_id="conn-okx-1")
     assert verification.status == ConnectionVerificationStatus.FAILED

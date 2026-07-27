@@ -4,7 +4,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[4]
-WORKFLOW = ROOT / ".github" / "workflows" / "liquidations-live-portal-synology-proof.yml"
+WORKFLOW = (
+    ROOT / ".github" / "workflows" / "liquidations-live-portal-synology-proof.yml"
+)
 SCRIPT = ROOT / "deploy" / "synology" / "portal" / "prove-liquidations-live.sh"
 
 
@@ -16,8 +18,13 @@ def test_workflow_is_exact_develop_only_and_uploads_evidence() -> None:
     assert "runs-on: freqtrade-staging" in text
     assert "environment: synology-staging" in text
     assert "persist-credentials: false" in text
-    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in text
-    assert "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02" in text
+    assert (
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in text
+    )
+    assert (
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+        in text
+    )
     assert "liquidations-live-portal-synology-proof" in text
 
 
@@ -29,14 +36,18 @@ def test_script_preserves_production_and_mount_boundaries() -> None:
     assert 'test "$mount_rw" = "false"' in text
     assert 'test -z "$docker_socket_mount"' in text
     assert 'test "$portal_uid" != "0"' in text
-    assert "--mount \"type=bind,src=${liquidations_host_root},dst=${liquidations_container_root},readonly\"" in text
+    expected_mount = (
+        '--mount "type=bind,src=${liquidations_host_root},'
+        'dst=${liquidations_container_root},readonly"'
+    )
+    assert expected_mount in text
     assert "--read-only" in text
     assert "--cap-drop ALL" in text
     assert "--security-opt no-new-privileges:true" in text
     assert "--restart no" in text
-    assert "docker rm -f \"$portal_container\"" not in text
-    assert "docker stop \"$portal_container\"" not in text
-    assert "docker restart \"$portal_container\"" not in text
+    assert 'docker rm -f "$portal_container"' not in text
+    assert 'docker stop "$portal_container"' not in text
+    assert 'docker restart "$portal_container"' not in text
     assert "docker system prune" not in lowered
     assert "docker volume rm" not in lowered
 
@@ -47,8 +58,11 @@ def test_script_uses_explicit_fixture_identity_only_in_isolated_candidate() -> N
     assert "--env PORTAL_ENVIRONMENT=test" in text
     assert "--env PORTAL_IDENTITY_FIXTURE_MODE=enabled" in text
     assert "--env PORTAL_WEB_DATA_MODE=fixture" in text
-    assert 'candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-' in text
-    assert "fixture_identity\": True" in text
+    assert (
+        'candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-'
+        in text
+    )
+    assert 'fixture_identity": True' in text
     assert "SESSION_MISSING" in text
     assert "production_boundary" in text
 

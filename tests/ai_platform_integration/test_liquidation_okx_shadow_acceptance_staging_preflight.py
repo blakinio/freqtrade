@@ -45,6 +45,7 @@ def test_staging_preflight_is_exact_one_file_and_credential_free() -> None:
     assert "github.event.pull_request.head.repo.full_name == github.repository" in workflow
     assert "github.event.pull_request.base.ref == 'develop'" in workflow
     assert f"expected=$'A\\t{REQUEST_PATH}'" in workflow
+    assert "if request != expected:" in workflow
     assert "persist-credentials: false" in workflow
     assert "OKX_API_KEY" in workflow
     assert "OKX_API_SECRET" in workflow

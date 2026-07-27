@@ -29,8 +29,8 @@ POSTGRES_IMAGE = (
 EXPECTED_REQUEST = {
     "schema_version": 1,
     "request_id": "portal-pi06-authentik-synology-target-preflight-20260727-v1",
-    "expected_runner_name": "oteryn-synology-staging",
-    "expected_runner_label": "oteryn-staging",
+    "expected_runner_name": "freqtrade-synology-staging",
+    "expected_runner_label": "freqtrade-staging",
     "expected_environment": "synology-staging",
     "expected_state_dir": "/var/lib/oteryn-staging-state",
     "target_root": "/var/lib/oteryn-staging-state/portal-authentik",

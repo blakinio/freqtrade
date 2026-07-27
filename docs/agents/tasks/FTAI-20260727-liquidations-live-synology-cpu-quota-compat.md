@@ -5,7 +5,7 @@ branch: fix/liquidations-live-synology-cpu-quota-compat-20260727
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: pending
+related_pr: "#532"
 owned_paths:
   - deploy/synology/liquid20/deploy-live.sh
   - deploy/synology/liquid20/compose.yaml
@@ -25,10 +25,10 @@ required_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T20:45:00Z
-head: af2cf8cbd878af54d612353f341b965ae2ab5c77
+updated_at: 2026-07-27T20:47:00Z
+head: 37623b3f9fb8fb553829530131653d5be96c090a
 branch: fix/liquidations-live-synology-cpu-quota-compat-20260727
-pr: pending
+pr: "#532"
 status: implementation-complete-ci-pending
 context_routes:
   - docs/agents/tasks/FTAI-20260727-liquidations-live-stream-repair.md
@@ -77,5 +77,5 @@ validation:
 blockers:
   - Exact-head CI and review are pending.
   - Real deployment runs only after reviewed merge to develop.
-next_action: Open the PR, pass exact-head CI and review, merge, then inspect the new controlled Synology operational artifact.
+next_action: Pass exact-head CI and review on PR #532, merge, then inspect the new controlled Synology operational artifact.
 ```

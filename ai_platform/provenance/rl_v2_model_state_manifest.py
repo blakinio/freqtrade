@@ -36,12 +36,11 @@ def _unbound_section(
     if not isinstance(section, dict):
         raise RLV2ProvenanceError(f"manifest.{section_name} must be an object")
     for field_name in field_names:
+        field_path = f"manifest.{section_name}.{field_name}"
         if field_name not in section:
-            raise RLV2ProvenanceError(
-                f"manifest.{section_name} missing required field: {field_name}"
-            )
+            raise RLV2ProvenanceError(f"{field_path} is missing")
         if section[field_name] is not None:
-            raise RLV2ProvenanceError(f"manifest.{section_name}.{field_name} is already bound")
+            raise RLV2ProvenanceError(f"{field_path} is already bound")
     return section
 
 

@@ -4,9 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[4]
-WORKFLOW = (
-    ROOT / ".github" / "workflows" / "freqtrade-synology-runner-state-path-cutover.yml"
-)
+WORKFLOW = ROOT / ".github" / "workflows" / "freqtrade-synology-runner-state-path-cutover.yml"
 
 
 def test_cutover_translates_runner_state_to_host_state() -> None:

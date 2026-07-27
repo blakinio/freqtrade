@@ -32,15 +32,6 @@ jobs:
       PI06_AUTHENTIK_PUBLIC_BASE_URL: ${{ vars.PI06_AUTHENTIK_PUBLIC_BASE_URL }}
       PI06_PORTAL_PUBLIC_BASE_URL: ${{ vars.PI06_PORTAL_PUBLIC_BASE_URL }}
       PI06_PORTAL_IDENTITY_CLIENT_ID: ${{ vars.PI06_PORTAL_IDENTITY_CLIENT_ID }}
-      PI06_AUTHENTIK_POSTGRES_PASSWORD: ${{ secrets.PI06_AUTHENTIK_POSTGRES_PASSWORD }}
-      PI06_AUTHENTIK_SECRET_KEY: ${{ secrets.PI06_AUTHENTIK_SECRET_KEY }}
-      PI06_AUTHENTIK_BOOTSTRAP_PASSWORD_HASH: >-
-        ${{ secrets.PI06_AUTHENTIK_BOOTSTRAP_PASSWORD_HASH }}
-      PI06_PORTAL_OIDC_CLIENT_SECRET: ${{ secrets.PI06_PORTAL_OIDC_CLIENT_SECRET }}
-      PI06_PORTAL_SESSION_HMAC_KEY_B64: ${{ secrets.PI06_PORTAL_SESSION_HMAC_KEY_B64 }}
-      PI06_PORTAL_FLOW_ENCRYPTION_KEY_B64: >-
-        ${{ secrets.PI06_PORTAL_FLOW_ENCRYPTION_KEY_B64 }}
-      PI06_AUTHENTIK_AGE_RECIPIENT: ${{ secrets.PI06_AUTHENTIK_AGE_RECIPIENT }}
 
     steps:
       - name: Checkout exact preflight request commit
@@ -91,6 +82,17 @@ jobs:
           RUNNER_OS_VALUE: ${{ runner.os }}
           RUNNER_ARCH_VALUE: ${{ runner.arch }}
           REPORT_PATH: ${{ runner.temp }}/portal-pi06-target-preflight-report.json
+          PI06_AUTHENTIK_POSTGRES_PASSWORD: >-
+            ${{ secrets.PI06_AUTHENTIK_POSTGRES_PASSWORD }}
+          PI06_AUTHENTIK_SECRET_KEY: ${{ secrets.PI06_AUTHENTIK_SECRET_KEY }}
+          PI06_AUTHENTIK_BOOTSTRAP_PASSWORD_HASH: >-
+            ${{ secrets.PI06_AUTHENTIK_BOOTSTRAP_PASSWORD_HASH }}
+          PI06_PORTAL_OIDC_CLIENT_SECRET: ${{ secrets.PI06_PORTAL_OIDC_CLIENT_SECRET }}
+          PI06_PORTAL_SESSION_HMAC_KEY_B64: >-
+            ${{ secrets.PI06_PORTAL_SESSION_HMAC_KEY_B64 }}
+          PI06_PORTAL_FLOW_ENCRYPTION_KEY_B64: >-
+            ${{ secrets.PI06_PORTAL_FLOW_ENCRYPTION_KEY_B64 }}
+          PI06_AUTHENTIK_AGE_RECIPIENT: ${{ secrets.PI06_AUTHENTIK_AGE_RECIPIENT }}
         run: |
           set -euo pipefail
           python3 deploy/synology/portal-authentik/target_preflight.py \

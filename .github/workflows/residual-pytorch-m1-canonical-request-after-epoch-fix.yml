@@ -2,7 +2,7 @@ name: Residual PyTorch M1 Canonical Request After Epoch Fix
 
 on:
   pull_request:
-    types: [opened]
+    types: [synchronize]
     branches:
       - develop
     paths:
@@ -30,10 +30,13 @@ jobs:
         run: python -m pip install --disable-pip-version-check numpy pandas
       - name: Generate current canonical request
         run: |
+          request_path="ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json"
+          mkdir -p "$(dirname "$request_path")"
           python -m ai_platform.scripts.residual_pytorch_bounded_m1_run_request \
-            --print-canonical > canonical-request.json
+            --print-canonical > "$request_path"
           python -m ai_platform.scripts.residual_pytorch_bounded_m1_run_request \
-            canonical-request.json
+            "$request_path"
+          cp "$request_path" canonical-request.json
       - name: Upload canonical request
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

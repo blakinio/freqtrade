@@ -69,6 +69,8 @@ def _validate_source_states(
     source_states: tuple[LiquidationSourceState, ...],
     decision_timestamp_ms: int,
 ) -> dict[str, LiquidationSourceState]:
+    if not source_states:
+        raise ValueError("at least one liquidation source state is required")
     sources = [state.source for state in source_states]
     if sources != sorted(sources) or len(sources) != len(set(sources)):
         raise ValueError("source states must be unique and sorted")

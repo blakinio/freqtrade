@@ -48,15 +48,6 @@ validate_training_directory = base.validate_training_directory
 validate_run_summary = base.validate_run_summary
 
 
-def _configure_base() -> None:
-    base.CONTRACT_REPO_PATH = CONTRACT_REPO_PATH
-    base.CONTRACT_PATH = CONTRACT_PATH
-    base.REQUEST_REPO_PATH = REQUEST_REPO_PATH
-    base.TASK_REPO_PATH = TASK_REPO_PATH
-    base.EXPECTED_TRACKS = EXPECTED_TRACKS
-    base.EXPECTED_AUDIT_TRACK = EXPECTED_AUDIT_TRACK
-
-
 def _read_json(path: Path, label: str) -> dict[str, Any]:
     return base._read_json(path, label)
 
@@ -173,7 +164,6 @@ def _load_and_validate_manifest(track: dict[str, Any]) -> dict[str, Any]:
 
 
 def canonical_inputs() -> dict[str, Any]:
-    _configure_base()
     contract = load_contract()
     tracks = [contract["audit_track"], *contract["tracks"]]
     resolved = []
@@ -219,7 +209,6 @@ def build_contract_report() -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    _configure_base()
     args = base.parse_args(sys.argv[1:] if argv is None else argv)
     mode = args.mode or "contract"
     try:

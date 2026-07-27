@@ -1,0 +1,92 @@
+name: Repair Freqtrade Synology Runner Container Name
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/repair-freqtrade-synology-runner-orphan.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freqtrade-synology-runner-name-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Validate Docker access
+        run: |
+          set -euo pipefail
+          docker version >/dev/null
+
+      - name: Repair verified Compose replacement name
+        run: |
+          set -euo pipefail
+
+          project="freqtrade-deploy-runner"
+          service="runner"
+          canonical="freqtrade-synology-staging-runner"
+          candidate_id=""
+          candidate_name=""
+
+          while IFS='|' read -r container_id container_name; do
+            if [[ "$container_name" =~ ^[0-9a-f]{12}_${canonical}$ ]]; then
+              if [[ -n "$candidate_id" ]]; then
+                echo "More than one prefixed runner candidate exists; refusing repair." >&2
+                exit 1
+              fi
+              candidate_id="$container_id"
+              candidate_name="$container_name"
+            fi
+          done < <(docker ps -a --format '{{.ID}}|{{.Names}}')
+
+          if [[ -z "$candidate_id" ]]; then
+            if docker inspect "$canonical" >/dev/null 2>&1; then
+              echo "Canonical runner container already exists; no repair is needed."
+              exit 0
+            fi
+            echo "No exact prefixed runner candidate was found; refusing mutation." >&2
+            exit 1
+          fi
+
+          actual_project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$candidate_id")"
+          actual_service="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$candidate_id")"
+
+          if [[ "$actual_project" != "$project" || "$actual_service" != "$service" ]]; then
+            echo "Candidate failed exact Compose project/service label verification; refusing repair." >&2
+            exit 1
+          fi
+
+          if docker inspect "$canonical" >/dev/null 2>&1; then
+            echo "Canonical runner container already exists; refusing to overwrite it." >&2
+            exit 1
+          fi
+
+          echo "Renaming the verified prefixed Freqtrade runner container to its canonical name."
+          docker rename "$candidate_id" "$canonical"
+
+      - name: Verify runner remains running and isolated
+        run: |
+          set -euo pipefail
+
+          canonical="freqtrade-synology-staging-runner"
+          running="$(docker inspect --format '{{.State.Running}}' "$canonical")"
+          project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$canonical")"
+          service="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$canonical")"
+          image="$(docker inspect --format '{{.Config.Image}}' "$canonical")"
+
+          test "$running" = "true"
+          test "$project" = "freqtrade-deploy-runner"
+          test "$service" = "runner"
+
+          echo "runner_container_name=$canonical"
+          echo "runner_running=true"
+          echo "runner_image=$image"
+          echo "oteryn_mutated=false"

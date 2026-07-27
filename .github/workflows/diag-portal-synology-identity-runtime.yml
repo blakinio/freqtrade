@@ -31,7 +31,7 @@ jobs:
           revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image" 2>/dev/null || true)"
           published="$(docker port "$container" 3000/tcp | head -n 1 || true)"
 
-          runtime_json="$(docker exec "$container" node - <<'NODE'
+          runtime_json="$(docker exec -i "$container" node - <<'NODE'
           const fs = require('node:fs');
           const crypto = require('node:crypto');
 

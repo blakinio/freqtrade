@@ -270,6 +270,7 @@ jobs:
 
           audit_run="$(tail -n 1 audit-run-path.txt)"
           test -d "$audit_run"
+          cp -R "$audit_run" "$audit_root/runtime"
           python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
             validate-summary "$audit_run/run-summary.json" \
             --track-id residual-pytorch-m1-data-audit-v1 \
@@ -278,7 +279,6 @@ jobs:
             validate-audit \
             --audit-dir "$audit_root/raw" \
             --output "$audit_root/cross-pair-audit.json"
-          cp -R "$audit_run" "$audit_root/runtime"
 
       - name: Execute each frozen model exactly once and collect descriptive evidence
         id: execute-models

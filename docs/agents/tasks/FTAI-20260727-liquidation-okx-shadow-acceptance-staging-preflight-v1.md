@@ -11,6 +11,7 @@ related_prs:
   - "#451"
   - "#458"
   - "#461"
+  - "#464"
 owned_paths:
   - docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md
 required_reads:
@@ -36,11 +37,11 @@ Verify the established Synology self-hosted runner, protected environment, durab
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T13:55:00+02:00
+updated_at: 2026-07-27T13:56:00+02:00
 head: PENDING
 base_develop: ff304dfd483c45f5a85270d53e528521634bf684
 branch: docs/okx-preflight-terminal-blocker-20260727
-pr: PENDING
+pr: "#464"
 status: blocked
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md

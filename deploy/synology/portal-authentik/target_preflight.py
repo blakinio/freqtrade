@@ -32,10 +32,10 @@ EXPECTED_REQUEST = {
     "expected_runner_name": "freqtrade-synology-staging",
     "expected_runner_label": "freqtrade-staging",
     "expected_environment": "synology-staging",
-    "expected_state_dir": "/var/lib/oteryn-staging-state",
-    "target_root": "/var/lib/oteryn-staging-state/portal-authentik",
-    "backup_root": "/var/lib/oteryn-staging-state/portal-authentik-backups",
-    "restore_root": "/var/lib/oteryn-staging-state/portal-authentik-restore",
+    "expected_state_dir": "/var/lib/freqtrade-staging-state",
+    "target_root": "/var/lib/freqtrade-staging-state/portal-authentik",
+    "backup_root": "/var/lib/freqtrade-staging-state/portal-authentik-backups",
+    "restore_root": "/var/lib/freqtrade-staging-state/portal-authentik-restore",
     "authentik_http_port": 9000,
     "bounded_storage_probe_authorized": True,
     "deployment_mutation_authorized": False,
@@ -149,10 +149,10 @@ def valid_public_configuration(
 
 def check_paths(request: dict[str, Any], env: dict[str, str]) -> tuple[list[str], dict[str, Any]]:
     blockers: list[str] = []
-    state_dir = Path(env.get("OTERYN_STAGING_STATE_DIR", ""))
+    state_dir = Path(env.get("FREQTRADE_STAGING_STATE_DIR", ""))
     expected_state = Path(request["expected_state_dir"])
     if state_dir != expected_state:
-        blockers.append("OTERYN_STAGING_STATE_DIR")
+        blockers.append("FREQTRADE_STAGING_STATE_DIR")
     if not state_dir.is_absolute() or not state_dir.is_dir():
         blockers.append("state_dir_missing")
     elif not os.access(state_dir, os.W_OK):
@@ -175,7 +175,7 @@ def check_paths(request: dict[str, Any], env: dict[str, str]) -> tuple[list[str]
     probe_sha256 = ""
     free_bytes = 0
     path_ready = not {
-        "OTERYN_STAGING_STATE_DIR",
+        "FREQTRADE_STAGING_STATE_DIR",
         "state_dir_missing",
         "state_dir_not_writable",
     }.intersection(blockers)

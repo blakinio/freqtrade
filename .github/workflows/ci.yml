@@ -89,6 +89,12 @@ jobs:
               esac
 
               case "$file" in
+                ai_platform/provenance/rl_v2_torch.py|tests/ai_platform/test_rl_v2_torch_adapter.py)
+                  core=true
+                  ;;
+              esac
+
+              case "$file" in
                 ai_platform/*|docs/*|*.md|README*|CONTRIBUTING*|SECURITY*|.github/workflows/*|.github/dependabot.yml|.gitignore|.editorconfig)
                   ;;
                 *)
@@ -251,7 +257,7 @@ jobs:
         run: ruff format --check
       - name: Mypy
         if: matrix.quality == true
-        run: mypy freqtrade scripts tests
+        run: mypy freqtrade scripts tests ai_platform/provenance/rl_v2_torch.py
 
   exhaustive-tests:
     name: "Compatibility sweep (${{ matrix.os }}, ${{ matrix.python-version }})"

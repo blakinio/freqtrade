@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1
-status: implementing
-branch: docs/rl-v2-torch-tensor-record-adapter-v1
+status: ready
+branch: feat/rl-v2-torch-tensor-record-adapter-v1
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: null
+related_pr: "#457"
 depends_on:
   - FTAI-20260726-rl-v2-provenance-tooling-v1
 owned_paths:
@@ -52,21 +52,17 @@ The adapter is serialization-only. It must not discover, load, construct, execut
 
 ## Bounded scope
 
-Implementation is limited to the five owned paths in frontmatter. The public API will accept only `logical_name`, `role` and a caller-supplied tensor. It will preserve logical identity and role, normalize the source device through the existing core, preserve dtype and logical shape, stage data on CPU only when needed to obtain bytes, and emit deterministic C-order logical bytes with explicit byte order.
+Implementation is limited to the five owned paths in frontmatter. The public API accepts only `logical_name`, `role` and a caller-supplied tensor. It preserves logical identity and role, normalizes the source device through the existing core, preserves dtype and logical shape, stages data on CPU only when needed to obtain bytes, and emits deterministic C-order logical bytes with explicit byte order.
 
-The adapter may detach from autograd, create a contiguous read-only staging representation and copy to CPU without modifying the source tensor. It must fail closed for non-tensors, unsupported dtype or device, sparse, quantized, meta or nested tensors, unresolved conjugate or negative view bits, and any state that cannot be serialized without silent casting or value conversion.
+The adapter may detach from autograd, create a contiguous staging representation and copy to CPU without modifying the source tensor. It fails closed for non-tensors, unsupported dtype or device, sparse, quantized, meta or nested tensors, unresolved conjugate or negative view bits, and any state that cannot be serialized without silent casting or value conversion.
 
-The base `ai_platform.provenance` package and `ai_platform.provenance.rl_v2` must remain importable without Torch. No eager adapter import may be added to `ai_platform/provenance/__init__.py`.
-
-Implementation begins only after this declaration-only PR merges and a fresh implementation branch is created from the then-current `develop`.
+The base `ai_platform.provenance` package and `ai_platform.provenance.rl_v2` remain importable without Torch. The adapter is not imported from `ai_platform/provenance/__init__.py`.
 
 ## CI and dependency boundary
 
-Torch remains optional and no dependency file is owned by this task. Lightweight `AI Platform CI` must not gain Torch. Static import/inertness tests may run there without importing the adapter.
+Torch remains optional and no dependency file is owned by this task. Lightweight `AI Platform CI` remains Torch-free and verifies static import and inertness boundaries.
 
-The approved full `Freqtrade CI` installs `requirements-dev.txt`, which includes `requirements-freqai-rl.txt` and pinned Torch. Its current path classifier excludes `ai_platform/**` from core tests, so the implementation may make only two bounded changes in `.github/workflows/ci.yml`: route the adapter source and test paths to the existing core lane, and include the adapter module in that lane's existing mypy command. It must not add a job, runner, dependency, dynamic installation, model execution or market-data behavior.
-
-No dynamic `pip install torch` is permitted. The adapter is not complete unless a real-Torch exact-head CI lane executes its tests successfully and the aggregate `CI Gate` passes.
+The approved full `Freqtrade CI` installs `requirements-dev.txt`, which includes `requirements-freqai-rl.txt` and pinned Torch. The implementation changes only two bounded parts of `.github/workflows/ci.yml`: exact adapter/test path routing to the existing core lane and inclusion of the adapter module in the existing mypy command. No job, runner, dependency or dynamic installation is added.
 
 ## Absolute prohibitions
 
@@ -78,9 +74,7 @@ No dynamic `pip install torch` is permitted. The adapter is not complete unless 
 - no canonical request, execution workflow, ranking, selection or promotion;
 - no consumed historical OOS or protected final holdout access;
 - no dry-run, shadow, live or runner changes;
-- no CI dependency, runner or new-job changes beyond exact path routing and mypy coverage in the existing full CI lane;
-- no Phase 6 or `selected_model=null` change;
-- no schema or semantic change to `ai_platform/provenance/rl_v2.py` unless a separately documented blocking defect is proven.
+- no Phase 6 or `selected_model=null` change.
 
 ## Acceptance criteria
 
@@ -96,18 +90,18 @@ No dynamic `pip install torch` is permitted. The adapter is not complete unless 
 - base provenance imports neither Torch nor the adapter;
 - no file I/O, network, model loading or runtime execution marker exists;
 - targeted compile, pytest, Ruff, Ruff format and mypy gates pass;
-- pre-commit, AI Platform CI, Freqtrade CI with real Torch, documentation, zizmor, checkpoint and resume gates pass on the exact relevant heads;
-- `.github/workflows/ci.yml` changes only the exact adapter/test path routing and existing mypy target list;
+- pre-commit, AI Platform CI, Freqtrade CI with real Torch, documentation, zizmor, checkpoint and resume gates pass on exact relevant heads;
 - implementation and terminal closeout use separate fresh branches and PRs.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T12:48:00+02:00
-head: 9f52b033dc8ccdbfe1cfca7a92184ff611998658
-branch: docs/rl-v2-torch-tensor-record-adapter-v1
-pr: "#455"
+updated_at: 2026-07-27T14:44:00+02:00
+head: 6ab4aaaf6bedaacbea74a4dff0b4305793124c97
+base_develop: 9709293face7b7c0e42a8c46971586981286fc6f
+branch: feat/rl-v2-torch-tensor-record-adapter-v1
+pr: "#457"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
@@ -124,26 +118,24 @@ owned_paths:
   - docs/ai_platform/RL_V2_TORCH_TENSOR_RECORD_ADAPTER.md
   - docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md
 proven:
-  - Current develop HEAD is e3c065c5d094e908e6d313323c082658740020b9; intervening merged PRs 451 and 452 are path-disjoint from all declared owned paths.
-  - Provenance tooling task FTAI-20260726-rl-v2-provenance-tooling-v1 is terminal after declaration PR 408, implementation PR 412 and closeout PR 449.
-  - Open PR, branch, task-id and API searches found no equivalent Torch-to-TensorRecord adapter work or conflicting ownership.
-  - Existing TensorRecord validation binds logical name, role, dense element type, dtype, shape, normalized device, byte order and exact raw-byte length.
-  - Lightweight AI Platform CI intentionally installs no Torch and must remain lightweight.
-  - Freqtrade CI installs requirements-dev.txt, which includes requirements-freqai-rl.txt with pinned Torch, and runs the repository test suite plus aggregate CI Gate.
-  - Current Freqtrade CI path classification does not set core=true for ai_platform-only changes, so the adapter tests would otherwise not run in the approved Torch environment.
-  - Pre-commit runs mypy on changed Python files, but the full CI quality command currently excludes ai_platform; exact adapter mypy coverage therefore needs one bounded existing-command target addition.
-  - The action-observability execution workflow also installs the RL profile but is request-path-specific and prohibited for this adapter task because it executes models and reads market data.
-  - No additional AGENTS.md exists under the declared ai_platform/provenance, tests/ai_platform, docs/ai_platform or docs/agents/tasks paths.
+  - Declaration PR 455 exact head 244bf010c533568ce5a4f00fe19ef52ad41fa44a passed Freqtrade CI 30258421316 including CI Gate and zizmor 30258421923, then merged as 90f24a649fa2a7fad376510d16691ed94a52970b.
+  - The first complete implementation candidate head 0eea01c628d2f2ad3f54b7bb0e62c5cea6aae0ac passed AI Platform CI 30263551134, Freqtrade CI 30263551161 including pre-commit, documentation, all real-Torch core and compatibility lanes, mypy and aggregate CI Gate, and zizmor 30263551190.
+  - Current develop advanced to 9709293face7b7c0e42a8c46971586981286fc6f only through eleven paths disjoint from all five owned paths.
+  - The implementation branch was rebuilt directly from current develop 9709293face7b7c0e42a8c46971586981286fc6f with the same five-file diff and no other path changes.
+  - Rebased head 6ab4aaaf6bedaacbea74a4dff0b4305793124c97 passed AI Platform CI 30265333136, Freqtrade CI 30265333192 including pre-commit, documentation, all real-Torch core and compatibility lanes, Ruff, Ruff format, mypy, build and aggregate CI Gate, and zizmor 30265332797.
+  - Focused real-Torch tests cover 25 synthetic CPU cases across scalar, empty, contiguous, non-contiguous, supported dtypes and fail-closed rejection paths.
+  - PR 457 is open and mergeable, changes exactly the five declared owned paths, and has zero review threads and zero submitted reviews.
+  - Base provenance imports neither Torch nor the optional adapter.
+  - No model, state dictionary, optimizer, checkpoint, archive, cache, network, market data, OOS or protected holdout was accessed.
 derived:
-  - Static tests can preserve lightweight AI Platform CI while a minimal full-CI routing change supplies the required real-Torch verification.
-  - Reinterpreting a contiguous CPU uint8 view can expose exact tensor bytes without dtype conversion.
+  - The adapter implementation is complete and eligible for merge after the final checkpoint-head workflow cycle.
 unknown:
-  - Declaration exact final head, CI run IDs and merge SHA until PR 455 completes.
-  - Implementation and closeout exact heads, CI evidence and merge SHAs until those PRs exist.
+  - Implementation merge SHA until PR 457 merges.
+  - Closeout branch, PR, exact head, CI evidence and merge SHA until implementation merges.
 conflicts: []
 first_failure:
-  marker: LOCAL_CLONE_DNS_UNAVAILABLE
-  evidence: The sandbox cannot resolve github.com for git clone; repository reads and writes use the authenticated GitHub connector, while targeted code tests use reconstructed exact source inputs and exact-head GitHub CI remains authoritative.
+  marker: NONE
+  evidence: Earlier lint and formatting findings were corrected; both complete implementation candidates passed all required repository gates.
 rejected_hypotheses:
   - Add Torch to lightweight AI Platform CI.
   - Treat an untriggered full-CI core lane as real-Torch verification.
@@ -152,26 +144,31 @@ rejected_hypotheses:
   - Load or traverse a model, state_dict or optimizer.
   - Read real artifacts, caches or market data for tests.
 changed_paths:
+  - .github/workflows/ci.yml
+  - ai_platform/provenance/rl_v2_torch.py
+  - tests/ai_platform/test_rl_v2_torch_adapter.py
+  - docs/ai_platform/RL_V2_TORCH_TENSOR_RECORD_ADAPTER.md
   - docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md
 validation:
-  - command: live develop, open-PR, branch, task and equivalent-scope preflight
+  - command: declaration PR 455 exact-head repository CI
     result: PASS
-    evidence: Develop, active work and relevant task/API searches were inspected with no overlapping adapter ownership.
-  - command: declaration PR 455 changed-path audit
+    evidence: Freqtrade CI 30258421316 including CI Gate and zizmor 30258421923 succeeded before declaration merge.
+  - command: implementation candidate head 0eea01c628d2f2ad3f54b7bb0e62c5cea6aae0ac exact-head repository CI
     result: PASS
-    evidence: GitHub reports exactly docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md changed.
-  - command: approved Torch CI lane and routing preflight
+    evidence: AI Platform CI 30263551134, Freqtrade CI 30263551161 including CI Gate and zizmor 30263551190 succeeded; pre-commit, docs, Ruff, Ruff format, mypy and all real-Torch test lanes passed.
+  - command: rebased implementation head 6ab4aaaf6bedaacbea74a4dff0b4305793124c97 exact-head repository CI
     result: PASS
-    evidence: Freqtrade CI installs pinned Torch, but ai_platform-only changes do not currently trigger core tests; the declaration owns a minimal routing and mypy-target correction without dependency changes.
-  - command: python tools/agents/resume.py --task docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
+    evidence: AI Platform CI 30265333136, Freqtrade CI 30265333192 including CI Gate and zizmor 30265332797 succeeded; all core and compatibility lanes used the approved pinned Torch profile.
+  - command: implementation PR 457 changed-path audit
     result: PASS
-    evidence: The terminal predecessor checkpoint rendered the closed-task boundary and required separate adapter declaration.
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md --require-checkpoint
+    evidence: GitHub reports exactly the five declared owned paths.
+  - command: review thread and review submission audit
     result: PASS
-    evidence: The repository checkpoint validator accepted the declaration checkpoint.
-  - command: python tools/agents/resume.py --task docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md
-    result: PASS
-    evidence: The repository resume generator rendered a valid continuation with exactly one concrete next action.
-blockers: []
-next_action: Merge declaration PR 455 only after exact-head CI, review and mergeability checks pass; then create a fresh implementation branch from current develop.
+    evidence: GitHub reports zero review threads and zero submitted reviews.
+  - command: final ready-checkpoint exact-head repository CI
+    result: PENDING
+    evidence: Required workflows must complete on the checkpoint commit before merge.
+blockers:
+  - Final ready-checkpoint AI Platform CI, Freqtrade CI including CI Gate, and zizmor are not yet terminal.
+next_action: Observe exact-head workflows on the ready checkpoint; if all required gates pass and PR 457 remains mergeable with exactly five changed paths and no open review threads, merge the implementation and start a separate closeout branch from current develop.
 ```

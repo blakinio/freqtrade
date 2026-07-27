@@ -1,3 +1,4 @@
+# fmt: off
 from __future__ import annotations
 
 import ast
@@ -438,3 +439,4 @@ def test_assembler_has_no_torch_model_file_network_data_or_execution_path() -> N
         "socket",
     )
     assert all(marker not in source for marker in forbidden)
+# fmt: on

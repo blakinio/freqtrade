@@ -1,0 +1,103 @@
+name: Build Freqtrade Synology Runner Image
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/freqtrade-runner/**"
+      - ".github/workflows/freqtrade-synology-runner-image.yml"
+      - "tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_isolation.py"
+  push:
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/freqtrade-runner/**"
+      - ".github/workflows/freqtrade-synology-runner-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freqtrade-synology-runner-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: ghcr.io/blakinio/freqtrade-deploy-runner
+
+jobs:
+  validate:
+    name: Validate dedicated runner package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate shell and Compose
+        run: |
+          set -euo pipefail
+          bash -n deploy/synology/freqtrade-runner/entrypoint.sh
+          docker compose \
+            --env-file deploy/synology/freqtrade-runner/.env.example \
+            -f deploy/synology/freqtrade-runner/compose.yml \
+            config --quiet
+
+      - name: Enforce Freqtrade-only ownership
+        run: |
+          set -euo pipefail
+          if grep -Rin --exclude=README.md 'oteryn' deploy/synology/freqtrade-runner; then
+            echo "Dedicated Freqtrade runner package must not reference OteryN" >&2
+            exit 1
+          fi
+          grep -q 'https://github.com/blakinio/freqtrade' deploy/synology/freqtrade-runner/compose.yml
+          grep -q 'ghcr.io/blakinio/freqtrade-deploy-runner:develop' deploy/synology/freqtrade-runner/compose.yml
+          grep -q '/var/lib/freqtrade-staging-state' deploy/synology/freqtrade-runner/compose.yml
+
+  build:
+    name: Build dedicated runner image
+    runs-on: ubuntu-latest
+    needs: validate
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build image
+        env:
+          LOCAL_IMAGE: freqtrade-deploy-runner:test
+        run: |
+          set -euo pipefail
+          docker build \
+            --file deploy/synology/freqtrade-runner/Dockerfile \
+            --tag "$LOCAL_IMAGE" \
+            .
+          docker run --rm --entrypoint /bin/bash "$LOCAL_IMAGE" -ec '
+            docker --version
+            docker compose version
+            python3 --version
+            age --version
+            openssl version
+            test -x /usr/local/bin/freqtrade-runner-entrypoint
+          '
+
+      - name: Publish exact and develop tags
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LOCAL_IMAGE: freqtrade-deploy-runner:test
+        run: |
+          set -euo pipefail
+          echo "$GHCR_TOKEN" | docker login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          exact_tag="${IMAGE_NAME}:sha-${GITHUB_SHA}"
+          develop_tag="${IMAGE_NAME}:develop"
+          docker tag "$LOCAL_IMAGE" "$exact_tag"
+          docker tag "$LOCAL_IMAGE" "$develop_tag"
+          docker push "$exact_tag"
+          docker push "$develop_tag"

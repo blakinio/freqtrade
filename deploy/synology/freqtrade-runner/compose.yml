@@ -1,0 +1,24 @@
+name: freqtrade-deploy-runner
+
+services:
+  runner:
+    image: ${RUNNER_IMAGE:-ghcr.io/blakinio/freqtrade-deploy-runner:develop}
+    restart: unless-stopped
+    user: "0:0"
+    environment:
+      RUNNER_ALLOW_RUNASROOT: "1"
+      RUNNER_URL: https://github.com/blakinio/freqtrade
+      RUNNER_NAME: ${RUNNER_NAME:-freqtrade-synology-staging}
+      RUNNER_LABELS: freqtrade-staging
+      RUNNER_TOKEN: ${RUNNER_TOKEN:-}
+      RUNNER_WORKDIR: /work
+      RUNNER_CONFIG_DIR: /runner
+    volumes:
+      - runner_config:/runner
+      - runner_work:/work
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${FREQTRADE_STATE_HOST_PATH:-/volume1/docker/freqtrade/state}:/var/lib/freqtrade-staging-state
+
+volumes:
+  runner_config:
+  runner_work:

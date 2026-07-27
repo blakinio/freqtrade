@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
@@ -11,6 +12,7 @@ from ai_platform.scripts.run_experiment import (
     build_download_command,
     extract_backtest_metrics,
     load_manifest,
+    run_logged,
     validate_research_config,
 )
 
@@ -161,3 +163,26 @@ def test_extract_backtest_metrics_returns_scalar_summary(tmp_path: Path) -> None
     assert metrics["max_drawdown_account"] == 0.08
     assert metrics["trade_count"] == 2
     assert "trades" not in metrics
+
+
+def test_run_logged_includes_only_bounded_failure_tail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log_path = tmp_path / "failed.log"
+
+    def fake_run(*args, stdout, **kwargs):
+        for index in range(80):
+            stdout.write(f"line-{index:03d}\n")
+        return SimpleNamespace(returncode=2)
+
+    monkeypatch.setattr("ai_platform.scripts.run_experiment.subprocess.run", fake_run)
+
+    with pytest.raises(ExperimentError) as exc_info:
+        run_logged(["freqtrade", "backtesting"], log_path=log_path)
+
+    message = str(exc_info.value)
+    assert "--- bounded log tail ---" in message
+    assert "line-079" in message
+    assert "line-040" in message
+    assert "line-039" not in message
+    assert "line-000" not in message

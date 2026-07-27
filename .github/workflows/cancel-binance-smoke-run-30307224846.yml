@@ -8,13 +8,14 @@ on:
 permissions:
   actions: write
   contents: read
+  statuses: write
 
 jobs:
   cancel:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Cancel exact queued run
+      - name: Cancel exact queued run and publish audit status
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_RUN_ID: "30307224846"
@@ -29,9 +30,41 @@ jobs:
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID/cancel")"
-          if [[ "$status" != "202" ]]; then
+          if [[ "$status" == "202" ]]; then
+            description="Cancellation accepted for queued smoke run"
+          elif [[ "$status" == "409" ]]; then
+            run_status="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])')"
+            if [[ "$run_status" != "completed" ]]; then
+              cat "$response" >&2
+              echo "Cancellation conflict while run status is $run_status" >&2
+              exit 1
+            fi
+            description="Smoke run was already terminal"
+          else
             cat "$response" >&2
             echo "Expected cancellation HTTP 202, received $status" >&2
             exit 1
           fi
-          echo "Cancellation accepted for exact run $TARGET_RUN_ID"
+          payload="$(python3 - "$description" <<'PY'
+          import json
+          import sys
+          print(json.dumps({
+              "state": "success",
+              "context": "ci/cancel-binance-smoke-run-30307224846",
+              "description": sys.argv[1],
+          }))
+          PY
+          )"
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            --data "$payload" >/dev/null
+          echo "$description: $TARGET_RUN_ID"

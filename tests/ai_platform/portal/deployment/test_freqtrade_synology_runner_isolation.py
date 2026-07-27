@@ -13,6 +13,9 @@ BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "freqtrade-synology-runner-ima
 CUTOVER_PREFLIGHT_WORKFLOW = (
     ROOT / ".github" / "workflows" / "freqtrade-synology-runner-cutover-preflight.yml"
 )
+CUTOVER_WORKFLOW = (
+    ROOT / ".github" / "workflows" / "freqtrade-synology-runner-dedicated-cutover.yml"
+)
 PI06_WORKFLOW = ROOT / ".github" / "workflows" / "portal-authentik-synology-target-preflight.yml"
 PI06_PREFLIGHT = ROOT / "deploy" / "synology" / "portal-authentik" / "target_preflight.py"
 OKX_WORKFLOW = (
@@ -83,6 +86,53 @@ def test_runner_cutover_preflight_is_bounded_and_fail_closed() -> None:
     assert "docker rm" not in lowered
     assert "docker compose up" not in lowered
     assert "docker volume rm" not in lowered
+    assert "oteryn" not in lowered
+
+
+def test_dedicated_runner_cutover_requires_exact_proven_target() -> None:
+    text = CUTOVER_WORKFLOW.read_text(encoding="utf-8")
+    exact_sha = "0e2a6428a7ca29e7c2fdc4ac34be85bb5f5ac0c0"
+
+    assert f"sha-{exact_sha}" in text
+    assert f"PREFLIGHT_SHA: {exact_sha}" in text
+    assert "synology/freqtrade-cutover-container" in text
+    assert "synology/freqtrade-cutover-volumes" in text
+    assert "synology/freqtrade-cutover-image" in text
+    assert "synology/freqtrade-cutover-state-path" in text
+    assert "Required live preflight contexts are not successful" in text
+    assert "if: github.ref == 'refs/heads/develop'" in text
+    assert "runs-on: [freqtrade-staging]" in text
+
+
+def test_dedicated_runner_cutover_is_detached_and_preserves_registration() -> None:
+    text = CUTOVER_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "freqtrade-runner-cutover-helper-" in text
+    assert "docker run --detach --rm" in text
+    assert "sleep 30" in text
+    assert "--detach --no-deps --force-recreate runner" in text
+    assert "external: true" in text
+    assert "RUNNER_CONFIG_VOLUME" in text
+    assert "RUNNER_WORK_VOLUME" in text
+    assert "/volume1/docker/freqtrade/state:/var/lib/freqtrade-staging-state" in text
+    assert "dedicated_runner_recreated" in text
+    assert "dedicated_runner_already_live" in text
+    assert "Registration volumes were preserved" in text
+
+
+def test_dedicated_runner_cutover_is_observable_and_bounded() -> None:
+    text = CUTOVER_WORKFLOW.read_text(encoding="utf-8")
+    lowered = text.casefold()
+
+    assert "stabilization-delay" in text
+    assert "verify-live-cutover" in text
+    assert "cutover-watchdog" in text
+    assert "if: always() && github.ref == 'refs/heads/develop'" in text
+    assert "synology/freqtrade-runner-cutover" in text
+    assert "Replacement runner did not reconnect before timeout" in text
+    assert "docker volume rm" not in lowered
+    assert "docker system prune" not in lowered
+    assert "docker network prune" not in lowered
     assert "oteryn" not in lowered
 
 

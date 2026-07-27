@@ -5,7 +5,7 @@ branch: feat/portal-bm02-bot-builder-configuration
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: null
+related_pr: "#492"
 owned_paths:
   - ai_platform/portal/bot_builder/**
   - tests/ai_platform/portal/bot_builder/**
@@ -45,11 +45,11 @@ Implement the server-owned bot-configuration builder over the merged BM-00 contr
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T17:30:00+02:00
-head: 121f1b10dd584a81fb0ba93e83356833a2399110
+updated_at: 2026-07-27T18:20:00+02:00
+head: fc1c6bbe093cf74fff9a2c1a1a64158dae81dc52
 branch: feat/portal-bm02-bot-builder-configuration
-pr: null
-status: implementing
+pr: "#492"
+status: validating
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
@@ -64,8 +64,10 @@ proven:
   - BM-01 catalog and compatibility are merged through PR 474 at commit 2f17c994f8fa56cd0c7b0368195403e5ed932f9d.
   - No open PR owns bot_builder paths.
   - BM-03 PR 479 and BM-06 PR 480 own disjoint feature paths.
+  - PR 492 contains ten declared BM-02 implementation, test and checkpoint files.
   - The local BM-02 focused suite passes with 25 tests.
   - Ruff 0.15.21 lint and format checks pass on BM-02 source and tests.
+  - The branch is synchronized with develop commit 99366085e4cbf5029743ad7266da8324c76a6bdc.
 derived:
   - BM-02 can remain repository-only and consume BM-01 without shared composition changes.
   - Full-snapshot immutable draft revisions avoid ambiguous partial-patch semantics.
@@ -73,7 +75,7 @@ unknown: []
 conflicts: []
 first_failure:
   marker: NONE_OBSERVED
-  evidence: Focused tests and exact repository Ruff validation pass before the first branch commit.
+  evidence: Focused tests and exact repository Ruff validation pass before exact-head repository CI.
 rejected_hypotheses:
   - Add root API registration or BFF routes in BM-02.
   - Add mutable database persistence or migration revisions in BM-02.
@@ -94,5 +96,5 @@ validation:
     result: PASS
     evidence: Ruff 0.15.21 reported no formatting drift.
 blockers: []
-next_action: Commit the bounded BM-02 implementation, open a draft PR and validate exact-head repository CI.
+next_action: Validate PR 492 exact-head repository CI and resolve any failure within the BM-02 owned paths.
 ```

@@ -1,0 +1,169 @@
+name: AI Platform OKX Liquidation Staging Readiness
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/research/liquidations/readiness-requests/okx-liquidation-staging-readiness-20260727-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: okx-liquidation-staging-readiness-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/research/liquidations/readiness-requests/okx-liquidation-staging-readiness-20260727-v1.json
+
+jobs:
+  readiness:
+    name: Verify OKX liquidation staging readiness
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [self-hosted, Linux, okx-liquidation-staging]
+    environment: okx-liquidation-staging
+    timeout-minutes: 15
+    env:
+      ACCEPTANCE_HOST_ID: ${{ vars.OKX_ACCEPTANCE_HOST_ID }}
+      DURABLE_ROOT: ${{ vars.OKX_ACCEPTANCE_DURABLE_ROOT }}
+      DURABLE_URI: ${{ vars.OKX_ACCEPTANCE_DURABLE_URI }}
+
+    steps:
+      - name: Checkout exact readiness request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/research/liquidations/readiness-requests/okx-liquidation-staging-readiness-20260727-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "OKX staging readiness trigger must add exactly the canonical readiness request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate inert readiness request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          request = json.loads(Path("ai_platform/research/liquidations/readiness-requests/okx-liquidation-staging-readiness-20260727-v1.json").read_text(encoding="utf-8"))
+          expected = {
+              "schema_version": 1,
+              "request_id": "okx-liquidation-staging-readiness-20260727-v1",
+              "collector_authorized": False,
+              "network_probe_authorized": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+          }
+          if request != expected:
+              raise SystemExit("readiness request does not match the frozen inert payload")
+          PY
+
+      - name: Validate staging identity and durable storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$ACCEPTANCE_HOST_ID"
+          test -n "$DURABLE_ROOT"
+          test -n "$DURABLE_URI"
+          case "$DURABLE_ROOT" in
+            /*) ;;
+            *) echo "OKX_ACCEPTANCE_DURABLE_ROOT must be absolute" >&2; exit 1 ;;
+          esac
+          test -d "$DURABLE_ROOT"
+          test -w "$DURABLE_ROOT"
+          case "$DURABLE_ROOT" in
+            "$RUNNER_TEMP"|"$RUNNER_TEMP"/*|"$GITHUB_WORKSPACE"|"$GITHUB_WORKSPACE"/*)
+              echo "Durable root must not be runner-temporary or workspace storage" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Write bounded readiness evidence
+        id: evidence
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/okx-liquidation-staging-readiness"
+          mkdir -p "$output"
+          OUTPUT="$output" python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          output = Path(os.environ["OUTPUT"])
+          evidence = {
+              "schema_version": 1,
+              "request_id": "okx-liquidation-staging-readiness-20260727-v1",
+              "request_head_sha": os.environ["HEAD_SHA"],
+              "pull_request_number": int(os.environ["PR_NUMBER"]),
+              "environment": "okx-liquidation-staging",
+              "runner_name": os.environ["RUNNER_NAME"],
+              "runner_os": os.environ["RUNNER_OS"],
+              "runner_arch": os.environ["RUNNER_ARCH"],
+              "host_id": os.environ["ACCEPTANCE_HOST_ID"],
+              "durable_storage_uri": os.environ["DURABLE_URI"],
+              "durable_root_ready": True,
+              "credential_environment_clear": True,
+              "collector_started": False,
+              "network_probe_performed": False,
+              "orders_submitted": 0,
+          }
+          payload = json.dumps(evidence, indent=2, sort_keys=True) + "\n"
+          evidence_path = output / "okx-liquidation-staging-readiness.json"
+          evidence_path.write_text(payload, encoding="utf-8")
+          digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+          (output / "okx-liquidation-staging-readiness.sha256").write_text(
+              f"{digest}  {evidence_path.name}\n",
+              encoding="utf-8",
+          )
+          PY
+          printf 'output=%s\n' "$output" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded readiness evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: okx-liquidation-staging-readiness-${{ github.event.pull_request.number }}
+          path: |
+            ${{ steps.evidence.outputs.output }}/okx-liquidation-staging-readiness.json
+            ${{ steps.evidence.outputs.output }}/okx-liquidation-staging-readiness.sha256
+          if-no-files-found: error
+          retention-days: 7

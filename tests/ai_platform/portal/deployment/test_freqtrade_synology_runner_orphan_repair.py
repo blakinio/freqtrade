@@ -23,15 +23,12 @@ def test_runner_name_repair_is_exact_and_fail_closed() -> None:
     assert 'project="freqtrade-deploy-runner"' in text
     assert 'service="runner"' in text
     assert 'canonical="freqtrade-synology-staging-runner"' in text
-    assert '^[[0-9a-f]{12}_${canonical}$' not in text
-    assert '^[0-9a-f]{12}_${canonical}$' in text
-    assert 'com.docker.compose.project' in text
-    assert 'com.docker.compose.service' in text
+    assert "^[[0-9a-f]{12}_${canonical}$" not in text
+    assert "^[0-9a-f]{12}_${canonical}$" in text
+    assert "com.docker.compose.project" in text
+    assert "com.docker.compose.service" in text
     assert "More than one prefixed runner candidate exists" in text
-    assert (
-        "Canonical runner container already exists; refusing to overwrite it."
-        in text
-    )
+    assert "Canonical runner container already exists; refusing to overwrite it." in text
     assert 'docker rename "$candidate_id" "$canonical"' in text
 
 

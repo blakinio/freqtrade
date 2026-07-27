@@ -1,0 +1,135 @@
+name: Preflight Freqtrade Synology Runner Cutover
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/freqtrade-synology-runner-cutover-preflight.yml"
+      - ".github/workflows/freqtrade-synology-runner-image.yml"
+      - "deploy/synology/freqtrade-runner/**"
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: freqtrade-synology-runner-cutover-preflight
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    if: github.ref == 'refs/heads/develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 15
+    steps:
+      - name: Inspect current runner and target prerequisites
+        id: inspect
+        env:
+          TARGET_IMAGE: ghcr.io/blakinio/freqtrade-deploy-runner:sha-${{ github.sha }}
+        run: |
+          set -uo pipefail
+
+          canonical="freqtrade-synology-staging-runner"
+          project="freqtrade-deploy-runner"
+          service="runner"
+          container_ok=false
+          volumes_ok=false
+          image_ok=false
+          state_path_ok=false
+
+          if docker version >/dev/null 2>&1 && docker inspect "$canonical" >/dev/null 2>&1; then
+            running="$(docker inspect --format '{{.State.Running}}' "$canonical" 2>/dev/null || true)"
+            actual_project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$canonical" 2>/dev/null || true)"
+            actual_service="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$canonical" 2>/dev/null || true)"
+            if [[ "$running" == "true" && "$actual_project" == "$project" && "$actual_service" == "$service" ]]; then
+              container_ok=true
+            fi
+
+            runner_config_source="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/runner" }}{{ .Name }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+            runner_work_source="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/work" }}{{ .Name }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+            socket_type="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/var/run/docker.sock" }}{{ .Type }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+
+            if [[ -n "$runner_config_source" && -n "$runner_work_source" && "$socket_type" == "bind" ]]; then
+              config_project="$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$runner_config_source" 2>/dev/null || true)"
+              config_volume="$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_config_source" 2>/dev/null || true)"
+              work_project="$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$runner_work_source" 2>/dev/null || true)"
+              work_volume="$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_work_source" 2>/dev/null || true)"
+              if [[ "$config_project" == "$project" && "$config_volume" == "runner_config" && "$work_project" == "$project" && "$work_volume" == "runner_work" ]]; then
+                volumes_ok=true
+              fi
+            fi
+          fi
+
+          for attempt in $(seq 1 30); do
+            if docker pull "$TARGET_IMAGE" >/dev/null 2>&1; then
+              if docker run --rm --entrypoint /bin/bash "$TARGET_IMAGE" -ec '
+                docker --version >/dev/null
+                docker compose version >/dev/null
+                python3 --version >/dev/null
+                age --version >/dev/null
+                openssl version >/dev/null
+                test -x /usr/local/bin/freqtrade-runner-entrypoint
+              '; then
+                image_ok=true
+                break
+              fi
+            fi
+            sleep 10
+          done
+
+          if [[ "$image_ok" == "true" ]]; then
+            if docker run --rm --entrypoint /bin/bash -v /:/host:ro "$TARGET_IMAGE" -ec '
+              test -d /host/volume1/docker/freqtrade/state
+            '; then
+              state_path_ok=true
+            fi
+          fi
+
+          echo "container_ok=$container_ok" >> "$GITHUB_OUTPUT"
+          echo "volumes_ok=$volumes_ok" >> "$GITHUB_OUTPUT"
+          echo "image_ok=$image_ok" >> "$GITHUB_OUTPUT"
+          echo "state_path_ok=$state_path_ok" >> "$GITHUB_OUTPUT"
+
+          if [[ "$container_ok" == "true" && "$volumes_ok" == "true" && "$image_ok" == "true" && "$state_path_ok" == "true" ]]; then
+            exit 0
+          fi
+          exit 1
+
+      - name: Publish bounded preflight statuses
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTAINER_OK: ${{ steps.inspect.outputs.container_ok }}
+          VOLUMES_OK: ${{ steps.inspect.outputs.volumes_ok }}
+          IMAGE_OK: ${{ steps.inspect.outputs.image_ok }}
+          STATE_PATH_OK: ${{ steps.inspect.outputs.state_path_ok }}
+        run: |
+          set -euo pipefail
+
+          post_status() {
+            local context="$1"
+            local value="$2"
+            local success_description="$3"
+            local failure_description="$4"
+            local state="failure"
+            local description="$failure_description"
+            if [[ "$value" == "true" ]]; then
+              state="success"
+              description="$success_description"
+            fi
+            payload="$(printf '{\"state\":\"%s\",\"description\":\"%s\",\"context\":\"%s\"}' "$state" "$description" "$context")"
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+              --data "$payload" >/dev/null
+          }
+
+          post_status "synology/freqtrade-cutover-container" "$CONTAINER_OK" "Current runner identity verified" "Current runner identity verification failed"
+          post_status "synology/freqtrade-cutover-volumes" "$VOLUMES_OK" "Registration volumes verified" "Registration volume verification failed"
+          post_status "synology/freqtrade-cutover-image" "$IMAGE_OK" "Dedicated exact image verified" "Dedicated exact image unavailable"
+          post_status "synology/freqtrade-cutover-state-path" "$STATE_PATH_OK" "Freqtrade state path exists" "Freqtrade state path is missing"

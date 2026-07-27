@@ -207,36 +207,22 @@ def _market(
 ) -> MarketContextSnapshot:
     available = DECISION_MS + 1 if future_metric else CANDLE_CLOSE_MS
     metrics = (
-        AvailableMetric(
-            "atr_ratio", Decimal("0.02"), available, "completed_candle:5m"
-        ),
+        AvailableMetric("atr_ratio", Decimal("0.02"), available, "completed_candle:5m"),
         AvailableMetric(
             "market_wide_liquidation_intensity",
             Decimal("1.5"),
             DECISION_MS - 1_000,
             "liquidation-aggregate",
         ),
-        AvailableMetric(
-            "open_interest_usd", Decimal("100000000"), DECISION_MS - 1_000, "oi"
-        ),
-        AvailableMetric(
-            "funding_rate", Decimal("0.0001"), DECISION_MS - 1_000, "funding"
-        ),
-        AvailableMetric(
-            "quote_volume_24h_usd", Decimal("50000000"), DECISION_MS - 1_000, "ticker"
-        ),
+        AvailableMetric("open_interest_usd", Decimal("100000000"), DECISION_MS - 1_000, "oi"),
+        AvailableMetric("funding_rate", Decimal("0.0001"), DECISION_MS - 1_000, "funding"),
+        AvailableMetric("quote_volume_24h_usd", Decimal("50000000"), DECISION_MS - 1_000, "ticker"),
         AvailableMetric("spread_bps", Decimal("5"), DECISION_MS - 1_000, "book"),
-        AvailableMetric(
-            "trend_return_ratio", trend, available, "completed_candle:5m"
-        ),
-        AvailableMetric(
-            "volatility_ratio", Decimal("0.03"), available, "completed_candle:5m"
-        ),
+        AvailableMetric("trend_return_ratio", trend, available, "completed_candle:5m"),
+        AvailableMetric("volatility_ratio", Decimal("0.03"), available, "completed_candle:5m"),
         AvailableMetric("vwap", Decimal("100"), available, "completed_candle:5m"),
         AvailableMetric("vwma", Decimal("100"), available, "completed_candle:5m"),
-        AvailableMetric(
-            "wick_ratio", Decimal("0.01"), available, "completed_candle:5m"
-        ),
+        AvailableMetric("wick_ratio", Decimal("0.01"), available, "completed_candle:5m"),
     )
     return MarketContextSnapshot(
         symbol="BTCUSDT",
@@ -251,9 +237,7 @@ def _history() -> LiquidationHistorySnapshot:
     return LiquidationHistorySnapshot(
         symbol="BTCUSDT",
         event_notionals_usd=tuple(Decimal(value) for value in range(1_000, 11_000, 1_000)),
-        burst_window_notionals_usd=tuple(
-            Decimal(value) for value in range(5_000, 55_000, 5_000)
-        ),
+        burst_window_notionals_usd=tuple(Decimal(value) for value in range(5_000, 55_000, 5_000)),
         previous_burst_received_at_ms=DECISION_MS - 120_000,
         available_at_ms=DECISION_MS - 1_000,
         history_id="liquidation-history-btc-v1",
@@ -286,9 +270,7 @@ def _features(*, short_dominant: bool = False, price: Decimal = Decimal("99"), t
     return build_liquidation_features(
         events=_events(
             dominant_side=(
-                LiquidatedPositionSide.SHORT
-                if short_dominant
-                else LiquidatedPositionSide.LONG
+                LiquidatedPositionSide.SHORT if short_dominant else LiquidatedPositionSide.LONG
             )
         ),
         market=_market(

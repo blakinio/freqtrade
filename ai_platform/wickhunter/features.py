@@ -37,9 +37,7 @@ def _mean(values: tuple[Decimal, ...]) -> Decimal:
 
 def _zscore(value: Decimal, history: tuple[Decimal, ...]) -> Decimal:
     mean = _mean(history)
-    variance = sum(((item - mean) ** 2 for item in history), Decimal(0)) / Decimal(
-        len(history)
-    )
+    variance = sum(((item - mean) ** 2 for item in history), Decimal(0)) / Decimal(len(history))
     if variance == 0:
         return Decimal(0)
     with localcontext() as context:

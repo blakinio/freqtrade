@@ -19,9 +19,7 @@ class DecimalBound:
 
     def require(self, name: str, value: Decimal) -> None:
         if not value.is_finite() or not self.minimum <= value <= self.maximum:
-            raise ValueError(
-                f"{name} must be within [{self.minimum}, {self.maximum}], got {value}"
-            )
+            raise ValueError(f"{name} must be within [{self.minimum}, {self.maximum}], got {value}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,9 +33,7 @@ class IntegerBound:
 
     def require(self, name: str, value: int) -> None:
         if isinstance(value, bool) or not self.minimum <= value <= self.maximum:
-            raise ValueError(
-                f"{name} must be within [{self.minimum}, {self.maximum}], got {value}"
-            )
+            raise ValueError(f"{name} must be within [{self.minimum}, {self.maximum}], got {value}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,9 +94,7 @@ class WickHunterParameters:
         if self.minimum_volatility > self.maximum_volatility:
             raise ValueError("minimum_volatility must not exceed maximum_volatility")
         if self.minimum_risk_multiplier > self.maximum_risk_multiplier:
-            raise ValueError(
-                "minimum_risk_multiplier must not exceed maximum_risk_multiplier"
-            )
+            raise ValueError("minimum_risk_multiplier must not exceed maximum_risk_multiplier")
         if not self.dca_enabled and self.dca_levels != 0:
             raise ValueError("disabled DCA requires dca_levels=0")
         if self.dca_enabled and self.dca_levels < 1:
@@ -133,26 +127,18 @@ def validate_parameters(
     bounds.minimum_volatility.require("minimum_volatility", parameters.minimum_volatility)
     bounds.maximum_volatility.require("maximum_volatility", parameters.maximum_volatility)
     bounds.cooldown_ms.require("cooldown_ms", parameters.cooldown_ms)
-    bounds.maximum_event_age_ms.require(
-        "maximum_event_age_ms", parameters.maximum_event_age_ms
-    )
+    bounds.maximum_event_age_ms.require("maximum_event_age_ms", parameters.maximum_event_age_ms)
     bounds.base_risk_ratio.require("base_risk_ratio", parameters.base_risk_ratio)
     bounds.leverage.require("leverage", parameters.leverage)
     bounds.dca_levels.require("dca_levels", parameters.dca_levels)
     bounds.dca_spacing_ratio.require("dca_spacing_ratio", parameters.dca_spacing_ratio)
-    bounds.dca_total_risk_ratio.require(
-        "dca_total_risk_ratio", parameters.dca_total_risk_ratio
-    )
+    bounds.dca_total_risk_ratio.require("dca_total_risk_ratio", parameters.dca_total_risk_ratio)
     bounds.take_profit_ratio.require("take_profit_ratio", parameters.take_profit_ratio)
     bounds.stop_loss_ratio.require("stop_loss_ratio", parameters.stop_loss_ratio)
     bounds.maximum_holding_ms.require("maximum_holding_ms", parameters.maximum_holding_ms)
     bounds.minimum_confidence.require("minimum_confidence", parameters.minimum_confidence)
-    bounds.risk_multiplier.require(
-        "minimum_risk_multiplier", parameters.minimum_risk_multiplier
-    )
-    bounds.risk_multiplier.require(
-        "maximum_risk_multiplier", parameters.maximum_risk_multiplier
-    )
+    bounds.risk_multiplier.require("minimum_risk_multiplier", parameters.minimum_risk_multiplier)
+    bounds.risk_multiplier.require("maximum_risk_multiplier", parameters.maximum_risk_multiplier)
     if parameters.minimum_volatility > parameters.maximum_volatility:
         raise ValueError("volatility range is inverted")
     if parameters.dca_enabled and parameters.dca_total_risk_ratio < parameters.base_risk_ratio:

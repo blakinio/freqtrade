@@ -151,8 +151,7 @@ def _quality_reasons(  # noqa: C901
     if quality.latest_candle_available_at_ms > decision_timestamp_ms:
         reasons.append("candle_availability_from_future")
     elif (
-        decision_timestamp_ms - quality.latest_candle_available_at_ms
-        > policy.maximum_candle_age_ms
+        decision_timestamp_ms - quality.latest_candle_available_at_ms > policy.maximum_candle_age_ms
     ):
         reasons.append("candle_data_stale")
     if quality.quote_volume_24h_usd < policy.minimum_quote_volume_24h_usd:

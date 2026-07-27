@@ -215,10 +215,13 @@ def evaluate_trade_intent(  # noqa: C901
         reasons.add(RiskReason.BASE_RISK_LIMIT_EXCEEDED)
     if intent.requested_leverage > limits.maximum_leverage:
         reasons.add(RiskReason.LEVERAGE_LIMIT_EXCEEDED)
-    effective_exposure = max(
-        intent.requested_base_risk_ratio,
-        intent.dca_plan.maximum_total_risk_ratio,
-    ) * intent.requested_leverage
+    effective_exposure = (
+        max(
+            intent.requested_base_risk_ratio,
+            intent.dca_plan.maximum_total_risk_ratio,
+        )
+        * intent.requested_leverage
+    )
     if effective_exposure > limits.maximum_effective_exposure_ratio:
         reasons.add(RiskReason.EFFECTIVE_EXPOSURE_LIMIT_EXCEEDED)
 

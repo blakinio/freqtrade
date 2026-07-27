@@ -16,9 +16,7 @@ def _require_text(value: str, *, field: str) -> None:
 
 
 def _require_sha256(value: str, *, field: str) -> None:
-    invalid_character = any(
-        character not in "0123456789abcdef" for character in value
-    )
+    invalid_character = any(character not in "0123456789abcdef" for character in value)
     if len(value) != SHA256_LENGTH or invalid_character:
         raise ValueError(f"{field} must be a lowercase SHA-256 digest")
 

@@ -26,6 +26,7 @@ from ai_platform.wickhunter.shadow import ShadowDecisionRequest, evaluate_shadow
 from ai_platform.wickhunter.strategy import SignalMemory, generate_candidate
 from ai_platform.wickhunter.universe import select_dynamic_universe
 
+
 __all__ = [
     "BotMode",
     "CandidateAction",

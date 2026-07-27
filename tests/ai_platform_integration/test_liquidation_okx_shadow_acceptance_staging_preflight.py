@@ -59,3 +59,14 @@ def test_staging_preflight_is_exact_one_file_and_credential_free() -> None:
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
     assert "retention-days: 30" in workflow
     assert "okx-usdt-swap.ndjson" not in workflow
+
+
+def test_staging_preflight_uploads_bounded_success_or_failure_report() -> None:
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "id: verify" in workflow
+    assert 'stderr_path="${RUNNER_TEMP}/okx-acceptance-staging-preflight.stderr"' in workflow
+    assert '"failure": {' in workflow
+    assert '"message": message[:1000]' in workflow
+    assert '"ready_for_acceptance_workflow_mapping": False' in workflow
+    assert "if: always() && steps.verify.outcome != 'skipped'" in workflow

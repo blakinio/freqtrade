@@ -59,6 +59,23 @@ ai_platform/portal/
   quality_agent/   # bounded autonomous diagnosis/repair
 ```
 
+The target bot-management expansion uses additive ownership modules when their bounded tasks are activated:
+
+```text
+ai_platform/portal/
+  contracts/bot_management/  # shared bot policy, command and execution contracts
+  bot_catalog/               # approved templates and compatibility decisions
+  bot_builder/               # normalized immutable bot configuration
+  bot_operations/            # lifecycle, position and order command model
+  exchange_connections/      # exchange metadata and verification product surface
+  signal_control/            # authenticated signal/webhook ingestion
+  grid_control/              # canonical grid policy and level generation
+  credential_broker/         # PI-07 secret-store boundary
+  execution/reconciliation/  # PI-08 acknowledgement and authoritative convergence
+```
+
+These target directories are architecture and agent-ownership boundaries, not evidence that the capabilities are already implemented. Existing code is not moved merely to match the target structure.
+
 Implementation work must continue to follow the frozen architecture and safety boundaries rather than treating a merged foundation slice as completion of an entire roadmap stage.
 
 After the bounded P0-P12 software platform and software-addressable portal surfaces, use `NEXT_WORK_AND_REPAIR_PLAN.md` to select the next bounded task. Detailed hard private/external integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`; listing a package there does not activate implementation or authorize live capital.
@@ -67,11 +84,15 @@ After the bounded P0-P12 software platform and software-addressable portal surfa
 
 PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side acceptance. Bot Operations convergence is complete through `FTAI-20260726-portal-bot-operations-completion` and PR #320, so the fleet and Bot Detail routes now compose canonical bot-scoped reads and expose existing immutable-revision and desired-state commands through the same-origin web boundary. No further core portal integration package is autonomously authorized without an owner/provider decision. PI-05 through PI-08 remain separately planned and gated; P11 is blocked on real external infrastructure, P13 is deferred and P14 remains blocked.
 
+The bot-management product architecture and agent plan describe the future bounded BM-00 through BM-09 packages required for fuller dry-run bot creation and management. Those documents do not mark the packages active, do not replace PI-07/PI-08 entry gates and do not authorize live capital.
+
 The read-only Liquid20 portal path is separately integrated through the server-side read-model, same-origin BFF, responsive Likwidacje page and Synology read-only evidence mount. It remains market-data and research preview only. Use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` before extending it into a strategy, model, or execution package.
 
 ## Documentation map
 
 - `SYSTEM_ARCHITECTURE.md` — components, planes, trust boundaries and deployment evolution.
+- `BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md` — complete dry-run bot creation/management capability model, command flow and target repository structure.
+- `BOT_MANAGEMENT_AGENT_PLAN.md` — serial contract gate, parallel agent ownership, shared hot paths and implementation waves.
 - `SECURITY_ARCHITECTURE.md` — Cloudflare, Zero Trust, identity, secrets, segmentation and threat controls.
 - `AI_ML_AND_LEARNING_ARCHITECTURE.md` — training, model registry, continual learning and safe self-improvement.
 - `DATA_AND_OBSERVABILITY_ARCHITECTURE.md` — data ownership, event contracts, decision snapshots, telemetry and retention.
@@ -84,7 +105,7 @@ The read-only Liquid20 portal path is separately integrated through the server-s
 - `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
 - `DELIVERY_ROADMAP.md` — staged delivery plan and gates.
 - `POST_P12_INTEGRATION_BACKLOG.md` — detailed contracts for remaining private/external integrations after the bounded platform foundation.
-- `AGENT_EXECUTION_PLAN.md` — bounded agent workstreams, ownership and dependencies.
+- `AGENT_EXECUTION_PLAN.md` — global bounded agent workstreams, ownership and dependencies.
 
 ## Non-negotiable safety boundaries
 

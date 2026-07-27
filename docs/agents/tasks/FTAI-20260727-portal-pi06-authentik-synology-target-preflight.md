@@ -54,8 +54,8 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T10:12:00+02:00
-head: 02a49802eeaab0fef2c2b4eccc35397229774bc2
+updated_at: 2026-07-27T10:43:00+02:00
+head: caf4c24af8599340f66e0ca1355d2a326c5afeec
 base_develop: 6d4883f63e0db2d64480827ef54f6c0e4c0a848b
 branch: feat/portal-pi06-authentik-synology-target-preflight
 pr: "#431"
@@ -77,22 +77,23 @@ proven:
   - PR 424 owns only OKX staging-preflight paths and does not overlap this task.
   - PR 431 adds an exact-one-file PI-06 request gate and a read-only probe with no Docker mutation commands.
   - Secrets are scoped only to the local probe step; validation and the artifact expose names and booleans only.
-  - Portal Authentik Deployment CI 15 and security 2077 passed before the formatting correction.
-  - AI Platform CI 1815 passed compile, tests and Ruff; only Ruff format failed.
-  - One-shot diagnostic run 30248450466 produced exact Ruff 0.15.21 formatting and the temporary workflow was removed.
+  - AI Platform CI 1831, Portal Authentik Deployment CI 19 and security 2100 passed after exact Ruff formatting.
+  - Freqtrade CI 2237 isolated pre-commit failures to import ordering and C901 in check_docker; all other hooks passed.
+  - The Docker checks were split into bounded capacity, named-inventory and container-inventory helpers; Ruff 0.15.21 fixed import order and the one-shot workflow removed itself.
 derived:
   - Terminal preflight can prove actual runner and protected-input readiness without fabricating target acceptance.
   - Passing preflight permits a separate controlled deployment request but does not authorize bootstrap, restore or P11.
 unknown:
-  - Exact-head CI and security outcome after the formatting correction.
+  - Exact-head CI and security outcome after the pre-commit refactor.
   - Whether all required PI-06 protected variables and secrets exist in synology-staging.
   - Actual Docker, storage, DNS and tool readiness on oteryn-synology-staging.
   - Terminal preflight artifact and concrete blocker list.
 conflicts: []
 first_failure:
-  marker: RUFF_FORMATTING_ONLY
-  evidence: AI Platform CI 1815 passed compile, focused tests and Ruff lint but rejected only formatting in the new focused test. Exact Ruff 0.15.21 output was applied and the temporary formatter workflow was removed.
+  marker: PRECOMMIT_RUFF_I001_C901
+  evidence: Freqtrade CI 2237 showed all pre-commit hooks passing except Ruff import ordering and check_docker complexity 19 over limit 12. Import order was auto-fixed and check_docker was decomposed without changing mutation boundaries.
 rejected_hypotheses:
+  - Suppress C901 instead of reducing the function's responsibilities.
   - Run bootstrap before a non-mutating target preflight.
   - Print or upload protected secret values for diagnostics.
   - Reuse or modify the OKX preflight owned by PR 424.
@@ -104,18 +105,21 @@ changed_paths:
   - tests/ai_platform/portal/deployment/test_authentik_synology_target_preflight.py
   - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
 validation:
-  - command: Portal Authentik Deployment CI 15 on pre-format head 73ac91c998e3a64bc49921d1fb08638b5357313d
+  - command: AI Platform CI 1831 on head 5601f5715b043878ded7c213366da2b5e626d151
+    result: PASS
+    evidence: Compile, focused tests, Ruff lint, Ruff format and documentation checks passed.
+  - command: Portal Authentik Deployment CI 19 on head 5601f5715b043878ded7c213366da2b5e626d151
     result: PASS
     evidence: Existing package validation and focused deployment tests passed.
-  - command: GitHub Actions Security Analysis 2077 on pre-format head 73ac91c998e3a64bc49921d1fb08638b5357313d
+  - command: GitHub Actions Security Analysis 2100 on head 5601f5715b043878ded7c213366da2b5e626d151
     result: PASS
-    evidence: Zizmor completed successfully with secrets scoped to the local probe step.
-  - command: AI Platform CI 1815 on pre-format head 73ac91c998e3a64bc49921d1fb08638b5357313d
+    evidence: Zizmor completed successfully.
+  - command: Freqtrade CI 2237 pre-commit on head 5601f5715b043878ded7c213366da2b5e626d151
     result: FAIL
-    evidence: Compile, tests and Ruff lint passed; Ruff format was the sole failure and is corrected.
+    evidence: Exact log showed only I001 and C901; both are resolved by head caf4c24af8599340f66e0ca1355d2a326c5afeec.
   - command: exact-head repository CI and security analysis
     result: RUNNING
-    evidence: Final exact-head validation follows this checkpoint update.
+    evidence: This owner-authored checkpoint commit re-triggers normal workflows after the bot-authored refactor commit was marked action_required.
   - command: terminal self-hosted target preflight
     result: NOT_RUN
     evidence: Infrastructure must merge before the exact-one-file request is created.

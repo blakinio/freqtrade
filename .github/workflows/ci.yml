@@ -145,6 +145,23 @@ jobs:
         with:
           python-version: "3.13"
       - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+      - name: Collect Ruff-formatted adapter files
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .ruff-format-output/ai_platform/provenance
+          mkdir -p .ruff-format-output/tests/ai_platform
+          cp ai_platform/provenance/rl_v2_torch_state_dict.py .ruff-format-output/ai_platform/provenance/
+          cp tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py .ruff-format-output/tests/ai_platform/
+      - name: Upload Ruff-formatted adapter files
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ruff-formatted-files
+          path: .ruff-format-output
+          if-no-files-found: error
+          retention-days: 1
 
   docs-check:
     name: "Documentation build"

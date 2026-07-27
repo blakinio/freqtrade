@@ -237,13 +237,24 @@ This package is executable with synthetic evidence only because real training/re
 
 ### WH-01 — liquidation dataset builder
 
-Status: `validating`
+Status: `completed`
 
 Depends on: WH-00 and accepted historical source/import evidence.
 
-Deliver accepted-run/import selection, deterministic source-aware event normalization, availability-time market joins, atomic feature partitions, dataset manifest/hash, dynamic-universe history snapshots, explicit split geometry and no model execution.
+Delivered by PR #542:
 
-PR #542 implements the accepted-import builder and validates it with deterministic synthetic accepted packages. The first real paid bulk Tardis import remains owner/provider-access dependent; WH-02 cannot consume or evaluate real history until such a package passes the unchanged historical acceptance contract.
+- strict selection of accepted immutable historical import packages;
+- manifest, artifact and accepted-event identity verification;
+- deterministic source-aware normalization preserving event and availability time;
+- availability-time market and dynamic-universe as-of joins;
+- leakage-safe historical distributions using the WH-00 feature function;
+- explicit purged/embargoed split geometry and protected-holdout refusal;
+- atomic, no-overwrite feature partitions with row, partition and manifest hashes;
+- dynamic-universe history and exact source/provider/import-run evidence;
+- `model_execution_authorized = false` and no model, replay or trading authority;
+- deterministic synthetic contract tests and complete repository CI.
+
+The first real paid bulk Tardis import remains owner/provider-access dependent. WH-01 provides the accepted-import builder but does not claim a real historical dataset was purchased, imported or accepted. WH-02 cannot consume or evaluate real history until such a package passes the unchanged historical acceptance contract.
 
 ### WH-02 — deterministic replay and event labels
 

@@ -24,7 +24,7 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
-    runs-on: [self-hosted, Linux, oteryn-staging]
+    runs-on: [self-hosted, Linux, freqtrade-staging]
     environment: synology-staging
     timeout-minutes: 15
     env:
@@ -94,8 +94,8 @@ jobs:
           expected = {
               "schema_version": 1,
               "request_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
-              "expected_runner_name": "oteryn-synology-staging",
-              "expected_runner_label": "oteryn-staging",
+              "expected_runner_name": "freqtrade-synology-staging",
+              "expected_runner_label": "freqtrade-staging",
               "expected_environment": "synology-staging",
               "expected_state_dir": "/var/lib/oteryn-staging-state",
               "expected_durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance",

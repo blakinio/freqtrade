@@ -11,9 +11,11 @@ The preflight is not deployment or target acceptance. It must not start, stop, r
 The guarded workflow targets the established staging resources:
 
 - runner name: `freqtrade-synology-staging`;
-- labels: `self-hosted`, `Linux`, `freqtrade-staging`;
+- routing label: `freqtrade-staging`;
 - protected environment: `synology-staging`;
 - durable state variable: `OTERYN_STAGING_STATE_DIR=/var/lib/oteryn-staging-state`.
+
+The runner list proves the unique custom label. The workflow routes only by that label because a job that specifies multiple labels requires the runner to possess every one of them. Once assigned, the preflight independently verifies the exact runner name and that `runner.os` is Linux before declaring readiness.
 
 The frozen request reserves three distinct roots directly below that state directory:
 

@@ -5,7 +5,7 @@ branch: docs/rl-v2-provenance-tooling-v1-closeout
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-27
-related_pr: "#408 declaration; #412 implementation; terminal closeout pending"
+related_pr: "#408 declaration; #412 implementation; #449 terminal closeout"
 owned_paths:
   - ai_platform/provenance/__init__.py
   - ai_platform/provenance/rl_v2.py
@@ -75,7 +75,7 @@ checkpoint_version: 1
 updated_at: 2026-07-27T11:36:00+02:00
 head: dc15a94388f33c81608acf566b066c845cac7b0f
 branch: docs/rl-v2-provenance-tooling-v1-closeout
-pr: pending_closeout_pr
+pr: "#449"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
@@ -136,11 +136,11 @@ validation:
     result: PASS
     evidence: Run 30252856021 completed successfully.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Run after the closeout PR number is written into this terminal checkpoint.
+    result: PASS
+    evidence: Repository checkpoint validator accepted the terminal checkpoint.
   - command: python tools/agents/resume.py --task docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
-    result: NOT_RUN
-    evidence: Run after the closeout PR number is written into this terminal checkpoint.
+    result: PASS
+    evidence: Repository resume generator rendered a valid continuation prompt with the concrete terminal next action.
 blockers: []
 next_action: Treat this task as closed after the one-file closeout PR merges; create a separately declared governed task before adding any runtime adapter, canonical request, model execution or market-data access.
 ```

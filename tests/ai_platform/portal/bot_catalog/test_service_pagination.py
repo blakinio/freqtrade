@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from conftest import snapshot_with_templates, template_entry
+from bm01_test_support import build_access, snapshot_with_templates, template_entry
 from pydantic import ValidationError
 
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
@@ -36,9 +36,8 @@ def _service_with_three_templates() -> BotCatalogService:
     return BotCatalogService(InMemoryBotCatalogRepository((snapshot,)))
 
 
-def test_template_listing_is_bounded_and_cursor_stable(
-    access: CatalogAccessContext,
-) -> None:
+def test_template_listing_is_bounded_and_cursor_stable() -> None:
+    access = build_access()
     service = _service_with_three_templates()
     catalog_ref = CatalogVersionRef(catalog_id="approved-bots", version="1")
     filters = CatalogTemplateFilters(
@@ -59,11 +58,9 @@ def test_template_listing_is_bounded_and_cursor_stable(
     assert second.page_info.has_more is False
 
 
-def test_template_listing_defaults_to_active_entries(
-    access: CatalogAccessContext,
-) -> None:
+def test_template_listing_defaults_to_active_entries() -> None:
     page = _service_with_three_templates().list_templates(
-        access,
+        build_access(),
         CatalogVersionRef(catalog_id="approved-bots", version="1"),
         CatalogTemplateFilters(),
         CatalogPageRequest(page_size=10),
@@ -72,11 +69,9 @@ def test_template_listing_defaults_to_active_entries(
     assert [item.template.template_id for item in page.items] == ["alpha", "gamma"]
 
 
-def test_template_filters_are_applied_deterministically(
-    access: CatalogAccessContext,
-) -> None:
+def test_template_filters_are_applied_deterministically() -> None:
     page = _service_with_three_templates().list_templates(
-        access,
+        build_access(),
         CatalogVersionRef(catalog_id="approved-bots", version="1"),
         CatalogTemplateFilters(query="gAm", bot_families=(BotFamily.GRID,)),
         CatalogPageRequest(page_size=10),
@@ -85,7 +80,8 @@ def test_template_filters_are_applied_deterministically(
     assert [item.template.template_id for item in page.items] == ["gamma"]
 
 
-def test_cursor_is_bound_to_filters(access: CatalogAccessContext) -> None:
+def test_cursor_is_bound_to_filters() -> None:
+    access = build_access()
     service = _service_with_three_templates()
     catalog_ref = CatalogVersionRef(catalog_id="approved-bots", version="1")
     broad = CatalogTemplateFilters(states=(CatalogEntryState.ACTIVE, CatalogEntryState.DEPRECATED))
@@ -102,10 +98,10 @@ def test_cursor_is_bound_to_filters(access: CatalogAccessContext) -> None:
     assert exc_info.value.reason_code == CatalogAccessReasonCode.CURSOR_INVALID
 
 
-def test_invalid_cursor_is_rejected(access: CatalogAccessContext) -> None:
+def test_invalid_cursor_is_rejected() -> None:
     with pytest.raises(BotCatalogServiceError) as exc_info:
         _service_with_three_templates().list_templates(
-            access,
+            build_access(),
             CatalogVersionRef(catalog_id="approved-bots", version="1"),
             CatalogTemplateFilters(),
             CatalogPageRequest(page_size=1, cursor="not-valid-base64!"),
@@ -136,10 +132,10 @@ def test_template_listing_requires_both_read_capabilities() -> None:
     assert exc_info.value.reason_code == CatalogAccessReasonCode.CAPABILITY_MISSING
 
 
-def test_missing_catalog_revision_fails_closed(access: CatalogAccessContext) -> None:
+def test_missing_catalog_revision_fails_closed() -> None:
     with pytest.raises(BotCatalogServiceError) as exc_info:
         _service_with_three_templates().list_templates(
-            access,
+            build_access(),
             CatalogVersionRef(catalog_id="approved-bots", version="999"),
             CatalogTemplateFilters(),
             CatalogPageRequest(),

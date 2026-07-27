@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-import pytest
-
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.schema import (
     BotCatalogSnapshot,
@@ -166,13 +164,11 @@ def snapshot_with_templates(
     )
 
 
-@pytest.fixture
-def snapshot() -> BotCatalogSnapshot:
+def build_snapshot() -> BotCatalogSnapshot:
     return snapshot_with_templates((template_entry(),))
 
 
-@pytest.fixture
-def access() -> CatalogAccessContext:
+def build_access() -> CatalogAccessContext:
     return CatalogAccessContext(
         tenant_id="tenant-a",
         capabilities=(
@@ -182,13 +178,12 @@ def access() -> CatalogAccessContext:
     )
 
 
-@pytest.fixture
-def service(snapshot: BotCatalogSnapshot) -> BotCatalogService:
-    return BotCatalogService(InMemoryBotCatalogRepository((snapshot,)))
+def build_service(snapshot: BotCatalogSnapshot | None = None) -> BotCatalogService:
+    selected_snapshot = snapshot or build_snapshot()
+    return BotCatalogService(InMemoryBotCatalogRepository((selected_snapshot,)))
 
 
-@pytest.fixture
-def selection() -> CompatibilitySelection:
+def build_selection() -> CompatibilitySelection:
     return CompatibilitySelection(
         tenant_id="tenant-a",
         template_ref=CatalogVersionRef(catalog_id="directional-v1", version="1"),

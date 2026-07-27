@@ -25,6 +25,8 @@ from ai_platform.scripts.protected_final_holdout import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+LOG_TAIL_LINES = 40
+LOG_TAIL_CHAR_LIMIT = 8_000
 EXPERIMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
 REQUIRED_FIELDS = {
     "schema_version",
@@ -53,6 +55,17 @@ def _utc_now() -> datetime:
 
 def _iso_utc(value: datetime) -> str:
     return value.isoformat().replace("+00:00", "Z")
+
+
+def _bounded_log_tail(log_path: Path) -> str:
+    try:
+        lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return f"<unable to read command log: {exc}>"
+    tail = "\n".join(lines[-LOG_TAIL_LINES:])
+    if len(tail) > LOG_TAIL_CHAR_LIMIT:
+        tail = tail[-LOG_TAIL_CHAR_LIMIT:]
+    return tail
 
 
 def _sha256(path: Path) -> str:
@@ -216,7 +229,11 @@ def run_logged(command: list[str], *, log_path: Path) -> None:
             raise ExperimentError(f"Unable to execute {command[0]}: {exc}") from exc
 
     if result.returncode != 0:
-        raise ExperimentError(f"Command failed with exit code {result.returncode}. See {log_path}")
+        message = f"Command failed with exit code {result.returncode}. See {log_path}"
+        tail = _bounded_log_tail(log_path)
+        if tail:
+            message += f"\n--- bounded log tail ---\n{tail}"
+        raise ExperimentError(message)
 
 
 def find_backtest_archive(run_dir: Path) -> Path:

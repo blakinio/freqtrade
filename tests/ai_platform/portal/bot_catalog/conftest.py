@@ -38,6 +38,7 @@ from ai_platform.portal.contracts.bot_management.templates import (
 )
 from ai_platform.portal.contracts.environment import ExecutionMode
 
+
 NOW = datetime(2026, 7, 27, 12, 0, tzinfo=UTC)
 POLICIES = (
     PolicyFamily.ENTRY,

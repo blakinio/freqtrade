@@ -31,6 +31,7 @@ from ai_platform.portal.contracts.common import (
 )
 from ai_platform.portal.contracts.environment import ExecutionMode
 
+
 CatalogPageSize = Annotated[int, Field(ge=1, le=MAX_PAGE_SIZE)]
 
 

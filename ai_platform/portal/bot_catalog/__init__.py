@@ -26,6 +26,7 @@ from ai_platform.portal.bot_catalog.service import (
     BotCatalogServiceError,
 )
 
+
 __all__ = [
     "BotCatalogCompatibilityEvaluator",
     "BotCatalogRepository",

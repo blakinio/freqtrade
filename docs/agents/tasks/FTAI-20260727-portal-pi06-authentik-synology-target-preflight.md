@@ -5,7 +5,7 @@ branch: feat/portal-pi06-authentik-synology-target-preflight
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: null
+related_pr: "#431"
 owned_paths:
   - .github/workflows/portal-authentik-synology-target-preflight.yml
   - deploy/synology/portal-authentik/target_preflight.py
@@ -54,11 +54,11 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T10:00:00+02:00
-head: 9f2891ef1edc49ae9c0282101b47d33a60301196
-base_develop: ff41ddc5e2fb9829e6442eaa72b12fa12461445c
+updated_at: 2026-07-27T10:05:00+02:00
+head: 2f649dd3da5f96b4e28f5f31decaaf49d3d17156
+base_develop: 6bfcff630ca3aa37b766995b16b84ee03fec39fe
 branch: feat/portal-pi06-authentik-synology-target-preflight
-pr: null
+pr: "#431"
 status: validating
 context_routes:
   - docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_DEPLOYMENT.md
@@ -72,16 +72,16 @@ owned_paths:
   - tests/ai_platform/portal/deployment/test_authentik_synology_target_preflight.py
   - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
 proven:
-  - Develop ff41ddc5e2fb9829e6442eaa72b12fa12461445c contains the merged PI-06 deployment package and closure evidence.
+  - Develop 6bfcff630ca3aa37b766995b16b84ee03fec39fe contains the merged PI-06 deployment package and only disjoint post-declaration Binance smoke changes.
   - Open PR 424 independently maps the established runner name oteryn-synology-staging, labels self-hosted/Linux/oteryn-staging, environment synology-staging and OTERYN_STAGING_STATE_DIR.
   - PR 424 owns only OKX staging-preflight paths and does not overlap this task.
-  - This branch adds an exact-one-file PI-06 request gate and a read-only probe with no Docker mutation commands.
+  - PR 431 adds an exact-one-file PI-06 request gate and a read-only probe with no Docker mutation commands.
   - Secret validation returns names only; the report explicitly records that no secret values are present.
 derived:
   - A terminal preflight can prove whether the runner and protected PI-06 inputs are actually ready without fabricating target acceptance.
   - Passing preflight permits a separate controlled deployment request but does not authorize bootstrap, restore or P11.
 unknown:
-  - Exact-head repository CI and security outcome for this infrastructure branch.
+  - Exact-head repository CI and security outcome for PR 431.
   - Whether all required PI-06 protected variables and secrets exist in synology-staging.
   - Actual Docker, storage, DNS and tool readiness on oteryn-synology-staging.
   - Terminal preflight artifact and concrete blocker list.
@@ -104,12 +104,12 @@ validation:
   - command: python -m py_compile deploy/synology/portal-authentik/target_preflight.py
     result: PASS
     evidence: The new probe compiled before publication.
-  - command: repository exact-head CI and security analysis
-    result: NOT_RUN
-    evidence: Pull request has not been opened yet.
+  - command: PR 431 exact-head repository CI and security analysis
+    result: RUNNING
+    evidence: AI Platform CI 1812, Portal Authentik Deployment 13, Freqtrade CI 2211 and security 2074 were queued on the initial published head before this checkpoint refresh.
   - command: terminal self-hosted target preflight
     result: NOT_RUN
     evidence: Infrastructure must merge before the exact-one-file request is created.
 blockers: []
-next_action: Open the infrastructure PR, fix only confirmed exact-head CI or review failures, merge when green, then create the exact-one-file target-preflight request PR and close it without merge after the terminal artifact is captured.
+next_action: Fix only confirmed exact-head CI or review failures on PR 431, merge when green, then create the exact-one-file target-preflight request PR and close it without merge after the terminal artifact is captured.
 ```

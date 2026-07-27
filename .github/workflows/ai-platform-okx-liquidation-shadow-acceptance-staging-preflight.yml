@@ -71,6 +71,7 @@ jobs:
           done
 
       - name: Verify runner, durable storage and public OKX endpoints
+        id: verify
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -79,8 +80,12 @@ jobs:
           RUNNER_ARCH_VALUE: ${{ runner.arch }}
           REPORT_PATH: ${{ runner.temp }}/okx-acceptance-staging-preflight-report.json
         run: |
-          set -euo pipefail
-          python - <<'PY'
+          set -uo pipefail
+          stderr_path="${RUNNER_TEMP}/okx-acceptance-staging-preflight.stderr"
+          rm -f "$stderr_path"
+
+          set +e
+          python - <<'PY' 2>"$stderr_path"
           import hashlib
           import json
           import os
@@ -215,8 +220,64 @@ jobs:
           report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
           print(json.dumps(report, indent=2, sort_keys=True))
           PY
+          status=$?
+          set -e
+
+          if [[ -s "$stderr_path" ]]; then
+            cat "$stderr_path" >&2
+          fi
+
+          if (( status != 0 )); then
+            python - "$stderr_path" <<'PY'
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          stderr_path = Path(sys.argv[1])
+          stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
+          lines = [line.strip() for line in stderr_text.splitlines() if line.strip()]
+          message = lines[-1] if lines else "preflight verification failed without stderr"
+          report = {
+              "schema_version": 1,
+              "report_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
+              "request_head": os.environ["HEAD_SHA"],
+              "runner": {
+                  "name": os.environ["RUNNER_NAME_VALUE"],
+                  "os": os.environ["RUNNER_OS_VALUE"],
+                  "arch": os.environ["RUNNER_ARCH_VALUE"],
+                  "selected_custom_label": "freqtrade-staging",
+                  "github_hosted": False,
+              },
+              "environment": "synology-staging",
+              "storage": {
+                  "state_dir": os.environ.get("STAGING_STATE_DIR", ""),
+                  "durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance",
+                  "durable_uri": "file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance",
+              },
+              "public_endpoints": {},
+              "safety": {
+                  "trading_credentials_present": False,
+                  "collection_executed": False,
+                  "execution_enabled": False,
+                  "orders_submitted": 0,
+              },
+              "failure": {
+                  "step": "Verify runner, durable storage and public OKX endpoints",
+                  "message": message[:1000],
+              },
+              "ready_for_acceptance_workflow_mapping": False,
+          }
+          report_path = Path(os.environ["REPORT_PATH"])
+          report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+          fi
+
+          exit "$status"
 
       - name: Upload bounded preflight report
+        if: always() && steps.verify.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: okx-acceptance-staging-preflight-${{ github.event.pull_request.number }}

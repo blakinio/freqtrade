@@ -43,6 +43,7 @@ def test_workflow_is_exact_request_gated_and_self_hosted() -> None:
     assert "runs-on: [self-hosted, Linux, freqtrade-staging]" in text
     assert "environment: synology-staging" in text
     assert "permissions:\n  contents: read" in text
+    assert "cancel-in-progress: true" in text
     assert "workflow_dispatch:" not in text
     assert "schedule:" not in text
     assert "push:" not in text

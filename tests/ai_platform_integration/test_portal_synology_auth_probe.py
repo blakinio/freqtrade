@@ -12,9 +12,26 @@ def test_deploy_probe_requires_page_and_protected_api_boundary() -> None:
     assert 'fetch("http://127.0.0.1:3000/market/liquidations")' in script
     assert 'response.status !== 401 || payload?.code !== "SESSION_MISSING"' in script
     assert (
-        'wait_http "$bind_address" "$portal_port" "/api/market/liquidations/health"' not in script
+        'wait_http "$bind_address" "$portal_port" "/api/market/liquidations/health"'
+        not in script
     )
     assert "authenticated Liquid20 boundary" in script
+
+
+def test_deploy_enables_and_verifies_bounded_fixture_identity() -> None:
+    script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "--env PORTAL_WEB_DATA_MODE=fixture" in script
+    assert "--env PORTAL_ENVIRONMENT=test" in script
+    assert "--env PORTAL_IDENTITY_FIXTURE_MODE=enabled" in script
+    assert "--env PORTAL_CONTROL_PLANE_URL" not in script
+    assert "wait_fixture_identity_internal" in script
+    assert "/api/identity/login?return_to=%2Fplatform%2Fadmin" in script
+    assert "login.status !== 303" in script
+    assert "session.status !== 200" in script
+    assert "admin.status !== 200" in script
+    assert "Fixture preview must not declare a control-plane URL" in script
+    assert "real Authentik/control plane remains disabled" in script
 
 
 def test_workflow_does_not_require_unauthenticated_api_success() -> None:

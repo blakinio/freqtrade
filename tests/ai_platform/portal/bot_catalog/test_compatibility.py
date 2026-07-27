@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from conftest import NOW, snapshot_with_templates, template_entry
 
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.schema import (
@@ -29,6 +28,11 @@ from ai_platform.portal.contracts.bot_management.templates import (
     TradeDirection,
 )
 from ai_platform.portal.contracts.environment import ExecutionMode
+from tests.ai_platform.portal.bot_catalog.conftest import (
+    NOW,
+    snapshot_with_templates,
+    template_entry,
+)
 
 
 def test_compatible_selection_produces_deterministic_authoritative_evidence(

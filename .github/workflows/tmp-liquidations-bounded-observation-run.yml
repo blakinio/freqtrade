@@ -1,0 +1,46 @@
+name: Temporary Liquidations Bounded Observation Run
+
+on:
+  push:
+    branches:
+      - fix/liquidations-live-bounded-state-observation-20260728
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.repository == 'blakinio/freqtrade'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/liquidations-live-bounded-state-observation-20260728
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Apply and validate repair
+        run: |
+          python .github/tmp-liquidations-bounded-observation-patch.py
+          bash -n deploy/synology/liquid20/deploy-live.sh
+          python -m pytest -q tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
+
+      - name: Commit repair and remove temporary files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-liquidations-bounded-observation-run.yml
+          git rm .github/workflows/tmp-liquidations-bounded-observation-patch.yml
+          git rm .github/tmp-liquidations-bounded-observation-patch.py
+          git rm .tmp-liquidations-bounded-observation-trigger
+          git add deploy/synology/liquid20/deploy-live.sh \
+            deploy/synology/liquid20/LIVE_STREAM.md \
+            tests/ai_platform_integration/test_synology_liquid20_live_deployment.py
+          git commit -m "fix(liquidations): bound live state observation"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push origin HEAD:fix/liquidations-live-bounded-state-observation-20260728

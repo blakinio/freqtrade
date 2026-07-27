@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260727-portal-pi06-authentik-synology-target-preflight
 status: blocked
-branch: feat/freqtrade-synology-runner-isolation-20260727
+branch: develop
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
@@ -64,10 +64,10 @@ Verify the dedicated Freqtrade Synology runner, Docker/Compose prerequisites, Fr
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T16:45:00+02:00
-head: 5fa53ee488825295c31feb6c4857088416d18ce1
-branch: feat/freqtrade-synology-runner-isolation-20260727
-pr: "#485 open; #482 closed without merge; #462 merged; #445 closed without merge"
+updated_at: 2026-07-27T17:44:00+02:00
+head: 6bf8730c9d2d09d2dfd247ddd28f5bc24b070e06
+branch: develop
+pr: "#485 merged; #482 closed without merge; #462 merged; #445 closed without merge"
 status: blocked
 context_routes:
   - AGENTS.md
@@ -75,7 +75,7 @@ context_routes:
   - docs/agents/tasks/FTAI-20260727-freqtrade-synology-runner-isolation.md
   - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
   - docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_TARGET_PREFLIGHT.md
-  - PR 485 exact-head CI
+  - PR 485 exact-head runs and merge
   - PR 445 terminal run 30262205600 artifact 8651340321
 owned_paths:
   - .github/workflows/portal-authentik-synology-target-preflight.yml
@@ -84,24 +84,20 @@ owned_paths:
   - tests/ai_platform/portal/deployment/test_authentik_synology_target_preflight.py
   - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
 proven:
-  - PRs 431, 452, 454, 458 and 459 merged the bounded preflight, corrected runner routing and stale-run/request-scope fixes after CI.
-  - Terminal run 30262205600 executed on freqtrade-synology-staging with Linux X64 and Docker x86_64.
-  - Exact-one-file scope, trading-credential refusal, runner identity, Docker server and Compose v2 checks passed.
-  - Host capacity was 3 CPU cores and 20816465920 bytes memory.
-  - No Authentik named volumes, networks, running containers or unrelated port-9000 publisher existed.
-  - Artifact 8651340321 recorded no secret values and no mutations.
-  - PR 445 was closed without merge after terminal artifact capture.
-  - PR 462 merged the terminal task result into develop.
-  - The owner requested that Freqtrade and its portal be completely separated from OteryN.
-  - PR 482 was closed without merge because its next action retained the OteryN-named state contract.
-  - PR 485 introduces a dedicated Freqtrade runner image, Compose project and `/var/lib/freqtrade-staging-state` PI-06 contract without target mutation.
+  - Historical terminal run 30262205600 proved the runner identity, Linux X64, Docker server, Compose v2, host capacity and absence of conflicting Authentik state without mutation or secret recording.
+  - PR 445 was closed without merge after terminal artifact capture, and PR 462 merged the result record.
+  - The owner requested complete separation of Freqtrade and its portal from OteryN.
+  - PR 482 was closed without merge because it retained the OteryN-named state contract.
+  - PR 485 merged the dedicated Freqtrade runner package and changed PI-06 to FREQTRADE_STAGING_STATE_DIR=/var/lib/freqtrade-staging-state.
+  - PR 485 exact-head Freqtrade CI, AI Platform CI, Portal Authentik Deployment CI, dedicated runner image build and security analysis passed.
+  - No Synology or OteryN target mutation occurred from PR 485.
 derived:
-  - Historical runner and Docker evidence remains valid, but the new Freqtrade-owned image and mount require a fresh bounded preflight after owner deployment.
-  - The OteryN image and `/var/lib/oteryn-staging-state` are no longer valid PI-06 targets.
+  - Historical host evidence remains informative, but the dedicated image and Freqtrade-owned mount require a fresh bounded PI-06 preflight after cutover.
+  - The OteryN image and /var/lib/oteryn-staging-state are no longer valid PI-06 targets.
   - Deployment remains forbidden until the isolated runner report sets ready_for_controlled_deployment to true.
 unknown:
-  - Exact-head CI and security result for PR 485.
-  - Dedicated Freqtrade runner image publication and Synology project replacement.
+  - Successful push-to-develop publication of the dedicated runner image tags.
+  - Dedicated Freqtrade runner cutover on Synology.
   - Storage free space and atomic probe result under /var/lib/freqtrade-staging-state.
   - DNS readiness after public URLs are provisioned.
   - Protected secret format validity and Compose render result after values are present.
@@ -109,7 +105,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: DEDICATED_FREQTRADE_RUNNER_NOT_DEPLOYED
-  evidence: The repository contract now requires the Freqtrade-owned runner image and /var/lib/freqtrade-staging-state, but Synology has not yet applied PR 485.
+  evidence: Repository isolation merged, but the live freqtrade-deploy-runner project has not yet been confirmed on the dedicated image and Freqtrade-owned state mount.
 rejected_hypotheses:
   - Continue using the OteryN runner image or state path for Freqtrade.
   - Rename, stop or modify the OteryN runner.
@@ -124,16 +120,16 @@ changed_paths:
 validation:
   - command: historical terminal PI-06 target preflight run 30262205600 job 89964505267
     result: PASS
-    evidence: Runner and Docker checks passed under the old state mapping; no mutation or secret recording occurred.
-  - command: PR 485 dedicated runner package, focused tests, Freqtrade CI and security analysis
-    result: NOT_RUN
-    evidence: Exact-head workflows are pending.
+    evidence: Runner and Docker checks passed under the previous state mapping; no mutation or secret recording occurred.
+  - command: PR 485 exact-head validation and merge
+    result: PASS
+    evidence: Required CI, dedicated runner image build and security analysis passed; merged as 6bf8730c9d2d09d2dfd247ddd28f5bc24b070e06.
   - command: owner-managed isolated runner deployment and fresh exact-one-file PI-06 preflight
     result: NOT_RUN
-    evidence: Forbidden before PR 485 merges and the dedicated runner project is applied.
+    evidence: Target mutation remains owner-managed and has not been performed.
 blockers:
-  - PR 485 must pass exact-head validation and merge before Synology is changed.
-  - Owner must update only the freqtrade-deploy-runner project to the dedicated image and `/volume1/docker/freqtrade/state` mount while preserving runner registration volumes.
+  - Dedicated develop image publication must be confirmed before the live Freqtrade runner project is replaced.
+  - Owner must update only freqtrade-deploy-runner to the dedicated image and /volume1/docker/freqtrade/state mount while preserving runner_config and runner_work.
   - Owner must configure FREQTRADE_STAGING_STATE_DIR=/var/lib/freqtrade-staging-state plus the three PI-06 public variables and seven protected secrets.
-next_action: Observe PR 485 exact-head validation; after it merges, replace only the Freqtrade runner project on Synology and then submit one fresh exact-one-file PI-06 preflight request.
+next_action: Confirm the dedicated develop image publication, then replace only the freqtrade-deploy-runner project on Synology and submit one fresh exact-one-file PI-06 preflight request; do not modify OteryN.
 ```

@@ -1,0 +1,1 @@
+This temporary diagnostic branch must not be merged. Its sole purpose is to read the exact failed push-run logs for merge commit `3127b1826d6e0827be6e1636ee5745d75583d9a3`, post bounded evidence to PR 509, and then be closed.

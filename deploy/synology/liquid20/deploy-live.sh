@@ -243,7 +243,6 @@ start_container() {
         --security-opt no-new-privileges:true \
         --pids-limit 128 \
         --memory 512m \
-        --cpus 1.0 \
         --stop-timeout 30 \
         --mount "type=bind,src=${selected_root},dst=/data" \
         --env "COLLECTOR_COMMIT=${selected_commit}" \

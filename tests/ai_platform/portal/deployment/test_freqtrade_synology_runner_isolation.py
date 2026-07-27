@@ -139,8 +139,13 @@ def test_dedicated_runner_cutover_is_observable_and_bounded() -> None:
 def test_active_staging_workflows_use_freqtrade_owned_state_contract() -> None:
     pi06 = PI06_WORKFLOW.read_text(encoding="utf-8") + PI06_PREFLIGHT.read_text(encoding="utf-8")
     okx = OKX_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "FREQTRADE_STAGING_STATE_DIR" in pi06
+    assert "/var/lib/freqtrade-staging-state" in pi06
+    assert "FREQTRADE_STAGING_STATE_DIR" not in okx
+    assert "STAGING_STATE_DIR: /var/lib/freqtrade-staging-state" in okx
+    assert "/var/lib/freqtrade-staging-state" in okx
+
     for text in (pi06, okx):
-        assert "FREQTRADE_STAGING_STATE_DIR" in text
-        assert "/var/lib/freqtrade-staging-state" in text
         assert "OTERYN_STAGING_STATE_DIR" not in text
         assert "/var/lib/oteryn-staging-state" not in text

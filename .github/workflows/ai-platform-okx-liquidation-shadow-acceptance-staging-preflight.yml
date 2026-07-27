@@ -28,7 +28,7 @@ jobs:
     environment: synology-staging
     timeout-minutes: 15
     env:
-      STAGING_STATE_DIR: ${{ vars.FREQTRADE_STAGING_STATE_DIR }}
+      STAGING_STATE_DIR: /var/lib/freqtrade-staging-state
 
     steps:
       - name: Checkout exact preflight request commit
@@ -149,7 +149,7 @@ jobs:
 
               state_dir = Path(os.environ.get("STAGING_STATE_DIR", ""))
               if str(state_dir) != request["expected_state_dir"]:
-                  raise SystemExit("FREQTRADE_STAGING_STATE_DIR does not match the preflight request")
+                  raise SystemExit("staging state directory does not match the preflight request")
               if not state_dir.is_absolute() or not state_dir.is_dir():
                   raise SystemExit("staging state directory is missing or not absolute")
               if not os.access(state_dir, os.W_OK):

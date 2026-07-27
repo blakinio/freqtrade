@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - ci/cancel-binance-smoke-run-30307224846-20260728
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
 
 permissions:
   actions: write
@@ -12,6 +16,10 @@ permissions:
 
 jobs:
   cancel:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'ci/cancel-binance-smoke-run-30307224846-20260728')
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:

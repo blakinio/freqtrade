@@ -5,6 +5,7 @@ branch: feat/portal-bm04-signal-webhook-control
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
+related_pr: 544
 owned_paths:
   - ai_platform/portal/signal_control/**
   - tests/ai_platform/portal/signal_control/**
@@ -41,22 +42,23 @@ Implement tenant-scoped, immutable and secret-safe signal endpoint configuration
 
 ## Safety boundary
 
-The package does not resolve a secret provider, serialize a secret, log a secret, call an exchange or Freqtrade, submit a BM-03 command, place/cancel an order, mutate runtime/position state, activate PI-08 or authorize live capital. `execution_performed` is structurally fixed to false.
+The package does not resolve a secret provider, serialize or log a secret, call an exchange or Freqtrade, submit a BM-03 command, place or cancel an order, mutate runtime or position state, activate PI-08 or authorize live capital. `execution_performed` is structurally fixed to false.
 
 ## Validation
 
-- `python -m compileall ai_platform/portal/signal_control tests/ai_platform/portal/signal_control` — pass in the isolated focused workspace.
-- `pytest -q tests/ai_platform/portal/signal_control` — 39 passed in the isolated focused workspace.
-- Exact-head repository Ruff, formatting, typing, AI Platform CI, Freqtrade CI/final gate and security analysis are pending the PR head.
+- `python -m compileall ai_platform/portal/signal_control tests/ai_platform/portal/signal_control` — pass.
+- `pytest -q -o addopts='' tests/ai_platform/portal/signal_control` — 39 passed.
+- Exact Ruff 0.15.21 fixes and formatting were generated and applied from isolated diagnostic artifact `8669739984`; the diagnostic PRs were closed or targeted only the feature branch and did not modify `develop`.
+- Terminal exact-head AI Platform CI, Freqtrade CI/final gate and security analysis are pending this checkpoint head.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T23:40:00+02:00
-head: 88f65cd937c4ae3e44b1db01c979039cc901ae93
+updated_at: 2026-07-28T00:15:00+02:00
+head_parent: e22e8b60b18e0a831080a67d662327c6d3fadda4
 branch: feat/portal-bm04-signal-webhook-control
-pr: null
+pr: 544
 status: validating
 context_routes:
   - AGENTS.md
@@ -72,18 +74,26 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260727-portal-bm04-signal-webhook-control.md
 proven:
   - BM-00, BM-02 and BM-03 are merged into develop; BM-03 command acceptance remains intent-only.
-  - The stale pre-existing BM-04 branch contained only seven incomplete source commits, imported a missing service module and had no tests/task checkpoint.
-  - The canonical branch was reset to current develop before the complete bounded implementation was published.
-  - Focused compile and 39 focused tests pass in the isolated workspace.
+  - A stale incomplete pre-existing BM-04 branch was safely reset to current develop before the bounded implementation was rebuilt.
+  - Focused compile and 39 focused tests pass.
+  - AI Platform tests passed before the original Ruff-only failure; exact Ruff 0.15.21 fixes and formatting are now applied.
+  - GitHub Actions security analysis run 30307720858 passed on the preceding functional head.
+  - The branch is synchronized with develop commit 2129c6ba1cfe578ac0113b457a87b9cd939d465a.
+  - The PR changes exactly thirteen declared feature, test and checkpoint paths.
   - The package contains no API route, migration, BFF change, provider implementation or execution adapter call.
 derived:
-  - Shared API registration and durable database migration remain an integration-owner responsibility.
+  - Shared API registration and durable database migration remain integration-owner responsibilities.
 unknown:
-  - Exact-head repository CI and security results.
+  - Terminal exact-head required workflow results after the final checkpoint update.
 conflicts: []
 first_failure:
   marker: STALE_INCOMPLETE_EXISTING_BRANCH
-  evidence: The discovered branch was behind current develop and imported a nonexistent signal_control.service without tests or a task checkpoint; it was safely reset before implementation.
+  evidence: The discovered branch imported a nonexistent signal_control.service and had no tests or task checkpoint; it was reset before implementation.
+rejected_hypotheses:
+  - Treat a valid signal as execution success.
+  - Resolve a real signing secret provider inside BM-04.
+  - Map arbitrary payload JSON to arbitrary internal commands.
+  - Modify root API, migration, BFF, credential or runtime adapter paths.
 changed_paths:
   - ai_platform/portal/signal_control/__init__.py
   - ai_platform/portal/signal_control/authentication.py
@@ -104,9 +114,12 @@ validation:
   - command: focused pytest suite
     result: PASS
     evidence: 39 passed
-  - command: exact-head required repository workflows
-    result: NOT_RUN
+  - command: exact Ruff 0.15.21 and Ruff format
+    result: PASS
+    evidence: isolated diagnostic artifact 8669739984 supplied the exact applied patch
+  - command: terminal exact-head required repository workflows
+    result: PENDING
 blockers:
-  - Exact-head required repository workflows must pass before squash merge.
-next_action: Open the dedicated BM-04 PR, validate the exact head with all required workflows, repair only task-caused failures, then squash-merge it.
+  - Terminal exact-head required workflows must pass before squash merge.
+next_action: Validate the final PR 544 exact head, repair only task-caused failures, audit review and changed paths, then squash-merge it.
 ```

@@ -20,26 +20,26 @@ type PortalFixtures = {
 };
 
 export const test = base.extend<PortalFixtures>({
-  appShell: async ({ page }, use) => {
-    await use(new AppShellPage(page));
+  appShell: async ({ page }, provide) => {
+    await provide(new AppShellPage(page));
   },
-  botDetail: async ({ page }, use) => {
-    await use(new BotDetailPage(page));
+  botDetail: async ({ page }, provide) => {
+    await provide(new BotDetailPage(page));
   },
-  botFleet: async ({ page }, use) => {
-    await use(new BotFleetPage(page));
+  botFleet: async ({ page }, provide) => {
+    await provide(new BotFleetPage(page));
   },
-  botJourney: async ({ page }, use) => {
-    await use(new BotJourney(page));
+  botJourney: async ({ page }, provide) => {
+    await provide(new BotJourney(page));
   },
-  identity: async ({ page, request }, use) => {
-    await use(new IdentityJourney(page, request));
+  identity: async ({ page, request }, provide) => {
+    await provide(new IdentityJourney(page, request));
   },
-  liquidations: async ({ page }, use) => {
-    await use(new LiquidationsPage(page));
+  liquidations: async ({ page }, provide) => {
+    await provide(new LiquidationsPage(page));
   },
   failureEvidence: [
-    async ({ page }, use, testInfo) => {
+    async ({ page }, provide, testInfo) => {
       const consoleMessages: string[] = [];
       const failedRequests: string[] = [];
 
@@ -53,7 +53,7 @@ export const test = base.extend<PortalFixtures>({
         failedRequests.push(`${request.method()} ${request.url()} :: ${failure?.errorText ?? "unknown"}`);
       });
 
-      await use();
+      await provide();
       await attachFailureEvidence(testInfo, consoleMessages, failedRequests);
     },
     { auto: true },

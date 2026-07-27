@@ -1,8 +1,15 @@
 export const LIQUIDATION_SOURCES = ["bybit-linear", "binance-usdm"] as const;
+export const LIQUIDATION_HEALTH_SOURCES = [
+  "bybit-linear",
+  "binance-usdm",
+  "okx-swap",
+] as const;
 
 export type LiquidationSource = (typeof LIQUIDATION_SOURCES)[number];
+export type LiquidationHealthSource = (typeof LIQUIDATION_HEALTH_SOURCES)[number];
 export type LiquidatedPositionSide = "long" | "short";
-export type LiquidationDataMode = "historical" | "live" | "stale";
+export type LiquidationDataMode = "historical" | "live" | "stale" | "offline";
+export type LiquidationRunState = "active" | "completed";
 export type LiquidationAcceptanceStatus = "accepted" | "failed" | "in-progress" | "missing";
 
 export interface PortalLiquidationEvent {
@@ -90,11 +97,21 @@ export interface LiquidationSummary {
 }
 
 export interface LiquidationSourceHealth {
+  configured: boolean;
+  connected: boolean;
   events: number;
   observed_symbols: number;
+  subscription_symbol_count: number;
   availability_ratio: number | null;
   disconnects_per_hour: number | null;
   last_event_at_ms: number | null;
+  last_event_received_at_ms: number | null;
+  last_heartbeat_at_ms: number | null;
+  ingest_lag_ms: number | null;
+  reconnect_count: number;
+  error_count: number;
+  parse_error_count: number;
+  latest_error: string | null;
 }
 
 export interface LiquidationAcceptanceEvidence {
@@ -104,20 +121,27 @@ export interface LiquidationAcceptanceEvidence {
 }
 
 export interface LiquidationHealth {
-  schema_version: 1;
+  schema_version: 2;
+  contract: "portal-liquidations-health-v2";
   mode: LiquidationDataMode;
+  run_state: LiquidationRunState;
   run_id: string;
   acceptance_status: LiquidationAcceptanceStatus;
   failed_gates: string[];
   latest_completed_acceptance: LiquidationAcceptanceEvidence | null;
-  active_sources: LiquidationSource[];
+  active_sources: LiquidationHealthSource[];
   observed_symbol_count: number;
-  sources: Record<LiquidationSource, LiquidationSourceHealth>;
+  sources: Record<LiquidationHealthSource, LiquidationSourceHealth>;
+  collector_started_at_ms: number | null;
+  collector_heartbeat_at_ms: number | null;
   last_event_at_ms: number | null;
-  stale: boolean;
+  last_event_received_at_ms: number | null;
+  portal_checked_at_ms: number;
+  /** Backward-compatible alias for portal_checked_at_ms. */
   refreshed_at_ms: number;
+  stale: boolean;
   truncated: boolean;
   research_preview: true;
   trading_authorized: false;
-  source_semantics: Record<LiquidationSource, string>;
+  source_semantics: Record<LiquidationHealthSource, string>;
 }

@@ -10,6 +10,12 @@ DOCKERFILE = RUNNER_ROOT / "Dockerfile"
 ENTRYPOINT = RUNNER_ROOT / "entrypoint.sh"
 ENV_EXAMPLE = RUNNER_ROOT / ".env.example"
 BUILD_WORKFLOW = ROOT / ".github" / "workflows" / "freqtrade-synology-runner-image.yml"
+CUTOVER_PREFLIGHT_WORKFLOW = (
+    ROOT
+    / ".github"
+    / "workflows"
+    / "freqtrade-synology-runner-cutover-preflight.yml"
+)
 PI06_WORKFLOW = ROOT / ".github" / "workflows" / "portal-authentik-synology-target-preflight.yml"
 PI06_PREFLIGHT = ROOT / "deploy" / "synology" / "portal-authentik" / "target_preflight.py"
 OKX_WORKFLOW = (
@@ -21,6 +27,7 @@ def test_runner_compose_is_owned_only_by_freqtrade() -> None:
     text = COMPOSE.read_text(encoding="utf-8")
     assert "name: freqtrade-deploy-runner" in text
     assert "ghcr.io/blakinio/freqtrade-deploy-runner:develop" in text
+    assert "container_name: freqtrade-synology-staging-runner" in text
     assert "https://github.com/blakinio/freqtrade" in text
     assert "freqtrade-synology-staging" in text
     assert "freqtrade-staging" in text
@@ -57,6 +64,29 @@ def test_runner_build_workflow_publishes_only_freqtrade_image() -> None:
     assert "openssl version" in text
     assert "packages: write" in text
     assert "oteryn-deploy-runner" not in text.casefold()
+
+
+def test_runner_cutover_preflight_is_bounded_and_fail_closed() -> None:
+    text = CUTOVER_PREFLIGHT_WORKFLOW.read_text(encoding="utf-8")
+    assert "runs-on: [freqtrade-staging]" in text
+    assert "if: github.ref == 'refs/heads/develop'" in text
+    assert "contents: read\n  statuses: write" in text
+    assert "ghcr.io/blakinio/freqtrade-deploy-runner:sha-${{ github.sha }}" in text
+    assert "com.docker.compose.project" in text
+    assert "com.docker.compose.volume" in text
+    assert "runner_config" in text
+    assert "runner_work" in text
+    assert "synology/freqtrade-cutover-container" in text
+    assert "synology/freqtrade-cutover-volumes" in text
+    assert "synology/freqtrade-cutover-image" in text
+    assert "synology/freqtrade-cutover-state-path" in text
+    lowered = text.casefold()
+    assert "docker stop" not in lowered
+    assert "docker restart" not in lowered
+    assert "docker rm" not in lowered
+    assert "docker compose up" not in lowered
+    assert "docker volume rm" not in lowered
+    assert "oteryn" not in lowered
 
 
 def test_active_staging_workflows_use_freqtrade_owned_state_contract() -> None:

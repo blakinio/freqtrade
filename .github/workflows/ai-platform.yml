@@ -19,7 +19,7 @@ on:
       - ".github/workflows/ai-platform.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: "ai-platform-${{ github.workflow }}-${{ github.ref }}"
@@ -33,8 +33,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: ${{ github.head_ref }}
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
@@ -56,14 +55,10 @@ jobs:
           python -m pytest -q -o addopts=''
           --confcutdir=tests/ai_platform tests/ai_platform
 
-      - name: Commit exact WickHunter Ruff repair
+      - name: Prepare formatted WickHunter source artifact
         if: >-
           github.event_name == 'pull_request' &&
-          github.head_ref == 'feat/wickhunter-wh00-contracts-vertical-slice-v1' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_BRANCH: ${{ github.head_ref }}
+          github.head_ref == 'feat/wickhunter-wh00-contracts-vertical-slice-v1'
         shell: bash
         run: |
           set -euo pipefail
@@ -75,14 +70,24 @@ jobs:
           ruff format "${targets[@]}"
           python -m pytest -q -o addopts='' \
             tests/ai_platform_integration/test_wickhunter_vertical_slice.py
-          git fetch --no-tags --depth=1 origin "$BASE_SHA"
-          git checkout "$BASE_SHA" -- .github/workflows/ai-platform.yml
-          git diff --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${targets[@]}" .github/workflows/ai-platform.yml
-          git commit -m "style(wickhunter): apply Ruff formatting"
-          git push origin "HEAD:$HEAD_BRANCH"
+          ruff check "${targets[@]}"
+          ruff format --check "${targets[@]}"
+          mkdir -p /tmp/wickhunter-formatted/ai_platform
+          mkdir -p /tmp/wickhunter-formatted/tests/ai_platform_integration
+          cp -R ai_platform/wickhunter /tmp/wickhunter-formatted/ai_platform/
+          cp tests/ai_platform_integration/test_wickhunter_vertical_slice.py \
+            /tmp/wickhunter-formatted/tests/ai_platform_integration/
+
+      - name: Upload formatted WickHunter source artifact
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.head_ref == 'feat/wickhunter-wh00-contracts-vertical-slice-v1'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-formatted-${{ github.run_id }}
+          path: /tmp/wickhunter-formatted
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform

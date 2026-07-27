@@ -9,7 +9,13 @@ on:
       - "ai_platform/portal/learning/**"
       - "ai_platform/portal/web/**"
       - ".github/workflows/portal-universal-e2e.yml"
+      - "docs/ai_platform/portal/E2E_TEST_ARCHITECTURE.md"
+      - "docs/agents/tasks/FTAI-20260727-portal-e2e-architecture.md"
   workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -59,4 +65,13 @@ jobs:
         env:
           PORTAL_WEB_DATA_MODE: fixture
           PORTAL_ENVIRONMENT: test
-        run: npm run test:e2e
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
+        run: npm run test:e2e:critical
+      - name: Upload failed Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-universal-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ai_platform/portal/web/artifacts
+          if-no-files-found: ignore
+          retention-days: 7

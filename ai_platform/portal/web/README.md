@@ -38,6 +38,11 @@ npm run lint
 PORTAL_WEB_DATA_MODE=fixture PORTAL_ENVIRONMENT=test npm run build
 npx playwright install chromium
 npm run test:e2e
+npm run test:e2e:critical
+npm run test:e2e:security
+npm run test:e2e:responsive
 ```
+
+The complete Playwright structure, tags, browser matrix and CI gates are documented in `e2e/README.md` and `docs/ai_platform/portal/E2E_TEST_ARCHITECTURE.md`.
 
 All portal bot creation remains constrained to `dry_run`. Freqtrade REST/WebSocket endpoints, exchange-direct calls, secret-store access and live-capital authorization are outside the browser boundary.

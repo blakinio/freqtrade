@@ -97,6 +97,7 @@ The read-only Liquid20 portal path is separately integrated through the server-s
 - `AI_ML_AND_LEARNING_ARCHITECTURE.md` — training, model registry, continual learning and safe self-improvement.
 - `DATA_AND_OBSERVABILITY_ARCHITECTURE.md` — data ownership, event contracts, decision snapshots, telemetry and retention.
 - `QUALITY_AND_AUTONOMOUS_E2E.md` — full-platform testing, user simulation and bounded agent-assisted repair.
+- `E2E_TEST_ARCHITECTURE.md` — concrete Playwright structure, tags, browser projects, evidence and CI gates.
 - `UI_INFORMATION_ARCHITECTURE.md` — target portal navigation and major product surfaces.
 - `UI_DELIVERY_STATUS.md` — truthful per-surface implementation/integration status and remaining read-model gaps.
 - `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` — canonical Liquid20 portal, strategy-research, AI-bot, Synology and future-expansion contract.

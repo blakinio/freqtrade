@@ -4,6 +4,7 @@ import json
 from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -344,7 +345,7 @@ def test_builds_deterministic_atomic_source_aware_dataset(tmp_path: Path) -> Non
     assert (output_one / "manifest.json").is_file()
     assert (output_one / "sources.json").is_file()
     assert (output_one / "universe" / "history.jsonl").is_file()
-    rows = []
+    rows: list[dict[str, Any]] = []
     for partition in first.manifest.partitions:
         rows.extend(
             json.loads(line)

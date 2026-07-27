@@ -49,7 +49,7 @@ jobs:
         run: |
           set -euo pipefail
           expected=$'A\tdeploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json'
-          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          actual="$(git diff --name-status "$BASE_SHA...$HEAD_SHA")"
           if [[ "$actual" != "$expected" ]]; then
             echo "PI-06 target preflight must add exactly the canonical request" >&2
             printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2

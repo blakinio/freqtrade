@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+
 AUTHENTIK_IMAGE = (
     "docker.io/authentik/server:2026.5.5@"
     "sha256:50a833c48a714709f15d4f8846ec6b81a41d0d6a6bd2975087dfed3000d0d72e"
@@ -207,6 +208,64 @@ def check_paths(request: dict[str, Any], env: dict[str, str]) -> tuple[list[str]
     }
 
 
+def docker_host_capacity(blockers: list[str]) -> tuple[str, int, int]:
+    info = run_command("docker", "info", "--format", "{{.Architecture}}|{{.NCPU}}|{{.MemTotal}}")
+    if info.returncode:
+        blockers.append("docker_info_unavailable")
+        return "", 0, 0
+    try:
+        architecture, cpu, memory = info.stdout.strip().split("|")
+        cpu_count = int(cpu)
+        memory_bytes = int(memory)
+    except (ValueError, TypeError):
+        blockers.append("docker_info_unparseable")
+        return "", 0, 0
+    if architecture not in {"x86_64", "aarch64", "amd64", "arm64"}:
+        blockers.append("unsupported_docker_architecture")
+    if cpu_count < 2:
+        blockers.append("fewer_than_2_cpu_cores")
+    if memory_bytes < 2 * 1024**3:
+        blockers.append("less_than_2_gib_memory")
+    return architecture, cpu_count, memory_bytes
+
+
+def docker_named_inventory(
+    kind: str,
+    expected: set[str],
+    blockers: list[str],
+    *,
+    failure: str,
+    partial: str,
+) -> set[str]:
+    inventory = run_command("docker", kind, "ls", "--format", "{{.Name}}")
+    if inventory.returncode:
+        blockers.append(failure)
+        return set()
+    present = expected & set(inventory.stdout.splitlines())
+    if 0 < len(present) < len(expected):
+        blockers.append(partial)
+    return present
+
+
+def docker_container_inventory(request: dict[str, Any], blockers: list[str]) -> tuple[int, int]:
+    containers = run_command("docker", "ps", "--format", "{{.Names}}\t{{.Ports}}")
+    if containers.returncode:
+        blockers.append("docker_container_inventory_failed")
+        return 0, 0
+    matching_containers = 0
+    port_conflicts = 0
+    token = f":{request['authentik_http_port']}->"
+    for line in containers.stdout.splitlines():
+        name, _, ports = line.partition("\t")
+        if name.startswith("portal-authentik"):
+            matching_containers += 1
+        elif token in ports:
+            port_conflicts += 1
+    if port_conflicts:
+        blockers.append("authentik_http_port_conflict")
+    return matching_containers, port_conflicts
+
+
 def check_docker(request: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
     blockers: list[str] = []
     socket_path = Path("/var/run/docker.sock")
@@ -220,57 +279,22 @@ def check_docker(request: dict[str, Any]) -> tuple[list[str], dict[str, Any]]:
         blockers.append("docker_server_unavailable")
     if compose.returncode:
         blockers.append("docker_compose_v2_unavailable")
-    info = run_command("docker", "info", "--format", "{{.Architecture}}|{{.NCPU}}|{{.MemTotal}}")
-    architecture = ""
-    cpu_count = 0
-    memory_bytes = 0
-    if info.returncode:
-        blockers.append("docker_info_unavailable")
-    else:
-        parts = info.stdout.strip().split("|")
-        try:
-            architecture, cpu, memory = parts
-            cpu_count = int(cpu)
-            memory_bytes = int(memory)
-        except (ValueError, TypeError):
-            blockers.append("docker_info_unparseable")
-    if architecture and architecture not in {"x86_64", "aarch64", "amd64", "arm64"}:
-        blockers.append("unsupported_docker_architecture")
-    if cpu_count and cpu_count < 2:
-        blockers.append("fewer_than_2_cpu_cores")
-    if memory_bytes and memory_bytes < 2 * 1024**3:
-        blockers.append("less_than_2_gib_memory")
-    volumes = run_command("docker", "volume", "ls", "--format", "{{.Name}}")
-    networks = run_command("docker", "network", "ls", "--format", "{{.Name}}")
-    containers = run_command("docker", "ps", "--format", "{{.Names}}\t{{.Ports}}")
-    present_volumes: set[str] = set()
-    present_networks: set[str] = set()
-    matching_containers = 0
-    port_conflicts = 0
-    if volumes.returncode:
-        blockers.append("docker_volume_inventory_failed")
-    else:
-        present_volumes = EXPECTED_VOLUMES & set(volumes.stdout.splitlines())
-        if 0 < len(present_volumes) < len(EXPECTED_VOLUMES):
-            blockers.append("partial_existing_authentik_volume_state")
-    if networks.returncode:
-        blockers.append("docker_network_inventory_failed")
-    else:
-        present_networks = EXPECTED_NETWORKS & set(networks.stdout.splitlines())
-        if 0 < len(present_networks) < len(EXPECTED_NETWORKS):
-            blockers.append("partial_existing_authentik_network_state")
-    if containers.returncode:
-        blockers.append("docker_container_inventory_failed")
-    else:
-        token = f":{request['authentik_http_port']}->"
-        for line in containers.stdout.splitlines():
-            name, _, ports = line.partition("\t")
-            if name.startswith("portal-authentik"):
-                matching_containers += 1
-            elif token in ports:
-                port_conflicts += 1
-        if port_conflicts:
-            blockers.append("authentik_http_port_conflict")
+    architecture, cpu_count, memory_bytes = docker_host_capacity(blockers)
+    present_volumes = docker_named_inventory(
+        "volume",
+        EXPECTED_VOLUMES,
+        blockers,
+        failure="docker_volume_inventory_failed",
+        partial="partial_existing_authentik_volume_state",
+    )
+    present_networks = docker_named_inventory(
+        "network",
+        EXPECTED_NETWORKS,
+        blockers,
+        failure="docker_network_inventory_failed",
+        partial="partial_existing_authentik_network_state",
+    )
+    matching_containers, port_conflicts = docker_container_inventory(request, blockers)
     return sorted(set(blockers)), {
         "socket_present": socket_path.exists(),
         "server_version_present": not version.returncode,

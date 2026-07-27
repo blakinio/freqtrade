@@ -1,11 +1,11 @@
 # FTAI-20260727-liquidations-live-stream-repair
 
-Status: implementation complete; repository CI, review and Synology operational proof pending.
+Status: implementation complete; exact-head repository validation and controlled Synology operational proof pending.
 
 Branch: `fix/liquidations-live-stream-repair-20260727`
 Base: `develop`
-PR: pending
-HEAD: pending final checkpoint update
+PR: `#489`
+Implementation head before this checkpoint update: `eee109783c78b39caccb7b8f2d3713c31cc0967e`
 
 ## Required reads completed
 
@@ -22,7 +22,7 @@ Read before editing:
 9. Current portal and Liquid20 Synology deployment workflows
 10. Open PRs touching collector, market-data, portal, Synology and bot-management areas
 
-No active PR was found that implemented a continuous liquidation stream or changed the portal liquidation read-model. Active Synology runner isolation work was adjacent but did not modify the files used by this task.
+No active PR was found that implemented a continuous liquidation stream or changed the portal liquidation read-model. Active Synology runner work was adjacent and did not overlap with the liquidation-owned paths. The branch was synchronized with the latest reviewed `develop` through PR `#494` before final validation.
 
 ## Proven root cause
 
@@ -81,7 +81,7 @@ The accepted historical run was not defective and remains immutable. The missing
 - Existing bounded evidence workflow retained as opt-in `liquid20-evidence` profile with `restart: "no"`.
 - New exact-SHA `develop`-only workflow and `deploy-live.sh`.
 - Isolated candidate validation before production replacement.
-- Prior-image rollback.
+- Prior-image rollback with the previous verified collector commit.
 - Non-root runtime, read-only root filesystem, no ports, no Docker socket.
 - Accepted-evidence digest compared before and after deployment.
 - Operational JSON report records two heartbeat observations, subscriptions, file sizes and whether a real event happened; no-event windows are labelled honestly.
@@ -103,27 +103,41 @@ The accepted historical run was not defective and remains immutable. The missing
 - no-store health/list/summary API behavior.
 - Synology lifecycle, security, exact-SHA, candidate and rollback assertions.
 
-## Validation completed locally
+## Validation evidence
 
-- `python -m py_compile` for the live collector and its Python tests: passed.
+Local focused validation:
+
+- `python -m py_compile` for the live collector and focused Python tests: passed.
 - Focused isolated pytest harness for live manager/discovery/security tests: `5 passed`.
-- `sh -n live-entrypoint.sh`: passed.
-- `bash -n deploy-live.sh`: passed.
+- `sh -n deploy/synology/liquid20/live-entrypoint.sh`: passed.
+- `bash -n deploy/synology/liquid20/deploy-live.sh`: passed.
+- Ruff `0.15.21` check: passed.
+- Ruff `0.15.21` format check: all checked files formatted.
 
-A full repository checkout was not available in the execution sandbox because external DNS access was unavailable. Repository CI is therefore required for the authoritative Python lint/type/test and portal TypeScript/Playwright validation.
+Repository validation on the implementation head before this checkpoint-only commit:
+
+- AI Platform CI: passed.
+- Portal Web CI typecheck, lint, production build and Chromium E2E: passed on the preceding implementation revision; rerun after base synchronization was in progress when this checkpoint was written.
+- Portal Universal E2E: passed on the preceding implementation revision; rerun after base synchronization was in progress when this checkpoint was written.
+- GitHub Actions security analysis with zizmor: passed.
+- Full Freqtrade CI matrix: in progress when this checkpoint was written.
+- PR review threads: no unresolved threads at the synchronized implementation head.
+- PR `#489`: open, unmerged and mergeable after synchronization with `develop`.
+
+The checkpoint update changes the branch SHA and therefore requires the normal exact-head checks to complete again before merge eligibility can be claimed.
 
 ## Operational proof status
 
 Not yet claimed.
 
-The production workflow intentionally runs only after a reviewed commit reaches `develop`; this branch therefore has not mutated Synology production. Required live Synology evidence, portal health observations and rollback proof remain pending until review and merge eligibility are established. Absence of a real liquidation during a bounded validation window will not be presented as a successful real-event proof.
+The production workflow intentionally runs only after a reviewed commit reaches `develop`; this branch has not mutated the Synology production collector or portal. Required live Synology evidence, portal health observations and rollback proof remain pending. Absence of a real liquidation during a bounded observation window will not be presented as a successful real-event proof; the deployment report distinguishes heartbeat/subscription evidence from a real exchange event.
 
 ## Remaining blockers
 
-1. Required repository CI has not completed.
-2. Review threads and merge eligibility have not been checked.
-3. Synology operational evidence cannot run from this unreviewed branch by design.
+1. All required checks must complete successfully on the final checkpoint commit SHA.
+2. Review threads must be rechecked on that exact SHA.
+3. Controlled Synology collector deployment, portal read-only integration validation and rollback evidence can run only through the reviewed `develop` mechanism.
 
 ## Exact next action
 
-Open the PR to `develop`, inspect every required check and review thread, fix failures, and leave the PR unmerged until all checks pass and the controlled Synology evidence can be obtained without weakening the reviewed-branch boundary.
+Wait for exact-head CI on PR `#489`, fix any failure and recheck unresolved review threads. Keep the PR unmerged. After it is review-clean and all required checks pass, use the controlled `develop` deployment path to obtain the Synology operational evidence without weakening the trusted-branch boundary.

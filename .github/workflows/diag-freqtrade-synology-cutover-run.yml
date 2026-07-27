@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Inspect exact failed push run and comment job evidence
+      - name: Inspect exact failed push run and emit job evidence
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -84,9 +84,11 @@ jobs:
           print("\n".join(lines))
           PY
 
+          cat "$RUNNER_TEMP/comment.md"
           gh api \
             --method POST \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "/repos/$REPOSITORY/issues/$TARGET_PR/comments" \
-            --field body="$(cat "$RUNNER_TEMP/comment.md")" >/dev/null
+            --field body="$(cat "$RUNNER_TEMP/comment.md")" >/dev/null \
+            || echo "Comment publication was unavailable; evidence is preserved in this job log."

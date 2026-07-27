@@ -63,9 +63,7 @@ def _event(
         source=source,
         symbol="BTCUSDT",
         liquidated_position_side=(
-            LiquidatedPositionSide.LONG
-            if index % 2
-            else LiquidatedPositionSide.SHORT
+            LiquidatedPositionSide.LONG if index % 2 else LiquidatedPositionSide.SHORT
         ),
         occurred_at_ms=occurred_at_ms,
         available_at_ms=occurred_at_ms + 1_000,
@@ -77,9 +75,7 @@ def _event(
         provider_event_id=f"provider-{index}",
         dataset_origin=DatasetOrigin.HISTORICAL_VENDOR,
         historical_provider="tardis",
-        provider_exchange=(
-            "bybit" if source == "bybit-linear" else "binance-futures"
-        ),
+        provider_exchange=("bybit" if source == "bybit-linear" else "binance-futures"),
         provider_timestamp_us=occurred_at_ms * 1_000,
         provider_local_timestamp_us=(occurred_at_ms + 1_000) * 1_000,
         native_channel="liquidations",
@@ -152,9 +148,7 @@ def _write_accepted_import(root: Path, *, status: str = "pass") -> Path:
     acceptance_path = root / "acceptance.json"
     index_path = root / "artifacts.json"
     manifest_path.write_bytes(_json_bytes(manifest.as_json_dict()))
-    events_path.write_bytes(
-        b"".join(_json_bytes(event.as_json_dict()) for event in events)
-    )
+    events_path.write_bytes(b"".join(_json_bytes(event.as_json_dict()) for event in events))
     rejections_path.write_bytes(_json_bytes([]))
     accepted_ids = "\n".join(sorted(event.source_event_id for event in events))
     acceptance = {
@@ -168,9 +162,7 @@ def _write_accepted_import(root: Path, *, status: str = "pass") -> Path:
         "duplicate_records": 0,
         "rejection_reasons": {},
         "accepted_event_ids_sha256": sha256(accepted_ids.encode()).hexdigest(),
-        "earliest_occurred_at_ms": min(
-            event.occurred_at_ms for event in events
-        ),
+        "earliest_occurred_at_ms": min(event.occurred_at_ms for event in events),
         "latest_occurred_at_ms": max(event.occurred_at_ms for event in events),
         "minimum_availability_latency_ms": 1_000,
         "maximum_availability_latency_ms": 1_000,
@@ -362,15 +354,10 @@ def test_builds_deterministic_atomic_source_aware_dataset(tmp_path: Path) -> Non
         )
     assert {row["split_name"] for row in rows} == {"train", "development"}
     aggregate_sources = {
-        item["source"]
-        for row in rows
-        for item in row["feature"]["source_aggregates"]
+        item["source"] for row in rows for item in row["feature"]["source_aggregates"]
     }
     assert aggregate_sources == {"binance-usdm", "bybit-linear"}
-    assert all(
-        row["feature_available_at_ms"] <= row["decision_timestamp_ms"]
-        for row in rows
-    )
+    assert all(row["feature_available_at_ms"] <= row["decision_timestamp_ms"] for row in rows)
     assert all(len(row["row_sha256"]) == 64 for row in rows)
 
 
@@ -398,9 +385,9 @@ def test_rejects_future_market_availability(tmp_path: Path) -> None:
         available_at_ms=2_000_001,
         source="completed_candle.fixture",
     )
-    metrics = tuple(
-        metric for metric in market.metrics if metric.name != "spread_bps"
-    ) + (future_metric,)
+    metrics = tuple(metric for metric in market.metrics if metric.name != "spread_bps") + (
+        future_metric,
+    )
     invalid_market = MarketContextSnapshot(
         symbol=market.symbol,
         decision_timestamp_ms=market.decision_timestamp_ms,

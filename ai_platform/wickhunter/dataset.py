@@ -75,9 +75,7 @@ def _write_jsonl(path: Path, payloads: Iterable[object]) -> None:
 
 def _manifest_identity(payload: Mapping[str, object]) -> str:
     identity_material = {
-        key: payload[key]
-        for key in payload
-        if key not in {"created_at_utc", "identity_sha256"}
+        key: payload[key] for key in payload if key not in {"created_at_utc", "identity_sha256"}
     }
     canonical = json.dumps(
         identity_material,
@@ -338,9 +336,7 @@ class WickHunterDatasetManifest:
             raise ValueError("dataset manifest requires universe history")
         for digest in self.universe_snapshot_sha256s:
             validate_sha256(digest, field="universe_snapshot_sha256")
-        if self.universe_snapshot_sha256s != tuple(
-            sorted(set(self.universe_snapshot_sha256s))
-        ):
+        if self.universe_snapshot_sha256s != tuple(sorted(set(self.universe_snapshot_sha256s))):
             raise ValueError("universe snapshot hashes must be unique and sorted")
         if not self.partitions or self.total_rows <= 0:
             raise ValueError("dataset manifest requires non-empty partitions")
@@ -426,13 +422,9 @@ def load_accepted_import(root: Path) -> AcceptedImportBundle:  # noqa: C901
             try:
                 payload = json.loads(line)
             except json.JSONDecodeError as exc:
-                raise ValueError(
-                    f"invalid historical event JSON at line {line_number}"
-                ) from exc
+                raise ValueError(f"invalid historical event JSON at line {line_number}") from exc
             if not isinstance(payload, dict):
-                raise ValueError(
-                    f"historical event line must contain an object: {line_number}"
-                )
+                raise ValueError(f"historical event line must contain an object: {line_number}")
             events.append(historical_event_from_json_dict(payload))
     deterministic_events = sorted(
         events,
@@ -538,9 +530,7 @@ def _history_snapshot(
     material = {
         "symbol": symbol.upper(),
         "decision_timestamp_ms": decision_timestamp_ms,
-        "event_ids": sorted(
-            f"{event.source}:{event.source_event_id}" for event in historical
-        ),
+        "event_ids": sorted(f"{event.source}:{event.source_event_id}" for event in historical),
         "burst_window_ms": burst_window_ms,
     }
     history_sha256 = canonical_sha256(material)
@@ -548,9 +538,7 @@ def _history_snapshot(
         symbol=symbol.upper(),
         event_notionals_usd=event_values,
         burst_window_notionals_usd=burst_values,
-        previous_burst_received_at_ms=max(
-            event.received_at_ms for event in historical
-        ),
+        previous_burst_received_at_ms=max(event.received_at_ms for event in historical),
         available_at_ms=available_at_ms,
         history_id=f"wickhunter-history:{history_sha256}",
         history_sha256=history_sha256,
@@ -604,16 +592,14 @@ def _row_sources(
         try:
             selection_hash, provider_id, import_run_id = event_evidence[(source, event_id)]
         except KeyError as exc:
-            raise ValueError(
-                "feature event is missing accepted-import evidence"
-            ) from exc
+            raise ValueError("feature event is missing accepted-import evidence") from exc
         selections.add(selection_hash)
         providers.add(provider_id)
         import_runs.add(import_run_id)
     return tuple(sorted(selections)), tuple(sorted(providers)), tuple(sorted(import_runs))
 
 
-def build_wickhunter_dataset(  # noqa: C901, PLR0913
+def build_wickhunter_dataset(  # noqa: C901
     *,
     output_root: Path,
     request: WickHunterDatasetBuildRequest,
@@ -639,9 +625,7 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
             bundle.selection.protected_holdout_start_ms
             != request.split_geometry.protected_holdout_start_ms
         ):
-            raise ValueError(
-                "accepted import and split geometry disagree on protected holdout"
-            )
+            raise ValueError("accepted import and split geometry disagree on protected holdout")
 
     normalized_events: list[LiquidationEvent] = []
     event_evidence: dict[tuple[str, str], tuple[str, str, str]] = {}
@@ -650,9 +634,7 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
             event = normalize_historical_event(historical_event)
             identity = (event.source, event.source_event_id)
             if identity in event_evidence:
-                raise ValueError(
-                    "duplicate source-labelled event across accepted imports"
-                )
+                raise ValueError("duplicate source-labelled event across accepted imports")
             event_evidence[identity] = (
                 bundle.selection.selection_sha256,
                 bundle.selection.provider_id,
@@ -679,8 +661,7 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
         )
     )
     market_keys = [
-        (market.decision_timestamp_ms, market.symbol.upper())
-        for market in ordered_markets
+        (market.decision_timestamp_ms, market.symbol.upper()) for market in ordered_markets
     ]
     if len(market_keys) != len(set(market_keys)):
         raise ValueError("duplicate market snapshot decision keys are not allowed")
@@ -690,9 +671,7 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
             key=lambda snapshot: (snapshot.selected_at_ms, snapshot.snapshot_hash),
         )
     )
-    if len({snapshot.snapshot_hash for snapshot in ordered_universes}) != len(
-        ordered_universes
-    ):
+    if len({snapshot.snapshot_hash for snapshot in ordered_universes}) != len(ordered_universes):
         raise ValueError("duplicate dynamic-universe snapshots are not allowed")
 
     rows: list[DatasetRow] = []
@@ -723,8 +702,7 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
             and event.received_at_ms <= market.decision_timestamp_ms
         )
         if not any(
-            event.received_at_ms
-            >= market.decision_timestamp_ms - request.burst_window_ms
+            event.received_at_ms >= market.decision_timestamp_ms - request.burst_window_ms
             for event in available_events
         ):
             continue
@@ -775,9 +753,7 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
     )
     output_parent = output_root.parent
     output_parent.mkdir(parents=True, exist_ok=True)
-    temporary_root = Path(
-        tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_parent)
-    )
+    temporary_root = Path(tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_parent))
     try:
         source_payload = [
             json.loads(canonical_json(bundle.selection))
@@ -828,12 +804,8 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
                     symbol=symbol,
                     bucket_start_ms=bucket_start_ms,
                     row_count=len(partition_rows),
-                    earliest_decision_timestamp_ms=(
-                        partition_rows[0].decision_timestamp_ms
-                    ),
-                    latest_decision_timestamp_ms=(
-                        partition_rows[-1].decision_timestamp_ms
-                    ),
+                    earliest_decision_timestamp_ms=(partition_rows[0].decision_timestamp_ms),
+                    latest_decision_timestamp_ms=(partition_rows[-1].decision_timestamp_ms),
                     sha256=sha256_file(partition_path),
                 )
             )
@@ -854,12 +826,8 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
             universe_snapshot_sha256s=tuple(sorted(used_universe_hashes)),
             partitions=tuple(partitions),
             total_rows=len(rows),
-            earliest_decision_timestamp_ms=min(
-                row.decision_timestamp_ms for row in rows
-            ),
-            latest_decision_timestamp_ms=max(
-                row.decision_timestamp_ms for row in rows
-            ),
+            earliest_decision_timestamp_ms=min(row.decision_timestamp_ms for row in rows),
+            latest_decision_timestamp_ms=max(row.decision_timestamp_ms for row in rows),
             model_execution_authorized=False,
         )
         manifest_path = temporary_root / "manifest.json"
@@ -869,9 +837,7 @@ def build_wickhunter_dataset(  # noqa: C901, PLR0913
             output_root=output_root,
             manifest=manifest,
             manifest_file_sha256=sha256_file(output_root / "manifest.json"),
-            universe_history_sha256=sha256_file(
-                output_root / "universe" / "history.jsonl"
-            ),
+            universe_history_sha256=sha256_file(output_root / "universe" / "history.jsonl"),
             sources_sha256=sha256_file(output_root / "sources.json"),
         )
     except Exception:

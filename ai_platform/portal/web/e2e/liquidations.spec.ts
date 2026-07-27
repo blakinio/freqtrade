@@ -7,7 +7,7 @@ async function authenticateFixture(request: APIRequestContext) {
   expect(response.status()).toBe(200);
 }
 
-test("serves versioned read-only liquidation BFF contracts", async ({ request }) => {
+test("serves versioned read-only liquidation BFF contracts without caching", async ({ request }) => {
   await authenticateFixture(request);
   const healthResponse = await request.get("/api/market/liquidations/health");
   expect(healthResponse.status()).toBe(200);
@@ -16,11 +16,18 @@ test("serves versioned read-only liquidation BFF contracts", async ({ request })
   expect(health).toEqual(
     expect.objectContaining({
       schema_version: 1,
+      contract: "portal-liquidations-health-v2",
       mode: "historical",
+      run_state: "completed",
       acceptance_status: "failed",
+      collector_heartbeat_at_ms: null,
       research_preview: true,
       trading_authorized: false,
     }),
+  );
+  expect(health.portal_checked_at_ms).toBe(health.refreshed_at_ms);
+  expect(health.sources["okx-swap"]).toEqual(
+    expect.objectContaining({ configured: false, connected: false }),
   );
   expect(JSON.stringify(health)).not.toMatch(/api[_-]?key|secret|token|password/i);
 
@@ -28,6 +35,7 @@ test("serves versioned read-only liquidation BFF contracts", async ({ request })
     "/api/market/liquidations?source=binance-usdm&symbol=BTCUSDT&limit=20",
   );
   expect(listResponse.status()).toBe(200);
+  expect(listResponse.headers()["cache-control"]).toContain("no-store");
   const list = await listResponse.json();
   expect(list.schema_version).toBe(1);
   expect(list.events).toHaveLength(1);
@@ -40,10 +48,9 @@ test("serves versioned read-only liquidation BFF contracts", async ({ request })
   );
   expect(list.events[0]).not.toHaveProperty("raw_side");
 
-  const summaryResponse = await request.get(
-    "/api/market/liquidations/summary?side=long",
-  );
+  const summaryResponse = await request.get("/api/market/liquidations/summary?side=long");
   expect(summaryResponse.status()).toBe(200);
+  expect(summaryResponse.headers()["cache-control"]).toContain("no-store");
   const summary = await summaryResponse.json();
   expect(summary.windows.find((window: { window: string }) => window.window === "24h")).toEqual(
     expect.objectContaining({ event_count: 3, notional_usd: "18235" }),
@@ -54,21 +61,24 @@ test("serves versioned read-only liquidation BFF contracts", async ({ request })
   expect((await request.get("/api/market/liquidations?source=unknown")).status()).toBe(422);
 });
 
-test("renders filters, truthful acceptance state, rankings and source semantics", async ({ page }) => {
+test("renders truthful timestamps, historical state, rankings and source health", async ({ page }) => {
   await page.goto("/market/liquidations");
 
   await expect(page.getByRole("heading", { name: "Likwidacje", exact: true })).toBeVisible();
   await expect(page.getByText("Market Data · Research preview")).toBeVisible();
-  await expect(page.getByText("Acceptance failed.")).toBeVisible();
-  await expect(
-    page.getByText("binance-usdm.maximum_latency_over_threshold_ratio"),
-  ).toBeVisible();
+  await expect(page.getByText("HISTORYCZNE", { exact: true })).toBeVisible();
+  await expect(page.getByText("ODRZUCONE", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ostatnie zdarzenie", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ostatni heartbeat collectora", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ostatnie sprawdzenie przez portal", { exact: true })).toBeVisible();
   await expect(page.getByText("Strumień likwidacji")).toBeVisible();
   await expect(page.getByText("Ranking symboli")).toBeVisible();
   await expect(page.getByRole("cell", { name: "SOLUSDT" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Binance" }).first()).toBeVisible();
+  await expect(page.getByRole("region", { name: "Zdrowie źródeł" })).toContainText("OKX");
+  await expect(page.getByRole("region", { name: "Zdrowie źródeł" })).toContainText("niewłączone");
   await expect(page.getByText(/approximately 1000 ms window/)).toBeVisible();
-  await expect(page.getByText(/nie deduplikuje się/)).toBeVisible();
+  await expect(page.getByText(/nie są deduplikowane/)).toBeVisible();
 
   const source = page.getByLabel("Źródło");
   await source.selectOption("binance-usdm");
@@ -79,10 +89,10 @@ test("renders filters, truthful acceptance state, rankings and source semantics"
   await expect(page.getByRole("cell", { name: "BTCUSDT" })).toHaveCount(1);
 
   await expect(page.getByRole("button", { name: /buy|sell|trade|order/i })).toHaveCount(0);
-  await expect(page.getByText(/autoryzuje handlu/i)).toBeVisible();
+  await expect(page.getByText(/uprawnień do składania zleceń/i)).toBeVisible();
 });
 
-test("keeps the liquidation page usable on a narrow viewport", async ({ page }) => {
+test("keeps the liquidation page usable on a 390 px viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/market/liquidations");
   await expect(page.getByRole("heading", { name: "Likwidacje", exact: true })).toBeVisible();

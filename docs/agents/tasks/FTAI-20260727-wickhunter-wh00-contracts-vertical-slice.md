@@ -5,7 +5,7 @@ branch: feat/wickhunter-wh00-contracts-vertical-slice-v1
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: null
+related_pr: 488
 depends_on:
   - FTAI-20260727-wickhunter-liquidation-ai-bot
 owned_paths:
@@ -92,10 +92,10 @@ WH-00 consumes existing Liquid20 and Market Data Fabric contracts but does not m
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T18:30:00+02:00
-head: a60f3fce6c0855e083fe8fd1d2cba60720618468
+updated_at: 2026-07-27T18:55:00+02:00
+head: a8b331d682e6bb8050a1c36b9e36b50f165bfc1f
 branch: feat/wickhunter-wh00-contracts-vertical-slice-v1
-pr: none
+pr: 488
 status: validating
 context_routes:
   - docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md
@@ -129,7 +129,7 @@ unknown:
   - Replay labels, costs and performance until WH-02.
   - LightGBM, XGBoost, PyTorch and RL comparative evidence until their declared packages.
   - Portal Risk Engine adapter contract until WH-06 ownership and shared-schema preflight.
-  - Exact GitHub CI and review result until this PR runs.
+  - Exact GitHub CI and review result until PR 488 completes.
 conflicts: []
 first_failure:
   marker: LOCAL_RUFF_UNAVAILABLE
@@ -166,5 +166,5 @@ validation:
     result: NOT_RUN
     evidence: Ruff is unavailable in the sandbox and not present in the offline uv cache; GitHub CI is authoritative.
 blockers: []
-next_action: Open WH-00 PR, resolve exact-head CI/review findings, and merge only after all required checks pass; then create WH-01 from current develop to select and build the first accepted source-aware dataset.
+next_action: Resolve exact-head CI and review findings on PR 488, merge only after all required checks pass, then create WH-01 from current develop for the first accepted source-aware dataset.
 ```

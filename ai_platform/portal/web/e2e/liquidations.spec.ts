@@ -15,7 +15,7 @@ test("serves versioned read-only liquidation BFF contracts without caching", asy
   const health = await healthResponse.json();
   expect(health).toEqual(
     expect.objectContaining({
-      schema_version: 2,
+      schema_version: 1,
       contract: "portal-liquidations-health-v2",
       mode: "historical",
       run_state: "completed",

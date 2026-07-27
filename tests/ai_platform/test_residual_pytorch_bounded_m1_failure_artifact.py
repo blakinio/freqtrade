@@ -11,6 +11,7 @@ def _workflow() -> str:
 
 def test_matrix_audit_failure_evidence_is_durable() -> None:
     workflow = _workflow()
+    runtime_copy = 'cp -R "$audit_run" "$audit_root/runtime"'
 
     assert "id: audit-matrix" in workflow
     assert "audit-stderr.log" in workflow
@@ -20,6 +21,8 @@ def test_matrix_audit_failure_evidence_is_durable() -> None:
     assert "execution-contract.json" in workflow
     assert workflow.index("run-request.json") < workflow.index("set +e")
     assert workflow.index("execution-contract.json") < workflow.index("set +e")
+    assert workflow.index(runtime_copy) < workflow.index("validate-summary")
+    assert workflow.index(runtime_copy) < workflow.index("validate-audit")
 
 
 def test_skipped_models_do_not_fail_artifact_uploads() -> None:

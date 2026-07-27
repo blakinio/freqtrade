@@ -62,38 +62,40 @@ def test_export_exact_wickhunter_ruff_repair() -> None:
         encoding="utf-8",
     )
 
-    client_dir = Path("/tmp/wickhunter-artifact-client")
-    install = _run(
+    uploader_dir = Path("/tmp/wickhunter-upload-artifact")
+    clone = _run(
         root,
-        "npm",
-        "install",
-        "--silent",
-        "--no-audit",
-        "--no-fund",
-        "--prefix",
-        str(client_dir),
-        "@actions/artifact@6.2.2",
+        "git",
+        "clone",
+        "--depth",
+        "1",
+        "--branch",
+        "v4.6.2",
+        "https://github.com/actions/upload-artifact.git",
+        str(uploader_dir),
     )
-    assert install.returncode == 0, install.stderr
+    assert clone.returncode == 0, clone.stderr
 
-    module_path = client_dir / "node_modules/@actions/artifact/lib/artifact.js"
-    script_path = export_dir / "upload.mjs"
-    script_path.write_text(
-        "\n".join(
-            (
-                f'import {{DefaultArtifactClient}} from "{module_path.as_posix()}";',
-                "const artifact = new DefaultArtifactClient();",
-                "const result = await artifact.uploadArtifact(",
-                '  `wickhunter-ruff-${process.env.GITHUB_RUN_ID}` ,',
-                f'  ["{patch_path.as_posix()}", "{report_path.as_posix()}"],',
-                "  {retentionDays: 1, compressionLevel: 0}",
-                ");",
-                "console.log(JSON.stringify(result));",
-            )
-        ),
-        encoding="utf-8",
+    upload_environment = os.environ.copy()
+    upload_environment.update(
+        {
+            "INPUT_NAME": f"wickhunter-ruff-{os.environ['GITHUB_RUN_ID']}",
+            "INPUT_PATH": f"{patch_path}\n{report_path}",
+            "INPUT_IF-NO-FILES-FOUND": "error",
+            "INPUT_RETENTION-DAYS": "1",
+            "INPUT_COMPRESSION-LEVEL": "0",
+            "INPUT_OVERWRITE": "false",
+            "INPUT_INCLUDE-HIDDEN-FILES": "false",
+        }
     )
-    upload = _run(root, "node", str(script_path))
+    upload = subprocess.run(
+        ("node", str(uploader_dir / "dist/upload/index.js")),
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+        env=upload_environment,
+    )
     assert upload.returncode == 0, upload.stderr
     assert final_check.returncode == 0, report_path.read_text(encoding="utf-8")
     assert final_format.returncode == 0, report_path.read_text(encoding="utf-8")

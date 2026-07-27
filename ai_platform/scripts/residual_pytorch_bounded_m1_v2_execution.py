@@ -56,7 +56,7 @@ def _repo_path(value: str) -> Path:
     return base._repo_path(value)
 
 
-def validate_contract(contract: dict[str, Any]) -> None:
+def validate_contract(contract: dict[str, Any]) -> None:  # noqa: C901
     if contract.get("schema_version") != 1:
         raise ResidualPyTorchBoundedM1Error("Contract schema_version must be 1")
     if contract.get("contract_id") != "residual-pytorch-bounded-m1-execution-v2":

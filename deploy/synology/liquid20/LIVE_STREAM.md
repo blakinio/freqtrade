@@ -39,7 +39,7 @@ The deploy script distinguishes paths visible inside the runner container from p
 - matching Docker-host path: `/volume1/docker/freqtrade/state/liquidations-live-candidates/<run>`;
 - production host data path: `/volume1/docker/freqtrade-liquidations/data`.
 
-The collector always uses a non-zero UID. `LIQUID20_PUID` may override the documented `.env.example` UID; otherwise the checked-in `PUID` is used. The runtime GID is derived from the existing data root and must match any configured `LIQUID20_PGID`. This allows the portal to keep using the data root's read group while the collector owns only the sibling `data/live` directories. A root-only helper may create and set mode/ownership on `data/live` and `data/live/runs`; it does not recurse and never changes `data/runs`.
+The collector always uses a non-zero UID. `LIQUID20_PUID` may override the documented `.env.example` UID; otherwise the checked-in `PUID` is used. The runtime GID is derived from the existing host data root, not trusted from an unset workflow variable, and must match any configured `LIQUID20_PGID`. This keeps the portal on the same minimum read group while the collector owns only the sibling `data/live` directories. A root-only helper may create and set mode/ownership on `data/live` and `data/live/runs`; it does not recurse and never changes `data/runs`.
 
 `deploy-live.sh`:
 

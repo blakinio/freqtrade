@@ -72,165 +72,6 @@ jobs:
 
       - name: Verify runner, durable storage and public OKX endpoints
         id: verify
-        continue-on-error: true
-        shell: bash
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          RUNNER_NAME_VALUE: ${{ runner.name }}
-          RUNNER_OS_VALUE: ${{ runner.os }}
-          RUNNER_ARCH_VALUE: ${{ runner.arch }}
-          REPORT_PATH: ${{ runner.temp }}/okx-acceptance-staging-preflight-report.json
-        run: |
-          set -uo pipefail
-          stderr_path="${RUNNER_TEMP}/okx-acceptance-staging-preflight.stderr"
-          rm -f "$stderr_path"
-
-          set +e
-          python - <<'PY' 2>"$stderr_path"
-          import hashlib
-          import json
-          import os
-          import shutil
-          import tempfile
-          import urllib.request
-          from pathlib import Path
-
-          request_path = Path(os.environ["REQUEST_PATH"])
-          request = json.loads(request_path.read_text(encoding="utf-8"))
-          expected = {
-              "schema_version": 1,
-              "request_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
-              "expected_runner_name": "freqtrade-synology-staging",
-              "expected_runner_label": "freqtrade-staging",
-              "expected_environment": "synology-staging",
-              "expected_state_dir": "/var/lib/oteryn-staging-state",
-              "expected_durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance",
-              "expected_durable_uri": "file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance",
-              "host_class": "always_on_nonrestricted_linux_staging",
-              "github_hosted_runner": False,
-              "collection_authorized": False,
-              "execution_enabled": False,
-              "orders_submitted": 0,
-          }
-          if request != expected:
-              raise SystemExit("request does not match the exact frozen preflight contract")
-
-          runner_name = os.environ["RUNNER_NAME_VALUE"]
-          runner_os = os.environ["RUNNER_OS_VALUE"]
-          runner_arch = os.environ["RUNNER_ARCH_VALUE"]
-          if runner_name != request["expected_runner_name"]:
-              raise SystemExit("actual runner name does not match the preflight request")
-          if runner_os != "Linux":
-              raise SystemExit("OKX acceptance staging must run on Linux")
-
-          state_dir = Path(os.environ.get("STAGING_STATE_DIR", ""))
-          if str(state_dir) != request["expected_state_dir"]:
-              raise SystemExit("OTERYN_STAGING_STATE_DIR does not match the preflight request")
-          if not state_dir.is_absolute() or not state_dir.is_dir():
-              raise SystemExit("staging state directory is missing or not absolute")
-          if not os.access(state_dir, os.W_OK):
-              raise SystemExit("staging state directory is not writable")
-
-          durable_root = Path(request["expected_durable_root"])
-          if durable_root.parent != state_dir:
-              raise SystemExit("durable root is not directly under the staging state directory")
-          durable_root.mkdir(mode=0o750, parents=False, exist_ok=True)
-          if not durable_root.is_dir() or not os.access(durable_root, os.W_OK):
-              raise SystemExit("durable root is unavailable or not writable")
-
-          runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve()
-          workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
-          resolved_root = durable_root.resolve()
-          if resolved_root == runner_temp or runner_temp in resolved_root.parents:
-              raise SystemExit("durable root must not be runner-temporary storage")
-          if resolved_root == workspace or workspace in resolved_root.parents:
-              raise SystemExit("durable root must not be workspace storage")
-
-          probe_dir = Path(tempfile.mkdtemp(prefix=".preflight-", dir=durable_root))
-          try:
-              source = probe_dir / "probe.tmp"
-              target = probe_dir / "probe.sealed"
-              payload = b"okx-acceptance-staging-preflight-v1\n"
-              with source.open("xb") as handle:
-                  handle.write(payload)
-                  handle.flush()
-                  os.fsync(handle.fileno())
-              source.replace(target)
-              with target.open("rb") as handle:
-                  observed = handle.read()
-              if observed != payload:
-                  raise SystemExit("durable storage read-after-rename verification failed")
-              probe_sha256 = hashlib.sha256(observed).hexdigest()
-          finally:
-              shutil.rmtree(probe_dir)
-
-          free_bytes = shutil.disk_usage(durable_root).free
-          if free_bytes < 1_073_741_824:
-              raise SystemExit("durable root has less than 1 GiB free")
-
-          endpoint_results = {}
-          endpoints = {
-              "clock": "https://www.okx.com/api/v5/public/time",
-              "instruments": "https://www.okx.com/api/v5/public/instruments?instType=SWAP",
-          }
-          for name, url in endpoints.items():
-              req = urllib.request.Request(url, headers={"User-Agent": "freqtrade-okx-preflight/1"})
-              with urllib.request.urlopen(req, timeout=20) as response:
-                  raw = response.read(2_097_153)
-                  if len(raw) > 2_097_152:
-                      raise SystemExit(f"{name} response exceeded 2 MiB")
-                  payload_json = json.loads(raw)
-                  if payload_json.get("code") != "0":
-                      raise SystemExit(f"{name} endpoint returned a non-zero OKX code")
-                  endpoint_results[name] = {
-                      "http_status": response.status,
-                      "bytes": len(raw),
-                      "okx_code": payload_json.get("code"),
-                  }
-
-          report = {
-              "schema_version": 1,
-              "report_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
-              "request_head": os.environ["HEAD_SHA"],
-              "runner": {
-                  "name": runner_name,
-                  "os": runner_os,
-                  "arch": runner_arch,
-                  "selected_custom_label": request["expected_runner_label"],
-                  "github_hosted": False,
-              },
-              "environment": request["expected_environment"],
-              "storage": {
-                  "state_dir": str(state_dir),
-                  "durable_root": str(resolved_root),
-                  "durable_uri": request["expected_durable_uri"],
-                  "free_bytes": free_bytes,
-                  "atomic_write_read_rename_verified": True,
-                  "probe_sha256": probe_sha256,
-              },
-              "public_endpoints": endpoint_results,
-              "safety": {
-                  "trading_credentials_present": False,
-                  "collection_executed": False,
-                  "execution_enabled": False,
-                  "orders_submitted": 0,
-              },
-              "ready_for_acceptance_workflow_mapping": True,
-          }
-          report_path = Path(os.environ["REPORT_PATH"])
-          report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          print(json.dumps(report, indent=2, sort_keys=True))
-          PY
-          status=$?
-
-          if [[ -s "$stderr_path" ]]; then
-            cat "$stderr_path" >&2
-          fi
-
-          exit "$status"
-
-      - name: Write bounded failure report
-        if: steps.verify.outcome == 'failure'
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -241,22 +82,23 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
+          import hashlib
           import json
           import os
+          import shutil
+          import tempfile
+          import urllib.request
           from pathlib import Path
 
-          stderr_path = Path(os.environ["RUNNER_TEMP"]) / "okx-acceptance-staging-preflight.stderr"
-          stderr_text = stderr_path.read_text(encoding="utf-8", errors="replace")
-          lines = [line.strip() for line in stderr_text.splitlines() if line.strip()]
-          message = lines[-1] if lines else "preflight verification failed without stderr"
-          report = {
+          report_path = Path(os.environ["REPORT_PATH"])
+          failure_report = {
               "schema_version": 1,
               "report_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
-              "request_head": os.environ["HEAD_SHA"],
+              "request_head": os.environ.get("HEAD_SHA", ""),
               "runner": {
-                  "name": os.environ["RUNNER_NAME_VALUE"],
-                  "os": os.environ["RUNNER_OS_VALUE"],
-                  "arch": os.environ["RUNNER_ARCH_VALUE"],
+                  "name": os.environ.get("RUNNER_NAME_VALUE", ""),
+                  "os": os.environ.get("RUNNER_OS_VALUE", ""),
+                  "arch": os.environ.get("RUNNER_ARCH_VALUE", ""),
                   "selected_custom_label": "freqtrade-staging",
                   "github_hosted": False,
               },
@@ -273,15 +115,151 @@ jobs:
                   "execution_enabled": False,
                   "orders_submitted": 0,
               },
-              "failure": {
-                  "step": "Verify runner, durable storage and public OKX endpoints",
-                  "message": message[:1000],
-              },
               "ready_for_acceptance_workflow_mapping": False,
           }
-          report_path = Path(os.environ["REPORT_PATH"])
-          report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-          print(json.dumps(report, indent=2, sort_keys=True))
+
+          try:
+              request_path = Path(os.environ["REQUEST_PATH"])
+              request = json.loads(request_path.read_text(encoding="utf-8"))
+              expected = {
+                  "schema_version": 1,
+                  "request_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
+                  "expected_runner_name": "freqtrade-synology-staging",
+                  "expected_runner_label": "freqtrade-staging",
+                  "expected_environment": "synology-staging",
+                  "expected_state_dir": "/var/lib/oteryn-staging-state",
+                  "expected_durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance",
+                  "expected_durable_uri": "file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance",
+                  "host_class": "always_on_nonrestricted_linux_staging",
+                  "github_hosted_runner": False,
+                  "collection_authorized": False,
+                  "execution_enabled": False,
+                  "orders_submitted": 0,
+              }
+              if request != expected:
+                  raise SystemExit("request does not match the exact frozen preflight contract")
+
+              runner_name = os.environ["RUNNER_NAME_VALUE"]
+              runner_os = os.environ["RUNNER_OS_VALUE"]
+              runner_arch = os.environ["RUNNER_ARCH_VALUE"]
+              if runner_name != request["expected_runner_name"]:
+                  raise SystemExit("actual runner name does not match the preflight request")
+              if runner_os != "Linux":
+                  raise SystemExit("OKX acceptance staging must run on Linux")
+
+              state_dir = Path(os.environ.get("STAGING_STATE_DIR", ""))
+              if str(state_dir) != request["expected_state_dir"]:
+                  raise SystemExit("OTERYN_STAGING_STATE_DIR does not match the preflight request")
+              if not state_dir.is_absolute() or not state_dir.is_dir():
+                  raise SystemExit("staging state directory is missing or not absolute")
+              if not os.access(state_dir, os.W_OK):
+                  raise SystemExit("staging state directory is not writable")
+
+              durable_root = Path(request["expected_durable_root"])
+              if durable_root.parent != state_dir:
+                  raise SystemExit("durable root is not directly under the staging state directory")
+              durable_root.mkdir(mode=0o750, parents=False, exist_ok=True)
+              if not durable_root.is_dir() or not os.access(durable_root, os.W_OK):
+                  raise SystemExit("durable root is unavailable or not writable")
+
+              runner_temp = Path(os.environ["RUNNER_TEMP"]).resolve()
+              workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+              resolved_root = durable_root.resolve()
+              if resolved_root == runner_temp or runner_temp in resolved_root.parents:
+                  raise SystemExit("durable root must not be runner-temporary storage")
+              if resolved_root == workspace or workspace in resolved_root.parents:
+                  raise SystemExit("durable root must not be workspace storage")
+
+              probe_dir = Path(tempfile.mkdtemp(prefix=".preflight-", dir=durable_root))
+              try:
+                  source = probe_dir / "probe.tmp"
+                  target = probe_dir / "probe.sealed"
+                  payload = b"okx-acceptance-staging-preflight-v1\n"
+                  with source.open("xb") as handle:
+                      handle.write(payload)
+                      handle.flush()
+                      os.fsync(handle.fileno())
+                  source.replace(target)
+                  with target.open("rb") as handle:
+                      observed = handle.read()
+                  if observed != payload:
+                      raise SystemExit("durable storage read-after-rename verification failed")
+                  probe_sha256 = hashlib.sha256(observed).hexdigest()
+              finally:
+                  shutil.rmtree(probe_dir)
+
+              free_bytes = shutil.disk_usage(durable_root).free
+              if free_bytes < 1_073_741_824:
+                  raise SystemExit("durable root has less than 1 GiB free")
+
+              endpoint_results = {}
+              endpoints = {
+                  "clock": "https://www.okx.com/api/v5/public/time",
+                  "instruments": "https://www.okx.com/api/v5/public/instruments?instType=SWAP",
+              }
+              for name, url in endpoints.items():
+                  req = urllib.request.Request(
+                      url, headers={"User-Agent": "freqtrade-okx-preflight/1"}
+                  )
+                  with urllib.request.urlopen(req, timeout=20) as response:
+                      raw = response.read(2_097_153)
+                      if len(raw) > 2_097_152:
+                          raise SystemExit(f"{name} response exceeded 2 MiB")
+                      payload_json = json.loads(raw)
+                      if payload_json.get("code") != "0":
+                          raise SystemExit(f"{name} endpoint returned a non-zero OKX code")
+                      endpoint_results[name] = {
+                          "http_status": response.status,
+                          "bytes": len(raw),
+                          "okx_code": payload_json.get("code"),
+                      }
+
+              report = {
+                  "schema_version": 1,
+                  "report_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
+                  "request_head": os.environ["HEAD_SHA"],
+                  "runner": {
+                      "name": runner_name,
+                      "os": runner_os,
+                      "arch": runner_arch,
+                      "selected_custom_label": request["expected_runner_label"],
+                      "github_hosted": False,
+                  },
+                  "environment": request["expected_environment"],
+                  "storage": {
+                      "state_dir": str(state_dir),
+                      "durable_root": str(resolved_root),
+                      "durable_uri": request["expected_durable_uri"],
+                      "free_bytes": free_bytes,
+                      "atomic_write_read_rename_verified": True,
+                      "probe_sha256": probe_sha256,
+                  },
+                  "public_endpoints": endpoint_results,
+                  "safety": {
+                      "trading_credentials_present": False,
+                      "collection_executed": False,
+                      "execution_enabled": False,
+                      "orders_submitted": 0,
+                  },
+                  "ready_for_acceptance_workflow_mapping": True,
+              }
+              report_path.write_text(
+                  json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+              )
+              print(json.dumps(report, indent=2, sort_keys=True))
+          except BaseException as exc:
+              message = str(exc).strip() or exc.__class__.__name__
+              failure_report["failure"] = {
+                  "step": "Verify runner, durable storage and public OKX endpoints",
+                  "type": exc.__class__.__name__,
+                  "message": message[:1000],
+              }
+              report_path.write_text(
+                  json.dumps(failure_report, indent=2, sort_keys=True) + "\n",
+                  encoding="utf-8",
+              )
+              print(json.dumps(failure_report, indent=2, sort_keys=True))
+              raise
           PY
 
       - name: Upload bounded preflight report
@@ -292,8 +270,3 @@ jobs:
           path: ${{ runner.temp }}/okx-acceptance-staging-preflight-report.json
           if-no-files-found: error
           retention-days: 30
-
-      - name: Enforce readiness result
-        if: steps.verify.outcome == 'failure'
-        shell: bash
-        run: exit 1

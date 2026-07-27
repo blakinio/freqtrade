@@ -61,10 +61,10 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T13:45:00+02:00
-head: 4fabc02670a21b6291b43081d5424b0970c575f5
+updated_at: 2026-07-27T15:37:00+02:00
+head: 21bd55c13c55dd8532b73f38a49ea6438a9b982e
 branch: develop
-pr: "#462 merged; #445 closed without merge"
+pr: "#462 merged; #445 closed without merge; no active PI-06 PR"
 status: blocked
 context_routes:
   - AGENTS.md
@@ -87,9 +87,11 @@ proven:
   - Artifact 8651340321 digest sha256:a40a96edd18e219278f46cc9192c16cc9cc9387ad6ae245327955591b253a569 recorded no secret values and no mutations.
   - PR 445 was closed without merge after terminal artifact capture.
   - PR 462 merged the terminal task result into develop as 4fabc02670a21b6291b43081d5424b0970c575f5.
+  - Live repository search found no open PR or branch implementing the missing PI-06 durable-state mapping, age installation, public variables or protected secrets.
 derived:
   - Repository-side runner routing is resolved; remaining readiness failures require owner-managed target inputs.
   - A new exact-one-file preflight is required after provisioning, and deployment remains forbidden until ready_for_controlled_deployment is true.
+  - No active repository agent currently owns the owner-managed provisioning step.
 unknown:
   - DNS readiness after public URLs are provisioned.
   - Storage free space and atomic probe result after the durable state path is configured and visible.
@@ -121,6 +123,9 @@ validation:
   - command: request PR 445 lifecycle
     result: PASS
     evidence: The exact-one-file request was closed without merge after evidence capture.
+  - command: live PI-06 ownership search on develop at 21bd55c13c55dd8532b73f38a49ea6438a9b982e
+    result: PASS
+    evidence: No open PR or branch owns the missing durable-state, age, variable or secret provisioning work.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md --require-checkpoint
     result: PASS
     evidence: Compact checkpoint validates against GOVERNANCE_CONTRACT.json.

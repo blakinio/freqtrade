@@ -5,7 +5,7 @@ branch: docs/rl-v2-torch-tensor-record-adapter-v1-terminal-evidence
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#455 declaration; #457 implementation; #472 terminal closeout; terminal evidence correction pending"
+related_pr: "#455 declaration; #457 implementation; #472 terminal closeout; #475 terminal evidence correction"
 depends_on:
   - FTAI-20260726-rl-v2-provenance-tooling-v1
 owned_paths:
@@ -57,11 +57,11 @@ The adapter does not discover, load, construct, traverse, execute or save models
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T15:23:00+02:00
-head: e5dd71e1c0e71c4d8566eacaa727a9813a4ddf4d
+updated_at: 2026-07-27T15:26:00+02:00
+head: ada30eeeb9936513fccf2a443631ea6e20be2c62
 base_develop: 813d59fe59e2becc42f3b6942125da28edec2cd3
 branch: docs/rl-v2-torch-tensor-record-adapter-v1-terminal-evidence
-pr: not_opened
+pr: "#475"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
@@ -88,7 +88,7 @@ proven:
   - No model, state dictionary, optimizer, checkpoint, archive, cache, network, market data, consumed OOS or protected holdout was accessed.
   - No canonical request, execution workflow, ranking, selection, promotion, runner behavior or Phase 6 state changed.
 derived:
-  - This task is terminal after the one-file evidence correction merges.
+  - This task is terminal after PR 475 merges.
   - Any model traversal, artifact loading, canonical request or runtime execution requires a separate governed task.
 unknown: []
 conflicts: []
@@ -118,7 +118,7 @@ validation:
     evidence: Freqtrade CI 30268109407 including CI Gate and zizmor 30268109493 succeeded on final closeout head e5dd71e1c0e71c4d8566eacaa727a9813a4ddf4d before merge.
   - command: terminal evidence correction
     result: PASS
-    evidence: This correction removes stale PENDING, blocker and unknown fields without changing code, dependencies or runtime authority.
+    evidence: PR 475 changes only this task record and removes stale PENDING, blocker and unknown fields without changing code, dependencies or runtime authority.
 blockers: []
-next_action: Treat this task as closed; create a separately declared governed task before adding model traversal, artifact loading, canonical requests, execution workflows or market-data access.
+next_action: Treat this task as closed after PR 475 merges; create a separately declared governed task before adding model traversal, artifact loading, canonical requests, execution workflows or market-data access.
 ```

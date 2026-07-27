@@ -8,11 +8,12 @@ import re
 import time
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 import websockets
 from websockets.exceptions import WebSocketException
@@ -32,7 +33,6 @@ RUN_STATE_FILE = "run-state-v1.json"
 BYBIT_SOURCE = "bybit-linear"
 BINANCE_SOURCE = "binance-usdm"
 OKX_SOURCE = "okx-swap"
-SOURCE_IDS = (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE)
 RUN_ID_PATTERN = re.compile(r"^liquid20-\d{8}T\d{6}Z-\d+$")
 SYMBOL_PATTERN = re.compile(r"^[A-Z0-9]{2,24}$")
 DEFAULT_BYBIT_ENDPOINT = "wss://stream.bybit.com/v5/public/linear"
@@ -41,12 +41,6 @@ DEFAULT_BINANCE_ENDPOINT = "wss://fstream.binance.com/market/ws"
 DEFAULT_BINANCE_EXCHANGE_INFO_URL = "https://fapi.binance.com/fapi/v1/exchangeInfo"
 EXPECTED_CONNECTION_EXCEPTIONS = (OSError, ValueError, WebSocketException)
 REDACTED = "[redacted]"
-
-
-class WebSocketLike(Protocol):
-    async def send(self, message: str) -> None: ...
-
-    async def recv(self) -> str | bytes: ...
 
 
 @dataclass(slots=True)
@@ -405,9 +399,17 @@ def redact_error(error: BaseException | str | None) -> str | None:
     if error is None:
         return None
     text = str(error)
-    text = re.sub(r"(?i)(api[_-]?key|secret|token|password)=([^\s&]+)", rf"\1={REDACTED}", text)
+    text = re.sub(
+        r"(?i)(api[_-]?key|secret|token|password)=([^\s&]+)",
+        rf"\1={REDACTED}",
+        text,
+    )
     text = re.sub(r"(?i)(wss?|https?)://([^/@\s]+)@", r"\1://[redacted]@", text)
-    text = re.sub(r"([?&](?:signature|token|key|secret)=)[^&\s]+", rf"\1{REDACTED}", text)
+    text = re.sub(
+        r"([?&](?:signature|token|key|secret)=)[^&\s]+",
+        rf"\1{REDACTED}",
+        text,
+    )
     if isinstance(error, BaseException):
         return f"{type(error).__name__}: {text}"[:500]
     return text[:500]
@@ -421,7 +423,8 @@ def validate_symbols(symbols: Sequence[str], *, maximum: int) -> tuple[str, ...]
             {
                 symbol.strip().upper()
                 for symbol in symbols
-                if isinstance(symbol, str) and SYMBOL_PATTERN.fullmatch(symbol.strip().upper())
+                if isinstance(symbol, str)
+                and SYMBOL_PATTERN.fullmatch(symbol.strip().upper())
             }
         )
     )
@@ -432,11 +435,19 @@ def validate_symbols(symbols: Sequence[str], *, maximum: int) -> tuple[str, ...]
     return normalized
 
 
-def _fetch_json(url: str, *, timeout_seconds: float = 15.0, maximum_bytes: int = 8_000_000) -> Any:
+def _fetch_json(
+    url: str,
+    *,
+    timeout_seconds: float = 15.0,
+    maximum_bytes: int = 8_000_000,
+) -> Any:
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or not parsed.netloc:
         raise ValueError("symbol discovery URL must use HTTPS")
-    request = urllib.request.Request(url, headers={"User-Agent": "freqtrade-liquidations-live/1"})
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "freqtrade-liquidations-live/1"},
+    )
     with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
         payload = response.read(maximum_bytes + 1)
     if len(payload) > maximum_bytes:
@@ -497,7 +508,11 @@ def discover_binance_symbols(
     return validate_symbols(symbols, maximum=maximum_symbols)
 
 
-def _bybit_subscriptions(symbols: Sequence[str], *, batch_size: int = 100) -> tuple[str, ...]:
+def _bybit_subscriptions(
+    symbols: Sequence[str],
+    *,
+    batch_size: int = 100,
+) -> tuple[str, ...]:
     if batch_size < 1 or batch_size > 100:
         raise ValueError("Bybit subscription batch_size must be between 1 and 100")
     topics = [f"allLiquidation.{symbol}" for symbol in symbols]
@@ -561,12 +576,16 @@ async def run_bybit_source(
                     received_at_ms = time.time_ns() // 1_000_000
                     payload = json.loads(raw)
                     if not isinstance(payload, dict):
-                        await manager.parse_error(BYBIT_SOURCE, "Bybit message is not an object")
+                        await manager.parse_error(
+                            BYBIT_SOURCE,
+                            "Bybit message is not an object",
+                        )
                         continue
                     if str(payload.get("topic", "")).startswith("allLiquidation."):
                         try:
                             events = parse_bybit_all_liquidation(
-                                payload, received_at_ms=received_at_ms
+                                payload,
+                                received_at_ms=received_at_ms,
                             )
                         except (KeyError, TypeError, ValueError) as error:
                             await manager.parse_error(BYBIT_SOURCE, error)
@@ -626,11 +645,15 @@ async def run_binance_source(
                     payload = json.loads(raw)
                     if not isinstance(payload, dict):
                         await manager.parse_error(
-                            BINANCE_SOURCE, "Binance message is not an object"
+                            BINANCE_SOURCE,
+                            "Binance message is not an object",
                         )
                         continue
                     try:
-                        events = parse_binance_force_order(payload, received_at_ms=received_at_ms)
+                        events = parse_binance_force_order(
+                            payload,
+                            received_at_ms=received_at_ms,
+                        )
                     except (KeyError, TypeError, ValueError) as error:
                         if "forceOrder" in str(payload):
                             await manager.parse_error(BINANCE_SOURCE, error)
@@ -686,8 +709,14 @@ async def run_live_collector(
             await manager.heartbeat()
             await _bounded_backoff_sleep(heartbeat_seconds, stop_event)
 
-    bybit_discovery = lambda: discover_bybit_symbols(maximum_symbols=maximum_symbols)
-    binance_discovery = lambda: discover_binance_symbols(maximum_symbols=maximum_symbols)
+    bybit_discovery = partial(
+        discover_bybit_symbols,
+        maximum_symbols=maximum_symbols,
+    )
+    binance_discovery = partial(
+        discover_binance_symbols,
+        maximum_symbols=maximum_symbols,
+    )
     tasks = [
         asyncio.create_task(
             run_bybit_source(

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "request_id": "okx-shadow-acceptance-staging-preflight-20260727-v1",
+  "expected_runner_name": "freqtrade-synology-staging",
+  "expected_runner_label": "freqtrade-staging",
+  "expected_environment": "synology-staging",
+  "expected_state_dir": "/var/lib/freqtrade-staging-state",
+  "expected_durable_root": "/var/lib/freqtrade-staging-state/okx-liquidation-acceptance",
+  "expected_durable_uri": "file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance",
+  "host_class": "always_on_nonrestricted_linux_staging",
+  "github_hosted_runner": false,
+  "collection_authorized": false,
+  "execution_enabled": false,
+  "orders_submitted": 0
+}

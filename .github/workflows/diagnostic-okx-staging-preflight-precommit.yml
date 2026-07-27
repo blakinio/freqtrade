@@ -1,0 +1,42 @@
+name: Diagnostic OKX Staging Preflight Pre-commit
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/diagnostic-okx-staging-preflight-precommit.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Run complete pre-commit report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check pre-commit
+          set +e
+          pre-commit run --all-files > precommit-report.txt 2>&1
+          status=$?
+          set -e
+          printf '\nPRECOMMIT_EXIT_CODE=%s\n' "$status" >> precommit-report.txt
+          cat precommit-report.txt
+      - name: Upload report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: diagnostic-okx-staging-preflight-precommit-${{ github.event.pull_request.number }}
+          path: precommit-report.txt
+          if-no-files-found: error
+          retention-days: 1

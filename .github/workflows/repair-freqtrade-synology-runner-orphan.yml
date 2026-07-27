@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: freqtrade-synology-runner-name-repair
@@ -22,11 +23,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Validate Docker access
+        id: docker
         run: |
           set -euo pipefail
           docker version >/dev/null
 
       - name: Repair verified Compose replacement name
+        id: repair
         run: |
           set -euo pipefail
 
@@ -73,6 +76,7 @@ jobs:
           docker rename "$candidate_id" "$canonical"
 
       - name: Verify runner remains running and isolated
+        id: verify
         run: |
           set -euo pipefail
 
@@ -89,3 +93,29 @@ jobs:
           echo "runner_container_name=$canonical"
           echo "runner_running=true"
           echo "runner_image=$image"
+
+      - name: Publish bounded runtime status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DOCKER_OUTCOME: ${{ steps.docker.outcome }}
+          REPAIR_OUTCOME: ${{ steps.repair.outcome }}
+          VERIFY_OUTCOME: ${{ steps.verify.outcome }}
+        run: |
+          set -euo pipefail
+
+          state="failure"
+          description="Synology runner name repair or verification failed"
+          if [[ "$DOCKER_OUTCOME" == "success" && "$REPAIR_OUTCOME" == "success" && "$VERIFY_OUTCOME" == "success" ]]; then
+            state="success"
+            description="Canonical Synology runner name verified"
+          fi
+
+          payload="$(printf '{\"state\":\"%s\",\"description\":\"%s\",\"context\":\"synology/freqtrade-runner-name\"}' "$state" "$description")"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            --data "$payload" >/dev/null

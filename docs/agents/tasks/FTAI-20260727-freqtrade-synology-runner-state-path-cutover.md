@@ -22,8 +22,8 @@ required_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T19:39:00Z
-head: 363d8de92063746b5c931bccb2222febfb4905b3
+updated_at: 2026-07-27T19:44:00Z
+head: c57410e917f5a809e554ad4f0f328d5c0177f4e8
 branch: fix/freqtrade-synology-runner-state-path-cutover-20260727
 pr: "#516"
 status: implementation-complete-ci-pending

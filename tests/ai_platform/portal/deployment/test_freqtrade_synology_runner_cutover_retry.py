@@ -4,12 +4,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[4]
-WORKFLOW = (
-    ROOT
-    / ".github"
-    / "workflows"
-    / "freqtrade-synology-runner-dedicated-cutover-retry.yml"
-)
+WORKFLOW = ROOT / ".github" / "workflows" / "freqtrade-synology-runner-dedicated-cutover-retry.yml"
 
 
 def test_retry_uses_exact_proven_image_and_trusted_runner() -> None:

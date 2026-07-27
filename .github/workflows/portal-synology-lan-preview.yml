@@ -61,7 +61,7 @@ jobs:
           bash deploy/synology/portal/deploy-preview.sh 2>&1 | tee "$PORTAL_DEPLOY_LOG"
 
       - name: Capture failed Liquid20 BFF diagnostics
-        if: steps.deploy.outcome == 'failure'
+        if: failure() && steps.deploy.outcome == 'failure'
         continue-on-error: true
         env:
           PORTAL_IMAGE: local/freqtrade-portal-web:sha-${{ github.sha }}

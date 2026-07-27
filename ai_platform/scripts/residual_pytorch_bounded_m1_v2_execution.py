@@ -10,10 +10,10 @@ from typing import Any
 
 from ai_platform.scripts import residual_pytorch_bounded_m1_execution as base
 
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_REPO_PATH = (
-    "ai_platform/experimental_model_research/"
-    "residual-pytorch-bounded-m1-execution-contract-v2.json"
+    "ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v2.json"
 )
 CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
 REQUEST_REPO_PATH = (
@@ -71,8 +71,7 @@ def validate_contract(contract: dict[str, Any]) -> None:  # noqa: C901
         raise ResidualPyTorchBoundedM1Error("One-shot trigger contract drifted")
 
     source_path = (
-        REPO_ROOT
-        / "ai_platform/experimental_model_research/"
+        REPO_ROOT / "ai_platform/experimental_model_research/"
         "residual-pytorch-bounded-m1-execution-contract-v1.json"
     )
     source = json.loads(source_path.read_text(encoding="utf-8"))
@@ -220,14 +219,10 @@ def main(argv: list[str] | None = None) -> int:
         elif mode == "validate-audit":
             base._emit(validate_audit_directory(args.audit_dir), args.output)
         elif mode == "diagnostics":
-            payload = build_prediction_diagnostics(
-                args.prediction_dir, track_id=args.track_id
-            )
+            payload = build_prediction_diagnostics(args.prediction_dir, track_id=args.track_id)
             base._emit(payload, args.output)
         elif mode == "validate-training":
-            payload = validate_training_directory(
-                args.training_dir, track_id=args.track_id
-            )
+            payload = validate_training_directory(args.training_dir, track_id=args.track_id)
             base._emit(payload, args.output)
         elif mode == "validate-summary":
             payload = validate_run_summary(

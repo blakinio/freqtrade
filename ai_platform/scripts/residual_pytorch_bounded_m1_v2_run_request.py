@@ -12,10 +12,10 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_REPO_PATH = (
-    "ai_platform/experimental_model_research/"
-    "residual-pytorch-bounded-m1-execution-contract-v2.json"
+    "ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v2.json"
 )
 CONTRACT_PATH = REPO_ROOT / CONTRACT_REPO_PATH
 REQUEST_REPO_PATH = (

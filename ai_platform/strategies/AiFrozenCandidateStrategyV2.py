@@ -24,7 +24,5 @@ class AiFrozenCandidateStrategyV2(AiFrozenCandidateStrategy):
     ) -> DataFrame:
         dataframe["%-pct-change"] = dataframe["close"].pct_change()
         dataframe["%-volume-change"] = bounded_symmetric_volume_change(dataframe["volume"])
-        dataframe["%-high-low-range"] = (
-            dataframe["high"] - dataframe["low"]
-        ) / dataframe["close"]
+        dataframe["%-high-low-range"] = (dataframe["high"] - dataframe["low"]) / dataframe["close"]
         return dataframe

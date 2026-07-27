@@ -20,7 +20,9 @@ CONTRACT_PATH = (
 )
 REQUEST_PATH = REPO_ROOT / run_request.REQUEST_REPO_PATH
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-execution.yml"
-TASK_PATH = REPO_ROOT / "docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md"
+TASK_PATH = (
+    REPO_ROOT / "docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md"
+)
 NUMERIC_RUNTIME_AVAILABLE = (
     importlib.util.find_spec("numpy") is not None and importlib.util.find_spec("pandas") is not None
 )

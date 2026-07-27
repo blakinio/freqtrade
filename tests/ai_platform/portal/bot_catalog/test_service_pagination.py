@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from bm01_test_support import build_access, snapshot_with_templates, template_entry
 from pydantic import ValidationError
 
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
@@ -23,6 +22,7 @@ from ai_platform.portal.contracts.bot_management.templates import (
     BotFamily,
     CatalogVersionRef,
 )
+from bm01_test_support import build_access, snapshot_with_templates, template_entry
 
 
 def _service_with_three_templates() -> BotCatalogService:

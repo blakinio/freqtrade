@@ -1,14 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from bm01_test_support import (
-    NOW,
-    build_access,
-    build_selection,
-    build_service,
-    snapshot_with_templates,
-    template_entry,
-)
 
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.schema import (
@@ -26,7 +18,6 @@ from ai_platform.portal.contracts.bot_management.capabilities import (
 )
 from ai_platform.portal.contracts.bot_management.compatibility import (
     CompatibilityReasonCode,
-    CompatibilitySelection,
     CompatibilityStatus,
 )
 from ai_platform.portal.contracts.bot_management.templates import (
@@ -36,6 +27,14 @@ from ai_platform.portal.contracts.bot_management.templates import (
     TradeDirection,
 )
 from ai_platform.portal.contracts.environment import ExecutionMode
+from bm01_test_support import (
+    NOW,
+    build_access,
+    build_selection,
+    build_service,
+    snapshot_with_templates,
+    template_entry,
+)
 
 
 def test_compatible_selection_produces_deterministic_authoritative_evidence() -> None:

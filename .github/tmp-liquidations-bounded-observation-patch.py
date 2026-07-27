@@ -1,0 +1,169 @@
+from pathlib import Path
+
+script_path = Path("deploy/synology/liquid20/deploy-live.sh")
+script = script_path.read_text(encoding="utf-8")
+
+anchor = 'report_path="${LIQUID20_DEPLOY_REPORT:-${RUNNER_TEMP:-/tmp}/liquidations-live-synology-report.json}"\n'
+replacement = anchor + 'state_wait_seconds="${LIQUID20_STATE_WAIT_SECONDS:-180}"\n'
+if script.count(anchor) != 1:
+    raise SystemExit("report path anchor changed")
+script = script.replace(anchor, replacement)
+
+start = script.index("state_observation() {")
+end = script.index("\nstart_container() {", start)
+new_block = r'''container_diagnostics() {
+    local selected_container="$1"
+    echo "Live collector diagnostics for ${selected_container}:" >&2
+    timeout 10s docker inspect --format \
+        'status={{.State.Status}} running={{.State.Running}} exit_code={{.State.ExitCode}} oom_killed={{.State.OOMKilled}} error={{.State.Error}}' \
+        "$selected_container" >&2 || true
+    timeout 10s docker logs --tail 200 "$selected_container" >&2 || true
+}
+
+state_observation() {
+    local selected_container="$1"
+    timeout 10s docker exec --interactive "$selected_container" python - <<'PY'
+import json
+from pathlib import Path
+
+root = Path("/data")
+pointer = root / "live" / "live-state-v1.json"
+if not pointer.is_file() or pointer.is_symlink():
+    raise SystemExit(1)
+payload = json.loads(pointer.read_text(encoding="utf-8"))
+state = payload.get("state")
+if not isinstance(state, dict):
+    raise SystemExit(1)
+sources = state.get("sources")
+if not isinstance(sources, dict):
+    raise SystemExit(1)
+run_id = state.get("run_id")
+run_root = root / "live" / "runs" / str(run_id)
+sizes = {}
+for name in ("bybit-linear.ndjson", "binance-usdm.ndjson"):
+    path = run_root / name
+    sizes[name] = path.stat().st_size if path.is_file() and not path.is_symlink() else -1
+print(json.dumps({
+    "run_id": run_id,
+    "run_state": state.get("run_state"),
+    "collector_heartbeat_at_ms": state.get("collector_heartbeat_at_ms"),
+    "last_event_at_ms": state.get("last_event_at_ms"),
+    "sources": sources,
+    "sizes": sizes,
+}, separators=(",", ":"), sort_keys=True))
+PY
+}
+
+observe_or_diagnose() {
+    local selected_container="$1"
+    local observation=""
+    if observation="$(state_observation "$selected_container")"; then
+        printf '%s' "$observation"
+        return 0
+    fi
+    container_diagnostics "$selected_container"
+    return 1
+}
+
+wait_for_state() {
+    local selected_container="$1"
+    local minimum_heartbeat="$2"
+    local observation=""
+    local deadline=$((SECONDS + state_wait_seconds))
+    while (( SECONDS < deadline )); do
+        observation="$(state_observation "$selected_container" 2>/dev/null || true)"
+        if [[ -n "$observation" ]] && python3 - "$observation" "$minimum_heartbeat" <<'PY'
+import json
+import sys
+
+payload = json.loads(sys.argv[1])
+minimum = int(sys.argv[2])
+if payload.get("run_state") != "active":
+    raise SystemExit(1)
+heartbeat = payload.get("collector_heartbeat_at_ms")
+if not isinstance(heartbeat, int) or heartbeat <= minimum:
+    raise SystemExit(1)
+sources = payload.get("sources", {})
+for source in ("bybit-linear", "binance-usdm"):
+    item = sources.get(source)
+    if not isinstance(item, dict) or item.get("configured") is not True:
+        raise SystemExit(1)
+    count = item.get("subscription_symbol_count")
+    if not isinstance(count, int) or count < 1:
+        raise SystemExit(1)
+PY
+        then
+            printf '%s' "$observation"
+            return 0
+        fi
+        sleep 2
+    done
+    echo "Live collector state did not become active with dynamic subscriptions within ${state_wait_seconds}s" >&2
+    container_diagnostics "$selected_container"
+    return 1
+}
+'''
+script = script[:start] + new_block + script[end:]
+
+replacements = {
+    'candidate_first="$(wait_for_state "$candidate_host_root" "$candidate_started_ms")"':
+        'candidate_first="$(wait_for_state "$candidate" "$candidate_started_ms")"',
+    'candidate_second="$(state_observation "$candidate_host_root")"':
+        'candidate_second="$(observe_or_diagnose "$candidate")"',
+    'production_first="$(wait_for_state "$data_root" "$production_started_ms")"':
+        'production_first="$(wait_for_state "$container_name" "$production_started_ms")"',
+    'production_second="$(state_observation "$data_root")"':
+        'production_second="$(observe_or_diagnose "$container_name")"',
+    'test -f "$defaults_file"\n':
+        'test -f "$defaults_file"\ncommand -v timeout >/dev/null\n[[ "$state_wait_seconds" =~ ^[0-9]+$ ]]\n[[ "$state_wait_seconds" -gt 0 ]]\n',
+}
+for old, new in replacements.items():
+    if script.count(old) != 1:
+        raise SystemExit(f"expected one replacement anchor: {old}")
+    script = script.replace(old, new)
+script_path.write_text(script, encoding="utf-8")
+
+test_path = Path("tests/ai_platform_integration/test_synology_liquid20_live_deployment.py")
+tests = test_path.read_text(encoding="utf-8")
+old = '    assert \'state_observation "$candidate_host_root"\' in script\n'
+new = (
+    '    assert \'wait_for_state "$candidate" "$candidate_started_ms"\' in script\n'
+    '    assert \'observe_or_diagnose "$candidate"\' in script\n'
+)
+if tests.count(old) != 1:
+    raise SystemExit("candidate observation assertion changed")
+tests = tests.replace(old, new)
+
+marker = '\ndef test_live_bootstrap_is_bounded_to_sibling_live_root() -> None:\n'
+addition = '''
+
+
+def test_state_observation_is_wall_clock_bounded_and_emits_container_diagnostics() -> None:
+    script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
+
+    assert 'state_wait_seconds="${LIQUID20_STATE_WAIT_SECONDS:-180}"' in script
+    assert 'local deadline=$((SECONDS + state_wait_seconds))' in script
+    assert 'while (( SECONDS < deadline ))' in script
+    assert 'timeout 10s docker exec --interactive "$selected_container" python -' in script
+    assert 'timeout 10s docker inspect --format' in script
+    assert 'timeout 10s docker logs --tail 200 "$selected_container"' in script
+    assert 'container_diagnostics "$selected_container"' in script
+    assert 'root = Path("/data")' in script
+    assert "for _ in $(seq 1 90)" not in script
+'''
+if tests.count(marker) != 1:
+    raise SystemExit("bootstrap test marker changed")
+tests = tests.replace(marker, addition + marker)
+test_path.write_text(tests, encoding="utf-8")
+
+doc_path = Path("deploy/synology/liquid20/LIVE_STREAM.md")
+doc = doc_path.read_text(encoding="utf-8")
+anchor = "The operational report records whether CPU quota is supported and applied, together with the mandatory memory and PID limits."
+replacement = (
+    "Heartbeat observation executes inside the running candidate or production container with a ten-second command timeout and a wall-clock deployment deadline. "
+    "If state does not become active, the deploy log records bounded container state and the last 200 log lines before cleanup or rollback.\n\n"
+    + anchor
+)
+if doc.count(anchor) != 1:
+    raise SystemExit("operational report paragraph changed")
+doc_path.write_text(doc.replace(anchor, replacement), encoding="utf-8")

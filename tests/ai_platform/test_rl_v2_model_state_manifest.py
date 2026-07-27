@@ -185,9 +185,10 @@ def test_parameter_and_buffer_digests_bind_to_separate_fields() -> None:
 
     assert policy_state["trainable_parameters_digest_sha256"] == PARAMETER_SHA
     assert policy_state["buffers_digest_sha256"] == BUFFER_SHA
-    assert policy_state["trainable_parameters_digest_sha256"] != policy_state[
-        "buffers_digest_sha256"
-    ]
+    assert (
+        policy_state["trainable_parameters_digest_sha256"]
+        != policy_state["buffers_digest_sha256"]
+    )
 
 
 @pytest.mark.parametrize(

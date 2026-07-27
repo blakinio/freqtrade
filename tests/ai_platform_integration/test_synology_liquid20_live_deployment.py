@@ -160,8 +160,10 @@ def test_deployment_uses_validated_full_public_universe_bound() -> None:
     defaults = (DEPLOYMENT_ROOT / ".env.example").read_text(encoding="utf-8")
 
     assert "MAXIMUM_SYMBOLS=1000" in defaults
-    assert 'LIQUID20_MAXIMUM_SYMBOLS:-1000' in entrypoint
-    assert 'MAXIMUM_SYMBOLS:-1000' in compose
-    assert 'maximum_symbols="${LIQUID20_MAXIMUM_SYMBOLS:-$(read_default MAXIMUM_SYMBOLS)}"' in script
-    assert 'LIQUID20_MAXIMUM_SYMBOLS=${maximum_symbols}' in script
+    assert "LIQUID20_MAXIMUM_SYMBOLS:-1000" in entrypoint
+    assert "MAXIMUM_SYMBOLS:-1000" in compose
+    assert (
+        'maximum_symbols="${LIQUID20_MAXIMUM_SYMBOLS:-$(read_default MAXIMUM_SYMBOLS)}"' in script
+    )
+    assert "LIQUID20_MAXIMUM_SYMBOLS=${maximum_symbols}" in script
     assert 'item.get("connected") is not True' in script

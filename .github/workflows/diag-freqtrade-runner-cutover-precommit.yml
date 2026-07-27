@@ -72,7 +72,42 @@ jobs:
             git restore --worktree --staged -- "${files[@]}"
             if pre-commit run "$hook" --files "${files[@]}"; then
               post_status "$hook" success
-            else
-              post_status "$hook" failure
+              continue
             fi
+
+            post_status "$hook" failure
+            if [[ "$hook" != "zizmor" ]]; then
+              continue
+            fi
+
+            set +e
+            pre-commit run zizmor --files "${files[@]}" > /tmp/zizmor-output.txt 2>&1
+            set -e
+            python3 - /tmp/zizmor-output.txt > /tmp/zizmor-contexts.txt <<'PY'
+            import re
+            import sys
+
+            ansi = re.compile(r"\x1b\[[0-9;]*m")
+            text = ansi.sub("", open(sys.argv[1], encoding="utf-8").read())
+            current: str | None = None
+            findings: list[str] = []
+            for line in text.splitlines():
+                audit = re.search(r"(?:error|warning)\[([A-Za-z0-9_-]+)\]", line)
+                if audit:
+                    current = audit.group(1)
+                    continue
+                location = re.search(r"-->\s+.*:(\d+):\d+", line)
+                if current and location:
+                    findings.append(f"{current}-L{location.group(1)}")
+                    current = None
+            if current:
+                findings.append(current)
+            for finding in sorted(set(findings)):
+                print(finding)
+            PY
+
+            while IFS= read -r finding; do
+              [[ -n "$finding" ]] || continue
+              post_status "zizmor-$finding" failure
+            done < /tmp/zizmor-contexts.txt
           done

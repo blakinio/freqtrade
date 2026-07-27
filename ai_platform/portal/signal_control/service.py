@@ -15,10 +15,10 @@ from ai_platform.portal.signal_control.command_mapping import map_signal_to_comm
 from ai_platform.portal.signal_control.replay import ReplayDecision, nonce_digest
 from ai_platform.portal.signal_control.repository import SignalControlRepository
 from ai_platform.portal.signal_control.schema import (
+    SIGNAL_PAYLOAD_SCHEMA_V1,
     AuthoritativeSignalTargetState,
     CreateSignalEndpoint,
     ReviseSignalEndpoint,
-    SIGNAL_PAYLOAD_SCHEMA_V1,
     SignalAuditRecord,
     SignalControlContext,
     SignalControlReasonCode,
@@ -285,8 +285,7 @@ class SignalControlService:
             payload_sha256=payload_sha256,
             idempotency_expires_at=payload.issued_at
             + timedelta(seconds=endpoint.max_past_age_seconds),
-            nonce_expires_at=payload.issued_at
-            + timedelta(seconds=endpoint.replay_window_seconds),
+            nonce_expires_at=payload.issued_at + timedelta(seconds=endpoint.replay_window_seconds),
             now=now,
             consume=mode == SignalProcessingMode.ACCEPT,
         )

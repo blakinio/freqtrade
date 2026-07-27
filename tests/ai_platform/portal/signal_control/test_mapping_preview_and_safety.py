@@ -1,8 +1,8 @@
 from ai_platform.portal.contracts.bot_management.commands import LifecycleAction, PositionAction
 from ai_platform.portal.contracts.bot_management.policies import SignalAuthority, SignalCommand
 from ai_platform.portal.signal_control.schema import (
-    MappedCommandVocabulary,
     SIGNAL_PAYLOAD_SCHEMA_V1,
+    MappedCommandVocabulary,
     SignalMappingStatus,
     SignalProcessingMode,
 )
@@ -107,9 +107,12 @@ def test_serialization_is_deterministic() -> None:
     service, _ = service_with_endpoint(authority=SignalAuthority.EXECUTION_AUTHORIZED)
     result = service.process(context(), processing_request(), signature=b"x", target=target())
     assert result.canonical_json() == result.canonical_json()
-    assert result.processing_id == service.process(
-        context(), processing_request(), signature=b"x", target=target()
-    ).processing_id
+    assert (
+        result.processing_id
+        == service.process(
+            context(), processing_request(), signature=b"x", target=target()
+        ).processing_id
+    )
 
 
 def test_reason_codes_are_deterministically_sorted() -> None:

@@ -150,9 +150,7 @@ def test_stale_configuration_revision_is_rejected() -> None:
     result = service.process(
         context(), processing_request(config_revision=6), signature=b"x", target=target()
     )
-    assert result.validation.reason_codes == (
-        SignalControlReasonCode.CONFIGURATION_REVISION_STALE,
-    )
+    assert result.validation.reason_codes == (SignalControlReasonCode.CONFIGURATION_REVISION_STALE,)
 
 
 def test_stale_runtime_revision_is_rejected() -> None:

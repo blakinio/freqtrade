@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - diagnostic/bm04-ruff-exact-20260727
+  pull_request:
+    branches:
+      - develop
 
 permissions:
   contents: read

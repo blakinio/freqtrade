@@ -1,0 +1,339 @@
+name: Residual PyTorch M1 Epoch Timerange Bootstrap
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/residual-pytorch-m1-epoch-timerange-bootstrap.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact fix branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply verified epoch timerange orchestration correction
+        shell: bash
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BOOTSTRAP_HEAD: ${{ github.event.pull_request.head.sha }}
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+
+          import os
+          from pathlib import Path
+
+
+          def replace(path: str, old: str, new: str, *, expected: int = 1) -> None:
+              file_path = Path(path)
+              text = file_path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != expected:
+                  raise SystemExit(
+                      f"{path}: expected {expected} occurrences of {old!r}, found {count}"
+                  )
+              file_path.write_text(text.replace(old, new), encoding="utf-8")
+
+
+          run_experiment = "ai_platform/scripts/run_experiment.py"
+          replace(
+              run_experiment,
+              '''from ai_platform.scripts.protected_final_holdout import (
+              ProtectedFinalHoldoutError,
+              validate_manifest_holdout_isolation,
+          )''',
+              '''from ai_platform.scripts.protected_final_holdout import (
+              ProtectedFinalHoldoutError,
+              parse_timerange,
+              validate_manifest_holdout_isolation,
+          )''',
+          )
+          replace(
+              run_experiment,
+              'TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")\n',
+              "",
+          )
+          replace(
+              run_experiment,
+              '''    for field in ("timerange", "download_timerange"):
+                  value = manifest[field]
+                  if not isinstance(value, str) or not TIMERANGE_PATTERN.fullmatch(value):
+                      raise ExperimentError(f"{field} must use YYYYMMDD-YYYYMMDD format")''',
+              '''    for field in ("timerange", "download_timerange"):
+                  try:
+                      parse_timerange(manifest[field], field)
+                  except ProtectedFinalHoldoutError as exc:
+                      raise ExperimentError(str(exc)) from exc''',
+          )
+
+          protected = "ai_platform/scripts/protected_final_holdout.py"
+          replace(
+              protected,
+              "from datetime import datetime",
+              "from datetime import UTC, datetime",
+          )
+          replace(
+              protected,
+              'TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")',
+              '''DATE_TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")
+          UNIX_SECOND_TIMERANGE_PATTERN = re.compile(r"^[0-9]{10}-[0-9]{10}$")''',
+          )
+          replace(
+              protected,
+              '''def _parse_timerange(value: Any, label: str) -> tuple[datetime, datetime]:
+              if not isinstance(value, str) or not TIMERANGE_PATTERN.fullmatch(value):
+                  raise ProtectedFinalHoldoutError(f"{label} must use YYYYMMDD-YYYYMMDD format")
+              start_raw, end_raw = value.split("-", maxsplit=1)
+              start = datetime.strptime(start_raw, "%Y%m%d")
+              end = datetime.strptime(end_raw, "%Y%m%d")
+              if start > end:
+                  raise ProtectedFinalHoldoutError(f"{label} starts after it ends")
+              return start, end''',
+              '''def parse_timerange(value: Any, label: str) -> tuple[datetime, datetime]:
+              if not isinstance(value, str):
+                  raise ProtectedFinalHoldoutError(
+                      f"{label} must use YYYYMMDD-YYYYMMDD or 10-digit Unix-second range"
+                  )
+
+              if DATE_TIMERANGE_PATTERN.fullmatch(value):
+                  start_raw, end_raw = value.split("-", maxsplit=1)
+                  start = datetime.strptime(start_raw, "%Y%m%d").replace(tzinfo=UTC)
+                  end = datetime.strptime(end_raw, "%Y%m%d").replace(tzinfo=UTC)
+              elif UNIX_SECOND_TIMERANGE_PATTERN.fullmatch(value):
+                  start_raw, end_raw = value.split("-", maxsplit=1)
+                  start = datetime.fromtimestamp(int(start_raw), tz=UTC)
+                  end = datetime.fromtimestamp(int(end_raw), tz=UTC)
+              else:
+                  raise ProtectedFinalHoldoutError(
+                      f"{label} must use YYYYMMDD-YYYYMMDD or 10-digit Unix-second range"
+                  )
+
+              if start > end:
+                  raise ProtectedFinalHoldoutError(f"{label} starts after it ends")
+              return start, end''',
+          )
+          replace(protected, "_parse_timerange(", "parse_timerange(", expected=3)
+
+          schema = "ai_platform/experiments/schema-v1.json"
+          replace(
+              schema,
+              '"pattern": "^[0-9]{8}-[0-9]{8}$"',
+              '"pattern": "^(?:[0-9]{8}-[0-9]{8}|[0-9]{10}-[0-9]{10})$"',
+              expected=2,
+          )
+
+          test_run = "tests/ai_platform/test_run_experiment.py"
+          replace(
+              test_run,
+              '''BASELINE_MANIFEST = ROOT / "ai_platform" / "experiments" / "baseline-v1.json"
+          MANIFEST_SCHEMA = ROOT / "ai_platform" / "experiments" / "schema-v1.json"''',
+              '''BASELINE_MANIFEST = ROOT / "ai_platform" / "experiments" / "baseline-v1.json"
+          RESIDUAL_AUDIT_MANIFEST = (
+              ROOT / "ai_platform" / "experiments" / "residual-pytorch-m1-data-audit-v1.json"
+          )
+          MANIFEST_SCHEMA = ROOT / "ai_platform" / "experiments" / "schema-v1.json"''',
+          )
+          replace(
+              test_run,
+              '''def test_load_manifest_accepts_baseline() -> None:
+              manifest = load_manifest(BASELINE_MANIFEST)
+
+              assert manifest["schema_version"] == 1
+              assert manifest["experiment_id"] == "freqai-baseline-v1"
+              assert manifest["fee"] == 0.002
+
+
+          def test_load_manifest_rejects_missing_required_fields''',
+              '''def test_residual_epoch_manifest_matches_schema() -> None:
+              manifest = json.loads(RESIDUAL_AUDIT_MANIFEST.read_text(encoding="utf-8"))
+              schema = json.loads(MANIFEST_SCHEMA.read_text(encoding="utf-8"))
+
+              Draft202012Validator(schema).validate(manifest)
+
+
+          def test_load_manifest_accepts_baseline() -> None:
+              manifest = load_manifest(BASELINE_MANIFEST)
+
+              assert manifest["schema_version"] == 1
+              assert manifest["experiment_id"] == "freqai-baseline-v1"
+              assert manifest["fee"] == 0.002
+
+
+          def test_load_manifest_accepts_unix_second_timeranges(tmp_path: Path) -> None:
+              manifest = json.loads(BASELINE_MANIFEST.read_text(encoding="utf-8"))
+              manifest["timerange"] = "1772323200-1777593599"
+              manifest["download_timerange"] = "1754006400-1777593599"
+              path = tmp_path / "epoch-manifest.json"
+              path.write_text(json.dumps(manifest), encoding="utf-8")
+
+              loaded = load_manifest(path)
+
+              assert loaded["timerange"] == "1772323200-1777593599"
+              assert loaded["download_timerange"] == "1754006400-1777593599"
+
+
+          def test_load_manifest_rejects_missing_required_fields''',
+          )
+
+          test_holdout = "tests/ai_platform/test_protected_final_holdout.py"
+          replace(
+              test_holdout,
+              '''from ai_platform.scripts.protected_final_holdout import (
+              FINAL_HOLDOUT_WORKFLOW,
+              protected_timerange,
+          )''',
+              '''from ai_platform.scripts.protected_final_holdout import (
+              FINAL_HOLDOUT_WORKFLOW,
+              protected_timerange,
+              timeranges_overlap,
+          )''',
+          )
+          replace(
+              test_holdout,
+              '''def test_generic_manifest_outside_protected_holdout_remains_allowed() -> None:
+              manifest = load_manifest(BASELINE_MANIFEST)
+              assert manifest["experiment_id"] == "freqai-baseline-v1"''',
+              '''def test_epoch_second_range_before_holdout_remains_isolated() -> None:
+              assert not timeranges_overlap(
+                  "1772323200-1777593599",
+                  protected_timerange(),
+              )
+
+
+          def test_epoch_second_range_overlapping_holdout_is_detected(tmp_path: Path) -> None:
+              path = _write_manifest(
+                  tmp_path,
+                  timerange="1786752000-1790812799",
+              )
+
+              with pytest.raises(
+                  ExperimentError,
+                  match="overlaps protected final holdout 20260801-20260930",
+              ):
+                  load_manifest(path)
+
+
+          def test_generic_manifest_outside_protected_holdout_remains_allowed() -> None:
+              manifest = load_manifest(BASELINE_MANIFEST)
+              assert manifest["experiment_id"] == "freqai-baseline-v1"''',
+          )
+
+          task_path = Path(
+              "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md"
+          )
+          task = task_path.read_text(encoding="utf-8")
+          task = task.replace(
+              "branch: fix/residual-pytorch-bounded-m1-exclusive-stop",
+              f"branch: {os.environ['BRANCH_NAME']}",
+              1,
+          )
+          task = task.replace("related_pr: 409", f"related_pr: {os.environ['PR_NUMBER']}", 1)
+          prefix = task.split("## Context checkpoint\n", 1)[0]
+          checkpoint = f'''## Context checkpoint
+
+          ```yaml
+          checkpoint_version: 1
+          updated_at: 2026-07-27T07:15:00Z
+          head: {os.environ['BOOTSTRAP_HEAD']}
+          merge_commit: null
+          branch: {os.environ['BRANCH_NAME']}
+          pr: {os.environ['PR_NUMBER']}
+          status: validating
+          context_routes:
+            - docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md
+            - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md
+            - ai_platform/scripts/run_experiment.py
+            - ai_platform/scripts/protected_final_holdout.py
+          owned_paths:
+            - ai_platform/experiments/schema-v1.json
+            - ai_platform/scripts/protected_final_holdout.py
+            - ai_platform/scripts/run_experiment.py
+            - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
+            - tests/ai_platform/test_protected_final_holdout.py
+            - tests/ai_platform/test_run_experiment.py
+          proven:
+            - Exclusive-stop infrastructure merged through PR 409 as 185e6a5a8fc2c5d70d0ea2173f4c5cd4a5ca702c.
+            - Exact-one-file PR 419 and run 30224752320 passed request validation, both Kraken downloads, per-pair exclusive-stop verification, cache publication and combined pre-fit data verification.
+            - BTC coverage ended at 2026-04-30T23:45:00Z on 15m with 26164 rows; ETH ended at the same boundary with 26132 rows; consumed historical OOS and protected holdout were not used.
+            - Run 30224752320 failed closed before matrix creation with `Experiment failed: timerange must use YYYYMMDD-YYYYMMDD format`.
+            - Matrix audit artifacts were not created and LightGBM, seeded MLP and residual MLP executions were skipped.
+          derived:
+            - The frozen epoch-second geometry is accepted by Freqtrade and the dedicated data verifier but rejected by the generic experiment-manifest orchestration layer.
+            - Supporting both existing date-form and 10-digit Unix-second ranges in one shared parser preserves holdout isolation without changing research geometry.
+          unknown:
+            - Exact FreqAI-expanded feature count and historical NaN, outlier and target distributions.
+            - Whether all three frozen models complete after orchestration accepts the authorized epoch-second timeranges.
+          conflicts: []
+          first_failure:
+            marker: EPOCH_TIMERANGE_ORCHESTRATION_REJECTED
+            evidence: The audit command exited before creating a run directory because run_experiment schema validation accepted only YYYYMMDD-YYYYMMDD while all frozen M1 manifests use verified 10-digit Unix-second ranges.
+          rejected_hypotheses:
+            - The exclusive-stop correction failed; both pair and combined data verification passed.
+            - Kraken data or cache restoration failed; both dedicated caches were saved and restored successfully.
+            - A model or matrix-quality defect caused the failure; no matrix artifact or model fit was created.
+          changed_paths:
+            - ai_platform/experiments/schema-v1.json
+            - ai_platform/scripts/protected_final_holdout.py
+            - ai_platform/scripts/run_experiment.py
+            - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
+            - tests/ai_platform/test_protected_final_holdout.py
+            - tests/ai_platform/test_run_experiment.py
+          validation:
+            - command: pytest -q tests/ai_platform/test_run_experiment.py tests/ai_platform/test_protected_final_holdout.py tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
+              result: PASS
+              evidence: Date-form and epoch-second manifests, protected-holdout overlap detection and bounded M1 contract tests pass without market access.
+            - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md --require-checkpoint
+              result: PASS
+              evidence: Compact checkpoint is governance-valid with exactly one next action.
+            - command: python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract
+              result: PASS
+              evidence: Frozen bounded contract and manifests remain valid without execution.
+          blockers: []
+          next_action: Validate and merge the exact-head epoch-timerange orchestration correction, then generate one fresh canonical exact-one-file request and resume the guarded M1 run from verified caches without changing frozen geometry.
+          ```
+          '''
+          task_path.write_text(prefix + checkpoint, encoding="utf-8")
+          PY
+      - name: Validate corrected orchestration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check -e .
+          pytest -q \
+            tests/ai_platform/test_run_experiment.py \
+            tests/ai_platform/test_protected_final_holdout.py \
+            tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md \
+            --require-checkpoint
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract
+      - name: Commit verified non-workflow changes
+        shell: bash
+        env:
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/experiments/schema-v1.json \
+            ai_platform/scripts/protected_final_holdout.py \
+            ai_platform/scripts/run_experiment.py \
+            docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md \
+            tests/ai_platform/test_protected_final_holdout.py \
+            tests/ai_platform/test_run_experiment.py
+          git commit -m "fix(ai-platform): accept epoch timeranges in orchestration"
+          git push origin "HEAD:${BRANCH_NAME}"

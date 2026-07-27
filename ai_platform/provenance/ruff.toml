@@ -1,3 +1,5 @@
 # Temporary diagnostic configuration; remove before merge.
+line-length = 100
+
 [lint]
-ignore = ["ALL"]
+select = ["S"]

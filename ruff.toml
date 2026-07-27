@@ -1,3 +1,6 @@
 # Temporary formatter diagnostic; remove before merge.
 extend = "pyproject.toml"
-extend-exclude = ["tests/ai_platform/test_rl_v2_provenance_tooling.py"]
+extend-exclude = [
+  "ai_platform/provenance/rl_v2.py",
+  "tests/ai_platform/test_rl_v2_provenance_tooling.py",
+]

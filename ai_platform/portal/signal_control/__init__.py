@@ -4,12 +4,12 @@ from ai_platform.portal.signal_control.repository import (
     SignalControlRepository,
 )
 from ai_platform.portal.signal_control.schema import (
+    SIGNAL_PAYLOAD_SCHEMA_V1,
     AuthoritativeSignalTargetState,
     CreateSignalEndpoint,
     MappedCommandFamily,
     MappedCommandVocabulary,
     ReviseSignalEndpoint,
-    SIGNAL_PAYLOAD_SCHEMA_V1,
     SignalAuditRecord,
     SignalCommandIntent,
     SignalControlContext,

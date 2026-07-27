@@ -1,4 +1,4 @@
-name: WH-01 pre-commit diagnostic
+name: WH-01 mypy repair
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  repair:
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
@@ -21,28 +21,30 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-        with:
-          python-version: "3.13"
-
-      - name: Capture exact pre-commit result
+      - name: Apply exact mypy repair
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check pre-commit
-          report="docs/agents/tasks/FTAI-20260727-wickhunter-wh01-precommit-diagnostic.txt"
-          set +e
-          pre-commit run --all-files >"${report}" 2>&1
-          result=$?
-          set -e
-          printf '\nexit_code=%s\n' "${result}" >>"${report}"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/ai_platform_integration/test_wickhunter_dataset_builder.py")
+          content = path.read_text(encoding="utf-8")
+          import_anchor = "from pathlib import Path\n"
+          typed_import = "from pathlib import Path\nfrom typing import Any\n"
+          if "from typing import Any\n" not in content:
+              if import_anchor not in content:
+                  raise SystemExit("missing pathlib import anchor")
+              content = content.replace(import_anchor, typed_import, 1)
+          target = "    rows = []\n"
+          replacement = "    rows: list[dict[str, Any]] = []\n"
+          if target not in content:
+              raise SystemExit("missing rows annotation target")
+          content = content.replace(target, replacement, 1)
+          path.write_text(content, encoding="utf-8")
+          PY
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "${report}"
-          git add \
-            ai_platform/wickhunter/dataset.py \
-            ai_platform/wickhunter/__init__.py \
-            tests/ai_platform_integration/test_wickhunter_dataset_builder.py
-          git commit -m "ci(wickhunter): capture WH-01 pre-commit diagnostic"
+          git add tests/ai_platform_integration/test_wickhunter_dataset_builder.py
+          git commit -m "test(wickhunter): annotate dataset fixture rows"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}

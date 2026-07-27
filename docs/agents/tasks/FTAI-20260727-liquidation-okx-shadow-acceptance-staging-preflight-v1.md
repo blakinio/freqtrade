@@ -5,7 +5,7 @@ branch: feat/okx-shadow-acceptance-staging-preflight-v2
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: null
+related_pr: "#436"
 owned_paths:
   - .github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_STAGING_PREFLIGHT.md
@@ -33,11 +33,11 @@ Verify the established Synology self-hosted runner, protected environment, durab
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T09:56:00+02:00
-head: 2b4b685de99a8fd5a25cee8722a4112bb4a94d9c
+updated_at: 2026-07-27T10:08:00+02:00
+head: PENDING
 base_develop: f21a258643d70b4387e366e8b466dbc56735f44f
 branch: feat/okx-shadow-acceptance-staging-preflight-v2
-pr: not_opened
+pr: "#436"
 status: validating
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md
@@ -55,14 +55,14 @@ proven:
   - The established protected environment is synology-staging and exposes OTERYN_STAGING_STATE_DIR as /var/lib/oteryn-staging-state.
   - The merged acceptance workflow instead expects the unconfigured okx-liquidation-staging label and environment, so its trigger must not be created unchanged.
   - Former PR 424 validated the same four-file package at exact head b754e78e9a2109383e4b9c114f567a5ead491eba with AI Platform CI, Freqtrade CI and zizmor all passing.
-  - Former PR 424 became non-mergeable only after develop advanced through unrelated PRs 423 and 429.
-  - This branch recreates exactly the four declared paths from the green head on current develop without diagnostic workflow history.
+  - Former PR 424 became non-mergeable only after develop advanced through unrelated PRs 423 and 429 and is closed without merge.
+  - PR 436 recreates exactly the four declared paths from the green head on current develop without diagnostic or placeholder paths in the final diff.
 derived:
   - A successful preflight can justify a later workflow-mapping PR but cannot authorize the 24-hour run by itself.
   - The future durable root candidate is /var/lib/oteryn-staging-state/okx-liquidation-acceptance with file URI file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance.
   - The acceptance workflow must remain unchanged until the preflight verifies the actual runner, state path, filesystem probe and public endpoint reachability.
 unknown:
-  - Exact-head repository CI and review outcome for the reconciled replacement branch.
+  - Exact-head repository CI and review outcome for PR 436.
   - Terminal preflight result on oteryn-synology-staging.
   - Whether the durable host path has a separately enforceable immutable snapshot or retention mechanism.
 conflicts: []
@@ -84,12 +84,12 @@ validation:
   - command: former PR 424 exact-head repository CI
     result: PASS
     evidence: Head b754e78e9a2109383e4b9c114f567a5ead491eba passed AI Platform CI 30246717303, Freqtrade CI 30246717323 and zizmor 30246717320 before develop advanced.
-  - command: replacement branch exact-head repository CI
+  - command: PR 436 exact-head repository CI
     result: NOT_RUN
-    evidence: Replacement PR has not been opened yet.
+    evidence: Required checks must run on the checkpoint-bound replacement head.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md --require-checkpoint
     result: NOT_RUN
-    evidence: Repository CI is authoritative for the replacement head.
+    evidence: Repository CI is authoritative for PR 436.
 blockers: []
-next_action: Open the reconciled four-file replacement PR against current develop, close superseded PR 424, fix only confirmed exact-head CI or review failures, and merge when all required checks pass.
+next_action: Validate PR 436 on its exact head, fix only confirmed CI or review failures, and merge the four-file package when all required checks pass; then create the separate exact-one-file preflight request PR and close it without merge after terminal readiness evidence.
 ```

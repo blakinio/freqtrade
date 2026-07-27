@@ -27,7 +27,7 @@ jobs:
     runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
-      - name: Launch root-owned detached replacement helper
+      - name: Stage and launch host-bind detached replacement helper
         id: launch
         env:
           CUTOVER_SHA: ${{ github.sha }}
@@ -38,10 +38,8 @@ jobs:
           project="freqtrade-deploy-runner"
           service="runner"
           host_root="/volume1/docker/freqtrade"
-          compose_dir="$host_root/runner"
-          compose_path="$compose_dir/compose.yml"
-          helper_path="$compose_dir/cutover-helper-root.sh"
-          helper_name="freqtrade-runner-root-cutover-${CUTOVER_SHA:0:12}"
+          helper_path="$host_root/runner/cutover-helper-host-bind.sh"
+          helper_name="freqtrade-runner-host-bind-cutover-${CUTOVER_SHA:0:12}"
 
           docker version >/dev/null
           docker pull "$TARGET_IMAGE" >/dev/null
@@ -62,9 +60,60 @@ jobs:
           test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_config_volume")" = "runner_config"
           test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$runner_work_volume")" = "$project"
           test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_work_volume")" = "runner_work"
-          test -d "$host_root/state"
 
-          mkdir -p "$compose_dir" "$host_root/state/runner-cutover"
+          if docker inspect "$helper_name" >/dev/null 2>&1; then
+            echo "Exact host-bind helper name already exists; refusing duplicate launch." >&2
+            exit 1
+          fi
+
+          docker run --rm --interactive \
+            --user 0:0 \
+            --entrypoint /bin/bash \
+            --volume "$host_root:$host_root" \
+            "$TARGET_IMAGE" \
+            -ec "test \"\$(id -u)\" = 0; test -d '$host_root/state'; mkdir -p '$host_root/runner' '$host_root/state/runner-cutover'; cat > '$helper_path.tmp'; mv '$helper_path.tmp' '$helper_path'; chmod 0700 '$helper_path'" <<'HELPER'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          canonical="freqtrade-synology-staging-runner"
+          project="freqtrade-deploy-runner"
+          service="runner"
+          host_root="/volume1/docker/freqtrade"
+          compose_path="$host_root/runner/compose.yml"
+          result_dir="$host_root/state/runner-cutover"
+          result_path="$result_dir/$CUTOVER_SHA.json"
+          result_written=false
+
+          write_result() {
+            local status="$1"
+            local reason="$2"
+            mkdir -p "$result_dir"
+            printf '{"status":"%s","reason":"%s","cutover_sha":"%s","target_image":"%s"}\n' \
+              "$status" "$reason" "$CUTOVER_SHA" "$TARGET_IMAGE" > "$result_path.tmp"
+            mv "$result_path.tmp" "$result_path"
+            result_written=true
+          }
+
+          on_exit() {
+            local rc=$?
+            trap - EXIT
+            if [[ $rc -ne 0 && "$result_written" != "true" ]]; then
+              write_result "failure" "host_bind_helper_failed"
+            fi
+            exit "$rc"
+          }
+          trap on_exit EXIT
+
+          sleep 30
+
+          test "$(id -u)" = "0"
+          test -d "$host_root/state"
+          test "$(docker inspect --format '{{.State.Running}}' "$canonical")" = "true"
+          test "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$canonical")" = "$project"
+          test "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$canonical")" = "$service"
+          test "$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/runner" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")" = "$RUNNER_CONFIG_VOLUME"
+          test "$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/work" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")" = "$RUNNER_WORK_VOLUME"
+          test "$(docker image inspect --format '{{.Id}}' "$TARGET_IMAGE")" = "$EXPECTED_IMAGE_ID"
 
           cat > "$compose_path.tmp" <<EOF
           name: freqtrade-deploy-runner
@@ -93,59 +142,15 @@ jobs:
           volumes:
             runner_config:
               external: true
-              name: $runner_config_volume
+              name: $RUNNER_CONFIG_VOLUME
             runner_work:
               external: true
-              name: $runner_work_volume
+              name: $RUNNER_WORK_VOLUME
           EOF
           mv "$compose_path.tmp" "$compose_path"
           chmod 0644 "$compose_path"
+
           docker compose --project-name "$project" --file "$compose_path" config >/dev/null
-
-          cat > "$helper_path.tmp" <<'HELPER'
-          #!/usr/bin/env bash
-          set -Eeuo pipefail
-
-          canonical="freqtrade-synology-staging-runner"
-          project="freqtrade-deploy-runner"
-          service="runner"
-          host_root="/volume1/docker/freqtrade"
-          compose_path="$host_root/runner/compose.yml"
-          result_dir="$host_root/state/runner-cutover"
-          result_path="$result_dir/$CUTOVER_SHA.json"
-          result_written=false
-
-          write_result() {
-            local status="$1"
-            local reason="$2"
-            mkdir -p "$result_dir"
-            printf '{"status":"%s","reason":"%s","cutover_sha":"%s","target_image":"%s"}\n' \
-              "$status" "$reason" "$CUTOVER_SHA" "$TARGET_IMAGE" > "$result_path.tmp"
-            mv "$result_path.tmp" "$result_path"
-            result_written=true
-          }
-
-          on_exit() {
-            local rc=$?
-            trap - EXIT
-            if [[ $rc -ne 0 && "$result_written" != "true" ]]; then
-              write_result "failure" "root_helper_failed"
-            fi
-            exit "$rc"
-          }
-          trap on_exit EXIT
-
-          sleep 30
-
-          test "$(id -u)" = "0"
-          test "$(docker inspect --format '{{.State.Running}}' "$canonical")" = "true"
-          test "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$canonical")" = "$project"
-          test "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$canonical")" = "$service"
-          test "$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/runner" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")" = "$RUNNER_CONFIG_VOLUME"
-          test "$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/work" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")" = "$RUNNER_WORK_VOLUME"
-          test "$(docker image inspect --format '{{.Id}}' "$TARGET_IMAGE")" = "$EXPECTED_IMAGE_ID"
-          test -f "$compose_path"
-
           docker compose --project-name "$project" --file "$compose_path" up \
             --detach --no-deps --force-recreate runner
 
@@ -166,7 +171,7 @@ jobs:
                 && "$actual_config_volume" == "$RUNNER_CONFIG_VOLUME" \
                 && "$actual_work_volume" == "$RUNNER_WORK_VOLUME" \
                 && "$actual_state_source" == "$host_root/state" ]]; then
-                write_result "success" "dedicated_runner_recreated_by_root_helper"
+                write_result "success" "dedicated_runner_recreated_by_host_bind_helper"
                 exit 0
               fi
             fi
@@ -176,13 +181,6 @@ jobs:
           write_result "failure" "replacement_verification_timed_out"
           exit 1
           HELPER
-          mv "$helper_path.tmp" "$helper_path"
-          chmod 0700 "$helper_path"
-
-          if docker inspect "$helper_name" >/dev/null 2>&1; then
-            echo "Exact root helper name already exists; refusing duplicate launch." >&2
-            exit 1
-          fi
 
           helper_id="$(docker run --detach --rm \
             --user 0:0 \
@@ -200,7 +198,7 @@ jobs:
 
           test -n "$helper_id"
           test "$(docker inspect --format '{{.State.Running}}' "$helper_id")" = "true"
-          echo "Root-owned detached helper launched."
+          echo "Host-bind detached helper launched."
 
       - name: Publish launch failure
         if: failure()
@@ -208,7 +206,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          payload='{"state":"failure","description":"Root-owned cutover helper launch failed","context":"synology/freqtrade-runner-cutover"}'
+          payload='{"state":"failure","description":"Host-bind writer or detached helper launch failed","context":"synology/freqtrade-runner-cutover"}'
           curl --fail-with-body --silent --show-error \
             --request POST \
             --header "Accept: application/vnd.github+json" \
@@ -322,7 +320,7 @@ jobs:
               state="success"
               description="$success_description"
             fi
-            payload="$(printf '{\"state\":\"%s\",\"description\":\"%s\",\"context\":\"%s\"}' "$state" "$description" "$context")"
+            payload="$(printf '{"state":"%s","description":"%s","context":"%s"}' "$state" "$description" "$context")"
             curl --fail-with-body --silent --show-error \
               --request POST \
               --header "Accept: application/vnd.github+json" \
@@ -361,7 +359,7 @@ jobs:
 
           post_failure() {
             local description="$1"
-            payload="$(printf '{\"state\":\"failure\",\"description\":\"%s\",\"context\":\"synology/freqtrade-runner-cutover\"}' "$description")"
+            payload="$(printf '{"state":"failure","description":"%s","context":"synology/freqtrade-runner-cutover"}' "$description")"
             curl --fail-with-body --silent --show-error \
               --request POST \
               --header "Accept: application/vnd.github+json" \
@@ -372,7 +370,7 @@ jobs:
           }
 
           if [[ "$LAUNCH_RESULT" != "success" ]]; then
-            post_failure "Root-owned cutover helper launch failed"
+            post_failure "Host-bind writer or detached helper launch failed"
             exit 0
           fi
 

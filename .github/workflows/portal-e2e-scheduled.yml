@@ -1,0 +1,137 @@
+name: Portal Scheduled E2E
+
+on:
+  schedule:
+    - cron: "30 1 * * *"
+    - cron: "30 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Portal E2E suite
+        required: true
+        default: nightly
+        type: choice
+        options:
+          - nightly
+          - stability
+          - soak
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.schedule || inputs.suite || github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  nightly-regression:
+    if: >-
+      github.event_name == 'schedule' && github.event.schedule == '30 1 * * *' ||
+      github.event_name == 'workflow_dispatch' && inputs.suite == 'nightly'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci
+      - name: Install browser matrix
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Run nightly regression matrix
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
+        run: npm run test:e2e:regression
+      - name: Upload failed Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-nightly-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ai_platform/portal/web/artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+  weekly-stability:
+    if: >-
+      github.event_name == 'schedule' && github.event.schedule == '30 3 * * 0' ||
+      github.event_name == 'workflow_dispatch' && inputs.suite == 'stability'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run repeated read-only stability flow
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
+        run: npm run test:e2e:stability
+      - name: Upload failed Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-stability-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ai_platform/portal/web/artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+  manual-soak:
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'soak'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run bounded manual soak
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
+        run: npm run test:e2e:soak
+      - name: Upload failed Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-soak-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ai_platform/portal/web/artifacts
+          if-no-files-found: ignore
+          retention-days: 7

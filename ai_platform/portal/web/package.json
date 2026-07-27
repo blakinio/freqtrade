@@ -8,7 +8,19 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --project=chromium-desktop",
+    "test:e2e:smoke": "playwright test --project=chromium-desktop --grep @smoke",
+    "test:e2e:critical": "playwright test --project=chromium-desktop --grep @critical",
+    "test:e2e:regression": "playwright test --project=chromium-desktop --project=chromium-accessibility --project=chromium-resilience --project=firefox-desktop --project=webkit-desktop --project=mobile-chrome --project=mobile-safari",
+    "test:e2e:cross-browser": "playwright test --project=chromium-desktop --project=firefox-desktop --project=webkit-desktop --grep @cross-browser",
+    "test:e2e:security": "playwright test --project=chromium-desktop --grep @security",
+    "test:e2e:a11y": "playwright test --project=chromium-accessibility",
+    "test:e2e:responsive": "playwright test --project=mobile-chrome --project=mobile-safari",
+    "test:e2e:resilience": "playwright test --project=chromium-resilience",
+    "test:e2e:stability": "playwright test --project=chromium-stability --repeat-each=10 --workers=1",
+    "test:e2e:soak": "playwright test --project=chromium-soak --repeat-each=25 --workers=1",
+    "test:e2e:debug": "playwright test --project=chromium-desktop --debug",
+    "test:e2e:report": "playwright show-report artifacts/playwright-report"
   },
   "dependencies": {
     "next": "16.2.11",

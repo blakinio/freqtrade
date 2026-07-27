@@ -31,6 +31,9 @@ def test_compose_separates_restartable_live_service_from_evidence_profile() -> N
     assert "./data:/data:rw" in compose
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
+    assert "pids_limit: 128" in compose
+    assert "mem_limit: 512m" in compose
+    assert "cpus:" not in compose
     assert "ports:" not in compose
     assert "/var/run/docker.sock" not in compose
 
@@ -108,6 +111,26 @@ def test_live_bootstrap_is_bounded_to_sibling_live_root() -> None:
     assert "os.chmod(path, 0o750)" in script
     assert '--mount "type=bind,src=${data_root},dst=/data,readonly"' in script
     assert '--mount "type=bind,src=${data_root},dst=/data"' in script
+
+
+def test_cpu_quota_probe_is_strict_and_preserves_other_limits() -> None:
+    script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
+
+    assert "configure_cpu_limit" in script
+    assert 'docker run --rm --cpus 0.1 --entrypoint /bin/true "$image"' in script
+    assert "NanoCPUs can not be set" in script
+    assert "kernel does not support CPU CFS scheduler" in script
+    assert "cgroup is not mounted" in script
+    assert "capability probe failed for an unexpected reason" in script
+    assert "cpu_limit_args=(--cpus 1.0)" in script
+    assert 'run_args+=("${cpu_limit_args[@]}")' in script
+    assert "--pids-limit 128" in script
+    assert "--memory 512m" in script
+    assert 'test "$running_nano_cpus" = "1000000000"' in script
+    assert 'test "$running_nano_cpus" = "0"' in script
+    assert '"cpu_quota_supported": cpu_quota_supported' in script
+    assert '"memory_limit_bytes": 512 * 1024 * 1024' in script
+    assert '"pids_limit": 128' in script
 
 
 def test_synology_workflow_mutates_production_only_from_develop() -> None:

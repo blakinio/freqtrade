@@ -19,6 +19,8 @@ deploy_succeeded=false
 puid=""
 pgid=""
 host_id=""
+cpu_limit_supported=false
+cpu_limit_args=()
 
 cleanup() {
     docker rm -f "$candidate" >/dev/null 2>&1 || true
@@ -49,6 +51,27 @@ validate_uid() {
 
 validate_gid() {
     [[ "$1" =~ ^[0-9]+$ ]]
+}
+
+configure_cpu_limit() {
+    local probe_output=""
+    if probe_output="$(docker run --rm --cpus 0.1 --entrypoint /bin/true "$image" 2>&1)"; then
+        cpu_limit_supported=true
+        cpu_limit_args=(--cpus 1.0)
+        echo "Docker CPU quota supported; applying a 1.0 CPU limit."
+        return 0
+    fi
+    if grep -Eiq \
+        'NanoCPUs can not be set|kernel does not support CPU CFS scheduler|cgroup is not mounted' \
+        <<< "$probe_output"; then
+        cpu_limit_supported=false
+        cpu_limit_args=()
+        echo "Docker CPU quota is unavailable on this Synology kernel; retaining memory and PID limits."
+        return 0
+    fi
+    printf '%s\n' "$probe_output" >&2
+    echo "Docker CPU quota capability probe failed for an unexpected reason" >&2
+    return 1
 }
 
 inspect_data_root() {
@@ -231,31 +254,34 @@ start_container() {
     local selected_root="$3"
     local restart_policy="$4"
     local selected_commit="$5"
+    local -a run_args=(
+        --name "$name"
+        --restart "$restart_policy"
+        --init
+        --user "${puid}:${pgid}"
+        --read-only
+        --tmpfs /tmp:size=64m,mode=1777
+        --cap-drop ALL
+        --security-opt no-new-privileges:true
+        --pids-limit 128
+        --memory 512m
+    )
     [[ "$selected_commit" =~ ^[0-9a-f]{40}$ ]]
-    docker run -d \
-        --name "$name" \
-        --restart "$restart_policy" \
-        --init \
-        --user "${puid}:${pgid}" \
-        --read-only \
-        --tmpfs /tmp:size=64m,mode=1777 \
-        --cap-drop ALL \
-        --security-opt no-new-privileges:true \
-        --pids-limit 128 \
-        --memory 512m \
-        --cpus 1.0 \
-        --stop-timeout 30 \
-        --mount "type=bind,src=${selected_root},dst=/data" \
-        --env "COLLECTOR_COMMIT=${selected_commit}" \
-        --env "LIQUIDATION_STAGING_HOST_ID=${host_id}" \
-        --env LIQUID20_DATA_ROOT=/data \
-        --env LIQUID20_HEARTBEAT_SECONDS=5 \
-        --env LIQUID20_SYMBOL_REFRESH_SECONDS=3600 \
-        --env LIQUID20_MAXIMUM_SYMBOLS=500 \
-        --label io.freqtrade.liquidations.live=true \
-        --label "io.freqtrade.liquidations.commit=${selected_commit}" \
-        --entrypoint /usr/local/bin/liquid20-live-entrypoint \
-        "$selected_image"
+    run_args+=("${cpu_limit_args[@]}")
+    run_args+=(
+        --stop-timeout 30
+        --mount "type=bind,src=${selected_root},dst=/data"
+        --env "COLLECTOR_COMMIT=${selected_commit}"
+        --env "LIQUIDATION_STAGING_HOST_ID=${host_id}"
+        --env LIQUID20_DATA_ROOT=/data
+        --env LIQUID20_HEARTBEAT_SECONDS=5
+        --env LIQUID20_SYMBOL_REFRESH_SECONDS=3600
+        --env LIQUID20_MAXIMUM_SYMBOLS=500
+        --label io.freqtrade.liquidations.live=true
+        --label "io.freqtrade.liquidations.commit=${selected_commit}"
+        --entrypoint /usr/local/bin/liquid20-live-entrypoint
+    )
+    docker run -d "${run_args[@]}" "$selected_image"
 }
 
 [[ "$commit_sha" =~ ^[0-9a-f]{40}$ ]]
@@ -280,6 +306,8 @@ docker build \
     --label "org.opencontainers.image.revision=${commit_sha}" \
     --tag "$image" \
     .
+
+configure_cpu_limit
 
 data_identity="$(inspect_data_root)"
 IFS='|' read -r data_gid data_mode <<< "$data_identity"
@@ -341,6 +369,7 @@ running_gid="$(docker exec "$container_name" id -g)"
 restart_policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$container_name")"
 data_mount_rw="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.RW}}{{end}}{{end}}' "$container_name")"
 docker_socket_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$container_name")"
+running_nano_cpus="$(docker inspect --format '{{.HostConfig.NanoCpus}}' "$container_name")"
 history_after="$(history_digest)"
 
 test "$running_image" = "$image"
@@ -351,13 +380,19 @@ test "$restart_policy" = "unless-stopped"
 test "$data_mount_rw" = "true"
 test -z "$docker_socket_mount"
 test "$history_before" = "$history_after"
+if [[ "$cpu_limit_supported" == true ]]; then
+    test "$running_nano_cpus" = "1000000000"
+else
+    test "$running_nano_cpus" = "0"
+fi
 
 python3 - \
     "$candidate_first" "$candidate_second" \
     "$production_first" "$production_second" \
     "$history_before" "$history_after" \
     "$running_uid" "$running_gid" "$restart_policy" "$data_mount_rw" \
-    "$commit_sha" "$report_path" "$host_id" <<'PY'
+    "$commit_sha" "$report_path" "$host_id" \
+    "$cpu_limit_supported" "$running_nano_cpus" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -373,6 +408,8 @@ file_growth_observed = any(
     second["sizes"].get(name, -1) > first["sizes"].get(name, -1)
     for name in ("bybit-linear.ndjson", "binance-usdm.ndjson")
 )
+cpu_quota_supported = sys.argv[14] == "true"
+nano_cpus = int(sys.argv[15])
 report = {
     "schema_version": 1,
     "commit_sha": sys.argv[11],
@@ -385,6 +422,11 @@ report = {
         "restart_policy": sys.argv[9],
         "data_mount_rw": sys.argv[10] == "true",
         "portal_mount_expected_read_only": True,
+        "memory_limit_bytes": 512 * 1024 * 1024,
+        "pids_limit": 128,
+        "cpu_quota_supported": cpu_quota_supported,
+        "cpu_quota_applied": nano_cpus == 1_000_000_000,
+        "nano_cpus": nano_cpus,
     },
     "historical_evidence": {
         "digest_before": sys.argv[5],

@@ -8,11 +8,11 @@ The preflight is operationally separate from collection. It performs no WebSocke
 
 ## Existing staging identity
 
-The bounded preflight targets:
+The bounded preflight targets the runner identity proven by the successful Synology executions recorded in `docs/agents/tasks/FTAI-20260725-portal-synology-lan-staging.md` and workflow run `30205769267`:
 
 ```text
-runner name:        oteryn-synology-staging
-required labels:    self-hosted, Linux, oteryn-staging
+runner name:        freqtrade-synology-staging
+required labels:    self-hosted, Linux, freqtrade-staging
 GitHub Environment: synology-staging
 state variable:     OTERYN_STAGING_STATE_DIR
 expected state dir: /var/lib/oteryn-staging-state
@@ -30,7 +30,7 @@ The corresponding credential-free storage identity is:
 file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance
 ```
 
-This mapping does not authorize the 24-hour run. It must first be verified by the separate preflight request and terminal workflow evidence.
+The runner identity and custom label are established by prior terminal Synology evidence. The environment variable and durable path remain prospective until this preflight executes. This mapping does not authorize the 24-hour run.
 
 ## Guarded trigger
 
@@ -52,8 +52,8 @@ The request must be the only changed path. The trigger PR is closed without merg
 
 The job proves that:
 
-- GitHub scheduled the job on the custom `oteryn-staging` label;
-- the actual runner name is `oteryn-synology-staging`;
+- GitHub scheduled the job on the proven custom `freqtrade-staging` label;
+- the actual runner name is `freqtrade-synology-staging`;
 - the runner OS is Linux;
 - the protected `synology-staging` environment exposes the expected state directory;
 - the state directory is absolute, existing and writable;

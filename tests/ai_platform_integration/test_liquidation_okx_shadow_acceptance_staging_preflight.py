@@ -18,10 +18,11 @@ def test_staging_preflight_targets_existing_synology_runner_without_collection()
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert f'      - "{REQUEST_PATH}"' in workflow
-    assert "runs-on: [self-hosted, Linux, oteryn-staging]" in workflow
+    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" in workflow
     assert "environment: synology-staging" in workflow
     assert "STAGING_STATE_DIR: ${{ vars.OTERYN_STAGING_STATE_DIR }}" in workflow
-    assert '"expected_runner_name": "oteryn-synology-staging"' in workflow
+    assert '"expected_runner_name": "freqtrade-synology-staging"' in workflow
+    assert '"expected_runner_label": "freqtrade-staging"' in workflow
     assert '"expected_state_dir": "/var/lib/oteryn-staging-state"' in workflow
     assert (
         '"expected_durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance"'

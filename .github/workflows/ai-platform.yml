@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@9c091bb21b7c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -54,6 +54,38 @@ jobs:
         run: >-
           python -m pytest -q -o addopts=''
           --confcutdir=tests/ai_platform tests/ai_platform
+
+      - name: Prepare WickHunter Ruff repair artifact
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.head_ref == 'feat/wickhunter-wh00-contracts-vertical-slice-v1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          targets=(
+            ai_platform/wickhunter
+            tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+          )
+          ruff check --fix "${targets[@]}" || true
+          ruff format "${targets[@]}"
+          {
+            ruff check "${targets[@]}" || true
+            ruff format --check "${targets[@]}" || true
+          } > /tmp/wickhunter-ruff-report.txt 2>&1
+          git diff -- "${targets[@]}" > /tmp/wickhunter-ruff.patch
+
+      - name: Upload WickHunter Ruff repair artifact
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.head_ref == 'feat/wickhunter-wh00-contracts-vertical-slice-v1'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wickhunter-ruff-${{ github.run_id }}
+          path: |
+            /tmp/wickhunter-ruff.patch
+            /tmp/wickhunter-ruff-report.txt
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform

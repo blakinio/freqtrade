@@ -1,0 +1,446 @@
+name: Repair Freqtrade Synology Runner State-Path Cutover
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/freqtrade-synology-runner-state-path-cutover.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freqtrade-synology-runner-state-path-cutover
+  cancel-in-progress: false
+
+env:
+  TARGET_IMAGE: ghcr.io/blakinio/freqtrade-deploy-runner:sha-0e2a6428a7ca29e7c2fdc4ac34be85bb5f5ac0c0
+
+jobs:
+  launch-cutover:
+    if: github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Launch state-path-aware root helper
+        id: launch
+        env:
+          CUTOVER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          canonical="freqtrade-synology-staging-runner"
+          project="freqtrade-deploy-runner"
+          service="runner"
+          runner_state_root="/var/lib/freqtrade-staging-state"
+          host_state_root="/volume1/docker/freqtrade/state"
+          runtime_rel="runner-cutover-runtime/$CUTOVER_SHA"
+          runner_runtime_dir="$runner_state_root/$runtime_rel"
+          host_runtime_dir="$host_state_root/$runtime_rel"
+          compose_runner_path="$runner_runtime_dir/compose.yml"
+          compose_host_path="$host_runtime_dir/compose.yml"
+          rollback_runner_path="$runner_runtime_dir/rollback-compose.yml"
+          rollback_host_path="$host_runtime_dir/rollback-compose.yml"
+          helper_runner_path="$runner_runtime_dir/cutover-helper.sh"
+          helper_host_path="$host_runtime_dir/cutover-helper.sh"
+          result_runner_dir="$runner_state_root/runner-cutover"
+          result_host_path="$host_state_root/runner-cutover/$CUTOVER_SHA.json"
+          helper_name="freqtrade-runner-state-cutover-${CUTOVER_SHA:0:12}"
+
+          docker version >/dev/null
+          docker pull "$TARGET_IMAGE" >/dev/null
+          expected_image_id="$(docker image inspect --format '{{.Id}}' "$TARGET_IMAGE")"
+
+          test -d "$runner_state_root"
+          test ! -L "$runner_state_root"
+          test "$(docker inspect --format '{{.State.Running}}' "$canonical")" = "true"
+          test "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$canonical")" = "$project"
+          test "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$canonical")" = "$service"
+
+          runner_config_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/runner" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")"
+          runner_work_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/work" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")"
+          state_source="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/freqtrade-staging-state" }}{{ .Source }}{{ end }}{{ end }}' "$canonical")"
+          previous_image="$(docker inspect --format '{{.Config.Image}}' "$canonical")"
+          previous_image_id="$(docker inspect --format '{{.Image}}' "$canonical")"
+
+          [[ "$runner_config_volume" =~ ^[A-Za-z0-9_.-]+$ ]]
+          [[ "$runner_work_volume" =~ ^[A-Za-z0-9_.-]+$ ]]
+          test "$state_source" = "$host_state_root"
+          test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$runner_config_volume")" = "$project"
+          test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_config_volume")" = "runner_config"
+          test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$runner_work_volume")" = "$project"
+          test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_work_volume")" = "runner_work"
+
+          mkdir -p "$runner_runtime_dir" "$result_runner_dir"
+
+          cat > "$compose_runner_path.tmp" <<EOF
+          name: freqtrade-deploy-runner
+
+          services:
+            runner:
+              image: $TARGET_IMAGE
+              pull_policy: never
+              container_name: freqtrade-synology-staging-runner
+              restart: unless-stopped
+              user: "0:0"
+              environment:
+                RUNNER_ALLOW_RUNASROOT: "1"
+                RUNNER_URL: https://github.com/blakinio/freqtrade
+                RUNNER_NAME: freqtrade-synology-staging
+                RUNNER_LABELS: freqtrade-staging
+                RUNNER_TOKEN: ""
+                RUNNER_WORKDIR: /work
+                RUNNER_CONFIG_DIR: /runner
+              volumes:
+                - runner_config:/runner
+                - runner_work:/work
+                - /var/run/docker.sock:/var/run/docker.sock
+                - /volume1/docker/freqtrade/state:/var/lib/freqtrade-staging-state
+
+          volumes:
+            runner_config:
+              external: true
+              name: $runner_config_volume
+            runner_work:
+              external: true
+              name: $runner_work_volume
+          EOF
+          mv "$compose_runner_path.tmp" "$compose_runner_path"
+
+          cat > "$rollback_runner_path.tmp" <<EOF
+          name: freqtrade-deploy-runner
+
+          services:
+            runner:
+              image: $previous_image
+              pull_policy: never
+              container_name: freqtrade-synology-staging-runner
+              restart: unless-stopped
+              user: "0:0"
+              environment:
+                RUNNER_ALLOW_RUNASROOT: "1"
+                RUNNER_URL: https://github.com/blakinio/freqtrade
+                RUNNER_NAME: freqtrade-synology-staging
+                RUNNER_LABELS: freqtrade-staging
+                RUNNER_TOKEN: ""
+                RUNNER_WORKDIR: /work
+                RUNNER_CONFIG_DIR: /runner
+              volumes:
+                - runner_config:/runner
+                - runner_work:/work
+                - /var/run/docker.sock:/var/run/docker.sock
+                - /volume1/docker/freqtrade/state:/var/lib/freqtrade-staging-state
+
+          volumes:
+            runner_config:
+              external: true
+              name: $runner_config_volume
+            runner_work:
+              external: true
+              name: $runner_work_volume
+          EOF
+          mv "$rollback_runner_path.tmp" "$rollback_runner_path"
+
+          docker compose --project-name "$project" --file "$compose_runner_path" config >/dev/null
+          docker compose --project-name "$project" --file "$rollback_runner_path" config >/dev/null
+
+          cat > "$helper_runner_path.tmp" <<'HELPER'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+
+          canonical="freqtrade-synology-staging-runner"
+          project="freqtrade-deploy-runner"
+          result_written=false
+
+          write_result() {
+            local status="$1"
+            local reason="$2"
+            mkdir -p "$(dirname "$HOST_RESULT_PATH")"
+            printf '{"status":"%s","reason":"%s","cutover_sha":"%s","target_image":"%s","previous_image":"%s"}\n' \
+              "$status" "$reason" "$CUTOVER_SHA" "$TARGET_IMAGE" "$PREVIOUS_IMAGE" > "$HOST_RESULT_PATH.tmp"
+            mv "$HOST_RESULT_PATH.tmp" "$HOST_RESULT_PATH"
+            result_written=true
+          }
+
+          rollback() {
+            docker compose --project-name "$project" --file "$HOST_ROLLBACK_PATH" up \
+              --detach --no-deps --force-recreate runner >/dev/null 2>&1 || return 1
+            for _ in $(seq 1 60); do
+              actual="$(docker inspect --format '{{.Image}}' "$canonical" 2>/dev/null || true)"
+              running="$(docker inspect --format '{{.State.Running}}' "$canonical" 2>/dev/null || true)"
+              if [[ "$running" == "true" && "$actual" == "$PREVIOUS_IMAGE_ID" ]]; then
+                return 0
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          on_exit() {
+            local rc=$?
+            trap - EXIT
+            if [[ $rc -ne 0 && "$result_written" != "true" ]]; then
+              if rollback; then
+                write_result "failure" "target_failed_previous_runner_restored"
+              else
+                write_result "failure" "target_failed_rollback_failed"
+              fi
+            fi
+            exit "$rc"
+          }
+          trap on_exit EXIT
+
+          sleep 25
+          test "$(id -u)" = "0"
+          test -f "$HOST_COMPOSE_PATH"
+          test -f "$HOST_ROLLBACK_PATH"
+          test "$(docker image inspect --format '{{.Id}}' "$TARGET_IMAGE")" = "$EXPECTED_IMAGE_ID"
+
+          docker compose --project-name "$project" --file "$HOST_COMPOSE_PATH" up \
+            --detach --no-deps --force-recreate runner
+
+          for _ in $(seq 1 90); do
+            running="$(docker inspect --format '{{.State.Running}}' "$canonical" 2>/dev/null || true)"
+            image_id="$(docker inspect --format '{{.Image}}' "$canonical" 2>/dev/null || true)"
+            config_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/runner" }}{{ .Name }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+            work_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/work" }}{{ .Name }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+            state_source="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/freqtrade-staging-state" }}{{ .Source }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+            if [[ "$running" == "true" \
+              && "$image_id" == "$EXPECTED_IMAGE_ID" \
+              && "$config_volume" == "$RUNNER_CONFIG_VOLUME" \
+              && "$work_volume" == "$RUNNER_WORK_VOLUME" \
+              && "$state_source" == "$HOST_STATE_ROOT" ]]; then
+              write_result "success" "dedicated_runner_recreated_from_state_path"
+              exit 0
+            fi
+            sleep 2
+          done
+
+          if rollback; then
+            write_result "failure" "replacement_verification_timed_out_previous_runner_restored"
+          else
+            write_result "failure" "replacement_verification_timed_out_rollback_failed"
+          fi
+          exit 1
+          HELPER
+          mv "$helper_runner_path.tmp" "$helper_runner_path"
+          chmod 0700 "$helper_runner_path"
+          chmod 0600 "$compose_runner_path" "$rollback_runner_path"
+
+          if docker inspect "$helper_name" >/dev/null 2>&1; then
+            echo "Exact state-path helper name already exists; refusing duplicate launch." >&2
+            exit 1
+          fi
+
+          helper_id="$(docker run --detach --rm \
+            --user 0:0 \
+            --name "$helper_name" \
+            --entrypoint /bin/bash \
+            --env "CUTOVER_SHA=$CUTOVER_SHA" \
+            --env "TARGET_IMAGE=$TARGET_IMAGE" \
+            --env "EXPECTED_IMAGE_ID=$expected_image_id" \
+            --env "PREVIOUS_IMAGE=$previous_image" \
+            --env "PREVIOUS_IMAGE_ID=$previous_image_id" \
+            --env "RUNNER_CONFIG_VOLUME=$runner_config_volume" \
+            --env "RUNNER_WORK_VOLUME=$runner_work_volume" \
+            --env "HOST_STATE_ROOT=$host_state_root" \
+            --env "HOST_COMPOSE_PATH=$compose_host_path" \
+            --env "HOST_ROLLBACK_PATH=$rollback_host_path" \
+            --env "HOST_RESULT_PATH=$result_host_path" \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            --volume "$host_state_root:$host_state_root" \
+            "$TARGET_IMAGE" \
+            "$helper_host_path")"
+
+          test -n "$helper_id"
+          test "$(docker inspect --format '{{.State.Running}}' "$helper_id")" = "true"
+          echo "State-path-aware root helper launched."
+
+      - name: Publish launch failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload='{"state":"failure","description":"State-path cutover helper launch failed","context":"synology/freqtrade-runner-cutover"}'
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            --data "$payload" >/dev/null
+
+  stabilization-delay:
+    if: needs.launch-cutover.result == 'success' && github.ref == 'refs/heads/develop'
+    needs: launch-cutover
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Allow replacement and runner reconnection
+        run: sleep 120
+
+  verify-live-cutover:
+    if: needs.stabilization-delay.result == 'success' && github.ref == 'refs/heads/develop'
+    needs: stabilization-delay
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Verify exact dedicated runner state
+        id: verify
+        env:
+          CUTOVER_SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+
+          canonical="freqtrade-synology-staging-runner"
+          result_path="/var/lib/freqtrade-staging-state/runner-cutover/$CUTOVER_SHA.json"
+          identity_ok=false
+          image_ok=false
+          volumes_ok=false
+          state_ok=false
+          marker_ok=false
+
+          docker pull "$TARGET_IMAGE" >/dev/null 2>&1 || true
+          expected_image_id="$(docker image inspect --format '{{.Id}}' "$TARGET_IMAGE" 2>/dev/null || true)"
+
+          if docker inspect "$canonical" >/dev/null 2>&1; then
+            running="$(docker inspect --format '{{.State.Running}}' "$canonical" 2>/dev/null || true)"
+            project="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$canonical" 2>/dev/null || true)"
+            service="$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.service" }}' "$canonical" 2>/dev/null || true)"
+            image_id="$(docker inspect --format '{{.Image}}' "$canonical" 2>/dev/null || true)"
+            config_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/runner" }}{{ .Name }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+            work_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/work" }}{{ .Name }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+            state_source="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/freqtrade-staging-state" }}{{ .Source }}{{ end }}{{ end }}' "$canonical" 2>/dev/null || true)"
+
+            if [[ "$running" == "true" && "$project" == "freqtrade-deploy-runner" && "$service" == "runner" ]]; then
+              identity_ok=true
+            fi
+            if [[ -n "$expected_image_id" && "$image_id" == "$expected_image_id" ]]; then
+              image_ok=true
+            fi
+            if [[ -n "$config_volume" && -n "$work_volume" \
+              && "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$config_volume" 2>/dev/null || true)" == "runner_config" \
+              && "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$work_volume" 2>/dev/null || true)" == "runner_work" ]]; then
+              volumes_ok=true
+            fi
+            if [[ "$state_source" == "/volume1/docker/freqtrade/state" && -d /var/lib/freqtrade-staging-state ]]; then
+              state_ok=true
+            fi
+          fi
+
+          if [[ -f "$result_path" ]] && python3 - "$result_path" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          if payload.get("status") != "success":
+              raise SystemExit(1)
+          PY
+          then
+            marker_ok=true
+          fi
+
+          echo "identity_ok=$identity_ok" >> "$GITHUB_OUTPUT"
+          echo "image_ok=$image_ok" >> "$GITHUB_OUTPUT"
+          echo "volumes_ok=$volumes_ok" >> "$GITHUB_OUTPUT"
+          echo "state_ok=$state_ok" >> "$GITHUB_OUTPUT"
+          echo "marker_ok=$marker_ok" >> "$GITHUB_OUTPUT"
+
+          [[ "$identity_ok" == "true" && "$image_ok" == "true" && "$volumes_ok" == "true" && "$state_ok" == "true" && "$marker_ok" == "true" ]]
+
+      - name: Publish cutover status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IDENTITY_OK: ${{ steps.verify.outputs.identity_ok }}
+          IMAGE_OK: ${{ steps.verify.outputs.image_ok }}
+          VOLUMES_OK: ${{ steps.verify.outputs.volumes_ok }}
+          STATE_OK: ${{ steps.verify.outputs.state_ok }}
+          MARKER_OK: ${{ steps.verify.outputs.marker_ok }}
+        run: |
+          set -euo pipefail
+          overall=false
+          if [[ "$IDENTITY_OK" == "true" && "$IMAGE_OK" == "true" && "$VOLUMES_OK" == "true" && "$STATE_OK" == "true" && "$MARKER_OK" == "true" ]]; then
+            overall=true
+          fi
+          state=failure
+          description="Dedicated Synology runner state-path cutover failed"
+          if [[ "$overall" == "true" ]]; then
+            state=success
+            description="Dedicated Synology runner state-path cutover verified"
+          fi
+          payload="$(printf '{\"state\":\"%s\",\"description\":\"%s\",\"context\":\"synology/freqtrade-runner-cutover\"}' "$state" "$description")"
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            --data "$payload" >/dev/null
+
+  cutover-watchdog:
+    if: always() && github.ref == 'refs/heads/develop'
+    needs: launch-cutover
+    permissions:
+      contents: read
+      statuses: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Publish failure if replacement does not reconnect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LAUNCH_RESULT: ${{ needs.launch-cutover.result }}
+        run: |
+          set -euo pipefail
+
+          post_failure() {
+            local description="$1"
+            payload="$(printf '{\"state\":\"failure\",\"description\":\"%s\",\"context\":\"synology/freqtrade-runner-cutover\"}' "$description")"
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+              --data "$payload" >/dev/null
+          }
+
+          if [[ "$LAUNCH_RESULT" != "success" ]]; then
+            post_failure "State-path cutover helper launch failed"
+            exit 0
+          fi
+
+          for _ in $(seq 1 28); do
+            sleep 15
+            statuses="$(curl --fail-with-body --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/statuses?per_page=100")"
+            current="$(python3 - "$statuses" <<'PY'
+          import json
+          import sys
+
+          for entry in json.loads(sys.argv[1]):
+              if entry.get("context") == "synology/freqtrade-runner-cutover":
+                  print(entry.get("state", ""))
+                  break
+          PY
+            )"
+            if [[ "$current" == "success" || "$current" == "failure" ]]; then
+              exit 0
+            fi
+          done
+
+          post_failure "Replacement runner did not reconnect before timeout"

@@ -223,7 +223,7 @@ def _fetch_once(
     started_ns = time.time_ns()
     request = Request(  # noqa: S310
         policy.request_url,
-        headers={"Accept": "application/jsoon", "User-Agent": USER_AGENT},
+        headers={"Accept": "application/json", "User-Agent": USER_AGENT},
         method="GET",
     )
     with opener(

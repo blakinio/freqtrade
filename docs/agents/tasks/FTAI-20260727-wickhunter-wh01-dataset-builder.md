@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260727-wickhunter-wh01-dataset-builder
-status: implementing
+status: validating
 branch: feat/wickhunter-wh01-dataset-builder-v1
 base_branch: develop
 created: 2026-07-27
@@ -35,11 +35,11 @@ Select only accepted immutable historical import artifacts and build a determini
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T23:45:00+02:00
-head: null
+updated_at: 2026-07-27T23:55:00+02:00
+head: 47cea47461794e8bd47bd4cbc5f8ed4162ba71d6
 branch: feat/wickhunter-wh01-dataset-builder-v1
 pr: null
-status: implementing
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -57,11 +57,14 @@ proven:
   - Existing historical contracts preserve provider, source, occurred-at and availability timestamps and immutable import identities.
   - Existing local importer writes manifest.json, events.jsonl, acceptance.json and artifacts.json with deterministic hashes.
   - Existing accepted Liquid20 evidence remains immutable and separate from the continuous live stream.
+  - WH-01 implementation selects only acceptance.status=pass packages with verified manifest, artifact and accepted-event hashes.
+  - Historical available_at_ms is preserved as canonical feature-side receive time; future evidence fails closed.
+  - Dataset partitions, source selections, universe history and the self-hashed manifest are published atomically without overwrite.
 derived:
-  - WH-01 can consume accepted import artifacts without modifying Liquid20, Market Data Fabric, portal, BM, RL-v2 or Synology paths.
-  - Dataset construction must fail closed on rejected acceptance, hash mismatch, future availability, holdout overlap or missing universe eligibility.
+  - WH-01 consumes accepted import artifacts without modifying Liquid20, Market Data Fabric, portal, BM, RL-v2 or Synology paths.
+  - Dataset construction fails closed on rejected acceptance, hash mismatch, future availability, holdout overlap, duplicate evidence or missing universe eligibility.
 unknown:
-  - Exact first accepted bulk Tardis import is still owner/provider-access dependent; the builder therefore accepts any conforming accepted immutable import package and is validated with synthetic fixtures only.
+  - Exact first accepted bulk Tardis import is still owner/provider-access dependent; the builder accepts any conforming accepted immutable import package and is validated with synthetic fixtures only.
 conflicts: []
 first_failure: null
 rejected_hypotheses:
@@ -70,8 +73,15 @@ rejected_hypotheses:
   - Use occurred_at as availability when a provider availability timestamp exists.
   - Write partial dataset partitions into the final output directory.
 changed_paths:
+  - ai_platform/wickhunter/dataset.py
+  - ai_platform/wickhunter/__init__.py
+  - tests/ai_platform_integration/test_wickhunter_dataset_builder.py
+  - docs/ai_platform/WICKHUNTER_DATASET_BUILDER.md
   - docs/agents/tasks/FTAI-20260727-wickhunter-wh01-dataset-builder.md
-validation: []
+validation:
+  - command: python -m py_compile ai_platform/wickhunter/dataset.py tests/ai_platform_integration/test_wickhunter_dataset_builder.py
+    result: PASS
+    evidence: Draft implementation and focused test module compile in isolation.
 blockers: []
-next_action: Implement the pure accepted-import dataset builder and focused synthetic contract tests.
+next_action: Open a draft PR and repair exact-head CI or review failures before closeout.
 ```

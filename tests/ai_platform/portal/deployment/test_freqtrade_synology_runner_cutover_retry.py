@@ -16,15 +16,27 @@ def test_retry_uses_exact_proven_image_and_trusted_runner() -> None:
     assert "cancel-in-progress: false" in text
 
 
-def test_retry_runs_detached_helper_as_root() -> None:
+def test_retry_stages_helper_through_root_host_bind() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "cutover-helper-root.sh" in text
+    assert "cutover-helper-host-bind.sh" in text
+    assert "docker run --rm --interactive" in text
     assert "docker run --detach --rm" in text
-    assert "--user 0:0" in text
+    assert text.count("--user 0:0") >= 2
+    assert text.count('--volume "$host_root:$host_root"') >= 2
+    assert "cat > '$helper_path.tmp'" in text
     assert 'test "$(id -u)" = "0"' in text
-    assert "Root-owned detached helper launched." in text
-    assert "dedicated_runner_recreated_by_root_helper" in text
+    assert "Host-bind detached helper launched." in text
+    assert "dedicated_runner_recreated_by_host_bind_helper" in text
+
+
+def test_retry_does_not_assume_host_root_is_mounted_in_runner() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    launch_prefix = text.split("docker run --rm --interactive", maxsplit=1)[0]
+    assert 'test -d "$host_root/state"' not in launch_prefix
+    assert 'mkdir -p "$compose_dir"' not in launch_prefix
+    assert 'cat > "$compose_path.tmp"' not in launch_prefix
 
 
 def test_retry_preserves_registration_and_freqtrade_ownership() -> None:

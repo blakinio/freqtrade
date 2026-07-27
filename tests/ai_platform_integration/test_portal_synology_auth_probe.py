@@ -12,8 +12,7 @@ def test_deploy_probe_requires_page_and_protected_api_boundary() -> None:
     assert 'fetch("http://127.0.0.1:3000/market/liquidations")' in script
     assert 'response.status !== 401 || payload?.code !== "SESSION_MISSING"' in script
     assert (
-        'wait_http "$bind_address" "$portal_port" "/api/market/liquidations/health"'
-        not in script
+        'wait_http "$bind_address" "$portal_port" "/api/market/liquidations/health"' not in script
     )
     assert "authenticated Liquid20 boundary" in script
 

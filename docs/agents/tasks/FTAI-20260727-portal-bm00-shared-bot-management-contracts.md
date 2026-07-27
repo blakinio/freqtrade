@@ -46,18 +46,18 @@ Freeze strict, versioned, deterministic and secret-free contracts for complete d
 
 - narrow compile and 23 focused tests passed;
 - Ruff lint and format passed;
-- AI Platform CI passed on synchronized implementation head;
-- Freqtrade CI passed on synchronized implementation head;
+- AI Platform CI passed on the final implementation head;
+- Freqtrade CI passed on the final implementation head;
 - GitHub Actions security analysis with zizmor passed;
-- branch is synchronized with current `develop` and changes only the declared BM-00 package, tests and task/prompt records.
+- PR #440 merged into `develop` as `5e960d45ba29c494a517937a4b7e0838ae9737db`.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T13:20:00+02:00
-head: 331dfd4e4e9981e590a1a4fed60415047dfdc115
-branch: feat/portal-bm00-shared-contracts
+updated_at: 2026-07-27T14:19:53+02:00
+head: 5e960d45ba29c494a517937a4b7e0838ae9737db
+branch: develop
 pr: "#440"
 status: ready
 context_routes:
@@ -77,10 +77,11 @@ proven:
   - Command acceptance is distinct from reconciled execution success.
   - Successful reconciliation requires authoritative evidence with exact binding.
   - Secret-bearing fields and private provider paths are excluded from serialized contracts.
-  - The synchronized implementation head passed AI Platform CI and security analysis.
-  - The synchronized implementation head passed full Freqtrade CI.
+  - The final implementation head passed AI Platform CI and security analysis.
+  - The final implementation head passed full Freqtrade CI.
+  - PR 440 merged into develop as commit 5e960d45ba29c494a517937a4b7e0838ae9737db.
 derived:
-  - Downstream bot-management agents may consume these schemas only after PR 440 merges.
+  - Downstream bot-management agents may now consume the merged BM-00 schemas.
   - PI-07, PI-08, P11 and P14 remain separate authorization gates.
 unknown: []
 conflicts: []
@@ -100,19 +101,22 @@ changed_paths:
 validation:
   - command: python -m compileall ai_platform/portal/contracts/bot_management
     result: PASS
-    evidence: AI Platform CI run 1920 compiled the synchronized implementation head successfully.
+    evidence: AI Platform CI run 1935 compiled the final implementation head successfully.
   - command: pytest -q tests/ai_platform/portal/contracts/bot_management
     result: PASS
     evidence: Focused BM-00 suite passed with 23 tests.
   - command: ruff check and ruff format --check
     result: PASS
-    evidence: AI Platform CI run 1920 completed Ruff lint and format successfully.
+    evidence: AI Platform CI run 1935 completed Ruff lint and format successfully.
   - command: repository Freqtrade CI
     result: PASS
-    evidence: Freqtrade CI run 2348 completed pre-commit, documentation, Python 3.11-3.14, coverage, smoke tests and mypy successfully.
+    evidence: Freqtrade CI run 2369 completed pre-commit, documentation, Python 3.11-3.14, coverage, smoke tests, Ruff, mypy, distribution build and CI Gate successfully.
   - command: GitHub Actions Security Analysis with zizmor
     result: PASS
-    evidence: Security run 2211 completed successfully on the synchronized implementation head.
+    evidence: Security run 2232 completed successfully on the final implementation head.
+  - command: merge PR #440 into develop
+    result: PASS
+    evidence: GitHub created merge commit 5e960d45ba29c494a517937a4b7e0838ae9737db.
 blockers: []
-next_action: Merge PR #440 into develop after repository review.
+next_action: Use the merged BM-00 contracts as the schema dependency for the first downstream bot-management implementation task.
 ```

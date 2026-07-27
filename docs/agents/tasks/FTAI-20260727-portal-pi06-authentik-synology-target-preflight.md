@@ -12,6 +12,7 @@ related_prs:
   - "#454"
   - "#458"
   - "#459"
+  - "#462"
 owned_paths:
   - .github/workflows/portal-authentik-synology-target-preflight.yml
   - deploy/synology/portal-authentik/target_preflight.py
@@ -60,73 +61,71 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T13:33:00+02:00
-base_develop: 01004e9b64fb571f283fd7f763805df963cd388d
+updated_at: 2026-07-27T13:45:00+02:00
+head: 4fabc02670a21b6291b43081d5424b0970c575f5
 branch: develop
-infrastructure_pr: "#431"
-request_pr: "#445"
+pr: "#462 merged; #445 closed without merge"
 status: blocked
-terminal_run: 30262205600
-terminal_job: 89964505267
-request_head: b17175835b04586f4b4b5eaa65e639eea09a889e
-artifact:
-  id: 8651340321
-  name: portal-pi06-target-preflight-445
-  digest: sha256:a40a96edd18e219278f46cc9192c16cc9cc9387ad6ae245327955591b253a569
+context_routes:
+  - AGENTS.md
+  - docs/agents/CONTEXT_HANDOFF.md
+  - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
+  - docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_TARGET_PREFLIGHT.md
+  - PR 445 terminal run 30262205600 artifact 8651340321
+owned_paths:
+  - .github/workflows/portal-authentik-synology-target-preflight.yml
+  - deploy/synology/portal-authentik/target_preflight.py
+  - docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_TARGET_PREFLIGHT.md
+  - tests/ai_platform/portal/deployment/test_authentik_synology_target_preflight.py
+  - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
 proven:
-  - PR 431 merged the read-only target-preflight infrastructure after exact-head CI.
-  - PR 452 aligned the frozen contract with runner freqtrade-synology-staging and label freqtrade-staging.
-  - PR 454 enabled cancellation of stale per-PR runs.
-  - PR 458 routed through the proven custom runner label while retaining exact runner-name and Linux checks inside the probe.
-  - PR 459 changed exact-one-file validation to compare from the pull request merge base.
-  - Terminal run 30262205600 was assigned to freqtrade-synology-staging.
-  - Exact-one-file scope and recognized-trading-credential refusal passed.
-  - Runner name and Linux checks passed; runner arch was X64 and Docker arch x86_64.
-  - Docker socket, Docker server and Compose v2 were available.
-  - Host reported 3 CPU cores and 20816465920 bytes memory.
-  - No Authentik named volumes, named networks, running containers or unrelated port-9000 publisher were present.
-  - The bounded report recorded no secret values and executed no container mutation, bootstrap, restore or live-capital behavior.
+  - PRs 431, 452, 454, 458 and 459 merged the bounded preflight, corrected runner routing and stale-run/request-scope fixes after CI.
+  - Terminal run 30262205600 executed on freqtrade-synology-staging with Linux X64 and Docker x86_64.
+  - Exact-one-file scope, trading-credential refusal, runner identity, Docker server and Compose v2 checks passed.
+  - Host capacity was 3 CPU cores and 20816465920 bytes memory.
+  - No Authentik named volumes, networks, running containers or unrelated port-9000 publisher existed.
+  - Artifact 8651340321 digest sha256:a40a96edd18e219278f46cc9192c16cc9cc9387ad6ae245327955591b253a569 recorded no secret values and no mutations.
   - PR 445 was closed without merge after terminal artifact capture.
-readiness:
-  ready_for_controlled_deployment: false
-  blockers:
-    - OTERYN_STAGING_STATE_DIR is not configured as /var/lib/oteryn-staging-state.
-    - The expected durable state directory is not visible from the runner context.
-    - Tool age is missing from the runner environment.
-    - PI06_AUTHENTIK_PUBLIC_BASE_URL is missing from synology-staging variables.
-    - PI06_PORTAL_PUBLIC_BASE_URL is missing from synology-staging variables.
-    - PI06_PORTAL_IDENTITY_CLIENT_ID is missing from synology-staging variables.
-    - PI06_AUTHENTIK_POSTGRES_PASSWORD is missing from synology-staging secrets.
-    - PI06_AUTHENTIK_SECRET_KEY is missing from synology-staging secrets.
-    - PI06_AUTHENTIK_BOOTSTRAP_PASSWORD_HASH is missing from synology-staging secrets.
-    - PI06_PORTAL_OIDC_CLIENT_SECRET is missing from synology-staging secrets.
-    - PI06_PORTAL_SESSION_HMAC_KEY_B64 is missing from synology-staging secrets.
-    - PI06_PORTAL_FLOW_ENCRYPTION_KEY_B64 is missing from synology-staging secrets.
-    - PI06_AUTHENTIK_AGE_RECIPIENT is missing from synology-staging secrets.
+  - PR 462 merged the terminal task result into develop as 4fabc02670a21b6291b43081d5424b0970c575f5.
+derived:
+  - Repository-side runner routing is resolved; remaining readiness failures require owner-managed target inputs.
+  - A new exact-one-file preflight is required after provisioning, and deployment remains forbidden until ready_for_controlled_deployment is true.
 unknown:
-  - DNS readiness after the public URLs are provisioned.
-  - Storage free space and atomic probe result after the durable state directory is mounted/configured.
-  - Secret format validity after protected values are provisioned.
-  - Compose render result after protected values and age are present.
-  - Deployment, OIDC, MFA, session, revocation, recovery, backup and isolated restore acceptance.
+  - DNS readiness after public URLs are provisioned.
+  - Storage free space and atomic probe result after the durable state path is configured and visible.
+  - Protected secret format validity and Compose render result after values and age are present.
+  - Deployment, OIDC, MFA, session, revocation, recovery, backup and isolated-restore acceptance.
 conflicts: []
 first_failure:
   marker: OWNER_MANAGED_PI06_TARGET_INPUTS_MISSING
-  evidence: The terminal non-sensitive report listed the missing state mapping, age tool, three public variables and seven protected secrets.
+  evidence: Terminal artifact 8651340321 listed the missing state mapping, age tool, three public variables and seven protected secrets.
 rejected_hypotheses:
   - Treat the idle runner as offline.
-  - Recreate or rename the working Synology runner.
+  - Rename or recreate the working Synology runner.
   - Create a duplicate request PR or GitHub-hosted fallback.
   - Generate, print or commit protected values.
   - Proceed to deployment, bootstrap or restore while readiness is false.
+changed_paths:
+  - .github/workflows/portal-authentik-synology-target-preflight.yml
+  - deploy/synology/portal-authentik/target_preflight.py
+  - docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_TARGET_PREFLIGHT.md
+  - tests/ai_platform/portal/deployment/test_authentik_synology_target_preflight.py
+  - docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md
 validation:
+  - command: infrastructure PR exact-head CI and security analysis
+    result: PASS
+    evidence: PRs 431, 452, 454, 458 and 459 merged after required checks.
   - command: terminal PI-06 target preflight run 30262205600 job 89964505267
     result: BLOCKED
-    evidence: Runner and Docker checks passed; bounded artifact 8651340321 recorded only owner-managed readiness blockers.
+    evidence: Runner and Docker checks passed; artifact 8651340321 reported only owner-managed readiness blockers.
   - command: request PR 445 lifecycle
     result: PASS
-    evidence: Exact one-file request was closed without merge after terminal evidence capture.
+    evidence: The exact-one-file request was closed without merge after evidence capture.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md --require-checkpoint
+    result: PASS
+    evidence: Compact checkpoint validates against GOVERNANCE_CONTRACT.json.
 blockers:
-  - Owner must provision the listed environment variable, durable state path, age tool and protected identity secrets.
-next_action: Provision the exact listed owner-managed inputs without exposing their values, then declare a fresh one-file bounded preflight request. Do not create a deployment request until a new report sets ready_for_controlled_deployment to true.
+  - Owner must configure OTERYN_STAGING_STATE_DIR=/var/lib/oteryn-staging-state and expose the durable path to the runner.
+  - Owner must install age and provision the three PI-06 variables plus seven protected secrets named in artifact 8651340321.
+next_action: After the owner confirms all listed inputs are provisioned without exposing values, verify only those inputs and submit one fresh exact-one-file PI-06 preflight request; do not create a deployment request unless its report is ready.
 ```

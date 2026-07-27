@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1
-status: validating
+status: ready
 branch: feat/okx-shadow-acceptance-staging-preflight-v1
 base_branch: develop
 created: 2026-07-27
@@ -18,27 +18,31 @@ required_reads:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_EXECUTION.md
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_STAGING_PREFLIGHT.md
 search_first:
-  - current develop and open OKX acceptance ownership
-  - merged PR 417 infrastructure checkpoint
+  - current develop and PR 424 mergeability and exact-head CI
+  - established Synology staging runner, environment and durable-state mapping
 optional_reads: []
 ---
 
 # OKX shadow acceptance staging preflight v1
 
-## Goal
+## Result
 
-Verify the established Synology self-hosted runner, protected environment, durable state path and public OKX endpoint access without starting liquidation collection or creating the canonical 24-hour request.
+The inert exact-one-file Synology staging preflight is repository-ready. It validates the
+established self-hosted runner, protected environment, durable state path, atomic storage
+behavior, free space, public OKX endpoint access and absence of recognized trading
+credentials without starting liquidation collection or creating the canonical 24-hour
+request.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T09:31:00+02:00
-head: e017e8233f74ed9e47b0b4c035a95abea41c25b9
-base_develop: ae63e2aaa403dc3d0a7e192edca6f8126f2d5dbb
+updated_at: 2026-07-27T09:58:00+02:00
+head: 0cb7ed878eb2656f3f578759ae94d2b34a365b7f
+base_develop: f21a258643d70b4387e366e8b466dbc56735f44f
 branch: feat/okx-shadow-acceptance-staging-preflight-v1
 pr: "#424"
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_EXECUTION.md
@@ -49,28 +53,30 @@ owned_paths:
   - tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance_staging_preflight.py
   - docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md
 proven:
-  - Develop ae63e2aaa403dc3d0a7e192edca6f8126f2d5dbb contains merged PR 417 runner, evaluator and guarded 24-hour workflow infrastructure plus unrelated Binance Spot smoke infrastructure.
-  - PR 417 remains inert because no canonical 24-hour request exists.
-  - The established self-hosted runner is named oteryn-synology-staging and carries the custom oteryn-staging label.
-  - The established protected environment is synology-staging and exposes OTERYN_STAGING_STATE_DIR as /var/lib/oteryn-staging-state.
-  - The merged acceptance workflow instead expects the unconfigured okx-liquidation-staging label and environment, so its trigger must not be created unchanged.
-  - PR 424 adds a separate exact-one-file preflight that targets the established runner and environment, performs no collection and uploads only bounded non-sensitive readiness metadata.
+  - PR 417 merged the inert runner, evaluator and guarded 24-hour acceptance workflow infrastructure.
+  - The established self-hosted runner is oteryn-synology-staging with the custom oteryn-staging label; the protected environment is synology-staging and exposes OTERYN_STAGING_STATE_DIR as /var/lib/oteryn-staging-state.
+  - The merged 24-hour workflow targets generic unconfigured staging names, so its canonical request must not be created unchanged.
+  - PR 424 adds exactly four preflight workflow, test, runbook and checkpoint files and contains neither a preflight request nor a 24-hour request.
+  - The frozen preflight request is validated by exact object equality, preventing undeclared extra authorization fields.
+  - The workflow performs no WebSocket subscription or liquidation collection and uploads only bounded non-sensitive readiness evidence.
+  - Head b754e78e9a2109383e4b9c114f567a5ead491eba passed AI Platform CI 30246717303, Freqtrade CI 30246717323 and zizmor 30246717320.
+  - Reconciled content head 0cb7ed878eb2656f3f578759ae94d2b34a365b7f is based on develop f21a258643d70b4387e366e8b466dbc56735f44f with no overlapping path changes.
 derived:
-  - A successful preflight can justify a later workflow-mapping PR but cannot authorize the 24-hour run by itself.
-  - The future durable root candidate is /var/lib/oteryn-staging-state/okx-liquidation-acceptance with file URI file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance.
-  - The acceptance workflow must remain unchanged until the preflight verifies the actual runner, state path, filesystem probe and public endpoint reachability.
+  - A successful preflight can justify a separate workflow-mapping PR but cannot authorize the 24-hour run by itself.
+  - The prospective durable root is /var/lib/oteryn-staging-state/okx-liquidation-acceptance with file URI file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance.
+  - The canonical 24-hour request remains blocked until terminal preflight evidence and a separately validated workflow mapping exist.
 unknown:
-  - Exact-head repository CI and review outcome for PR 424.
   - Terminal preflight result on oteryn-synology-staging.
   - Whether the durable host path has a separately enforceable immutable snapshot or retention mechanism.
 conflicts: []
 first_failure:
-  marker: staging-name-mismatch
-  evidence: Merged workflow targets okx-liquidation-staging while the established runner and environment use oteryn-staging and synology-staging.
+  marker: preflight-not-yet-executed
+  evidence: Repository validation is green, but no exact-one-file preflight request has yet run on the Synology staging boundary.
 rejected_hypotheses:
-  - Create the canonical 24-hour request before staging readiness is verified.
+  - Create the canonical 24-hour request before staging readiness and workflow mapping are verified.
   - Rename or mutate the existing self-hosted runner from repository code.
-  - Run a short collection as a substitute for the non-collecting preflight.
+  - Run a short liquidation collection as a substitute for the non-collecting preflight.
+  - Permit extra keys in the frozen preflight request contract.
   - Treat a passing storage write probe as proof of 24-hour source acceptance.
 changed_paths:
   - .github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml
@@ -78,12 +84,15 @@ changed_paths:
   - tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance_staging_preflight.py
   - docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md
 validation:
-  - command: repository exact-head CI
-    result: NOT_RUN
-    evidence: PR 424 has not run on the reconciled current-develop head.
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md --require-checkpoint
-    result: NOT_RUN
-    evidence: No local checkout is available; repository CI is authoritative.
+  - command: AI Platform CI exact-head validation
+    result: PASS
+    evidence: Run 30246717303 passed checkpoint validation, focused tests, Ruff, formatting, codespell and JSON checks on b754e78e9a2109383e4b9c114f567a5ead491eba.
+  - command: Freqtrade CI exact-head validation
+    result: PASS
+    evidence: Run 30246717323 passed pre-commit, documentation, Python 3.11-3.14 tests, coverage, distributions and CI Gate on b754e78e9a2109383e4b9c114f567a5ead491eba.
+  - command: zizmor exact-head workflow security analysis
+    result: PASS
+    evidence: Run 30246717320 passed on b754e78e9a2109383e4b9c114f567a5ead491eba.
 blockers: []
-next_action: Move PR 424 to the reconciled head, fix only confirmed exact-head CI or review failures, merge it when green, then create a separate exact-one-file preflight request PR and close it without merge after terminal readiness evidence is captured.
+next_action: Merge PR 424 only after final exact-head CI passes on the reconciled checkpoint head; then create the separate exact-one-file preflight request PR and close it without merge after terminal readiness evidence is captured.
 ```

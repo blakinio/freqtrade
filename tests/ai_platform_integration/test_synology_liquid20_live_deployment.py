@@ -69,9 +69,45 @@ def test_controlled_deployment_is_exact_sha_candidate_first_and_rollback_capable
     assert '--restart "$restart_policy"' in script
     assert '--user "${puid}:${pgid}"' in script
     assert '--mount "type=bind,src=/var/run/docker.sock' not in script
-    assert "chmod" not in script
-    assert "chown" not in script
+    assert "chmod -R" not in script
+    assert "chown -R" not in script
     assert "refs/heads/develop" in script
+
+
+def test_deployment_resolves_non_root_uid_and_existing_data_group() -> None:
+    script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
+    defaults = (DEPLOYMENT_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "PUID=1026" in defaults
+    assert 'puid="${LIQUID20_PUID:-$(read_default PUID)}"' in script
+    assert '[[ "$1" -gt 0 ]]' in script
+    assert 'pgid="$data_gid"' in script
+    assert "LIQUID20_PGID must match the existing data-root group" in script
+    assert 'test "$running_uid" != "0"' in script
+    assert 'test "$running_gid" = "$pgid"' in script
+
+
+def test_deployment_maps_runner_state_to_docker_host_candidate_root() -> None:
+    script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
+
+    assert "/var/lib/freqtrade-staging-state/liquidations-live-candidates/" in script
+    assert "/volume1/docker/freqtrade/state/liquidations-live-candidates/" in script
+    assert 'install -d -m 0750 -o "$puid" -g "$pgid" "$candidate_runner_root"' in script
+    assert 'start_container "$candidate" "$image" "$candidate_host_root"' in script
+    assert 'state_observation "$candidate_host_root"' in script
+
+
+def test_live_bootstrap_is_bounded_to_sibling_live_root() -> None:
+    script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
+
+    assert "bootstrap_live_root" in script
+    assert 'accepted = root / "runs"' in script
+    assert 'live = root / "live"' in script
+    assert 'live_runs = live / "runs"' in script
+    assert "os.chown(path, uid, gid)" in script
+    assert "os.chmod(path, 0o750)" in script
+    assert '--mount "type=bind,src=${data_root},dst=/data,readonly"' in script
+    assert '--mount "type=bind,src=${data_root},dst=/data"' in script
 
 
 def test_synology_workflow_mutates_production_only_from_develop() -> None:
@@ -82,4 +118,6 @@ def test_synology_workflow_mutates_production_only_from_develop() -> None:
     assert "persist-credentials: false" in workflow
     assert "deploy/synology/liquid20/deploy-live.sh" in workflow
     assert "liquidations-live-synology-report.json" in workflow
+    assert "liquidations-live-synology.log" in workflow
+    assert 'context":"liquidations-live-synology"' in workflow
     assert "workflow_dispatch:" in workflow

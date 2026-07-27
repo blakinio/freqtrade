@@ -66,8 +66,8 @@ def test_controlled_deployment_is_exact_sha_candidate_first_and_rollback_capable
     assert "COLLECTOR_COMMIT=${selected_commit}" in script
     assert "history_before" in script
     assert 'test "$history_before" = "$history_after"' in script
-    assert "--restart \"$restart_policy\"" in script
-    assert "--user \"${puid}:${pgid}\"" in script
+    assert '--restart "$restart_policy"' in script
+    assert '--user "${puid}:${pgid}"' in script
     assert '--mount "type=bind,src=/var/run/docker.sock' not in script
     assert "chmod" not in script
     assert "chown" not in script

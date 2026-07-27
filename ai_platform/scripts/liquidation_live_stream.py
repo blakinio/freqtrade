@@ -27,6 +27,7 @@ from ai_platform.research.liquidations.staging import (
 )
 from ai_platform.scripts.liquidation_binance_collector import trading_credentials_present
 
+
 LIVE_CONTRACT = "liquidation-live-state-v1"
 LIVE_STATE_FILE = "live-state-v1.json"
 RUN_STATE_FILE = "run-state-v1.json"
@@ -423,8 +424,7 @@ def validate_symbols(symbols: Sequence[str], *, maximum: int) -> tuple[str, ...]
             {
                 symbol.strip().upper()
                 for symbol in symbols
-                if isinstance(symbol, str)
-                and SYMBOL_PATTERN.fullmatch(symbol.strip().upper())
+                if isinstance(symbol, str) and SYMBOL_PATTERN.fullmatch(symbol.strip().upper())
             }
         )
     )
@@ -444,7 +444,7 @@ def _fetch_json(
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != "https" or not parsed.netloc:
         raise ValueError("symbol discovery URL must use HTTPS")
-    request = urllib.request.Request(
+    request = urllib.request.Request(  # noqa: S310
         url,
         headers={"User-Agent": "freqtrade-liquidations-live/1"},
     )
@@ -539,7 +539,7 @@ async def _bounded_backoff_sleep(delay: float, stop_event: asyncio.Event) -> Non
         return
 
 
-async def run_bybit_source(
+async def run_bybit_source(  # noqa: C901
     manager: LiveRunManager,
     stop_event: asyncio.Event,
     *,

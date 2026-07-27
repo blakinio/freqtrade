@@ -45,7 +45,7 @@ jobs:
           python -m pip install --disable-pip-version-check
           pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
           "httpx>=0.24.1" fastapi pyjwt cryptography
-          ruff==0.15.21 codespell==2.4.2
+          ruff==0.15.21 codespell==2.4.2 pre-commit
 
       - name: Compile AI platform Python
         run: python -m compileall -q ai_platform tests/ai_platform
@@ -54,6 +54,44 @@ jobs:
         run: >-
           python -m pytest -q -o addopts=''
           --confcutdir=tests/ai_platform tests/ai_platform
+
+      - name: Export WickHunter pre-commit diagnostics
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.head_ref == 'feat/wickhunter-wh00-contracts-vertical-slice-v1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            ai_platform/wickhunter/__init__.py
+            ai_platform/wickhunter/canonical.py
+            ai_platform/wickhunter/contracts.py
+            ai_platform/wickhunter/features.py
+            ai_platform/wickhunter/parameters.py
+            ai_platform/wickhunter/risk.py
+            ai_platform/wickhunter/scoring.py
+            ai_platform/wickhunter/shadow.py
+            ai_platform/wickhunter/strategy.py
+            ai_platform/wickhunter/universe.py
+            tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+            docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md
+            docs/agents/tasks/FTAI-20260727-wickhunter-wh00-contracts-vertical-slice.md
+          )
+          pre-commit run --files "${files[@]}" > /tmp/wickhunter-precommit-report.txt 2>&1 || true
+          git diff -- "${files[@]}" > /tmp/wickhunter-precommit.patch
+
+      - name: Upload WickHunter pre-commit diagnostics
+        if: >-
+          always() && github.event_name == 'pull_request' &&
+          github.head_ref == 'feat/wickhunter-wh00-contracts-vertical-slice-v1'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-precommit-${{ github.run_id }}
+          path: |
+            /tmp/wickhunter-precommit-report.txt
+            /tmp/wickhunter-precommit.patch
+          retention-days: 1
+          if-no-files-found: error
 
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform

@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1
-status: validating
-branch: feat/okx-shadow-acceptance-staging-preflight-v2
+status: blocked
+branch: docs/okx-staging-runner-queue-blocker-20260727
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#436"
+related_pr: "#442"
 owned_paths:
   - .github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_STAGING_PREFLIGHT.md
@@ -19,7 +19,7 @@ required_reads:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_STAGING_PREFLIGHT.md
 search_first:
   - current develop and open OKX acceptance ownership
-  - merged PR 417 infrastructure checkpoint
+  - PR 442 workflow state
 optional_reads: []
 ---
 
@@ -33,12 +33,12 @@ Verify the established Synology self-hosted runner, protected environment, durab
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T10:08:00+02:00
+updated_at: 2026-07-27T11:20:00+02:00
 head: PENDING
-base_develop: f21a258643d70b4387e366e8b466dbc56735f44f
-branch: feat/okx-shadow-acceptance-staging-preflight-v2
-pr: "#436"
-status: validating
+base_develop: 2ba6ea967144e9629048b1b02dec67684e56dbc0
+branch: docs/okx-staging-runner-queue-blocker-20260727
+pr: null
+status: blocked
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_EXECUTION.md
@@ -49,47 +49,42 @@ owned_paths:
   - tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance_staging_preflight.py
   - docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md
 proven:
-  - Develop f21a258643d70b4387e366e8b466dbc56735f44f contains merged PR 417 acceptance infrastructure plus later path-disjoint orchestration and Binance fixes.
-  - PR 417 remains inert because no canonical 24-hour request exists.
-  - The established self-hosted runner is named oteryn-synology-staging and carries the custom oteryn-staging label.
-  - The established protected environment is synology-staging and exposes OTERYN_STAGING_STATE_DIR as /var/lib/oteryn-staging-state.
-  - The merged acceptance workflow instead expects the unconfigured okx-liquidation-staging label and environment, so its trigger must not be created unchanged.
-  - Former PR 424 validated the same four-file package at exact head b754e78e9a2109383e4b9c114f567a5ead491eba with AI Platform CI, Freqtrade CI and zizmor all passing.
-  - Former PR 424 became non-mergeable only after develop advanced through unrelated PRs 423 and 429 and is closed without merge.
-  - PR 436 recreates exactly the four declared paths from the green head on current develop without diagnostic or placeholder paths in the final diff.
+  - PR 436 passed exact-head AI Platform CI 30249780591, Freqtrade CI 30249780754 including CI Gate, and zizmor 30249780728 at head 3ad3e44b34c670629c134709e6b8091979aa4075.
+  - PR 436 merged into develop as 2ba6ea967144e9629048b1b02dec67684e56dbc0 and installed the guarded non-collecting staging preflight.
+  - PR 442 adds exactly the canonical request file at head f23781f105861b970c52e56f1628cb12c7f907e0 and must remain unmerged.
+  - PR 442 passed AI Platform CI 30251172989, Freqtrade CI 30251172997 and zizmor 30251172996.
+  - Self-hosted preflight run 30251172959 created job 89929271587 but the job remains queued and has executed no step.
+  - The canonical 24-hour request does not exist and no liquidation collection, raw market-data capture, replay, model work, strategy work or order execution has started.
 derived:
-  - A successful preflight can justify a later workflow-mapping PR but cannot authorize the 24-hour run by itself.
-  - The future durable root candidate is /var/lib/oteryn-staging-state/okx-liquidation-acceptance with file URI file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance.
-  - The acceptance workflow must remain unchanged until the preflight verifies the actual runner, state path, filesystem probe and public endpoint reachability.
+  - The request and repository workflow contract are valid enough to schedule the intended self-hosted job.
+  - The first operational failure is runner availability or label matching before workflow execution, not preflight code, storage, endpoint or credential validation.
+  - Keeping PR 442 open preserves one authoritative trigger; creating another trigger or a hosted-runner fallback would duplicate or weaken the evidence boundary.
 unknown:
-  - Exact-head repository CI and review outcome for PR 436.
-  - Terminal preflight result on oteryn-synology-staging.
+  - Whether oteryn-synology-staging is offline, disabled, busy or missing one of self-hosted, Linux or oteryn-staging labels.
+  - The protected environment values and durable-filesystem result because no self-hosted step has executed.
   - Whether the durable host path has a separately enforceable immutable snapshot or retention mechanism.
 conflicts: []
 first_failure:
-  marker: staging-name-mismatch
-  evidence: Merged workflow targets okx-liquidation-staging while the established runner and environment use oteryn-staging and synology-staging.
+  marker: self-hosted-runner-not-scheduling
+  evidence: Workflow run 30251172959 remains queued at job 89929271587 with no executed steps while all GitHub-hosted checks on the same request head passed.
 rejected_hypotheses:
-  - Create the canonical 24-hour request before staging readiness is verified.
-  - Rename or mutate the existing self-hosted runner from repository code.
-  - Run a short collection as a substitute for the non-collecting preflight.
-  - Treat a passing storage write probe as proof of 24-hour source acceptance.
-  - Merge former PR 424 after its base became stale and GitHub reported it non-mergeable.
+  - Create another identical trigger PR.
+  - Fall back to a GitHub-hosted runner or weaken the custom-label requirement.
+  - Merge the one-file trigger request into develop.
+  - Start the canonical 24-hour collection before the non-collecting preflight passes.
 changed_paths:
-  - .github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml
-  - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_STAGING_PREFLIGHT.md
-  - tests/ai_platform_integration/test_liquidation_okx_shadow_acceptance_staging_preflight.py
   - docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md
 validation:
-  - command: former PR 424 exact-head repository CI
-    result: PASS
-    evidence: Head b754e78e9a2109383e4b9c114f567a5ead491eba passed AI Platform CI 30246717303, Freqtrade CI 30246717323 and zizmor 30246717320 before develop advanced.
   - command: PR 436 exact-head repository CI
-    result: NOT_RUN
-    evidence: Required checks must run on the checkpoint-bound replacement head.
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-liquidation-okx-shadow-acceptance-staging-preflight-v1.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Repository CI is authoritative for PR 436.
-blockers: []
-next_action: Validate PR 436 on its exact head, fix only confirmed CI or review failures, and merge the four-file package when all required checks pass; then create the separate exact-one-file preflight request PR and close it without merge after terminal readiness evidence.
+    result: PASS
+    evidence: AI Platform CI 30249780591, Freqtrade CI 30249780754 and zizmor 30249780728 passed before merge 2ba6ea967144e9629048b1b02dec67684e56dbc0.
+  - command: PR 442 standard exact-head repository CI
+    result: PASS
+    evidence: AI Platform CI 30251172989, Freqtrade CI 30251172997 and zizmor 30251172996 passed at f23781f105861b970c52e56f1628cb12c7f907e0.
+  - command: PR 442 Synology staging preflight
+    result: BLOCKED
+    evidence: Run 30251172959 and job 89929271587 remain queued with no executed steps.
+blockers:
+  - Restore an available self-hosted Linux runner named oteryn-synology-staging with the oteryn-staging label so the existing authoritative PR 442 job can start.
+next_action: Bring oteryn-synology-staging online with labels self-hosted, Linux and oteryn-staging and allow existing workflow run 30251172959 to complete; then publish its bounded report and close PR 442 without merge.
 ```

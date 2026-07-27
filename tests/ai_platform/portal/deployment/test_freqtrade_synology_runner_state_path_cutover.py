@@ -4,7 +4,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[4]
-WORKFLOW = ROOT / ".github" / "workflows" / "freqtrade-synology-runner-state-path-cutover.yml"
+WORKFLOW = (
+    ROOT / ".github" / "workflows" / "freqtrade-synology-runner-state-path-cutover.yml"
+)
 
 
 def test_cutover_translates_runner_state_to_host_state() -> None:
@@ -16,7 +18,7 @@ def test_cutover_translates_runner_state_to_host_state() -> None:
     assert 'host_runtime_dir="$host_state_root/$runtime_rel"' in text
     assert '--volume "$host_state_root:$host_state_root"' in text
     assert '"$helper_host_path"' in text
-    assert '/volume1/docker/freqtrade/runner' not in text
+    assert "/volume1/docker/freqtrade/runner" not in text
 
 
 def test_cutover_preserves_exact_image_registration_and_state() -> None:

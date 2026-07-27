@@ -223,8 +223,7 @@ def _tensor_width(record: TensorRecord) -> int:
 
 def _validate_tensor_storage(record: TensorRecord, width: int, name: str) -> None:
     invalid_shape = any(
-        isinstance(size, bool) or not isinstance(size, int) or size < 0
-        for size in record.shape
+        isinstance(size, bool) or not isinstance(size, int) or size < 0 for size in record.shape
     )
     if invalid_shape:
         raise RLV2ProvenanceError(f"Invalid tensor shape: {record.shape}")
@@ -328,8 +327,7 @@ def _sha256(value: Any, label: str, nullable: bool = False) -> str | None:
 
 def _string_list(value: Any, label: str, unique: bool = False) -> list[str]:
     result = [
-        _string(item, f"{label}[{index}]") or ""
-        for index, item in enumerate(_list(value, label))
+        _string(item, f"{label}[{index}]") or "" for index, item in enumerate(_list(value, label))
     ]
     if unique and len(result) != len(set(result)):
         raise RLV2ProvenanceError(f"{label} must not contain duplicates")
@@ -360,9 +358,7 @@ def _scan_sensitive(value: Any, path: str = "$") -> None:
             _scan_sensitive(item, f"{path}[{index}]")
     elif isinstance(value, str):
         if _SENSITIVE_VALUE_RE.search(value) or _PRIVATE_ENDPOINT_RE.search(value):
-            raise RLV2ProvenanceError(
-                f"{path}: secret-like or private endpoint value is forbidden"
-            )
+            raise RLV2ProvenanceError(f"{path}: secret-like or private endpoint value is forbidden")
 
 
 def _validate_authorization(value: Any) -> None:
@@ -371,9 +367,7 @@ def _validate_authorization(value: Any) -> None:
     _exact_keys(item, AUTHORIZATION_BOOLEAN_FIELDS | {"phase6_selected_model"}, label)
     for field in AUTHORIZATION_BOOLEAN_FIELDS:
         if _boolean(item[field], f"{label}.{field}"):
-            raise RLV2ProvenanceError(
-                f"Execution authorization must remain false: {field}"
-            )
+            raise RLV2ProvenanceError(f"Execution authorization must remain false: {field}")
     if item["phase6_selected_model"] is not None:
         raise RLV2ProvenanceError("Phase 6 selected_model must remain null")
 
@@ -398,10 +392,14 @@ def _validate_environment(value: Any) -> None:
         "cudnn_version",
         "container_image_digest",
     }
-    fields = required_strings | nullable_strings | {
-        "selected_device",
-        "environment_variables",
-    }
+    fields = (
+        required_strings
+        | nullable_strings
+        | {
+            "selected_device",
+            "environment_variables",
+        }
+    )
     _exact_keys(item, fields, label)
     for field in required_strings:
         _string(item[field], f"{label}.{field}")
@@ -454,13 +452,9 @@ def _validate_code_identity(value: Any) -> str:
     }
     fields = hash_fields | {"repository_commit_sha", "timerange", "pair_universe"}
     _exact_keys(item, fields, label)
-    commit = (
-        _string(item["repository_commit_sha"], f"{label}.repository_commit_sha") or ""
-    )
+    commit = _string(item["repository_commit_sha"], f"{label}.repository_commit_sha") or ""
     if not _GIT_SHA_RE.fullmatch(commit):
-        raise RLV2ProvenanceError(
-            f"{label}.repository_commit_sha must be lowercase Git SHA-1"
-        )
+        raise RLV2ProvenanceError(f"{label}.repository_commit_sha must be lowercase Git SHA-1")
     for field in hash_fields:
         _sha256(item[field], f"{label}.{field}")
     _string(item["timerange"], f"{label}.timerange")
@@ -483,14 +477,18 @@ def _validate_determinism(value: Any) -> None:
         "process_count",
         "worker_count",
     }
-    fields = bool_fields | integer_fields | {
-        "class",
-        "conditions",
-        "cuda_workspace_config",
-        "blas_thread_settings",
-        "multiprocessing_start_method",
-        "known_nondeterminism",
-    }
+    fields = (
+        bool_fields
+        | integer_fields
+        | {
+            "class",
+            "conditions",
+            "cuda_workspace_config",
+            "blas_thread_settings",
+            "multiprocessing_start_method",
+            "known_nondeterminism",
+        }
+    )
     _exact_keys(item, fields, label)
     category = _string(item["class"], f"{label}.class")
     if category not in DETERMINISM_CLASSES:
@@ -526,12 +524,16 @@ def _validate_seed_rng(value: Any) -> None:
         "stable_baselines3_initial_state_sha256",
         "final_state_manifest_sha256",
     }
-    fields = seed_fields | hash_fields | {
-        "declared_seed",
-        "cuda_initial_state_sha256",
-        "initialization_order",
-        "consumed_before_snapshot",
-    }
+    fields = (
+        seed_fields
+        | hash_fields
+        | {
+            "declared_seed",
+            "cuda_initial_state_sha256",
+            "initialization_order",
+            "consumed_before_snapshot",
+        }
+    )
     _exact_keys(item, fields, label)
     _integer(item["declared_seed"], f"{label}.declared_seed")
     for field in seed_fields:
@@ -622,9 +624,7 @@ def _validate_dataset(value: Any, expected_digest: str) -> None:
     _exact_keys(item, fields, label)
     actual_digest = _sha256(item["manifest_sha256"], f"{label}.manifest_sha256")
     if actual_digest != expected_digest:
-        raise RLV2ProvenanceError(
-            "Dataset manifest identity does not match code/config binding"
-        )
+        raise RLV2ProvenanceError("Dataset manifest identity does not match code/config binding")
     _string(item["source_identity"], f"{label}.source_identity")
     if _boolean(item["cache_restore_used"], f"{label}.cache_restore_used"):
         raise RLV2ProvenanceError("Cache restore must be false")
@@ -644,9 +644,7 @@ def _path_value(value: Mapping[str, Any], path: str) -> Any:
     current: Any = value
     for segment in path.split("."):
         if not isinstance(current, dict) or segment not in current:
-            raise RLV2ProvenanceError(
-                f"Optional field path is structurally missing: {path}"
-            )
+            raise RLV2ProvenanceError(f"Optional field path is structurally missing: {path}")
         current = current[segment]
     return current
 
@@ -654,9 +652,7 @@ def _path_value(value: Mapping[str, Any], path: str) -> Any:
 def collect_missing_optional_fields(manifest: Mapping[str, Any]) -> list[str]:
     """Return sorted nullable schema paths whose explicit value is null."""
 
-    return sorted(
-        path for path in OPTIONAL_FIELD_PATHS if _path_value(manifest, path) is None
-    )
+    return sorted(path for path in OPTIONAL_FIELD_PATHS if _path_value(manifest, path) is None)
 
 
 def _validate_structure(manifest: Mapping[str, Any]) -> None:
@@ -681,16 +677,12 @@ def _validate_structure(manifest: Mapping[str, Any]) -> None:
     }
     _exact_keys(manifest, fields, "manifest")
     if manifest["schema_version"] != SCHEMA_VERSION:
-        raise RLV2ProvenanceError(
-            f"Unsupported schema_version: {manifest['schema_version']}"
-        )
+        raise RLV2ProvenanceError(f"Unsupported schema_version: {manifest['schema_version']}")
     manifest_id = _string(manifest["manifest_id"], "manifest.manifest_id") or ""
     if not _ID_RE.fullmatch(manifest_id):
         raise RLV2ProvenanceError("manifest.manifest_id has invalid syntax")
     if manifest["classification"] not in PROVENANCE_CLASSIFICATIONS:
-        raise RLV2ProvenanceError(
-            f"Unknown classification: {manifest['classification']}"
-        )
+        raise RLV2ProvenanceError(f"Unknown classification: {manifest['classification']}")
     _validate_authorization(manifest["authorization"])
     _validate_environment(manifest["execution_environment"])
     _validate_dependencies(manifest["runtime_dependencies"])
@@ -761,9 +753,7 @@ def finalize_manifest(manifest: Mapping[str, Any]) -> dict[str, Any]:
     result = deepcopy(dict(manifest))
     required_helpers = {"missing_optional_fields", "self_hash_sha256"}
     if not required_helpers <= set(result):
-        raise RLV2ProvenanceError(
-            "Manifest requires missing_optional_fields and self_hash_sha256"
-        )
+        raise RLV2ProvenanceError("Manifest requires missing_optional_fields and self_hash_sha256")
     result["missing_optional_fields"] = collect_missing_optional_fields(result)
     result["self_hash_sha256"] = "0" * 64
     _validate_structure(result)
@@ -780,6 +770,5 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     expected = compute_manifest_self_hash(item)
     if item["self_hash_sha256"] != expected:
         raise RLV2ProvenanceError(
-            f"Manifest self-hash mismatch: expected {expected}, "
-            f"got {item['self_hash_sha256']}"
+            f"Manifest self-hash mismatch: expected {expected}, got {item['self_hash_sha256']}"
         )

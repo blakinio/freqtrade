@@ -18,7 +18,8 @@ def test_staging_preflight_targets_existing_synology_runner_without_collection()
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert f'      - "{REQUEST_PATH}"' in workflow
-    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" in workflow
+    assert "runs-on: [freqtrade-staging]" in workflow
+    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" not in workflow
     assert "environment: synology-staging" in workflow
     assert "STAGING_STATE_DIR: ${{ vars.OTERYN_STAGING_STATE_DIR }}" in workflow
     assert '"expected_runner_name": "freqtrade-synology-staging"' in workflow

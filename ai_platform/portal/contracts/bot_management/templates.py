@@ -57,9 +57,7 @@ class BotTemplateVersion(ContractModel):
     bot_family: BotFamily
     supported_strategy_versions: Annotated[tuple[NonEmptyStr, ...], Field(min_length=1)]
     supported_model_versions: tuple[NonEmptyStr, ...] = ()
-    supported_exchange_profile_versions: Annotated[
-        tuple[NonEmptyStr, ...], Field(min_length=1)
-    ]
+    supported_exchange_profile_versions: Annotated[tuple[NonEmptyStr, ...], Field(min_length=1)]
     supported_market_types: Annotated[tuple[MarketType, ...], Field(min_length=1)]
     supported_directions: Annotated[tuple[TradeDirection, ...], Field(min_length=1)]
     supported_execution_modes: Annotated[tuple[ExecutionMode, ...], Field(min_length=1)]
@@ -78,12 +76,8 @@ class BotTemplateVersion(ContractModel):
             "supported_execution_modes": tuple(
                 item.value for item in self.supported_execution_modes
             ),
-            "required_policy_families": tuple(
-                item.value for item in self.required_policy_families
-            ),
-            "optional_policy_families": tuple(
-                item.value for item in self.optional_policy_families
-            ),
+            "required_policy_families": tuple(item.value for item in self.required_policy_families),
+            "optional_policy_families": tuple(item.value for item in self.optional_policy_families),
         }
         for field_name, values in sortable_fields.items():
             if len(values) != len(set(values)):

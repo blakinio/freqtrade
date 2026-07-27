@@ -1,0 +1,141 @@
+name: Diagnose Portal Synology Identity Runtime
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/diag-portal-synology-identity-runtime.yml"
+      - "docs/agents/tasks/FTAI-20260727-portal-synology-identity-runtime-diagnostic.md"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Inspect portal runtime without mutation
+        env:
+          REPORT_PATH: ${{ runner.temp }}/portal-identity-runtime.json
+        run: |
+          set -euo pipefail
+
+          container="freqtrade-portal-staging"
+          docker version >/dev/null
+          test "$(docker inspect --format '{{.State.Running}}' "$container")" = "true"
+
+          image="$(docker inspect --format '{{.Config.Image}}' "$container")"
+          image_id="$(docker inspect --format '{{.Image}}' "$container")"
+          revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image" 2>/dev/null || true)"
+          published="$(docker port "$container" 3000/tcp | head -n 1 || true)"
+
+          runtime_json="$(docker exec "$container" node - <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+
+          const env = {
+            PORTAL_WEB_DATA_MODE: process.env.PORTAL_WEB_DATA_MODE ?? null,
+            PORTAL_ENVIRONMENT: process.env.PORTAL_ENVIRONMENT ?? null,
+            PORTAL_IDENTITY_FIXTURE_MODE: process.env.PORTAL_IDENTITY_FIXTURE_MODE ?? null,
+            PORTAL_CONTROL_PLANE_URL_PRESENT: Boolean(process.env.PORTAL_CONTROL_PLANE_URL),
+          };
+
+          const manifests = [
+            '/app/.next/server/app-paths-manifest.json',
+            '/app/.next/server/server-reference-manifest.json',
+          ];
+          let routes = [];
+          for (const manifest of manifests) {
+            if (!fs.existsSync(manifest)) continue;
+            try {
+              const parsed = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+              routes.push(...Object.keys(parsed));
+            } catch {}
+          }
+          routes = [...new Set(routes)]
+            .filter((route) => /(admin|identity|membership|invite|role|user)/i.test(route))
+            .sort()
+            .slice(0, 200);
+
+          const candidatePaths = [...new Set([
+            '/platform/admin',
+            '/api/identity/session',
+            ...routes
+              .filter((route) => route.startsWith('/'))
+              .map((route) => route
+                .replace(/\/page$/, '')
+                .replace(/\/route$/, '')
+                .replace(/\/\(.*?\)/g, '')
+              ),
+          ])].filter((path) => !path.includes('[')).slice(0, 80);
+
+          const inspectResponse = async (path) => {
+            try {
+              const response = await fetch(`http://127.0.0.1:3000${path}`, {
+                redirect: 'manual',
+                headers: {accept: 'application/json,text/html;q=0.9'},
+              });
+              const text = await response.text();
+              const contentType = response.headers.get('content-type') ?? '';
+              const record = {
+                path,
+                status: response.status,
+                content_type: contentType,
+                body_bytes: Buffer.byteLength(text),
+                body_sha256: crypto.createHash('sha256').update(text).digest('hex'),
+              };
+              if (response.status >= 400) {
+                record.error_excerpt = text.slice(0, 500);
+              }
+              return record;
+            } catch (error) {
+              return {path, fetch_error: String(error).slice(0, 500)};
+            }
+          };
+
+          (async () => {
+            const probes = [];
+            for (const path of candidatePaths) probes.push(await inspectResponse(path));
+            process.stdout.write(JSON.stringify({env, routes, probes}));
+          })().catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
+          )"
+
+          python3 - "$REPORT_PATH" "$image" "$image_id" "$revision" "$published" "$runtime_json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          report_path, image, image_id, revision, published, runtime_raw = sys.argv[1:]
+          runtime = json.loads(runtime_raw)
+          report = {
+              "schema_version": 1,
+              "container": "freqtrade-portal-staging",
+              "running": True,
+              "image": image,
+              "image_id": image_id,
+              "revision": revision or None,
+              "published_port": published or None,
+              "environment": runtime["env"],
+              "matching_routes": runtime["routes"],
+              "probes": runtime["probes"],
+              "mutation_performed": False,
+          }
+          Path(report_path).write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload bounded runtime report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: portal-identity-runtime-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/portal-identity-runtime.json
+          if-no-files-found: error
+          retention-days: 1

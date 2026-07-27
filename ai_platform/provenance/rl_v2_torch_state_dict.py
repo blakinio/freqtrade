@@ -43,9 +43,7 @@ def state_dict_to_records(
         if not isinstance(logical_name, str):
             raise RLV2ProvenanceError("state_dict keys must be strings")
         if logical_name in seen:
-            raise RLV2ProvenanceError(
-                f"Duplicate logical tensor identity: {logical_name}"
-            )
+            raise RLV2ProvenanceError(f"Duplicate logical tensor identity: {logical_name}")
         seen.add(logical_name)
         if isinstance(value, Mapping):
             raise RLV2ProvenanceError("Nested state_dict mappings are not supported")
@@ -66,9 +64,7 @@ def semantic_state_dict_digest(
 ) -> str:
     """Return the semantic digest of one caller-supplied in-memory tensor mapping."""
 
-    return semantic_tensor_state_digest(
-        state_dict_to_records(state_dict=state_dict, role=role)
-    )
+    return semantic_tensor_state_digest(state_dict_to_records(state_dict=state_dict, role=role))
 
 
 __all__ = ["semantic_state_dict_digest", "state_dict_to_records"]

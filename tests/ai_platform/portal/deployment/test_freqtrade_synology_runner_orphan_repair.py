@@ -14,7 +14,7 @@ def test_runner_name_repair_is_trusted_develop_only() -> None:
     assert "      - develop" in text
     assert "if: github.ref == 'refs/heads/develop'" in text
     assert "runs-on: [freqtrade-staging]" in text
-    assert "permissions:\n  contents: read" in text
+    assert "permissions:\n  contents: read\n  statuses: write" in text
 
 
 def test_runner_name_repair_is_exact_and_fail_closed() -> None:
@@ -30,6 +30,17 @@ def test_runner_name_repair_is_exact_and_fail_closed() -> None:
     assert "More than one prefixed runner candidate exists" in text
     assert "Canonical runner container already exists; refusing to overwrite it." in text
     assert 'docker rename "$candidate_id" "$canonical"' in text
+
+
+def test_runner_name_repair_publishes_bounded_runtime_status() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "if: always()" in text
+    assert "synology/freqtrade-runner-name" in text
+    assert "Canonical Synology runner name verified" in text
+    assert "Synology runner name repair or verification failed" in text
+    assert "statuses/$GITHUB_SHA" in text
+    assert "Authorization: Bearer $GH_TOKEN" in text
 
 
 def test_runner_name_repair_does_not_restart_or_remove_runtime() -> None:

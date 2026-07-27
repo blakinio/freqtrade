@@ -40,7 +40,8 @@ def valid_environment() -> dict[str, str]:
 def test_workflow_is_exact_request_gated_and_self_hosted() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     assert f'- "{REQUEST_PATH}"' in text
-    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" in text
+    assert "runs-on: [freqtrade-staging]" in text
+    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" not in text
     assert "environment: synology-staging" in text
     assert "permissions:\n  contents: read" in text
     assert "cancel-in-progress: true" in text

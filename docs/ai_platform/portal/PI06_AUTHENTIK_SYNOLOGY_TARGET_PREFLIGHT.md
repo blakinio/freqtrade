@@ -6,22 +6,36 @@ This package verifies the real Synology staging runner and the owner-managed inp
 
 The preflight is not deployment or target acceptance. It must not start, stop, recreate, pull or remove containers; create Authentik users; bootstrap an administrator; change DNS/TLS; execute recovery; restore data; or claim successful OIDC/MFA behavior.
 
+## Dedicated Freqtrade runner boundary
+
+Freqtrade, the AI platform and the portal use a repository-owned runner package that is independent from OteryN:
+
+- Compose project: `freqtrade-deploy-runner`;
+- image: `ghcr.io/blakinio/freqtrade-deploy-runner:develop`;
+- runner name: `freqtrade-synology-staging`;
+- routing label: `freqtrade-staging`;
+- protected environment: `synology-staging`;
+- Synology state path: `/volume1/docker/freqtrade/state`;
+- runner-visible state variable: `FREQTRADE_STAGING_STATE_DIR=/var/lib/freqtrade-staging-state`.
+
+The OteryN runner image, project, labels and `/var/lib/oteryn-staging-state` path are not valid PI-06 targets.
+
 ## Runner and environment mapping
 
-The guarded workflow targets the established staging resources:
+The guarded workflow targets the established Freqtrade staging resources:
 
 - runner name: `freqtrade-synology-staging`;
 - routing label: `freqtrade-staging`;
 - protected environment: `synology-staging`;
-- durable state variable: `OTERYN_STAGING_STATE_DIR=/var/lib/oteryn-staging-state`.
+- durable state variable: `FREQTRADE_STAGING_STATE_DIR=/var/lib/freqtrade-staging-state`.
 
 The runner list proves the unique custom label. The workflow routes only by that label because a job that specifies multiple labels requires the runner to possess every one of them. Once assigned, the preflight independently verifies the exact runner name and that `runner.os` is Linux before declaring readiness.
 
 The frozen request reserves three distinct roots directly below that state directory:
 
-- `/var/lib/oteryn-staging-state/portal-authentik`;
-- `/var/lib/oteryn-staging-state/portal-authentik-backups`;
-- `/var/lib/oteryn-staging-state/portal-authentik-restore`.
+- `/var/lib/freqtrade-staging-state/portal-authentik`;
+- `/var/lib/freqtrade-staging-state/portal-authentik-backups`;
+- `/var/lib/freqtrade-staging-state/portal-authentik-restore`.
 
 The workflow creates only a temporary fsync/rename/read-back probe below the existing state directory and removes it before completion.
 
@@ -29,7 +43,7 @@ The workflow creates only a temporary fsync/rename/read-back probe below the exi
 
 The `synology-staging` environment must define these non-secret variables:
 
-- `OTERYN_STAGING_STATE_DIR`;
+- `FREQTRADE_STAGING_STATE_DIR`;
 - `PI06_AUTHENTIK_PUBLIC_BASE_URL`;
 - `PI06_PORTAL_PUBLIC_BASE_URL`;
 - `PI06_PORTAL_IDENTITY_CLIENT_ID`.
@@ -60,7 +74,7 @@ The preflight verifies:
 2. Docker socket access, Docker server availability and Compose v2;
 3. supported AMD64/ARM64 architecture, at least two CPU cores and 2 GiB memory;
 4. Python 3, Docker, `age` and `openssl` availability;
-5. writable durable storage with at least 4 GiB free;
+5. writable Freqtrade-owned durable storage with at least 4 GiB free;
 6. atomic write, fsync, rename and read-back with cleanup;
 7. distinct target, backup and isolated restore roots outside workspace and runner temp;
 8. no partial Authentik named-volume or network state;
@@ -79,7 +93,7 @@ That pull request must contain no other changed path. The request authorizes onl
 
 ## Result interpretation
 
-`ready_for_controlled_deployment: true` proves only that the runner, host prerequisites, durable roots, protected input names and static runtime render are ready. It does not prove:
+`ready_for_controlled_deployment: true` proves only that the dedicated Freqtrade runner, host prerequisites, durable roots, protected input names and static runtime render are ready. It does not prove:
 
 - Authentik or PostgreSQL startup;
 - OIDC provider/application configuration;

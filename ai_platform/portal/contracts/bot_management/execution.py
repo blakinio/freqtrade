@@ -175,18 +175,14 @@ def _validate_reconciliation_reason_codes(record: ReconciliationRecord) -> None:
 
 
 def _validate_reconciliation_evidence_order(record: ReconciliationRecord) -> None:
-    evidence_keys = [
-        (item.evidence_type.value, item.evidence_id) for item in record.evidence_refs
-    ]
+    evidence_keys = [(item.evidence_type.value, item.evidence_id) for item in record.evidence_refs]
     if len(evidence_keys) != len(set(evidence_keys)):
         raise ValueError("reconciliation evidence references must be unique")
     if evidence_keys != sorted(evidence_keys):
         raise ValueError("reconciliation evidence references must use sorted order")
 
 
-def _validate_evidence_binding(
-    binding: ExecutionBinding, evidence: ExecutionEvidenceRef
-) -> None:
+def _validate_evidence_binding(binding: ExecutionBinding, evidence: ExecutionEvidenceRef) -> None:
     if evidence.tenant_id != binding.tenant_id:
         raise ValueError("reconciliation evidence tenant mismatch")
     if evidence.bot_id != binding.bot_id:

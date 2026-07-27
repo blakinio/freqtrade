@@ -21,16 +21,20 @@ def test_staging_preflight_targets_existing_synology_runner_without_collection()
     assert "runs-on: [freqtrade-staging]" in workflow
     assert "runs-on: [self-hosted, Linux, freqtrade-staging]" not in workflow
     assert "environment: synology-staging" in workflow
-    assert "STAGING_STATE_DIR: ${{ vars.OTERYN_STAGING_STATE_DIR }}" in workflow
+    assert "STAGING_STATE_DIR: ${{ vars.FREQTRADE_STAGING_STATE_DIR }}" in workflow
+    assert "OTERYN_STAGING_STATE_DIR" not in workflow
     assert '"expected_runner_name": "freqtrade-synology-staging"' in workflow
     assert '"expected_runner_label": "freqtrade-staging"' in workflow
-    assert '"expected_state_dir": "/var/lib/oteryn-staging-state"' in workflow
+    assert '"expected_state_dir": "/var/lib/freqtrade-staging-state"' in workflow
     assert (
-        '"expected_durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance"'
+        '"expected_durable_root": "/var/lib/freqtrade-staging-state/'
+        'okx-liquidation-acceptance"'
     ) in workflow
     assert (
-        '"expected_durable_uri": "file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance"'
+        '"expected_durable_uri": "file:///var/lib/freqtrade-staging-state/'
+        'okx-liquidation-acceptance"'
     ) in workflow
+    assert "/var/lib/oteryn-staging-state" not in workflow
     assert "liquidation_okx_shadow_acceptance" not in workflow
     assert "collect_okx_liquidations" not in workflow
     assert '"collection_authorized": False' in workflow
@@ -65,6 +69,8 @@ def test_staging_preflight_uploads_bounded_success_or_failure_report() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "id: verify" in workflow
+    assert "python3 - <<'PY'" in workflow
+    assert "python - <<'PY'" not in workflow
     assert "except BaseException as exc:" in workflow
     assert 'failure_report["failure"] = {' in workflow
     assert '"type": exc.__class__.__name__' in workflow

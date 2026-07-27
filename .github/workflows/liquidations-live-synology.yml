@@ -1,0 +1,53 @@
+name: Liquidations Live Synology
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquidations-live-synology.yml
+      - ai_platform/research/liquidations/**
+      - ai_platform/scripts/liquidation_live_stream.py
+      - ai_platform/scripts/liquidation_collector.py
+      - ai_platform/scripts/liquidation_binance_collector.py
+      - deploy/synology/liquid20/**
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: liquidations-live-synology
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Validate and deploy exact SHA
+    runs-on: freqtrade-staging
+    timeout-minutes: 45
+    environment: synology-staging
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Validate and deploy live collector
+        env:
+          LIQUID20_PUID: ${{ vars.LIQUID20_PUID }}
+          LIQUID20_PGID: ${{ vars.LIQUID20_PGID }}
+          LIQUID20_HOST_ID: ${{ vars.LIQUID20_HOST_ID }}
+          LIQUID20_DATA_ROOT: /volume1/docker/freqtrade-liquidations/data
+          LIQUID20_DEPLOY_REPORT: ${{ runner.temp }}/liquidations-live-synology-report.json
+        run: bash deploy/synology/liquid20/deploy-live.sh
+
+      - name: Upload operational evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: liquidations-live-synology-${{ github.sha }}
+          path: ${{ runner.temp }}/liquidations-live-synology-report.json
+          if-no-files-found: warn
+          retention-days: 30

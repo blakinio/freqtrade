@@ -209,7 +209,7 @@ def test_each_model_state_digest_changes_the_manifest_self_hash(
         "optimizer_digest": OPTIMIZER_SHA,
     }
     arguments[f"{field}_digest"] = replacement
-    changed = assemble(**arguments)
+    changed = assemble(**arguments)  # type: ignore[arg-type]
 
     assert changed["self_hash_sha256"] != base["self_hash_sha256"]
 
@@ -226,7 +226,8 @@ def test_optimizer_digest_is_optional_and_explicitly_missing() -> None:
     assert "policy_state.buffers_digest_sha256" not in missing
 
     with_optimizer = assemble(optimizer_digest=OPTIMIZER_SHA)
-    assert nested(with_optimizer, "optimizer_state")["state_digest_sha256"] == OPTIMIZER_SHA
+    optimizer_digest = nested(with_optimizer, "optimizer_state")["state_digest_sha256"]
+    assert optimizer_digest == OPTIMIZER_SHA
     assert "optimizer_state.state_digest_sha256" not in with_optimizer[
         "missing_optional_fields"
     ]
@@ -249,7 +250,7 @@ def test_malformed_or_uppercase_digests_are_rejected(argument: str, value: str) 
     arguments[argument] = value
 
     with pytest.raises(RLV2ProvenanceError, match="lowercase SHA-256"):
-        assemble(**arguments)
+        assemble(**arguments)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize(
@@ -272,7 +273,7 @@ def test_mandatory_digest_inputs_require_non_empty_strings(
     arguments[argument] = value
 
     with pytest.raises(RLV2ProvenanceError, match="non-empty string"):
-        assemble(**arguments)
+        assemble(**arguments)  # type: ignore[arg-type]
 
 
 @pytest.mark.parametrize("value", [7, b"digest", [], ""])
@@ -415,7 +416,14 @@ def test_assembler_has_no_torch_model_file_network_data_or_execution_path() -> N
         if isinstance(node, ast.ImportFrom) and node.module
     )
 
-    assert imported_roots <= {"__future__", "collections", "copy", "typing", "ai_platform"}
+    allowed_import_roots = {
+        "__future__",
+        "collections",
+        "copy",
+        "typing",
+        "ai_platform",
+    }
+    assert imported_roots <= allowed_import_roots
     forbidden = (
         "torch",
         "stable_baselines3",

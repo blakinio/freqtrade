@@ -1,0 +1,1 @@
+Diagnostic target: merge commit `3127b1826d6e0827be6e1636ee5745d75583d9a3`, workflow `Retry Freqtrade Synology Runner Cutover`, evidence destination PR 509. No Synology mutation is permitted from this branch.

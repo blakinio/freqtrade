@@ -5,7 +5,7 @@ branch: fix/okx-staging-runner-mapping-20260727
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: null
+related_pr: "#446"
 owned_paths:
   - .github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_STAGING_PREFLIGHT.md
@@ -34,11 +34,11 @@ Verify the established Synology self-hosted runner, protected environment, durab
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T11:21:00+02:00
+updated_at: 2026-07-27T11:26:00+02:00
 head: PENDING
-base_develop: b48b556706cc95adf93d7fd9b317868a787a54eb
+base_develop: 15bb0ecc0fa61f8fb87a55f06aec46bb810a9f5f
 branch: fix/okx-staging-runner-mapping-20260727
-pr: null
+pr: "#446"
 status: validating
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md
@@ -57,6 +57,7 @@ proven:
   - Successful Synology workflow run 30205769267 executed on runner name freqtrade-synology-staging.
   - The durable portal checkpoint records the same online runner name with custom label freqtrade-staging and successful runner smoke, Docker, persistent-state-mount and deployment evidence.
   - No terminal execution evidence establishes a runner named oteryn-synology-staging or custom label oteryn-staging.
+  - PR 446 changes exactly the four owned paths and leaves the protected environment, state variable, durable-path checks, endpoint probes and safety boundary unchanged.
   - The canonical 24-hour request does not exist and no liquidation collection, raw market-data capture, replay, model work, strategy work or order execution has started.
 derived:
   - The first operational failure is a repository-side runner identity and label mismatch, not proof that the proven Synology runner is offline.
@@ -64,6 +65,7 @@ derived:
   - The protected environment variable and durable filesystem path remain prospective and must still fail closed if absent or incorrect after the job schedules.
   - PR 442 must remain the single authoritative exact-one-file trigger and must not be merged.
 unknown:
+  - Exact-head repository CI and review outcome for PR 446.
   - Whether synology-staging currently exposes OTERYN_STAGING_STATE_DIR as /var/lib/oteryn-staging-state.
   - Whether the prospective durable root is writable and has at least 1 GiB free.
   - Whether public OKX endpoints are reachable from the proven Synology runner.
@@ -87,12 +89,12 @@ validation:
   - command: historical Synology execution evidence
     result: PASS
     evidence: Run 30205769267 log identifies runner freqtrade-synology-staging; FTAI-20260725-portal-synology-lan-staging records custom label freqtrade-staging and successful runner/state-mount checks.
-  - command: correction PR exact-head repository CI
-    result: NOT_RUN
-    evidence: The correction PR has not been opened yet.
+  - command: PR 446 exact-head repository CI
+    result: IN_PROGRESS
+    evidence: Required workflows must complete on the checkpoint-bound correction head.
   - command: corrected PR 442 Synology staging preflight
     result: NOT_RUN
-    evidence: Merge the reviewed mapping correction, then update the existing request contract on PR 442 to synchronize a fresh run.
+    evidence: Merge PR 446, then update the existing request contract on PR 442 to synchronize a fresh run.
 blockers: []
-next_action: Open and validate the four-file runner-mapping correction; merge it after exact-head CI, update the existing one-file PR 442 request to the proven runner identity, and inspect the resulting terminal bounded preflight evidence.
+next_action: Validate PR 446 on its exact head, merge after all required checks pass, update the existing one-file PR 442 request to the proven runner identity, and inspect the resulting terminal bounded preflight evidence.
 ```

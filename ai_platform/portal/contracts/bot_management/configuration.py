@@ -20,6 +20,47 @@ from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, UtcD
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 
 
+def _validate_grid_configuration(config: BotManagementConfiguration) -> None:
+    grid = config.grid_policy
+    if grid is None:
+        return
+    if config.dca_policy is not None:
+        raise ValueError("grid and DCA policies cannot be enabled together")
+    if grid.direction != config.market_policy.direction:
+        raise ValueError("grid direction must match market policy direction")
+    if grid.take_profit_price is not None and config.exit_policy.take_profit is not None:
+        raise ValueError("grid and exit policy cannot both declare take profit")
+    if grid.stop_loss_price is not None and config.exit_policy.stop_loss is not None:
+        raise ValueError("grid and exit policy cannot both declare stop loss")
+
+
+def _validate_signal_configuration(config: BotManagementConfiguration) -> None:
+    signal = config.signal_policy
+    if signal is None:
+        return
+    if SignalCommand.DCA in signal.allowed_commands and config.dca_policy is None:
+        raise ValueError("signal DCA command requires a DCA policy")
+
+
+def _policy_identifiers(config: BotManagementConfiguration) -> tuple[str, ...]:
+    identifiers = [
+        config.market_policy.policy_id,
+        config.entry_policy.policy_id,
+        config.position_sizing_policy.policy_id,
+        config.exit_policy.policy_id,
+        config.runtime_policy.policy_id,
+    ]
+    optional_policies = (config.dca_policy, config.signal_policy, config.grid_policy)
+    identifiers.extend(policy.policy_id for policy in optional_policies if policy is not None)
+    return tuple(identifiers)
+
+
+def _validate_policy_identifiers(config: BotManagementConfiguration) -> None:
+    identifiers = _policy_identifiers(config)
+    if len(identifiers) != len(set(identifiers)):
+        raise ValueError("policy identifiers must be unique across a configuration")
+
+
 class BotManagementConfiguration(ContractModel):
     configuration_id: NonEmptyStr
     tenant_id: NonEmptyStr
@@ -48,40 +89,7 @@ class BotManagementConfiguration(ContractModel):
     def validate_configuration(self) -> Self:
         if self.runtime_policy.execution_mode != self.execution_mode:
             raise ValueError("runtime policy execution mode must match configuration")
-        if self.grid_policy is not None and self.dca_policy is not None:
-            raise ValueError("grid and DCA policies cannot be enabled together")
-        if self.grid_policy is not None:
-            if self.grid_policy.direction != self.market_policy.direction:
-                raise ValueError("grid direction must match market policy direction")
-            if self.grid_policy.take_profit_price is not None:
-                if self.exit_policy.take_profit is not None:
-                    raise ValueError("grid and exit policy cannot both declare take profit")
-            if self.grid_policy.stop_loss_price is not None:
-                if self.exit_policy.stop_loss is not None:
-                    raise ValueError("grid and exit policy cannot both declare stop loss")
-        if self.signal_policy is not None:
-            if SignalCommand.DCA in self.signal_policy.allowed_commands and self.dca_policy is None:
-                raise ValueError("signal DCA command requires a DCA policy")
-        policy_keys = [
-            ("market", self.market_policy.policy_id, self.market_policy.revision),
-            ("entry", self.entry_policy.policy_id, self.entry_policy.revision),
-            (
-                "position_sizing",
-                self.position_sizing_policy.policy_id,
-                self.position_sizing_policy.revision,
-            ),
-            ("exit", self.exit_policy.policy_id, self.exit_policy.revision),
-            ("runtime", self.runtime_policy.policy_id, self.runtime_policy.revision),
-        ]
-        if self.dca_policy is not None:
-            policy_keys.append(("dca", self.dca_policy.policy_id, self.dca_policy.revision))
-        if self.signal_policy is not None:
-            policy_keys.append(
-                ("signal", self.signal_policy.policy_id, self.signal_policy.revision)
-            )
-        if self.grid_policy is not None:
-            policy_keys.append(("grid", self.grid_policy.policy_id, self.grid_policy.revision))
-        identifiers = [item[1] for item in policy_keys]
-        if len(identifiers) != len(set(identifiers)):
-            raise ValueError("policy identifiers must be unique across a configuration")
+        _validate_grid_configuration(self)
+        _validate_signal_configuration(self)
+        _validate_policy_identifiers(self)
         return self

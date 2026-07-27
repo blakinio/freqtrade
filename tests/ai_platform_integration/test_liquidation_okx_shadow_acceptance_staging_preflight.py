@@ -27,8 +27,7 @@ def test_staging_preflight_targets_existing_synology_runner_without_collection()
     assert '"expected_runner_label": "freqtrade-staging"' in workflow
     assert '"expected_state_dir": "/var/lib/freqtrade-staging-state"' in workflow
     assert (
-        '"expected_durable_root": "/var/lib/freqtrade-staging-state/'
-        'okx-liquidation-acceptance"'
+        '"expected_durable_root": "/var/lib/freqtrade-staging-state/okx-liquidation-acceptance"'
     ) in workflow
     assert (
         '"expected_durable_uri": "file:///var/lib/freqtrade-staging-state/'

@@ -5,15 +5,15 @@ import { NextResponse } from "next/server";
 import {
   LIQUIDATION_SOURCES,
   LiquidationDataUnavailableError,
+  LiquidationLiveReadModel,
   LiquidationQueryError,
-  LiquidationReadModel,
   type LiquidatedPositionSide,
   type LiquidationQuery,
   type LiquidationSource,
 } from "@/lib/liquidations";
 
-let singleton: LiquidationReadModel | null = null;
-let singletonRoot: string | null = null;
+let singleton: LiquidationLiveReadModel | null = null;
+let singletonKey: string | null = null;
 
 function configuredDataRoot(): string {
   const configured = process.env.PORTAL_LIQUIDATIONS_DATA_ROOT?.trim();
@@ -28,11 +28,55 @@ function configuredDataRoot(): string {
   );
 }
 
-export function liquidationReadModel(): LiquidationReadModel {
+function configuredThreshold(name: string, fallback: number): number {
+  const raw = process.env[name]?.trim();
+  if (!raw) {
+    return fallback;
+  }
+  if (!/^\d+$/.test(raw)) {
+    throw new LiquidationDataUnavailableError(`${name} must be a positive integer`);
+  }
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    throw new LiquidationDataUnavailableError(`${name} must be a positive safe integer`);
+  }
+  return parsed;
+}
+
+export function liquidationReadModel(): LiquidationLiveReadModel {
   const dataRoot = configuredDataRoot();
-  if (!singleton || singletonRoot !== dataRoot) {
-    singleton = new LiquidationReadModel({ dataRoot });
-    singletonRoot = dataRoot;
+  const collectorStaleAfterMs = configuredThreshold(
+    "PORTAL_LIQUIDATIONS_COLLECTOR_STALE_MS",
+    30_000,
+  );
+  const collectorOfflineAfterMs = configuredThreshold(
+    "PORTAL_LIQUIDATIONS_COLLECTOR_OFFLINE_MS",
+    120_000,
+  );
+  const eventStaleAfterMs = configuredThreshold(
+    "PORTAL_LIQUIDATIONS_EVENT_STALE_MS",
+    5 * 60_000,
+  );
+  const sourceStaleAfterMs = configuredThreshold(
+    "PORTAL_LIQUIDATIONS_SOURCE_STALE_MS",
+    45_000,
+  );
+  const key = [
+    dataRoot,
+    collectorStaleAfterMs,
+    collectorOfflineAfterMs,
+    eventStaleAfterMs,
+    sourceStaleAfterMs,
+  ].join(":");
+  if (!singleton || singletonKey !== key) {
+    singleton = new LiquidationLiveReadModel({
+      dataRoot,
+      collectorStaleAfterMs,
+      collectorOfflineAfterMs,
+      eventStaleAfterMs,
+      sourceStaleAfterMs,
+    });
+    singletonKey = key;
   }
   return singleton;
 }
@@ -79,9 +123,12 @@ export function safeLiquidationError(error: unknown): NextResponse {
   if (error instanceof LiquidationDataUnavailableError) {
     return NextResponse.json(
       { detail: "Liquid20 data is currently unavailable" },
-      { status: 503 },
+      { status: 503, headers: { "cache-control": "no-store" } },
     );
   }
   console.error("Liquid20 BFF request failed", error);
-  return NextResponse.json({ detail: "Liquid20 read-model request failed" }, { status: 500 });
+  return NextResponse.json(
+    { detail: "Liquid20 read-model request failed" },
+    { status: 500, headers: { "cache-control": "no-store" } },
+  );
 }

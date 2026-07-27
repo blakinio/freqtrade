@@ -2,18 +2,13 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW_PATH = (
-    REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-execution.yml"
-)
+WORKFLOW_PATH = REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-execution.yml"
 
 
 def test_matrix_audit_failure_evidence_is_durable_and_bounded() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
     stderr_capture = '2> >(tee "$audit_root/audit-stderr.log" >&2)'
-    exit_capture = (
-        'printf \'%s\\n\' "$audit_status" > '
-        '"$audit_root/audit-exit-code.txt"'
-    )
+    exit_capture = 'printf \'%s\\n\' "$audit_status" > "$audit_root/audit-exit-code.txt"'
     request_copy = 'cp "$REQUEST_PATH" "$audit_root/run-request.json"'
     contract_copy = 'cp "$CONTRACT_PATH" "$audit_root/execution-contract.json"'
 
@@ -27,9 +22,7 @@ def test_matrix_audit_failure_evidence_is_durable_and_bounded() -> None:
 
 def test_skipped_models_do_not_create_false_upload_failures() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
-    model_upload_condition = (
-        "if: always() && steps.execute-models.outcome != 'skipped'"
-    )
+    model_upload_condition = "if: always() && steps.execute-models.outcome != 'skipped'"
     audit_upload = "name: Upload matrix audit evidence\n        if: always()"
     audit_missing_files = (
         "path: ${{ env.EVIDENCE_ROOT }}/audit/\n"

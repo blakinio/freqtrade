@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import math
+from itertools import pairwise
 from pathlib import Path
 
 
@@ -11,7 +12,7 @@ STRATEGY_PATH = REPO_ROOT / "ai_platform/strategies/AiFrozenCandidateStrategyV2.
 
 def _reference_volume_change(volume: list[float]) -> list[float]:
     result = [0.0]
-    for previous, current in zip(volume[:-1], volume[1:], strict=True):
+    for previous, current in pairwise(volume):
         denominator = abs(current) + abs(previous)
         change = 0.0 if denominator == 0 else 2.0 * (current - previous) / denominator
         result.append(change if math.isfinite(change) else 0.0)

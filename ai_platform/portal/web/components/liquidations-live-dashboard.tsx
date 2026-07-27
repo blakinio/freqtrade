@@ -249,7 +249,7 @@ export function LiquidationsLiveDashboard() {
               <p>Heartbeat: {formatTimestamp(sourceHealth?.last_heartbeat_at_ms)}</p>
               <p>Lag ingestu: {sourceHealth?.ingest_lag_ms ?? "brak"} ms</p>
               <p>Reconnecty: {sourceHealth?.reconnect_count ?? 0}</p>
-              <p>Symbole: {sourceHealth?.observed_symbols ?? 0}</p>
+              <p>Liczba symboli: {sourceHealth?.observed_symbols ?? 0}</p>
               <p>Błąd: {sourceHealth?.latest_error ?? "brak"}</p>
             </article>
           );

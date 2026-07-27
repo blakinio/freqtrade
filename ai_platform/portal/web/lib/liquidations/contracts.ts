@@ -132,7 +132,7 @@ export interface LiquidationHealth {
   active_sources: LiquidationHealthSource[];
   observed_symbol_count: number;
   sources: Record<LiquidationSource, LiquidationSourceHealth> &
-    Partial<Record<Exclude<LiquidationHealthSource, LiquidationSource>, LiquidationSourceHealth>>;
+    Record<string, LiquidationSourceHealth | undefined>;
   collector_started_at_ms?: number | null;
   collector_heartbeat_at_ms?: number | null;
   last_event_at_ms: number | null;
@@ -144,6 +144,5 @@ export interface LiquidationHealth {
   truncated: boolean;
   research_preview: true;
   trading_authorized: false;
-  source_semantics: Record<LiquidationSource, string> &
-    Partial<Record<Exclude<LiquidationHealthSource, LiquidationSource>, string>>;
+  source_semantics: Record<LiquidationSource, string> & Record<string, string | undefined>;
 }

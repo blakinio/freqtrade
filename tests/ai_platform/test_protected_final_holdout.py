@@ -7,6 +7,7 @@ from ai_platform.scripts import run_optimization, run_validation
 from ai_platform.scripts.protected_final_holdout import (
     FINAL_HOLDOUT_WORKFLOW,
     protected_timerange,
+    timeranges_overlap,
 )
 from ai_platform.scripts.run_experiment import ExperimentError, load_manifest
 
@@ -26,6 +27,26 @@ def _write_manifest(tmp_path: Path, **updates: object) -> Path:
 
 def test_protected_final_holdout_matches_prospective_declaration() -> None:
     assert protected_timerange() == "20260801-20260930"
+
+
+def test_epoch_second_range_before_holdout_remains_isolated() -> None:
+    assert not timeranges_overlap(
+        "1772323200-1777593599",
+        protected_timerange(),
+    )
+
+
+def test_epoch_second_range_overlapping_holdout_is_detected(tmp_path: Path) -> None:
+    path = _write_manifest(
+        tmp_path,
+        timerange="1786752000-1790812799",
+    )
+
+    with pytest.raises(
+        ExperimentError,
+        match="overlaps protected final holdout 20260801-20260930",
+    ):
+        load_manifest(path)
 
 
 def test_generic_manifest_outside_protected_holdout_remains_allowed() -> None:

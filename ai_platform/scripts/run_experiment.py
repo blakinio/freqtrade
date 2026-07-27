@@ -19,13 +19,13 @@ from zipfile import ZipFile
 
 from ai_platform.scripts.protected_final_holdout import (
     ProtectedFinalHoldoutError,
+    parse_timerange,
     validate_manifest_holdout_isolation,
 )
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXPERIMENT_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
-TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")
 REQUIRED_FIELDS = {
     "schema_version",
     "experiment_id",
@@ -113,9 +113,10 @@ def load_manifest(path: Path) -> dict[str, Any]:
             raise ExperimentError(f"{field} must be a non-empty string")
 
     for field in ("timerange", "download_timerange"):
-        value = manifest[field]
-        if not isinstance(value, str) or not TIMERANGE_PATTERN.fullmatch(value):
-            raise ExperimentError(f"{field} must use YYYYMMDD-YYYYMMDD format")
+        try:
+            parse_timerange(manifest[field], field)
+        except ProtectedFinalHoldoutError as exc:
+            raise ExperimentError(str(exc)) from exc
 
     for field in ("pairs", "timeframes"):
         value = manifest[field]

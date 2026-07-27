@@ -153,10 +153,7 @@ def assemble(
 
 def reverse_object_order(value: Any) -> Any:
     if isinstance(value, dict):
-        return {
-            key: reverse_object_order(item)
-            for key, item in reversed(tuple(value.items()))
-        }
+        return {key: reverse_object_order(item) for key, item in reversed(tuple(value.items()))}
     if isinstance(value, list):
         return [reverse_object_order(item) for item in value]
     return deepcopy(value)
@@ -228,9 +225,7 @@ def test_optimizer_digest_is_optional_and_explicitly_missing() -> None:
     with_optimizer = assemble(optimizer_digest=OPTIMIZER_SHA)
     optimizer_digest = nested(with_optimizer, "optimizer_state")["state_digest_sha256"]
     assert optimizer_digest == OPTIMIZER_SHA
-    assert "optimizer_state.state_digest_sha256" not in with_optimizer[
-        "missing_optional_fields"
-    ]
+    assert "optimizer_state.state_digest_sha256" not in with_optimizer["missing_optional_fields"]
 
 
 @pytest.mark.parametrize(
@@ -398,10 +393,7 @@ def test_phase6_and_selected_model_null_are_preserved() -> None:
 
 
 def test_assembler_has_no_torch_model_file_network_data_or_execution_path() -> None:
-    source_path = (
-        Path(__file__).parents[2]
-        / "ai_platform/provenance/rl_v2_model_state_manifest.py"
-    )
+    source_path = Path(__file__).parents[2] / "ai_platform/provenance/rl_v2_model_state_manifest.py"
     source = source_path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     imported_roots = {

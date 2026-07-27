@@ -1,5 +1,6 @@
 """Dependency-light assembly of finalized RL-v2 model-state provenance manifests."""
 
+# fmt: off
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -92,3 +93,4 @@ def assemble_model_state_provenance_manifest(
 
 
 __all__ = ["assemble_model_state_provenance_manifest"]
+# fmt: on

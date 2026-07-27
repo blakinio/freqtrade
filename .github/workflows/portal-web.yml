@@ -45,7 +45,9 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        run: npm run lint
+        run: |
+          mkdir -p artifacts
+          npm run lint -- --format json --output-file artifacts/eslint.json
 
       - name: Production build
         env:

@@ -28,7 +28,7 @@ jobs:
     environment: synology-staging
     timeout-minutes: 15
     env:
-      STAGING_STATE_DIR: ${{ vars.OTERYN_STAGING_STATE_DIR }}
+      STAGING_STATE_DIR: ${{ vars.FREQTRADE_STAGING_STATE_DIR }}
 
     steps:
       - name: Checkout exact preflight request commit
@@ -81,7 +81,7 @@ jobs:
           REPORT_PATH: ${{ runner.temp }}/okx-acceptance-staging-preflight-report.json
         run: |
           set -euo pipefail
-          python - <<'PY'
+          python3 - <<'PY'
           import hashlib
           import json
           import os
@@ -105,8 +105,8 @@ jobs:
               "environment": "synology-staging",
               "storage": {
                   "state_dir": os.environ.get("STAGING_STATE_DIR", ""),
-                  "durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance",
-                  "durable_uri": "file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance",
+                  "durable_root": "/var/lib/freqtrade-staging-state/okx-liquidation-acceptance",
+                  "durable_uri": "file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance",
               },
               "public_endpoints": {},
               "safety": {
@@ -127,9 +127,9 @@ jobs:
                   "expected_runner_name": "freqtrade-synology-staging",
                   "expected_runner_label": "freqtrade-staging",
                   "expected_environment": "synology-staging",
-                  "expected_state_dir": "/var/lib/oteryn-staging-state",
-                  "expected_durable_root": "/var/lib/oteryn-staging-state/okx-liquidation-acceptance",
-                  "expected_durable_uri": "file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance",
+                  "expected_state_dir": "/var/lib/freqtrade-staging-state",
+                  "expected_durable_root": "/var/lib/freqtrade-staging-state/okx-liquidation-acceptance",
+                  "expected_durable_uri": "file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance",
                   "host_class": "always_on_nonrestricted_linux_staging",
                   "github_hosted_runner": False,
                   "collection_authorized": False,
@@ -149,7 +149,7 @@ jobs:
 
               state_dir = Path(os.environ.get("STAGING_STATE_DIR", ""))
               if str(state_dir) != request["expected_state_dir"]:
-                  raise SystemExit("OTERYN_STAGING_STATE_DIR does not match the preflight request")
+                  raise SystemExit("FREQTRADE_STAGING_STATE_DIR does not match the preflight request")
               if not state_dir.is_absolute() or not state_dir.is_dir():
                   raise SystemExit("staging state directory is missing or not absolute")
               if not os.access(state_dir, os.W_OK):

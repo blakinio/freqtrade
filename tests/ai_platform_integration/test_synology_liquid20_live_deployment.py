@@ -74,13 +74,13 @@ def test_controlled_deployment_is_exact_sha_candidate_first_and_rollback_capable
     assert "refs/heads/develop" in script
 
 
-
 def test_deployment_avoids_unsupported_synology_nanocpus_quota() -> None:
     script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
 
     assert "--cpus" not in script
     assert "--memory 512m" in script
     assert "--pids-limit 128" in script
+
 
 def test_deployment_resolves_non_root_uid_and_existing_data_group() -> None:
     script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")

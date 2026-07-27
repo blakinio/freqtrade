@@ -72,8 +72,8 @@ A future runtime adapter is intentionally absent. No runtime tensor, model artif
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T11:36:00+02:00
-head: dc15a94388f33c81608acf566b066c845cac7b0f
+updated_at: 2026-07-27T11:48:00+02:00
+head: 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb
 branch: docs/rl-v2-provenance-tooling-v1-closeout
 pr: "#449"
 status: ready
@@ -99,6 +99,7 @@ proven:
   - The core imports only Python standard-library modules and provides no file, network, model or market-data read path.
   - Authorization flags, cache restore, consumed OOS, protected holdout, Phase 6 changes and non-null selected_model fail closed.
   - Targeted local compilation, schema parsing and 23 synthetic tests passed without reading trained models, caches or market data.
+  - Closeout head 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb passed Freqtrade CI 30255102807 and zizmor 30255102837 with exactly one changed task-record path.
 derived:
   - A separately declared future adapter may translate authorized runtime tensors into TensorRecord without changing the canonical core.
   - Any runtime execution, canonical request or data access remains a separate governed task and is not implied by this merge.
@@ -135,6 +136,12 @@ validation:
   - command: zizmor on acde29d9957eaaf41684f9439619a95f3872e6f5
     result: PASS
     evidence: Run 30252856021 completed successfully.
+  - command: Freqtrade CI on closeout head 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb
+    result: PASS
+    evidence: Run 30255102807 passed pre-commit, documentation build and CI Gate for the one-file task closeout.
+  - command: zizmor on closeout head 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb
+    result: PASS
+    evidence: Run 30255102837 completed successfully.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md --require-checkpoint
     result: PASS
     evidence: Repository checkpoint validator accepted the terminal checkpoint.

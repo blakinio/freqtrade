@@ -21,7 +21,8 @@ def test_staging_preflight_targets_existing_synology_runner_without_collection()
     assert "runs-on: [freqtrade-staging]" in workflow
     assert "runs-on: [self-hosted, Linux, freqtrade-staging]" not in workflow
     assert "environment: synology-staging" in workflow
-    assert "STAGING_STATE_DIR: ${{ vars.FREQTRADE_STAGING_STATE_DIR }}" in workflow
+    assert "STAGING_STATE_DIR: /var/lib/freqtrade-staging-state" in workflow
+    assert "vars.FREQTRADE_STAGING_STATE_DIR" not in workflow
     assert "OTERYN_STAGING_STATE_DIR" not in workflow
     assert '"expected_runner_name": "freqtrade-synology-staging"' in workflow
     assert '"expected_runner_label": "freqtrade-staging"' in workflow
@@ -34,6 +35,7 @@ def test_staging_preflight_targets_existing_synology_runner_without_collection()
         'okx-liquidation-acceptance"'
     ) in workflow
     assert "/var/lib/oteryn-staging-state" not in workflow
+    assert "staging state directory does not match the preflight request" in workflow
     assert "liquidation_okx_shadow_acceptance" not in workflow
     assert "collect_okx_liquidations" not in workflow
     assert '"collection_authorized": False' in workflow

@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260727-portal-pi06-authentik-synology-target-preflight
 status: blocked
-branch: develop
+branch: docs/portal-pi06-target-preflight-checkpoint-20260727
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
@@ -61,10 +61,10 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T15:37:00+02:00
-head: 21bd55c13c55dd8532b73f38a49ea6438a9b982e
-branch: develop
-pr: "#462 merged; #445 closed without merge; no active PI-06 PR"
+updated_at: 2026-07-27T15:46:30+02:00
+head: 59775a93fb606ac5bf25796f3f43ef912928bade
+branch: docs/portal-pi06-target-preflight-checkpoint-20260727
+pr: "checkpoint refresh PR pending; #462 merged; #445 closed without merge"
 status: blocked
 context_routes:
   - AGENTS.md
@@ -87,7 +87,7 @@ proven:
   - Artifact 8651340321 digest sha256:a40a96edd18e219278f46cc9192c16cc9cc9387ad6ae245327955591b253a569 recorded no secret values and no mutations.
   - PR 445 was closed without merge after terminal artifact capture.
   - PR 462 merged the terminal task result into develop as 4fabc02670a21b6291b43081d5424b0970c575f5.
-  - Live repository search found no open PR or branch implementing the missing PI-06 durable-state mapping, age installation, public variables or protected secrets.
+  - Live repository search at develop 59775a93fb606ac5bf25796f3f43ef912928bade found no open PI-06 PR, PI-06/Authentik branch or fresh target-preflight request file.
 derived:
   - Repository-side runner routing is resolved; remaining readiness failures require owner-managed target inputs.
   - A new exact-one-file preflight is required after provisioning, and deployment remains forbidden until ready_for_controlled_deployment is true.
@@ -123,12 +123,15 @@ validation:
   - command: request PR 445 lifecycle
     result: PASS
     evidence: The exact-one-file request was closed without merge after evidence capture.
-  - command: live PI-06 ownership search on develop at 21bd55c13c55dd8532b73f38a49ea6438a9b982e
+  - command: live PI-06 ownership and request search on develop at 59775a93fb606ac5bf25796f3f43ef912928bade
     result: PASS
-    evidence: No open PR or branch owns the missing durable-state, age, variable or secret provisioning work.
+    evidence: No open PI-06 PR, matching branch or fresh exact-one-file target-preflight request exists.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md --require-checkpoint
     result: PASS
-    evidence: Compact checkpoint validates against GOVERNANCE_CONTRACT.json.
+    evidence: Compact checkpoint validated against GOVERNANCE_CONTRACT.json before this metadata-only refresh.
+  - command: schema-equivalent local checkpoint validation after the metadata-only refresh
+    result: PASS
+    evidence: Required fields, statuses, validation results, compactness limits, evidence separation and one concrete next_action pass the current governance contract.
 blockers:
   - Owner must configure OTERYN_STAGING_STATE_DIR=/var/lib/oteryn-staging-state and expose the durable path to the runner.
   - Owner must install age and provision the three PI-06 variables plus seven protected secrets named in artifact 8651340321.

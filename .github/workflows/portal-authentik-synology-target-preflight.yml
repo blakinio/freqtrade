@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: portal-pi06-target-preflight-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   REQUEST_PATH: deploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json

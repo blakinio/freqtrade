@@ -12,11 +12,13 @@ The bounded preflight targets the runner identity proven by the successful Synol
 
 ```text
 runner name:        freqtrade-synology-staging
-required labels:    self-hosted, Linux, freqtrade-staging
+routing label:      freqtrade-staging
 GitHub Environment: synology-staging
 state variable:     OTERYN_STAGING_STATE_DIR
 expected state dir: /var/lib/oteryn-staging-state
 ```
+
+The repository runner list proves the unique custom label `freqtrade-staging`. The workflow routes only by that label because GitHub assigns a multi-label `runs-on` job only to a runner that possesses every requested label. After assignment, the probe independently rejects any runner whose exact name is not `freqtrade-synology-staging` or whose `runner.os` is not Linux.
 
 The future OKX durable root is prospectively mapped to:
 
@@ -52,7 +54,7 @@ The request must be the only changed path. Synchronizing or reopening the trigge
 
 The job proves that:
 
-- GitHub scheduled the job on the proven custom `freqtrade-staging` label;
+- GitHub scheduled the job through the proven custom `freqtrade-staging` routing label;
 - the actual runner name is `freqtrade-synology-staging`;
 - the runner OS is Linux;
 - the protected `synology-staging` environment exposes the expected state directory;

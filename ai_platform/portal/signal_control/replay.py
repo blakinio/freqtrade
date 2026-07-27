@@ -9,6 +9,7 @@ class ReplayDecision(StrEnum):
     IDEMPOTENT_REPLAY = "IDEMPOTENT_REPLAY"
     IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
     NONCE_REPLAYED = "NONCE_REPLAYED"
+    SIGNAL_REPLAYED = "SIGNAL_REPLAYED"
 
 
 def nonce_digest(nonce: str | None) -> str | None:

@@ -2,37 +2,37 @@
 
 ## Purpose
 
-Verify the existing Synology self-hosted GitHub Actions runner and durable state path before creating the canonical 24-hour OKX shadow acceptance request.
+Verify the Freqtrade-owned Synology self-hosted GitHub Actions runner and durable state path before creating the canonical 24-hour OKX shadow acceptance request.
 
-The preflight is operationally separate from collection. It performs no WebSocket subscription, liquidation capture, replay, model work, strategy work or trading. It exists because the merged acceptance workflow originally declared generic staging names that do not match the established Synology runner configuration.
+The preflight is operationally separate from collection. It performs no WebSocket subscription, liquidation capture, replay, model work, strategy work or trading.
 
-## Existing staging identity
+## Freqtrade staging identity
 
-The bounded preflight targets the runner identity proven by the successful Synology executions recorded in `docs/agents/tasks/FTAI-20260725-portal-synology-lan-staging.md` and workflow run `30205769267`:
+The bounded preflight targets the dedicated runner contract established by the Synology runner-isolation and state-path cutover work:
 
 ```text
 runner name:        freqtrade-synology-staging
 routing label:      freqtrade-staging
 GitHub Environment: synology-staging
-state variable:     OTERYN_STAGING_STATE_DIR
-expected state dir: /var/lib/oteryn-staging-state
+runner state dir:   /var/lib/freqtrade-staging-state
+host state dir:     /volume1/docker/freqtrade/state
 ```
 
-The repository runner list proves the unique custom label `freqtrade-staging`. The workflow routes only by that label because GitHub assigns a multi-label `runs-on` job only to a runner that possesses every requested label. After assignment, the probe independently rejects any runner whose exact name is not `freqtrade-synology-staging` or whose `runner.os` is not Linux.
+The workflow continues to enter the protected `synology-staging` environment. The runner-visible state path is not supplied by a mutable GitHub variable: it is the canonical mount point declared by the dedicated runner package, frozen in the exact request and independently verified at runtime.
 
 The future OKX durable root is prospectively mapped to:
 
 ```text
-/var/lib/oteryn-staging-state/okx-liquidation-acceptance
+/var/lib/freqtrade-staging-state/okx-liquidation-acceptance
 ```
 
 The corresponding credential-free storage identity is:
 
 ```text
-file:///var/lib/oteryn-staging-state/okx-liquidation-acceptance
+file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance
 ```
 
-The runner identity and custom label are established by prior terminal Synology evidence. The environment variable and durable path remain prospective until this preflight executes. This mapping does not authorize the 24-hour run.
+This mapping does not authorize the 24-hour run. The directory must exist through the runner mount, be writable, remain outside workspace and temporary storage, pass the atomic filesystem probe and have sufficient free space.
 
 ## Guarded trigger
 
@@ -54,12 +54,12 @@ The request must be the only changed path. Synchronizing or reopening the trigge
 
 The job proves that:
 
-- GitHub scheduled the job through the proven custom `freqtrade-staging` routing label;
+- GitHub scheduled the job through the unique `freqtrade-staging` routing label;
 - the actual runner name is `freqtrade-synology-staging`;
 - the runner OS is Linux;
-- the protected `synology-staging` environment exposes the expected state directory;
-- the state directory is absolute, existing and writable;
-- the dedicated OKX durable root is outside the runner workspace and temporary directory;
+- the job passed through the protected `synology-staging` environment;
+- the canonical state directory equals the exact request contract, is absolute, exists and is writable;
+- the dedicated OKX durable root is directly below the canonical state directory and outside the runner workspace and temporary directory;
 - an atomic create, fsync, rename and read-back cycle succeeds under the durable root;
 - at least 1 GiB is free;
 - the public OKX time and SWAP instrument endpoints are reachable and return OKX code `0`;

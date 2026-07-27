@@ -5,7 +5,7 @@ branch: fix/freqtrade-synology-runner-state-path-cutover-20260727
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: pending
+related_pr: "#516"
 owned_paths:
   - .github/workflows/freqtrade-synology-runner-state-path-cutover.yml
   - tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_state_path_cutover.py
@@ -22,10 +22,10 @@ required_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T19:35:00Z
-head: fc43b031d2db2a1f4cb81d82e5ac951dbe599dbf
+updated_at: 2026-07-27T19:39:00Z
+head: 363d8de92063746b5c931bccb2222febfb4905b3
 branch: fix/freqtrade-synology-runner-state-path-cutover-20260727
-pr: pending
+pr: "#516"
 status: implementation-complete-ci-pending
 context_routes:
   - docs/agents/tasks/FTAI-20260727-freqtrade-synology-runner-cutover-root-helper.md
@@ -64,5 +64,5 @@ validation:
 blockers:
   - Exact-head CI and review are pending.
   - Real state-path cutover runs only after reviewed merge to develop.
-next_action: Open the PR, complete exact-head CI and review, then merge so the trusted develop workflow can verify the dedicated runner before Liquid20 deployment.
+next_action: Complete exact-head CI and review on PR #516, then merge so the trusted develop workflow can verify the dedicated runner before Liquid20 deployment.
 ```

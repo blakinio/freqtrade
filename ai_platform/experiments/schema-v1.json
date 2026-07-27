@@ -49,11 +49,11 @@
         },
         "timerange": {
             "type": "string",
-            "pattern": "^[0-9]{8}-[0-9]{8}$"
+            "pattern": "^(?:[0-9]{8}-[0-9]{8}|[0-9]{10}-[0-9]{10})$"
         },
         "download_timerange": {
             "type": "string",
-            "pattern": "^[0-9]{8}-[0-9]{8}$"
+            "pattern": "^(?:[0-9]{8}-[0-9]{8}|[0-9]{10}-[0-9]{10})$"
         },
         "pairs": {
             "type": "array",

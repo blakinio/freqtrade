@@ -74,6 +74,13 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install smoke runtime dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet jsonschema
+          python -c "from jsonschema import Draft202012Validator; assert Draft202012Validator"
+
       - name: Run frozen single-request smoke
         id: smoke
         shell: bash

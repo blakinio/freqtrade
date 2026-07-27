@@ -17,11 +17,21 @@ from ai_platform.scripts.run_experiment import (
 
 ROOT = Path(__file__).resolve().parents[2]
 BASELINE_MANIFEST = ROOT / "ai_platform" / "experiments" / "baseline-v1.json"
+RESIDUAL_AUDIT_MANIFEST = (
+    ROOT / "ai_platform" / "experiments" / "residual-pytorch-m1-data-audit-v1.json"
+)
 MANIFEST_SCHEMA = ROOT / "ai_platform" / "experiments" / "schema-v1.json"
 
 
 def test_baseline_manifest_matches_schema() -> None:
     manifest = json.loads(BASELINE_MANIFEST.read_text(encoding="utf-8"))
+    schema = json.loads(MANIFEST_SCHEMA.read_text(encoding="utf-8"))
+
+    Draft202012Validator(schema).validate(manifest)
+
+
+def test_residual_epoch_manifest_matches_schema() -> None:
+    manifest = json.loads(RESIDUAL_AUDIT_MANIFEST.read_text(encoding="utf-8"))
     schema = json.loads(MANIFEST_SCHEMA.read_text(encoding="utf-8"))
 
     Draft202012Validator(schema).validate(manifest)
@@ -33,6 +43,19 @@ def test_load_manifest_accepts_baseline() -> None:
     assert manifest["schema_version"] == 1
     assert manifest["experiment_id"] == "freqai-baseline-v1"
     assert manifest["fee"] == 0.002
+
+
+def test_load_manifest_accepts_unix_second_timeranges(tmp_path: Path) -> None:
+    manifest = json.loads(BASELINE_MANIFEST.read_text(encoding="utf-8"))
+    manifest["timerange"] = "1772323200-1777593599"
+    manifest["download_timerange"] = "1754006400-1777593599"
+    path = tmp_path / "epoch-manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    loaded = load_manifest(path)
+
+    assert loaded["timerange"] == "1772323200-1777593599"
+    assert loaded["download_timerange"] == "1754006400-1777593599"
 
 
 def test_load_manifest_rejects_missing_required_fields(tmp_path: Path) -> None:

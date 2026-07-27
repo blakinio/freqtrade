@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260727-market-data-binance-spot-instrument-smoke-selfhosted-v1
-status: validating
+status: ready
 branch: feat/market-data-binance-spot-selfhosted-smoke-v1
 base_branch: develop
 created: 2026-07-27
@@ -42,12 +42,12 @@ Add a separate exact-one-file workflow for one unchanged, credential-free Binanc
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T11:45:00+02:00
-head: PENDING
+updated_at: 2026-07-27T11:50:00+02:00
+head: d6adc30e5bfd1c13771b84ffccf98e19727de11a
 base_develop: dc15a94388f33c81608acf566b066c845cac7b0f
 branch: feat/market-data-binance-spot-selfhosted-smoke-v1
 pr: "#439"
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SMOKE.md
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SMOKE_SELFHOSTED.md
@@ -67,14 +67,15 @@ proven:
   - PR 439 contains exactly the four declared infrastructure, documentation, test and checkpoint paths.
   - Prior exact-head AI Platform CI, zizmor and full Freqtrade CI including CI Gate passed on head 43bcd84dcedbdd05f2b2732933025574ec730c50.
   - Develop later advanced through disjoint OKX staging, PI-06 Authentik preflight and inert RL-v2 provenance paths.
-  - The same four-file package was recreated byte-for-byte on current develop dc15a94388f33c81608acf566b066c845cac7b0f, except for this checkpoint reconciliation.
+  - The same workflow, documentation and focused test were recreated byte-for-byte on current develop dc15a94388f33c81608acf566b066c845cac7b0f.
+  - Reconciled head d6adc30e5bfd1c13771b84ffccf98e19727de11a passed AI Platform CI 30255198155, zizmor 30255198970, Freqtrade pre-commit and documentation before this ready-checkpoint-only update.
   - The only review threads reference a deleted temporary Ruff workflow and are resolved and outdated.
 derived:
   - A separate owner-managed network path can test the unchanged endpoint without bypassing the prior HTTP 451 through an alternate endpoint or proxy.
   - Protected environment scheduling and exact runner identity are the technical authorization boundary; they are not a general legal determination.
   - Current-develop reconciliation changes no endpoint, credential, retry, runner, evidence or source-acceptance behavior.
 unknown:
-  - Exact-head repository CI result after current-develop reconciliation.
+  - Final exact-head repository CI result after this ready-checkpoint-only update.
   - Whether oteryn-synology-staging is online and has Python venv support at execution time.
   - Whether the unchanged Binance endpoint is reachable and parseable from that runner.
   - Exact current instrument counts and payload hashes until a separate trigger executes.
@@ -101,12 +102,15 @@ validation:
   - command: current-develop ownership and path comparison
     result: PASS
     evidence: Develop changes since the prior base are disjoint from all four task-owned paths.
-  - command: reconciled exact-head repository CI
+  - command: reconciled head AI Platform CI and zizmor
+    result: PASS
+    evidence: AI Platform CI 30255198155 and zizmor 30255198970 passed on d6adc30e5bfd1c13771b84ffccf98e19727de11a.
+  - command: ready-checkpoint exact-head repository CI
     result: NOT_RUN
-    evidence: The reconciled current-develop head has not yet been installed on PR 439.
+    evidence: This final checkpoint update must receive exact-head CI before merge.
   - command: terminal self-hosted smoke
     result: NOT_RUN
     evidence: Infrastructure must merge before a separate exact-one-file trigger is created.
 blockers: []
-next_action: Move PR 439 to the reconciled current-develop head, run exact-head repository CI, mark this checkpoint ready when all gates pass, then guarded-squash merge the infrastructure without creating a trigger while the Synology runner remains unavailable.
+next_action: Run final exact-head repository CI on this ready checkpoint, verify the four-file scope and review state, then guarded-squash merge PR 439 without creating a trigger while the Synology runner remains unavailable.
 ```

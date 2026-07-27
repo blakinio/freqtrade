@@ -217,9 +217,9 @@ A candidate is rejected when it has negligible unexplained activity, depends on 
 
 ### WH-00 — contracts and synthetic vertical slice
 
-Status: `active`
+Status: `completed`
 
-Deliver:
+Delivered by PR #488:
 
 - program architecture and contracts;
 - dynamic universe gate using Market Data Fabric instrument snapshots;
@@ -237,17 +237,25 @@ This package is executable with synthetic evidence only because real training/re
 
 ### WH-01 — liquidation dataset builder
 
+Status: `validating`
+
 Depends on: WH-00 and accepted historical source/import evidence.
 
 Deliver accepted-run/import selection, deterministic source-aware event normalization, availability-time market joins, atomic feature partitions, dataset manifest/hash, dynamic-universe history snapshots, explicit split geometry and no model execution.
 
+PR #542 implements the accepted-import builder and validates it with deterministic synthetic accepted packages. The first real paid bulk Tardis import remains owner/provider-access dependent; WH-02 cannot consume or evaluate real history until such a package passes the unchanged historical acceptance contract.
+
 ### WH-02 — deterministic replay and event labels
 
-Depends on: WH-01.
+Status: `not_started`
+
+Depends on: WH-01 and selection of a real accepted immutable dataset.
 
 Deliver replay clock and as-of joins; TP-before-SL ordering; returns after fees/slippage; MFE, MAE and time-to-outcome; purged/embargoed walk-forward support; deterministic baseline evaluation; and replay/shadow parity evidence.
 
 ### WH-03 — baseline WickHunter strategy
+
+Status: `not_started`
 
 Depends on: WH-02.
 
@@ -255,11 +263,15 @@ Deliver complete configurable reversal and continuation baselines, cooldown/dupl
 
 ### WH-04 — LightGBM candidate scorer
 
+Status: `not_started`
+
 Depends on: WH-02 and WH-03.
 
 Deliver supervised dataset adapter, LightGBM training/calibration, identical-data baseline comparison, feature/leakage audit, candidate registry evidence, and optional benchmark declarations only when the common contract is met.
 
 ### WH-05 — walk-forward bounded optimizer
+
+Status: `not_started`
 
 Depends on: WH-03 and, for model-aware tuning, WH-04.
 
@@ -267,11 +279,15 @@ Deliver immutable hard-bound spaces, rolling walk-forward search, reproducibilit
 
 ### WH-06 — Risk Engine and TradeIntent integration
 
+Status: `not_started`
+
 Depends on: WH-00, a frozen portal/BM integration seam and current path-ownership preflight.
 
 Deliver a reviewed mapping to canonical portal risk authority, full required risk snapshot/adapters and deterministic persistence. It activates no submission adapter and changes no shared portal contract without delegation.
 
 ### WH-07 — shadow runtime
+
+Status: `not_started`
 
 Depends on: WH-01 through WH-06.
 
@@ -279,11 +295,15 @@ Deliver continuous read-only data consumption, dynamic universe refresh, candida
 
 ### WH-08 — portal observability
 
+Status: `not_started`
+
 Depends on: WH-07 and portal integration-owner delegation.
 
 Deliver read-only bot state, mode, universe, source freshness, model/parameter identity, candidates, risk rejections, simulated positions, PnL/drawdown, retraining/validation/drift and circuit-breaker state. Add no trade buttons to the liquidation page.
 
 ### WH-09 — paper validation and promotion evidence
+
+Status: `not_started`
 
 Depends on: WH-07 and WH-08.
 

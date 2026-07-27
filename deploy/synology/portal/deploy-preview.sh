@@ -152,28 +152,28 @@ wait_liquidations_internal() {
     local name="$1"
     for _ in $(seq 1 30); do
         if docker exec "$name" node -e '
-          const paths = [
+          const apiPaths = [
             "/api/market/liquidations/health",
             "/api/market/liquidations/summary",
             "/api/market/liquidations?limit=1",
-            "/market/liquidations",
           ];
-          Promise.all(paths.map((path) => fetch(`http://127.0.0.1:3000${path}`)))
-            .then(async (responses) => {
-              if (responses.some((response) => !response.ok)) process.exit(1);
-              const health = await responses[0].json();
-              if (health.schema_version !== 1) process.exit(1);
-              if (health.research_preview !== true) process.exit(1);
-              if (health.trading_authorized !== false) process.exit(1);
-              if (!health.run_id || !Array.isArray(health.active_sources)) process.exit(1);
-            })
-            .catch(() => process.exit(1));
+          (async () => {
+            const page = await fetch("http://127.0.0.1:3000/market/liquidations");
+            if (!page.ok) process.exit(1);
+            for (const path of apiPaths) {
+              const response = await fetch(`http://127.0.0.1:3000${path}`);
+              const payload = await response.json().catch(() => null);
+              if (response.status !== 401 || payload?.code !== "SESSION_MISSING") {
+                process.exit(1);
+              }
+            }
+          })().catch(() => process.exit(1));
         ' >/dev/null 2>&1; then
             return 0
         fi
         sleep 2
     done
-    echo "Liquid20 BFF or page did not become healthy in container $name" >&2
+    echo "Portal page or authenticated Liquid20 boundary did not become healthy in container $name" >&2
     docker logs --tail 120 "$name" 2>&1 || true
     return 1
 }
@@ -249,8 +249,7 @@ fi
 
 if ! wait_healthy "$container_name" \
     || ! wait_liquidations_internal "$container_name" \
-    || ! wait_http "$bind_address" "$portal_port" "/market/liquidations" \
-    || ! wait_http "$bind_address" "$portal_port" "/api/market/liquidations/health"; then
+    || ! wait_http "$bind_address" "$portal_port" "/market/liquidations"; then
     rollback
     exit 1
 fi
@@ -290,10 +289,11 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
         echo "- LAN URL: \`http://synology:${portal_port}\`"
         echo "- Direct LAN URL: \`http://${bind_address}:${portal_port}\`"
         echo "- Liquid20 source: \`${liquidations_host_root}\` -> \`${liquidations_container_root}:ro\`"
-        echo "- Liquid20 latest run: \`${latest_liquid20_run}\`"
+        echo "- Liquid20 latest run: \`$latest_liquid20_run\`"
         echo "- Runtime UID: \`${running_uid}\` (non-root)"
         echo "- Liquid20 read group: \`${liquidations_group_id}\`"
         echo "- Data mode: \`server-side Liquid20 read-model\`"
+        echo "- API session boundary: \`401 SESSION_MISSING without a portal session\`"
         echo "- Trading authorized: \`false\`"
     } >> "$GITHUB_STEP_SUMMARY"
 fi

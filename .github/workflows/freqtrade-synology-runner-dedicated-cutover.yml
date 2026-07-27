@@ -81,6 +81,8 @@ jobs:
           runner_config_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/runner" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")"
           runner_work_volume="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/work" }}{{ .Name }}{{ end }}{{ end }}' "$canonical")"
           socket_type="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/var/run/docker.sock" }}{{ .Type }}{{ end }}{{ end }}' "$canonical")"
+          current_image_id="$(docker inspect --format '{{.Image}}' "$canonical")"
+          current_state_source="$(docker inspect --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/freqtrade-staging-state" }}{{ .Source }}{{ end }}{{ end }}' "$canonical")"
 
           [[ "$runner_config_volume" =~ ^[A-Za-z0-9_.-]+$ ]]
           [[ "$runner_work_volume" =~ ^[A-Za-z0-9_.-]+$ ]]
@@ -89,6 +91,16 @@ jobs:
           test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_config_volume")" = "runner_config"
           test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.project" }}' "$runner_work_volume")" = "$project"
           test "$(docker volume inspect --format '{{ index .Labels "com.docker.compose.volume" }}' "$runner_work_volume")" = "runner_work"
+
+          if [[ "$current_image_id" == "$expected_image_id" && "$current_state_source" == "$host_root/state" ]]; then
+            result_dir="/var/lib/freqtrade-staging-state/runner-cutover"
+            mkdir -p "$result_dir"
+            printf '{"status":"success","reason":"dedicated_runner_already_live","cutover_sha":"%s","target_image":"%s"}\n' \
+              "$CUTOVER_SHA" "$TARGET_IMAGE" > "$result_dir/$CUTOVER_SHA.json.tmp"
+            mv "$result_dir/$CUTOVER_SHA.json.tmp" "$result_dir/$CUTOVER_SHA.json"
+            echo "Dedicated runner image and state mount are already live; no replacement was launched."
+            exit 0
+          fi
 
           if docker inspect "$helper_name" >/dev/null 2>&1; then
             echo "Exact cutover helper name already exists; refusing duplicate launch." >&2
@@ -125,6 +137,7 @@ jobs:
 
           on_exit() {
             local rc=$?
+            trap - EXIT
             if [[ $rc -ne 0 && "$result_written" != "true" ]]; then
               write_result "failure" "detached_helper_failed"
             fi
@@ -228,7 +241,7 @@ jobs:
           echo "Detached helper launched; the active job may now finish before self-replacement starts."
 
   stabilization-delay:
-    if: github.ref == 'refs/heads/develop'
+    if: needs.launch-cutover.result == 'success' && github.ref == 'refs/heads/develop'
     needs: launch-cutover
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -237,7 +250,7 @@ jobs:
         run: sleep 120
 
   verify-live-cutover:
-    if: github.ref == 'refs/heads/develop'
+    if: needs.stabilization-delay.result == 'success' && github.ref == 'refs/heads/develop'
     needs: stabilization-delay
     runs-on: [freqtrade-staging]
     timeout-minutes: 10
@@ -358,7 +371,7 @@ jobs:
           post_status "synology/freqtrade-runner-cutover" "$overall" "Dedicated Synology runner cutover verified" "Dedicated Synology runner cutover failed"
 
   cutover-watchdog:
-    if: github.ref == 'refs/heads/develop'
+    if: always() && github.ref == 'refs/heads/develop'
     needs: launch-cutover
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -366,36 +379,49 @@ jobs:
       - name: Publish failure when the replacement never reconnects
         env:
           GH_TOKEN: ${{ github.token }}
+          LAUNCH_RESULT: ${{ needs.launch-cutover.result }}
         run: |
           set -euo pipefail
-          sleep 420
 
-          statuses="$(curl --fail-with-body --silent --show-error \
-            --header "Accept: application/vnd.github+json" \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/statuses?per_page=100")"
+          post_failure() {
+            local description="$1"
+            payload="$(printf '{\"state\":\"failure\",\"description\":\"%s\",\"context\":\"synology/freqtrade-runner-cutover\"}' "$description")"
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+              --data "$payload" >/dev/null
+          }
 
-          current="$(python3 - "$statuses" <<'PY'
-          import json
-          import sys
-
-          for entry in json.loads(sys.argv[1]):
-              if entry.get("context") == "synology/freqtrade-runner-cutover":
-                  print(entry.get("state", ""))
-                  break
-          PY
-          )"
-
-          if [[ "$current" == "success" || "$current" == "failure" ]]; then
+          if [[ "$LAUNCH_RESULT" != "success" ]]; then
+            post_failure "Cutover helper launch failed"
             exit 0
           fi
 
-          payload='{"state":"failure","description":"Replacement runner did not reconnect before timeout","context":"synology/freqtrade-runner-cutover"}'
-          curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header "Accept: application/vnd.github+json" \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
-            --data "$payload" >/dev/null
+          for _ in $(seq 1 28); do
+            sleep 15
+            statuses="$(curl --fail-with-body --silent --show-error \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/statuses?per_page=100")"
+
+            current="$(python3 - "$statuses" <<'PY'
+            import json
+            import sys
+
+            for entry in json.loads(sys.argv[1]):
+                if entry.get("context") == "synology/freqtrade-runner-cutover":
+                    print(entry.get("state", ""))
+                    break
+            PY
+            )"
+
+            if [[ "$current" == "success" || "$current" == "failure" ]]; then
+              exit 0
+            fi
+          done
+
+          post_failure "Replacement runner did not reconnect before timeout"

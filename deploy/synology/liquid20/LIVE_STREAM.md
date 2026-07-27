@@ -19,7 +19,7 @@ docker compose build liquid20-live
 docker compose up -d liquid20-live
 ```
 
-The service uses `restart: unless-stopped`, has no published ports, no Docker socket and no trading credentials.
+The service uses `restart: unless-stopped`, has no published ports, no Docker socket and no trading credentials. Compose always enforces the 512 MiB memory limit and PID limit. It intentionally does not declare a CPU quota because the target Synology kernel does not expose Docker CPU CFS quota support.
 
 The bounded evidence collector remains opt-in:
 
@@ -44,18 +44,22 @@ The collector always uses a non-zero UID. `LIQUID20_PUID` may override the docum
 `deploy-live.sh`:
 
 1. builds `local/liquid20-collector:sha-<exact SHA>`;
-2. inspects the host data root through a read-only helper mount and resolves a non-root runtime identity;
-3. starts an isolated candidate from the runner-state host path;
-4. observes two advancing heartbeats and non-empty dynamic subscriptions;
-5. creates or validates only `data/live` and `data/live/runs`;
-6. records the previous production image;
-7. replaces `liquid20-live`;
-8. observes production heartbeat and file sizes twice;
-9. verifies non-root UID, the existing data-root GID, `unless-stopped`, no Docker socket and unchanged accepted-evidence digest;
-10. restores the previous image on failure;
-11. uploads a JSON operational evidence report and the bounded deployment log.
+2. probes Docker CPU quota support using the exact image;
+3. applies a 1.0 CPU quota only when the probe succeeds;
+4. accepts only the known Synology CFS/cgroup unsupported response as a compatibility fallback, while retaining the 512 MiB memory limit and PID limit;
+5. fails closed for every other CPU capability probe error;
+6. inspects the host data root through a read-only helper mount and resolves a non-root runtime identity;
+7. starts an isolated candidate from the runner-state host path;
+8. observes two advancing heartbeats and non-empty dynamic subscriptions;
+9. creates or validates only `data/live` and `data/live/runs`;
+10. records the previous production image;
+11. replaces `liquid20-live`;
+12. observes production heartbeat and file sizes twice;
+13. verifies non-root UID, the existing data-root GID, `unless-stopped`, no Docker socket, applied resource limits and unchanged accepted-evidence digest;
+14. restores the previous image on failure;
+15. uploads a JSON operational evidence report and the bounded deployment log.
 
-A real liquidation is not required during a short validation window. When none is observed, the report explicitly records that only heartbeat, subscription and deterministic append tests were proven.
+The operational report records whether CPU quota is supported and applied, together with the mandatory memory and PID limits. A real liquidation is not required during a short validation window. When none is observed, the report explicitly records that only heartbeat, subscription and deterministic append tests were proven.
 
 ## Rollback
 

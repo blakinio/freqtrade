@@ -45,7 +45,7 @@ jobs:
 
       - name: Upload operational evidence
         if: always()
-        uses: actions/upload-artifact@6027e3aa7e84d1a18c2f7e2f6a3f4b213e90c72a
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: liquidations-live-synology-${{ github.sha }}
           path: ${{ runner.temp }}/liquidations-live-synology-report.json

@@ -3,7 +3,6 @@ import { resolve, sep } from "node:path";
 
 import {
   LIQUIDATION_HEALTH_SOURCES,
-  LIQUIDATION_SOURCES,
   type LiquidationDataMode,
   type LiquidationHealth,
   type LiquidationHealthSource,
@@ -246,19 +245,27 @@ export class LiquidationLiveReadModel {
       return this.historicalHealth(historical, checkedAtMs);
     }
 
-    const [live, historical] = await Promise.all([this.live.health(), this.historical.health()]);
+    const live = await this.live.health();
+    let historical: LiquidationHealth | null = null;
+    try {
+      historical = await this.historical.health();
+    } catch (error) {
+      if (!(error instanceof LiquidationDataUnavailableError)) {
+        throw error;
+      }
+    }
     this.requireSelectedRun(live.run_id, state.run_id);
     const mode = this.mode(state);
     const sources = this.liveSourceHealth(state, checkedAtMs);
     return {
-      schema_version: 2,
+      schema_version: 1,
       contract: "portal-liquidations-health-v2",
       mode,
       run_state: state.run_state,
       run_id: state.run_id,
       acceptance_status: state.run_state === "active" ? "in-progress" : "missing",
       failed_gates: [],
-      latest_completed_acceptance: historical.latest_completed_acceptance,
+      latest_completed_acceptance: historical?.latest_completed_acceptance ?? null,
       active_sources: LIQUIDATION_HEALTH_SOURCES.filter(
         (source) => state.sources[source].configured,
       ),
@@ -479,7 +486,7 @@ export class LiquidationLiveReadModel {
     });
     return {
       ...historical,
-      schema_version: 2,
+      schema_version: 1,
       contract: "portal-liquidations-health-v2",
       mode: "historical",
       run_state: "completed",

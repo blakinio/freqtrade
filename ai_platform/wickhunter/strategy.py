@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import (
@@ -26,7 +26,7 @@ class CooldownRecord:
 
 @dataclass(frozen=True, slots=True)
 class SignalMemory:
-    seen_feature_hashes: frozenset[str] = frozenset()
+    seen_feature_hashes: frozenset[str] = field(default_factory=frozenset)
     cooldown_records: tuple[CooldownRecord, ...] = ()
 
 

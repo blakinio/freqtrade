@@ -1,0 +1,33 @@
+name: Temporary Liquidations NanoCPUs Sync
+
+on:
+  push:
+    branches:
+      - fix/liquidations-live-synology-nanocpus-20260727
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.repository == 'blakinio/freqtrade'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repair branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: fix/liquidations-live-synology-nanocpus-20260727
+          fetch-depth: 0
+
+      - name: Merge exact develop head and remove helper
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin 351567d57760305b992fb1e441205dc32890dc2a
+          test "$(git rev-parse FETCH_HEAD)" = "351567d57760305b992fb1e441205dc32890dc2a"
+          git merge --no-commit --no-ff FETCH_HEAD
+          git rm .github/workflows/tmp-sync-liquidations-nanocpus.yml
+          git commit -m "Merge develop into liquidations Synology repair"
+          git push origin HEAD:fix/liquidations-live-synology-nanocpus-20260727

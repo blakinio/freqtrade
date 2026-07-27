@@ -43,9 +43,10 @@ def test_model_requirement_is_consistent_with_template_versions() -> None:
 
 def test_catalog_models_are_frozen() -> None:
     snapshot = build_snapshot()
+    field_name = "revision"
 
     with pytest.raises(ValidationError, match="frozen"):
-        setattr(snapshot, "revision", 2)
+        setattr(snapshot, field_name, 2)
 
 
 def test_extra_secret_fields_are_rejected() -> None:

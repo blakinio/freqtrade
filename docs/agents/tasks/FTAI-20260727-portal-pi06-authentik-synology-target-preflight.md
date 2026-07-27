@@ -57,7 +57,7 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T11:25:00+02:00
+updated_at: 2026-07-27T11:32:00+02:00
 infrastructure_head: 564a73ba016b038e750fe44f1434b8d0e198abb5
 infrastructure_merge: 15bb0ecc0fa61f8fb87a55f06aec46bb810a9f5f
 request_head: a2cf19d861eeb1f1816b26c71aaacae21759a799
@@ -83,20 +83,25 @@ proven:
   - PR 445 adds exactly deploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json.
   - PR 445 scheduled Portal PI-06 Synology Target Preflight run 30253743388 and job 89937454422.
   - Job 89937454422 remains queued with no executed step; therefore no target command, storage probe or secret-format check has run.
-  - The same owner-managed runner outage was independently recorded for the OKX staging preflight in merged PR 444.
+  - Independent OKX job 89929271587, which also targets self-hosted Synology staging, likewise remains queued with no executed step.
 derived:
-  - Repository implementation is valid and merged; the current failure boundary is runner availability rather than preflight code.
+  - Repository implementation is valid and merged.
+  - GitHub has not assigned either queued job to a runner matching its requested labels.
+  - The queue state alone does not prove that the runner is offline; possible causes include offline status, runner process connectivity, busy capacity, label mismatch or runner access configuration.
   - A passing terminal preflight may permit a separate controlled deployment request but does not authorize bootstrap, restore, P11 or target acceptance.
 unknown:
+  - Current online/offline and busy state of the registered runner.
+  - Whether the runner currently has all requested labels and repository access.
   - Whether all required PI-06 protected variables and secrets exist in synology-staging.
   - Actual Docker, storage, DNS and tool readiness on oteryn-synology-staging.
   - Terminal preflight artifact and concrete blocker list.
   - Login, MFA, session lifecycle, membership revocation, recovery and encrypted backup/isolated-restore acceptance.
 conflicts: []
 first_failure:
-  marker: SELF_HOSTED_RUNNER_QUEUED_NO_STEPS
-  evidence: Portal PI-06 Synology Target Preflight run 30253743388, job 89937454422, stayed queued and exposed no steps; no target-side execution occurred.
+  marker: SELF_HOSTED_RUNNER_NOT_ASSIGNED
+  evidence: Portal PI-06 run 30253743388 job 89937454422 and OKX run 30251172959 job 89929271587 remain queued with no steps. This proves non-assignment, not a specific offline cause.
 rejected_hypotheses:
+  - Declare the runner offline based only on queued job state.
   - Create a duplicate trigger PR while 445 is authoritative.
   - Fall back to a GitHub-hosted runner or substitute runner labels.
   - Run bootstrap before a non-mutating target preflight.
@@ -117,8 +122,8 @@ validation:
     evidence: Pre-commit, Python 3.11-3.14, docs, distribution build and CI Gate passed.
   - command: Portal PI-06 Synology Target Preflight run 30253743388 job 89937454422
     result: BLOCKED
-    evidence: Queued with no executed step because oteryn-synology-staging is unavailable.
+    evidence: Queued with no executed step; GitHub has not assigned a matching runner, but the exact cause is not proven.
 blockers:
-  - Restore owner-managed runner oteryn-synology-staging with labels self-hosted, Linux and oteryn-staging.
-next_action: Keep PR 445 open as the sole authoritative request. After the runner is restored, let its existing job complete, inspect the bounded non-sensitive artifact, record the concrete readiness result, and close PR 445 without merge. Do not declare deployment or target acceptance from preflight alone.
+  - Determine why no runner matching self-hosted, Linux and oteryn-staging has accepted the existing jobs.
+next_action: Keep PR 445 open as the sole authoritative request. Verify the registered runner status, busy state, labels and repository access in GitHub runner settings or the runner service logs. Then let the existing job complete, inspect the bounded non-sensitive artifact, record the concrete readiness result, and close PR 445 without merge. Do not declare deployment or target acceptance from preflight alone.
 ```

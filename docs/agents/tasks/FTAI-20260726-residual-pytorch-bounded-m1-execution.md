@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-residual-pytorch-bounded-m1-execution
 status: active
-branch: fix/residual-pytorch-model-import-path
+branch: fix/residual-pytorch-audit-runtime-on-validation-failure
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-27
-related_pr: 481
+related_pr: 512
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
@@ -90,54 +90,53 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T13:50:00Z
-head: f3a298e1eb7e755fb527eb85a790eae49fc6128f
-branch: fix/residual-pytorch-model-import-path
-pr: 481
+updated_at: 2026-07-27T19:28:00Z
+head: b180b57bb00cf0c98bc677fa4acf15b9a4b4ccf3
+branch: fix/residual-pytorch-audit-runtime-on-validation-failure
+pr: 512
 status: validating
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
-  - ai_platform/scripts/run_experiment.py
-  - tests/ai_platform/test_run_experiment.py
   - .github/workflows/residual-pytorch-bounded-m1-execution.yml
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_failure_artifact.py
 owned_paths:
-  - ai_platform/scripts/run_experiment.py
-  - tests/ai_platform/test_run_experiment.py
+  - .github/workflows/residual-pytorch-bounded-m1-execution.yml
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_failure_artifact.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 proven:
   - Exclusive-stop infrastructure merged through PR 409 as 185e6a5a8fc2c5d70d0ea2173f4c5cd4a5ca702c.
   - Unix-second experiment orchestration support merged through PR 423 as f21a258643d70b4387e366e8b466dbc56735f44f.
   - Bounded M1 infrastructure merged through PR 450 as f4e60476dc651388ed8f96663ab56defce88aa8f after exact-head CI passed.
   - Durable audit-failure evidence support merged through PR 463 as ef6a3f31ebbcf5bbdfae2ce51ece762f2a425c93 after exact-head AI Platform CI, Freqtrade CI and zizmor passed.
-  - Exact-one-file PR 469 run 30266002127 passed request validation, both Kraken pre-May acquisitions, per-pair exclusive-stop verification, cache publication and restoration, and combined pre-fit verification.
-  - Run 30266002127 used no consumed historical OOS or protected final holdout and published durable audit artifact residual-pytorch-bounded-m1-audit-469 with digest sha256:821507fb73beb555164a686699e33f78026a702d7fbb500728be2fac75bce417.
-  - Run 30266002127 failed before matrix audit because the Freqtrade console subprocess could not import ai_platform while resolving ResidualPyTorchM1DataAuditRegressor; all three frozen model executions were skipped.
-  - PR 469 was closed without merge after terminal evidence collection.
+  - Repository-root import support merged through PR 481 as 6eede8936eab87ec5ba5eb5f733c9b07c3f39899 after exact-head AI Platform CI, Freqtrade CI and zizmor passed.
+  - Exact-one-file PR 483 run 30273644346 passed request validation, both Kraken pre-May acquisitions, per-pair exclusive-stop verification, cache publication/restoration and combined pre-fit verification.
+  - Run 30273644346 used no consumed historical OOS or protected final holdout; the audit subprocess returned zero and emitted a run directory, but no raw audit report was produced and all three frozen model executions were skipped.
+  - PR 483 was closed without merge after artifact residual-pytorch-bounded-m1-audit-483 with digest sha256:2af1e3c7e39b6c7339f7dafa237e0cbe5e110f8327b0bbcf01227215c6a5a03f was recorded.
 derived:
-  - Running the Python orchestrator from the repository root does not guarantee that a console-script child process has the repository root on sys.path.
-  - The narrow fix is to prepend the resolved repository root to the child PYTHONPATH while preserving all existing child environment variables and existing PYTHONPATH entries.
-  - The correction changes import reachability only; it does not alter data, features, targets, model defaults, thresholds, temporal geometry or execution authorization.
+  - FreqAI catches per-pair training exceptions during backtesting, appends neutral predictions and may allow the outer backtest command to exit successfully.
+  - The exact caught exception is written to the run directory backtest.log, not to run_experiment stderr.
+  - The runtime directory must therefore be copied into the audit artifact immediately after run_experiment returns and before summary or raw-audit validation can fail.
 unknown:
+  - The exact training exception recorded by FreqAI in PR 483 backtest.log, because runtime was not persisted before validation.
   - The exact expanded feature count and historical NaN, outlier and target distributions.
-  - Whether the mandatory matrix audit passes after the import correction.
-  - Whether all three frozen models complete exactly once after the audit passes.
+  - Whether all three frozen models complete exactly once after the audit defect is corrected.
 conflicts: []
 first_failure:
-  marker: FREQAI_MODEL_IMPORT_REPO_ROOT_MISSING
-  evidence: Run 30266002127 audit artifact recorded `No module named 'ai_platform'` and `Impossible to load FreqaiModel 'ResidualPyTorchM1DataAuditRegressor'` before any matrix audit or model fit.
+  marker: FREQAI_TRAINING_EXCEPTION_RUNTIME_NOT_PERSISTED
+  evidence: Run 30273644346 returned a successful audit subprocess and run path but produced no raw audit files; validation failed before the workflow copied the runtime directory containing backtest.log.
 rejected_hypotheses:
+  - The repository-root import defect persisted; the audit subprocess imported the model and returned exit code zero without stderr.
   - Pre-May data coverage or exclusive-stop verification failed; both pair jobs and combined pre-fit verification passed.
-  - A frozen model fit caused the failure; no audit fit or model fit started.
-  - The canonical request, contract or cache identity drifted; all corresponding gates passed.
+  - A frozen comparator caused the terminal failure; all three comparator executions were skipped by the audit gate.
 changed_paths:
-  - ai_platform/scripts/run_experiment.py
-  - tests/ai_platform/test_run_experiment.py
+  - .github/workflows/residual-pytorch-bounded-m1-execution.yml
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_failure_artifact.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 validation:
-  - command: Local Python compile validation of the reconstructed changed source and test files
+  - command: Local YAML parse and Python compile of reconstructed workflow/test
     result: PASS
-    evidence: Both changed Python files compiled successfully before repository writes; exact-head CI remains authoritative.
+    evidence: The workflow parsed and the focused test file compiled before repository writes; exact-head CI remains authoritative.
 blockers:
-  - Exact-head AI Platform CI, Freqtrade CI and zizmor must pass on PR 481 before merge.
-next_action: Validate and merge PR 481 only if exact-head AI Platform CI, Freqtrade CI and zizmor are green, then create a fresh canonical exact-one-file request from the resulting develop head.
+  - Exact-head AI Platform CI, Freqtrade CI and zizmor must pass on PR 512 before merge.
+next_action: Validate and merge PR 512 only if exact-head AI Platform CI, Freqtrade CI and zizmor are green, then create a fresh canonical exact-one-file request from the resulting develop head to capture the exact FreqAI training exception.
 ```

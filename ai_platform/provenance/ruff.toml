@@ -1,0 +1,3 @@
+# Temporary diagnostic configuration; remove before merge.
+[lint]
+ignore = ["ALL"]

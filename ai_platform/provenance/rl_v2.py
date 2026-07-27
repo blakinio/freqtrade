@@ -280,7 +280,7 @@ def _list(value: Any, label: str) -> list[Any]:
     return value
 
 
-def _exact_keys(value: Mapping[str, Any], expected: set[str], label: str) -> None:
+def _exact_keys(value: Mapping[str, Any], expected: set[str] | frozenset[str], label: str) -> None:
     missing = expected - set(value)
     extra = set(value) - expected
     if missing:

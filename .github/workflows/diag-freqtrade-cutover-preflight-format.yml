@@ -1,0 +1,43 @@
+name: Diagnose Freqtrade Cutover Preflight Formatting
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - "tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_isolation.py"
+      - ".github/workflows/diag-freqtrade-cutover-preflight-format.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  format-patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Capture canonical Ruff patch
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff
+          ruff format tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_isolation.py
+          git diff -- tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_isolation.py > "$RUNNER_TEMP/cutover-format.patch"
+          test -s "$RUNNER_TEMP/cutover-format.patch"
+
+      - name: Upload formatting patch
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: freqtrade-cutover-format-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/cutover-format.patch
+          if-no-files-found: error
+          retention-days: 1

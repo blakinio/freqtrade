@@ -65,6 +65,8 @@ def test_staging_preflight_uploads_bounded_success_or_failure_report() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "id: verify" in workflow
+    assert "python3 - <<'PY'" in workflow
+    assert "python - <<'PY'" not in workflow
     assert "except BaseException as exc:" in workflow
     assert 'failure_report["failure"] = {' in workflow
     assert '"type": exc.__class__.__name__' in workflow

@@ -81,7 +81,7 @@ jobs:
           REPORT_PATH: ${{ runner.temp }}/okx-acceptance-staging-preflight-report.json
         run: |
           set -euo pipefail
-          python - <<'PY'
+          python3 - <<'PY'
           import hashlib
           import json
           import os

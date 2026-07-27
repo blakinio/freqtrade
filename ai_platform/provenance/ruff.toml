@@ -1,5 +1,5 @@
 # Temporary diagnostic configuration; remove before merge.
-line-length = 100
+extend = "../../pyproject.toml"
 
 [lint]
-select = ["UP"]
+select = ["I"]

@@ -31,8 +31,8 @@ Align the bounded self-hosted Binance Spot smoke with the current repository-own
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T22:58:00+02:00
-head_parent: 961efb5553d5d7199a96ce0c065b39808348f517
+updated_at: 2026-07-27T23:14:00+02:00
+head_parent: 162dc3f2add14c71fb3a6c3c8ce8ca5e59539e38
 base_develop: 351567d57760305b992fb1e441205dc32890dc2a
 branch: fix/binance-smoke-freqtrade-runner-routing-v1
 pr: "#522"
@@ -54,6 +54,7 @@ proven:
   - Protected environment synology-staging, endpoint, one-attempt boundary, zero retries, credential and proxy refusal, evidence handling and source_acceptance false remain unchanged.
   - Exact-head validation passed twice before develop advanced through disjoint task changes, including AI Platform CI 30303995558, Freqtrade CI 30303995614 and zizmor 30303995524 at c5b127d318970c73a98d60e3e686b0cc745cf010.
   - The identical four-path repair is now recreated on develop 351567d57760305b992fb1e441205dc32890dc2a.
+  - PR 522 was reopened after the transient zero-diff reconciliation state; this checkpoint update intentionally triggers fresh exact-head CI while the PR is open.
 derived:
   - The earlier queued result is a repository routing defect, not evidence that the Binance endpoint or parser failed.
   - A fresh exact-one-file trigger is required after this routing repair merges.

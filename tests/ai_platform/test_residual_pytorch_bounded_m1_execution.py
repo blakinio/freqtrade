@@ -10,17 +10,17 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
-from ai_platform.scripts import residual_pytorch_bounded_m1_run_request as run_request
+from ai_platform.scripts import residual_pytorch_bounded_m1_v2_run_request as run_request
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = (
     REPO_ROOT / "ai_platform/experimental_model_research/"
-    "residual-pytorch-bounded-m1-execution-contract-v1.json"
+    "residual-pytorch-bounded-m1-execution-contract-v2.json"
 )
 REQUEST_PATH = REPO_ROOT / run_request.REQUEST_REPO_PATH
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-execution.yml"
-TASK_PATH = REPO_ROOT / "docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md"
+TASK_PATH = REPO_ROOT / "docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md"
 NUMERIC_RUNTIME_AVAILABLE = (
     importlib.util.find_spec("numpy") is not None and importlib.util.find_spec("pandas") is not None
 )
@@ -30,7 +30,7 @@ def _numeric_runtime() -> tuple[Any, Any, Any]:
     import numpy as np
     import pandas as pd
 
-    from ai_platform.scripts import residual_pytorch_bounded_m1_execution as execution
+    from ai_platform.scripts import residual_pytorch_bounded_m1_v2_execution as execution
 
     return np, pd, execution
 
@@ -39,7 +39,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
     def test_dependency_light_contract_preserves_frozen_boundaries(self) -> None:
         contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
 
-        self.assertEqual(contract["contract_id"], "residual-pytorch-bounded-m1-execution-v1")
+        self.assertEqual(contract["contract_id"], "residual-pytorch-bounded-m1-execution-v2")
         self.assertEqual(contract["geometry"]["timerange"], "1772323200-1777593599")
         self.assertEqual(contract["geometry"]["download_timerange"], "1754006400-1777593599")
         self.assertEqual(contract["geometry"]["executions_per_track"], 1)
@@ -47,6 +47,8 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         self.assertFalse(contract["authorization"]["historical_oos_used"])
         self.assertFalse(contract["authorization"]["final_holdout_used"])
         self.assertFalse(contract["authorization"]["winner_selection_allowed"])
+        self.assertTrue(contract["authorization"]["feature_changes_allowed"])
+        self.assertEqual(contract["remediation"]["authorized_feature_changes"], ["%-volume-change"])
         self.assertFalse(contract["feature_target_contract"]["liquidation_features_allowed"])
         self.assertFalse(REQUEST_PATH.exists())
 
@@ -69,7 +71,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         missing.name = "numpy"
         with mock.patch.object(run_request, "import_module", side_effect=missing):
             with self.assertRaisesRegex(
-                run_request.ResidualPyTorchBoundedM1RunRequestError,
+                run_request.ResidualPyTorchBoundedM1V2RunRequestError,
                 "full numeric validation profile",
             ):
                 run_request._execution_module()
@@ -82,7 +84,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         self.assertIn("expected=$'A\\t", workflow)
         self.assertNotIn("restore-keys:", workflow)
         self.assertIn("--timerange 1754006400-1777593599", workflow)
-        self.assertEqual(workflow.count("run_track \\\n"), 3)
+        self.assertEqual(workflow.count("run_track "), 3)
         self.assertNotIn("selection-decision", workflow)
 
     def test_task_checkpoint_keeps_exactly_one_next_action(self) -> None:
@@ -230,7 +232,7 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
             changed = deepcopy(canonical)
             changed["geometry"]["timerange"] = "20260301-20260701"
             request_path.write_text(json.dumps(changed), encoding="utf-8")
-            with self.assertRaises(run_request.ResidualPyTorchBoundedM1RunRequestError):
+            with self.assertRaises(run_request.ResidualPyTorchBoundedM1V2RunRequestError):
                 run_request.load_run_request(request_path)
 
     @unittest.skipUnless(NUMERIC_RUNTIME_AVAILABLE, "requires NumPy and Pandas")

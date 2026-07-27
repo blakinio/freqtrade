@@ -108,9 +108,11 @@ common_args=(
     --group-add "$liquidations_group_id"
     --mount "type=bind,src=${liquidations_host_root},dst=${liquidations_container_root},readonly"
     --env PORTAL_WEB_DATA_MODE=fixture
-    --env PORTAL_ENVIRONMENT=staging
+    --env PORTAL_ENVIRONMENT=test
+    --env PORTAL_IDENTITY_FIXTURE_MODE=enabled
     --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${liquidations_container_root}"
     --label io.freqtrade.portal.preview=true
+    --label io.freqtrade.portal.identity=fixture
     --label io.freqtrade.portal.liquidations=read-only
     --label "io.freqtrade.portal.commit=${commit_sha}"
 )
@@ -178,6 +180,51 @@ wait_liquidations_internal() {
     return 1
 }
 
+wait_fixture_identity_internal() {
+    local name="$1"
+    for _ in $(seq 1 30); do
+        if docker exec "$name" node -e '
+          (async () => {
+            const login = await fetch(
+              "http://127.0.0.1:3000/api/identity/login?return_to=%2Fplatform%2Fadmin",
+              {redirect: "manual"},
+            );
+            if (login.status !== 303) process.exit(1);
+            const location = login.headers.get("location");
+            if (!location || new URL(location, "http://127.0.0.1:3000").pathname !== "/platform/admin") {
+              process.exit(1);
+            }
+            const setCookies = login.headers.getSetCookie?.() ?? [];
+            if (!setCookies.some((value) => value.startsWith("portal_fixture_session="))) {
+              process.exit(1);
+            }
+            if (!setCookies.some((value) => value.startsWith("portal_fixture_csrf="))) {
+              process.exit(1);
+            }
+            const cookie = setCookies.map((value) => value.split(";", 1)[0]).join("; ");
+            const session = await fetch("http://127.0.0.1:3000/api/identity/session", {
+              headers: {cookie},
+            });
+            const sessionPayload = await session.json().catch(() => null);
+            if (session.status !== 200 || sessionPayload?.tenant_id !== "tenant-demo") {
+              process.exit(1);
+            }
+            const admin = await fetch("http://127.0.0.1:3000/platform/admin", {
+              redirect: "manual",
+              headers: {cookie},
+            });
+            if (admin.status !== 200) process.exit(1);
+          })().catch(() => process.exit(1));
+        ' >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 2
+    done
+    echo "Fixture identity login/session/admin probe did not become healthy in container $name" >&2
+    docker logs --tail 120 "$name" 2>&1 || true
+    return 1
+}
+
 start_container() {
     local name="$1"
     local selected_image="$2"
@@ -229,10 +276,12 @@ if [[ "$previous_bind_address" == "$bind_address" && "$previous_port" == "$porta
         "$image" >/dev/null
     wait_healthy "$candidate"
     wait_liquidations_internal "$candidate"
+    wait_fixture_identity_internal "$candidate"
 else
     start_container "$candidate" "$image" "$bind_address" "$portal_port" no >/dev/null
     wait_healthy "$candidate"
     wait_liquidations_internal "$candidate"
+    wait_fixture_identity_internal "$candidate"
     wait_http "$bind_address" "$portal_port" "/market/liquidations"
 fi
 cleanup_candidate
@@ -249,6 +298,7 @@ fi
 
 if ! wait_healthy "$container_name" \
     || ! wait_liquidations_internal "$container_name" \
+    || ! wait_fixture_identity_internal "$container_name" \
     || ! wait_http "$bind_address" "$portal_port" "/market/liquidations"; then
     rollback
     exit 1
@@ -267,6 +317,7 @@ docker_socket_mount="$(docker inspect --format \
     "$container_name")"
 running_uid="$(docker exec "$container_name" id -u)"
 running_groups="$(docker exec "$container_name" id -G)"
+running_environment="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$container_name")"
 
 test "$running_image" = "$image"
 test "$published_port" = "${bind_address}:${portal_port}"
@@ -275,8 +326,15 @@ test "$liquidations_mount_rw" = "false"
 test -z "$docker_socket_mount"
 test "$running_uid" != "0"
 [[ " $running_groups " == *" $liquidations_group_id "* ]]
+grep -qx 'PORTAL_WEB_DATA_MODE=fixture' <<< "$running_environment"
+grep -qx 'PORTAL_ENVIRONMENT=test' <<< "$running_environment"
+grep -qx 'PORTAL_IDENTITY_FIXTURE_MODE=enabled' <<< "$running_environment"
+if grep -q '^PORTAL_CONTROL_PLANE_URL=' <<< "$running_environment"; then
+    echo "Fixture preview must not declare a control-plane URL" >&2
+    exit 1
+fi
 
-printf 'Portal preview healthy: image=%s container=%s bind=%s:%s liquid20=%s:ro uid=%s read_group=%s\n' \
+printf 'Portal preview healthy: image=%s container=%s bind=%s:%s liquid20=%s:ro uid=%s read_group=%s identity=fixture\n' \
     "$image" "$container_name" "$bind_address" "$portal_port" "$liquidations_host_root" \
     "$running_uid" "$liquidations_group_id"
 
@@ -292,7 +350,8 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
         echo "- Liquid20 latest run: \`$latest_liquid20_run\`"
         echo "- Runtime UID: \`${running_uid}\` (non-root)"
         echo "- Liquid20 read group: \`${liquidations_group_id}\`"
-        echo "- Data mode: \`server-side Liquid20 read-model\`"
+        echo "- Data mode: \`server-side Liquid20 read-model with fixture product surfaces\`"
+        echo "- Identity mode: \`fixture preview; real Authentik/control plane remains disabled\`"
         echo "- API session boundary: \`401 SESSION_MISSING without a portal session\`"
         echo "- Trading authorized: \`false\`"
     } >> "$GITHUB_STEP_SUMMARY"

@@ -17,10 +17,31 @@ def test_deploy_probe_requires_page_and_protected_api_boundary() -> None:
     assert "authenticated Liquid20 boundary" in script
 
 
-def test_workflow_does_not_require_unauthenticated_api_success() -> None:
+def test_deploy_enables_and_verifies_bounded_fixture_identity() -> None:
+    script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+
+    assert "--env PORTAL_WEB_DATA_MODE=fixture" in script
+    assert "--env PORTAL_ENVIRONMENT=test" in script
+    assert "--env PORTAL_IDENTITY_FIXTURE_MODE=enabled" in script
+    assert "--env PORTAL_CONTROL_PLANE_URL" not in script
+    assert "wait_fixture_identity_internal" in script
+    assert "/api/identity/login?return_to=%2Fplatform%2Fadmin" in script
+    assert "login.status !== 303" in script
+    assert "session.status !== 200" in script
+    assert "admin.status !== 200" in script
+    assert "Fixture preview must not declare a control-plane URL" in script
+    assert "real Authentik/control plane remains disabled" in script
+
+
+def test_workflow_verifies_liquidations_and_fixture_identity() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert "Verify LAN Liquid20 surface and session boundary" in workflow
+    assert "Verify LAN Liquid20 surface and fixture identity boundary" in workflow
     assert 'response.status !== 401 || payload?.code !== "SESSION_MISSING"' in workflow
     assert '"http://192.168.1.2:3031/market/liquidations"' in workflow
+    assert "/api/identity/login?return_to=%2Fplatform%2Fadmin" in workflow
+    assert "login.status !== 303" in workflow
+    assert "session.status !== 200" in workflow
+    assert "admin.status !== 200" in workflow
+    assert "fixture-identity-probe" in workflow
     assert "if (!response.ok) process.exit(1);" not in workflow

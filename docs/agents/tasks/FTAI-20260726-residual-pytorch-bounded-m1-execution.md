@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-residual-pytorch-bounded-m1-execution
 status: active
-branch: fix/residual-pytorch-epoch-timerange-orchestration
+branch: fix/residual-pytorch-failure-evidence
 base_branch: develop
 created: 2026-07-26
-updated: 2026-07-26
-related_pr: 423
+updated: 2026-07-27
+related_pr: 450
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
@@ -87,61 +87,63 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T07:15:00Z
-head: 8bb2a2a8424e9e35bfc14e8f52fff571f42c3ba4
-merge_commit: null
-branch: fix/residual-pytorch-epoch-timerange-orchestration
-pr: 423
+updated_at: 2026-07-27T10:05:00Z
+head: 6a9627f2a16d15c422009ec8d766cf59e5efc29c
+branch: fix/residual-pytorch-failure-evidence
+pr: 450
 status: validating
 context_routes:
-  - docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md
-  - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md
+  - docs/agents/CONTEXT_HANDOFF.md
   - ai_platform/scripts/run_experiment.py
-  - ai_platform/scripts/protected_final_holdout.py
-owned_paths:
-  - ai_platform/experiments/schema-v1.json
-  - ai_platform/scripts/protected_final_holdout.py
-  - ai_platform/scripts/run_experiment.py
-  - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
-  - tests/ai_platform/test_protected_final_holdout.py
   - tests/ai_platform/test_run_experiment.py
+  - .github/workflows/residual-pytorch-bounded-m1-execution.yml
+  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
+owned_paths:
+  - ai_platform/scripts/run_experiment.py
+  - tests/ai_platform/test_run_experiment.py
+  - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
+  - .github/workflows/residual-pytorch-m1-failure-evidence-bootstrap.yml
 proven:
   - Exclusive-stop infrastructure merged through PR 409 as 185e6a5a8fc2c5d70d0ea2173f4c5cd4a5ca702c.
-  - Exact-one-file PR 419 and run 30224752320 passed request validation, both Kraken downloads, per-pair exclusive-stop verification, cache publication and combined pre-fit data verification.
-  - BTC coverage ended at 2026-04-30T23:45:00Z on 15m with 26164 rows; ETH ended at the same boundary with 26132 rows; consumed historical OOS and protected holdout were not used.
-  - Run 30224752320 failed closed before matrix creation with `Experiment failed: timerange must use YYYYMMDD-YYYYMMDD format`.
-  - Matrix audit artifacts were not created and LightGBM, seeded MLP and residual MLP executions were skipped.
+  - Unix-second experiment orchestration support merged through PR 423 as f21a258643d70b4387e366e8b466dbc56735f44f.
+  - Exact-one-file PR 437 run 30248969155 passed request and contract validation, both Kraken acquisitions, per-pair exclusive-stop verification, cache publication and combined pre-fit data verification.
+  - Run 30248969155 used no consumed historical OOS or protected final holdout; BTC and ETH latest 15m candles were 2026-04-30T23:45:00Z.
+  - Run 30248969155 failed at `Audit exact expanded matrix before model execution` with backtest exit code 2; LightGBM, seeded MLP and residual MLP were skipped.
+  - Diagnostic PR 447 closed without merge and confirmed the nested Freqtrade stderr was unavailable because `backtest.log` and the failed run directory were transient.
+  - PR 450 head 6a9627f2a16d15c422009ec8d766cf59e5efc29c contains a bounded failed-log tail correction and focused test plus a temporary bootstrap workflow.
+  - Bootstrap run 30256136188 completed successfully; patch application, targeted validation, pre-commit and commit publication all passed.
+  - Latest exact-head workflows for PR 450 ended `action_required` with zero jobs while the temporary workflow file remains in the diff.
 derived:
-  - The frozen epoch-second geometry is accepted by Freqtrade and the dedicated data verifier but rejected by the generic experiment-manifest orchestration layer.
-  - Supporting both existing date-form and 10-digit Unix-second ranges in one shared parser preserves holdout isolation without changing research geometry.
+  - The minimal bounded log-tail correction should expose the next nested Freqtrade failure without changing frozen geometry, market-data scope or model behavior.
+  - Removing the temporary bootstrap workflow is required before clean exact-head CI and merge review.
 unknown:
-  - Exact FreqAI-expanded feature count and historical NaN, outlier and target distributions.
-  - Whether all three frozen models complete after orchestration accepts the authorized epoch-second timeranges.
+  - The exact underlying Freqtrade error that caused matrix-audit backtest exit code 2.
+  - The exact expanded feature count and historical NaN, outlier and target distributions.
+  - Whether all three frozen models complete after the audit defect is identified and corrected.
 conflicts: []
 first_failure:
-  marker: EPOCH_TIMERANGE_ORCHESTRATION_REJECTED
-  evidence: The audit command exited before creating a run directory because run_experiment schema validation accepted only YYYYMMDD-YYYYMMDD while all frozen M1 manifests use verified 10-digit Unix-second ranges.
+  marker: MATRIX_AUDIT_BACKTEST_EXIT_2_LOG_NOT_DURABLE
+  evidence: Run 30248969155 passed all request, data and combined pre-fit gates, then the audit backtest exited 2 before matrix evidence; the nested stderr was redirected to a non-persisted `backtest.log`.
 rejected_hypotheses:
-  - The exclusive-stop correction failed; both pair and combined data verification passed.
-  - Kraken data or cache restoration failed; both dedicated caches were saved and restored successfully.
-  - A model or matrix-quality defect caused the failure; no matrix artifact or model fit was created.
+  - Pre-May data coverage or exclusive-stop verification failed; both pair jobs and combined pre-fit verification passed.
+  - A frozen model caused the terminal failure; no model execution started.
+  - Unix-second orchestration regressed; request and contract revalidation passed and failure moved into the audit backtest.
 changed_paths:
-  - ai_platform/experiments/schema-v1.json
-  - ai_platform/scripts/protected_final_holdout.py
+  - .github/workflows/residual-pytorch-m1-failure-evidence-bootstrap.yml
   - ai_platform/scripts/run_experiment.py
-  - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
-  - tests/ai_platform/test_protected_final_holdout.py
   - tests/ai_platform/test_run_experiment.py
+  - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 validation:
-  - command: pytest -q tests/ai_platform/test_run_experiment.py tests/ai_platform/test_protected_final_holdout.py tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
+  - command: GitHub Actions run 30256136188 on PR 450
     result: PASS
-    evidence: Date-form and epoch-second manifests, protected-holdout overlap detection and bounded M1 contract tests pass without market access.
+    evidence: Bootstrap applied the bounded log-tail correction, ran targeted tests and pre-commit, and published the verified target changes.
+  - command: GitHub Actions exact-head workflows on 6a9627f2a16d15c422009ec8d766cf59e5efc29c
+    result: BLOCKED
+    evidence: AI Platform CI, Freqtrade CI, zizmor and related workflows ended action_required with no jobs while the temporary workflow file remains changed.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md --require-checkpoint
     result: PASS
-    evidence: Compact checkpoint is governance-valid with exactly one next action.
-  - command: python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract
-    result: PASS
-    evidence: Frozen bounded contract and manifests remain valid without execution.
-blockers: []
-next_action: Validate and merge the exact-head epoch-timerange orchestration correction, then generate one fresh canonical exact-one-file request and resume the guarded M1 run from verified caches without changing frozen geometry.
+    evidence: Compact checkpoint is governance-valid and contains exactly one concrete next action.
+blockers:
+  - PR 450 still contains the temporary bootstrap workflow; latest exact-head workflows are action_required and created no jobs.
+next_action: Remove the temporary bootstrap workflow from PR 450, verify the remaining diff is only `run_experiment.py`, `test_run_experiment.py` and this task checkpoint, then run exact-head AI Platform CI, Freqtrade CI and zizmor and merge PR 450 only if green before generating a fresh canonical exact-one-file request.
 ```

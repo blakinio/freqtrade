@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,19 +12,33 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DECLARATION_PATH = REPO_ROOT / "ai_platform/validation/final-holdout-v2-declaration.json"
 FINAL_HOLDOUT_MANIFEST_PATH = REPO_ROOT / "ai_platform/experiments/final-holdout-v2.json"
 FINAL_HOLDOUT_WORKFLOW = "AI Platform Phase 5 Final Holdout Validation v2"
-TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")
+DATE_TIMERANGE_PATTERN = re.compile(r"^[0-9]{8}-[0-9]{8}$")
+UNIX_SECOND_TIMERANGE_PATTERN = re.compile(r"^[0-9]{10}-[0-9]{10}$")
 
 
 class ProtectedFinalHoldoutError(RuntimeError):
     """Raised when generic research tooling would access the protected final holdout."""
 
 
-def _parse_timerange(value: Any, label: str) -> tuple[datetime, datetime]:
-    if not isinstance(value, str) or not TIMERANGE_PATTERN.fullmatch(value):
-        raise ProtectedFinalHoldoutError(f"{label} must use YYYYMMDD-YYYYMMDD format")
-    start_raw, end_raw = value.split("-", maxsplit=1)
-    start = datetime.strptime(start_raw, "%Y%m%d")
-    end = datetime.strptime(end_raw, "%Y%m%d")
+def parse_timerange(value: Any, label: str) -> tuple[datetime, datetime]:
+    if not isinstance(value, str):
+        raise ProtectedFinalHoldoutError(
+            f"{label} must use YYYYMMDD-YYYYMMDD or 10-digit Unix-second range"
+        )
+
+    if DATE_TIMERANGE_PATTERN.fullmatch(value):
+        start_raw, end_raw = value.split("-", maxsplit=1)
+        start = datetime.strptime(start_raw, "%Y%m%d").replace(tzinfo=UTC)
+        end = datetime.strptime(end_raw, "%Y%m%d").replace(tzinfo=UTC)
+    elif UNIX_SECOND_TIMERANGE_PATTERN.fullmatch(value):
+        start_raw, end_raw = value.split("-", maxsplit=1)
+        start = datetime.fromtimestamp(int(start_raw), tz=UTC)
+        end = datetime.fromtimestamp(int(end_raw), tz=UTC)
+    else:
+        raise ProtectedFinalHoldoutError(
+            f"{label} must use YYYYMMDD-YYYYMMDD or 10-digit Unix-second range"
+        )
+
     if start > end:
         raise ProtectedFinalHoldoutError(f"{label} starts after it ends")
     return start, end
@@ -46,7 +60,7 @@ def load_protected_final_holdout() -> dict[str, Any]:
         raise ProtectedFinalHoldoutError("Protected final holdout declaration is incomplete")
 
     timerange = final_holdout.get("timerange")
-    _parse_timerange(timerange, "protected final holdout timerange")
+    parse_timerange(timerange, "protected final holdout timerange")
     if final_holdout.get("used") is not False:
         raise ProtectedFinalHoldoutError("Protected final holdout is no longer marked unused")
     if authorization.get("retuning_allowed") is not False:
@@ -60,8 +74,8 @@ def protected_timerange() -> str:
 
 
 def timeranges_overlap(left: str, right: str) -> bool:
-    left_start, left_end = _parse_timerange(left, "research timerange")
-    right_start, right_end = _parse_timerange(right, "protected final holdout timerange")
+    left_start, left_end = parse_timerange(left, "research timerange")
+    right_start, right_end = parse_timerange(right, "protected final holdout timerange")
     return left_start <= right_end and right_start <= left_end
 
 

@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-residual-pytorch-bounded-m1-execution
 status: active
-branch: fix/residual-pytorch-bounded-m1-exclusive-stop
+branch: fix/residual-pytorch-epoch-timerange-orchestration
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-26
-related_pr: 409
+related_pr: 423
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
@@ -87,69 +87,61 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-26T22:10:00Z
-head: d8aa4453d64a2cadefc9cf00ed74c8416904f7ab
+updated_at: 2026-07-27T07:15:00Z
+head: 8bb2a2a8424e9e35bfc14e8f52fff571f42c3ba4
 merge_commit: null
-branch: fix/residual-pytorch-bounded-m1-exclusive-stop
-pr: 409
+branch: fix/residual-pytorch-epoch-timerange-orchestration
+pr: 423
 status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-data-target-audit.md
   - docs/ai_platform/RESIDUAL_PYTORCH_RESEARCH_ARCHITECTURE.md
-  - docs/ai_platform/EXPERIMENTAL_MODEL_HISTORICAL_BACKTEST_EXECUTION.md
   - ai_platform/scripts/run_experiment.py
+  - ai_platform/scripts/protected_final_holdout.py
 owned_paths:
-  - .github/workflows/residual-pytorch-bounded-m1-execution.yml
-  - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json
-  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
+  - ai_platform/experiments/schema-v1.json
+  - ai_platform/scripts/protected_final_holdout.py
+  - ai_platform/scripts/run_experiment.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
-  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
-  - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
+  - tests/ai_platform/test_protected_final_holdout.py
+  - tests/ai_platform/test_run_experiment.py
 proven:
-  - P2 implementation and closeout are merged, and P3 infrastructure merged through PR 395 as fc210dd68f0998176e3bf2da3bd29b231a511ae7.
-  - Exact-one-file trigger PRs 400, 401 and 402 each passed request validation and completed both authorized Kraken trade downloads without starting any model.
-  - Runs 30220022577, 30220023431 and 30220063748 all failed closed during pair coverage verification; cache publication, matrix audit, training and backtesting were skipped.
-  - Exact terminal evidence from run 30220022577 reported `Post-development candle was loaded for ETH/USDT 15m` and the same failure for BTC/USDT 15m.
-  - Freqtrade `trim_dataframe` applies date-form stop boundaries inclusively with `<=`, while the frozen P3 contract requires an exclusive stop at `2026-05-01T00:00:00Z`.
+  - Exclusive-stop infrastructure merged through PR 409 as 185e6a5a8fc2c5d70d0ea2173f4c5cd4a5ca702c.
+  - Exact-one-file PR 419 and run 30224752320 passed request validation, both Kraken downloads, per-pair exclusive-stop verification, cache publication and combined pre-fit data verification.
+  - BTC coverage ended at 2026-04-30T23:45:00Z on 15m with 26164 rows; ETH ended at the same boundary with 26132 rows; consumed historical OOS and protected holdout were not used.
+  - Run 30224752320 failed closed before matrix creation with `Experiment failed: timerange must use YYYYMMDD-YYYYMMDD format`.
+  - Matrix audit artifacts were not created and LightGBM, seeded MLP and residual MLP executions were skipped.
 derived:
-  - Encoding both acquisition and backtest timeranges with Unix-second stop `1777593599` preserves the frozen March-April geometry and excludes the first consumed-OOS second.
-  - The failed executions provide no feature-count, matrix-distribution, training, prediction or backtest evidence.
+  - The frozen epoch-second geometry is accepted by Freqtrade and the dedicated data verifier but rejected by the generic experiment-manifest orchestration layer.
+  - Supporting both existing date-form and 10-digit Unix-second ranges in one shared parser preserves holdout isolation without changing research geometry.
 unknown:
   - Exact FreqAI-expanded feature count and historical NaN, outlier and target distributions.
-  - Whether all three frozen models complete the bounded historical-development lifecycle after the boundary correction.
+  - Whether all three frozen models complete after orchestration accepts the authorized epoch-second timeranges.
 conflicts: []
 first_failure:
-  marker: POST_DEVELOPMENT_BOUNDARY_CANDLE
-  evidence: All three guarded attempts downloaded data but failed before cache publication because the inclusive 15m load admitted the `2026-05-01T00:00:00Z` candle for both pairs.
+  marker: EPOCH_TIMERANGE_ORCHESTRATION_REJECTED
+  evidence: The audit command exited before creating a run directory because run_experiment schema validation accepted only YYYYMMDD-YYYYMMDD while all frozen M1 manifests use verified 10-digit Unix-second ranges.
 rejected_hypotheses:
-  - Kraken history was unavailable; both pair downloads completed successfully.
-  - A model or matrix-audit defect caused the run; those stages were never entered.
-  - Consumed May-June OOS or the protected holdout may be used to repair the run.
+  - The exclusive-stop correction failed; both pair and combined data verification passed.
+  - Kraken data or cache restoration failed; both dedicated caches were saved and restored successfully.
+  - A model or matrix-quality defect caused the failure; no matrix artifact or model fit was created.
 changed_paths:
-  - .github/workflows/residual-pytorch-bounded-m1-execution.yml
-  - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json
-  - ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json
-  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
+  - ai_platform/experiments/schema-v1.json
+  - ai_platform/scripts/protected_final_holdout.py
+  - ai_platform/scripts/run_experiment.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
-  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
-  - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
+  - tests/ai_platform/test_protected_final_holdout.py
+  - tests/ai_platform/test_run_experiment.py
 validation:
-  - command: python -m unittest discover -s tests/ai_platform -p test_residual_pytorch_bounded_m1_execution.py
+  - command: pytest -q tests/ai_platform/test_run_experiment.py tests/ai_platform/test_protected_final_holdout.py tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
     result: PASS
-    evidence: Bootstrap validation exercises frozen contract, exact timerange encoding, matrix and diagnostic guards without market access.
+    evidence: Date-form and epoch-second manifests, protected-holdout overlap detection and bounded M1 contract tests pass without market access.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md --require-checkpoint
     result: PASS
-    evidence: Active compact checkpoint remains governance-valid with exactly one next action.
+    evidence: Compact checkpoint is governance-valid with exactly one next action.
   - command: python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract
     result: PASS
-    evidence: Corrected contract and all frozen manifests validate without market-data access or execution.
+    evidence: Frozen bounded contract and manifests remain valid without execution.
 blockers: []
-next_action: Validate the exact-head exclusive-stop correction in CI, merge it, then open one fresh canonical exact-one-file request PR and collect terminal guarded evidence without changing the frozen research geometry.
+next_action: Validate and merge the exact-head epoch-timerange orchestration correction, then generate one fresh canonical exact-one-file request and resume the guarded M1 run from verified caches without changing frozen geometry.
 ```

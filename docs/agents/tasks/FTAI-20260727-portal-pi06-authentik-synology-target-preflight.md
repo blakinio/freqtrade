@@ -13,6 +13,7 @@ related_prs:
   - "#458"
   - "#459"
   - "#462"
+  - "#482"
 owned_paths:
   - .github/workflows/portal-authentik-synology-target-preflight.yml
   - deploy/synology/portal-authentik/target_preflight.py
@@ -61,10 +62,10 @@ Verify the established Synology self-hosted runner, Docker/Compose prerequisites
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T15:46:30+02:00
-head: 59775a93fb606ac5bf25796f3f43ef912928bade
+updated_at: 2026-07-27T15:51:02+02:00
+head: 11e7d49747040477b75356719c64afa456a7b0d8
 branch: docs/portal-pi06-target-preflight-checkpoint-20260727
-pr: "checkpoint refresh PR pending; #462 merged; #445 closed without merge"
+pr: "#482 open; #462 merged; #445 closed without merge"
 status: blocked
 context_routes:
   - AGENTS.md
@@ -87,7 +88,7 @@ proven:
   - Artifact 8651340321 digest sha256:a40a96edd18e219278f46cc9192c16cc9cc9387ad6ae245327955591b253a569 recorded no secret values and no mutations.
   - PR 445 was closed without merge after terminal artifact capture.
   - PR 462 merged the terminal task result into develop as 4fabc02670a21b6291b43081d5424b0970c575f5.
-  - Live repository search at develop 59775a93fb606ac5bf25796f3f43ef912928bade found no open PI-06 PR, PI-06/Authentik branch or fresh target-preflight request file.
+  - Develop advanced to 11e7d49747040477b75356719c64afa456a7b0d8 only through unrelated RL-v2 declaration work; PR 482 is metadata-only and no owner-managed PI-06 provisioning or fresh target-preflight request appeared.
 derived:
   - Repository-side runner routing is resolved; remaining readiness failures require owner-managed target inputs.
   - A new exact-one-file preflight is required after provisioning, and deployment remains forbidden until ready_for_controlled_deployment is true.
@@ -123,9 +124,9 @@ validation:
   - command: request PR 445 lifecycle
     result: PASS
     evidence: The exact-one-file request was closed without merge after evidence capture.
-  - command: live PI-06 ownership and request search on develop at 59775a93fb606ac5bf25796f3f43ef912928bade
+  - command: live PI-06 ownership and request search on develop at 11e7d49747040477b75356719c64afa456a7b0d8
     result: PASS
-    evidence: No open PI-06 PR, matching branch or fresh exact-one-file target-preflight request exists.
+    evidence: PR 482 changes only this checkpoint; no provisioning branch or fresh exact-one-file target-preflight request exists.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260727-portal-pi06-authentik-synology-target-preflight.md --require-checkpoint
     result: PASS
     evidence: Compact checkpoint validated against GOVERNANCE_CONTRACT.json before this metadata-only refresh.

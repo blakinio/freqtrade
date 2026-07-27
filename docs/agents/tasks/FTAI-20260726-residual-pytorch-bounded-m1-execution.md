@@ -29,7 +29,7 @@ updated_at: 2026-07-27T21:30:00Z
 head: d88cf99ea2453b00d4314d804a73ff0eb04bad3d
 branch: run/residual-pytorch-bounded-m1-execution-v10
 pr: 517
-status: completed
+status: ready
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
@@ -55,7 +55,7 @@ changed_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 validation:
   - command: run 30299203871 and artifact 8667673779 inspection
-    result: FAIL_CLOSED_AS_DESIGNED
+    result: FAIL
     evidence: Exact non-finite feature was identified before model execution.
 blockers: []
 next_action: Continue only through docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md; v1 is retired and must not be rerun.

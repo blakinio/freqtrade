@@ -243,15 +243,31 @@ jobs:
             --output "$EVIDENCE_ROOT/shared/combined-data-coverage.json"
 
       - name: Audit exact expanded matrix before model execution
+        id: audit-matrix
         shell: bash
         run: |
           set -euo pipefail
           audit_root="$EVIDENCE_ROOT/audit"
           mkdir -p "$audit_root/raw"
+          cp "$EVIDENCE_ROOT/shared/combined-data-coverage.json" "$audit_root/"
+          cp "$REQUEST_PATH" "$audit_root/run-request.json"
+          cp "$CONTRACT_PATH" "$audit_root/execution-contract.json"
           export RESIDUAL_PYTORCH_M1_AUDIT_DIR="$audit_root/raw"
+
+          set +e
           python -m ai_platform.scripts.run_experiment \
             ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json \
-            --stage backtest > audit-run-path.txt
+            --stage backtest \
+            > audit-run-path.txt \
+            2> >(tee "$audit_root/audit-stderr.log" >&2)
+          audit_status=$?
+          set -e
+          cp audit-run-path.txt "$audit_root/audit-run-path.txt"
+          printf '%s\n' "$audit_status" > "$audit_root/audit-exit-code.txt"
+          if (( audit_status != 0 )); then
+            exit "$audit_status"
+          fi
+
           audit_run="$(tail -n 1 audit-run-path.txt)"
           test -d "$audit_run"
           python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
@@ -263,11 +279,9 @@ jobs:
             --audit-dir "$audit_root/raw" \
             --output "$audit_root/cross-pair-audit.json"
           cp -R "$audit_run" "$audit_root/runtime"
-          cp "$EVIDENCE_ROOT/shared/combined-data-coverage.json" "$audit_root/"
-          cp "$REQUEST_PATH" "$audit_root/run-request.json"
-          cp "$CONTRACT_PATH" "$audit_root/execution-contract.json"
 
       - name: Execute each frozen model exactly once and collect descriptive evidence
+        id: execute-models
         shell: bash
         run: |
           set -euo pipefail
@@ -354,28 +368,28 @@ jobs:
           retention-days: 90
 
       - name: Upload LightGBM evidence
-        if: always()
+        if: always() && steps.execute-models.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: residual-pytorch-bounded-m1-lightgbm-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/lightgbm/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Upload seeded MLP evidence
-        if: always()
+        if: always() && steps.execute-models.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: residual-pytorch-bounded-m1-seeded-mlp-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/seeded-mlp/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
 
       - name: Upload residual MLP evidence
-        if: always()
+        if: always() && steps.execute-models.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: residual-pytorch-bounded-m1-residual-mlp-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/residual-mlp/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90

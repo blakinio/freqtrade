@@ -10,9 +10,7 @@ ROOT = Path(__file__).resolve().parents[4]
 DEPLOY_ROOT = ROOT / "deploy" / "synology" / "portal-authentik"
 WORKFLOW = ROOT / ".github" / "workflows" / "portal-authentik-synology-target-preflight.yml"
 MODULE_PATH = DEPLOY_ROOT / "target_preflight.py"
-REQUEST_PATH = (
-    "deploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json"
-)
+REQUEST_PATH = "deploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json"
 
 
 def load_module():

@@ -22,8 +22,8 @@ required_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T19:44:00Z
-head: c57410e917f5a809e554ad4f0f328d5c0177f4e8
+updated_at: 2026-07-27T19:53:00Z
+head: 2a157ac59e75da664220f17fa26509fd8357d20d
 branch: fix/freqtrade-synology-runner-state-path-cutover-20260727
 pr: "#516"
 status: implementation-complete-ci-pending
@@ -41,6 +41,7 @@ proven:
   - The repair writes through the runner-visible state mount and passes the corresponding host path only to the Docker daemon.
   - Registration volumes, canonical project/service/name, exact image and state mount remain unchanged.
   - A bounded rollback Compose definition restores the prior image if target verification fails.
+  - Focused tests pass; Ruff lint passes; Ruff canonical formatting is applied; temporary diagnostics are absent from the final diff.
 derived:
   - The path translation is required before controlled Liquid20 collector deployment can produce trustworthy Synology evidence.
 unknown:
@@ -58,9 +59,12 @@ changed_paths:
   - tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_state_path_cutover.py
   - docs/agents/tasks/FTAI-20260727-freqtrade-synology-runner-state-path-cutover.md
 validation:
-  - command: repository CI and security analysis
+  - command: focused repository tests and Ruff lint
+    result: PASS
+    evidence: AI Platform CI completed tests and lint before the formatter-only failure; the canonical Ruff diff was applied.
+  - command: exact-head repository CI and security analysis
     result: PENDING
-    evidence: Required on the exact PR head.
+    evidence: Required on the checkpoint-only final head.
 blockers:
   - Exact-head CI and review are pending.
   - Real state-path cutover runs only after reviewed merge to develop.

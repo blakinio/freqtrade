@@ -32,5 +32,4 @@ class CredentialReferenceStatusPort(Protocol):
         *,
         tenant_id: str,
         credential_ref: str,
-    ) -> CredentialReferenceInspection:
-        ...
+    ) -> CredentialReferenceInspection: ...

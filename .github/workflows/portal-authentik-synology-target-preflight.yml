@@ -1,0 +1,119 @@
+name: Portal PI-06 Synology Target Preflight
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-pi06-target-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: deploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json
+
+jobs:
+  preflight:
+    name: Verify PI-06 Synology target readiness
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [self-hosted, Linux, oteryn-staging]
+    environment: synology-staging
+    timeout-minutes: 15
+    env:
+      OTERYN_STAGING_STATE_DIR: ${{ vars.OTERYN_STAGING_STATE_DIR }}
+      PI06_AUTHENTIK_PUBLIC_BASE_URL: ${{ vars.PI06_AUTHENTIK_PUBLIC_BASE_URL }}
+      PI06_PORTAL_PUBLIC_BASE_URL: ${{ vars.PI06_PORTAL_PUBLIC_BASE_URL }}
+      PI06_PORTAL_IDENTITY_CLIENT_ID: ${{ vars.PI06_PORTAL_IDENTITY_CLIENT_ID }}
+      PI06_AUTHENTIK_POSTGRES_PASSWORD: ${{ secrets.PI06_AUTHENTIK_POSTGRES_PASSWORD }}
+      PI06_AUTHENTIK_SECRET_KEY: ${{ secrets.PI06_AUTHENTIK_SECRET_KEY }}
+      PI06_AUTHENTIK_BOOTSTRAP_PASSWORD_HASH: >-
+        ${{ secrets.PI06_AUTHENTIK_BOOTSTRAP_PASSWORD_HASH }}
+      PI06_PORTAL_OIDC_CLIENT_SECRET: ${{ secrets.PI06_PORTAL_OIDC_CLIENT_SECRET }}
+      PI06_PORTAL_SESSION_HMAC_KEY_B64: ${{ secrets.PI06_PORTAL_SESSION_HMAC_KEY_B64 }}
+      PI06_PORTAL_FLOW_ENCRYPTION_KEY_B64: >-
+        ${{ secrets.PI06_PORTAL_FLOW_ENCRYPTION_KEY_B64 }}
+      PI06_AUTHENTIK_AGE_RECIPIENT: ${{ secrets.PI06_AUTHENTIK_AGE_RECIPIENT }}
+
+    steps:
+      - name: Checkout exact preflight request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file request scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tdeploy/synology/portal-authentik/run-requests/target-preflight-20260727-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "PI-06 target preflight must add exactly the canonical request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Refuse exchange and live-capital credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Run bounded target preflight
+        id: target-preflight
+        continue-on-error: true
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+          REPORT_PATH: ${{ runner.temp }}/portal-pi06-target-preflight-report.json
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-authentik/target_preflight.py \
+            --request "$REQUEST_PATH" \
+            --report "$REPORT_PATH"
+
+      - name: Upload bounded non-sensitive preflight report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-pi06-target-preflight-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/portal-pi06-target-preflight-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce readiness result
+        if: always()
+        shell: bash
+        env:
+          PREFLIGHT_OUTCOME: ${{ steps.target-preflight.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$PREFLIGHT_OUTCOME" != "success" ]]; then
+            echo "PI-06 target preflight reported one or more blockers" >&2
+            exit 1
+          fi

@@ -159,8 +159,9 @@ test("heartbeat advances without changing event time and transitions stale then 
 
     now += 5_000;
     const advanced = liveState(liveId, now);
-    advanced.state.last_event_at_ms = firstEvent;
-    advanced.state.last_event_received_at_ms = first.last_event_received_at_ms ?? null;
+    advanced.state.last_event_at_ms = firstEvent ?? advanced.state.last_event_at_ms;
+    advanced.state.last_event_received_at_ms =
+      first.last_event_received_at_ms ?? advanced.state.last_event_received_at_ms;
     await writeFile(
       join(fixture.dataRoot, "live", "live-state-v1.json"),
       JSON.stringify(advanced),

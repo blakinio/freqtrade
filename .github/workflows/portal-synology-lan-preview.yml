@@ -60,6 +60,110 @@ jobs:
           set -o pipefail
           bash deploy/synology/portal/deploy-preview.sh 2>&1 | tee "$PORTAL_DEPLOY_LOG"
 
+      - name: Capture failed Liquid20 BFF diagnostics
+        if: steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        env:
+          PORTAL_IMAGE: local/freqtrade-portal-web:sha-${{ github.sha }}
+          PORTAL_LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
+          PORTAL_DEPLOY_LOG: ${{ runner.temp }}/portal-synology-deploy.log
+        run: |
+          set +e
+          diagnostic="freqtrade-portal-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker rm -f "$diagnostic" >/dev/null 2>&1 || true
+          {
+            echo
+            echo "=== failed Liquid20 BFF diagnostics ==="
+            group_id="$(docker run --rm \
+              --user 0 \
+              --entrypoint node \
+              --mount "type=bind,src=${PORTAL_LIQUIDATIONS_HOST_ROOT},dst=/liquid20-data,readonly" \
+              "$PORTAL_IMAGE" \
+              -e 'const fs=require("node:fs"); process.stdout.write(String(fs.lstatSync("/liquid20-data").gid));')"
+            echo "diagnostic_read_group=${group_id}"
+            docker run -d \
+              --name "$diagnostic" \
+              --restart no \
+              --read-only \
+              --tmpfs /tmp:size=64m,mode=1777 \
+              --tmpfs /app/.next/cache:size=64m,mode=0755 \
+              --cap-drop ALL \
+              --security-opt no-new-privileges:true \
+              --group-add "$group_id" \
+              --mount "type=bind,src=${PORTAL_LIQUIDATIONS_HOST_ROOT},dst=/liquid20-data,readonly" \
+              --env PORTAL_WEB_DATA_MODE=fixture \
+              --env PORTAL_ENVIRONMENT=staging \
+              --env PORTAL_LIQUIDATIONS_DATA_ROOT=/liquid20-data \
+              "$PORTAL_IMAGE" >/dev/null
+            for _ in $(seq 1 30); do
+              status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$diagnostic" 2>/dev/null || true)"
+              [[ "$status" == "healthy" || "$status" == "running" ]] && break
+              sleep 1
+            done
+            echo "diagnostic_container_status=${status:-missing}"
+            docker exec "$diagnostic" node -e '
+              const paths = [
+                "/api/market/liquidations/health",
+                "/api/market/liquidations/summary",
+                "/api/market/liquidations?limit=1",
+                "/market/liquidations",
+              ];
+              (async () => {
+                for (const path of paths) {
+                  try {
+                    const response = await fetch(`http://127.0.0.1:3000${path}`);
+                    const body = (await response.text()).slice(0, 2000);
+                    console.log(JSON.stringify({path, status: response.status, body}));
+                  } catch (error) {
+                    console.log(JSON.stringify({path, fetch_error: String(error)}));
+                  }
+                }
+              })().catch((error) => {
+                console.error(error);
+                process.exit(1);
+              });
+            '
+            docker exec "$diagnostic" node -e '
+              const fs = require("node:fs");
+              const inspect = (path) => {
+                try {
+                  const stat = fs.lstatSync(path);
+                  const result = {
+                    path,
+                    mode: (stat.mode & 0o777).toString(8),
+                    uid: stat.uid,
+                    gid: stat.gid,
+                    size: stat.size,
+                    type: stat.isDirectory() ? "directory" : stat.isFile() ? "file" : "other",
+                  };
+                  if (stat.isDirectory()) {
+                    result.entries = fs.readdirSync(path).slice(0, 30);
+                  }
+                  console.log(JSON.stringify(result));
+                } catch (error) {
+                  console.log(JSON.stringify({path, error: String(error)}));
+                }
+              };
+              for (const path of [
+                "/liquid20-data",
+                "/liquid20-data/runs",
+                "/liquid20-data/live",
+                "/liquid20-data/live/live-state-v1.json",
+                "/liquid20-data/live/runs",
+              ]) inspect(path);
+              try {
+                const pointer = fs.readFileSync("/liquid20-data/live/live-state-v1.json", "utf8");
+                console.log(JSON.stringify({live_pointer: pointer.slice(0, 4000)}));
+              } catch (error) {
+                console.log(JSON.stringify({live_pointer_error: String(error)}));
+              }
+            '
+            docker logs --tail 160 "$diagnostic" 2>&1 || true
+            echo "=== end failed Liquid20 BFF diagnostics ==="
+          } >> "$PORTAL_DEPLOY_LOG" 2>&1
+          docker rm -f "$diagnostic" >/dev/null 2>&1 || true
+          exit 0
+
       - name: Verify LAN Liquid20 surface
         id: probe
         run: |

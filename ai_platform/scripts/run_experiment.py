@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import shlex
 import shutil
@@ -95,6 +96,19 @@ def _git_commit() -> str:
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
+
+
+def _subprocess_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    repo_root = str(REPO_ROOT)
+    existing_pythonpath = environment.get("PYTHONPATH")
+    if existing_pythonpath:
+        python_paths = existing_pythonpath.split(os.pathsep)
+        if repo_root not in python_paths:
+            environment["PYTHONPATH"] = os.pathsep.join((repo_root, existing_pythonpath))
+    else:
+        environment["PYTHONPATH"] = repo_root
+    return environment
 
 
 def _enforce_protected_final_holdout(path: Path, manifest: dict[str, Any]) -> None:
@@ -221,6 +235,7 @@ def run_logged(command: list[str], *, log_path: Path) -> None:
             result = subprocess.run(
                 command,
                 cwd=REPO_ROOT,
+                env=_subprocess_environment(),
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 check=False,

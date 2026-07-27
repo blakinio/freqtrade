@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -163,6 +164,31 @@ def test_extract_backtest_metrics_returns_scalar_summary(tmp_path: Path) -> None
     assert metrics["max_drawdown_account"] == 0.08
     assert metrics["trade_count"] == 2
     assert "trades" not in metrics
+
+
+def test_run_logged_prepends_repo_root_to_pythonpath(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    log_path = tmp_path / "success.log"
+    existing_pythonpath = os.pathsep.join(("/existing/one", "/existing/two"))
+    monkeypatch.setenv("PYTHONPATH", existing_pythonpath)
+    captured: dict[str, object] = {}
+
+    def fake_run(*args, env, **kwargs):
+        captured["env"] = env
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("ai_platform.scripts.run_experiment.subprocess.run", fake_run)
+
+    run_logged(["freqtrade", "backtesting"], log_path=log_path)
+
+    environment = captured["env"]
+    assert isinstance(environment, dict)
+    assert environment["PYTHONPATH"].split(os.pathsep) == [
+        str(ROOT),
+        "/existing/one",
+        "/existing/two",
+    ]
 
 
 def test_run_logged_includes_only_bounded_failure_tail(

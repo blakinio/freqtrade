@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   classify:
@@ -139,34 +139,12 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          persist-credentials: true
-          ref: ${{ github.head_ref || github.ref_name }}
+          persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.13"
-      - id: precommit
-        continue-on-error: true
-        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
-      - name: Commit canonical Ruff formatting
-        if: steps.precommit.outcome == 'failure' && github.event_name == 'pull_request'
-        shell: bash
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-        run: |
-          set -euo pipefail
-          git add ai_platform/provenance/rl_v2_torch_state_dict.py tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py
-          if git diff --cached --quiet; then
-            echo "Pre-commit failed without formatting changes."
-            exit 1
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "style(ai-platform): apply canonical Ruff formatting"
-          git push origin "HEAD:${HEAD_REF}"
-      - name: Require clean pre-commit outcome
-        if: steps.precommit.outcome == 'failure'
-        run: exit 1
+      - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
 
   docs-check:
     name: "Documentation build"

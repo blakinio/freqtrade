@@ -106,9 +106,8 @@ jobs:
               "execution_enabled": False,
               "orders_submitted": 0,
           }
-          for key, value in expected.items():
-              if request.get(key) != value:
-                  raise SystemExit(f"request {key} does not match the frozen preflight contract")
+          if request != expected:
+              raise SystemExit("request does not match the exact frozen preflight contract")
 
           runner_name = os.environ["RUNNER_NAME_VALUE"]
           runner_os = os.environ["RUNNER_OS_VALUE"]

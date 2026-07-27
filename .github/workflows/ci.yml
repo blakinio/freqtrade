@@ -148,34 +148,22 @@ jobs:
       - uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
       - name: Post canonical Ruff formatting diagnostic
         if: failure() && github.event_name == 'pull_request'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import base64
-          import json
-          from pathlib import Path
-
-          entries = (
-              ("SOURCE", Path("ai_platform/provenance/rl_v2_torch_state_dict.py")),
-              ("TESTS", Path("tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py")),
-          )
-          for label, path in entries:
-              body = "<!-- ruff-format-diagnostic -->\n" + label + "_B64:" + base64.b64encode(path.read_bytes()).decode("ascii")
-              Path(f"/tmp/{label.lower()}.json").write_text(json.dumps({"body": body}), encoding="utf-8")
-          PY
-          for payload in /tmp/source.json /tmp/tests.json; do
-            curl --fail-with-body --silent --show-error \
-              --request POST \
-              --header "Accept: application/vnd.github+json" \
-              --header "Authorization: Bearer ${GH_TOKEN}" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              --data-binary "@${payload}" \
-              "https://api.github.com/repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments"
-          done
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { execFileSync } = require('child_process');
+            const paths = [
+              'ai_platform/provenance/rl_v2_torch_state_dict.py',
+              'tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py',
+            ];
+            const diff = execFileSync('git', ['diff', '--', ...paths], { encoding: 'utf8' });
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `<!-- ruff-format-diagnostic -->\n\`\`\`diff\n${diff}\n\`\`\``,
+            });
 
   docs-check:
     name: "Documentation build"

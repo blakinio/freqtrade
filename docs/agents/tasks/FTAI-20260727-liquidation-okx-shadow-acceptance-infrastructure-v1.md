@@ -5,7 +5,7 @@ branch: docs/okx-shadow-acceptance-staging-blocker-v1
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#417 (merged); staging-readiness closeout pending"
+related_pr: "#417 (merged); #422 staging-readiness closeout"
 owned_paths:
   - ai_platform/scripts/liquidation_okx_shadow_acceptance.py
   - ai_platform/scripts/liquidation_okx_shadow_acceptance_evaluator.py
@@ -35,10 +35,10 @@ The inert runner, deterministic three-outcome evaluator, independent evidence ve
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T09:15:00+02:00
-head: 237196b2b5b3bfbdd52609e139f55f585711d4d5
+updated_at: 2026-07-27T09:18:00+02:00
+head: c9edf65910b971c134a7ed260033ee034a110a3a
 branch: docs/okx-shadow-acceptance-staging-blocker-v1
-pr: not_opened
+pr: "#422"
 status: blocked
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md

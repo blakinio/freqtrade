@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260727-freqtrade-synology-runner-cutover-root-helper
 status: validating
-branch: fix/freqtrade-synology-runner-cutover-root-helper-20260727
+branch: fix/freqtrade-synology-cutover-host-bind-writer-20260727
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
@@ -15,44 +15,48 @@ required_reads:
   - docs/agents/tasks/FTAI-20260727-freqtrade-synology-runner-dedicated-cutover.md
 ---
 
-# Root-owned Freqtrade Synology runner cutover retry
+# Host-bind Freqtrade Synology runner cutover retry
 
 ## Goal
 
-Retry the dedicated Freqtrade runner cutover with a detached helper that explicitly runs as root, matching the live Compose runner execution context and the permissions required for the Synology host path and Docker socket.
+Complete the dedicated Freqtrade runner cutover by staging the helper and durable Compose definition through a root utility container with the Synology host directory bind-mounted at its real host path.
 
 ## Proven state
 
-- PR 503 merged the first bounded cutover workflow.
-- Exact-head CI and security analysis passed before that merge.
-- The live merge status reported `synology/freqtrade-runner-cutover: failure`.
-- No component verification statuses were published, so failure occurred before post-reconnection verification.
-- The dedicated image declares `USER runner` while the live Compose runner declares `user: "0:0"`.
-- The failed workflow launched helper-image commands without `--user 0:0` while writing below `/volume1/docker/freqtrade` and accessing `/var/run/docker.sock`.
+- PR 503 merged the first bounded cutover workflow and returned only the launch-level failure status.
+- PR 509 added explicit root execution and passed exact-head CI and security analysis, but its live retry again returned only `synology/freqtrade-runner-cutover: failure`.
+- The active runner Compose contract mounts `/volume1/docker/freqtrade/state` only at `/var/lib/freqtrade-staging-state`; it does not mount `/volume1/docker/freqtrade` inside the runner container.
+- PR 509 attempted `test -d /volume1/docker/freqtrade/state` and direct writes below `/volume1/docker/freqtrade` from the runner container before launching its detached helper.
+- Therefore PR 509 failed before helper launch because it treated a Docker-host path as a path mounted in the runner container.
+- The Docker socket remains available, so a separate root utility container can bind the host directory at `/volume1/docker/freqtrade`, stage the helper there, and launch the detached replacement safely.
 
 ## Acceptance
 
-1. Use the same exact image already proven by live preflight.
-2. Validate the canonical Freqtrade Compose project, service and named volumes before mutation.
-3. Write the durable Compose file and helper from the currently root-owned runner process.
-4. Launch the detached replacement helper with explicit `--user 0:0`.
-5. Preserve the existing `runner_config` and `runner_work` volumes as external volumes.
-6. Preserve the canonical container name, project/service labels and dedicated state mount.
-7. Verify the replacement after the runner reconnects and publish component plus overall statuses.
-8. Do not remove volumes, prune Docker resources or reference OteryN.
+1. Use the same immutable image already proven by live preflight.
+2. Validate the canonical Freqtrade Compose project, service and named registration volumes before mutation.
+3. Do not directly read or write `/volume1/docker/freqtrade` from the runner container.
+4. Stage the helper using a root utility container with `/volume1/docker/freqtrade:/volume1/docker/freqtrade`.
+5. Launch the detached replacement helper as root with the Docker socket and the same host bind.
+6. Preserve `runner_config`, `runner_work`, the canonical container name and the dedicated state mount.
+7. Verify the replacement after reconnection and publish identity, image, volumes, state and overall statuses.
+8. Do not remove volumes or prune Docker resources.
 
 ## Checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-07-27T21:05:00+02:00
-head: ef8426d4965e15aef088f960c34207ae20d7ed72
-branch: fix/freqtrade-synology-runner-cutover-root-helper-20260727
+checkpoint_version: 2
+updated_at: 2026-07-27T21:35:00+02:00
+head: 6f74acb3cd2199a853f8f2d721d238cbfa3dd875
+branch: fix/freqtrade-synology-cutover-host-bind-writer-20260727
 pr: null
 status: validating
 first_failure:
-  marker: ROOT_HELPER_LAUNCH_CONTEXT_MISMATCH
-  evidence: The first live cutover published only the launch-level failure status; its helper image defaults to USER runner while host mutation and Docker control require the root context used by the live Compose service.
+  marker: HOST_PATH_NOT_MOUNTED_IN_RUNNER
+  evidence: PR 509 wrote to /volume1/docker/freqtrade from the runner container, but the runner contract mounts only the state subdirectory at /var/lib/freqtrade-staging-state.
+rejected_hypotheses:
+  - The immutable target image was unavailable; live preflight had already pulled and inspected it successfully.
+  - The registration volumes were missing; live preflight verified both Compose-owned volumes.
+  - Root execution alone was sufficient; PR 509 proved root does not make an unmounted Docker-host path visible inside the runner container.
 changed_paths:
   - .github/workflows/freqtrade-synology-runner-dedicated-cutover-retry.yml
   - tests/ai_platform/portal/deployment/test_freqtrade_synology_runner_cutover_retry.py
@@ -60,9 +64,9 @@ changed_paths:
 validation:
   - command: exact-head repository CI and security analysis
     result: NOT_RUN
-  - command: trusted-develop root-owned detached live cutover
+  - command: trusted-develop host-bind detached live cutover
     result: NOT_RUN
 blockers:
   - Exact-head CI and security analysis must pass before merge.
-next_action: Open the bounded retry PR, validate its exact head, merge it and observe the live component statuses.
+next_action: Open the host-bind correction PR, validate its exact head, merge it and observe all five live Synology cutover statuses.
 ```

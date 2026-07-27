@@ -1,0 +1,15 @@
+{
+  "config": "ai_platform/configs/freqai-residual-pytorch-m1-lightgbm.example.json",
+  "description": "Frozen LightGBM comparator for residual PyTorch M1 historical-development evidence using the finite v2 volume-change remediation.",
+  "download_timerange": "1754006400-1777593599",
+  "experiment_id": "residual-pytorch-m1-lightgbm-v1",
+  "fee": 0.002,
+  "freqai_model": "M1LightGBMRegressor",
+  "output_root": "ai_platform/artifacts/experimental-model-research/residual-pytorch-m1-v2/lightgbm",
+  "pairs": ["BTC/USDT", "ETH/USDT"],
+  "schema_version": 1,
+  "strategy": "AiFrozenCandidateStrategyV2",
+  "strategy_path": "ai_platform/strategies",
+  "timeframes": ["15m", "1h", "4h"],
+  "timerange": "1772323200-1777593599"
+}

@@ -10,7 +10,7 @@ on:
 
 permissions:
   contents: read
-  statuses: write
+  issues: write
 
 jobs:
   zizmor:
@@ -27,10 +27,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Publish exact zizmor findings
+      - name: Publish sanitized zizmor output
         env:
           GH_TOKEN: ${{ github.token }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check pre-commit
@@ -42,54 +42,27 @@ jobs:
           hook_result=$?
           set -e
 
-          python3 - /tmp/zizmor-output.txt > /tmp/zizmor-contexts.txt <<'PY'
+          python3 - /tmp/zizmor-output.txt "$hook_result" > /tmp/comment.json <<'PY'
+          import json
           import re
           import sys
 
           ansi = re.compile(r"\x1b\[[0-9;]*m")
-          with open(sys.argv[1], encoding="utf-8") as handle:
+          with open(sys.argv[1], encoding="utf-8", errors="replace") as handle:
               text = ansi.sub("", handle.read())
 
-          current: str | None = None
-          findings: list[str] = []
-          for line in text.splitlines():
-              audit = re.search(r"(?:error|warning)\[([A-Za-z0-9_-]+)\]", line)
-              if audit:
-                  current = audit.group(1)
-                  continue
-              location = re.search(r"-->\s+.*:(\d+):\d+", line)
-              if current and location:
-                  findings.append(f"{current}-L{location.group(1)}")
-                  current = None
-          if current:
-              findings.append(current)
-          for finding in sorted(set(findings)):
-              print(finding)
+          text = text[-6000:]
+          body = (
+              "Temporary sanitized zizmor diagnostic for the dedicated runner cutover "
+              f"(exit {sys.argv[2]}):\n\n```text\n{text}\n```"
+          )
+          json.dump({"body": body}, sys.stdout)
           PY
 
-          post_status() {
-            local context="$1"
-            local state="$2"
-            local payload
-            payload="$(printf '{\"state\":\"%s\",\"description\":\"zizmor diagnostic %s\",\"context\":\"diag/zizmor/%s\"}' "$state" "$state" "$context")"
-            curl --fail-with-body --silent --show-error \
-              --request POST \
-              --header "Accept: application/vnd.github+json" \
-              --header "Authorization: Bearer $GH_TOKEN" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "https://api.github.com/repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-              --data "$payload" >/dev/null
-          }
-
-          finding_count=0
-          while IFS= read -r finding; do
-            [[ -n "$finding" ]] || continue
-            finding_count=$((finding_count + 1))
-            post_status "$finding" failure
-          done < /tmp/zizmor-contexts.txt
-
-          if [[ $hook_result -eq 0 ]]; then
-            post_status clean success
-          elif [[ $finding_count -eq 0 ]]; then
-            post_status unknown failure
-          fi
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Accept: application/vnd.github+json" \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" \
+            --data-binary @/tmp/comment.json >/dev/null

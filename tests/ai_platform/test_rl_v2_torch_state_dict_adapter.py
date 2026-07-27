@@ -10,10 +10,7 @@ from typing import Any
 
 import pytest
 
-from ai_platform.provenance.rl_v2 import (
-    RLV2ProvenanceError,
-    semantic_tensor_state_digest,
-)
+from ai_platform.provenance.rl_v2 import RLV2ProvenanceError, semantic_tensor_state_digest
 
 
 ROOT = Path(__file__).parents[2]
@@ -83,9 +80,7 @@ def test_empty_and_single_tensor_state_dicts() -> None:
     empty_records = adapter.state_dict_to_records(state_dict={}, role="parameter")
     empty_digest = adapter.semantic_state_dict_digest(state_dict={}, role="parameter")
     one = adapter.state_dict_to_records(
-        state_dict={
-            "policy.actor.weight": torch.tensor([1.0, 2.0], dtype=torch.float32)
-        },
+        state_dict={"policy.actor.weight": torch.tensor([1.0, 2.0], dtype=torch.float32)},
         role="parameter",
     )
 
@@ -115,9 +110,9 @@ def test_multiple_records_and_digest_ignore_insertion_order() -> None:
         "policy.z",
     )
     assert first_records == second_records
-    assert adapter.semantic_state_dict_digest(
-        state_dict=first, role="buffer"
-    ) == adapter.semantic_state_dict_digest(state_dict=second, role="buffer")
+    first_digest = adapter.semantic_state_dict_digest(state_dict=first, role="buffer")
+    second_digest = adapter.semantic_state_dict_digest(state_dict=second, role="buffer")
+    assert first_digest == second_digest
 
 
 @REQUIRES_TORCH
@@ -152,11 +147,15 @@ def test_contiguous_and_non_contiguous_equal_values_match() -> None:
     non_contiguous = padded[:, ::2]
 
     assert not non_contiguous.is_contiguous()
-    assert adapter.state_dict_to_records(
-        state_dict={"policy.value": contiguous}, role="parameter"
-    ) == adapter.state_dict_to_records(
-        state_dict={"policy.value": non_contiguous}, role="parameter"
+    contiguous_records = adapter.state_dict_to_records(
+        state_dict={"policy.value": contiguous},
+        role="parameter",
     )
+    non_contiguous_records = adapter.state_dict_to_records(
+        state_dict={"policy.value": non_contiguous},
+        role="parameter",
+    )
+    assert contiguous_records == non_contiguous_records
 
 
 @REQUIRES_TORCH
@@ -174,8 +173,9 @@ def test_representative_supported_dtypes(dtype_name: str, values: list[Any]) -> 
     record = adapter.state_dict_to_records(
         state_dict={
             f"policy.{dtype_name}": torch.tensor(
-                values, dtype=getattr(torch, dtype_name)
-            )
+                values,
+                dtype=getattr(torch, dtype_name),
+            ),
         },
         role="buffer",
     )[0]
@@ -188,12 +188,8 @@ def test_representative_supported_dtypes(dtype_name: str, values: list[Any]) -> 
 def test_digest_binds_key_role_value_dtype_and_shape() -> None:
     torch, adapter = _runtime()
 
-    def digest(
-        *, name: str = "policy.value", role: str = "parameter", tensor: Any
-    ) -> str:
-        return adapter.semantic_state_dict_digest(
-            state_dict={name: tensor}, role=role
-        )
+    def digest(*, name: str = "policy.value", role: str = "parameter", tensor: Any) -> str:
+        return adapter.semantic_state_dict_digest(state_dict={name: tensor}, role=role)
 
     base = digest(tensor=torch.tensor([1, 2], dtype=torch.int32))
     assert base != digest(
@@ -226,9 +222,7 @@ def test_items_materialized_once_and_inputs_not_modified() -> None:
 
 
 @REQUIRES_TORCH
-@pytest.mark.parametrize(
-    "role", ["", "optimizer_state", "metadata", None, ["buffer"]]
-)
+@pytest.mark.parametrize("role", ["", "optimizer_state", "metadata", None, ["buffer"]])
 def test_rejects_invalid_roles_even_for_empty_mapping(role: Any) -> None:
     _, adapter = _runtime()
 
@@ -240,13 +234,9 @@ def test_rejects_invalid_roles_even_for_empty_mapping(role: Any) -> None:
 def test_rejects_non_mapping_and_non_string_key() -> None:
     torch, adapter = _runtime()
     with pytest.raises(RLV2ProvenanceError, match="Mapping"):
-        adapter.state_dict_to_records(
-            state_dict=[("policy.value", 1)], role="parameter"
-        )
+        adapter.state_dict_to_records(state_dict=[("policy.value", 1)], role="parameter")
     with pytest.raises(RLV2ProvenanceError, match="keys must be strings"):
-        adapter.state_dict_to_records(
-            state_dict={1: torch.tensor([1])}, role="parameter"
-        )
+        adapter.state_dict_to_records(state_dict={1: torch.tensor([1])}, role="parameter")
 
 
 @REQUIRES_TORCH
@@ -268,9 +258,7 @@ def test_rejects_non_tensor_values(value: Any) -> None:
     _, adapter = _runtime()
 
     with pytest.raises(RLV2ProvenanceError, match=r"torch\.Tensor"):
-        adapter.state_dict_to_records(
-            state_dict={"policy.value": value}, role="parameter"
-        )
+        adapter.state_dict_to_records(state_dict={"policy.value": value}, role="parameter")
 
 
 @REQUIRES_TORCH
@@ -290,7 +278,9 @@ def test_rejects_nested_mapping_and_duplicate_items() -> None:
 def test_tensor_to_record_failures_propagate() -> None:
     torch, adapter = _runtime()
     sparse = torch.sparse_coo_tensor(
-        torch.tensor([[0, 1]]), torch.tensor([1.0, 2.0]), size=(2,)
+        torch.tensor([[0, 1]]),
+        torch.tensor([1.0, 2.0]),
+        size=(2,),
     )
     with pytest.raises(RLV2ProvenanceError, match="Unsupported tensor dtype"):
         adapter.state_dict_to_records(
@@ -298,9 +288,7 @@ def test_tensor_to_record_failures_propagate() -> None:
             role="parameter",
         )
     with pytest.raises(RLV2ProvenanceError, match="dense strided"):
-        adapter.state_dict_to_records(
-            state_dict={"policy.sparse": sparse}, role="buffer"
-        )
+        adapter.state_dict_to_records(state_dict={"policy.sparse": sparse}, role="buffer")
 
 
 def test_base_provenance_imports_neither_torch_nor_adapter() -> None:

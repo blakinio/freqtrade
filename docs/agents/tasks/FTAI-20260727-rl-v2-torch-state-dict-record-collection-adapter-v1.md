@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260727-rl-v2-torch-state-dict-record-collection-adapter-v1
 status: implementing
-branch: docs/rl-v2-torch-state-dict-record-collection-adapter-v1
+branch: feat/rl-v2-torch-state-dict-record-collection-adapter-v1
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
@@ -21,8 +21,6 @@ required_reads:
   - docs/ai_platform/ROADMAP.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/GOVERNANCE_CONTRACT.json
-  - docs/agents/REPOSITORY_MAP.md
-  - docs/agents/CONTEXT_ROUTING.md
   - docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
   - docs/ai_platform/RL_V2_PROVENANCE_TOOLING.md
@@ -37,9 +35,9 @@ required_reads:
   - tools/agents/checkpoint.py
   - tools/agents/resume.py
 search_first:
-  - current develop HEAD, open PRs, active task records, branches and recent commits overlapping state_dict, TensorRecord, rl_v2_torch, Torch provenance or model-state serialization
-  - exact-head predecessor merge and required CI evidence
-  - approved pinned-Torch lane routing for the new source and test paths
+  - current develop HEAD, open PRs, task records, branches and commits overlapping state_dict, TensorRecord, rl_v2_torch, Torch provenance or model-state serialization
+  - predecessor exact-head merge and required CI evidence
+  - pinned-Torch routing and mypy coverage for the new paths
 optional_reads: []
 ---
 
@@ -47,13 +45,11 @@ optional_reads: []
 
 ## Goal
 
-Implement one optional serialization-only adapter that converts an explicitly supplied, already materialized in-memory `Mapping[str, torch.Tensor]` into a deterministic immutable collection of dependency-neutral `TensorRecord` values and computes one semantic digest over that collection.
+Provide one optional serialization-only adapter that converts an explicitly supplied, already materialized in-memory `Mapping[str, torch.Tensor]` into a deterministic immutable tuple of dependency-neutral `TensorRecord` values and computes one semantic digest over that tuple.
 
-The adapter must neither obtain a mapping from a model nor discover, load, construct, traverse, execute or save models, optimizers, environments, checkpoints, archives, caches, market data or execution requests.
+The adapter obtains no mapping from a model and grants no model, artifact, data or execution authority.
 
-## Bounded scope
-
-Implementation is limited to the five owned paths in frontmatter. The public API is planned as:
+## Public API
 
 ```python
 def state_dict_to_records(
@@ -72,44 +68,38 @@ def semantic_state_dict_digest(
     ...
 ```
 
-The exact names may change only if an existing repository convention requires it and the reason is recorded here and in the technical documentation.
+The declared names were retained because they match the repository's explicit keyword-only adapter convention.
 
-## Collection contract
+## Implemented contract
 
-`state_dict_to_records()` will:
+`state_dict_to_records()`:
 
-- accept only a caller-supplied `Mapping` already present in memory;
-- materialize `state_dict.items()` exactly once;
-- require textual keys and preserve each exact key as `logical_name`;
-- reject duplicate logical names even when a non-standard `Mapping.items()` supplies them;
-- deterministically sort entries by key independent of insertion order;
-- delegate every tensor conversion to `tensor_to_record()` without alternate tensor serialization;
-- pass the caller-supplied role unchanged to every record;
-- return `tuple[TensorRecord, ...]` and return an empty tuple for an empty mapping;
-- leave the mapping, keys and tensors unmodified.
+- accepts only a caller-supplied `Mapping` already present in memory;
+- restricts collection roles to `parameter` or `buffer`, excluding optimizer state;
+- calls and materializes `state_dict.items()` exactly once;
+- requires key-value pairs with exact string keys;
+- rejects duplicate logical names from non-standard mappings;
+- rejects nested mappings and every non-tensor value;
+- sorts by exact key independent of insertion order;
+- delegates each tensor exclusively to `tensor_to_record()`;
+- returns `tuple[TensorRecord, ...]`, including `()` for an empty mapping;
+- does not modify the mapping or tensors.
 
-The adapter will fail closed for non-mappings, non-string keys, invalid logical names, non-tensor values, nested mappings, metadata entries, lists, tuples, arbitrary objects and every tensor rejected by `tensor_to_record()`.
-
-## Digest contract
-
-`semantic_state_dict_digest()` will compute `semantic_tensor_state_digest()` only over records produced by `state_dict_to_records()`. It will not cast, normalize values, traverse a model or add archive/filesystem metadata.
-
-The digest will be insertion-order independent and will bind each record's key, role, dtype, shape, normalized source-device framing, byte order and logical bytes. The empty mapping has the deterministic digest defined by the existing empty-record semantic digest.
+`semantic_state_dict_digest()` obtains records only through `state_dict_to_records()` and passes them directly to `semantic_tensor_state_digest()`. It performs no cast, normalization, archive framing or alternate tensor serialization.
 
 ## Dependency and CI boundary
 
-Torch remains optional. The dependency-neutral `ai_platform.provenance` package and `ai_platform.provenance.rl_v2` must not import the new adapter or Torch.
+The new adapter imports Torch only in its optional module. Neither `ai_platform.provenance.__init__` nor `ai_platform.provenance.rl_v2` imports Torch or the adapter.
 
-Lightweight AI Platform CI remains Torch-free. The existing full Freqtrade CI installs the pinned Torch profile. Current path routing names only the single-tensor source and test, and current mypy explicitly names only the single-tensor module, so this task may add the new source/test paths to that existing routing case and add the new module to the existing mypy command. No job, runner, dependency or dynamic installation may be added.
+Lightweight AI Platform CI remains Torch-free. The existing full Freqtrade CI classifier routes the new source and test paths to the existing core lane, and the existing mypy command names the new module. No dependency, job, runner or dynamic installation was added.
 
 ## Absolute prohibitions
 
-- no `torch.nn.Module` input;
+- no `torch.nn.Module` input or model construction;
 - no `model.state_dict()`, `named_parameters()` or `named_buffers()`;
-- no model construction or traversal;
+- no model traversal, forward, backward, training, inference, replay or backtest;
 - no `load_state_dict`, `torch.load`, pickle, safetensors, checkpoint, archive, file or cache access;
 - no optimizer-state support;
-- no forward, backward, training, inference, replay, backtest or environment execution;
 - no network or market-data access;
 - no consumed historical OOS or protected final holdout access;
 - no canonical request, execution workflow, runner, ranking, selection or promotion change;
@@ -117,33 +107,17 @@ Lightweight AI Platform CI remains Torch-free. The existing full Freqtrade CI in
 - no dry-run, shadow, live or order authority;
 - no runtime dependency expansion.
 
-## Acceptance criteria
+## Validation target
 
-- declaration-only PR changes exactly this task record and merges before implementation starts;
-- predecessor task is terminal, PRs 457, 472 and 475 are merged, and predecessor exact-head required CI is green;
-- no active equivalent or conflicting owner exists at implementation start;
-- standard dict, OrderedDict and compatible Mapping inputs work;
-- items are materialized once, keys are unique strings, records are key-sorted and output is a tuple;
-- empty, scalar, empty-tensor, contiguous and supported non-contiguous values work;
-- parameter and buffer roles work through caller-supplied role;
-- bool, integer, floating and complex dtypes are covered;
-- insertion order cannot change records or digest;
-- key, role, value, dtype and shape changes change the digest;
-- invalid mappings, keys, values, nested mappings, duplicate items and single-tensor adapter failures propagate fail closed;
-- base provenance remains Torch-free;
-- source contains no model traversal, artifact loading, market-data or execution marker;
-- focused tests, single-tensor regression, Ruff, Ruff format and mypy pass;
-- full required CI, pinned-Torch core and compatibility lanes, build and CI Gate pass on exact final heads;
-- changed-path and review-thread audits pass before every merge;
-- implementation and terminal closeout use fresh branches and separate PRs.
+Before implementation merge, exact final-head evidence must include focused adapter tests, existing single-tensor regression, Ruff, Ruff format, mypy, required full repository CI, pinned-Torch core and compatibility lanes, build, CI Gate, zizmor, changed-path audit and zero open review threads.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T15:40:00+02:00
-head: 59775a93fb606ac5bf25796f3f43ef912928bade
-branch: docs/rl-v2-torch-state-dict-record-collection-adapter-v1
+updated_at: 2026-07-27T16:35:00+02:00
+head: c4272449417be6a78b6eead12a17c10678ceca24
+branch: feat/rl-v2-torch-state-dict-record-collection-adapter-v1
 pr: none
 status: implementing
 context_routes:
@@ -162,50 +136,60 @@ owned_paths:
   - docs/ai_platform/RL_V2_TORCH_STATE_DICT_RECORD_COLLECTION_ADAPTER.md
   - docs/agents/tasks/FTAI-20260727-rl-v2-torch-state-dict-record-collection-adapter-v1.md
 proven:
-  - Current develop HEAD is 59775a93fb606ac5bf25796f3f43ef912928bade.
-  - Predecessor task FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1 is terminal with status ready, unknown empty, conflicts empty and blockers empty.
-  - PR 457 merged as 22981a5e1a898f12730bb69354a8141a268598b2, PR 472 merged as 813d59fe59e2becc42f3b6942125da28edec2cd3 and PR 475 merged as 36ae30742f21cbea772220ea2529c75be335e6b4.
-  - Implementation head d5978598f3b297b5e59c8feb91992b338eccb59f passed AI Platform CI 30266438688, Freqtrade CI 30266438740 including CI Gate, and zizmor 30266438701.
-  - Terminal evidence head e95433712ad5cfc4cdeed05accffff9be9ebeca8 passed Freqtrade CI 30268515759 and zizmor 30268515673.
-  - Open PRs 477, 474, 465, 453 and 109 are path- and scope-disjoint from state-dict TensorRecord serialization.
-  - Relevant open-PR, branch, task-id and recent-commit searches found no active equivalent or conflicting state_dict, TensorRecord, rl_v2_torch, Torch provenance or model-state serialization owner.
-  - Existing tensor_to_record is the single source of truth for dtype, shape, source device, byte order and logical bytes, and semantic_tensor_state_digest sorts by logical name and rejects duplicates.
-  - Lightweight AI Platform CI installs no Torch, while full Freqtrade CI installs requirements-dev.txt and routes only the existing single-tensor adapter paths to its pinned-Torch core lane.
-  - docs/agents/REPOSITORY_MAP.md and docs/agents/CONTEXT_ROUTING.md do not exist on current develop; no substitute content was inferred.
+  - Predecessor task is terminal ready with unknown, conflicts and blockers empty; PRs 457, 472 and 475 are merged with green recorded exact-head CI.
+  - Relevant open-PR, branch, task and recent-commit searches found no active equivalent or conflicting owner before declaration or implementation.
+  - Declaration PR 478 changed exactly this task record, final head 78348ac72015b91f403a9257a12d12c3549b1e1c, and merged as 11e7d49747040477b75356719c64afa456a7b0d8.
+  - Declaration head passed Freqtrade CI run 30271647700 and zizmor run 30271647734; changed-path audit found one declared file and review-thread audit found zero threads.
+  - After develop advanced through disjoint PR 481, the implementation branch was cleanly re-rooted on current develop 6eede8936eab87ec5ba5eb5f733c9b07c3f39899 and only the five owned paths were replayed.
+  - Public names match the declaration and existing keyword-only adapter convention.
+  - Collection code materializes items once, validates role, item shape, string keys, duplicate names and tensor values, sorts keys, and delegates solely to tensor_to_record.
+  - Digest code passes only state_dict_to_records output to semantic_tensor_state_digest.
+  - Local reconstructed exact-relevant-source focused validation passed 27 tests on CPU Torch 2.10.0; a direct single-tensor regression also passed.
+  - Workflow modification is bounded to the new source/test classifier patterns and the existing mypy target list.
+  - Static tests prove dependency-neutral base imports no Torch or adapter and source contains no model traversal, artifact, market-data or execution markers.
+  - Lightweight AI Platform CI remains unchanged and Torch-free; full CI routing and mypy additions reuse existing jobs and pinned dependencies.
 derived:
-  - A collection adapter can remain serialization-only by accepting Mapping directly, materializing items once, validating keys and values, sorting by key and delegating exclusively to tensor_to_record.
-  - The current full-CI classifier and mypy command require bounded additions for the new module and test paths.
+  - Empty state has the existing semantic digest of an empty record tuple while still validating the role.
+  - Restricting roles to parameter and buffer preserves the declared model-state boundary and rejects optimizer-state authority.
 unknown:
-  - Declaration exact final head, CI run IDs and merge SHA until the declaration PR completes.
-  - Implementation and terminal closeout exact heads, CI evidence and merge SHAs until those PRs exist.
+  - Implementation PR number, exact final head, workflow runs, merge SHA and final review audit until the implementation PR completes.
+  - Terminal closeout PR exact evidence and final develop SHA until closeout completes.
 conflicts: []
 first_failure:
   marker: LOCAL_CLONE_DNS_UNAVAILABLE
-  evidence: The sandbox cannot resolve github.com for git clone; repository reads and writes use the authenticated GitHub connector, focused tests use reconstructed exact relevant sources, and exact-head GitHub CI remains authoritative.
+  evidence: The sandbox cannot resolve github.com for git clone; authenticated connector state and exact-head GitHub Actions are authoritative, with local validation using reconstructed exact relevant sources.
 rejected_hypotheses:
-  - Treat the closed single-tensor task as conflicting ownership.
+  - Treat the closed predecessor task as active conflicting ownership.
   - Accept a torch.nn.Module or invoke model.state_dict.
-  - Add alternate tensor serialization or normalize tensor values.
+  - Support optimizer state in the collection adapter.
+  - Add alternate tensor serialization, casts or value normalization.
   - Import the adapter from the dependency-neutral provenance package.
   - Add Torch to lightweight AI Platform CI.
   - Add a dependency, job, runner or dynamic installation.
-  - Read model artifacts, checkpoints, caches or market data.
-  - Create a canonical request or execution workflow.
+  - Read models, checkpoints, caches, market data or protected evaluation data.
+  - Create a canonical request, execution workflow or runtime authority.
 changed_paths:
+  - .github/workflows/ci.yml
+  - ai_platform/provenance/rl_v2_torch_state_dict.py
+  - tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py
+  - docs/ai_platform/RL_V2_TORCH_STATE_DICT_RECORD_COLLECTION_ADAPTER.md
   - docs/agents/tasks/FTAI-20260727-rl-v2-torch-state-dict-record-collection-adapter-v1.md
 validation:
-  - command: live develop, predecessor, PR, branch, task and equivalent-scope preflight
+  - command: declaration PR 478 exact-head CI and audits
     result: PASS
-    evidence: All mandatory predecessor and overlap gates passed on develop 59775a93fb606ac5bf25796f3f43ef912928bade.
-  - command: predecessor exact-head workflow verification
+    evidence: Freqtrade CI 30271647700 and zizmor 30271647734 succeeded on 78348ac72015b91f403a9257a12d12c3549b1e1c; one changed path and zero review threads.
+  - command: python -m compileall -q ai_platform tests/ai_platform
     result: PASS
-    evidence: Required implementation and terminal-evidence workflows are completed successfully on their recorded final heads.
-  - command: dependency and pinned-Torch CI routing review
+    evidence: Reconstructed exact relevant source and test tree compiled without error.
+  - command: pytest -q tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py
     result: PASS
-    evidence: Lightweight CI stays Torch-free; the existing full CI requires only bounded path and mypy target additions.
-  - command: required repository reads
+    evidence: 27 tests passed on CPU Torch 2.10.0 with no model, artifact, network or data access.
+  - command: direct tensor_to_record single-tensor regression
     result: PASS
-    evidence: All present required paths were read; the two requested routing-map paths are proven absent on current develop.
+    evidence: Supported float32 record creation and unsupported uint16 fail-closed behavior passed.
+  - command: clean re-root on current develop and bounded replay
+    result: PASS
+    evidence: Branch was force-moved to 6eede8936eab87ec5ba5eb5f733c9b07c3f39899 and only the five declared owned paths were reapplied.
 blockers: []
-next_action: Open and merge the declaration-only PR after exact-head CI, changed-path, review-thread and mergeability checks pass; then create the implementation branch from current develop.
+next_action: Open the implementation PR, fix only exact-head failures within owned paths, then merge after all required CI, changed-path and review-thread audits pass.
 ```

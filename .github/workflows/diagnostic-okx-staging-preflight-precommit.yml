@@ -30,7 +30,9 @@ jobs:
           pre-commit run --all-files > precommit-report.txt 2>&1
           status=$?
           set -e
-          printf '\nPRECOMMIT_EXIT_CODE=%s\n' "$status" >> precommit-report.txt
+          printf '\nPRECOMMIT_EXIT_CODE=%s\n\nFORMAT_DIFF_BEGIN\n' "$status" >> precommit-report.txt
+          git diff -- >> precommit-report.txt
+          printf '\nFORMAT_DIFF_END\n' >> precommit-report.txt
           cat precommit-report.txt
       - name: Upload report
         if: ${{ always() }}

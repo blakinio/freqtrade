@@ -16,8 +16,12 @@ CUTOVER_PREFLIGHT_WORKFLOW = (
     / "workflows"
     / "freqtrade-synology-runner-cutover-preflight.yml"
 )
-PI06_WORKFLOW = ROOT / ".github" / "workflows" / "portal-authentik-synology-target-preflight.yml"
-PI06_PREFLIGHT = ROOT / "deploy" / "synology" / "portal-authentik" / "target_preflight.py"
+PI06_WORKFLOW = (
+    ROOT / ".github" / "workflows" / "portal-authentik-synology-target-preflight.yml"
+)
+PI06_PREFLIGHT = (
+    ROOT / "deploy" / "synology" / "portal-authentik" / "target_preflight.py"
+)
 OKX_WORKFLOW = (
     ROOT / ".github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml"
 )
@@ -71,7 +75,9 @@ def test_runner_cutover_preflight_is_bounded_and_fail_closed() -> None:
     assert "runs-on: [freqtrade-staging]" in text
     assert "if: github.ref == 'refs/heads/develop'" in text
     assert "contents: read\n  statuses: write" in text
-    assert "ghcr.io/blakinio/freqtrade-deploy-runner:sha-${{ github.sha }}" in text
+    assert (
+        "ghcr.io/blakinio/freqtrade-deploy-runner:sha-${{ github.sha }}" in text
+    )
     assert "com.docker.compose.project" in text
     assert "com.docker.compose.volume" in text
     assert "runner_config" in text
@@ -90,7 +96,9 @@ def test_runner_cutover_preflight_is_bounded_and_fail_closed() -> None:
 
 
 def test_active_staging_workflows_use_freqtrade_owned_state_contract() -> None:
-    pi06 = PI06_WORKFLOW.read_text(encoding="utf-8") + PI06_PREFLIGHT.read_text(encoding="utf-8")
+    pi06 = PI06_WORKFLOW.read_text(encoding="utf-8") + PI06_PREFLIGHT.read_text(
+        encoding="utf-8"
+    )
     okx = OKX_WORKFLOW.read_text(encoding="utf-8")
     for text in (pi06, okx):
         assert "FREQTRADE_STAGING_STATE_DIR" in text

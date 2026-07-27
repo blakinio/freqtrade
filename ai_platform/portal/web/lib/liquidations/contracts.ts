@@ -121,7 +121,7 @@ export interface LiquidationAcceptanceEvidence {
 }
 
 export interface LiquidationHealth {
-  schema_version: 1 | 2;
+  schema_version: 1;
   contract?: "portal-liquidations-health-v2";
   mode: LiquidationDataMode;
   run_state?: LiquidationRunState;

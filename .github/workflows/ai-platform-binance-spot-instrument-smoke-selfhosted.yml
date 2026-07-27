@@ -1,0 +1,134 @@
+name: AI Platform Binance Spot Instrument Smoke Self-Hosted
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binance-spot-instrument-smoke-selfhosted-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json
+  POLICY_PATH: ai_platform/market_data/binance-spot-instrument-smoke-policy-v1.json
+  EVIDENCE_ROOT: binance-spot-instrument-smoke-selfhosted-v1
+
+jobs:
+  smoke:
+    name: Run one public Binance Spot snapshot on approved self-hosted runner
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [self-hosted, Linux, oteryn-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file request scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Self-hosted Binance Spot smoke must add exactly the canonical request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate approved runner identity
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "oteryn-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+
+      - name: Refuse credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Create isolated smoke runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m venv "$RUNNER_TEMP/binance-smoke-venv"
+          "$RUNNER_TEMP/binance-smoke-venv/bin/python" -m pip install \
+            --disable-pip-version-check \
+            --no-input \
+            "jsonschema==4.26.0"
+          "$RUNNER_TEMP/binance-smoke-venv/bin/python" -c \
+            "from jsonschema import Draft202012Validator; print(Draft202012Validator.__name__)"
+
+      - name: Run frozen single-request smoke
+        id: smoke
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. "$RUNNER_TEMP/binance-smoke-venv/bin/python" \
+            -m ai_platform.market_data.binance_spot_instrument_smoke \
+            --request "$REQUEST_PATH" \
+            --policy "$POLICY_PATH" \
+            --collector-commit "$HEAD_SHA" \
+            --output-root "$EVIDENCE_ROOT"
+
+      - name: Upload bounded failure evidence
+        if: ${{ failure() && steps.smoke.outcome == 'failure' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-spot-instrument-smoke-selfhosted-failure-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Upload immutable smoke evidence
+        if: ${{ success() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-spot-instrument-smoke-selfhosted-${{ github.event.pull_request.number }}
+          path: ${{ env.EVIDENCE_ROOT }}/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove isolated smoke runtime
+        if: always()
+        shell: bash
+        run: rm -rf "$RUNNER_TEMP/binance-smoke-venv"

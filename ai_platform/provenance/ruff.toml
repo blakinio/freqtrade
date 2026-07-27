@@ -1,8 +1,0 @@
-# Temporary diagnostic configuration; remove before merge.
-extend = "../../pyproject.toml"
-
-[lint]
-select = ["I"]
-
-[lint.per-file-ignores]
-"rl_v2.py" = ["I"]

@@ -1,0 +1,48 @@
+name: Portal Target Preflight Pre-commit Diagnostic
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/portal-target-preflight-precommit-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact pull request merge ref
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Install pre-commit
+        run: python -m pip install --disable-pip-version-check pre-commit
+      - name: Capture full pre-commit result
+        id: precommit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          pre-commit run --all-files > "$RUNNER_TEMP/pi06-precommit.log" 2>&1
+          status=$?
+          printf '%s\n' "$status" > "$RUNNER_TEMP/pi06-precommit.status"
+          exit 0
+      - name: Upload diagnostic log
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-target-preflight-precommit-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/pi06-precommit.log
+            ${{ runner.temp }}/pi06-precommit.status
+          if-no-files-found: error
+          retention-days: 1

@@ -5,10 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 WORKFLOW = (
-    ROOT
-    / ".github"
-    / "workflows"
-    / "freqtrade-synology-runner-state-path-cutover.yml"
+    ROOT / ".github" / "workflows" / "freqtrade-synology-runner-state-path-cutover.yml"
 )
 
 

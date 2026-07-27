@@ -50,7 +50,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m pip install --disable-pip-version-check -e . pytest jsonschema
+          python -m pip install --disable-pip-version-check \
+            -e . pytest pytest-xdist jsonschema
           pytest -q \
             tests/ai_platform/test_run_experiment.py \
             tests/ai_platform/test_protected_final_holdout.py \

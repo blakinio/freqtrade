@@ -10,7 +10,10 @@ from typing import Any
 
 import pytest
 
-from ai_platform.provenance.rl_v2 import RLV2ProvenanceError, semantic_tensor_state_digest
+from ai_platform.provenance.rl_v2 import (
+    RLV2ProvenanceError,
+    semantic_tensor_state_digest,
+)
 
 
 ROOT = Path(__file__).parents[2]
@@ -185,7 +188,9 @@ def test_representative_supported_dtypes(dtype_name: str, values: list[Any]) -> 
 def test_digest_binds_key_role_value_dtype_and_shape() -> None:
     torch, adapter = _runtime()
 
-    def digest(*, name: str = "policy.value", role: str = "parameter", tensor: Any) -> str:
+    def digest(
+        *, name: str = "policy.value", role: str = "parameter", tensor: Any
+    ) -> str:
         return adapter.semantic_state_dict_digest(
             state_dict={name: tensor}, role=role
         )
@@ -221,7 +226,9 @@ def test_items_materialized_once_and_inputs_not_modified() -> None:
 
 
 @REQUIRES_TORCH
-@pytest.mark.parametrize("role", ["", "optimizer_state", "metadata", None, ["buffer"]])
+@pytest.mark.parametrize(
+    "role", ["", "optimizer_state", "metadata", None, ["buffer"]]
+)
 def test_rejects_invalid_roles_even_for_empty_mapping(role: Any) -> None:
     _, adapter = _runtime()
 
@@ -233,7 +240,9 @@ def test_rejects_invalid_roles_even_for_empty_mapping(role: Any) -> None:
 def test_rejects_non_mapping_and_non_string_key() -> None:
     torch, adapter = _runtime()
     with pytest.raises(RLV2ProvenanceError, match="Mapping"):
-        adapter.state_dict_to_records(state_dict=[("policy.value", 1)], role="parameter")
+        adapter.state_dict_to_records(
+            state_dict=[("policy.value", 1)], role="parameter"
+        )
     with pytest.raises(RLV2ProvenanceError, match="keys must be strings"):
         adapter.state_dict_to_records(
             state_dict={1: torch.tensor([1])}, role="parameter"

@@ -86,9 +86,7 @@ jobs:
                 body_bytes: Buffer.byteLength(text),
                 body_sha256: crypto.createHash('sha256').update(text).digest('hex'),
               };
-              if (response.status >= 400) {
-                record.error_excerpt = text.slice(0, 500);
-              }
+              if (response.status >= 400) record.error_excerpt = text.slice(0, 500);
               return record;
             } catch (error) {
               return {path, fetch_error: String(error).slice(0, 500)};
@@ -106,15 +104,76 @@ jobs:
           NODE
           )"
 
-          python3 - "$REPORT_PATH" "$image" "$image_id" "$revision" "$published" "$runtime_json" <<'PY'
+          related_json="$(python3 - <<'PY'
+          import json
+          import subprocess
+
+          known = {
+              "PORTAL_WEB_DATA_MODE",
+              "PORTAL_ENVIRONMENT",
+              "PORTAL_IDENTITY_FIXTURE_MODE",
+              "PORTAL_CONTROL_PLANE_URL",
+          }
+          ids = subprocess.run(
+              ["docker", "ps", "-aq"],
+              check=True,
+              capture_output=True,
+              text=True,
+          ).stdout.split()
+          results = []
+          for container_id in ids:
+              payload = json.loads(
+                  subprocess.run(
+                      ["docker", "inspect", container_id],
+                      check=True,
+                      capture_output=True,
+                      text=True,
+                  ).stdout
+              )[0]
+              name = payload.get("Name", "").lstrip("/")
+              image = payload.get("Config", {}).get("Image", "")
+              labels = payload.get("Config", {}).get("Labels") or {}
+              marker = " ".join((name, image, " ".join(labels))).casefold()
+              if "portal" not in marker or "freqtrade" not in marker:
+                  continue
+              selected_env = {}
+              for item in payload.get("Config", {}).get("Env") or []:
+                  key, _, value = item.partition("=")
+                  if key not in known:
+                      continue
+                  selected_env[key] = value if key != "PORTAL_CONTROL_PLANE_URL" else bool(value)
+              ports = payload.get("HostConfig", {}).get("PortBindings") or {}
+              results.append(
+                  {
+                      "name": name,
+                      "running": bool(payload.get("State", {}).get("Running")),
+                      "image": image,
+                      "image_id": payload.get("Image"),
+                      "ports": ports,
+                      "known_environment": selected_env,
+                      "freqtrade_labels": {
+                          key: value
+                          for key, value in labels.items()
+                          if key.startswith("io.freqtrade.portal")
+                          or key == "org.opencontainers.image.revision"
+                      },
+                  }
+              )
+          print(json.dumps(sorted(results, key=lambda item: item["name"])))
+          PY
+          )"
+
+          python3 - \
+            "$REPORT_PATH" "$image" "$image_id" "$revision" "$published" \
+            "$runtime_json" "$related_json" <<'PY'
           import json
           import sys
           from pathlib import Path
 
-          report_path, image, image_id, revision, published, runtime_raw = sys.argv[1:]
+          report_path, image, image_id, revision, published, runtime_raw, related_raw = sys.argv[1:]
           runtime = json.loads(runtime_raw)
           report = {
-              "schema_version": 1,
+              "schema_version": 2,
               "container": "freqtrade-portal-staging",
               "running": True,
               "image": image,
@@ -124,6 +183,7 @@ jobs:
               "environment": runtime["env"],
               "matching_routes": runtime["routes"],
               "probes": runtime["probes"],
+              "related_containers": json.loads(related_raw),
               "mutation_performed": False,
           }
           Path(report_path).write_text(

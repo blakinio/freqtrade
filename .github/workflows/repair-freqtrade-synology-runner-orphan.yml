@@ -69,7 +69,7 @@ jobs:
             exit 1
           fi
 
-          echo "Renaming the verified prefixed Freqtrade runner container to its canonical name."
+          echo "Renaming verified container $candidate_name to $canonical."
           docker rename "$candidate_id" "$canonical"
 
       - name: Verify runner remains running and isolated
@@ -89,4 +89,3 @@ jobs:
           echo "runner_container_name=$canonical"
           echo "runner_running=true"
           echo "runner_image=$image"
-          echo "oteryn_mutated=false"

@@ -40,7 +40,7 @@ def valid_environment() -> dict[str, str]:
 def test_workflow_is_exact_request_gated_and_self_hosted() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
     assert f'- "{REQUEST_PATH}"' in text
-    assert "runs-on: [self-hosted, Linux, oteryn-staging]" in text
+    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" in text
     assert "environment: synology-staging" in text
     assert "permissions:\n  contents: read" in text
     assert "workflow_dispatch:" not in text
@@ -95,7 +95,8 @@ def test_preflight_has_no_container_mutation_commands() -> None:
 def test_frozen_request_forbids_deployment_bootstrap_and_restore() -> None:
     module = load_module()
     request = module.EXPECTED_REQUEST
-    assert request["expected_runner_name"] == "oteryn-synology-staging"
+    assert request["expected_runner_name"] == "freqtrade-synology-staging"
+    assert request["expected_runner_label"] == "freqtrade-staging"
     assert request["expected_environment"] == "synology-staging"
     assert request["expected_state_dir"] == "/var/lib/oteryn-staging-state"
     assert request["bounded_storage_probe_authorized"] is True

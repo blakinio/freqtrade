@@ -24,7 +24,7 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
-    runs-on: [self-hosted, Linux, oteryn-staging]
+    runs-on: [self-hosted, Linux, freqtrade-staging]
     environment: synology-staging
     timeout-minutes: 15
     env:

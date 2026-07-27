@@ -170,9 +170,7 @@ class InMemorySignalControlRepository:
             return ReplayDecision.NEW, None
 
     def _purge_expired(self, now: datetime) -> None:
-        expired_replays = [
-            key for key, record in self._replays.items() if record.expires_at <= now
-        ]
+        expired_replays = [key for key, record in self._replays.items() if record.expires_at <= now]
         for key in expired_replays:
             del self._replays[key]
         for collection in (self._signals, self._nonces):

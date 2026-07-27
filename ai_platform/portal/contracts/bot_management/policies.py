@@ -213,9 +213,7 @@ class DcaPolicyVersion(ContractModel):
                 raise ValueError("price-deviation DCA requires every trigger deviation")
             triggers = [value for value in trigger_values if value is not None]
             if triggers != sorted(triggers) or len(triggers) != len(set(triggers)):
-                raise ValueError(
-                    "DCA trigger deviations must be unique and strictly increasing"
-                )
+                raise ValueError("DCA trigger deviations must be unique and strictly increasing")
         elif any(value is not None for value in trigger_values):
             raise ValueError("signal or manual DCA must not declare price deviations")
         return self

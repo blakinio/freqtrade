@@ -48,7 +48,7 @@ def test_strategy_contains_the_exact_finite_formula_and_single_override() -> Non
     function_source = ast.unparse(functions[0])
     assert "2.0 * (volume - previous)" in function_source
     assert "denominator.where(denominator != 0)" in function_source
-    assert 'replace([float("inf"), float("-inf")], 0.0).fillna(0.0)' in function_source
+    assert "replace([float('inf'), float('-inf')], 0.0).fillna(0.0)" in function_source
 
     assert len(classes) == 1
     assert classes[0].name == "AiFrozenCandidateStrategyV2"

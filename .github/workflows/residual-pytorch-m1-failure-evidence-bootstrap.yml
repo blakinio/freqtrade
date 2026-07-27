@@ -81,6 +81,7 @@ jobs:
           {
             set -euo pipefail
             python -m pip install --disable-pip-version-check -e ".[develop]"
+            ruff format ai_platform/scripts/run_experiment.py tests/ai_platform/test_run_experiment.py
             pytest -q \
               tests/ai_platform/test_run_experiment.py \
               tests/ai_platform/test_protected_final_holdout.py \

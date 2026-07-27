@@ -1,10 +1,10 @@
 ---
 task_id: FTAI-20260727-wickhunter-wh01-dataset-builder
-status: validating
+status: completed
 branch: feat/wickhunter-wh01-dataset-builder-v1
 base_branch: develop
 created: 2026-07-27
-updated: 2026-07-27
+updated: 2026-07-28
 related_pr: 542
 depends_on:
   - FTAI-20260727-wickhunter-wh00-contracts-vertical-slice
@@ -35,11 +35,11 @@ Select only accepted immutable historical import artifacts and build a determini
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T23:59:00+02:00
-head: 1b2a2647168339b37450c9caf96b81831d703b00
+updated_at: 2026-07-28T00:06:00+02:00
+head: 524c55c0cc586b5c520407fceac7f6ace3f110c0
 branch: feat/wickhunter-wh01-dataset-builder-v1
 pr: 542
-status: validating
+status: completed
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -60,8 +60,11 @@ proven:
   - WH-01 selects only acceptance.status=pass packages with verified manifest, artifact and accepted-event hashes.
   - Historical available_at_ms is preserved as canonical feature-side receive time; future evidence fails closed.
   - Dataset partitions, source selections, universe history and the self-hashed manifest are published atomically without overwrite.
-  - Focused AI-platform tests passed before the Ruff-only repair.
-  - Exact Ruff 0.15.21 repair and format completed successfully and all temporary workflow files were removed.
+  - Exact Ruff 0.15.21 repair and format completed successfully and all temporary workflow and diagnostic files were removed.
+  - Exact code head 524c55c0cc586b5c520407fceac7f6ace3f110c0 passed AI Platform CI, full Freqtrade CI and security analysis.
+  - Pre-commit, mypy, Python 3.11 through 3.14, coverage, docs, smoke tests, distribution build and CI Gate passed.
+  - Changed-path audit contains exactly the six declared WH-01 paths.
+  - All review threads are resolved and outdated; no requested-change review exists.
 derived:
   - WH-01 consumes accepted import artifacts without modifying Liquid20, Market Data Fabric, portal, BM, RL-v2 or Synology paths.
   - Dataset construction fails closed on rejected acceptance, hash mismatch, future availability, holdout overlap, duplicate evidence or missing universe eligibility.
@@ -74,12 +77,13 @@ first_failure:
   run_id: 30307439318
   job_id: 90114968306
   cause: Ruff check required an exact repair; functional AI-platform tests had already passed.
-  resolution: Applied Ruff 0.15.21 check --fix and format to the three Python files, then removed temporary workflows.
+  resolution: Applied Ruff 0.15.21 check --fix and format, repaired the one exact mypy annotation failure, then removed all temporary workflows and reports.
 rejected_hypotheses:
   - Train a model in WH-01.
   - Read raw provider files directly and bypass historical acceptance artifacts.
   - Use occurred_at as availability when a provider availability timestamp exists.
   - Write partial dataset partitions into the final output directory.
+  - Start WH-02 with invented, synthetic-only or unaccepted real-history evidence.
 changed_paths:
   - ai_platform/wickhunter/dataset.py
   - ai_platform/wickhunter/__init__.py
@@ -90,13 +94,19 @@ changed_paths:
 validation:
   - command: python -m py_compile ai_platform/wickhunter/dataset.py tests/ai_platform_integration/test_wickhunter_dataset_builder.py
     result: PASS
-    evidence: Draft implementation and focused test module compile in isolation.
-  - command: AI Platform CI / Run AI platform tests
+    evidence: Implementation and focused test module compile in isolation.
+  - command: AI Platform CI
     result: PASS
-    evidence: run 30307439318, job 90114968306; Ruff was the only failing step.
-  - command: ruff 0.15.21 check --fix and ruff format on WH-01 Python paths
+    evidence: exact code head run 30308684986, including compile, AI-platform tests, Ruff, format, codespell and JSON validation.
+  - command: Freqtrade CI
     result: PASS
-    evidence: temporary WH-01 Ruff repair run 30307962786, job 90116652427.
+    evidence: exact code head run 30308685006, including pre-commit/mypy, Python 3.11-3.14, coverage, docs, smoke tests, distribution build and CI Gate.
+  - command: GitHub Actions Security Analysis with zizmor
+    result: PASS
+    evidence: exact code head run 30308684933.
+  - command: changed paths and review audit
+    result: PASS
+    evidence: exactly six declared WH-01 files; all five temporary-workflow review threads resolved and outdated; no requested changes.
 blockers: []
-next_action: Validate all exact-head CI and review/path gates for PR #542, then close the package without starting WH-02 unless real accepted data exists.
+next_action: Obtain and accept the first real immutable bulk historical import through the existing provider-access process, then open a fresh WH-02 task from current develop. Do not start replay, labels or model work before that evidence exists.
 ```

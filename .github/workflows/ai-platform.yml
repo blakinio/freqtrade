@@ -68,7 +68,7 @@ jobs:
           )
           ruff check --fix "${targets[@]}"
           ruff format "${targets[@]}"
-          python -m pytest -q -o addopts='' \
+          PYTHONPATH=. python -m pytest -q -o addopts='' \
             tests/ai_platform_integration/test_wickhunter_vertical_slice.py
           ruff check "${targets[@]}"
           ruff format --check "${targets[@]}"

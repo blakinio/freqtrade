@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1
-status: validating
+status: ready
 branch: feat/rl-v2-torch-tensor-record-adapter-v1
 base_branch: develop
 created: 2026-07-27
@@ -97,12 +97,12 @@ The approved full `Freqtrade CI` installs `requirements-dev.txt`, which includes
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T14:25:00+02:00
-head: 3bc09e92abbdf71806b66b5725be6c5ad28df155
+updated_at: 2026-07-27T14:44:00+02:00
+head: 6ab4aaaf6bedaacbea74a4dff0b4305793124c97
 base_develop: 9709293face7b7c0e42a8c46971586981286fc6f
 branch: feat/rl-v2-torch-tensor-record-adapter-v1
 pr: "#457"
-status: validating
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
@@ -120,23 +120,22 @@ owned_paths:
 proven:
   - Declaration PR 455 exact head 244bf010c533568ce5a4f00fe19ef52ad41fa44a passed Freqtrade CI 30258421316 including CI Gate and zizmor 30258421923, then merged as 90f24a649fa2a7fad376510d16691ed94a52970b.
   - The first complete implementation candidate head 0eea01c628d2f2ad3f54b7bb0e62c5cea6aae0ac passed AI Platform CI 30263551134, Freqtrade CI 30263551161 including pre-commit, documentation, all real-Torch core and compatibility lanes, mypy and aggregate CI Gate, and zizmor 30263551190.
-  - Focused real-Torch tests cover 25 synthetic CPU cases across scalar, empty, contiguous, non-contiguous, supported dtypes and fail-closed rejection paths.
-  - Ruff check and Ruff format were independently reproduced with repository-pinned Ruff 0.15.21 before the complete candidate passed repository CI.
   - Current develop advanced to 9709293face7b7c0e42a8c46971586981286fc6f only through eleven paths disjoint from all five owned paths.
-  - PR 457 had no review threads or submitted reviews before rebase.
   - The implementation branch was rebuilt directly from current develop 9709293face7b7c0e42a8c46971586981286fc6f with the same five-file diff and no other path changes.
+  - Rebased head 6ab4aaaf6bedaacbea74a4dff0b4305793124c97 passed AI Platform CI 30265333136, Freqtrade CI 30265333192 including pre-commit, documentation, all real-Torch core and compatibility lanes, Ruff, Ruff format, mypy, build and aggregate CI Gate, and zizmor 30265332797.
+  - Focused real-Torch tests cover 25 synthetic CPU cases across scalar, empty, contiguous, non-contiguous, supported dtypes and fail-closed rejection paths.
+  - PR 457 is open and mergeable, changes exactly the five declared owned paths, and has zero review threads and zero submitted reviews.
   - Base provenance imports neither Torch nor the optional adapter.
   - No model, state dictionary, optimizer, checkpoint, archive, cache, network, market data, OOS or protected holdout was accessed.
 derived:
-  - Rebuilding the same proven five-file diff on current develop removes stale-history mergeability without changing implementation semantics or ownership.
-  - A fresh exact-head CI cycle remains required because branch history and base changed.
+  - The adapter implementation is complete and eligible for merge after the final checkpoint-head workflow cycle.
 unknown:
-  - Final rebased implementation head CI run IDs and merge SHA until exact-head validation and merge complete.
+  - Implementation merge SHA until PR 457 merges.
   - Closeout branch, PR, exact head, CI evidence and merge SHA until implementation merges.
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: Earlier lint and formatting findings were corrected; the complete pre-rebase implementation candidate passed all required repository gates.
+  evidence: Earlier lint and formatting findings were corrected; both complete implementation candidates passed all required repository gates.
 rejected_hypotheses:
   - Add Torch to lightweight AI Platform CI.
   - Treat an untriggered full-CI core lane as real-Torch verification.
@@ -157,19 +156,19 @@ validation:
   - command: implementation candidate head 0eea01c628d2f2ad3f54b7bb0e62c5cea6aae0ac exact-head repository CI
     result: PASS
     evidence: AI Platform CI 30263551134, Freqtrade CI 30263551161 including CI Gate and zizmor 30263551190 succeeded; pre-commit, docs, Ruff, Ruff format, mypy and all real-Torch test lanes passed.
-  - command: implementation PR 457 changed-path audit before rebase
+  - command: rebased implementation head 6ab4aaaf6bedaacbea74a4dff0b4305793124c97 exact-head repository CI
     result: PASS
-    evidence: GitHub reported exactly the five declared owned paths.
-  - command: review thread and review submission audit before rebase
+    evidence: AI Platform CI 30265333136, Freqtrade CI 30265333192 including CI Gate and zizmor 30265332797 succeeded; all core and compatibility lanes used the approved pinned Torch profile.
+  - command: implementation PR 457 changed-path audit
     result: PASS
-    evidence: GitHub reported zero review threads and zero submitted reviews.
-  - command: current develop divergence audit
+    evidence: GitHub reports exactly the five declared owned paths.
+  - command: review thread and review submission audit
     result: PASS
-    evidence: The eleven develop-side changed paths are disjoint from all five owned paths.
-  - command: rebased implementation exact-head repository CI
+    evidence: GitHub reports zero review threads and zero submitted reviews.
+  - command: final ready-checkpoint exact-head repository CI
     result: PENDING
-    evidence: Required workflows must complete on the rebuilt branch head before merge.
+    evidence: Required workflows must complete on the checkpoint commit before merge.
 blockers:
-  - Rebased exact-head AI Platform CI, Freqtrade CI including CI Gate, and zizmor are not yet terminal.
-next_action: Observe exact-head workflows on the rebuilt PR 457 head; if all required gates pass and the PR is mergeable with exactly five changed paths and no open review threads, update the checkpoint to ready and merge the implementation.
+  - Final ready-checkpoint AI Platform CI, Freqtrade CI including CI Gate, and zizmor are not yet terminal.
+next_action: Observe exact-head workflows on the ready checkpoint; if all required gates pass and PR 457 remains mergeable with exactly five changed paths and no open review threads, merge the implementation and start a separate closeout branch from current develop.
 ```

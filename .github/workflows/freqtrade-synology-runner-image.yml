@@ -18,7 +18,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: freqtrade-synology-runner-image-${{ github.workflow }}-${{ github.ref }}
@@ -61,6 +60,9 @@ jobs:
     name: Build dedicated runner image
     runs-on: ubuntu-latest
     needs: validate
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

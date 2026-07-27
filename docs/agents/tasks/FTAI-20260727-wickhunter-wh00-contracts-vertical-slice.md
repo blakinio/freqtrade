@@ -92,8 +92,9 @@ WH-00 consumes existing Liquid20 and Market Data Fabric contracts but does not m
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T19:00:00+02:00
-head: 873a8acf6ba0c0bbcf149f688e9754c829204e5e
+updated_at: 2026-07-27T20:27:44+02:00
+head: 519f59393a11506ccae55e7623a050dd1802ed6b
+base_head: 4077666e8b6c26910dddfb17e7d56371232898a0
 branch: feat/wickhunter-wh00-contracts-vertical-slice-v1
 pr: 488
 status: validating
@@ -119,21 +120,25 @@ proven:
   - BM-00 is merged; active BM feature PR paths are untouched by WH-00.
   - Phase 6 remains selected_model=null and RL-v2 remains a separate non-promoted research track.
   - Protected final holdout 20260801-20260930 is not accessed by WH-00.
-  - Local focused synthetic validation passes 26 tests and Python compile.
+  - Focused synthetic validation passes 26 tests and Python compile.
+  - Ruff 0.15.21 repair is deterministic and changes formatting only in seven WH-00 files.
+  - AI Platform CI run 30293625893 passes compile, tests, Ruff, Ruff format, codespell and JSON validation after applying the exact repair.
+  - The repaired PR diff contains exactly the thirteen declared WH-00 paths and no workflow or temporary diagnostic file.
 derived:
   - A separate ai_platform/wickhunter boundary is path-disjoint and can consume existing contracts without changing active portal, BM, market-data or RL-v2 ownership.
   - The first executable slice can be proven synthetically while real replay/training remains gated by accepted dataset selection.
   - Compatibility VWAP references 0.3 and 0.5 are represented as ratios 0.003 and 0.005.
+  - Current develop has advanced to 4077666e8b6c26910dddfb17e7d56371232898a0; PR 488 remains mergeable and path-disjoint.
 unknown:
   - Real accepted historical dataset identity and hash until WH-01.
   - Replay labels, costs and performance until WH-02.
   - LightGBM, XGBoost, PyTorch and RL comparative evidence until their declared packages.
   - Portal Risk Engine adapter contract until WH-06 ownership and shared-schema preflight.
-  - Exact GitHub CI and review result until PR 488 completes.
+  - Final exact-head repository CI and review result after this checkpoint update.
 conflicts: []
 first_failure:
-  marker: LOCAL_RUFF_UNAVAILABLE
-  evidence: Ruff is not installed or cached in the sandbox; focused pytest and compile pass, and GitHub CI remains authoritative for Ruff and format.
+  marker: FINAL_EXACT_HEAD_CI_PENDING
+  evidence: The Ruff failure is resolved; the checkpoint update intentionally triggers authoritative repository CI on the clean repaired head.
 rejected_hypotheses:
   - Use the frozen Liquid20 symbol list as the permanent WickHunter universe.
   - Modify active portal/BM risk contracts inside WH-00.
@@ -162,9 +167,16 @@ validation:
   - command: python -m compileall -q ai_platform/wickhunter tests/ai_platform_integration/test_wickhunter_vertical_slice.py
     result: PASS
     evidence: All WH-00 Python files compile.
-  - command: ruff check and ruff format --check
-    result: NOT_RUN
-    evidence: Ruff is unavailable in the sandbox and not present in the offline uv cache; GitHub CI is authoritative.
-blockers: []
-next_action: Resolve exact-head CI and review findings on PR 488, merge only after all required checks pass, then create WH-01 from current develop for the first accepted source-aware dataset.
+  - command: ruff check ai_platform/wickhunter tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+    result: PASS
+    evidence: Ruff 0.15.21 reports all checks passed after the exact formatting repair.
+  - command: ruff format --check ai_platform/wickhunter tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+    result: PASS
+    evidence: Ruff 0.15.21 reports all eleven target files already formatted.
+  - command: AI Platform CI run 30293625893
+    result: PASS
+    evidence: Compile, platform tests, Ruff, Ruff format, codespell and baseline/manifest/schema JSON validation pass.
+blockers:
+  - FINAL_EXACT_HEAD_CI_PENDING
+next_action: Require all exact-head workflows and review threads on PR 488 to pass, mark the PR ready, merge WH-00, verify develop, then create WH-01 from current develop for the first accepted source-aware dataset.
 ```

@@ -139,21 +139,24 @@ def manifest_draft() -> dict[str, object]:
 def assemble(
     draft: dict[str, object] | None = None,
     *,
-    parameter_digest: object = PARAMETER_SHA,
-    buffer_digest: object = BUFFER_SHA,
-    optimizer_digest: object = None,
+    parameter_digest: Any = PARAMETER_SHA,
+    buffer_digest: Any = BUFFER_SHA,
+    optimizer_digest: Any = None,
 ) -> dict[str, Any]:
     return assemble_model_state_provenance_manifest(
         manifest_fields=manifest_draft() if draft is None else draft,
-        parameter_state_digest_sha256=parameter_digest,  # type: ignore[arg-type]
-        buffer_state_digest_sha256=buffer_digest,  # type: ignore[arg-type]
-        optimizer_state_digest_sha256=optimizer_digest,  # type: ignore[arg-type]
+        parameter_state_digest_sha256=parameter_digest,
+        buffer_state_digest_sha256=buffer_digest,
+        optimizer_state_digest_sha256=optimizer_digest,
     )
 
 
 def reverse_object_order(value: Any) -> Any:
     if isinstance(value, dict):
-        return {key: reverse_object_order(item) for key, item in reversed(tuple(value.items()))}
+        reversed_mapping: dict[str, Any] = {}
+        for key, item in reversed(tuple(value.items())):
+            reversed_mapping[key] = reverse_object_order(item)
+        return reversed_mapping
     if isinstance(value, list):
         return [reverse_object_order(item) for item in value]
     return deepcopy(value)
@@ -200,13 +203,13 @@ def test_each_model_state_digest_changes_the_manifest_self_hash(
     replacement: str,
 ) -> None:
     base = assemble(optimizer_digest=OPTIMIZER_SHA)
-    arguments = {
+    arguments: dict[str, Any] = {
         "parameter_digest": PARAMETER_SHA,
         "buffer_digest": BUFFER_SHA,
         "optimizer_digest": OPTIMIZER_SHA,
     }
     arguments[f"{field}_digest"] = replacement
-    changed = assemble(**arguments)  # type: ignore[arg-type]
+    changed = assemble(**arguments)
 
     assert changed["self_hash_sha256"] != base["self_hash_sha256"]
 
@@ -224,8 +227,9 @@ def test_optimizer_digest_is_optional_and_explicitly_missing() -> None:
 
     with_optimizer = assemble(optimizer_digest=OPTIMIZER_SHA)
     optimizer_digest = nested(with_optimizer, "optimizer_state")["state_digest_sha256"]
+    missing_fields = with_optimizer["missing_optional_fields"]
     assert optimizer_digest == OPTIMIZER_SHA
-    assert "optimizer_state.state_digest_sha256" not in with_optimizer["missing_optional_fields"]
+    assert "optimizer_state.state_digest_sha256" not in missing_fields
 
 
 @pytest.mark.parametrize(
@@ -237,7 +241,7 @@ def test_optimizer_digest_is_optional_and_explicitly_missing() -> None:
     ],
 )
 def test_malformed_or_uppercase_digests_are_rejected(argument: str, value: str) -> None:
-    arguments: dict[str, object] = {
+    arguments: dict[str, Any] = {
         "parameter_digest": PARAMETER_SHA,
         "buffer_digest": BUFFER_SHA,
         "optimizer_digest": OPTIMIZER_SHA,
@@ -245,7 +249,7 @@ def test_malformed_or_uppercase_digests_are_rejected(argument: str, value: str) 
     arguments[argument] = value
 
     with pytest.raises(RLV2ProvenanceError, match="lowercase SHA-256"):
-        assemble(**arguments)  # type: ignore[arg-type]
+        assemble(**arguments)
 
 
 @pytest.mark.parametrize(
@@ -261,14 +265,14 @@ def test_mandatory_digest_inputs_require_non_empty_strings(
     argument: str,
     value: object,
 ) -> None:
-    arguments: dict[str, object] = {
+    arguments: dict[str, Any] = {
         "parameter_digest": PARAMETER_SHA,
         "buffer_digest": BUFFER_SHA,
     }
     arguments[argument] = value
 
     with pytest.raises(RLV2ProvenanceError, match="non-empty string"):
-        assemble(**arguments)  # type: ignore[arg-type]
+        assemble(**arguments)
 
 
 @pytest.mark.parametrize("value", [7, b"digest", [], ""])
@@ -393,7 +397,8 @@ def test_phase6_and_selected_model_null_are_preserved() -> None:
 
 
 def test_assembler_has_no_torch_model_file_network_data_or_execution_path() -> None:
-    source_path = Path(__file__).parents[2] / "ai_platform/provenance/rl_v2_model_state_manifest.py"
+    source_path = Path(__file__).parents[2]
+    source_path /= "ai_platform/provenance/rl_v2_model_state_manifest.py"
     source = source_path.read_text(encoding="utf-8")
     tree = ast.parse(source)
     imported_roots = {
@@ -408,13 +413,7 @@ def test_assembler_has_no_torch_model_file_network_data_or_execution_path() -> N
         if isinstance(node, ast.ImportFrom) and node.module
     )
 
-    allowed_import_roots = {
-        "__future__",
-        "collections",
-        "copy",
-        "typing",
-        "ai_platform",
-    }
+    allowed_import_roots = {"__future__", "collections", "copy", "typing", "ai_platform"}
     assert imported_roots <= allowed_import_roots
     forbidden = (
         "torch",

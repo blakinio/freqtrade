@@ -47,6 +47,17 @@ jobs:
           "httpx>=0.24.1" fastapi pyjwt cryptography
           ruff==0.15.21 codespell==2.4.2
 
+      - name: Format provenance diagnostic
+        run: ruff format ai_platform/provenance/rl_v2.py
+
+      - name: Upload provenance formatter result
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rl-v2-provenance-ruff-formatted
+          path: ai_platform/provenance/rl_v2.py
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Compile AI platform Python
         run: python -m compileall -q ai_platform tests/ai_platform
 

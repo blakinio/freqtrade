@@ -16,6 +16,9 @@ from ai_platform.provenance.rl_v2 import (
     semantic_tensor_state_digest,
     validate_manifest,
 )
+from ai_platform.provenance.rl_v2_model_state_manifest import (
+    assemble_model_state_provenance_manifest,
+)
 
 
 __all__ = [
@@ -25,6 +28,7 @@ __all__ = [
     "RLV2ProvenanceError",
     "SCHEMA_VERSION",
     "TensorRecord",
+    "assemble_model_state_provenance_manifest",
     "canonical_json_bytes",
     "canonical_sha256",
     "collect_missing_optional_fields",

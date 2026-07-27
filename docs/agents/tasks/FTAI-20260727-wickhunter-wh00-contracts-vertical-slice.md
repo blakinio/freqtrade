@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260727-wickhunter-wh00-contracts-vertical-slice
-status: validating
+status: completed
 branch: feat/wickhunter-wh00-contracts-vertical-slice-v1
 base_branch: develop
 created: 2026-07-27
@@ -92,12 +92,13 @@ WH-00 consumes existing Liquid20 and Market Data Fabric contracts but does not m
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T20:27:44+02:00
-head: 519f59393a11506ccae55e7623a050dd1802ed6b
-base_head: 4077666e8b6c26910dddfb17e7d56371232898a0
+updated_at: 2026-07-27T20:55:20+02:00
+validated_code_head: 283a08b20bbb53c379f37fe0bb7fb0474430e247
+base_head: 9c16d82a1de6ccf5b28edd485916196d31af3229
 branch: feat/wickhunter-wh00-contracts-vertical-slice-v1
 pr: 488
-status: validating
+status: completed
+checkpoint_update_scope: documentation-only
 context_routes:
   - docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md
   - docs/ai_platform/portal/LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md
@@ -122,23 +123,24 @@ proven:
   - Protected final holdout 20260801-20260930 is not accessed by WH-00.
   - Focused synthetic validation passes 26 tests and Python compile.
   - Ruff 0.15.21 repair is deterministic and changes formatting only in seven WH-00 files.
-  - AI Platform CI run 30293625893 passes compile, tests, Ruff, Ruff format, codespell and JSON validation after applying the exact repair.
+  - Dataclass canonicalization rejects dataclass class objects explicitly and passes repository mypy/pre-commit validation without changing instance hashes.
+  - AI Platform CI run 30294349424 passes compile, tests, Ruff, Ruff format, codespell and JSON validation on validated_code_head.
+  - Freqtrade CI run 30294349359 passes pre-commit, Python 3.11-3.14 core tests, Python 3.12 coverage, documentation, distribution build and CI Gate on validated_code_head.
+  - Security analysis run 30294349163 passes on validated_code_head.
   - The repaired PR diff contains exactly the thirteen declared WH-00 paths and no workflow or temporary diagnostic file.
+  - PR 488 has no unresolved review thread or requested-change review.
 derived:
   - A separate ai_platform/wickhunter boundary is path-disjoint and can consume existing contracts without changing active portal, BM, market-data or RL-v2 ownership.
   - The first executable slice can be proven synthetically while real replay/training remains gated by accepted dataset selection.
   - Compatibility VWAP references 0.3 and 0.5 are represented as ratios 0.003 and 0.005.
-  - Current develop has advanced to 4077666e8b6c26910dddfb17e7d56371232898a0; PR 488 remains mergeable and path-disjoint.
+  - Current develop has advanced to 9c16d82a1de6ccf5b28edd485916196d31af3229; PR 488 remains path-disjoint.
 unknown:
   - Real accepted historical dataset identity and hash until WH-01.
   - Replay labels, costs and performance until WH-02.
   - LightGBM, XGBoost, PyTorch and RL comparative evidence until their declared packages.
   - Portal Risk Engine adapter contract until WH-06 ownership and shared-schema preflight.
-  - Final exact-head repository CI and review result after this checkpoint update.
 conflicts: []
-first_failure:
-  marker: FINAL_EXACT_HEAD_CI_PENDING
-  evidence: The Ruff failure is resolved; the checkpoint update intentionally triggers authoritative repository CI on the clean repaired head.
+first_failure: null
 rejected_hypotheses:
   - Use the frozen Liquid20 symbol list as the permanent WickHunter universe.
   - Modify active portal/BM risk contracts inside WH-00.
@@ -169,14 +171,19 @@ validation:
     evidence: All WH-00 Python files compile.
   - command: ruff check ai_platform/wickhunter tests/ai_platform_integration/test_wickhunter_vertical_slice.py
     result: PASS
-    evidence: Ruff 0.15.21 reports all checks passed after the exact formatting repair.
+    evidence: Ruff 0.15.21 reports all checks passed.
   - command: ruff format --check ai_platform/wickhunter tests/ai_platform_integration/test_wickhunter_vertical_slice.py
     result: PASS
     evidence: Ruff 0.15.21 reports all eleven target files already formatted.
-  - command: AI Platform CI run 30293625893
+  - command: AI Platform CI run 30294349424
     result: PASS
     evidence: Compile, platform tests, Ruff, Ruff format, codespell and baseline/manifest/schema JSON validation pass.
-blockers:
-  - FINAL_EXACT_HEAD_CI_PENDING
-next_action: Require all exact-head workflows and review threads on PR 488 to pass, mark the PR ready, merge WH-00, verify develop, then create WH-01 from current develop for the first accepted source-aware dataset.
+  - command: Freqtrade CI run 30294349359
+    result: PASS
+    evidence: Pre-commit, core test matrix, coverage, docs, distributions and CI Gate pass.
+  - command: GitHub Actions Security Analysis run 30294349163
+    result: PASS
+    evidence: zizmor analysis passes.
+blockers: []
+next_action: Mark PR 488 ready, merge WH-00 after the exact checkpoint head is green, verify develop, then create WH-01 from current develop for the first accepted source-aware dataset.
 ```

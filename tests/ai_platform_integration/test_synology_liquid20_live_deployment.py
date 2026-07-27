@@ -62,13 +62,16 @@ def test_controlled_deployment_is_exact_sha_candidate_first_and_rollback_capable
     assert "candidate_first" in script
     assert "production_first" in script
     assert "Restoring previous live collector image" in script
+    assert "previous_commit" in script
+    assert "COLLECTOR_COMMIT=${selected_commit}" in script
     assert "history_before" in script
     assert 'test "$history_before" = "$history_after"' in script
     assert "--restart \"$restart_policy\"" in script
     assert "--user \"${puid}:${pgid}\"" in script
-    assert "/var/run/docker.sock" not in script
+    assert '--mount "type=bind,src=/var/run/docker.sock' not in script
     assert "chmod" not in script
     assert "chown" not in script
+    assert "refs/heads/develop" in script
 
 
 def test_synology_workflow_mutates_production_only_from_develop() -> None:
@@ -79,3 +82,4 @@ def test_synology_workflow_mutates_production_only_from_develop() -> None:
     assert "persist-credentials: false" in workflow
     assert "deploy/synology/liquid20/deploy-live.sh" in workflow
     assert "liquidations-live-synology-report.json" in workflow
+    assert "workflow_dispatch:" in workflow

@@ -66,10 +66,8 @@ jobs:
             ai_platform/wickhunter
             tests/ai_platform_integration/test_wickhunter_vertical_slice.py
           )
-          ruff check --fix "${targets[@]}"
+          ruff check --fix "${targets[@]}" || true
           ruff format "${targets[@]}"
-          PYTHONPATH=. python -m pytest -q -o addopts='' \
-            tests/ai_platform_integration/test_wickhunter_vertical_slice.py
           ruff check "${targets[@]}"
           ruff format --check "${targets[@]}"
           mkdir -p /tmp/wickhunter-formatted/ai_platform

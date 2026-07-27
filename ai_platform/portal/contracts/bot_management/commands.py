@@ -218,6 +218,45 @@ class OrderCommand(CommandEnvelope):
         return self
 
 
+def _validate_outcome_reason_codes(outcome: CommandOutcome) -> None:
+    reasons = [reason.value for reason in outcome.reason_codes]
+    if len(reasons) != len(set(reasons)):
+        raise ValueError("command outcome reason codes must be unique")
+    if reasons != sorted(reasons):
+        raise ValueError("command outcome reason codes must use sorted order")
+
+
+def _validate_outcome_status(outcome: CommandOutcome) -> None:
+    if outcome.status == CommandOutcomeStatus.ACCEPTED:
+        if outcome.reason_codes or outcome.reconciliation_ref is not None:
+            raise ValueError("ACCEPTED is not execution success or reconciliation")
+    if outcome.status in {CommandOutcomeStatus.REJECTED, CommandOutcomeStatus.BLOCKED}:
+        if not outcome.reason_codes:
+            raise ValueError("rejected or blocked outcome requires a reason code")
+        if outcome.execution_attempt_ref is not None or outcome.reconciliation_ref is not None:
+            raise ValueError("rejected or blocked command must not have execution evidence")
+    if (
+        outcome.status == CommandOutcomeStatus.PENDING_RECONCILIATION
+        and outcome.execution_attempt_ref is None
+    ):
+        raise ValueError("pending reconciliation requires an execution attempt reference")
+
+
+def _validate_outcome_revision(outcome: CommandOutcome) -> None:
+    stale = CommandReasonCode.STALE_REVISION in outcome.reason_codes
+    if stale:
+        if outcome.observed_config_revision is None:
+            raise ValueError("stale revision outcome requires observed revision")
+        if outcome.observed_config_revision == outcome.target.config_revision:
+            raise ValueError("stale revision outcome must show a different revision")
+        return
+    if (
+        outcome.observed_config_revision is not None
+        and outcome.observed_config_revision != outcome.target.config_revision
+    ):
+        raise ValueError("revision mismatch must use STALE_REVISION reason code")
+
+
 class CommandOutcome(ContractModel):
     command_id: NonEmptyStr
     tenant_id: NonEmptyStr
@@ -233,31 +272,7 @@ class CommandOutcome(ContractModel):
     def validate_outcome(self) -> Self:
         if self.target.tenant_id != self.tenant_id:
             raise ValueError("command outcome target must belong to the outcome tenant")
-        reasons = [reason.value for reason in self.reason_codes]
-        if len(reasons) != len(set(reasons)):
-            raise ValueError("command outcome reason codes must be unique")
-        if reasons != sorted(reasons):
-            raise ValueError("command outcome reason codes must use sorted order")
-        if self.status == CommandOutcomeStatus.ACCEPTED:
-            if self.reason_codes or self.reconciliation_ref is not None:
-                raise ValueError("ACCEPTED is not execution success or reconciliation")
-        if self.status in {CommandOutcomeStatus.REJECTED, CommandOutcomeStatus.BLOCKED}:
-            if not self.reason_codes:
-                raise ValueError("rejected or blocked outcome requires a reason code")
-            if self.execution_attempt_ref is not None or self.reconciliation_ref is not None:
-                raise ValueError("rejected or blocked command must not have execution evidence")
-        if self.status == CommandOutcomeStatus.PENDING_RECONCILIATION:
-            if self.execution_attempt_ref is None:
-                raise ValueError("pending reconciliation requires an execution attempt reference")
-        stale = CommandReasonCode.STALE_REVISION in self.reason_codes
-        if stale:
-            if self.observed_config_revision is None:
-                raise ValueError("stale revision outcome requires observed revision")
-            if self.observed_config_revision == self.target.config_revision:
-                raise ValueError("stale revision outcome must show a different revision")
-        elif (
-            self.observed_config_revision is not None
-            and self.observed_config_revision != self.target.config_revision
-        ):
-            raise ValueError("revision mismatch must use STALE_REVISION reason code")
+        _validate_outcome_reason_codes(self)
+        _validate_outcome_status(self)
+        _validate_outcome_revision(self)
         return self

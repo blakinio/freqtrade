@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1
 status: ready
-branch: docs/rl-v2-torch-tensor-record-adapter-v1-closeout
+branch: docs/rl-v2-torch-tensor-record-adapter-v1-terminal-evidence
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#455 declaration; #457 implementation; #472 terminal closeout"
+related_pr: "#455 declaration; #457 implementation; #472 terminal closeout; #475 terminal evidence correction"
 depends_on:
   - FTAI-20260726-rl-v2-provenance-tooling-v1
 owned_paths:
@@ -16,23 +16,14 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md
 required_reads:
   - AGENTS.md
-  - docs/ai_platform/ARCHITECTURE.md
-  - docs/ai_platform/ROADMAP.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/GOVERNANCE_CONTRACT.json
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
-  - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
-  - docs/agents/tasks/FTAI-20260726-rl-v2-seed-effectiveness-determinism-audit.md
   - docs/ai_platform/RL_V2_PROVENANCE_TOOLING.md
-  - ai_platform/provenance/__init__.py
+  - docs/ai_platform/RL_V2_TORCH_TENSOR_RECORD_ADAPTER.md
   - ai_platform/provenance/rl_v2.py
-  - tests/ai_platform/test_rl_v2_provenance_tooling.py
-  - pyproject.toml
-  - requirements-dev.txt
-  - requirements-freqai-rl.txt
-  - .pre-commit-config.yaml
-  - .github/workflows/ai-platform.yml
-  - .github/workflows/ci.yml
+  - ai_platform/provenance/rl_v2_torch.py
+  - tests/ai_platform/test_rl_v2_torch_adapter.py
   - tools/agents/checkpoint.py
   - tools/agents/resume.py
 search_first:
@@ -66,11 +57,11 @@ The adapter does not discover, load, construct, traverse, execute or save models
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T15:17:00+02:00
-head: 0217c8b13af675c0a1d382ec4b6aada701a82a66
-base_develop: 22981a5e1a898f12730bb69354a8141a268598b2
-branch: docs/rl-v2-torch-tensor-record-adapter-v1-closeout
-pr: "#472"
+updated_at: 2026-07-27T15:26:00+02:00
+head: ada30eeeb9936513fccf2a443631ea6e20be2c62
+base_develop: 813d59fe59e2becc42f3b6942125da28edec2cd3
+branch: docs/rl-v2-torch-tensor-record-adapter-v1-terminal-evidence
+pr: "#475"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
@@ -87,19 +78,19 @@ owned_paths:
 proven:
   - Declaration PR 455 passed Freqtrade CI 30258421316 including CI Gate and zizmor 30258421923 on exact head 244bf010c533568ce5a4f00fe19ef52ad41fa44a, then merged as 90f24a649fa2a7fad376510d16691ed94a52970b.
   - Implementation PR 457 final exact head d5978598f3b297b5e59c8feb91992b338eccb59f passed AI Platform CI 30266438688, Freqtrade CI 30266438740 including pre-commit, documentation, all pinned-Torch core and compatibility lanes, Ruff, Ruff format, mypy, build and CI Gate, and zizmor 30266438701.
-  - PR 457 changed exactly the five declared implementation paths, had no review threads, and merged as 22981a5e1a898f12730bb69354a8141a268598b2.
+  - Implementation PR 457 changed exactly the five declared implementation paths, had no review threads, and merged as 22981a5e1a898f12730bb69354a8141a268598b2.
+  - Closeout PR 472 changed exactly one task-record path.
+  - Closeout head 0217c8b13af675c0a1d382ec4b6aada701a82a66 passed Freqtrade CI 30267939664 with pre-commit, documentation and CI Gate success, and zizmor 30267939799.
+  - Final closeout head e5dd71e1c0e71c4d8566eacaa727a9813a4ddf4d passed Freqtrade CI 30268109407 with CI Gate success and zizmor 30268109493, then PR 472 merged as 813d59fe59e2becc42f3b6942125da28edec2cd3.
   - The public API preserves supported dtype, logical shape, normalized source device and exact logical bytes without casts or value conversion.
   - Base provenance imports neither Torch nor the optional adapter.
   - Synthetic tests cover 25 CPU cases including scalar, empty, contiguous, non-contiguous, all supported dtypes and fail-closed rejection paths.
   - No model, state dictionary, optimizer, checkpoint, archive, cache, network, market data, consumed OOS or protected holdout was accessed.
   - No canonical request, execution workflow, ranking, selection, promotion, runner behavior or Phase 6 state changed.
-  - Closeout PR 472 changes only this task record.
-  - Closeout head 0217c8b13af675c0a1d382ec4b6aada701a82a66 passed Freqtrade CI 30267939664 with pre-commit, documentation and CI Gate success, and zizmor 30267939799.
 derived:
-  - The adapter task is implementation-complete and eligible for terminal closeout merge after the final checkpoint-head gates.
+  - This task is terminal after PR 475 merges.
   - Any model traversal, artifact loading, canonical request or runtime execution requires a separate governed task.
-unknown:
-  - Closeout merge SHA until PR 472 merges.
+unknown: []
 conflicts: []
 first_failure:
   marker: RUFF_AND_FORMAT_DIAGNOSTICS_RESOLVED
@@ -122,16 +113,12 @@ validation:
   - command: implementation changed-path and review audit
     result: PASS
     evidence: Exactly five owned paths changed and no review threads were open before merge.
-  - command: closeout PR 472 changed-path audit
+  - command: closeout PR 472 one-file and exact-head repository CI
     result: PASS
-    evidence: GitHub reports exactly one changed task-record path.
-  - command: closeout head 0217c8b13af675c0a1d382ec4b6aada701a82a66 repository CI
+    evidence: Freqtrade CI 30268109407 including CI Gate and zizmor 30268109493 succeeded on final closeout head e5dd71e1c0e71c4d8566eacaa727a9813a4ddf4d before merge.
+  - command: terminal evidence correction
     result: PASS
-    evidence: Freqtrade CI 30267939664 including CI Gate and zizmor 30267939799 succeeded.
-  - command: final terminal checkpoint exact-head repository CI
-    result: PENDING
-    evidence: Required workflows must complete on the evidence-recording commit before merge.
-blockers:
-  - Final terminal-checkpoint CI and security analysis are not yet terminal.
-next_action: Merge closeout PR 472 only after the final checkpoint head passes all required checks, remains one-file and mergeable, and has no open review thread.
+    evidence: PR 475 changes only this task record and removes stale PENDING, blocker and unknown fields without changing code, dependencies or runtime authority.
+blockers: []
+next_action: Treat this task as closed after PR 475 merges; create a separately declared governed task before adding model traversal, artifact loading, canonical requests, execution workflows or market-data access.
 ```

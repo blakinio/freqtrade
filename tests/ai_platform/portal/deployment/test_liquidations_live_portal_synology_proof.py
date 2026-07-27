@@ -76,6 +76,6 @@ def test_script_checks_sources_no_store_and_same_process() -> None:
     assert '["bybit-linear", "binance-usdm"]' in text
     assert "subscription_symbol_count" in text
     assert "last_heartbeat_at_ms" in text
-    assert 'cache_control.includes("no-store")' in text
+    assert 'cacheControl.includes("no-store")' in text
     assert '"same_portal_process": True' in text
     assert '"no_store_api": True' in text

@@ -97,21 +97,21 @@ export interface LiquidationSummary {
 }
 
 export interface LiquidationSourceHealth {
-  configured: boolean;
-  connected: boolean;
   events: number;
   observed_symbols: number;
-  subscription_symbol_count: number;
   availability_ratio: number | null;
   disconnects_per_hour: number | null;
   last_event_at_ms: number | null;
-  last_event_received_at_ms: number | null;
-  last_heartbeat_at_ms: number | null;
-  ingest_lag_ms: number | null;
-  reconnect_count: number;
-  error_count: number;
-  parse_error_count: number;
-  latest_error: string | null;
+  configured?: boolean;
+  connected?: boolean;
+  subscription_symbol_count?: number;
+  last_event_received_at_ms?: number | null;
+  last_heartbeat_at_ms?: number | null;
+  ingest_lag_ms?: number | null;
+  reconnect_count?: number;
+  error_count?: number;
+  parse_error_count?: number;
+  latest_error?: string | null;
 }
 
 export interface LiquidationAcceptanceEvidence {
@@ -121,27 +121,29 @@ export interface LiquidationAcceptanceEvidence {
 }
 
 export interface LiquidationHealth {
-  schema_version: 2;
-  contract: "portal-liquidations-health-v2";
+  schema_version: 1 | 2;
+  contract?: "portal-liquidations-health-v2";
   mode: LiquidationDataMode;
-  run_state: LiquidationRunState;
+  run_state?: LiquidationRunState;
   run_id: string;
   acceptance_status: LiquidationAcceptanceStatus;
   failed_gates: string[];
   latest_completed_acceptance: LiquidationAcceptanceEvidence | null;
   active_sources: LiquidationHealthSource[];
   observed_symbol_count: number;
-  sources: Record<LiquidationHealthSource, LiquidationSourceHealth>;
-  collector_started_at_ms: number | null;
-  collector_heartbeat_at_ms: number | null;
+  sources: Record<LiquidationSource, LiquidationSourceHealth> &
+    Partial<Record<Exclude<LiquidationHealthSource, LiquidationSource>, LiquidationSourceHealth>>;
+  collector_started_at_ms?: number | null;
+  collector_heartbeat_at_ms?: number | null;
   last_event_at_ms: number | null;
-  last_event_received_at_ms: number | null;
-  portal_checked_at_ms: number;
+  last_event_received_at_ms?: number | null;
+  portal_checked_at_ms?: number;
   /** Backward-compatible alias for portal_checked_at_ms. */
   refreshed_at_ms: number;
   stale: boolean;
   truncated: boolean;
   research_preview: true;
   trading_authorized: false;
-  source_semantics: Record<LiquidationHealthSource, string>;
+  source_semantics: Record<LiquidationSource, string> &
+    Partial<Record<Exclude<LiquidationHealthSource, LiquidationSource>, string>>;
 }

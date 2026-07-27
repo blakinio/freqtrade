@@ -66,8 +66,8 @@ The adapter does not discover, load, construct, traverse, execute or save models
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T15:11:00+02:00
-head: cf165d866f0dfb96deef33783f0f127b177974f3
+updated_at: 2026-07-27T15:17:00+02:00
+head: 0217c8b13af675c0a1d382ec4b6aada701a82a66
 base_develop: 22981a5e1a898f12730bb69354a8141a268598b2
 branch: docs/rl-v2-torch-tensor-record-adapter-v1-closeout
 pr: "#472"
@@ -94,11 +94,12 @@ proven:
   - No model, state dictionary, optimizer, checkpoint, archive, cache, network, market data, consumed OOS or protected holdout was accessed.
   - No canonical request, execution workflow, ranking, selection, promotion, runner behavior or Phase 6 state changed.
   - Closeout PR 472 changes only this task record.
+  - Closeout head 0217c8b13af675c0a1d382ec4b6aada701a82a66 passed Freqtrade CI 30267939664 with pre-commit, documentation and CI Gate success, and zizmor 30267939799.
 derived:
-  - The adapter task is implementation-complete; only the one-file terminal closeout merge remains.
+  - The adapter task is implementation-complete and eligible for terminal closeout merge after the final checkpoint-head gates.
   - Any model traversal, artifact loading, canonical request or runtime execution requires a separate governed task.
 unknown:
-  - Closeout exact-head CI run IDs and merge SHA until PR 472 is validated and merged.
+  - Closeout merge SHA until PR 472 merges.
 conflicts: []
 first_failure:
   marker: RUFF_AND_FORMAT_DIAGNOSTICS_RESOLVED
@@ -124,10 +125,13 @@ validation:
   - command: closeout PR 472 changed-path audit
     result: PASS
     evidence: GitHub reports exactly one changed task-record path.
-  - command: terminal closeout exact-head repository CI
+  - command: closeout head 0217c8b13af675c0a1d382ec4b6aada701a82a66 repository CI
+    result: PASS
+    evidence: Freqtrade CI 30267939664 including CI Gate and zizmor 30267939799 succeeded.
+  - command: final terminal checkpoint exact-head repository CI
     result: PENDING
-    evidence: Required workflows must complete on the current closeout checkpoint.
+    evidence: Required workflows must complete on the evidence-recording commit before merge.
 blockers:
-  - Closeout PR 472 exact-head CI and security analysis are not yet terminal.
-next_action: Validate closeout PR 472 exact head and merge it only if all required checks pass, it remains one-file, and no review thread is open.
+  - Final terminal-checkpoint CI and security analysis are not yet terminal.
+next_action: Merge closeout PR 472 only after the final checkpoint head passes all required checks, remains one-file and mergeable, and has no open review thread.
 ```

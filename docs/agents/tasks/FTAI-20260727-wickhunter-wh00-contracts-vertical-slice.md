@@ -92,8 +92,8 @@ WH-00 consumes existing Liquid20 and Market Data Fabric contracts but does not m
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T18:55:00+02:00
-head: a8b331d682e6bb8050a1c36b9e36b50f165bfc1f
+updated_at: 2026-07-27T19:00:00+02:00
+head: 873a8acf6ba0c0bbcf149f688e9754c829204e5e
 branch: feat/wickhunter-wh00-contracts-vertical-slice-v1
 pr: 488
 status: validating

@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-residual-pytorch-bounded-m1-execution
 status: active
-branch: run/residual-pytorch-bounded-m1-execution-v5
+branch: fix/residual-pytorch-audit-failure-artifact
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-27
-related_pr: 456
+related_pr: 463
 owned_paths:
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
@@ -87,64 +87,59 @@ Before any model fit, the workflow must persist exact matrix dimensions, per-col
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T11:22:00Z
-head: d08315fef3f4cd08c7d5c7bc5e1f4d75e7503f5b
-branch: run/residual-pytorch-bounded-m1-execution-v5
-pr: 456
+updated_at: 2026-07-27T11:52:00Z
+head: 1f6398cdf6c15bc84ba5a69c603a8c45ac9cb035
+branch: fix/residual-pytorch-audit-failure-artifact
+pr: 463
 status: validating
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
   - .github/workflows/residual-pytorch-bounded-m1-execution.yml
   - ai_platform/scripts/run_experiment.py
-  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
-  - ai_platform/scripts/residual_pytorch_bounded_m1_run_request.py
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_failure_artifact.py
+  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_EXECUTION.md
 owned_paths:
-  - ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json
+  - .github/workflows/residual-pytorch-bounded-m1-execution.yml
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_failure_artifact.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 proven:
   - Exclusive-stop infrastructure merged through PR 409 as 185e6a5a8fc2c5d70d0ea2173f4c5cd4a5ca702c.
   - Unix-second experiment orchestration support merged through PR 423 as f21a258643d70b4387e366e8b466dbc56735f44f.
-  - Exact-one-file PR 437 run 30248969155 passed request and contract validation, both Kraken acquisitions, per-pair exclusive-stop verification, cache publication and combined pre-fit data verification.
-  - Run 30248969155 used no consumed historical OOS or protected final holdout; BTC and ETH latest 15m candles were 2026-04-30T23:45:00Z.
-  - Run 30248969155 failed at `Audit exact expanded matrix before model execution` with backtest exit code 2; LightGBM, seeded MLP and residual MLP were skipped.
-  - Diagnostic PR 447 closed without merge and confirmed the nested Freqtrade stderr was unavailable because `backtest.log` and the failed run directory were transient.
-  - PR 450 removed the temporary bootstrap workflow and left only the bounded log-tail correction, its focused test and this checkpoint.
-  - PR 450 exact-head AI Platform CI run 30257613527, Freqtrade CI run 30257613509 and zizmor run 30257613580 all completed successfully on 1617e4beb2ca2f498f5345552de10a276bd75936.
-  - PR 450 merged by squash as f4e60476dc651388ed8f96663ab56defce88aa8f.
-  - Fresh PR 456 head d08315fef3f4cd08c7d5c7bc5e1f4d75e7503f5b adds exactly the canonical run-request file and no other path.
-  - Run 30258887950 passed exact-one-file scope, active checkpoint, canonical request and frozen-infrastructure validation.
-  - Run 30258887950 BTC and ETH jobs reached only the authorized pre-May cache-miss download step; no matrix audit or model execution has started.
+  - PR 450 exact-head AI Platform CI run 30257613527, Freqtrade CI run 30257613509 and zizmor run 30257613580 passed, then PR 450 merged as f4e60476dc651388ed8f96663ab56defce88aa8f.
+  - Exact-one-file PR 456 run 30258887950 passed request and contract validation, both Kraken acquisitions, per-pair exclusive-stop verification, cache publication and restoration, and combined pre-fit data verification.
+  - Run 30258887950 used no consumed historical OOS or protected final holdout.
+  - BTC coverage was 26164 rows at 15m, 6545 at 1h and 1637 at 4h; ETH coverage was 26132, 6546 and 1637 respectively; both latest 15m candles were 2026-04-30T23:45:00Z.
+  - Run 30258887950 failed at `Audit exact expanded matrix before model execution`; LightGBM, seeded MLP and residual MLP were skipped.
+  - Run 30258887950 published request and pair-coverage artifacts but no matrix-audit or model artifact; the always-run upload steps failed on missing evidence paths.
+  - PR 456 was closed without merge after terminal evidence was recorded.
 derived:
-  - The merged bounded log-tail correction should expose the next nested Freqtrade failure without changing frozen geometry, market-data scope or model behavior.
-  - Request-bound contract, strategy, instrumentation, config, manifest and model files did not change between the prior canonical request base and PR 456 base, so the regenerated canonical request remains byte-identical.
+  - The bounded `run_experiment` tail is insufficiently durable when it exists only in a GitHub job log and the audit evidence directory is empty at command failure.
+  - Copying immutable request, contract and combined coverage before the command, teeing bounded stderr into the audit directory and recording stdout plus exit code preserves failure evidence without changing research behavior.
+  - Model artifact uploads must not create unrelated missing-path failures when model execution is skipped by the mandatory audit gate.
 unknown:
   - The exact underlying Freqtrade error that caused matrix-audit backtest exit code 2.
   - The exact expanded feature count and historical NaN, outlier and target distributions.
   - Whether all three frozen models complete after the audit defect is identified and corrected.
 conflicts: []
 first_failure:
-  marker: MATRIX_AUDIT_BACKTEST_EXIT_2_LOG_NOT_DURABLE
-  evidence: Run 30248969155 passed all request, data and combined pre-fit gates, then the audit backtest exited 2 before matrix evidence; the nested stderr was redirected to a non-persisted `backtest.log`.
+  marker: MATRIX_AUDIT_EXIT_2_NO_AUDIT_ARTIFACT
+  evidence: Run 30258887950 passed all request, data, cache and combined pre-fit gates, then the audit command failed before producing raw matrix evidence; the audit upload found no files and no model execution started.
 rejected_hypotheses:
-  - Pre-May data coverage or exclusive-stop verification failed in run 30248969155; both pair jobs and combined data verification passed.
-  - A frozen model caused the prior terminal failure; no model execution started.
-  - Unix-second orchestration regressed; request and contract revalidation passed and failure moved into the audit backtest.
+  - Pre-May data coverage or exclusive-stop verification failed; both pair jobs and combined pre-fit verification passed.
+  - A frozen model caused the terminal failure; all three model executions were skipped.
+  - The request, contract or cache identity drifted; all corresponding validation and restoration steps passed.
 changed_paths:
+  - .github/workflows/residual-pytorch-bounded-m1-execution.yml
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_failure_artifact.py
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
 validation:
-  - command: Exact-head PR 450 AI Platform CI, Freqtrade CI and zizmor
-    result: PASS
-    evidence: Runs 30257613527, 30257613509 and 30257613580 completed successfully on 1617e4beb2ca2f498f5345552de10a276bd75936.
-  - command: Merge PR 450 with expected head 1617e4beb2ca2f498f5345552de10a276bd75936
-    result: PASS
-    evidence: Squash merge produced f4e60476dc651388ed8f96663ab56defce88aa8f.
-  - command: PR 456 exact-one-file and canonical request validation in run 30258887950
-    result: PASS
-    evidence: Job 89953854803 completed successfully before any market-data access.
-  - command: PR 456 pair coverage, combined pre-fit verification, matrix audit and frozen model execution
+  - command: GitHub Actions run 30258887950 on PR 456
+    result: FAIL
+    evidence: Required pre-May gates passed; audit failed before matrix evidence; all models were skipped and PR 456 was closed without merge.
+  - command: Static durable-failure workflow contract tests on PR 463
     result: NOT_RUN
-    evidence: BTC job 89953958214 and ETH job 89953958239 remain in the authorized pre-May cache-miss download step; downstream execution has not started.
+    evidence: Exact-head CI has not completed on the checkpoint commit.
 blockers:
-  - Run 30258887950 is nonterminal while both authorized pre-May data jobs remain in progress.
-next_action: Observe run 30258887950 to its first terminal failure or completion, persist bounded evidence in PR 456, and close PR 456 without merge.
+  - Exact-head AI Platform CI, Freqtrade CI and zizmor must pass before PR 463 can merge.
+next_action: Validate and merge PR 463 only if exact-head AI Platform CI, Freqtrade CI and zizmor are green, then create a fresh canonical exact-one-file request to capture the durable audit failure artifact.
 ```

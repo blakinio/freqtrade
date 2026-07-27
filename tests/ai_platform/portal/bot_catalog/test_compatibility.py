@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.schema import (
     CatalogAccessContext,

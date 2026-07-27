@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.schema import (
     BotCatalogSnapshot,
@@ -16,6 +14,7 @@ from ai_platform.portal.contracts.bot_management.capabilities import (
 )
 from ai_platform.portal.contracts.bot_management.templates import CatalogVersionRef
 from bm01_test_support import build_snapshot, snapshot_with_templates, template_entry
+from pydantic import ValidationError
 
 
 def test_catalog_snapshot_requires_deterministic_template_order() -> None:

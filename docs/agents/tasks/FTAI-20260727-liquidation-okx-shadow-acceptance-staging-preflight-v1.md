@@ -10,6 +10,7 @@ related_prs:
   - "#446"
   - "#451"
   - "#458"
+  - "#461"
 owned_paths:
   - .github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_STAGING_PREFLIGHT.md
@@ -38,11 +39,11 @@ Verify the established Synology self-hosted runner, protected environment, durab
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T13:31:00+02:00
+updated_at: 2026-07-27T13:34:00+02:00
 head: PENDING
-base_develop: 091314d8e636cfcf905d1230cf439b2db2774c54
+base_develop: 01004e9b64fb571f283fd7f763805df963cd388d
 branch: fix/okx-preflight-route-by-custom-runner-label
-pr: PENDING
+pr: "#461"
 status: fixing
 context_routes:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE.md

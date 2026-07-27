@@ -5,12 +5,14 @@ from dataclasses import asdict, is_dataclass
 from decimal import Decimal
 from enum import Enum
 from hashlib import sha256
-from typing import Any
+from typing import Any, cast
 
 
 def _canonical_value(value: object) -> Any:
     if is_dataclass(value):
-        return _canonical_value(asdict(value))
+        if isinstance(value, type):
+            raise TypeError("dataclass types are not supported canonical values")
+        return _canonical_value(asdict(cast(Any, value)))
     if isinstance(value, Decimal):
         return format(value, "f")
     if isinstance(value, Enum):

@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260727-portal-bm02-bot-builder-configuration
 status: ready
-branch: feat/portal-bm02-bot-builder-configuration
+branch: develop
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
@@ -45,9 +45,9 @@ Implement the server-owned bot-configuration builder over the merged BM-00 contr
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T18:38:00+02:00
-head: e24aad22d7b96a98f673dcfdefdf5aed8bf16bbf
-branch: feat/portal-bm02-bot-builder-configuration
+updated_at: 2026-07-27T19:02:00+02:00
+head: 94460e7071e2e7155681b8727fa93661c6ec5378
+branch: develop
 pr: "#492"
 status: ready
 context_routes:
@@ -68,13 +68,12 @@ proven:
   - Finalized configurations bind the exact compatibility decision, deterministic configuration identifier and canonical SHA-256 digest.
   - First configuration creation requires BOT_CREATE and later configuration revisions require BOT_REVISE.
   - Draft finalization is idempotent for the exact tenant, draft and revision.
-  - No open PR other than PR 492 owns bot_builder paths; BM-03 PR 479 and BM-06 PR 480 remain disjoint.
-  - PR 492 changes exactly ten declared BM-02 implementation, test and checkpoint files.
-  - PR 492 has no review threads and no submitted change-request reviews.
-  - Exact-head 23598de1dcace41ba35f1915d9fbc4dab63a9a0d passed AI Platform CI 30284183621.
-  - Exact-head 23598de1dcace41ba35f1915d9fbc4dab63a9a0d passed Freqtrade CI 30284182468, including pre-commit, docs, Python 3.11 through 3.14, coverage, smoke tests, Ruff, mypy, distribution build and CI Gate.
-  - Exact-head 23598de1dcace41ba35f1915d9fbc4dab63a9a0d passed GitHub Actions Security Analysis with zizmor 30284183145.
-  - The branch is synchronized with develop commit 81e871c839c3ed2e764fccb3ddb25d0b9fddad49.
+  - PR 492 changed exactly ten declared BM-02 implementation, test and checkpoint files.
+  - PR 492 had no review threads and no submitted change-request reviews before merge.
+  - Terminal exact-head 5f6c4c20d37bd0f8ce4786a4ebf9f805bf9662c2 passed AI Platform CI 30285681973.
+  - Terminal exact-head 5f6c4c20d37bd0f8ce4786a4ebf9f805bf9662c2 passed Freqtrade CI 30285681810, including pre-commit, docs, Python 3.11 through 3.14, coverage, smoke tests, Ruff, mypy, distribution build and CI Gate.
+  - Terminal exact-head 5f6c4c20d37bd0f8ce4786a4ebf9f805bf9662c2 passed GitHub Actions Security Analysis with zizmor 30285681735.
+  - PR 492 was marked ready and squash-merged into develop as 94460e7071e2e7155681b8727fa93661c6ec5378.
 derived:
   - BM-05 can consume finalized BM-02 policy composition without changing BM-02 ownership boundaries.
   - Later API integration can wrap this service without duplicating configuration or compatibility policy.
@@ -82,7 +81,7 @@ unknown: []
 conflicts: []
 first_failure:
   marker: NONE_OBSERVED
-  evidence: Focused validation and all first exact-head repository workflows passed without a BM-02 failure.
+  evidence: Focused validation and both exact-head repository CI cycles passed without a BM-02 failure.
 rejected_hypotheses:
   - Add root API registration or BFF routes in BM-02.
   - Add mutable database persistence or migration revisions in BM-02.
@@ -103,18 +102,18 @@ validation:
   - command: ruff format --check ai_platform/portal/bot_builder tests/ai_platform/portal/bot_builder
     result: PASS
     evidence: Ruff 0.15.21 reported no formatting drift.
-  - command: AI Platform CI 30284183621 on 23598de1dcace41ba35f1915d9fbc4dab63a9a0d
+  - command: AI Platform CI 30285681973 on 5f6c4c20d37bd0f8ce4786a4ebf9f805bf9662c2
     result: PASS
     evidence: Compile, AI platform tests, Ruff, formatting, codespell and JSON validation passed.
-  - command: Freqtrade CI 30284182468 on 23598de1dcace41ba35f1915d9fbc4dab63a9a0d
+  - command: Freqtrade CI 30285681810 on 5f6c4c20d37bd0f8ce4786a4ebf9f805bf9662c2
     result: PASS
     evidence: Pre-commit, docs, Python 3.11-3.14, coverage, smoke tests, Ruff, mypy, distributions and CI Gate passed.
-  - command: GitHub Actions Security Analysis 30284183145 on 23598de1dcace41ba35f1915d9fbc4dab63a9a0d
+  - command: GitHub Actions Security Analysis 30285681735 on 5f6c4c20d37bd0f8ce4786a4ebf9f805bf9662c2
     result: PASS
     evidence: zizmor workflow completed successfully.
-  - command: PR 492 changed-path and review audit
+  - command: PR 492 merge verification
     result: PASS
-    evidence: Ten declared BM-02 files only; review threads and submitted reviews are empty.
+    evidence: PR is closed and merged with squash commit 94460e7071e2e7155681b8727fa93661c6ec5378.
 blockers: []
-next_action: Mark PR #492 ready and merge it into develop after the terminal checkpoint exact-head CI passes.
+next_action: Use the merged BM-02 configuration builder as the policy-composition dependency for BM-05 and future bot-builder API integration.
 ```

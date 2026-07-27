@@ -170,7 +170,7 @@ class ExchangeConnectionService:
             update={
                 "verification_status": ConnectionVerificationStatus.PENDING,
                 "updated_at": requested_at,
-            }
+            },
         )
         pending_state = state.model_copy(
             update={
@@ -179,7 +179,7 @@ class ExchangeConnectionService:
                 "last_verification_id": verification_id,
                 "reason_codes": (),
                 "updated_at": requested_at,
-            }
+            },
         )
         self._repository.replace_connection(pending_metadata, pending_state)
         return request
@@ -243,7 +243,7 @@ class ExchangeConnectionService:
             update={
                 "verification_status": result.status,
                 "updated_at": result.completed_at,
-            }
+            },
         )
         updated_state = state.model_copy(
             update={
@@ -256,7 +256,7 @@ class ExchangeConnectionService:
                 "last_verified_at": last_verified_at,
                 "reason_codes": result.reason_codes,
                 "updated_at": result.completed_at,
-            }
+            },
         )
         self._repository.replace_connection(updated_metadata, updated_state)
         return result
@@ -285,14 +285,14 @@ class ExchangeConnectionService:
             update={
                 "verification_status": ConnectionVerificationStatus.STALE,
                 "updated_at": as_of,
-            }
+            },
         )
         stale_state = state.model_copy(
             update={
                 "verification_status": ConnectionVerificationStatus.STALE,
                 "product_status": ConnectionProductStatus.STALE,
                 "updated_at": as_of,
-            }
+            },
         )
         self._repository.replace_connection(stale_metadata, stale_state)
         return self.get_connection(tenant_id=tenant_id, connection_id=connection_id)
@@ -329,14 +329,14 @@ class ExchangeConnectionService:
                 "rotation_status": rotation_status,
                 "revocation_status": revocation_status,
                 "updated_at": inspection.inspected_at,
-            }
+            },
         )
         updated_state = state.model_copy(
             update={
                 "product_status": product_status,
                 "availability_status": availability_status,
                 "updated_at": inspection.inspected_at,
-            }
+            },
         )
         self._repository.replace_connection(updated_metadata, updated_state)
         return self.get_connection(tenant_id=inspection.tenant_id, connection_id=connection_id)

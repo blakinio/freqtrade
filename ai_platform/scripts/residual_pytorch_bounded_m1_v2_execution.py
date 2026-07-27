@@ -79,9 +79,12 @@ def validate_contract(contract: dict[str, Any]) -> None:
     }:
         raise ResidualPyTorchBoundedM1Error("One-shot trigger contract drifted")
 
-    source = json.loads(
-        (REPO_ROOT / "ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json").read_text(encoding="utf-8")
+    source_path = (
+        REPO_ROOT
+        / "ai_platform/experimental_model_research/"
+        "residual-pytorch-bounded-m1-execution-contract-v1.json"
     )
+    source = json.loads(source_path.read_text(encoding="utf-8"))
     for field in (
         "geometry",
         "market_data",
@@ -228,9 +231,15 @@ def main(argv: list[str] | None = None) -> int:
         elif mode == "validate-audit":
             base._emit(validate_audit_directory(args.audit_dir), args.output)
         elif mode == "diagnostics":
-            base._emit(build_prediction_diagnostics(args.prediction_dir, track_id=args.track_id), args.output)
+            payload = build_prediction_diagnostics(
+                args.prediction_dir, track_id=args.track_id
+            )
+            base._emit(payload, args.output)
         elif mode == "validate-training":
-            base._emit(validate_training_directory(args.training_dir, track_id=args.track_id), args.output)
+            payload = validate_training_directory(
+                args.training_dir, track_id=args.track_id
+            )
+            base._emit(payload, args.output)
         elif mode == "validate-summary":
             payload = validate_run_summary(
                 args.summary, track_id=args.track_id, expected_head=args.expected_head

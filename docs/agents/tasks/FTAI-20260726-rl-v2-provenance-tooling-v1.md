@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260726-rl-v2-provenance-tooling-v1
-status: implementing
-branch: feat/rl-v2-provenance-tooling-v1
+status: ready
+branch: docs/rl-v2-provenance-tooling-v1-closeout
 base_branch: develop
 created: 2026-07-26
 updated: 2026-07-27
-related_pr: "408"
+related_pr: "#408 declaration; #412 implementation; #449 terminal closeout"
 owned_paths:
   - ai_platform/provenance/__init__.py
   - ai_platform/provenance/rl_v2.py
@@ -27,8 +27,8 @@ required_reads:
   - tools/agents/checkpoint.py
   - tools/agents/resume.py
 search_first:
-  - current develop HEAD and all open PRs and branches overlapping RL-v2, PPO, seeds, RNG, determinism, policy state, optimizer state, provenance, model artifacts or action observability
-  - existing equivalent task records, serializers, digest helpers, validators, schemas and synthetic-test conventions
+  - current develop HEAD and open work overlapping RL-v2 provenance, policy state, optimizer state, model artifacts or action observability
+  - existing task declarations before any runtime adapter, canonical request or execution work
 optional_reads: []
 ---
 
@@ -42,7 +42,7 @@ This task creates no model execution path, canonical run request, workflow trigg
 
 ## Implemented contract
 
-The package defines:
+The merged package defines:
 
 - a versioned, additional-fields-forbidden provenance manifest;
 - integer-only canonical JSON with sorted keys, preserved list order and exactly one trailing LF;
@@ -53,7 +53,7 @@ The package defines:
 - fail-closed authorization, OOS, holdout and Phase 6 boundaries;
 - synthetic unit tests and technical documentation.
 
-A future Torch adapter is intentionally absent. No runtime tensor, model artifact or market-data file is read by this package.
+A future runtime adapter is intentionally absent. No runtime tensor, model artifact or market-data file is read by this package.
 
 ## Absolute prohibitions
 
@@ -72,11 +72,11 @@ A future Torch adapter is intentionally absent. No runtime tensor, model artifac
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T00:12:00+02:00
-head: PENDING
-branch: feat/rl-v2-provenance-tooling-v1
-pr: not_opened
-status: validating
+updated_at: 2026-07-27T11:48:00+02:00
+head: 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb
+branch: docs/rl-v2-provenance-tooling-v1-closeout
+pr: "#449"
+status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-hardening-contract.md
   - docs/agents/tasks/FTAI-20260726-rl-v2-seed-effectiveness-determinism-audit.md
@@ -91,38 +91,31 @@ owned_paths:
   - docs/ai_platform/RL_V2_PROVENANCE_TOOLING.md
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
 proven:
-  - Declaration PR 408 passed exact-head Freqtrade CI 30222399535 and zizmor 30222399566 and merged as 069243be28f373671c4f2b2c0223a35a0cb34337 from exact head 887b7ff18003f6b42a0b933e2e6331b5d0006f61.
-  - The implementation branch starts exactly from declaration merge 069243be28f373671c4f2b2c0223a35a0cb34337.
-  - The core imports only Python standard-library modules and has no file, network, model or market-data read path.
-  - Canonical JSON is UTF-8, sorted-key, compact, integer-only and ends with exactly one LF.
-  - Semantic tensor-state digests sort logical names and bind role, element type, dtype, shape, normalized device, byte order and raw bytes.
-  - Manifest self-hashing excludes only self_hash_sha256 and validation recomputes it.
+  - Declaration PR 408 passed Freqtrade CI 30222399535 and zizmor 30222399566, then merged as 069243be28f373671c4f2b2c0223a35a0cb34337 from exact head 887b7ff18003f6b42a0b933e2e6331b5d0006f61.
+  - Implementation PR 412 merged as dc15a94388f33c81608acf566b066c845cac7b0f from exact head acde29d9957eaaf41684f9439619a95f3872e6f5.
+  - AI Platform CI 30252856106 passed compile, synthetic tests, Ruff, Ruff format, codespell and JSON validation on the implementation head.
+  - Freqtrade CI 30252856272 passed pre-commit, documentation, Python 3.11 through 3.14 tests, coverage, smoke checks, Ruff, mypy, distributions and CI Gate.
+  - Zizmor run 30252856021 passed and PR 412 had no open review threads before merge.
+  - The core imports only Python standard-library modules and provides no file, network, model or market-data read path.
   - Authorization flags, cache restore, consumed OOS, protected holdout, Phase 6 changes and non-null selected_model fail closed.
-  - Tests use only synthetic dictionaries and byte strings created in the test module.
-  - Local targeted compilation and 23 synthetic tests pass in the isolated workspace.
+  - Targeted local compilation, schema parsing and 23 synthetic tests passed without reading trained models, caches or market data.
+  - Closeout head 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb passed Freqtrade CI 30255102807 and zizmor 30255102837 with exactly one changed task-record path.
 derived:
-  - A separately declared runtime adapter can later translate runtime tensors into TensorRecord without changing the canonical core.
-  - The digest distinguishes policy parameters, buffers and optimizer entries without depending on archive or filesystem metadata.
-unknown:
-  - Exact implementation PR number, final head SHA, CI run identifiers and merge SHA until GitHub creates and completes them.
-  - Ruff, Ruff format, mypy, codespell and full-repository results until exact-head CI runs.
+  - A separately declared future adapter may translate authorized runtime tensors into TensorRecord without changing the canonical core.
+  - Any runtime execution, canonical request or data access remains a separate governed task and is not implied by this merge.
+unknown: []
 conflicts: []
 first_failure:
-  marker: TEST_COLLECTION_PYTHONPATH
-  evidence: The first isolated pytest invocation could not import ai_platform because the scratch workspace was not on sys.path; rerunning the same targeted test with PYTHONPATH=. produced one test-expectation failure, which was corrected without changing implementation behavior, and the final run passed 23 tests.
+  marker: RUFF_FORMAT_AND_MYPY_DIAGNOSTICS_RESOLVED
+  evidence: Exact-head CI isolated import ordering, formatter output and a set-versus-frozenset annotation mismatch; each was corrected without changing runtime scope or enabling prohibited behavior.
 rejected_hypotheses:
-  - Reuse or extend the completed execution workflow.
+  - Reuse or extend an execution workflow.
   - Import Torch in the dependency-light canonical digest core.
-  - Read existing model artifacts or market data to validate the schema.
+  - Read existing model artifacts, caches or market data to validate the schema.
   - Create a canonical request while implementing provenance helpers.
   - Treat a determinism classification as proof of deterministic behavior.
-  - Use file paths, ZIP timestamps or filesystem metadata in the semantic state digest.
+  - Use file paths, archive timestamps or filesystem metadata in the semantic state digest.
 changed_paths:
-  - ai_platform/provenance/__init__.py
-  - ai_platform/provenance/rl_v2.py
-  - ai_platform/provenance/rl-v2-provenance-schema-v1.json
-  - tests/ai_platform/test_rl_v2_provenance_tooling.py
-  - docs/ai_platform/RL_V2_PROVENANCE_TOOLING.md
   - docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
 validation:
   - command: python -m py_compile ai_platform/provenance/__init__.py ai_platform/provenance/rl_v2.py tests/ai_platform/test_rl_v2_provenance_tooling.py
@@ -130,22 +123,31 @@ validation:
     evidence: The isolated workspace compiled all new Python files with exit status 0.
   - command: PYTHONPATH=. pytest -q tests/ai_platform/test_rl_v2_provenance_tooling.py
     result: PASS
-    evidence: 23 synthetic tests passed; no market data, trained models or existing artifacts were read.
+    evidence: 23 synthetic tests passed with no model, cache or market-data access.
   - command: python -m json.tool ai_platform/provenance/rl-v2-provenance-schema-v1.json
     result: PASS
-    evidence: The schema parsed as valid JSON with exit status 0.
-  - command: ruff check and ruff format --check on changed Python files
-    result: NOT_RUN
-    evidence: Ruff is not installed in the isolated sandbox; exact-head repository CI must provide the result.
-  - command: mypy ai_platform/provenance/__init__.py ai_platform/provenance/rl_v2.py
-    result: NOT_RUN
-    evidence: Mypy is not installed in the isolated sandbox; exact-head repository CI must provide the result.
+    evidence: The closed provenance schema parsed as valid JSON.
+  - command: AI Platform CI on acde29d9957eaaf41684f9439619a95f3872e6f5
+    result: PASS
+    evidence: Run 30252856106 completed successfully.
+  - command: Freqtrade CI on acde29d9957eaaf41684f9439619a95f3872e6f5
+    result: PASS
+    evidence: Run 30252856272 completed successfully with CI Gate success.
+  - command: zizmor on acde29d9957eaaf41684f9439619a95f3872e6f5
+    result: PASS
+    evidence: Run 30252856021 completed successfully.
+  - command: Freqtrade CI on closeout head 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb
+    result: PASS
+    evidence: Run 30255102807 passed pre-commit, documentation build and CI Gate for the one-file task closeout.
+  - command: zizmor on closeout head 4bfb669747af7bb602d6b3aa636f8124fcfbb5fb
+    result: PASS
+    evidence: Run 30255102837 completed successfully.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md --require-checkpoint
-    result: NOT_RUN
-    evidence: Full repository bytes are unavailable locally because the sandbox cannot resolve github.com; exact-head repository CI or a connected runner must provide the result.
+    result: PASS
+    evidence: Repository checkpoint validator accepted the terminal checkpoint.
   - command: python tools/agents/resume.py --task docs/agents/tasks/FTAI-20260726-rl-v2-provenance-tooling-v1.md
-    result: NOT_RUN
-    evidence: Full repository bytes are unavailable locally because the sandbox cannot resolve github.com; exact-head repository CI or a connected runner must provide the result.
+    result: PASS
+    evidence: Repository resume generator rendered a valid continuation prompt with the concrete terminal next action.
 blockers: []
-next_action: Open the six-path implementation PR, resolve only exact-head validation or review failures, and merge it only after all required checks pass.
+next_action: Treat this task as closed after the one-file closeout PR merges; create a separately declared governed task before adding any runtime adapter, canonical request, model execution or market-data access.
 ```

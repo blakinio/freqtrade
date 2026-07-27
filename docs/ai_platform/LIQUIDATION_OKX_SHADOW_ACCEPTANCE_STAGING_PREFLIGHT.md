@@ -14,7 +14,7 @@ The bounded preflight targets the runner identity proven by the successful Synol
 runner name:        freqtrade-synology-staging
 required labels:    self-hosted, Linux, freqtrade-staging
 GitHub Environment: synology-staging
-state variable:     OTERY​N_STAGING_STATE_DIR
+state variable:     OTERYN_STAGING_STATE_DIR
 expected state dir: /var/lib/oteryn-staging-state
 ```
 

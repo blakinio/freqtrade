@@ -49,6 +49,8 @@ def test_workflow_is_exact_request_gated_and_self_hosted() -> None:
     assert "schedule:" not in text
     assert "push:" not in text
     assert "Validate exact-one-file request scope" in text
+    assert 'git diff --name-status "$BASE_SHA...$HEAD_SHA"' in text
+    assert 'git diff --name-status "$BASE_SHA" "$HEAD_SHA"' not in text
     assert "github.event.pull_request.head.repo.full_name == github.repository" in text
 
 

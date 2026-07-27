@@ -29,6 +29,9 @@ jobs:
           candidate="liquid20-candidate-diagnostic-${token}"
           runner_root="/var/lib/freqtrade-staging-state/liquidations-candidate-diagnostic/${token}"
           host_root="/volume1/docker/freqtrade/state/liquidations-candidate-diagnostic/${token}"
+          diagnostic_root="${RUNNER_TEMP}/liquid20-candidate-diagnostic"
+          mkdir -p "$diagnostic_root"
+          exec > >(tee "$diagnostic_root/diagnostic.log") 2>&1
 
           cleanup() {
             docker rm -f "$candidate" >/dev/null 2>&1 || true
@@ -83,6 +86,19 @@ jobs:
           done
 
           echo "=== final inspection ==="
-          docker inspect "$candidate"
-          docker logs "$candidate" 2>&1 || true
-          test -f "$runner_root/live/live-state-v1.json"
+          docker inspect "$candidate" | tee "$diagnostic_root/candidate-inspect.json"
+          docker logs "$candidate" > "$diagnostic_root/candidate.log" 2>&1 || true
+          if [[ -f "$runner_root/live/live-state-v1.json" ]]; then
+            cp "$runner_root/live/live-state-v1.json" "$diagnostic_root/live-state-v1.json"
+          fi
+          find "$runner_root" -maxdepth 4 -printf '%y %m %u:%g %s %p\n' | sort > "$diagnostic_root/files.txt" || true
+          test -f "$diagnostic_root/live-state-v1.json"
+
+      - name: Upload bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: liquid20-candidate-diagnostic-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/liquid20-candidate-diagnostic
+          if-no-files-found: error
+          retention-days: 14

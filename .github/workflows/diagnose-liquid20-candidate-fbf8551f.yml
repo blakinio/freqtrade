@@ -1,0 +1,88 @@
+name: Diagnose Liquid20 Candidate fbf8551f
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/diagnose-liquid20-candidate-fbf8551f.yml
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    name: Inspect isolated candidate
+    runs-on: freqtrade-staging
+    timeout-minutes: 10
+    steps:
+      - name: Check out diagnostic source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Run isolated candidate diagnostic
+        env:
+          TARGET_SHA: fbf8551f606f6868cb86d65432fb9ab4b11311c3
+        run: |
+          set -Eeuo pipefail
+          image="local/liquid20-collector:sha-${TARGET_SHA}"
+          token="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          candidate="liquid20-candidate-diagnostic-${token}"
+          runner_root="/var/lib/freqtrade-staging-state/liquidations-candidate-diagnostic/${token}"
+          host_root="/volume1/docker/freqtrade/state/liquidations-candidate-diagnostic/${token}"
+
+          cleanup() {
+            docker rm -f "$candidate" >/dev/null 2>&1 || true
+            if [[ "$runner_root" == /var/lib/freqtrade-staging-state/liquidations-candidate-diagnostic/* ]]; then
+              rm -rf "$runner_root"
+            fi
+          }
+          trap cleanup EXIT
+
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          docker image inspect "$image" >/dev/null
+          install -d -m 0750 -o 1026 -g 0 "$runner_root"
+
+          docker run -d \
+            --name "$candidate" \
+            --restart no \
+            --init \
+            --user 1026:0 \
+            --read-only \
+            --tmpfs /tmp:size=64m,mode=1777 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --memory 512m \
+            --stop-timeout 30 \
+            --mount "type=bind,src=${host_root},dst=/data" \
+            --env "COLLECTOR_COMMIT=${TARGET_SHA}" \
+            --env LIQUIDATION_STAGING_HOST_ID=synology-pl-01 \
+            --env LIQUID20_DATA_ROOT=/data \
+            --env LIQUID20_HEARTBEAT_SECONDS=5 \
+            --env LIQUID20_SYMBOL_REFRESH_SECONDS=3600 \
+            --env LIQUID20_MAXIMUM_SYMBOLS=500 \
+            --entrypoint /usr/local/bin/liquid20-live-entrypoint \
+            "$image" >/dev/null
+
+          for attempt in $(seq 1 18); do
+            echo "=== observation ${attempt} ==="
+            docker inspect --format 'status={{.State.Status}} running={{.State.Running}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{json .State.Error}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' "$candidate" || true
+            echo "--- logs ---"
+            docker logs --tail 160 "$candidate" 2>&1 || true
+            echo "--- files ---"
+            find "$runner_root" -maxdepth 4 -printf '%y %m %u:%g %s %p\n' 2>&1 | sort || true
+            if [[ -f "$runner_root/live/live-state-v1.json" ]]; then
+              echo "--- live state ---"
+              cat "$runner_root/live/live-state-v1.json" || true
+            fi
+            status="$(docker inspect --format '{{.State.Status}}' "$candidate" 2>/dev/null || true)"
+            if [[ "$status" == "exited" || "$status" == "dead" ]]; then
+              break
+            fi
+            sleep 5
+          done
+
+          echo "=== final inspection ==="
+          docker inspect "$candidate"
+          docker logs "$candidate" 2>&1 || true
+          test -f "$runner_root/live/live-state-v1.json"

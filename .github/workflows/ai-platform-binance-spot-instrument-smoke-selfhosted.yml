@@ -26,7 +26,7 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
-    runs-on: [self-hosted, Linux, oteryn-staging]
+    runs-on: [self-hosted, Linux, freqtrade-staging]
     environment: synology-staging
     timeout-minutes: 10
 
@@ -61,7 +61,7 @@ jobs:
           RUNNER_ARCH_VALUE: ${{ runner.arch }}
         run: |
           set -euo pipefail
-          [[ "$RUNNER_NAME_VALUE" == "oteryn-synology-staging" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
           [[ "$RUNNER_OS_VALUE" == "Linux" ]]
           [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
 

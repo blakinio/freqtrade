@@ -26,8 +26,8 @@ It must not switch to `api1.binance.com`, `api-gcp.binance.com`, `data-api.binan
 
 The guarded workflow requires:
 
-- runner name: `oteryn-synology-staging`;
-- labels: `self-hosted`, `Linux`, `oteryn-staging`;
+- runner name: `freqtrade-synology-staging`;
+- labels: `self-hosted`, `Linux`, `freqtrade-staging`;
 - protected environment: `synology-staging`;
 - runner architecture: `X64` or `ARM64`.
 

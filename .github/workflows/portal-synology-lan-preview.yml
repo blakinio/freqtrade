@@ -92,7 +92,8 @@ jobs:
               --group-add "$group_id" \
               --mount "type=bind,src=${PORTAL_LIQUIDATIONS_HOST_ROOT},dst=/liquid20-data,readonly" \
               --env PORTAL_WEB_DATA_MODE=fixture \
-              --env PORTAL_ENVIRONMENT=staging \
+              --env PORTAL_ENVIRONMENT=test \
+              --env PORTAL_IDENTITY_FIXTURE_MODE=enabled \
               --env PORTAL_LIQUIDATIONS_DATA_ROOT=/liquid20-data \
               "$PORTAL_IMAGE" >/dev/null
             for _ in $(seq 1 30); do
@@ -106,12 +107,13 @@ jobs:
                 "/api/market/liquidations/health",
                 "/api/market/liquidations/summary",
                 "/api/market/liquidations?limit=1",
+                "/api/identity/login?return_to=%2Fplatform%2Fadmin",
                 "/market/liquidations",
               ];
               (async () => {
                 for (const path of paths) {
                   try {
-                    const response = await fetch(`http://127.0.0.1:3000${path}`);
+                    const response = await fetch(`http://127.0.0.1:3000${path}`, {redirect: "manual"});
                     const body = (await response.text()).slice(0, 2000);
                     console.log(JSON.stringify({path, status: response.status, body}));
                   } catch (error) {
@@ -164,7 +166,7 @@ jobs:
           docker rm -f "$diagnostic" >/dev/null 2>&1 || true
           exit 0
 
-      - name: Verify LAN Liquid20 surface and session boundary
+      - name: Verify LAN Liquid20 surface and fixture identity boundary
         id: probe
         run: |
           set -euo pipefail
@@ -184,6 +186,32 @@ jobs:
                   process.exit(1);
                 }
               }
+
+              const login = await fetch(
+                "http://127.0.0.1:3000/api/identity/login?return_to=%2Fplatform%2Fadmin",
+                {redirect: "manual"},
+              );
+              if (login.status !== 303) process.exit(1);
+              const setCookies = login.headers.getSetCookie?.() ?? [];
+              if (!setCookies.some((value) => value.startsWith("portal_fixture_session="))) {
+                process.exit(1);
+              }
+              if (!setCookies.some((value) => value.startsWith("portal_fixture_csrf="))) {
+                process.exit(1);
+              }
+              const cookie = setCookies.map((value) => value.split(";", 1)[0]).join("; ");
+              const session = await fetch("http://127.0.0.1:3000/api/identity/session", {
+                headers: {cookie},
+              });
+              const sessionPayload = await session.json().catch(() => null);
+              if (session.status !== 200 || sessionPayload?.tenant_id !== "tenant-demo") {
+                process.exit(1);
+              }
+              const admin = await fetch("http://127.0.0.1:3000/platform/admin", {
+                redirect: "manual",
+                headers: {cookie},
+              });
+              if (admin.status !== 200) process.exit(1);
             })().catch(() => process.exit(1));
           '
 
@@ -201,7 +229,7 @@ jobs:
           else
             state=failure
           fi
-          description="Portal Liquid20 preview: deploy=$DEPLOY_OUTCOME probe=$PROBE_OUTCOME"
+          description="Portal preview: deploy=$DEPLOY_OUTCOME fixture-identity-probe=$PROBE_OUTCOME"
           payload=$(cat <<EOF
           {"state":"$state","context":"portal-synology-lan-preview","description":"$description","target_url":"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"}
           EOF

@@ -5,7 +5,7 @@ branch: docs/rl-v2-torch-state-dict-record-collection-adapter-v1-terminal-closeo
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-27
-related_pr: "#478 declaration; #484 implementation; terminal closeout pending"
+related_pr: "#478 declaration; #484 implementation; #491 terminal closeout"
 depends_on:
   - FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1
   - FTAI-20260726-rl-v2-provenance-tooling-v1
@@ -73,11 +73,11 @@ The adapter does not accept or discover `torch.nn.Module`, call `model.state_dic
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T18:04:00+02:00
-head: 121f1b10dd584a81fb0ba93e83356833a2399110
+updated_at: 2026-07-27T18:09:00+02:00
+head: 7aa5c993fc614c7407d33020271d6656f64ba110
 base_develop: 121f1b10dd584a81fb0ba93e83356833a2399110
 branch: docs/rl-v2-torch-state-dict-record-collection-adapter-v1-terminal-closeout
-pr: none
+pr: "#491"
 status: ready
 context_routes:
   - docs/agents/tasks/FTAI-20260727-rl-v2-torch-tensor-record-adapter-v1.md
@@ -102,15 +102,16 @@ proven:
   - Implementation PR 484 changed exactly the five declared owned paths; its workflow delta was exactly two additions and two removals.
   - Both historical security review threads created by temporary diagnostic permissions were resolved and outdated; zero review threads remained open before merge.
   - Implementation PR 484 merged as 121f1b10dd584a81fb0ba93e83356833a2399110.
+  - Terminal closeout PR 491 initial head 7aa5c993fc614c7407d33020271d6656f64ba110 passed Freqtrade CI 30283227695 with pre-commit, documentation and CI Gate success, and zizmor 30283227605.
+  - Terminal closeout PR 491 changes exactly this task record and had zero review threads at the evidence audit.
   - The merged API preserves exact logical names, roles, dtype, shape and deterministic tensor bytes through the predecessor tensor adapter without casts or alternate serialization.
   - Tests cover empty, scalar, parameter, buffer, contiguous, non-contiguous, representative dtypes, ordering, digest binding, single materialization and fail-closed rejection paths.
   - No model, optimizer, artifact, cache, network, market data, consumed OOS or protected holdout was accessed.
   - No canonical request, execution workflow, ranking, selection, promotion, runner behavior, Phase 6 state or runtime authority changed.
 derived:
-  - This task is ready for terminal closeout after the one-file closeout PR records its own exact-head evidence and merges.
+  - This task is terminal when PR 491 merges after the final evidence head passes repository CI and the one-file, zero-open-thread audit remains true.
   - Any model traversal, artifact loading, optimizer support, canonical request or runtime execution requires a separate declared governed task.
-unknown:
-  - Terminal closeout PR number, exact heads, workflow runs, merge SHA and final develop SHA until closeout completes.
+unknown: []
 conflicts: []
 first_failure:
   marker: RUFF_FORMATTING_DIAGNOSTIC_RESOLVED
@@ -140,6 +141,12 @@ validation:
   - command: implementation merge
     result: PASS
     evidence: PR 484 merged exact head 6bd0c941676e5bbe51350da9afe934ea5030c745 as 121f1b10dd584a81fb0ba93e83356833a2399110.
+  - command: terminal closeout PR 491 initial exact-head CI
+    result: PASS
+    evidence: Freqtrade CI 30283227695 including CI Gate and zizmor 30283227605 succeeded on 7aa5c993fc614c7407d33020271d6656f64ba110.
+  - command: terminal closeout changed-path and review audit
+    result: PASS
+    evidence: PR 491 changes exactly this task record and had zero review threads at the evidence audit.
 blockers: []
-next_action: Open the one-file terminal closeout PR, record its exact-head repository CI and audits, then merge only after Freqtrade CI, CI Gate, zizmor and zero-open-thread checks pass.
+next_action: Merge PR 491 only after this final evidence head passes Freqtrade CI including CI Gate and zizmor, and the one-file plus zero-open-thread audits remain true; then treat the task as closed.
 ```

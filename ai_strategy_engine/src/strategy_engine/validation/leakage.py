@@ -202,7 +202,7 @@ def _optional_datetime(details: Mapping[str, JsonValue], key: str) -> datetime |
             f"provenance field {key} must be an ISO-8601 string",
         )
     try:
-        parsed = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(raw_value)
     except ValueError as exc:
         raise LeakageError(
             LeakageReason.MISSING_PROVENANCE,

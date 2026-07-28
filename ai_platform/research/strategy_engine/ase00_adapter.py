@@ -517,6 +517,7 @@ class Ase00ShadowEngine:
             producer="ase00-shadow-engine",
             source_event_id=pivot_detected_event.event_id,
             parameters=cast(dict[str, JsonValue], pivot_params),
+            detection_event_confirmed=pivot_detected_event.is_confirmed,
         )
 
         latest_liquidation = liquidation_events[-1]

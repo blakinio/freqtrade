@@ -226,7 +226,7 @@ class FeatureRegistry:
             raise RegistryError(f"unknown parameters for {feature_id}: {sorted(unknown)}")
         resolved: dict[str, object] = {}
         for name, spec in definition.parameters.items():
-            value = parameters[name] if name in parameters else spec.default
+            value = parameters.get(name, spec.default)
             resolved[name] = spec.validate(value)
         _validate_constraints(definition.constraints, resolved, feature_id)
         return resolved

@@ -70,6 +70,10 @@ class WallClockNs(Protocol):
     def __call__(self) -> int: ...
 
 
+def _default_sleep(seconds: float) -> None:
+    time.sleep(seconds)
+
+
 @dataclass(frozen=True, slots=True)
 class AcceptanceThresholds:
     minimum_duration_seconds: int
@@ -624,6 +628,37 @@ def _maximum_consecutive_failures(reports: Sequence[Mapping[str, object]]) -> in
     return maximum
 
 
+def _nonnegative_number(value: object, *, field: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise TypeError(f"{field} must be numeric")
+    parsed = float(value)
+    if parsed < 0:
+        raise ValueError(f"{field} must be >= 0")
+    return parsed
+
+
+def _summary_int(summary: Mapping[str, object], key: str) -> int:
+    return _integer(summary.get(key), field=f"summary.{key}", minimum=0)
+
+
+def _summary_float(summary: Mapping[str, object], key: str) -> float:
+    return _nonnegative_number(summary.get(key), field=f"summary.{key}")
+
+
+def _optional_summary_int(summary: Mapping[str, object], key: str) -> int | None:
+    value = summary.get(key)
+    if value is None:
+        return None
+    return _integer(value, field=f"summary.{key}", minimum=0)
+
+
+def _optional_summary_float(summary: Mapping[str, object], key: str) -> float | None:
+    value = summary.get(key)
+    if value is None:
+        return None
+    return _nonnegative_number(value, field=f"summary.{key}")
+
+
 def _summarize(
     *,
     request: AcceptanceRequest,
@@ -634,10 +669,25 @@ def _summarize(
 ) -> dict[str, object]:
     successes = [report for report in reports if report.get("status") == "pass"]
     failures = [report for report in reports if report.get("status") == "fail"]
-    durations = [float(report["duration_ms"]) for report in successes]
-    response_bytes = [int(report["response_bytes"]) for report in successes]
-    instrument_counts = [int(report["instrument_count"]) for report in successes]
-    active_counts = [int(report["active_instrument_count"]) for report in successes]
+    durations = [
+        _nonnegative_number(report.get("duration_ms"), field="sample.duration_ms")
+        for report in successes
+    ]
+    response_bytes = [
+        _integer(report.get("response_bytes"), field="sample.response_bytes")
+        for report in successes
+    ]
+    instrument_counts = [
+        _integer(report.get("instrument_count"), field="sample.instrument_count")
+        for report in successes
+    ]
+    active_counts = [
+        _integer(
+            report.get("active_instrument_count"),
+            field="sample.active_instrument_count",
+        )
+        for report in successes
+    ]
     transport_failures = sum(
         1
         for report in failures
@@ -716,117 +766,129 @@ def _gates(
     policy: BinanceSpotInstrumentAcceptancePolicy,
 ) -> tuple[Gate, ...]:
     thresholds = policy.thresholds
+    observed_duration = _summary_float(summary, "observed_duration_seconds")
+    attempted_samples = _summary_int(summary, "attempted_sample_count")
+    successful_samples = _summary_int(summary, "successful_sample_count")
+    availability_ratio = _summary_float(summary, "availability_ratio")
+    consecutive_failures = _summary_int(summary, "maximum_consecutive_failures")
+    transport_failures = _summary_int(summary, "transport_failure_count")
+    parse_failures = _summary_int(summary, "parse_failure_count")
+    integrity_failures = _summary_int(summary, "integrity_failure_count")
+    response_duration_max = _optional_summary_float(summary, "response_duration_ms_max")
+    response_bytes_max = _optional_summary_int(summary, "response_bytes_max")
+    instrument_count_min = _optional_summary_int(summary, "instrument_count_min")
+    instrument_count_max = _optional_summary_int(summary, "instrument_count_max")
+    active_instrument_count_min = _optional_summary_int(summary, "active_instrument_count_min")
+    anchor_failures = _summary_int(summary, "anchor_symbol_failure_count")
+    catalog_change_ratio = _summary_float(summary, "maximum_consecutive_catalog_count_change_ratio")
     return (
         Gate(
             "minimum_duration_seconds",
-            float(summary["observed_duration_seconds"]) >= thresholds.minimum_duration_seconds,
-            summary["observed_duration_seconds"],
+            observed_duration >= thresholds.minimum_duration_seconds,
+            observed_duration,
             thresholds.minimum_duration_seconds,
             "window",
         ),
         Gate(
             "minimum_attempted_samples",
-            int(summary["attempted_sample_count"]) >= thresholds.minimum_attempted_samples,
-            summary["attempted_sample_count"],
+            attempted_samples >= thresholds.minimum_attempted_samples,
+            attempted_samples,
             thresholds.minimum_attempted_samples,
             "window",
         ),
         Gate(
             "minimum_successful_samples",
-            int(summary["successful_sample_count"]) >= thresholds.minimum_successful_samples,
-            summary["successful_sample_count"],
+            successful_samples >= thresholds.minimum_successful_samples,
+            successful_samples,
             thresholds.minimum_successful_samples,
             "availability",
         ),
         Gate(
             "minimum_availability_ratio",
-            float(summary["availability_ratio"]) >= thresholds.minimum_availability_ratio,
-            summary["availability_ratio"],
+            availability_ratio >= thresholds.minimum_availability_ratio,
+            availability_ratio,
             thresholds.minimum_availability_ratio,
             "availability",
         ),
         Gate(
             "maximum_consecutive_failures",
-            int(summary["maximum_consecutive_failures"]) <= thresholds.maximum_consecutive_failures,
-            summary["maximum_consecutive_failures"],
+            consecutive_failures <= thresholds.maximum_consecutive_failures,
+            consecutive_failures,
             thresholds.maximum_consecutive_failures,
             "availability",
         ),
         Gate(
             "maximum_transport_failures",
-            int(summary["transport_failure_count"]) <= thresholds.maximum_transport_failures,
-            summary["transport_failure_count"],
+            transport_failures <= thresholds.maximum_transport_failures,
+            transport_failures,
             thresholds.maximum_transport_failures,
             "transport",
         ),
         Gate(
             "maximum_parse_failures",
-            int(summary["parse_failure_count"]) <= thresholds.maximum_parse_failures,
-            summary["parse_failure_count"],
+            parse_failures <= thresholds.maximum_parse_failures,
+            parse_failures,
             thresholds.maximum_parse_failures,
             "parsing",
         ),
         Gate(
             "maximum_integrity_failures",
-            int(summary["integrity_failure_count"]) <= thresholds.maximum_integrity_failures,
-            summary["integrity_failure_count"],
+            integrity_failures <= thresholds.maximum_integrity_failures,
+            integrity_failures,
             thresholds.maximum_integrity_failures,
             "integrity",
         ),
         Gate(
             "maximum_response_duration_ms",
-            summary["response_duration_ms_max"] is not None
-            and float(summary["response_duration_ms_max"])
-            <= thresholds.maximum_response_duration_ms,
-            summary["response_duration_ms_max"],
+            response_duration_max is not None
+            and response_duration_max <= thresholds.maximum_response_duration_ms,
+            response_duration_max,
             thresholds.maximum_response_duration_ms,
             "latency",
         ),
         Gate(
             "maximum_response_bytes",
-            summary["response_bytes_max"] is not None
-            and int(summary["response_bytes_max"]) <= thresholds.maximum_response_bytes,
-            summary["response_bytes_max"],
+            response_bytes_max is not None
+            and response_bytes_max <= thresholds.maximum_response_bytes,
+            response_bytes_max,
             thresholds.maximum_response_bytes,
             "transport",
         ),
         Gate(
             "minimum_instrument_count",
-            summary["instrument_count_min"] is not None
-            and int(summary["instrument_count_min"]) >= thresholds.minimum_instrument_count,
-            summary["instrument_count_min"],
+            instrument_count_min is not None
+            and instrument_count_min >= thresholds.minimum_instrument_count,
+            instrument_count_min,
             thresholds.minimum_instrument_count,
             "catalog",
         ),
         Gate(
             "maximum_instrument_count",
-            summary["instrument_count_max"] is not None
-            and int(summary["instrument_count_max"]) <= thresholds.maximum_instrument_count,
-            summary["instrument_count_max"],
+            instrument_count_max is not None
+            and instrument_count_max <= thresholds.maximum_instrument_count,
+            instrument_count_max,
             thresholds.maximum_instrument_count,
             "catalog",
         ),
         Gate(
             "minimum_active_instrument_count",
-            summary["active_instrument_count_min"] is not None
-            and int(summary["active_instrument_count_min"])
-            >= thresholds.minimum_active_instrument_count,
-            summary["active_instrument_count_min"],
+            active_instrument_count_min is not None
+            and active_instrument_count_min >= thresholds.minimum_active_instrument_count,
+            active_instrument_count_min,
             thresholds.minimum_active_instrument_count,
             "catalog",
         ),
         Gate(
             "required_active_native_symbols",
-            int(summary["anchor_symbol_failure_count"]) == 0,
-            summary["anchor_symbol_failure_count"],
+            anchor_failures == 0,
+            anchor_failures,
             0,
             "catalog",
         ),
         Gate(
             "maximum_consecutive_catalog_count_change_ratio",
-            float(summary["maximum_consecutive_catalog_count_change_ratio"])
-            <= thresholds.maximum_consecutive_catalog_count_change_ratio,
-            summary["maximum_consecutive_catalog_count_change_ratio"],
+            catalog_change_ratio <= thresholds.maximum_consecutive_catalog_count_change_ratio,
+            catalog_change_ratio,
             thresholds.maximum_consecutive_catalog_count_change_ratio,
             "catalog",
         ),
@@ -939,7 +1001,7 @@ def run_acceptance(
     collector_commit: str,
     environment: Mapping[str, str] | None = None,
     opener: UrlOpener | None = None,
-    sleeper: Sleeper = time.sleep,
+    sleeper: Sleeper = _default_sleep,
     monotonic: MonotonicClock = time.monotonic,
     wall_clock_ns: WallClockNs = time.time_ns,
 ) -> dict[str, object]:
@@ -1099,13 +1161,13 @@ def evaluate_package(*, run_root: Path, policy_path: Path) -> dict[str, object]:
             if not (path.parent / "instrument-catalog-snapshot.json").is_file():
                 raise ValueError("successful sample normalized snapshot is missing")
         reports.append(sample)
-    if len(reports) != int(summary["attempted_sample_count"]):
+    if len(reports) != _summary_int(summary, "attempted_sample_count"):
         raise ValueError("sample report count does not match summary")
     recomputed_summary = _summarize(
         request=request,
-        started_ns=int(summary["started_ns"]),
-        ended_ns=int(summary["ended_ns"]),
-        observed_duration_seconds=float(summary["observed_duration_seconds"]),
+        started_ns=_summary_int(summary, "started_ns"),
+        ended_ns=_summary_int(summary, "ended_ns"),
+        observed_duration_seconds=_summary_float(summary, "observed_duration_seconds"),
         reports=reports,
     )
     if recomputed_summary != summary:

@@ -5,6 +5,7 @@ branch: feat/portal-bm-default-catalog-v1
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
+related_pr: 601
 owned_paths:
   - ai_platform/portal/bot_catalog/default_catalog.py
   - ai_platform/portal/control_plane/bot_management.py
@@ -36,10 +37,10 @@ The catalog contains no exchange connection, credential reference, API key, pass
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T12:15:00+02:00
-head_parent: 4737659fa44c838e849c32a00fa33b31ef3e95b5
+updated_at: 2026-07-28T12:32:00+02:00
+head_parent: 1a1b54d5140ac7728a1171e0f7ca20cf432056fd
 branch: feat/portal-bm-default-catalog-v1
-pr: null
+pr: 601
 status: validating
 context_routes:
   - AGENTS.md
@@ -55,10 +56,12 @@ proven:
   - BM-01 and BM-02 are merged and registered in the canonical control-plane application.
   - The previous default repository was explicitly empty, making catalog discovery return CATALOG_NOT_FOUND.
   - Existing portal fixtures already use ai-directional-v1, model-validated-2026-07, freqtrade-2026.7 and risk-default-v1.
+  - Focused implementation tests, Ruff and compilation passed on the pre-format head.
+  - Formatter workflow 30349666613 succeeded and removed its own workflow file.
 derived:
   - A reviewed built-in dry-run snapshot is the smallest safe prerequisite for BMW-01.
 unknown:
-  - Exact-head CI results.
+  - Exact-head standard CI results for this connector-authored commit.
 conflicts: []
 first_failure:
   marker: DEFAULT_BM_CATALOG_EMPTY
@@ -73,9 +76,12 @@ changed_paths:
   - tests/ai_platform/portal/bot_catalog/test_default_catalog.py
   - docs/agents/tasks/FTAI-20260728-portal-bm-default-catalog.md
 validation:
+  - command: formatter workflow 30349666613
+    result: PASS
+    evidence: Ruff 0.15.21 formatter committed exact output and removed the temporary workflow.
   - command: exact-head AI Platform CI, Freqtrade CI and security analysis
     result: NOT_RUN
-    evidence: PR head will be the source of truth.
+    evidence: This connector-authored checkpoint commit creates the authoritative validation head.
 blockers: []
 next_action: Run exact-head CI, audit scope and merge before BMW-01 web work.
 ```

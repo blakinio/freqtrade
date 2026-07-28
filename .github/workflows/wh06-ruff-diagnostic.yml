@@ -1,0 +1,44 @@
+name: WH-06 Ruff diagnostic
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/wickhunter/**"
+      - "tests/ai_platform_integration/test_wickhunter_portal_risk.py"
+      - ".github/workflows/wh06-ruff-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Capture exact Ruff report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.15.21
+          set +e
+          ruff check ai_platform/wickhunter tests/ai_platform_integration/test_wickhunter_portal_risk.py > wh06-ruff-report.txt 2>&1
+          status=$?
+          set -e
+          printf '\nexit_code=%s\n' "$status" >> wh06-ruff-report.txt
+
+      - name: Upload Ruff report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wh06-ruff-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: wh06-ruff-report.txt
+          if-no-files-found: error
+          retention-days: 1

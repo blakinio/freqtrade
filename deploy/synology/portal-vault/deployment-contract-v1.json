@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "package": "PI-07 Runtime Credential Broker and Rotation",
+  "status": "repository_validated_target_not_accepted",
+  "deployment_target": "Synology Docker or another Linux container host",
+  "secret_backend": "HashiCorp Vault KV v2 with integrated Raft storage",
+  "vault_image": "docker.io/hashicorp/vault:2.0.3@sha256:a296a888b118615dc01d5f1a6846e6d4a7277946caaed5b447008fff5fe06b54",
+  "network_exposure": "internal_only_no_host_port",
+  "tls_minimum": "TLSv1.3",
+  "authentication": "AppRole with mounted RoleID and 24-hour SecretID",
+  "broker_token_ttl_minutes": 10,
+  "broker_token_max_ttl_minutes": 15,
+  "credential_rotation_maximum_days": 90,
+  "audit_devices_required": 2,
+  "execution_mode": "dry_run",
+  "withdrawals_enabled": false,
+  "live_capital_authorized": false,
+  "target_acceptance_required": true
+}

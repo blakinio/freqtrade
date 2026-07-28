@@ -155,11 +155,14 @@ class StrategyValidator:
     @staticmethod
     def _validate_dca(risk: Mapping[str, object]) -> None:
         position_size = risk.get("position_size")
-        if isinstance(position_size, Mapping) and position_size.get("type") == "dca":
-            if risk.get("max_exposure") is None:
-                raise StrategyValidationError(
-                    "DCA_REQUIRES_MAX_EXPOSURE", "DCA requires max_exposure"
-                )
+        if (
+            isinstance(position_size, Mapping)
+            and position_size.get("type") == "dca"
+            and risk.get("max_exposure") is None
+        ):
+            raise StrategyValidationError(
+                "DCA_REQUIRES_MAX_EXPOSURE", "DCA requires max_exposure"
+            )
 
     def _validate_condition_group(
         self,
@@ -223,11 +226,12 @@ class StrategyValidator:
                 f"{label} requires exactly one feature, event, or risk selector",
             )
         feature = condition.get("feature")
-        if feature is not None:
-            if not isinstance(feature, str) or feature not in declared_features:
-                raise StrategyValidationError(
-                    "FEATURE_NOT_DECLARED", f"{label} references an undeclared feature: {feature}"
-                )
+        if feature is not None and (
+            not isinstance(feature, str) or feature not in declared_features
+        ):
+            raise StrategyValidationError(
+                "FEATURE_NOT_DECLARED", f"{label} references an undeclared feature: {feature}"
+            )
         operator = condition.get("op")
         if operator is not None and operator not in _ALLOWED_OPERATORS:
             raise StrategyValidationError(

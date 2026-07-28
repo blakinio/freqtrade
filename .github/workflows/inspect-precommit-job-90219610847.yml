@@ -1,0 +1,30 @@
+name: Inspect pre-commit job 90219610847
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/inspect-precommit-job-90219610847.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Print terminal pre-commit failure lines
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_JOB_ID: "90219610847"
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
+            --output "$log"
+          tail -n 120 "$log"

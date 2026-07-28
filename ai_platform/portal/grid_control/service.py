@@ -193,11 +193,13 @@ class GridControlService:
         with localcontext() as context:
             context.prec = CALCULATION_PRECISION
             if policy.allocation_mode == GridAllocationMode.TOTAL_QUOTE:
-                assert policy.total_quote_allocation is not None
                 total = policy.total_quote_allocation
+                if total is None:
+                    raise ValueError("validated total-quote policy is missing its allocation")
                 return total, total / Decimal(policy.level_count)
-            assert policy.per_level_quote_amount is not None
             per_level = policy.per_level_quote_amount
+            if per_level is None:
+                raise ValueError("validated per-level policy is missing its allocation")
             return per_level * Decimal(policy.level_count), per_level
 
     @staticmethod
@@ -236,18 +238,30 @@ class GridControlService:
         )
         return sha256(material.encode("utf-8")).hexdigest()
 
-    @staticmethod
+    @classmethod
     def _capability_reasons(
+        cls,
+        context: GridControlContext,
+        request: GridPreviewRequest,
+        template: GridTemplateCapabilityEvidence,
+        exchange: GridExchangeCapabilityEvidence,
+    ) -> set[GridControlReasonCode]:
+        return (
+            cls._authorization_reasons(context, request, template, exchange)
+            | cls._compatibility_reasons(request, template, exchange)
+            | cls._optional_feature_reasons(request, template, exchange)
+        )
+
+    @staticmethod
+    def _authorization_reasons(
         context: GridControlContext,
         request: GridPreviewRequest,
         template: GridTemplateCapabilityEvidence,
         exchange: GridExchangeCapabilityEvidence,
     ) -> set[GridControlReasonCode]:
         reasons: set[GridControlReasonCode] = set()
-        if any(
-            tenant_id != context.tenant_id
-            for tenant_id in (request.tenant_id, template.tenant_id, exchange.tenant_id)
-        ):
+        tenants = (request.tenant_id, template.tenant_id, exchange.tenant_id)
+        if any(tenant_id != context.tenant_id for tenant_id in tenants):
             reasons.add(GridControlReasonCode.TENANT_MISMATCH)
         if BotManagementCapability.GRID_CONFIGURE not in context.capabilities:
             reasons.add(GridControlReasonCode.CAPABILITY_MISSING)
@@ -257,6 +271,15 @@ class GridControlService:
             reasons.add(GridControlReasonCode.TEMPLATE_EVIDENCE_STALE)
         if exchange.freshness != EvidenceFreshness.CURRENT:
             reasons.add(GridControlReasonCode.CAPABILITY_EVIDENCE_STALE)
+        return reasons
+
+    @staticmethod
+    def _compatibility_reasons(
+        request: GridPreviewRequest,
+        template: GridTemplateCapabilityEvidence,
+        exchange: GridExchangeCapabilityEvidence,
+    ) -> set[GridControlReasonCode]:
+        reasons: set[GridControlReasonCode] = set()
         if (
             template.template_id != request.template_id
             or template.template_revision != request.template_revision
@@ -275,6 +298,15 @@ class GridControlService:
             reasons.add(GridControlReasonCode.LEVEL_COUNT_UNSUPPORTED)
         if request.policy.direction == TradeDirection.SHORT and not exchange.supports_short:
             reasons.add(GridControlReasonCode.DIRECTION_UNSUPPORTED)
+        return reasons
+
+    @staticmethod
+    def _optional_feature_reasons(
+        request: GridPreviewRequest,
+        template: GridTemplateCapabilityEvidence,
+        exchange: GridExchangeCapabilityEvidence,
+    ) -> set[GridControlReasonCode]:
+        reasons: set[GridControlReasonCode] = set()
         if request.policy.trailing_range_percent is not None and not (
             template.supports_trailing_grid and exchange.supports_trailing_grid
         ):

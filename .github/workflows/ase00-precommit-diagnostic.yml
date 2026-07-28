@@ -40,7 +40,104 @@ jobs:
           python -m pip install --disable-pip-version-check pre-commit ruff==0.15.21
           printf '%s\n' '"""AI Platform integration tests."""' \
             > tests/ai_platform_integration/__init__.py
-          ruff check --fix ai_platform/research/strategy_engine/ase00_adapter.py
+          python - <<'PY'
+          from pathlib import Path
+
+          test_path = Path('ai_strategy_engine/tests/integration/test_registry_dsl.py')
+          test_text = test_path.read_text(encoding='utf-8')
+          import_anchor = 'from pathlib import Path\n\nimport pytest'
+          if test_text.count(import_anchor) != 1:
+              raise SystemExit('test typing import anchor mismatch')
+          test_text = test_text.replace(
+              import_anchor,
+              'from pathlib import Path\nfrom typing import cast\n\nimport pytest',
+              1,
+          )
+          list_anchor = '    features = list(document["features"])  # type: ignore[arg-type]'
+          if test_text.count(list_anchor) != 2:
+              raise SystemExit('test features anchor mismatch')
+          typed_list = (
+              '    features = [\n'
+              '        dict(feature)\n'
+              '        for feature in cast(list[dict[str, object]], document["features"])\n'
+              '    ]'
+          )
+          test_text = test_text.replace(list_anchor, typed_list)
+          spread_anchor = (
+              '    features[0] = {**features[0], "timeframe": "1h"}  '
+              '# type: ignore[arg-type]'
+          )
+          if test_text.count(spread_anchor) != 1:
+              raise SystemExit('test spread anchor mismatch')
+          test_text = test_text.replace(
+              spread_anchor,
+              '    features[0] = {**features[0], "timeframe": "1h"}',
+              1,
+          )
+          test_path.write_text(test_text, encoding='utf-8')
+
+          adapter_path = Path('ai_platform/research/strategy_engine/ase00_adapter.py')
+          adapter_text = adapter_path.read_text(encoding='utf-8')
+          squeeze_anchor = '''            columns = (
+                "squeeze_ratio",
+                "squeeze_state",
+                "squeeze_duration",
+                "bars_since_release",
+                "linreg_momentum",
+                "momentum_slope",
+                "momentum_acceleration",
+            )
+            value = _row_mapping(squeeze, -1, columns)
+'''
+          squeeze_replacement = squeeze_anchor.replace(
+              'columns', 'squeeze_columns'
+          )
+          if adapter_text.count(squeeze_anchor) != 1:
+              raise SystemExit('squeeze columns anchor mismatch')
+          adapter_text = adapter_text.replace(
+              squeeze_anchor, squeeze_replacement, 1
+          )
+          previous_anchor = (
+              '            previous[squeeze_ref.id] = '
+              '_row_mapping(squeeze, -2, columns)'
+          )
+          if adapter_text.count(previous_anchor) != 1:
+              raise SystemExit('squeeze previous anchor mismatch')
+          adapter_text = adapter_text.replace(
+              previous_anchor,
+              '            previous[squeeze_ref.id] = '
+              '_row_mapping(squeeze, -2, squeeze_columns)',
+              1,
+          )
+          supertrend_anchor = '''            columns = (
+                "supertrend_band",
+                "supertrend_direction",
+                "supertrend_flip",
+                "supertrend_distance_atr",
+            )
+            value = _row_mapping(supertrend, -1, columns)
+'''
+          supertrend_replacement = supertrend_anchor.replace(
+              'columns', 'supertrend_columns'
+          )
+          if adapter_text.count(supertrend_anchor) != 1:
+              raise SystemExit('supertrend columns anchor mismatch')
+          adapter_text = adapter_text.replace(
+              supertrend_anchor, supertrend_replacement, 1
+          )
+          prior_anchor = '            prior = _row_mapping(supertrend, -2, columns)'
+          if adapter_text.count(prior_anchor) != 1:
+              raise SystemExit('supertrend prior anchor mismatch')
+          adapter_text = adapter_text.replace(
+              prior_anchor,
+              '            prior = _row_mapping(supertrend, -2, supertrend_columns)',
+              1,
+          )
+          adapter_path.write_text(adapter_text, encoding='utf-8')
+          PY
+          ruff check --fix \
+            ai_platform/research/strategy_engine/ase00_adapter.py \
+            ai_strategy_engine/tests/integration/test_registry_dsl.py
           set +e
           pre-commit run --all-files --show-diff-on-failure > /tmp/pre-commit.log 2>&1
           status=$?
@@ -50,6 +147,7 @@ jobs:
           git diff --binary -- \
             tests/ai_platform_integration/__init__.py \
             ai_platform/research/strategy_engine/ase00_adapter.py \
+            ai_strategy_engine/tests/integration/test_registry_dsl.py \
             > /tmp/pre-commit.patch
 
       - name: Upload exact diagnostic
@@ -73,7 +171,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add tests/ai_platform_integration/__init__.py \
-            ai_platform/research/strategy_engine/ase00_adapter.py
+            ai_platform/research/strategy_engine/ase00_adapter.py \
+            ai_strategy_engine/tests/integration/test_registry_dsl.py
           git diff --cached --quiet && exit 1
           git commit -m "fix(ai-strategy): satisfy repository pre-commit"
           authorization="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"

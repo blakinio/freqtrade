@@ -1,0 +1,27 @@
+name: Diagnose WickHunter live archive core failure
+
+on:
+  pull_request:
+    branches:
+      - feat/wickhunter-live-archive-acceptance-v1
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Print bounded exact job tail
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${REPOSITORY}/actions/jobs/90287647335/logs" \
+            > job.log
+          tail -n 180 job.log

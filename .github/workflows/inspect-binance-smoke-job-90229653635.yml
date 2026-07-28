@@ -2,7 +2,7 @@ name: Inspect Binance Smoke Job 90229653635
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize]
     paths:
       - ".github/workflows/inspect-binance-smoke-job-90229653635.yml"
 
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Print exact smoke failure section
+      - name: Print exact smoke failure lines
         env:
           GH_TOKEN: ${{ github.token }}
           TARGET_JOB_ID: "90229653635"
@@ -28,6 +28,6 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
             --output "$log"
-          sed -n '/Run frozen single-request smoke/,/Upload bounded failure evidence/p' "$log"
-          printf '%s\n' '--- terminal tail ---'
-          tail -n 120 "$log"
+          grep -nE \
+            'HTTP Error|HTTP [0-9]{3}|status code|Traceback|Exception|URLError|urlopen|SSL|TLS|timed out|timeout|Content-Type|content-type|schema|JSON|json|error:|Error:|ERROR|failed|Failure|Process completed with exit code' \
+            "$log" | tail -n 80

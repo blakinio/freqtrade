@@ -14,10 +14,7 @@ def atr_range_filter(
     source: str = "close",
     atr_type: str = "rma",
 ) -> pd.DataFrame:
-    """Stateful independent ATR range filter for research.
-
-    This is not a parity implementation of the closed Miyagi Bonsai filter.
-    """
+    """Stateful independent ATR range filter for bounded research."""
     if atr_period < 2:
         raise ValueError("atr_period must be >= 2")
     if multiplier <= 0:

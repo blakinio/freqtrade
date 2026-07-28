@@ -57,28 +57,53 @@ The staging preflight workflow run `30308573877` completed successfully on the
 following frozen mapping:
 
 ```text
-runner name:       freqtrade-synology-staging
-routing label:     freqtrade-staging
-runner OS:         Linux
+runner name:        freqtrade-synology-staging
+routing label:      freqtrade-staging
+runner OS:          Linux
 GitHub environment: synology-staging
-state directory:   /var/lib/freqtrade-staging-state
-durable root:      /var/lib/freqtrade-staging-state/okx-liquidation-acceptance
-durable URI:       file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance
+state directory:    /var/lib/freqtrade-staging-state
+durable root:       /var/lib/freqtrade-staging-state/okx-liquidation-acceptance
+durable URI:        file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance
 ```
 
 The 24-hour workflow binds directly to this reviewed mapping. It does not depend
 on mutable `OKX_ACCEPTANCE_*` variables.
 
-The workflow additionally verifies:
+## Durable-root preparation
 
-- the actual runner name is `freqtrade-synology-staging`;
-- the runner OS is Linux;
-- the durable root is the canonical directory directly below the staging state
-  directory;
-- the durable root exists, is writable and is outside runner-temporary and
-  workspace storage;
-- the request host identity and durable URI match the frozen workflow mapping;
-- no recognized exchange or Freqtrade trading credentials are present.
+The first exact trigger PR `#606` ran workflow `30352834444` and job
+`90254107799`. The dedicated runner accepted the job and exact-one-file scope
+passed, but validation stopped before credentials, dependency installation or
+collector execution because the durable acceptance root was not ready at that
+moment. No WebSocket subscription started, no report or raw artifact was
+created, and orders remained zero.
+
+The repaired workflow now validates and prepares storage in this order:
+
+1. assert the exact runner name and Linux OS;
+2. require the canonical absolute state directory;
+3. require the canonical durable root to be directly below that state directory;
+4. require the state directory to exist and be writable;
+5. create only the missing canonical durable root with `umask 027`;
+6. require the durable root to be a writable directory outside runner-temporary
+   and workspace paths;
+7. perform an atomic write, `fsync`, rename and read-back probe inside a temporary
+   child directory;
+8. remove the probe directory before any collector dependency or network work.
+
+Named fail-closed markers include:
+
+```text
+OKX_ACCEPTANCE_STATE_DIR_MISSING
+OKX_ACCEPTANCE_STATE_DIR_NOT_WRITABLE
+OKX_ACCEPTANCE_DURABLE_ROOT_CREATE_FAILED
+OKX_ACCEPTANCE_DURABLE_ROOT_NOT_WRITABLE
+OKX_ACCEPTANCE_DURABLE_ROOT_ATOMIC_IO_FAILED
+```
+
+The workflow cannot create an arbitrary path because the durable root must remain
+directly below `/var/lib/freqtrade-staging-state` and must equal the frozen
+request URI mapping.
 
 ## Canonical trigger
 
@@ -152,7 +177,7 @@ After the workflow reaches a terminal outcome:
    identities;
 3. close the trigger pull request without merge;
 4. publish a separate compact repository evidence envelope without raw NDJSON;
-5. use a new request identity for any rerun.
+5. use a new request identity for any completed collection rerun.
 
 Only an `accepted` package may support a later, separately reviewed source
 integration proposal. It still does not authorize Liquid20, replay, models or

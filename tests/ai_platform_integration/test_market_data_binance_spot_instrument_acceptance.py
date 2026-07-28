@@ -290,7 +290,7 @@ def test_independent_evaluator_rejects_tampered_durable_raw_evidence(
     raw_path = output / "samples/0000/raw-response.json"
     raw_path.write_bytes(raw_path.read_bytes() + b" ")
 
-    with pytest.raises(ValueError, match="manifest artifact hash mismatch"):
+    with pytest.raises(ValueError, match=r"manifest artifact (size|hash) mismatch"):
         evaluate_package(run_root=output, policy_path=policy_path)
 
 

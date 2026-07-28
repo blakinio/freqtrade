@@ -168,7 +168,8 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
         base = {
             "outcome": "audit_supported_for_bounded_m1",
             "expanded_feature_count": 2,
-            "expanded_feature_names_sha256": "same",
+            "expanded_feature_names": ["%feature_a", "%feature_b"],
+            "expanded_feature_names_sha256": "declared-hash-is-preserved-only",
             "target": {"trailing_null_rows": 12},
             "post_pipeline": {"transformed_feature_count": 2},
             "liquidation_features_used": False,
@@ -180,7 +181,11 @@ class ResidualPyTorchBoundedM1ExecutionTests(unittest.TestCase):
             report = execution.validate_audit_directory(root)
             self.assertEqual(report["expanded_feature_count"], 2)
 
-            changed = dict(base, pair="ETH/USDT", expanded_feature_names_sha256="different")
+            changed = dict(
+                base,
+                pair="ETH/USDT",
+                expanded_feature_names=["%feature_a", "%feature_c"],
+            )
             execution.write_json(root / "eth-usdt.json", changed)
             with self.assertRaisesRegex(
                 execution.ResidualPyTorchBoundedM1Error,

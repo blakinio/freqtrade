@@ -1,4 +1,4 @@
-name: ASE-00 Member Recovery Analysis
+name: ASE-00 Verified Member Recovery
 
 on:
   pull_request:
@@ -11,11 +11,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: ase00-member-recovery-${{ github.event.pull_request.number }}
+  group: ase00-verified-member-recovery-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
-  inspect:
+  recover:
     if: github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -26,7 +26,7 @@ jobs:
           ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
 
-      - name: Analyze all damaged members and known candidates
+      - name: Recover every CRC-verified member
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -42,132 +42,97 @@ jobs:
           import zipfile
           from pathlib import Path
 
-          root = Path("ai_strategy_engine")
+          root = Path("ai_strategy_engine").resolve()
+          part_paths = sorted((root / "bootstrap").glob("strategy_engine_source.zip.b64.part*"))
           payload = base64.b64decode(
-              b"".join(path.read_bytes().strip() for path in sorted((root / "bootstrap").glob("strategy_engine_source.zip.b64.part*"))),
-              validate=True,
+              b"".join(path.read_bytes().strip() for path in part_paths), validate=True
           )
+          damaged = {
+              "examples/signal_event.json",
+              "src/strategy_engine/features/momentum.py",
+              "tests/unit/test_squeeze.py",
+          }
+          recovered: list[str] = []
+          skipped: list[str] = []
 
-          def raw_member(info: zipfile.ZipInfo) -> tuple[int, bytes]:
+          def raw_member(info: zipfile.ZipInfo) -> bytes:
               header = payload[info.header_offset:info.header_offset + 30]
-              _, _, _, _, _, _, _, _, _, name_len, extra_len = struct.unpack("<IHHHHHIIIHH", header)
+              _, _, _, _, _, _, _, _, _, name_len, extra_len = struct.unpack(
+                  "<IHHHHHIIIHH", header
+              )
               start = info.header_offset + 30 + name_len + extra_len
-              return start, payload[start:start + info.compress_size]
-
-          def inflate(info: zipfile.ZipInfo, raw: bytes) -> bytes:
-              if info.compress_type == zipfile.ZIP_DEFLATED:
-                  return zlib.decompress(raw, -15)
-              if info.compress_type == zipfile.ZIP_STORED:
-                  return raw
-              raise RuntimeError(info.compress_type)
-
-          def deflate(data: bytes, level: int) -> bytes:
-              compressor = zlib.compressobj(level=level, wbits=-15)
-              return compressor.compress(data) + compressor.flush()
-
-          lines = [
-              "# ASE-00 damaged-member recovery analysis",
-              "",
-              f"- archive SHA-256: `{hashlib.sha256(payload).hexdigest()}`",
-              f"- archive size: `{len(payload)}`",
-          ]
+              return payload[start:start + info.compress_size]
 
           with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-              signal = archive.getinfo("examples/signal_event.json")
-              _, signal_raw = raw_member(signal)
-              signal_bad = inflate(signal, signal_raw)
-              signal_good = signal_bad.replace(b"OtRDROP_CONFIRMED", b"OI_DROP_CONFIRMED")
-              lines.extend([
-                  "",
-                  "## signal_event.json",
-                  f"- expected CRC: `{signal.CRC:08x}`",
-                  f"- bad CRC: `{binascii.crc32(signal_bad) & 0xffffffff:08x}`",
-                  f"- corrected candidate CRC: `{binascii.crc32(signal_good) & 0xffffffff:08x}`",
-                  f"- candidate size: `{len(signal_good)}` (expected `{signal.file_size}`)",
-                  f"- candidate SHA-256: `{hashlib.sha256(signal_good).hexdigest()}`",
-              ])
-              for level in range(10):
-                  compressed = deflate(signal_good, level)
-                  lines.append(
-                      f"- zlib level {level}: compressed_size=`{len(compressed)}`, sha256=`{hashlib.sha256(compressed).hexdigest()}`"
-                  )
+              for info in archive.infolist():
+                  destination = (root / info.filename).resolve()
+                  if root not in destination.parents and destination != root:
+                      raise RuntimeError(f"unsafe archive path: {info.filename}")
+                  if info.is_dir():
+                      destination.mkdir(parents=True, exist_ok=True)
+                      continue
+                  if info.filename in damaged:
+                      skipped.append(info.filename)
+                      continue
+                  content = archive.read(info)
+                  actual_crc = binascii.crc32(content) & 0xFFFFFFFF
+                  if actual_crc != info.CRC or len(content) != info.file_size:
+                      raise RuntimeError(f"member verification failed: {info.filename}")
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  destination.write_bytes(content)
+                  recovered.append(info.filename)
 
-              momentum = archive.getinfo("src/strategy_engine/features/momentum.py")
-              _, momentum_raw = raw_member(momentum)
-              momentum_bad = inflate(momentum, momentum_raw)
-              lines.extend([
-                  "",
-                  "## momentum.py",
-                  f"- expected CRC: `{momentum.CRC:08x}`",
-                  f"- expected size: `{momentum.file_size}`",
-                  f"- compressed size: `{momentum.compress_size}`",
-                  f"- raw compressed SHA-256: `{hashlib.sha256(momentum_raw).hexdigest()}`",
-                  f"- decompressed size: `{len(momentum_bad)}`",
-                  f"- bad CRC: `{binascii.crc32(momentum_bad) & 0xffffffff:08x}`",
-                  f"- bad SHA-256: `{hashlib.sha256(momentum_bad).hexdigest()}`",
-                  "",
-                  "### Decompressed momentum.py",
-                  "```python",
-                  momentum_bad.decode("utf-8", errors="backslashreplace"),
-                  "```",
-                  "",
-                  "### momentum.py repr",
-                  "```text",
-                  repr(momentum_bad),
-                  "```",
-              ])
+              signal_info = archive.getinfo("examples/signal_event.json")
+              signal_raw = raw_member(signal_info)
+              signal_bad = zlib.decompress(signal_raw, -15)
+              signal_good = signal_bad.replace(
+                  b"OtRDROP_CONFIRMED", b"OI_DROP_CONFIRMED"
+              )
+              if len(signal_good) != signal_info.file_size:
+                  raise RuntimeError("signal_event recovered size mismatch")
+              if (binascii.crc32(signal_good) & 0xFFFFFFFF) != signal_info.CRC:
+                  raise RuntimeError("signal_event recovered CRC mismatch")
+              signal_path = root / signal_info.filename
+              signal_path.parent.mkdir(parents=True, exist_ok=True)
+              signal_path.write_bytes(signal_good)
+              recovered.append(signal_info.filename)
 
-              one_byte_matches: list[tuple[int, int, int]] = []
-              target_crc = momentum.CRC
-              mutable = bytearray(momentum_bad)
-              original_crc = binascii.crc32(momentum_bad) & 0xffffffff
-              for index, original in enumerate(momentum_bad):
-                  for replacement in range(256):
-                      if replacement == original:
-                          continue
-                      mutable[index] = replacement
-                      if (binascii.crc32(mutable) & 0xffffffff) == target_crc:
-                          one_byte_matches.append((index, original, replacement))
-                  mutable[index] = original
-              lines.extend(["", "### One-byte CRC recovery candidates"])
-              if one_byte_matches:
-                  for index, original, replacement in one_byte_matches:
-                      lines.append(f"- offset `{index}`: `{original:02x}` -> `{replacement:02x}`")
-              else:
-                  lines.append("- none")
-              lines.append(f"- original CRC repeated: `{original_crc:08x}`")
+              squeeze_info = archive.getinfo("tests/unit/test_squeeze.py")
+              squeeze_path = root / squeeze_info.filename
+              squeeze_content = squeeze_path.read_bytes()
+              if len(squeeze_content) != squeeze_info.file_size:
+                  raise RuntimeError("test_squeeze recovered size mismatch")
+              if (binascii.crc32(squeeze_content) & 0xFFFFFFFF) != squeeze_info.CRC:
+                  raise RuntimeError("test_squeeze recovered CRC mismatch")
+              recovered.append(squeeze_info.filename)
 
-              squeeze = archive.getinfo("tests/unit/test_squeeze.py")
-              _, squeeze_raw = raw_member(squeeze)
-              branch_squeeze = (root / "tests/unit/test_squeeze.py").read_bytes()
-              lines.extend([
-                  "",
-                  "## test_squeeze.py",
-                  f"- expected CRC: `{squeeze.CRC:08x}`",
-                  f"- expected size: `{squeeze.file_size}`",
-                  f"- expected compressed size: `{squeeze.compress_size}`",
-                  f"- branch candidate CRC: `{binascii.crc32(branch_squeeze) & 0xffffffff:08x}`",
-                  f"- branch candidate size: `{len(branch_squeeze)}`",
-                  f"- branch candidate SHA-256: `{hashlib.sha256(branch_squeeze).hexdigest()}`",
-                  f"- damaged raw compressed SHA-256: `{hashlib.sha256(squeeze_raw).hexdigest()}`",
-              ])
-              for level in range(10):
-                  compressed = deflate(branch_squeeze, level)
-                  lines.append(
-                      f"- zlib level {level}: compressed_size=`{len(compressed)}`, sha256=`{hashlib.sha256(compressed).hexdigest()}`"
-                  )
-
-          Path("ai_strategy_engine/docs/damaged-member-recovery.md").write_text(
-              "\n".join(lines) + "\n", encoding="utf-8"
+          report = [
+              "# ASE-00 verified-member recovery",
+              "",
+              f"- damaged archive SHA-256: `{hashlib.sha256(payload).hexdigest()}`",
+              "- required archive SHA-256 remains: `73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f`",
+              "- recovery rule: write only members whose uncompressed size and CRC match the ZIP central directory",
+              "- `examples/signal_event.json`: corrected `OtRDROP_CONFIRMED` to `OI_DROP_CONFIRMED`; exact expected size and CRC proven",
+              "- `tests/unit/test_squeeze.py`: restored from the already committed reference test; exact expected size and CRC proven",
+              "- `src/strategy_engine/features/momentum.py`: not written; exact bytes still unresolved",
+              "",
+              "## Recovered members",
+              *[f"- `{name}`" for name in sorted(set(recovered))],
+              "",
+              "## Intentionally unresolved members",
+              *[f"- `{name}`" for name in sorted(set(skipped) - {"examples/signal_event.json", "tests/unit/test_squeeze.py"})],
+          ]
+          (root / "docs/verified-member-recovery.md").write_text(
+              "\n".join(report) + "\n", encoding="utf-8"
           )
           PY
 
-      - name: Commit recovery analysis
+      - name: Commit recovered normal files
         shell: bash
         run: |
           set -Eeuo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f ai_strategy_engine/docs/damaged-member-recovery.md
-          git commit -m "docs(ai-strategy): analyze damaged starter members"
+          git add -f ai_strategy_engine
+          git commit -m "feat(ai-strategy): recover CRC-verified ASE-00 starter files"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

@@ -1,0 +1,40 @@
+name: Format Binance Smoke V2 Head 2bac927
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - ".github/workflows/format-binance-smoke-v2-head-2bac927.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact target head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: 2bac9276508db2d198aa36e13eaec9e104659539
+      - name: Print exact Ruff fixes and formatting
+        run: |
+          set -euo pipefail
+          python -m pip install "ruff==0.15.21"
+          ruff check --fix \
+            ai_platform/market_data/binance_spot_instrument_smoke.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_instrument_smoke.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_smoke_request_headers.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_instrument_smoke_selfhosted_workflow.py || true
+          ruff format \
+            ai_platform/market_data/binance_spot_instrument_smoke.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_instrument_smoke.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_smoke_request_headers.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_instrument_smoke_selfhosted_workflow.py
+          git diff -- \
+            ai_platform/market_data/binance_spot_instrument_smoke.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_instrument_smoke.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_smoke_request_headers.py \
+            tests/ai_platform_integration/test_market_data_binance_spot_instrument_smoke_selfhosted_workflow.py

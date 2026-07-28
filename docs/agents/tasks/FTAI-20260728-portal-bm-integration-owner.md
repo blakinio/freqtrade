@@ -46,8 +46,8 @@ This package adds no PI-07 credential resolution, PI-08 private submission, runt
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T10:57:00+02:00
-head_parent: 57b48ec994d3fd3bc446294f039b29b7ad068c56
+updated_at: 2026-07-28T11:18:00+02:00
+head_parent: b9dfbee88c9ecde3b00d1205e0c49d3d98ae045a
 branch: feat/portal-bm-integration-owner-v1
 pr: 591
 status: validating
@@ -76,19 +76,24 @@ proven:
   - No open PR owned the declared shared control-plane or bot-management router paths when this package began.
   - PI-07 and PI-08 remain explicitly gated and outside this package.
   - PR 591 contains the module-owned routers, capability bridge, fail-closed providers, central composition and focused tests.
-  - Temporary composition workflow run 30344249683 succeeded and removed its own workflow file before the validation head.
+  - Temporary composition workflow run 30344249683 succeeded and removed its own workflow file.
+  - Focused integration run 30345128581 passed all 18 selected API tests.
+  - Full diagnostic run 30345386231 identified a single circular import caused by eager router composition.
+  - Lazy service and router imports removed that cycle without changing the execution safety boundary.
+  - Temporary lazy-import workflow run 30345685278 succeeded and removed its own workflow file.
 derived:
   - The integrated API can expose configuration, metadata and command-intent evidence without activating execution.
 unknown:
-  - Exact-head lint, typing and test results for the connector-authored validation head.
+  - Exact-head lint, typing and full test results for the connector-authored validation head.
 conflicts: []
 first_failure:
-  marker: COMPOSITION_WORKFLOW_MARKER_INDENT
-  evidence: Run 30344041384 stopped before commit because the first patch used a dedented marker that did not preserve source indentation; corrected run 30344249683 passed.
+  marker: BOT_OPERATIONS_CONTROL_PLANE_IMPORT_CYCLE
+  evidence: Full AI collection reached bot_operations models through control_plane database while control_plane package initialization eagerly loaded API router composition; imports are now deferred until create_app executes.
 rejected_hypotheses:
   - Treat BM-05 merge as completion of the entire bot-management program.
   - Start PI-07 or PI-08 without the required owner and security decisions.
   - Resolve signal or exchange secrets inside a public feature router.
+  - Remove durable BM-03 model registration to avoid the import cycle.
 changed_paths:
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
@@ -104,12 +109,15 @@ changed_paths:
   - tests/ai_platform/portal/control_plane/test_api.py
   - docs/agents/tasks/FTAI-20260728-portal-bm-integration-owner.md
 validation:
-  - command: temporary composition workflow 30344249683
+  - command: focused bot-management API integration run 30345128581
     result: PASS
-    evidence: Exact shared-file patch committed and temporary workflow removed itself.
+    evidence: 18 focused tests passed.
+  - command: temporary lazy-import repair workflow 30345685278
+    result: PASS
+    evidence: Circular imports were deferred and the temporary workflow removed itself.
   - command: exact-head AI Platform CI, Freqtrade CI and security analysis
     result: NOT_RUN
-    evidence: Connector-authored checkpoint commit will create the authoritative validation head.
+    evidence: This connector-authored checkpoint commit creates the authoritative validation head.
 blockers: []
 next_action: Run exact-head CI for PR 591, repair only integration-owned findings, then audit and merge the package.
 ```

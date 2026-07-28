@@ -1,11 +1,26 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 ALLOWED_CLASSIFICATIONS = {"confirmed_ui", "probable", "unknown"}
+
+
+def _classified_names(section: Mapping[str, Any]) -> set[str]:
+    names: set[str] = set()
+    for classification in ALLOWED_CLASSIFICATIONS:
+        values = section[classification]
+        if isinstance(values, Mapping):
+            names.update(str(key) for key in values)
+        elif isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
+            names.update(str(value) for value in values)
+        else:
+            raise AssertionError(f"invalid classification payload: {classification}")
+    return names
 
 
 def test_miyagi_map_is_research_only_and_has_no_parity_claim() -> None:
@@ -25,15 +40,7 @@ def test_all_requested_research_hypotheses_are_classified() -> None:
     document = yaml.safe_load(
         (ROOT / "configs/miyagi_parameter_map.v1.yaml").read_text(encoding="utf-8")
     )
-    ten_in_one = {
-        key
-        for classification in ALLOWED_CLASSIFICATIONS
-        for key in (
-            document["miyagi_10_in_1"][classification]
-            if isinstance(document["miyagi_10_in_1"][classification], dict)
-            else document["miyagi_10_in_1"][classification]
-        )
-    }
+    ten_in_one = _classified_names(document["miyagi_10_in_1"])
     assert {
         "ema",
         "macd",
@@ -53,15 +60,7 @@ def test_all_requested_research_hypotheses_are_classified() -> None:
         "cooldown",
     } <= ten_in_one
 
-    bonsai = {
-        key
-        for classification in ALLOWED_CLASSIFICATIONS
-        for key in (
-            document["miyagi_bonsai"][classification]
-            if isinstance(document["miyagi_bonsai"][classification], dict)
-            else document["miyagi_bonsai"][classification]
-        )
-    }
+    bonsai = _classified_names(document["miyagi_bonsai"])
     assert {
         "atr_range_filter",
         "fibonacci_period_ma_ensemble",

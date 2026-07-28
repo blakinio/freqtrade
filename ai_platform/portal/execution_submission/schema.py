@@ -13,7 +13,12 @@ from ai_platform.portal.contracts.bot_management.execution import (
     ExecutionBinding,
     ReconciliationRecord,
 )
-from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, Sha256Hex, UtcDateTime
+from ai_platform.portal.contracts.common import (
+    ContractModel,
+    NonEmptyStr,
+    Sha256Hex,
+    UtcDateTime,
+)
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent
 
@@ -25,6 +30,7 @@ class PrivateDryRunSubmission(ContractModel):
     runtime: AuthoritativeBotRuntimeState
     connection_id: NonEmptyStr
     credential_ref: CredentialReference
+    exchange_id: NonEmptyStr
     approved_until: UtcDateTime
 
     @model_validator(mode="after")

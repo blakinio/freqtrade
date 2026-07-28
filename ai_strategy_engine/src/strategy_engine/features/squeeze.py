@@ -18,6 +18,24 @@ def _rolling_linreg_last(series: pd.Series, period: int) -> pd.Series:
     return series.rolling(period, min_periods=period).apply(fit_last, raw=True)
 
 
+def _consecutive_true_count(values: pd.Series) -> pd.Series:
+    groups = values.ne(values.shift(fill_value=False)).cumsum()
+    counts = values.groupby(groups).cumcount() + 1
+    return counts.where(values, 0).astype("Int64")
+
+
+def _bars_since_true(values: pd.Series) -> pd.Series:
+    output = pd.Series(pd.NA, index=values.index, dtype="Int64")
+    last_true: int | None = None
+    for position, value in enumerate(values.fillna(False).astype(bool)):
+        if value:
+            last_true = position
+            output.iloc[position] = 0
+        elif last_true is not None:
+            output.iloc[position] = position - last_true
+    return output
+
+
 def squeeze_features(
     frame: pd.DataFrame,
     *,
@@ -51,6 +69,7 @@ def squeeze_features(
     squeeze_on = (lower_bb > lower_kc) & (upper_bb < upper_kc)
     squeeze_off = (lower_bb < lower_kc) & (upper_bb > upper_kc)
     no_squeeze = ~(squeeze_on | squeeze_off)
+    squeeze_release = squeeze_on.shift(1, fill_value=False) & ~squeeze_on
 
     highest = frame["high"].rolling(kc_length, min_periods=kc_length).max()
     lowest = frame["low"].rolling(kc_length, min_periods=kc_length).min()
@@ -63,6 +82,10 @@ def squeeze_features(
     kc_width = upper_kc - lower_kc
     squeeze_ratio = bb_width / kc_width.replace(0.0, np.nan)
 
+    state = pd.Series("neutral", index=frame.index, dtype="string")
+    state = state.mask(squeeze_on, "on")
+    state = state.mask(squeeze_off, "off")
+
     result = pd.DataFrame(index=frame.index)
     result["bb_upper"] = upper_bb
     result["bb_lower"] = lower_bb
@@ -71,9 +94,12 @@ def squeeze_features(
     result["squeeze_on"] = squeeze_on
     result["squeeze_off"] = squeeze_off
     result["no_squeeze"] = no_squeeze
+    result["squeeze_state"] = state
     result["squeeze_ratio"] = squeeze_ratio
+    result["squeeze_duration"] = _consecutive_true_count(squeeze_on)
     result["linreg_momentum"] = momentum
     result["momentum_slope"] = momentum.diff()
     result["momentum_acceleration"] = result["momentum_slope"].diff()
-    result["squeeze_release"] = squeeze_on.shift(1, fill_value=False) & ~squeeze_on
+    result["squeeze_release"] = squeeze_release
+    result["bars_since_release"] = _bars_since_true(squeeze_release)
     return result

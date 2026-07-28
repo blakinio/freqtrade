@@ -26,7 +26,7 @@ jobs:
           enable-cache: false
           python-version: "3.12"
       - name: Install diagnostic dependencies
-        run: uv pip install numpy pandas pytest pre-commit
+        run: uv pip install numpy pandas pytest pytest-xdist pre-commit
       - name: Capture AI platform tests
         shell: bash
         run: |
@@ -35,13 +35,18 @@ jobs:
           printf '%s\n' "$?" > pytest-exit-code.txt
           cat pytest.log
           exit 0
-      - name: Capture pre-commit hooks
+      - name: Capture pre-commit hooks and formatted files
         shell: bash
         run: |
           set +e
           pre-commit run --all-files > precommit.log 2>&1
           printf '%s\n' "$?" > precommit-exit-code.txt
+          git diff > precommit.diff
+          git status --short > precommit-status.txt
+          mkdir -p formatted
+          git diff --name-only -z | xargs -0 -r cp --parents -t formatted
           cat precommit.log
+          cat precommit.diff
           exit 0
       - name: Upload diagnostic logs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -52,5 +57,8 @@ jobs:
             pytest-exit-code.txt
             precommit.log
             precommit-exit-code.txt
+            precommit.diff
+            precommit-status.txt
+            formatted/
           if-no-files-found: error
           retention-days: 1

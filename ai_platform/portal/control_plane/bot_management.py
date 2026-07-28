@@ -30,6 +30,7 @@ from ai_platform.portal.signal_control.service import SignalControlService
 
 
 if TYPE_CHECKING:
+    from ai_platform.portal.bot_operations.intent_service import LifecycleCommandIntentService
     from ai_platform.portal.bot_operations.service import BotCommandService
 
 
@@ -88,6 +89,7 @@ class BotManagementServices:
     catalog: BotCatalogService
     builder: BotConfigurationBuilderService
     commands: BotCommandService
+    command_intents: LifecycleCommandIntentService
     signals: SignalControlService
     grid: GridControlService
     exchanges: ExchangeConnectionService
@@ -115,16 +117,27 @@ def capabilities_from_request(
 def build_default_bot_management_services(
     session_factory: SessionFactory,
 ) -> BotManagementServices:
+    from ai_platform.portal.bot_operations.intent_service import (
+        LifecycleCommandIntentService,
+        SqlAlchemyIdempotentCommandLookup,
+        UnavailableBotRuntimeStateProvider,
+    )
     from ai_platform.portal.bot_operations.service import BotCommandService
 
     catalog = BotCatalogService(InMemoryBotCatalogRepository((approved_dry_run_catalog(),)))
+    commands = BotCommandService(session_factory)
     return BotManagementServices(
         catalog=catalog,
         builder=BotConfigurationBuilderService(
             InMemoryBotConfigurationRepository(),
             catalog,
         ),
-        commands=BotCommandService(session_factory),
+        commands=commands,
+        command_intents=LifecycleCommandIntentService(
+            commands,
+            UnavailableBotRuntimeStateProvider(),
+            idempotency_lookup=SqlAlchemyIdempotentCommandLookup(session_factory),
+        ),
         signals=SignalControlService(
             InMemorySignalControlRepository(),
             UnavailableSignatureVerificationProvider(),

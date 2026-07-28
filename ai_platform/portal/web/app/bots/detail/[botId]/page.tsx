@@ -59,6 +59,7 @@ export default async function BotDetailPage({
       <div className="surface-grid">
         <BotLifecycleControls
           botId={bot.bot_id}
+          configRevision={bot.spec.config_revision}
           desiredState={bot.desired_state}
           observedState={bot.observed_state}
           permissions={detail.permissions}

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -41,7 +42,6 @@ TARGET = base.TARGET
 write_json = base.write_json
 build_raw_matrix_audit = base.build_raw_matrix_audit
 finalize_matrix_audit = base.finalize_matrix_audit
-validate_audit_directory = base.validate_audit_directory
 verify_downloaded_data = base.verify_downloaded_data
 build_prediction_diagnostics = base.build_prediction_diagnostics
 validate_training_directory = base.validate_training_directory
@@ -204,6 +204,70 @@ def build_contract_report() -> dict[str, Any]:
         "tracks": [item["track"]["track_id"] for item in inputs["tracks"]],
         "run_request_present": _repo_path(REQUEST_REPO_PATH).exists(),
         "remediation": "finite_bounded_symmetric_volume_change",
+    }
+
+
+def _normalized_feature_identity(report: dict[str, Any]) -> str:
+    pair = report.get("pair")
+    names = report.get("expanded_feature_names")
+    if pair not in EXPECTED_PAIRS:
+        raise ResidualPyTorchBoundedM1Error("Audit pair set drifted")
+    if not isinstance(names, list) or not names or not all(isinstance(name, str) for name in names):
+        raise ResidualPyTorchBoundedM1Error("Audit feature-name evidence is missing")
+
+    normalized = []
+    for name in names:
+        value = name
+        for expected_pair in EXPECTED_PAIRS:
+            role = "{PRIMARY_PAIR}" if expected_pair == pair else "{CORRELATED_PAIR}"
+            value = value.replace(expected_pair, role)
+        normalized.append(value)
+    return hashlib.sha256("\n".join(normalized).encode()).hexdigest()
+
+
+def validate_audit_directory(path: Path) -> dict[str, Any]:
+    reports = []
+    for file_path in sorted(path.glob("*.json")):
+        report = _read_json(file_path, "matrix audit evidence")
+        if report.get("outcome") == "audit_supported_for_bounded_m1":
+            reports.append(report)
+    if len(reports) != len(EXPECTED_PAIRS):
+        raise ResidualPyTorchBoundedM1Error(
+            f"Expected {len(EXPECTED_PAIRS)} pair audits, found {len(reports)}"
+        )
+    by_pair = {report.get("pair"): report for report in reports}
+    if set(by_pair) != set(EXPECTED_PAIRS):
+        raise ResidualPyTorchBoundedM1Error("Audit pair set drifted")
+
+    feature_counts = {report["expanded_feature_count"] for report in reports}
+    normalized_hashes = {_normalized_feature_identity(report) for report in reports}
+    transformed_counts = {
+        report["post_pipeline"]["transformed_feature_count"] for report in reports
+    }
+    if len(feature_counts) != 1 or len(normalized_hashes) != 1 or len(transformed_counts) != 1:
+        raise ResidualPyTorchBoundedM1Error("Cross-pair feature identity drifted")
+    if any(report["target"]["trailing_null_rows"] != base.EXPECTED_HORIZON for report in reports):
+        raise ResidualPyTorchBoundedM1Error("Cross-pair target edge geometry drifted")
+    if any(report["liquidation_features_used"] for report in reports):
+        raise ResidualPyTorchBoundedM1Error("Liquidation feature entered audit evidence")
+
+    normalized_hash = next(iter(normalized_hashes))
+    return {
+        "schema_version": 1,
+        "audit_id": "residual-pytorch-bounded-m1-cross-pair-audit-v2",
+        "outcome": "audit_supported_for_bounded_m1",
+        "pairs": EXPECTED_PAIRS,
+        "expanded_feature_count": next(iter(feature_counts)),
+        "expanded_feature_names_sha256": normalized_hash,
+        "feature_identity_normalization": "primary_and_correlated_pair_roles",
+        "pair_qualified_feature_names_sha256": {
+            pair: by_pair[pair]["expanded_feature_names_sha256"] for pair in EXPECTED_PAIRS
+        },
+        "transformed_feature_count": next(iter(transformed_counts)),
+        "pair_reports": {pair: by_pair[pair] for pair in EXPECTED_PAIRS},
+        "historical_development_only": True,
+        "consumed_historical_oos_used": False,
+        "protected_final_holdout_used": False,
     }
 
 

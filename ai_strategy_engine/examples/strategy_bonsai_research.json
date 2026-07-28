@@ -1,82 +1,4 @@
 {
-  "strategy_id": "bonsai-inspired-research-v1",
-  "version": "1.0.0",
-  "universe": {
-    "symbols": [
-      "BTC/USDT:USDT"
-    ],
-    "timeframes": [
-      "5m",
-      "1h"
-    ]
-  },
-  "features": [
-    {
-      "id": "atr_range_filter.v1",
-      "params": {
-        "atr_period": 14,
-        "multiplier": 2.0,
-        "source": "close"
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "fib_ma_ensemble.v1",
-      "params": {
-        "periods": [
-          5,
-          8,
-          13,
-          21,
-          34,
-          55
-        ],
-        "ma_type": "ema",
-        "aggregation": "mean"
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "adx.v1",
-      "params": {
-        "period": 14
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "mfi.v1",
-      "params": {
-        "period": 14
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "volume_robust_z.v1",
-      "params": {
-        "window": 100
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    }
-  ],
-  "regime": {
-    "all": [
-      {
-        "feature": "range_filter_direction",
-        "op": "eq",
-        "value": 1
-      },
-      {
-        "feature": "fib_ma_distance_pct",
-        "op": "gt",
-        "value": 0
-      }
-    ]
-  },
   "entry_long": {
     "all": [
       {
@@ -99,11 +21,19 @@
   "entry_short": {
     "all": []
   },
+  "execution": {
+    "fee_model": "exchange_v1",
+    "funding_model": "perpetual_v1",
+    "order_type": "market",
+    "signal_delay_ms": 250,
+    "slippage_model": "empirical_v1",
+    "use_closed_bars_only": true
+  },
   "exit": {
     "any": [
       {
-        "event": "range_filter_flip",
-        "direction": "down"
+        "direction": "down",
+        "event": "range_filter_flip"
       },
       {
         "risk": "partial_take_profit"
@@ -116,35 +46,116 @@
       }
     ]
   },
+  "features": [
+    {
+      "confirmation": "closed_bar",
+      "id": "atr_range_filter.v1",
+      "params": {
+        "atr_period": 14,
+        "multiplier": 2.0,
+        "source": "close"
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "fib_ma_ensemble.v1",
+      "params": {
+        "aggregation": "mean",
+        "ma_type": "ema",
+        "periods": [
+          5,
+          8,
+          13,
+          21,
+          34,
+          55
+        ]
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "adx.v1",
+      "params": {
+        "period": 14
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "mfi.v1",
+      "params": {
+        "period": 14
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "volume_robust_z.v1",
+      "params": {
+        "window": 100
+      },
+      "timeframe": "5m"
+    }
+  ],
+  "provenance": {
+    "details": {
+      "created_by": "hybrid",
+      "future_shift": 0,
+      "generator_version": "starter-pack-v2",
+      "lineage_complete": true,
+      "parent_experiments": [
+        "hypothesis:miyagi-bonsai-ui"
+      ],
+      "research_only": true
+    },
+    "lineage": [
+      "hypothesis:miyagi-bonsai-ui"
+    ],
+    "producer": "ase00-research-spec",
+    "source_event_id": "example:strategy_bonsai_research"
+  },
+  "regime": {
+    "all": [
+      {
+        "feature": "range_filter_direction",
+        "op": "eq",
+        "value": 1
+      },
+      {
+        "feature": "fib_ma_distance_pct",
+        "op": "gt",
+        "value": 0
+      }
+    ]
+  },
   "risk": {
+    "initial_stop": {
+      "multiple": 2.0,
+      "type": "atr"
+    },
+    "max_exposure": 0.25,
     "max_leverage": 2,
     "max_open_positions": 2,
     "position_size": {
       "type": "risk_fraction",
       "value": 0.005
     },
-    "initial_stop": {
-      "type": "atr",
-      "multiple": 2.0
-    },
     "trailing_stop": {
       "type": "supertrend"
-    },
-    "max_exposure": 0.25
+    }
   },
-  "execution": {
-    "signal_delay_ms": 250,
-    "order_type": "market",
-    "slippage_model": "empirical_v1",
-    "fee_model": "exchange_v1",
-    "funding_model": "perpetual_v1",
-    "use_closed_bars_only": true
-  },
-  "provenance": {
-    "created_by": "hybrid",
-    "generator_version": "starter-pack-v2",
-    "parent_experiments": [
-      "hypothesis:miyagi-bonsai-ui"
+  "schema_version": "1.0.0",
+  "strategy_id": "bonsai-inspired-research-v1",
+  "universe": {
+    "symbols": [
+      "BTC/USDT:USDT"
+    ],
+    "timeframes": [
+      "5m",
+      "1h"
     ]
-  }
+  },
+  "version": "1.0.0"
 }

@@ -1,8 +1,198 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://inwestycja.local/schemas/strategy-definition.v1.json",
-  "title": "StrategyDefinition",
-  "type": "object",
+  "$defs": {
+    "FeatureReference": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation": {
+          "enum": [
+            "closed_bar",
+            "confirmed_htf"
+          ],
+          "title": "Confirmation",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Params",
+          "type": "object"
+        },
+        "timeframe": {
+          "minLength": 1,
+          "title": "Timeframe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "timeframe",
+        "confirmation"
+      ],
+      "title": "FeatureReference",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
+        "lineage": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Lineage",
+          "type": "array"
+        },
+        "producer": {
+          "minLength": 1,
+          "title": "Producer",
+          "type": "string"
+        },
+        "source_event_id": {
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer",
+        "source_event_id"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "StrategyUniverse": {
+      "additionalProperties": false,
+      "properties": {
+        "symbols": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Symbols",
+          "type": "array"
+        },
+        "timeframes": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Timeframes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "symbols",
+        "timeframes"
+      ],
+      "title": "StrategyUniverse",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "entry_long": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Entry Long",
+      "type": "object"
+    },
+    "entry_short": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Entry Short"
+    },
+    "execution": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Execution",
+      "type": "object"
+    },
+    "exit": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Exit",
+      "type": "object"
+    },
+    "features": {
+      "items": {
+        "$ref": "#/$defs/FeatureReference"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "regime": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Regime"
+    },
+    "risk": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Risk",
+      "type": "object"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "universe": {
+      "$ref": "#/$defs/StrategyUniverse"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
   "required": [
     "strategy_id",
     "version",
@@ -14,259 +204,6 @@
     "execution",
     "provenance"
   ],
-  "properties": {
-    "strategy_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "version": {
-      "type": "string",
-      "pattern": "^\\d+\\.\\d+\\.\\d+$"
-    },
-    "universe": {
-      "type": "object",
-      "required": [
-        "symbols",
-        "timeframes"
-      ],
-      "properties": {
-        "symbols": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1
-        },
-        "timeframes": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1
-        }
-      },
-      "additionalProperties": false
-    },
-    "features": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "required": [
-          "id",
-          "params",
-          "timeframe",
-          "confirmation"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "params": {
-            "type": "object"
-          },
-          "timeframe": {
-            "type": "string"
-          },
-          "confirmation": {
-            "type": "string",
-            "enum": [
-              "closed_bar",
-              "confirmed_htf"
-            ]
-          }
-        },
-        "additionalProperties": false
-      }
-    },
-    "regime": {
-      "$ref": "#/$defs/conditionGroup"
-    },
-    "entry_long": {
-      "$ref": "#/$defs/conditionGroup"
-    },
-    "entry_short": {
-      "$ref": "#/$defs/conditionGroup"
-    },
-    "exit": {
-      "$ref": "#/$defs/conditionGroup"
-    },
-    "risk": {
-      "type": "object",
-      "required": [
-        "max_leverage",
-        "max_open_positions",
-        "position_size"
-      ],
-      "properties": {
-        "max_leverage": {
-          "type": "number",
-          "minimum": 1
-        },
-        "max_open_positions": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "position_size": {
-          "type": "object"
-        },
-        "initial_stop": {
-          "type": "object"
-        },
-        "trailing_stop": {
-          "type": "object"
-        },
-        "max_exposure": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1
-        }
-      },
-      "additionalProperties": false
-    },
-    "execution": {
-      "type": "object",
-      "required": [
-        "signal_delay_ms",
-        "order_type",
-        "slippage_model",
-        "fee_model",
-        "use_closed_bars_only"
-      ],
-      "properties": {
-        "signal_delay_ms": {
-          "type": "integer",
-          "minimum": 0
-        },
-        "order_type": {
-          "type": "string",
-          "enum": [
-            "market",
-            "limit"
-          ]
-        },
-        "slippage_model": {
-          "type": "string"
-        },
-        "fee_model": {
-          "type": "string"
-        },
-        "funding_model": {
-          "type": "string"
-        },
-        "use_closed_bars_only": {
-          "type": "boolean",
-          "const": true
-        }
-      },
-      "additionalProperties": false
-    },
-    "provenance": {
-      "type": "object",
-      "required": [
-        "created_by",
-        "generator_version"
-      ],
-      "properties": {
-        "created_by": {
-          "type": "string",
-          "enum": [
-            "human",
-            "ai",
-            "hybrid"
-          ]
-        },
-        "generator_version": {
-          "type": "string"
-        },
-        "parent_experiments": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  "$defs": {
-    "condition": {
-      "type": "object",
-      "properties": {
-        "feature": {
-          "type": "string"
-        },
-        "event": {
-          "type": "string"
-        },
-        "op": {
-          "type": "string",
-          "enum": [
-            "eq",
-            "ne",
-            "gt",
-            "gte",
-            "lt",
-            "lte",
-            "crosses_above",
-            "crosses_below",
-            "in_range",
-            "bars_since_lte"
-          ]
-        },
-        "value": {},
-        "parameter": {
-          "type": "string"
-        },
-        "direction": {
-          "type": "string"
-        },
-        "risk": {
-          "type": "string"
-        }
-      },
-      "additionalProperties": false,
-      "anyOf": [
-        {
-          "required": [
-            "feature"
-          ]
-        },
-        {
-          "required": [
-            "event"
-          ]
-        },
-        {
-          "required": [
-            "risk"
-          ]
-        }
-      ]
-    },
-    "conditionGroup": {
-      "type": "object",
-      "properties": {
-        "all": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/condition"
-          }
-        },
-        "any": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/condition"
-          }
-        },
-        "none": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/condition"
-          }
-        }
-      },
-      "additionalProperties": false
-    }
-  },
-  "additionalProperties": false
+  "title": "StrategyDefinition",
+  "type": "object"
 }

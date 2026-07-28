@@ -1,65 +1,147 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://inwestycja.local/schemas/feature-record.v1.json",
-  "title": "FeatureRecord",
-  "type": "object",
+  "$defs": {
+    "JsonValue": {},
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
+        "lineage": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Lineage",
+          "type": "array"
+        },
+        "producer": {
+          "minLength": 1,
+          "title": "Producer",
+          "type": "string"
+        },
+        "source_event_id": {
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer",
+        "source_event_id"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "available_at": {
+      "format": "date-time",
+      "title": "Available At",
+      "type": "string"
+    },
+    "code_version": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Code Version",
+      "type": "string"
+    },
+    "configuration_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Configuration Hash",
+      "type": "string"
+    },
+    "data_version": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Data Version",
+      "type": "string"
+    },
+    "detected_at": {
+      "format": "date-time",
+      "title": "Detected At",
+      "type": "string"
+    },
+    "event_time": {
+      "format": "date-time",
+      "title": "Event Time",
+      "type": "string"
+    },
+    "feature_id": {
+      "minLength": 1,
+      "title": "Feature Id",
+      "type": "string"
+    },
+    "feature_version": {
+      "minLength": 1,
+      "title": "Feature Version",
+      "type": "string"
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "is_confirmed": {
+      "title": "Is Confirmed",
+      "type": "boolean"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Parameters",
+      "type": "object"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "symbol": {
+      "minLength": 1,
+      "title": "Symbol",
+      "type": "string"
+    },
+    "timeframe": {
+      "minLength": 1,
+      "title": "Timeframe",
+      "type": "string"
+    },
+    "value": {
+      "$ref": "#/$defs/JsonValue"
+    }
+  },
   "required": [
     "feature_id",
+    "feature_version",
     "symbol",
     "timeframe",
     "event_time",
     "detected_at",
     "available_at",
     "value",
-    "is_confirmed",
     "source",
+    "is_confirmed",
+    "idempotency_key",
     "code_version",
-    "data_version"
+    "data_version",
+    "configuration_hash",
+    "provenance"
   ],
-  "properties": {
-    "feature_id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "symbol": {
-      "type": "string",
-      "minLength": 1
-    },
-    "timeframe": {
-      "type": "string",
-      "minLength": 1
-    },
-    "event_time": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "detected_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "available_at": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "value": {},
-    "is_confirmed": {
-      "type": "boolean"
-    },
-    "source": {
-      "type": "string"
-    },
-    "code_version": {
-      "type": "string"
-    },
-    "data_version": {
-      "type": "string"
-    },
-    "parameters": {
-      "type": "object"
-    },
-    "provenance": {
-      "type": "object"
-    }
-  },
-  "additionalProperties": false
+  "title": "FeatureRecord",
+  "type": "object"
 }

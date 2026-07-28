@@ -1,39 +1,54 @@
 {
-  "signal_id": "00000000-0000-0000-0000-000000000001",
-  "strategy_id": "liquidation-reversal-v1",
-  "strategy_version": "1.0.0",
-  "symbol": "BTC/USDT:USDT",
-  "timeframe": "1m",
-  "side": "long",
   "action": "enter",
-  "event_time": "2026-07-28T01:00:00Z",
-  "detected_at": "2026-07-28T01:00:00.180Z",
   "available_at": "2026-07-28T01:00:00.310Z",
-  "expires_at": "2026-07-28T01:01:00Z",
-  "source": "strategy-engine",
+  "code_version": "9e8f30c4dfcc58f6434541194783a5dc9586ef82b9282ec10d67908419e784cb",
   "confidence": 0.71,
+  "configuration_hash": "f7e9d09a483ba07e1b9ee7eb9c15c3f048cab0a0f31463a13d2addfea1cc863f",
+  "data_version": "470a87af39cdac5369de47bc80ab92febdd2bac5e180444d1a16c0bb8e0bdc6e",
+  "detected_at": "2026-07-28T01:00:00.180Z",
+  "event_time": "2026-07-28T01:00:00Z",
+  "execution_policy": {
+    "max_latency_ms": 1500,
+    "max_slippage_bps": 12,
+    "use_closed_bar": true
+  },
+  "expires_at": "2026-07-28T01:01:00Z",
+  "feature_snapshot": {
+    "distance_to_support_atr": 0.3,
+    "long_liquidation_z": 3.4,
+    "lower_wick_ratio": 0.62,
+    "oi_change_z": -2.1
+  },
+  "idempotency_key": "d322a77cb55044cb6fe120283ffb49e8f5ef51153b60b97f33cfd04b91e5b4ff",
+  "is_confirmed": true,
+  "provenance": {
+    "details": {
+      "code_version": "git-sha",
+      "data_version": "dataset-sha",
+      "experiment_id": "exp-uuid",
+      "feature_registry_version": "1.0.0",
+      "future_shift": 0,
+      "lineage_complete": true,
+      "model_id": null,
+      "research_only": true
+    },
+    "lineage": [],
+    "producer": "ase00-example",
+    "source_event_id": "example:signal_event"
+  },
   "reason_codes": [
     "LIQ_LONG_Z_HIGH",
     "OI_DROP_CONFIRMED",
     "SUPPORT_PROXIMITY",
     "LOWER_WICK_REJECTION"
   ],
-  "feature_snapshot": {
-    "long_liquidation_z": 3.4,
-    "oi_change_z": -2.1,
-    "distance_to_support_atr": 0.3,
-    "lower_wick_ratio": 0.62
-  },
-  "provenance": {
-    "code_version": "git-sha",
-    "data_version": "dataset-sha",
-    "feature_registry_version": "1.0.0",
-    "experiment_id": "exp-uuid",
-    "model_id": null
-  },
-  "execution_policy": {
-    "use_closed_bar": true,
-    "max_latency_ms": 1500,
-    "max_slippage_bps": 12
-  }
+  "schema_version": "1.0.0",
+  "side": "long",
+  "signal_id": "00000000-0000-0000-0000-000000000001",
+  "signal_version": "1",
+  "source": "strategy-engine",
+  "strategy_id": "liquidation-reversal-v1",
+  "strategy_version": "1.0.0",
+  "symbol": "BTC/USDT:USDT",
+  "timeframe": "1m"
 }

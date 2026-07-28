@@ -1,75 +1,4 @@
 {
-  "strategy_id": "miyagi-ensemble-research-v1",
-  "version": "1.0.0",
-  "universe": {
-    "symbols": [
-      "BTC/USDT:USDT"
-    ],
-    "timeframes": [
-      "5m",
-      "1h"
-    ]
-  },
-  "features": [
-    {
-      "id": "rsi.v1",
-      "params": {
-        "period": 14,
-        "ma_type": "rma"
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "adx.v1",
-      "params": {
-        "period": 14
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "vwap.v1",
-      "params": {
-        "mode": "session",
-        "rolling_window": null
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "supertrend_direction.v1",
-      "params": {
-        "atr_period": 10,
-        "multiplier": 3.0,
-        "atr_type": "rma",
-        "source": "hl2"
-      },
-      "timeframe": "1h",
-      "confirmation": "confirmed_htf"
-    },
-    {
-      "id": "macd.v1",
-      "params": {
-        "fast": 12,
-        "slow": 26,
-        "signal": 9,
-        "signal_ma_type": "ema",
-        "confirmation": "closed_bar"
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    }
-  ],
-  "regime": {
-    "all": [
-      {
-        "feature": "supertrend_direction.v1",
-        "op": "eq",
-        "value": 1
-      }
-    ]
-  },
   "entry_long": {
     "all": [
       {
@@ -128,46 +57,128 @@
       }
     ]
   },
+  "execution": {
+    "fee_model": "exchange_v1",
+    "funding_model": "perpetual_v1",
+    "order_type": "market",
+    "signal_delay_ms": 250,
+    "slippage_model": "empirical_v1",
+    "use_closed_bars_only": true
+  },
   "exit": {
     "any": [
       {
-        "event": "supertrend_flip",
-        "direction": "down"
+        "direction": "down",
+        "event": "supertrend_flip"
       },
       {
         "risk": "atr_trailing_stop"
       }
     ]
   },
+  "features": [
+    {
+      "confirmation": "closed_bar",
+      "id": "rsi.v1",
+      "params": {
+        "ma_type": "rma",
+        "period": 14
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "adx.v1",
+      "params": {
+        "period": 14
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "vwap.v1",
+      "params": {
+        "mode": "session",
+        "rolling_window": null
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "confirmed_htf",
+      "id": "supertrend_direction.v1",
+      "params": {
+        "atr_period": 10,
+        "atr_type": "rma",
+        "multiplier": 3.0,
+        "source": "hl2"
+      },
+      "timeframe": "1h"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "macd.v1",
+      "params": {
+        "confirmation": "closed_bar",
+        "fast": 12,
+        "signal": 9,
+        "signal_ma_type": "ema",
+        "slow": 26
+      },
+      "timeframe": "5m"
+    }
+  ],
+  "provenance": {
+    "details": {
+      "created_by": "hybrid",
+      "future_shift": 0,
+      "generator_version": "starter-pack-v2",
+      "lineage_complete": true,
+      "parent_experiments": [
+        "hypothesis:miyagi-10-in-1-ui"
+      ],
+      "research_only": true
+    },
+    "lineage": [
+      "hypothesis:miyagi-10-in-1-ui"
+    ],
+    "producer": "ase00-research-spec",
+    "source_event_id": "example:strategy_miyagi_ensemble_research"
+  },
+  "regime": {
+    "all": [
+      {
+        "feature": "supertrend_direction.v1",
+        "op": "eq",
+        "value": 1
+      }
+    ]
+  },
   "risk": {
+    "initial_stop": {
+      "multiple": 2.0,
+      "type": "atr"
+    },
+    "max_exposure": 0.25,
     "max_leverage": 2,
     "max_open_positions": 2,
     "position_size": {
       "type": "risk_fraction",
       "value": 0.005
     },
-    "initial_stop": {
-      "type": "atr",
-      "multiple": 2.0
-    },
     "trailing_stop": {
       "type": "supertrend"
-    },
-    "max_exposure": 0.25
+    }
   },
-  "execution": {
-    "signal_delay_ms": 250,
-    "order_type": "market",
-    "slippage_model": "empirical_v1",
-    "fee_model": "exchange_v1",
-    "funding_model": "perpetual_v1",
-    "use_closed_bars_only": true
-  },
-  "provenance": {
-    "created_by": "hybrid",
-    "generator_version": "starter-pack-v2",
-    "parent_experiments": [
-      "hypothesis:miyagi-10-in-1-ui"
+  "schema_version": "1.0.0",
+  "strategy_id": "miyagi-ensemble-research-v1",
+  "universe": {
+    "symbols": [
+      "BTC/USDT:USDT"
+    ],
+    "timeframes": [
+      "5m",
+      "1h"
     ]
-  }
+  },
+  "version": "1.0.0"
 }

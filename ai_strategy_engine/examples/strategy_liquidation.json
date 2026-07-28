@@ -1,44 +1,4 @@
 {
-  "strategy_id": "liquidation-reversal-v1",
-  "version": "1.0.0",
-  "universe": {
-    "symbols": [
-      "BTC/USDT:USDT"
-    ],
-    "timeframes": [
-      "1m",
-      "5m"
-    ]
-  },
-  "features": [
-    {
-      "id": "liquidation_notional_z.v1",
-      "params": {
-        "window": 288,
-        "cluster_seconds": 60
-      },
-      "timeframe": "1m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "confirmed_pivot.v1",
-      "params": {
-        "left_bars": 15,
-        "right_bars": 15
-      },
-      "timeframe": "5m",
-      "confirmation": "closed_bar"
-    },
-    {
-      "id": "candle_geometry.v1",
-      "params": {},
-      "timeframe": "1m",
-      "confirmation": "closed_bar"
-    }
-  ],
-  "regime": {
-    "all": []
-  },
   "entry_long": {
     "all": [
       {
@@ -87,6 +47,14 @@
       }
     ]
   },
+  "execution": {
+    "fee_model": "exchange_v1",
+    "funding_model": "perpetual_v1",
+    "order_type": "market",
+    "signal_delay_ms": 500,
+    "slippage_model": "liquidation_event_empirical_v1",
+    "use_closed_bars_only": true
+  },
   "exit": {
     "any": [
       {
@@ -100,34 +68,75 @@
       }
     ]
   },
+  "features": [
+    {
+      "confirmation": "closed_bar",
+      "id": "liquidation_notional_z.v1",
+      "params": {
+        "cluster_seconds": 60,
+        "window": 288
+      },
+      "timeframe": "1m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "confirmed_pivot.v1",
+      "params": {
+        "left_bars": 15,
+        "right_bars": 15
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "candle_geometry.v1",
+      "params": {},
+      "timeframe": "1m"
+    }
+  ],
+  "provenance": {
+    "details": {
+      "created_by": "human",
+      "future_shift": 0,
+      "generator_version": "starter-pack",
+      "lineage_complete": true,
+      "parent_experiments": [],
+      "research_only": true
+    },
+    "lineage": [],
+    "producer": "ase00-research-spec",
+    "source_event_id": "example:strategy_liquidation"
+  },
+  "regime": {
+    "all": []
+  },
   "risk": {
+    "initial_stop": {
+      "multiple": 1.5,
+      "type": "atr"
+    },
+    "max_exposure": 0.15,
     "max_leverage": 2,
     "max_open_positions": 1,
     "position_size": {
       "type": "risk_fraction",
       "value": 0.003
     },
-    "initial_stop": {
-      "type": "atr",
-      "multiple": 1.5
-    },
     "trailing_stop": {
-      "type": "atr",
-      "multiple": 1.0
-    },
-    "max_exposure": 0.15
+      "multiple": 1.0,
+      "type": "atr"
+    }
   },
-  "execution": {
-    "signal_delay_ms": 500,
-    "order_type": "market",
-    "slippage_model": "liquidation_event_empirical_v1",
-    "fee_model": "exchange_v1",
-    "funding_model": "perpetual_v1",
-    "use_closed_bars_only": true
+  "schema_version": "1.0.0",
+  "strategy_id": "liquidation-reversal-v1",
+  "universe": {
+    "symbols": [
+      "BTC/USDT:USDT"
+    ],
+    "timeframes": [
+      "1m",
+      "5m"
+    ]
   },
-  "provenance": {
-    "created_by": "human",
-    "generator_version": "starter-pack",
-    "parent_experiments": []
-  }
+  "version": "1.0.0"
 }

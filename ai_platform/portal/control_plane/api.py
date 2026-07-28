@@ -522,9 +522,27 @@ def create_app(
     register_bot_management_exception_handlers(app)
     app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))
     app.include_router(build_bot_builder_router(bot_management.builder, context_dependency))
-    app.include_router(build_bot_operations_router(bot_management.commands, context_dependency))
-    app.include_router(build_signal_control_router(bot_management.signals, context_dependency))
-    app.include_router(build_grid_control_router(bot_management.grid, context_dependency))
+    app.include_router(
+        build_bot_operations_router(
+            bot_management.commands,
+            bot_management.command_intents,
+            context_dependency,
+        )
+    )
+    app.include_router(
+        build_signal_control_router(
+            bot_management.signals,
+            bot_management.signal_overview,
+            context_dependency,
+        )
+    )
+    app.include_router(
+        build_grid_control_router(
+            bot_management.grid,
+            bot_management.grid_overview,
+            context_dependency,
+        )
+    )
     app.include_router(
         build_exchange_connections_router(bot_management.exchanges, context_dependency)
     )

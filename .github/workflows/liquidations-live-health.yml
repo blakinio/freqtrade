@@ -7,7 +7,9 @@ on:
     paths:
       - .github/workflows/liquidations-live-health.yml
       - ai_platform/scripts/liquidation_live_health.py
+      - ai_platform/scripts/liquidation_portal_health.py
       - deploy/synology/liquid20/LIVE_STREAM.md
+      - deploy/synology/portal/prove-liquidations-live.sh
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -20,20 +22,48 @@ concurrency:
 
 jobs:
   health:
-    name: Check Synology collector
+    name: Check Synology collector and portal
     runs-on: freqtrade-staging
     timeout-minutes: 5
     permissions:
       contents: read
       issues: write
+      statuses: write
 
     steps:
+      - name: Publish pending health status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_SHA: ${{ github.sha }}
+          STATUS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload=$(python - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({
+              "state": "pending",
+              "context": "liquidations-live-health",
+              "description": "Checking Synology Liquid20 collector and portal",
+              "target_url": os.environ["STATUS_URL"],
+          }))
+          PY
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$STATUS_SHA" \
+            --data "$payload" >/dev/null
+
       - name: Check out exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           persist-credentials: false
 
-      - name: Check collector health and reconcile alert
+      - name: Check combined health and reconcile alert
         id: health
         continue-on-error: true
         env:
@@ -44,10 +74,14 @@ jobs:
           LIQUID20_DISK_USED_PERCENT_MAX: "90"
           LIQUID20_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-health.json
           LIQUID20_HEARTBEAT_STALE_SECONDS: "60"
+          LIQUID20_PORTAL_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-portal-health.json
+          LIQUID20_PORTAL_PROOF_SCRIPT: deploy/synology/portal/prove-liquidations-live.sh
+          LIQUID20_REQUIRE_PORTAL_HEALTH: "true"
           LIQUID20_SOURCE_STALE_SECONDS: "60"
+          PORTAL_LIVE_PROOF_DELAY_SECONDS: "5"
         run: |
           set +e
-          python -m ai_platform.scripts.liquidation_live_health
+          python -m ai_platform.scripts.liquidation_portal_health
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -72,11 +106,21 @@ jobs:
               raise SystemExit(0)
           report = json.loads(report_path.read_text(encoding="utf-8"))
           alerts = report.get("alerts", [])
+          portal = report.get("checks", {}).get("portal", {})
+          production = portal.get("production", {})
           lines = [
               "## Liquidations live health",
               "",
               f"- Healthy: `{report.get('healthy')}`",
               f"- Checked at: `{report.get('checked_at_ms')}`",
+              f"- Portal mode: `{portal.get('mode')}`",
+              f"- Portal proof exit: `{portal.get('proof_exit_code')}`",
+              f"- Production page: `{production.get('page_status')}`",
+              (
+                  "- Production protected health: "
+                  f"`{production.get('protected_health_status')} "
+                  f"{production.get('protected_health_code')}`"
+              ),
               f"- GitHub alert action: `{report.get('github_alert_action')}`",
               f"- Alert count: `{len(alerts) if isinstance(alerts, list) else 'unknown'}`",
           ]
@@ -92,9 +136,49 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: liquidations-live-health-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/liquidations-live-health.json
+          path: |
+            ${{ runner.temp }}/liquidations-live-health.json
+            ${{ runner.temp }}/liquidations-live-portal-health.json
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Publish final health status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEALTH_EXIT_CODE: ${{ steps.health.outputs.exit_code }}
+          STATUS_SHA: ${{ github.sha }}
+          STATUS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$HEALTH_EXIT_CODE" == "0" ]]; then
+            state=success
+            description="Synology Liquid20 collector and portal are healthy"
+          else
+            state=failure
+            description="Synology Liquid20 collector or portal health failed"
+          fi
+          export state description
+          payload=$(python - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({
+              "state": os.environ["state"],
+              "context": "liquidations-live-health",
+              "description": os.environ["description"],
+              "target_url": os.environ["STATUS_URL"],
+          }))
+          PY
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$STATUS_SHA" \
+            --data "$payload" >/dev/null
 
       - name: Enforce healthy result
         if: always()

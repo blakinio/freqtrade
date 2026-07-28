@@ -4,9 +4,9 @@ import { expect, test } from "../../fixtures/test.fixture";
 test.describe("integrated product surfaces", { tag: [tags.regression, tags.crossBrowser] }, () => {
   test("renders signal, strategy, notification and security surfaces", async ({ page }) => {
     await page.goto("/bots/signals");
-    await expect(page.getByRole("heading", { name: "Signal Wizard" })).toBeVisible();
-    await expect(page.getByText("Advisory evidence only")).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Pair" })).toHaveValue("BTC/USDT");
+    await expect(page.getByRole("heading", { name: "Signal Control" })).toBeVisible();
+    await expect(page.getByText("Authentication provider: UNAVAILABLE")).toBeVisible();
+    await expect(page.getByText(/Accepted processing: blocked/)).toBeVisible();
 
     await page.goto("/operations/signal-logs");
     await expect(page.getByRole("heading", { name: "Signal Logs" })).toBeVisible();
@@ -20,8 +20,9 @@ test.describe("integrated product surfaces", { tag: [tags.regression, tags.cross
     await expect(page.getByText("Grid Dry Run", { exact: true })).toBeVisible();
 
     await page.goto("/bots/grid");
-    await expect(page.getByRole("heading", { name: "Grid Bots" })).toBeVisible();
-    await expect(page.getByText("grid-dry-run-v1", { exact: true }).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Grid Control" })).toBeVisible();
+    await expect(page.getByText("Capability evidence provider: UNAVAILABLE")).toBeVisible();
+    await expect(page.getByText("Not accepted", { exact: true })).toBeVisible();
 
     await page.goto("/platform/notifications");
     await expect(page.getByRole("heading", { name: "Notifications", exact: true })).toBeVisible();
@@ -36,9 +37,10 @@ test.describe("integrated product surfaces", { tag: [tags.regression, tags.cross
     await expect(page.getByText("Built-in RBAC")).toBeVisible();
   });
 
-  test("records advisory signal without execution authority", async ({ page }) => {
+  test("does not expose unsigned advisory signal mutation", async ({ page }) => {
     await page.goto("/bots/signals");
-    await page.getByRole("button", { name: "Record advisory signal" }).click();
-    await expect(page.getByRole("status")).toContainText("No execution was triggered.");
+    await expect(page.getByText(/Accepted processing: blocked/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Record advisory signal" })).toHaveCount(0);
+    await expect(page.getByText(/Execution submission: no/)).toBeVisible();
   });
 });

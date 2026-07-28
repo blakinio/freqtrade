@@ -66,7 +66,9 @@ A real liquidation is not required during a short validation window. When none i
 
 ## Automated operational health
 
-`.github/workflows/liquidations-live-health.yml` runs on the Synology runner every five minutes, after monitor changes reach `develop`, and on manual dispatch. It checks:
+`.github/workflows/liquidations-live-health.yml` runs on the Synology runner every five minutes, after monitor changes reach `develop`, and on manual dispatch.
+
+The collector checks cover:
 
 - Docker container state, restart state and OOM state;
 - the `liquidation-live-state-v1` contract and an active run;
@@ -76,13 +78,30 @@ A real liquidation is not required during a short validation window. When none i
 - continued execution-disabled, unauthorized and credential-free data-only state;
 - data-volume usage below 90% and at least 20 GiB free.
 
-An unhealthy check creates or updates one deduplicated GitHub issue named `[liquidations-live] operational health alert`, fails the workflow and uploads the JSON health report for 14 days. Healthy checks do not upload artifacts. After recovery, the monitor posts a recovery comment and closes the alert issue automatically.
+The same run also checks the portal read path without production credentials:
 
-The same check can be run manually on the Synology runner:
+- the running `freqtrade-portal-staging` container remains non-root, `unless-stopped`, read-only on `/liquid20-data` and without a Docker-socket mount;
+- `/market/liquidations` returns `200`;
+- the unauthenticated production health API remains protected by exact `401 SESSION_MISSING` and `Cache-Control: no-store`;
+- the existing trusted `prove-liquidations-live.sh` creates an isolated candidate from the exact production image and image ID with the real Liquid20 root read-only, a read-only root filesystem, bounded tmpfs, `cap-drop ALL`, `no-new-privileges`, a 768 MiB memory limit and no Docker socket;
+- fixture identity and its ephemeral session exist only inside that isolated candidate;
+- candidate health/list/summary APIs return `200` and `no-store`;
+- the portal health contract reports the current `LIVE`, `STALE` or `OFFLINE` state, active/completed run state, collector and portal timestamps, Bybit/Binance connectivity, subscriptions and event counts;
+- only `LIVE` with fresh connected sources is healthy; `STALE`, `OFFLINE`, `HISTORICAL`, API/auth failures or candidate-security drift create an alert.
+
+No cookie, token, authorization header or session payload is written to the combined report, workflow summary, issue or artifact.
+
+An unhealthy check creates or updates one deduplicated GitHub issue named `[liquidations-live] operational health alert`, publishes the `liquidations-live-health` commit status as failure, fails the workflow and uploads the bounded collector/portal JSON reports for 14 days. Healthy checks publish success and do not upload artifacts. After full recovery, the monitor posts a recovery comment and closes the alert issue automatically.
+
+The combined check can be run manually on the Synology runner:
 
 ```bash
 GH_TOKEN=... GITHUB_REPOSITORY=blakinio/freqtrade \
-  python -m ai_platform.scripts.liquidation_live_health
+LIQUID20_REQUIRE_PORTAL_HEALTH=true \
+LIQUID20_PORTAL_HEALTH_REPORT=/tmp/liquidations-live-portal-health.json \
+LIQUID20_PORTAL_PROOF_SCRIPT=deploy/synology/portal/prove-liquidations-live.sh \
+PORTAL_LIVE_PROOF_DELAY_SECONDS=5 \
+python -m ai_platform.scripts.liquidation_portal_health
 ```
 
 ## Rollback

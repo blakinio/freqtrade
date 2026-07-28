@@ -17,7 +17,10 @@ from ai_platform.portal.control_plane.bot_management import (
     capabilities_from_request,
 )
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.exchange_connections.schema import ExchangeConnectionProduct
+from ai_platform.portal.exchange_connections.public_schema import (
+    PublicExchangeConnectionView,
+    public_exchange_connection_view,
+)
 from ai_platform.portal.exchange_connections.service import ExchangeConnectionService
 from ai_platform.portal.security.authorization import PermissionDeniedError
 
@@ -42,37 +45,42 @@ def build_router(
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/bot-management/exchanges", tags=["bot-management"])
 
-    @router.get("", response_model=list[ExchangeConnectionProduct])
+    @router.get("", response_model=list[PublicExchangeConnectionView])
     def list_connections(
         context: RequestContext = Depends(context_dependency),
-    ) -> tuple[ExchangeConnectionProduct, ...]:
+    ) -> tuple[PublicExchangeConnectionView, ...]:
         _require(context, BotManagementCapability.EXCHANGE_CONNECTION_CREATE)
-        return service.list_connections(tenant_id=context.tenant_id)
+        return tuple(
+            public_exchange_connection_view(product)
+            for product in service.list_connections(tenant_id=context.tenant_id)
+        )
 
-    @router.get("/{connection_id}", response_model=ExchangeConnectionProduct)
+    @router.get("/{connection_id}", response_model=PublicExchangeConnectionView)
     def get_connection(
         connection_id: str,
         context: RequestContext = Depends(context_dependency),
-    ) -> ExchangeConnectionProduct:
+    ) -> PublicExchangeConnectionView:
         _require(context, BotManagementCapability.EXCHANGE_CONNECTION_CREATE)
-        return service.get_connection(
-            tenant_id=context.tenant_id,
-            connection_id=connection_id,
+        return public_exchange_connection_view(
+            service.get_connection(
+                tenant_id=context.tenant_id,
+                connection_id=connection_id,
+            )
         )
 
     @router.post(
         "",
-        response_model=ExchangeConnectionProduct,
+        response_model=PublicExchangeConnectionView,
         status_code=status.HTTP_201_CREATED,
     )
     def create_connection(
         request: ExchangeConnectionMetadata,
         context: RequestContext = Depends(context_dependency),
-    ) -> ExchangeConnectionProduct:
+    ) -> PublicExchangeConnectionView:
         _require(context, BotManagementCapability.EXCHANGE_CONNECTION_CREATE)
         if request.tenant_id != context.tenant_id:
             raise PermissionDeniedError("tenant scope mismatch")
-        return service.create_connection(request)
+        return public_exchange_connection_view(service.create_connection(request))
 
     @router.post(
         "/{connection_id}/verification-requests",

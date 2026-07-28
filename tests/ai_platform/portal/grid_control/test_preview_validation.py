@@ -148,9 +148,7 @@ def test_short_direction_requires_exchange_support() -> None:
 def test_trailing_grid_requires_both_evidence_sources() -> None:
     grid_request = request().model_copy(
         update={
-            "policy": request().policy.model_copy(
-                update={"trailing_range_percent": Decimal("2")}
-            )
+            "policy": request().policy.model_copy(update={"trailing_range_percent": Decimal("2")})
         }
     )
     limited = template().model_copy(update={"supports_trailing_grid": False})
@@ -160,11 +158,7 @@ def test_trailing_grid_requires_both_evidence_sources() -> None:
 
 def test_take_profit_requires_both_evidence_sources() -> None:
     grid_request = request().model_copy(
-        update={
-            "policy": request().policy.model_copy(
-                update={"take_profit_price": Decimal("120")}
-            )
-        }
+        update={"policy": request().policy.model_copy(update={"take_profit_price": Decimal("120")})}
     )
     limited = exchange().model_copy(update={"supports_take_profit": False})
     preview = service().preview(context(), grid_request, template(), limited)
@@ -173,9 +167,7 @@ def test_take_profit_requires_both_evidence_sources() -> None:
 
 def test_stop_loss_requires_both_evidence_sources() -> None:
     grid_request = request().model_copy(
-        update={
-            "policy": request().policy.model_copy(update={"stop_loss_price": Decimal("80")})
-        }
+        update={"policy": request().policy.model_copy(update={"stop_loss_price": Decimal("80")})}
     )
     limited = exchange().model_copy(update={"supports_stop_loss": False})
     preview = service().preview(context(), grid_request, template(), limited)
@@ -224,8 +216,6 @@ def test_reason_codes_are_sorted() -> None:
 
 
 def test_unrelated_capability_does_not_authorize_grid() -> None:
-    denied = context().model_copy(
-        update={"capabilities": (BotManagementCapability.BOT_CREATE,)}
-    )
+    denied = context().model_copy(update={"capabilities": (BotManagementCapability.BOT_CREATE,)})
     preview = service().preview(denied, request(), template(), exchange())
     assert GridControlReasonCode.CAPABILITY_MISSING in preview.reason_codes

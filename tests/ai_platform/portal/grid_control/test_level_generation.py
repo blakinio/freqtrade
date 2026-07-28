@@ -1,3 +1,4 @@
+import itertools
 from decimal import Decimal
 
 import pytest
@@ -40,7 +41,7 @@ def test_geometric_levels_include_exact_bounds_and_increase() -> None:
     levels = geometric_levels(Decimal("100"), Decimal("1600"), 5)
     assert levels[0] == Decimal("100")
     assert levels[-1] == Decimal("1600")
-    assert all(current < following for current, following in zip(levels, levels[1:]))
+    assert all(current < following for current, following in itertools.pairwise(levels))
 
 
 def test_geometric_levels_are_deterministic() -> None:

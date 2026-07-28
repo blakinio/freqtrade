@@ -65,9 +65,7 @@ def test_second_revision_supersedes_first() -> None:
 
 def test_stale_expected_revision_is_rejected() -> None:
     grid_service, preview = _service_and_preview()
-    grid_service.persist(
-        context(), PersistGridPolicyRequest(preview=preview, expected_revision=0)
-    )
+    grid_service.persist(context(), PersistGridPolicyRequest(preview=preview, expected_revision=0))
     with pytest.raises(GridControlServiceError) as error:
         grid_service.persist(
             context(), PersistGridPolicyRequest(preview=preview, expected_revision=0)
@@ -96,21 +94,15 @@ def test_missing_capability_cannot_persist() -> None:
     grid_service, preview = _service_and_preview()
     denied = context().model_copy(update={"capabilities": ()})
     with pytest.raises(GridControlServiceError) as error:
-        grid_service.persist(
-            denied, PersistGridPolicyRequest(preview=preview, expected_revision=0)
-        )
+        grid_service.persist(denied, PersistGridPolicyRequest(preview=preview, expected_revision=0))
     assert error.value.reason_codes == (GridControlReasonCode.CAPABILITY_MISSING,)
 
 
 def test_unrelated_capability_cannot_persist() -> None:
     grid_service, preview = _service_and_preview()
-    denied = context().model_copy(
-        update={"capabilities": (BotManagementCapability.BOT_CREATE,)}
-    )
+    denied = context().model_copy(update={"capabilities": (BotManagementCapability.BOT_CREATE,)})
     with pytest.raises(GridControlServiceError) as error:
-        grid_service.persist(
-            denied, PersistGridPolicyRequest(preview=preview, expected_revision=0)
-        )
+        grid_service.persist(denied, PersistGridPolicyRequest(preview=preview, expected_revision=0))
     assert error.value.reason_codes == (GridControlReasonCode.CAPABILITY_MISSING,)
 
 

@@ -39,10 +39,7 @@ def geometric_levels(
     with localcontext() as context:
         context.prec = CALCULATION_PRECISION
         logarithmic_step = (upper / lower).ln() / Decimal(level_count - 1)
-        values = [
-            lower * (logarithmic_step * Decimal(index)).exp()
-            for index in range(level_count)
-        ]
+        values = [lower * (logarithmic_step * Decimal(index)).exp() for index in range(level_count)]
         values[0] = lower
         values[-1] = upper
         return tuple(values)

@@ -37,7 +37,7 @@ def _response(code: int, detail: str, reason_codes: tuple[str, ...] = ()) -> JSO
     return JSONResponse(status_code=code, content=payload)
 
 
-def register_bot_management_exception_handlers(app: FastAPI) -> None:
+def _register_catalog_handler(app: FastAPI) -> None:
     @app.exception_handler(BotCatalogServiceError)
     async def catalog_error(_request: object, exc: BotCatalogServiceError) -> JSONResponse:
         if exc.reason_code in {
@@ -51,6 +51,8 @@ def register_bot_management_exception_handlers(app: FastAPI) -> None:
             code = status.HTTP_422_UNPROCESSABLE_ENTITY
         return _response(code, str(exc), (exc.reason_code.value,))
 
+
+def _register_builder_handler(app: FastAPI) -> None:
     @app.exception_handler(BotBuilderServiceError)
     async def builder_error(_request: object, exc: BotBuilderServiceError) -> JSONResponse:
         if exc.reason_code in {
@@ -71,6 +73,8 @@ def register_bot_management_exception_handlers(app: FastAPI) -> None:
         reasons = (exc.reason_code.value, *exc.details)
         return _response(code, str(exc), reasons)
 
+
+def _register_command_handlers(app: FastAPI) -> None:
     @app.exception_handler(BotCommandNotFoundError)
     async def command_not_found(_request: object, exc: BotCommandNotFoundError) -> JSONResponse:
         return _response(status.HTTP_404_NOT_FOUND, str(exc))
@@ -87,6 +91,8 @@ def register_bot_management_exception_handlers(app: FastAPI) -> None:
     async def command_conflict(_request: object, exc: Exception) -> JSONResponse:
         return _response(status.HTTP_409_CONFLICT, str(exc))
 
+
+def _register_signal_handler(app: FastAPI) -> None:
     @app.exception_handler(SignalControlServiceError)
     async def signal_error(_request: object, exc: SignalControlServiceError) -> JSONResponse:
         if exc.reason_code in {
@@ -105,6 +111,8 @@ def register_bot_management_exception_handlers(app: FastAPI) -> None:
             code = status.HTTP_422_UNPROCESSABLE_ENTITY
         return _response(code, str(exc), (exc.reason_code.value,))
 
+
+def _register_grid_handler(app: FastAPI) -> None:
     @app.exception_handler(GridControlServiceError)
     async def grid_error(_request: object, exc: GridControlServiceError) -> JSONResponse:
         reasons = set(exc.reason_codes)
@@ -126,6 +134,8 @@ def register_bot_management_exception_handlers(app: FastAPI) -> None:
             code = status.HTTP_422_UNPROCESSABLE_ENTITY
         return _response(code, str(exc), tuple(item.value for item in exc.reason_codes))
 
+
+def _register_exchange_handlers(app: FastAPI) -> None:
     for error_type in (
         ExchangeConnectionNotFoundError,
         ExchangeCapabilityProfileNotFoundError,
@@ -153,3 +163,12 @@ def register_bot_management_exception_handlers(app: FastAPI) -> None:
             error_type,
             lambda _request, exc: _response(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)),
         )
+
+
+def register_bot_management_exception_handlers(app: FastAPI) -> None:
+    _register_catalog_handler(app)
+    _register_builder_handler(app)
+    _register_command_handlers(app)
+    _register_signal_handler(app)
+    _register_grid_handler(app)
+    _register_exchange_handlers(app)

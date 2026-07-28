@@ -21,30 +21,31 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
-          from textwrap import dedent
 
           api = Path("ai_platform/portal/control_plane/api.py")
           text = api.read_text()
-          imports = dedent('''\
-          from ai_platform.portal.bot_builder.router import build_router as build_bot_builder_router
-          from ai_platform.portal.bot_catalog.router import build_router as build_bot_catalog_router
-          from ai_platform.portal.bot_operations.router import build_router as build_bot_operations_router
-          from ai_platform.portal.control_plane.bot_management import (
-              BotManagementServices,
-              build_default_bot_management_services,
+          imports = (
+              "from ai_platform.portal.bot_builder.router import build_router as build_bot_builder_router\n"
+              "from ai_platform.portal.bot_catalog.router import build_router as build_bot_catalog_router\n"
+              "from ai_platform.portal.bot_operations.router import build_router as build_bot_operations_router\n"
+              "from ai_platform.portal.control_plane.bot_management import (\n"
+              "    BotManagementServices,\n"
+              "    build_default_bot_management_services,\n"
+              ")\n"
+              "from ai_platform.portal.control_plane.bot_management_errors import (\n"
+              "    register_bot_management_exception_handlers,\n"
+              ")\n"
+              "from ai_platform.portal.exchange_connections.router import (\n"
+              "    build_router as build_exchange_connections_router,\n"
+              ")\n"
+              "from ai_platform.portal.grid_control.router import build_router as build_grid_control_router\n"
+              "from ai_platform.portal.signal_control.router import build_router as build_signal_control_router\n"
           )
-          from ai_platform.portal.control_plane.bot_management_errors import (
-              register_bot_management_exception_handlers,
-          )
-          from ai_platform.portal.exchange_connections.router import (
-              build_router as build_exchange_connections_router,
-          )
-          from ai_platform.portal.grid_control.router import build_router as build_grid_control_router
-          from ai_platform.portal.signal_control.router import build_router as build_signal_control_router
-          ''')
           marker = "from ai_platform.portal.contracts.audit import AuditEvent\n"
           if imports not in text:
-              text = text.replace(marker, imports + marker)
+              if marker not in text:
+                  raise SystemExit("import marker missing")
+              text = text.replace(marker, imports + marker, 1)
 
           old_signature = "    valuation_service: ValuationService | None = None,\n) -> FastAPI:"
           new_signature = "    valuation_service: ValuationService | None = None,\n    bot_management_services: BotManagementServices | None = None,\n) -> FastAPI:"
@@ -52,33 +53,33 @@ jobs:
               raise SystemExit("create_app signature marker missing")
           text = text.replace(old_signature, new_signature, 1)
 
-          valuation = dedent('''\
-              valuation = valuation_service or ValuationService(
-                  session_factory,
-                  UnavailableRuntimeValuationSource(checked_at=datetime.now(UTC)),
-              )
-          ''')
-          composition = valuation + dedent('''\
-              bot_management = bot_management_services or build_default_bot_management_services(
-                  session_factory
-              )
-          ''')
+          valuation = (
+              "    valuation = valuation_service or ValuationService(\n"
+              "        session_factory,\n"
+              "        UnavailableRuntimeValuationSource(checked_at=datetime.now(UTC)),\n"
+              "    )\n"
+          )
+          composition = valuation + (
+              "    bot_management = bot_management_services or build_default_bot_management_services(\n"
+              "        session_factory\n"
+              "    )\n"
+          )
           if valuation not in text:
               raise SystemExit("valuation marker missing")
           text = text.replace(valuation, composition, 1)
 
           handler_marker = "    _register_exception_handlers(app)\n"
-          router_block = handler_marker + dedent('''\
-              register_bot_management_exception_handlers(app)
-              app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))
-              app.include_router(build_bot_builder_router(bot_management.builder, context_dependency))
-              app.include_router(build_bot_operations_router(bot_management.commands, context_dependency))
-              app.include_router(build_signal_control_router(bot_management.signals, context_dependency))
-              app.include_router(build_grid_control_router(bot_management.grid, context_dependency))
-              app.include_router(
-                  build_exchange_connections_router(bot_management.exchanges, context_dependency)
-              )
-          ''')
+          router_block = handler_marker + (
+              "    register_bot_management_exception_handlers(app)\n"
+              "    app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))\n"
+              "    app.include_router(build_bot_builder_router(bot_management.builder, context_dependency))\n"
+              "    app.include_router(build_bot_operations_router(bot_management.commands, context_dependency))\n"
+              "    app.include_router(build_signal_control_router(bot_management.signals, context_dependency))\n"
+              "    app.include_router(build_grid_control_router(bot_management.grid, context_dependency))\n"
+              "    app.include_router(\n"
+              "        build_exchange_connections_router(bot_management.exchanges, context_dependency)\n"
+              "    )\n"
+          )
           if handler_marker not in text:
               raise SystemExit("exception handler marker missing")
           text = text.replace(handler_marker, router_block, 1)
@@ -96,29 +97,29 @@ jobs:
           test_api = Path("tests/ai_platform/portal/control_plane/test_api.py")
           text = test_api.read_text()
           marker = '        "/v1/runtime-observability/logs/search",\n'
-          paths = marker + dedent('''\
-                  "/v1/bot-management/catalog/{catalog_id}/latest",
-                  "/v1/bot-management/catalog/templates/search",
-                  "/v1/bot-management/catalog/compatibility",
-                  "/v1/bot-management/builder/drafts",
-                  "/v1/bot-management/builder/drafts/revise",
-                  "/v1/bot-management/builder/drafts/preview",
-                  "/v1/bot-management/builder/drafts/finalize",
-                  "/v1/bot-management/commands/lifecycle",
-                  "/v1/bot-management/commands/position",
-                  "/v1/bot-management/commands/order",
-                  "/v1/bot-management/commands/{command_id}/history",
-                  "/v1/bot-management/commands/idempotency/conflicts",
-                  "/v1/bot-management/signals/endpoints",
-                  "/v1/bot-management/signals/endpoints/revise",
-                  "/v1/bot-management/signals/preview",
-                  "/v1/bot-management/signals/process",
-                  "/v1/bot-management/grid/preview",
-                  "/v1/bot-management/grid/policies",
-                  "/v1/bot-management/exchanges",
-                  "/v1/bot-management/exchanges/{connection_id}",
-                  "/v1/bot-management/exchanges/{connection_id}/verification-requests",
-          ''')
+          paths = marker + (
+              '        "/v1/bot-management/catalog/{catalog_id}/latest",\n'
+              '        "/v1/bot-management/catalog/templates/search",\n'
+              '        "/v1/bot-management/catalog/compatibility",\n'
+              '        "/v1/bot-management/builder/drafts",\n'
+              '        "/v1/bot-management/builder/drafts/revise",\n'
+              '        "/v1/bot-management/builder/drafts/preview",\n'
+              '        "/v1/bot-management/builder/drafts/finalize",\n'
+              '        "/v1/bot-management/commands/lifecycle",\n'
+              '        "/v1/bot-management/commands/position",\n'
+              '        "/v1/bot-management/commands/order",\n'
+              '        "/v1/bot-management/commands/{command_id}/history",\n'
+              '        "/v1/bot-management/commands/idempotency/conflicts",\n'
+              '        "/v1/bot-management/signals/endpoints",\n'
+              '        "/v1/bot-management/signals/endpoints/revise",\n'
+              '        "/v1/bot-management/signals/preview",\n'
+              '        "/v1/bot-management/signals/process",\n'
+              '        "/v1/bot-management/grid/preview",\n'
+              '        "/v1/bot-management/grid/policies",\n'
+              '        "/v1/bot-management/exchanges",\n'
+              '        "/v1/bot-management/exchanges/{connection_id}",\n'
+              '        "/v1/bot-management/exchanges/{connection_id}/verification-requests",\n'
+          )
           if marker not in text:
               raise SystemExit("OpenAPI path marker missing")
           text = text.replace(marker, paths, 1)

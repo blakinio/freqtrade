@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import os
 import re
@@ -54,9 +55,7 @@ SAMPLES_DIR_NAME = "samples"
 PROXY_ENV_NAMES = frozenset(
     {"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"}
 )
-EXPECTED_OUTCOMES = frozenset(
-    {"accepted", "rejected", "inconclusive_incomplete_window"}
-)
+EXPECTED_OUTCOMES = frozenset({"accepted", "rejected", "inconclusive_incomplete_window"})
 
 
 class Sleeper(Protocol):
@@ -165,9 +164,7 @@ class BinanceSpotInstrumentAcceptancePolicy:
 
         baseline = dict(_mapping(payload.get("baseline_evidence"), field="baseline_evidence"))
         if (
-            _integer(
-                baseline.get("artifact_id"), field="baseline_evidence.artifact_id"
-            )
+            _integer(baseline.get("artifact_id"), field="baseline_evidence.artifact_id")
             != 8686988992
         ):
             raise ValueError("baseline artifact_id does not match reviewed smoke evidence")
@@ -422,7 +419,7 @@ def _validated_durable_uri(value: object) -> str:
     return uri
 
 
-def validate_request(
+def validate_request(  # noqa: C901
     payload: Mapping[str, object],
     *,
     policy: BinanceSpotInstrumentAcceptancePolicy,
@@ -487,9 +484,7 @@ def validate_request(
 def refuse_proxy_environment(environment: Mapping[str, str]) -> None:
     present = sorted(name for name in PROXY_ENV_NAMES if environment.get(name, "").strip())
     if present:
-        raise RuntimeError(
-            "acceptance refuses proxy environment variables: " + ", ".join(present)
-        )
+        raise RuntimeError("acceptance refuses proxy environment variables: " + ", ".join(present))
 
 
 def _sha256_bytes(value: bytes) -> str:
@@ -649,13 +644,11 @@ def _summarize(
         if report.get("failure_stage") in {"transport", "response_headers", "response_body"}
     )
     parse_failures = sum(
-        1
-        for report in failures
-        if report.get("failure_stage") in {"decode", "parse_and_normalize"}
+        1 for report in failures if report.get("failure_stage") in {"decode", "parse_and_normalize"}
     )
     count_change_ratios = [
         _catalog_count_change_ratio(previous, current)
-        for previous, current in zip(instrument_counts, instrument_counts[1:], strict=False)
+        for previous, current in itertools.pairwise(instrument_counts)
     ]
     anchor_failures = sum(
         1
@@ -726,48 +719,42 @@ def _gates(
     return (
         Gate(
             "minimum_duration_seconds",
-            float(summary["observed_duration_seconds"])
-            >= thresholds.minimum_duration_seconds,
+            float(summary["observed_duration_seconds"]) >= thresholds.minimum_duration_seconds,
             summary["observed_duration_seconds"],
             thresholds.minimum_duration_seconds,
             "window",
         ),
         Gate(
             "minimum_attempted_samples",
-            int(summary["attempted_sample_count"])
-            >= thresholds.minimum_attempted_samples,
+            int(summary["attempted_sample_count"]) >= thresholds.minimum_attempted_samples,
             summary["attempted_sample_count"],
             thresholds.minimum_attempted_samples,
             "window",
         ),
         Gate(
             "minimum_successful_samples",
-            int(summary["successful_sample_count"])
-            >= thresholds.minimum_successful_samples,
+            int(summary["successful_sample_count"]) >= thresholds.minimum_successful_samples,
             summary["successful_sample_count"],
             thresholds.minimum_successful_samples,
             "availability",
         ),
         Gate(
             "minimum_availability_ratio",
-            float(summary["availability_ratio"])
-            >= thresholds.minimum_availability_ratio,
+            float(summary["availability_ratio"]) >= thresholds.minimum_availability_ratio,
             summary["availability_ratio"],
             thresholds.minimum_availability_ratio,
             "availability",
         ),
         Gate(
             "maximum_consecutive_failures",
-            int(summary["maximum_consecutive_failures"])
-            <= thresholds.maximum_consecutive_failures,
+            int(summary["maximum_consecutive_failures"]) <= thresholds.maximum_consecutive_failures,
             summary["maximum_consecutive_failures"],
             thresholds.maximum_consecutive_failures,
             "availability",
         ),
         Gate(
             "maximum_transport_failures",
-            int(summary["transport_failure_count"])
-            <= thresholds.maximum_transport_failures,
+            int(summary["transport_failure_count"]) <= thresholds.maximum_transport_failures,
             summary["transport_failure_count"],
             thresholds.maximum_transport_failures,
             "transport",
@@ -781,8 +768,7 @@ def _gates(
         ),
         Gate(
             "maximum_integrity_failures",
-            int(summary["integrity_failure_count"])
-            <= thresholds.maximum_integrity_failures,
+            int(summary["integrity_failure_count"]) <= thresholds.maximum_integrity_failures,
             summary["integrity_failure_count"],
             thresholds.maximum_integrity_failures,
             "integrity",
@@ -807,8 +793,7 @@ def _gates(
         Gate(
             "minimum_instrument_count",
             summary["instrument_count_min"] is not None
-            and int(summary["instrument_count_min"])
-            >= thresholds.minimum_instrument_count,
+            and int(summary["instrument_count_min"]) >= thresholds.minimum_instrument_count,
             summary["instrument_count_min"],
             thresholds.minimum_instrument_count,
             "catalog",
@@ -816,8 +801,7 @@ def _gates(
         Gate(
             "maximum_instrument_count",
             summary["instrument_count_max"] is not None
-            and int(summary["instrument_count_max"])
-            <= thresholds.maximum_instrument_count,
+            and int(summary["instrument_count_max"]) <= thresholds.maximum_instrument_count,
             summary["instrument_count_max"],
             thresholds.maximum_instrument_count,
             "catalog",
@@ -941,9 +925,7 @@ def _seal_package(
     ]
     checksum_lines = "".join(
         f"{_sha256_file(path)}  {path.relative_to(root).as_posix()}\n"
-        for path in sorted(
-            checksum_paths, key=lambda item: item.relative_to(root).as_posix()
-        )
+        for path in sorted(checksum_paths, key=lambda item: item.relative_to(root).as_posix())
     )
     _write_atomic(root / SHA256_NAME, checksum_lines.encode("utf-8"))
     return report
@@ -998,12 +980,12 @@ def run_acceptance(
         raw_path, snapshot_path, report_path = _sample_paths(output_root, index)
         try:
             if opener is None:
-                raw, status, content_type, final_url, sample_started, sample_ended = (
-                    _fetch_once(smoke_policy)
+                raw, status, content_type, final_url, sample_started, sample_ended = _fetch_once(
+                    smoke_policy
                 )
             else:
-                raw, status, content_type, final_url, sample_started, sample_ended = (
-                    _fetch_once(smoke_policy, opener=opener)
+                raw, status, content_type, final_url, sample_started, sample_ended = _fetch_once(
+                    smoke_policy, opener=opener
                 )
             stage = "decode"
             payload = _decode_object(raw)
@@ -1025,7 +1007,7 @@ def run_acceptance(
                 ended_ns=sample_ended,
                 required_symbols=policy.thresholds.required_active_native_symbols,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             report = _sample_failure_report(
                 index=index,
                 scheduled_offset_seconds=offset,
@@ -1096,9 +1078,7 @@ def evaluate_package(*, run_root: Path, policy_path: Path) -> dict[str, object]:
             entry.get("bytes"), field="manifest.artifact.bytes", minimum=0
         ):
             raise ValueError(f"manifest artifact size mismatch: {relative}")
-        if _sha256_file(path) != _text(
-            entry.get("sha256"), field="manifest.artifact.sha256"
-        ):
+        if _sha256_file(path) != _text(entry.get("sha256"), field="manifest.artifact.sha256"):
             raise ValueError(f"manifest artifact hash mismatch: {relative}")
     actual_data_paths = {
         path.relative_to(run_root).as_posix()

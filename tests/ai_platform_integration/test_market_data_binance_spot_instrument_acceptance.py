@@ -22,12 +22,10 @@ from ai_platform.market_data.common import canonical_json_bytes
 COMMIT = "a" * 40
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = (
-    REPOSITORY_ROOT
-    / ".github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance.yml"
+    REPOSITORY_ROOT / ".github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance.yml"
 )
 DOCUMENTATION_PATH = (
-    REPOSITORY_ROOT
-    / "docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE.md"
+    REPOSITORY_ROOT / "docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE.md"
 )
 TRIGGER_PATH = (
     "ai_platform/market_data/run-requests/"
@@ -78,13 +76,11 @@ def _request() -> dict[str, object]:
         "host_class": "always_on_nonrestricted_linux_staging",
         "github_hosted_runner": False,
         "durable_storage_uri": (
-            "file:///var/lib/freqtrade-staging-state/"
-            "binance-spot-instrument-acceptance"
+            "file:///var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance"
         ),
         "baseline_artifact_id": 8686988992,
         "baseline_artifact_digest": (
-            "sha256:1862d17e8c117e31eec6688c8f34c32c"
-            "ce4a505ec125805cd095df6894cc4f6e"
+            "sha256:1862d17e8c117e31eec6688c8f34c32cce4a505ec125805cd095df6894cc4f6e"
         ),
         "public_only": True,
         "execution_enabled": False,
@@ -321,10 +317,10 @@ def test_workflow_preserves_durable_public_only_zero_order_boundary() -> None:
         "DURABLE_ROOT: /var/lib/freqtrade-staging-state/"
         "binance-spot-instrument-acceptance" in workflow
     )
-    assert "duration_seconds\": 86400" in workflow
-    assert "sample_interval_seconds\": 900" in workflow
-    assert "production_source_enabled\": False" in workflow
-    assert "orders_submitted\": 0" in workflow
+    assert 'duration_seconds": 86400' in workflow
+    assert 'sample_interval_seconds": 900' in workflow
+    assert 'production_source_enabled": False' in workflow
+    assert 'orders_submitted": 0' in workflow
     assert "BINANCE_API_KEY" in workflow
     assert "HTTPS_PROXY" in workflow
     assert "curl " not in workflow

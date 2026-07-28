@@ -2,7 +2,7 @@ name: Validate Compact Binance Acceptance Handover
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize]
     paths:
       - ".github/workflows/validate-compact-handover-binance-acceptance.yml"
 
@@ -22,4 +22,11 @@ jobs:
       - name: Validate checkpoint
         run: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md --require-checkpoint
       - name: Generate compact resume output
-        run: python tools/agents/resume.py --task docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
+        run: python tools/agents/resume.py --task docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md | tee resume.txt
+      - name: Upload exact resume output
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compact-binance-acceptance-resume
+          path: resume.txt
+          if-no-files-found: error
+          retention-days: 1

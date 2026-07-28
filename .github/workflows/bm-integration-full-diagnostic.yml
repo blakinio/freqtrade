@@ -1,4 +1,4 @@
-name: Diagnose full bot-management integration
+name: Apply lazy bot-management API imports
 
 on:
   pull_request:
@@ -7,35 +7,85 @@ on:
     types: [synchronize]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  full-ai:
+  apply:
     if: github.head_ref == 'feat/portal-bm-integration-owner-v1'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
-        with:
-          python-version: '3.13'
-      - name: Capture full AI tests
+          ref: feat/portal-bm-integration-owner-v1
+      - name: Defer feature router imports until app construction
         run: |
-          python -m pip install --disable-pip-version-check -q -e . \
-            pytest pytest-asyncio pytest-mock pytest-xdist
-          set +e
-          pytest tests/ai_platform -q --tb=short --maxfail=10 \
-            > bm-integration-full-report.txt 2>&1
-          status=$?
-          set -e
-          printf '%s\n' "$status" > bm-integration-full-exit-code.txt
-      - name: Upload concise full report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: bm-integration-full-diagnostic
-          path: |
-            bm-integration-full-report.txt
-            bm-integration-full-exit-code.txt
-          if-no-files-found: error
-          retention-days: 1
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("ai_platform/portal/control_plane/api.py")
+          text = path.read_text()
+          eager = (
+              "from ai_platform.portal.bot_builder.router import build_router as build_bot_builder_router\n"
+              "from ai_platform.portal.bot_catalog.router import build_router as build_bot_catalog_router\n"
+              "from ai_platform.portal.bot_operations.router import build_router as build_bot_operations_router\n"
+              "from ai_platform.portal.control_plane.bot_management import (\n"
+              "    BotManagementServices,\n"
+              "    build_default_bot_management_services,\n"
+              ")\n"
+              "from ai_platform.portal.control_plane.bot_management_errors import (\n"
+              "    register_bot_management_exception_handlers,\n"
+              ")\n"
+              "from ai_platform.portal.exchange_connections.router import (\n"
+              "    build_router as build_exchange_connections_router,\n"
+              ")\n"
+              "from ai_platform.portal.grid_control.router import build_router as build_grid_control_router\n"
+              "from ai_platform.portal.signal_control.router import build_router as build_signal_control_router\n"
+          )
+          safe = (
+              "from ai_platform.portal.control_plane.bot_management import (\n"
+              "    BotManagementServices,\n"
+              "    build_default_bot_management_services,\n"
+              ")\n"
+          )
+          if eager not in text:
+              raise SystemExit("eager integration import block missing")
+          text = text.replace(eager, safe, 1)
+
+          marker = "    context_dependency = identity_dependency(identity_context_provider)\n"
+          deferred = marker + (
+              "    from ai_platform.portal.bot_builder.router import (\n"
+              "        build_router as build_bot_builder_router,\n"
+              "    )\n"
+              "    from ai_platform.portal.bot_catalog.router import (\n"
+              "        build_router as build_bot_catalog_router,\n"
+              "    )\n"
+              "    from ai_platform.portal.bot_operations.router import (\n"
+              "        build_router as build_bot_operations_router,\n"
+              "    )\n"
+              "    from ai_platform.portal.control_plane.bot_management_errors import (\n"
+              "        register_bot_management_exception_handlers,\n"
+              "    )\n"
+              "    from ai_platform.portal.exchange_connections.router import (\n"
+              "        build_router as build_exchange_connections_router,\n"
+              "    )\n"
+              "    from ai_platform.portal.grid_control.router import (\n"
+              "        build_router as build_grid_control_router,\n"
+              "    )\n"
+              "    from ai_platform.portal.signal_control.router import (\n"
+              "        build_router as build_signal_control_router,\n"
+              "    )\n"
+          )
+          if marker not in text:
+              raise SystemExit("context dependency marker missing")
+          text = text.replace(marker, deferred, 1)
+          path.write_text(text)
+          Path(".github/workflows/bm-integration-full-diagnostic.yml").unlink()
+          PY
+      - name: Commit lazy imports
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/portal/control_plane/api.py \
+            .github/workflows/bm-integration-full-diagnostic.yml
+          git commit -m "fix(portal): defer bot-management router imports"
+          git push origin HEAD:feat/portal-bm-integration-owner-v1

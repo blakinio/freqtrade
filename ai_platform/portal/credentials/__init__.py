@@ -19,12 +19,12 @@ from ai_platform.portal.credentials.schema import (
 )
 from ai_platform.portal.credentials.vault import (
     HttpxVaultTransport,
+    validate_private_https_endpoint,
     VaultAppRoleClient,
     VaultAppRoleConfig,
     VaultCredentialDocument,
     VaultCredentialRecord,
     VaultHttpTransport,
-    validate_private_https_endpoint,
 )
 
 __all__ = [

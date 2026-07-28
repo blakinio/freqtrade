@@ -39,12 +39,15 @@ export class IdentityJourney {
 export class BotJourney {
   constructor(private readonly page: Page) {}
 
-  async createDryRunBot(botId: string, name: string): Promise<void> {
+  async finalizeDryRunConfiguration(botId: string): Promise<void> {
     await this.page.goto("/bots/new");
-    await expect(this.page.getByRole("heading", { name: "Create Bot" })).toBeVisible();
+    await expect(
+      this.page.getByRole("heading", { name: "Create Bot Configuration" }),
+    ).toBeVisible();
     await this.page.getByLabel("Bot ID").fill(botId);
-    await this.page.getByLabel("Name").fill(name);
-    await this.page.getByRole("button", { name: "Create dry-run bot" }).click();
+    await this.page
+      .getByRole("button", { name: "Finalize dry-run configuration" })
+      .click();
   }
 
   async submitManualIntent(): Promise<void> {

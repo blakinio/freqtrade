@@ -1,4 +1,4 @@
-name: ASE-00 Bundle Forensics
+name: ASE-00 Corrupt Member Recovery
 
 on:
   pull_request:
@@ -11,206 +11,124 @@ permissions:
   contents: write
 
 concurrency:
-  group: ase00-bundle-forensics-${{ github.event.pull_request.number }}
+  group: ase00-corrupt-member-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
-  forensics:
+  inspect:
     if: github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Check out full repository history
+      - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
 
-      - name: Inspect bundle provenance and recover exact archive when present
+      - name: Inspect corrupted ZIP member
         shell: bash
         run: |
           set -Eeuo pipefail
-          git fetch --all --prune --tags
           python - <<'PY'
           from __future__ import annotations
 
           import base64
+          import binascii
           import hashlib
-          import io
-          import os
-          import subprocess
+          import json
+          import struct
+          import zlib
           import zipfile
           from pathlib import Path
 
-          EXPECTED = "73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f"
-          ROOT = Path("ai_strategy_engine")
-          PATTERN = "ai_strategy_engine/bootstrap/strategy_engine_source.zip.b64.part"
-
-          def git(*args: str, check: bool = True) -> str:
-              result = subprocess.run(
-                  ["git", *args], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-              )
-              if check and result.returncode:
-                  raise RuntimeError(result.stderr.strip())
-              return result.stdout
-
-          def decode_parts(parts: list[tuple[str, bytes]]) -> tuple[bytes | None, str]:
-              try:
-                  encoded = b"".join(content.strip() for _, content in parts)
-                  payload = base64.b64decode(encoded, validate=True)
-              except Exception as exc:
-                  return None, f"base64_error:{type(exc).__name__}:{exc}"
-              return payload, hashlib.sha256(payload).hexdigest()
-
-          report: list[str] = [
-              "# ASE-00 bundle forensics",
+          root = Path("ai_strategy_engine")
+          parts = sorted((root / "bootstrap").glob("strategy_engine_source.zip.b64.part*"))
+          payload = base64.b64decode(b"".join(path.read_bytes().strip() for path in parts), validate=True)
+          archive_path = Path("/tmp/ase00-current.zip")
+          archive_path.write_bytes(payload)
+          target_name = "examples/signal_event.json"
+          lines = [
+              "# ASE-00 corrupted-member analysis",
               "",
-              f"- expected ZIP SHA-256: `{EXPECTED}`",
-              f"- inspected branch head: `{git('rev-parse', 'HEAD').strip()}`",
-              f"- inspected develop: `{git('rev-parse', 'origin/develop').strip()}`",
-              "",
-              "## Current parts",
+              f"- archive sha256: `{hashlib.sha256(payload).hexdigest()}`",
+              f"- archive bytes: `{len(payload)}`",
           ]
 
-          current_paths = sorted((ROOT / "bootstrap").glob("strategy_engine_source.zip.b64.part*"))
-          current_parts = [(str(path), path.read_bytes()) for path in current_paths]
-          for path, content in current_parts:
-              report.append(
-                  f"- `{path}`: bytes={len(content)}, blob_sha=`{git('hash-object', path).strip()}`, "
-                  f"sha256=`{hashlib.sha256(content).hexdigest()}`"
+          with zipfile.ZipFile(archive_path) as archive:
+              target = archive.getinfo(target_name)
+              lines.extend([
+                  f"- target: `{target.filename}`",
+                  f"- expected CRC32: `{target.CRC:08x}`",
+                  f"- uncompressed size: `{target.file_size}`",
+                  f"- compressed size: `{target.compress_size}`",
+                  f"- compression method: `{target.compress_type}`",
+                  f"- flag bits: `{target.flag_bits}`",
+                  f"- header offset: `{target.header_offset}`",
+                  f"- timestamp: `{target.date_time}`",
+              ])
+              header = payload[target.header_offset:target.header_offset + 30]
+              signature, version, flags, method, mtime, mdate, crc, csize, usize, name_len, extra_len = struct.unpack(
+                  "<IHHHHHIIIHH", header
               )
-          payload, digest = decode_parts(current_parts)
-          report.extend(["", f"- current reconstructed ZIP SHA-256: `{digest}`"])
-
-          if payload is not None:
-              report.append(f"- reconstructed bytes: `{len(payload)}`")
+              data_start = target.header_offset + 30 + name_len + extra_len
+              raw = payload[data_start:data_start + target.compress_size]
+              lines.extend([
+                  f"- local header signature: `{signature:08x}`",
+                  f"- local CRC32 field: `{crc:08x}`",
+                  f"- data start: `{data_start}`",
+                  f"- raw compressed sha256: `{hashlib.sha256(raw).hexdigest()}`",
+                  f"- raw compressed hex: `{raw.hex()}`",
+              ])
               try:
-                  with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-                      names = archive.namelist()
-                      bad = archive.testzip()
-                      report.extend(
-                          [
-                              f"- ZIP readable: `true`",
-                              f"- ZIP member count: `{len(names)}`",
-                              f"- ZIP test failure: `{bad}`",
-                              "",
-                              "## Current ZIP members",
-                              "```text",
-                              *names,
-                              "```",
-                          ]
-                      )
+                  if method == zipfile.ZIP_DEFLATED:
+                      decoded = zlib.decompress(raw, -15)
+                  elif method == zipfile.ZIP_STORED:
+                      decoded = raw
+                  else:
+                      raise RuntimeError(f"unsupported method {method}")
+                  lines.extend([
+                      f"- raw decompression: `success`",
+                      f"- actual uncompressed bytes: `{len(decoded)}`",
+                      f"- actual CRC32: `{binascii.crc32(decoded) & 0xffffffff:08x}`",
+                      f"- actual sha256: `{hashlib.sha256(decoded).hexdigest()}`",
+                      "",
+                      "## Decompressed target content",
+                      "```text",
+                      decoded.decode("utf-8", errors="backslashreplace"),
+                      "```",
+                      "",
+                      "## Decompressed target repr",
+                      "```text",
+                      repr(decoded),
+                      "```",
+                  ])
+                  Path("/tmp/signal_event_corrupt.bin").write_bytes(decoded)
               except Exception as exc:
-                  report.append(f"- ZIP readable: `false` (`{type(exc).__name__}: {exc}`)")
+                  lines.append(f"- raw decompression: `failure: {type(exc).__name__}: {exc}`")
 
-          commits = set()
-          history = git("log", "--all", "--format=%H", "--", "ai_strategy_engine/bootstrap").splitlines()
-          commits.update(history)
-          history_materialized = git(
-              "log", "--all", "--format=%H", "--", "ai_strategy_engine/src", "ai_strategy_engine/configs",
-              "ai_strategy_engine/schemas", "ai_strategy_engine/examples", "ai_strategy_engine/tests"
-          ).splitlines()
-          commits.update(history_materialized)
-          report.extend(["", "## Historical candidate commits"])
+              lines.extend(["", "## Per-member validation"])
+              for info in archive.infolist():
+                  if info.is_dir():
+                      continue
+                  try:
+                      content = archive.read(info)
+                      status = f"ok crc={binascii.crc32(content) & 0xffffffff:08x}"
+                  except Exception as exc:
+                      status = f"FAIL {type(exc).__name__}: {exc}"
+                  lines.append(f"- `{info.filename}`: {status}")
 
-          recovered_commit: str | None = None
-          observed: dict[str, list[str]] = {}
-          for commit in sorted(commits):
-              listing = git("ls-tree", "-r", "--name-only", commit, "ai_strategy_engine/bootstrap", check=False)
-              names = sorted(name for name in listing.splitlines() if PATTERN in name)
-              if not names:
-                  continue
-              parts: list[tuple[str, bytes]] = []
-              missing = False
-              for name in names:
-                  result = subprocess.run(
-                      ["git", "show", f"{commit}:{name}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-                  )
-                  if result.returncode:
-                      missing = True
-                      break
-                  parts.append((name, result.stdout))
-              if missing:
-                  continue
-              historical_payload, historical_digest = decode_parts(parts)
-              observed.setdefault(historical_digest, []).append(commit)
-              report.append(
-                  f"- `{commit}`: parts={len(parts)}, digest=`{historical_digest}`, "
-                  f"bytes={len(historical_payload) if historical_payload is not None else 'n/a'}"
-              )
-              if historical_digest == EXPECTED and historical_payload is not None:
-                  recovered_commit = commit
-                  Path("/tmp/ase00-expected.zip").write_bytes(historical_payload)
-                  break
-
-          report.extend(["", "## Digest summary"])
-          for observed_digest, digest_commits in sorted(observed.items()):
-              report.append(f"- `{observed_digest}`: {len(digest_commits)} commit(s)")
-
-          report.extend(["", "## Materialized-path history", "```text"])
-          report.extend(
-              git(
-                  "log", "--all", "--date=iso-strict", "--pretty=format:%H %ad %s", "--name-status", "--",
-                  "ai_strategy_engine/src", "ai_strategy_engine/configs", "ai_strategy_engine/schemas",
-                  "ai_strategy_engine/examples", "ai_strategy_engine/tests"
-              ).splitlines()
-          )
-          report.append("```")
-
-          object_matches = git(
-              "rev-list", "--objects", "--all"
-          ).splitlines()
-          relevant_objects = [
-              line for line in object_matches
-              if "strategy_engine_source" in line or "ai_strategy_engine/src/" in line
-              or "ai_strategy_engine/configs/" in line or "ai_strategy_engine/schemas/" in line
-              or "ai_strategy_engine/examples/" in line
-          ]
-          report.extend(["", "## Reachable relevant objects", "```text", *relevant_objects, "```"])
-
-          if recovered_commit:
-              report.extend(
-                  [
-                      "",
-                      "## Recovery",
-                      f"- exact expected bundle recovered from commit `{recovered_commit}`.",
-                  ]
-              )
-              with zipfile.ZipFile("/tmp/ase00-expected.zip") as archive:
-                  for member in archive.infolist():
-                      destination = (ROOT / member.filename).resolve()
-                      root = ROOT.resolve()
-                      if root not in destination.parents and destination != root:
-                          raise RuntimeError(f"unsafe archive path: {member.filename}")
-                  archive.extractall(ROOT)
-              os.environ["ASE00_RECOVERED"] = "1"
-              Path("/tmp/ase00_recovered").write_text("1", encoding="ascii")
-          else:
-              report.extend(
-                  [
-                      "",
-                      "## Recovery",
-                      "- exact expected bundle was not found in reachable Git history.",
-                  ]
-              )
-              Path("/tmp/ase00_recovered").write_text("0", encoding="ascii")
-
-          Path("ai_strategy_engine/docs/bundle-forensics.md").write_text(
-              "\n".join(report) + "\n", encoding="utf-8"
+          Path("ai_strategy_engine/docs/corrupt-member-analysis.md").write_text(
+              "\n".join(lines) + "\n", encoding="utf-8"
           )
           PY
 
-      - name: Commit forensic evidence or recovered source
+      - name: Commit analysis
         shell: bash
         run: |
           set -Eeuo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f ai_strategy_engine/docs/bundle-forensics.md
-          if [[ "$(cat /tmp/ase00_recovered)" == "1" ]]; then
-            git add -f ai_strategy_engine/configs ai_strategy_engine/schemas ai_strategy_engine/examples \
-              ai_strategy_engine/src ai_strategy_engine/tests ai_strategy_engine/pyproject.toml \
-              ai_strategy_engine/README.md || true
-          fi
-          git commit -m "docs(ai-strategy): record ASE-00 bundle provenance forensics"
+          git add -f ai_strategy_engine/docs/corrupt-member-analysis.md
+          git commit -m "docs(ai-strategy): inspect corrupted starter member"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

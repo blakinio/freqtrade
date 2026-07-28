@@ -399,7 +399,6 @@ class Ase00ShadowEngine:
                 ),
             )
             record = make_feature_record(
-                registry=self.registry,
                 feature_id=squeeze_ref.id,
                 symbol=latest_event.symbol,
                 timeframe=squeeze_ref.timeframe,
@@ -409,9 +408,14 @@ class Ase00ShadowEngine:
                 value=value,
                 is_confirmed=latest_event.is_confirmed,
                 source=latest_event.source,
+                idempotency_key=(
+                    f"feature:{squeeze_ref.id}:{latest_event.symbol}:"
+                    f"{latest_event.available_at.isoformat()}"
+                ),
                 data_version=normalized.data_hash,
                 code_version=self.code_hash,
                 configuration_hash=config_hash,
+                producer="ase00-feature-engine",
                 source_event_id=latest_event.event_id,
                 parameters=dict(squeeze_ref.params),
             )
@@ -445,7 +449,6 @@ class Ase00ShadowEngine:
                 ),
             )
             record = make_feature_record(
-                registry=self.registry,
                 feature_id=supertrend_ref.id,
                 symbol=latest_event.symbol,
                 timeframe=supertrend_ref.timeframe,
@@ -455,9 +458,14 @@ class Ase00ShadowEngine:
                 value=value,
                 is_confirmed=latest_event.is_confirmed,
                 source=latest_event.source,
+                idempotency_key=(
+                    f"feature:{supertrend_ref.id}:{latest_event.symbol}:"
+                    f"{latest_event.available_at.isoformat()}"
+                ),
                 data_version=normalized.data_hash,
                 code_version=self.code_hash,
                 configuration_hash=config_hash,
+                producer="ase00-feature-engine",
                 source_event_id=latest_event.event_id,
                 parameters=dict(supertrend_ref.params),
             )
@@ -489,16 +497,18 @@ class Ase00ShadowEngine:
             pivot = eligible[-1] if eligible else _unavailable_pivot(frame, pivot_params)
             pivot_detected_event = market_events[pivot.detection_position]
             record = make_confirmed_pivot_record(
-                registry=self.registry,
-                feature_id=pivot_ref.id,
                 symbol=latest_event.symbol,
                 timeframe=pivot_ref.timeframe,
                 pivot=pivot,
                 decision_time=decision_time,
-                source=pivot_detected_event.source,
+                idempotency_key=(
+                    f"feature:{pivot_ref.id}:{latest_event.symbol}:"
+                    f"{pivot.available_at.isoformat()}"
+                ),
                 data_version=normalized.data_hash,
                 code_version=self.code_hash,
                 configuration_hash=config_hash,
+                producer="ase00-feature-engine",
                 source_event_id=pivot_detected_event.event_id,
                 parameters=cast(dict[str, JsonValue], pivot_params),
                 detection_event_confirmed=pivot_detected_event.is_confirmed,

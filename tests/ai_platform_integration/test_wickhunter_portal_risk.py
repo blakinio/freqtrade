@@ -97,9 +97,7 @@ def _local_decision(
         trade_intent_id=_hash("a"),
         outcome=outcome,
         reason_codes=(
-            ("RISK_APPROVED",)
-            if outcome is RiskOutcome.ALLOW
-            else ("GLOBAL_KILL_SWITCH_ACTIVE",)
+            ("RISK_APPROVED",) if outcome is RiskOutcome.ALLOW else ("GLOBAL_KILL_SWITCH_ACTIVE",)
         ),
         evaluated_at_ms=1_700_000_001_000,
         risk_policy_version=policy,

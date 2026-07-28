@@ -7,6 +7,7 @@ from ai_platform.portal.bot_operations.intent_service import (
     LifecycleCommandIntentService,
     LifecycleIntentContext,
     LifecycleIntentRequest,
+    SqlAlchemyIdempotentCommandLookup,
     UnavailableBotRuntimeStateProvider,
 )
 from ai_platform.portal.bot_operations.schema import (
@@ -118,10 +119,12 @@ def _read_context() -> BotCommandContext:
 
 
 def test_unavailable_runtime_fails_closed_without_persisting_a_command() -> None:
-    commands = BotCommandService(_session_factory(), clock=lambda: NOW)
+    session_factory = _session_factory()
+    commands = BotCommandService(session_factory, clock=lambda: NOW)
     service = LifecycleCommandIntentService(
         commands,
         UnavailableBotRuntimeStateProvider(),
+        idempotency_lookup=SqlAlchemyIdempotentCommandLookup(session_factory),
         clock=lambda: NOW,
         id_factory=lambda: COMMAND_ID,
     )
@@ -141,6 +144,7 @@ def test_current_runtime_persists_accepted_intent_without_execution_submission()
     service = LifecycleCommandIntentService(
         commands,
         FixedRuntimeProvider(_runtime()),
+        idempotency_lookup=SqlAlchemyIdempotentCommandLookup(session_factory),
         clock=lambda: NOW,
         id_factory=lambda: COMMAND_ID,
     )
@@ -159,10 +163,12 @@ def test_current_runtime_persists_accepted_intent_without_execution_submission()
 
 
 def test_stale_configuration_is_persisted_as_rejected_evidence() -> None:
-    commands = BotCommandService(_session_factory(), clock=lambda: NOW)
+    session_factory = _session_factory()
+    commands = BotCommandService(session_factory, clock=lambda: NOW)
     service = LifecycleCommandIntentService(
         commands,
         FixedRuntimeProvider(_runtime()),
+        idempotency_lookup=SqlAlchemyIdempotentCommandLookup(session_factory),
         clock=lambda: NOW,
         id_factory=lambda: COMMAND_ID,
     )
@@ -176,16 +182,20 @@ def test_stale_configuration_is_persisted_as_rejected_evidence() -> None:
 
 
 def test_transport_retry_returns_existing_command_without_duplicate_history() -> None:
-    commands = BotCommandService(_session_factory(), clock=lambda: NOW)
+    session_factory = _session_factory()
+    commands = BotCommandService(session_factory, clock=lambda: NOW)
+    lookup = SqlAlchemyIdempotentCommandLookup(session_factory)
     first = LifecycleCommandIntentService(
         commands,
         FixedRuntimeProvider(_runtime()),
+        idempotency_lookup=lookup,
         clock=lambda: NOW,
         id_factory=lambda: COMMAND_ID,
     )
     retry = LifecycleCommandIntentService(
         commands,
         FixedRuntimeProvider(_runtime()),
+        idempotency_lookup=lookup,
         clock=lambda: NOW + timedelta(seconds=5),
         id_factory=lambda: RETRY_COMMAND_ID,
     )
@@ -201,16 +211,20 @@ def test_transport_retry_returns_existing_command_without_duplicate_history() ->
 
 
 def test_same_idempotency_key_with_different_action_records_conflict_only() -> None:
-    commands = BotCommandService(_session_factory(), clock=lambda: NOW)
+    session_factory = _session_factory()
+    commands = BotCommandService(session_factory, clock=lambda: NOW)
+    lookup = SqlAlchemyIdempotentCommandLookup(session_factory)
     first = LifecycleCommandIntentService(
         commands,
         FixedRuntimeProvider(_runtime()),
+        idempotency_lookup=lookup,
         clock=lambda: NOW,
         id_factory=lambda: COMMAND_ID,
     )
     conflicting = LifecycleCommandIntentService(
         commands,
         FixedRuntimeProvider(_runtime()),
+        idempotency_lookup=lookup,
         clock=lambda: NOW + timedelta(seconds=5),
         id_factory=lambda: RETRY_COMMAND_ID,
     )

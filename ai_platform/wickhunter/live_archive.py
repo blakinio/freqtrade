@@ -290,6 +290,26 @@ def _input_identity(
     return sha256(_json_bytes(material).rstrip(b"\n")).hexdigest()
 
 
+def _assert_archive_unchanged(
+    *,
+    run_state_path: Path,
+    run_state_sha256: str,
+    sources: tuple[_SourceArchive, ...],
+) -> None:
+    _require_regular_file(run_state_path)
+    if sha256_file(run_state_path) != run_state_sha256:
+        raise ValueError("closed live run state changed during acceptance")
+    for source in sources:
+        _require_regular_file(source.events_path)
+        _require_regular_file(source.summary_path)
+        if (
+            source.events_path.stat().st_size != source.events_size_bytes
+            or sha256_file(source.events_path) != source.events_sha256
+            or sha256_file(source.summary_path) != source.summary_sha256
+        ):
+            raise ValueError(f"closed live source changed during acceptance: {source.spec.source}")
+
+
 def accept_closed_live_run(  # noqa: C901
     *,
     run_root: Path,
@@ -325,8 +345,11 @@ def accept_closed_live_run(  # noqa: C901
         )
         for spec in _SOURCE_SPECS
     )
-    if sha256_file(run_state_path) != run_state_sha256:
-        raise ValueError("closed live run state changed during acceptance")
+    _assert_archive_unchanged(
+        run_state_path=run_state_path,
+        run_state_sha256=run_state_sha256,
+        sources=sources,
+    )
     input_identity_sha256 = _input_identity(
         run_id=run_id,
         collector_commit=collector_commit,
@@ -500,6 +523,11 @@ def accept_closed_live_run(  # noqa: C901
                     "artifacts": artifact_hashes,
                 }
             )
+        )
+        _assert_archive_unchanged(
+            run_state_path=run_state_path,
+            run_state_sha256=run_state_sha256,
+            sources=sources,
         )
         temporary_root.replace(output_root)
     except Exception:

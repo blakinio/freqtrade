@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "request_id": "okx-shadow-acceptance-20260727-v1",
+  "run_id": "okx-shadow-acceptance-20260727-v1",
+  "host_id": "freqtrade-synology-staging",
+  "host_class": "always_on_nonrestricted_linux_staging",
+  "github_hosted_runner": false,
+  "durable_storage_uri": "file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance",
+  "policy_id": "okx-liquidation-shadow-acceptance-v1",
+  "symbols": [
+    "BTCUSDT",
+    "ETHUSDT"
+  ],
+  "duration_seconds": 86400,
+  "execution_enabled": false,
+  "performance_research_authorized": false,
+  "replay_authorized": false,
+  "model_training_authorized": false,
+  "orders_submitted": 0
+}

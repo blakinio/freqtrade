@@ -142,7 +142,11 @@ def _candidate_from_run(  # noqa: C901
     *,
     holdout_start_ms: int,
 ) -> ClosedRunCandidate | None:
-    if run_root.is_symlink() or not run_root.is_dir() or not LIVE_RUN_ID_PATTERN.fullmatch(run_root.name):
+    if (
+        run_root.is_symlink()
+        or not run_root.is_dir()
+        or not LIVE_RUN_ID_PATTERN.fullmatch(run_root.name)
+    ):
         return None
     state_path = run_root / "run-state-v1.json"
     if state_path.is_symlink() or not state_path.is_file():
@@ -385,7 +389,9 @@ def verify_operation(operation_root: Path) -> dict[str, Any]:
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Convert one completed production Liquid20 archive into a WH-01 accepted import."
+        description=(
+            "Convert one completed production Liquid20 archive into a WH-01 accepted import."
+        )
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     convert = subparsers.add_parser("convert")

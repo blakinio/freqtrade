@@ -52,9 +52,16 @@ def test_script_uses_explicit_fixture_identity_only_in_isolated_candidate() -> N
     assert "--env PORTAL_IDENTITY_FIXTURE_MODE=enabled" in text
     assert "--env PORTAL_WEB_DATA_MODE=fixture" in text
     assert 'candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-' in text
-    assert 'fixture_identity": True' in text
+    assert '"fixture_identity": True' in text
     assert "SESSION_MISSING" in text
     assert "production_boundary" in text
+    assert "/api/identity/login?return_to=%2Fmarket%2Fliquidations" in text
+    assert 'login.status !== 303' in text
+    assert 'value.startsWith("portal_fixture_session=")' in text
+    assert 'value.startsWith("portal_fixture_csrf=")' in text
+    assert 'headers:{accept:"application/json", cookie}' in text
+    assert '"authenticated_with_fixture_session": True' in text
+    assert '"cookie":' not in text
 
 
 def test_script_requires_truthful_live_health_and_timestamps() -> None:
@@ -69,6 +76,8 @@ def test_script_requires_truthful_live_health_and_timestamps() -> None:
     assert "Ostatnie sprawdzenie przez portal" in text
     assert "collector heartbeat did not advance" in text
     assert "portal read timestamp did not advance" in text
+    assert "real_exchange_event_present" in text
+    assert "event_count_advanced_during_observation" in text
     assert "real_exchange_event_observed" in text
     assert "without fabricating an event" in text
     assert '"trading_authorized": False' in text
@@ -83,6 +92,23 @@ def test_script_checks_sources_no_store_and_same_process() -> None:
     assert 'cacheControl.includes("no-store")' in text
     assert '"same_portal_process": True' in text
     assert '"no_store_api": True' in text
+
+
+def test_script_records_candidate_runtime_security_and_fail_closed_result() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "proof_stage=" in text
+    assert '"result": "failure"' in text
+    assert '"rejection_reason": f"proof failed during {stage}"' in text
+    assert '"result": "success"' in text
+    assert '"rejection_reason": None' in text
+    assert 'CANDIDATE_UID="$candidate_uid"' in text
+    assert 'CANDIDATE_GROUPS="$candidate_groups"' in text
+    assert '"read_only_root_filesystem": True' in text
+    assert '"cap_drop_all": True' in text
+    assert '"no_new_privileges": True' in text
+    assert '"tmpfs_only_for_required_paths": True' in text
+    assert '"memory_limit_bytes": 805306368' in text
 
 
 def test_script_probes_synology_pid_limit_and_records_runtime_setting() -> None:

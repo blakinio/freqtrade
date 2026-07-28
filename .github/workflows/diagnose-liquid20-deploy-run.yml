@@ -1,4 +1,4 @@
-name: Inspect Liquid20 Deploy Run
+name: Inspect Portal Proof Repair Run
 
 on:
   pull_request:
@@ -23,7 +23,7 @@ jobs:
           import os
           import urllib.request
 
-          sha = "b6f4589ff4da88a9cbd91342c657de6b57def142"
+          sha = "dfc64badb505e9cda5b9dd67ba4551668be92bba"
           repository = os.environ["GITHUB_REPOSITORY"]
           request = urllib.request.Request(
               f"https://api.github.com/repos/{repository}/actions/runs?head_sha={sha}&event=push&per_page=100",
@@ -48,9 +48,8 @@ jobs:
                   "updated_at": item["updated_at"],
               }
               for item in payload.get("workflow_runs", [])
-              if item.get("name") == "Liquidations Live Synology"
           ]
-          print("LIQUID20_DEPLOY_RUNS=" + json.dumps(runs, sort_keys=True))
+          print("PORTAL_PATCH_RUNS=" + json.dumps(runs, sort_keys=True))
           if not runs:
-              raise SystemExit("No exact Liquidations Live Synology push run found")
+              raise SystemExit("No exact push run found")
           PY

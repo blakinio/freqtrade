@@ -2,27 +2,48 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
-from ai_platform.scripts import residual_pytorch_bounded_m1_v3_generalization as v3
-from ai_platform.scripts import residual_pytorch_bounded_m1_v3_run_request as request
+import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-v3-generalization.yml"
+CONTRACT = (
+    REPO_ROOT
+    / "ai_platform/experimental_model_research/"
+    "residual-pytorch-bounded-m1-generalization-contract-v3.json"
+)
+SOURCE_CONTRACT = (
+    REPO_ROOT
+    / "ai_platform/experimental_model_research/"
+    "residual-pytorch-bounded-m1-execution-contract-v2.json"
+)
+SOURCE_ROLE_NORMALIZED_FEATURE_HASH = (
+    "c65ec5f29963f1bb541f1c5416b52a4be8bfe2a1328a04577c17eea197d2945c"
+)
 
 
-def _load(path: str) -> dict:
-    return json.loads((REPO_ROOT / path).read_text(encoding="utf-8"))
+def _load(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _numeric_modules() -> tuple[Any, Any]:
+    pytest.importorskip("numpy")
+    pytest.importorskip("pandas")
+    from ai_platform.scripts import residual_pytorch_bounded_m1_v3_generalization as v3
+    from ai_platform.scripts import residual_pytorch_bounded_m1_v3_run_request as request
+
+    return v3, request
 
 
 def test_v3_contract_is_pair_only_generalization() -> None:
-    contract = v3.load_contract()
+    contract = _load(CONTRACT)
 
     assert contract["market_data"]["pairs"] == ["SOL/USDT", "XRP/USDT"]
-    assert contract["feature_target_contract"]["feature_parameters"]["include_corr_pairlist"] == [
-        "SOL/USDT",
-        "XRP/USDT",
-    ]
+    assert contract["feature_target_contract"]["feature_parameters"][
+        "include_corr_pairlist"
+    ] == ["SOL/USDT", "XRP/USDT"]
     assert contract["geometry"]["development_stop_exclusive"] == "2026-05-01T00:00:00Z"
     assert contract["authorization"]["feature_changes_allowed"] is False
     assert contract["authorization"]["historical_oos_used"] is False
@@ -32,16 +53,13 @@ def test_v3_contract_is_pair_only_generalization() -> None:
     assert contract["generalization"]["expected_expanded_feature_count"] == 272
     assert (
         contract["generalization"]["source_role_normalized_feature_names_sha256"]
-        == v3.SOURCE_ROLE_NORMALIZED_FEATURE_HASH
+        == SOURCE_ROLE_NORMALIZED_FEATURE_HASH
     )
 
 
 def test_v3_model_parameters_and_non_pair_feature_geometry_match_v2() -> None:
-    source = _load(
-        "ai_platform/experimental_model_research/"
-        "residual-pytorch-bounded-m1-execution-contract-v2.json"
-    )
-    target = v3.load_contract()
+    source = _load(SOURCE_CONTRACT)
+    target = _load(CONTRACT)
 
     source_features = dict(source["feature_target_contract"]["feature_parameters"])
     target_features = dict(target["feature_target_contract"]["feature_parameters"])
@@ -65,6 +83,7 @@ def test_v3_model_parameters_and_non_pair_feature_geometry_match_v2() -> None:
 
 
 def test_role_normalization_is_pair_symbol_independent() -> None:
+    v3, _ = _numeric_modules()
     sol = {
         "pair": "SOL/USDT",
         "expanded_feature_names": [
@@ -85,6 +104,7 @@ def test_role_normalization_is_pair_symbol_independent() -> None:
 
 
 def test_canonical_request_binds_v3_inputs_without_request_presence() -> None:
+    _, request = _numeric_modules()
     payload = request.canonical_run_request()
 
     assert payload["request_id"] == "residual-pytorch-bounded-m1-generalization-v3"

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Protocol
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-from pydantic import PositiveInt
+from pydantic import PositiveInt, model_validator
 
 from ai_platform.portal.bot_operations.lifecycle import lifecycle_command_policy
 from ai_platform.portal.bot_operations.schema import (
@@ -12,6 +13,7 @@ from ai_platform.portal.bot_operations.schema import (
     BotCommandContext,
 )
 from ai_platform.portal.bot_operations.service import BotCommandService
+from ai_platform.portal.contracts.bot_management.capabilities import BotManagementCapability
 from ai_platform.portal.contracts.bot_management.commands import (
     BotLifecycleCommand,
     CommandConfirmationRequirement,
@@ -21,7 +23,16 @@ from ai_platform.portal.contracts.bot_management.commands import (
     ConfirmationMethod,
     LifecycleAction,
 )
-from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr
+from ai_platform.portal.contracts.common import (
+    ContractModel,
+    CorrelationContext,
+    NonEmptyStr,
+)
+from ai_platform.portal.contracts.identity import Actor
+
+
+Clock = Callable[[], datetime]
+IdFactory = Callable[[], UUID]
 
 
 class AuthoritativeBotRuntimeStateProvider(Protocol):
@@ -46,6 +57,22 @@ class UnavailableBotRuntimeStateProvider:
         return None
 
 
+class LifecycleIntentContext(ContractModel):
+    tenant_id: NonEmptyStr
+    actor: Actor
+    capabilities: tuple[BotManagementCapability, ...]
+    correlation: CorrelationContext
+
+    @model_validator(mode="after")
+    def validate_context(self) -> LifecycleIntentContext:
+        if self.actor.tenant_id != self.tenant_id:
+            raise ValueError("lifecycle intent actor must belong to the tenant")
+        values = [capability.value for capability in self.capabilities]
+        if len(values) != len(set(values)) or values != sorted(values):
+            raise ValueError("lifecycle intent capabilities must be unique and sorted")
+        return self
+
+
 class LifecycleIntentRequest(ContractModel):
     bot_id: NonEmptyStr
     action: LifecycleAction
@@ -62,6 +89,14 @@ class LifecycleIntentResult(ContractModel):
     command_persisted: bool
     execution_submission_performed: bool = False
 
+    @model_validator(mode="after")
+    def validate_result(self) -> LifecycleIntentResult:
+        if self.command_persisted != (self.command_id is not None):
+            raise ValueError("persisted lifecycle intent must expose exactly one command id")
+        if self.execution_submission_performed:
+            raise ValueError("BMW-02 must not perform execution submission")
+        return self
+
 
 class LifecycleCommandIntentService:
     """Prepare and persist BM-03 lifecycle intent without executing it."""
@@ -70,13 +105,18 @@ class LifecycleCommandIntentService:
         self,
         commands: BotCommandService,
         runtime_states: AuthoritativeBotRuntimeStateProvider,
+        *,
+        clock: Clock | None = None,
+        id_factory: IdFactory = uuid4,
     ) -> None:
         self._commands = commands
         self._runtime_states = runtime_states
+        self._clock = clock or (lambda: datetime.now(UTC))
+        self._id_factory = id_factory
 
     def submit(
         self,
-        context: BotCommandContext,
+        context: LifecycleIntentContext,
         request: LifecycleIntentRequest,
     ) -> LifecycleIntentResult:
         runtime = self._runtime_states.resolve(
@@ -93,17 +133,13 @@ class LifecycleCommandIntentService:
             )
 
         policy = lifecycle_command_policy(request.action)
-        command_id = str(uuid4())
+        command_id = str(self._id_factory())
         command = BotLifecycleCommand(
             command_id=command_id,
             tenant_id=context.tenant_id,
             actor=context.actor,
             environment=runtime.environment,
-            correlation={
-                "request_id": uuid4(),
-                "correlation_id": uuid4(),
-                "causation_id": None,
-            },
+            correlation=context.correlation,
             idempotency_key=request.idempotency_key,
             target=CommandTarget(
                 tenant_id=context.tenant_id,
@@ -116,9 +152,9 @@ class LifecycleCommandIntentService:
             confirmation=CommandConfirmationRequirement(
                 required=True,
                 method=ConfirmationMethod.USER_CONFIRMATION,
-                confirmation_reference=f"portal-request:{command_id}",
+                confirmation_reference=f"portal-request:{context.correlation.request_id}",
             ),
-            submitted_at=datetime.now(UTC),
+            submitted_at=self._clock(),
             action=request.action,
         )
         command_context = BotCommandContext(

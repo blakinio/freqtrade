@@ -1,59 +1,299 @@
-name: Inspect Binance Acceptance Pre-commit Failure
+name: Apply Binance Acceptance Mypy Fixes
 
 on:
   pull_request:
-    types: [opened]
+    types: [synchronize]
     paths:
       - ".github/workflows/inspect-binance-acceptance-precommit-90288008264.yml"
 
 permissions:
-  actions: read
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    env:
+      TARGET_BRANCH: feat/binance-spot-instrument-shadow-acceptance-v1
+      EXPECTED_HEAD: ec569a0521fc46e382fa5c41cda9bb64d22a00f9
     steps:
-      - name: Extract exact pre-commit diagnostics
+      - name: Verify exact remote target head
         env:
           GH_TOKEN: ${{ github.token }}
-          TARGET_JOB_ID: "90288008264"
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
-            --output full.log
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          actual="$(git ls-remote "$remote" "refs/heads/${TARGET_BRANCH}" | cut -f1)"
+          [[ "$actual" == "$EXPECTED_HEAD" ]]
+
+      - name: Checkout exact target head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ env.EXPECTED_HEAD }}
+
+      - name: Add fail-closed typed summary accessors
+        run: |
+          set -euo pipefail
           python - <<'PY'
           from pathlib import Path
 
-          lines = Path("full.log").read_text(encoding="utf-8", errors="replace").splitlines()
-          markers = (
-              "Failed",
-              "error:",
-              "would reformat",
-              "files were modified",
-              "hook id:",
-              "mypy",
-              "ruff",
-              "codespell",
-              "zizmor",
-          )
-          selected = []
-          for index, line in enumerate(lines):
-              if any(marker.lower() in line.lower() for marker in markers):
-                  selected.extend(lines[max(0, index - 8):min(len(lines), index + 30)])
-          if not selected:
-              selected = lines[-300:]
-          Path("failure.txt").write_text("\n".join(selected[-1200:]) + "\n", encoding="utf-8")
+          path = Path("ai_platform/market_data/binance_spot_instrument_acceptance.py")
+          text = path.read_text(encoding="utf-8")
+
+          marker = "\ndef _summarize(\n"
+          helper = '''
+          def _nonnegative_number(value: object, *, field: str) -> float:
+              if isinstance(value, bool) or not isinstance(value, int | float):
+                  raise TypeError(f"{field} must be numeric")
+              parsed = float(value)
+              if parsed < 0:
+                  raise ValueError(f"{field} must be >= 0")
+              return parsed
+
+
+          def _summary_int(summary: Mapping[str, object], key: str) -> int:
+              return _integer(summary.get(key), field=f"summary.{key}", minimum=0)
+
+
+          def _summary_float(summary: Mapping[str, object], key: str) -> float:
+              return _nonnegative_number(summary.get(key), field=f"summary.{key}")
+
+
+          def _optional_summary_int(summary: Mapping[str, object], key: str) -> int | None:
+              value = summary.get(key)
+              if value is None:
+                  return None
+              return _integer(value, field=f"summary.{key}", minimum=0)
+
+
+          def _optional_summary_float(summary: Mapping[str, object], key: str) -> float | None:
+              value = summary.get(key)
+              if value is None:
+                  return None
+              return _nonnegative_number(value, field=f"summary.{key}")
+
+
+          '''
+          if text.count(marker) != 1:
+              raise SystemExit("summarize insertion guard failed")
+          text = text.replace(marker, "\n" + helper + "def _summarize(\n", 1)
+
+          replacements = {
+              '    durations = [float(report["duration_ms"]) for report in successes]\n': (
+                  '    durations = [\n'
+                  '        _nonnegative_number(report.get("duration_ms"), field="sample.duration_ms")\n'
+                  '        for report in successes\n'
+                  '    ]\n'
+              ),
+              '    response_bytes = [int(report["response_bytes"]) for report in successes]\n': (
+                  '    response_bytes = [\n'
+                  '        _integer(report.get("response_bytes"), field="sample.response_bytes")\n'
+                  '        for report in successes\n'
+                  '    ]\n'
+              ),
+              '    instrument_counts = [int(report["instrument_count"]) for report in successes]\n': (
+                  '    instrument_counts = [\n'
+                  '        _integer(report.get("instrument_count"), field="sample.instrument_count")\n'
+                  '        for report in successes\n'
+                  '    ]\n'
+              ),
+              '    active_counts = [int(report["active_instrument_count"]) for report in successes]\n': (
+                  '    active_counts = [\n'
+                  '        _integer(\n'
+                  '            report.get("active_instrument_count"),\n'
+                  '            field="sample.active_instrument_count",\n'
+                  '        )\n'
+                  '        for report in successes\n'
+                  '    ]\n'
+              ),
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f"summary replacement guard failed: {old!r}")
+              text = text.replace(old, new, 1)
+
+          start = text.index("def _gates(\n")
+          end = text.index("\n\ndef _outcome", start)
+          gates = '''def _gates(
+              summary: Mapping[str, object],
+              *,
+              policy: BinanceSpotInstrumentAcceptancePolicy,
+          ) -> tuple[Gate, ...]:
+              thresholds = policy.thresholds
+              observed_duration = _summary_float(summary, "observed_duration_seconds")
+              attempted_samples = _summary_int(summary, "attempted_sample_count")
+              successful_samples = _summary_int(summary, "successful_sample_count")
+              availability_ratio = _summary_float(summary, "availability_ratio")
+              consecutive_failures = _summary_int(summary, "maximum_consecutive_failures")
+              transport_failures = _summary_int(summary, "transport_failure_count")
+              parse_failures = _summary_int(summary, "parse_failure_count")
+              integrity_failures = _summary_int(summary, "integrity_failure_count")
+              response_duration_max = _optional_summary_float(summary, "response_duration_ms_max")
+              response_bytes_max = _optional_summary_int(summary, "response_bytes_max")
+              instrument_count_min = _optional_summary_int(summary, "instrument_count_min")
+              instrument_count_max = _optional_summary_int(summary, "instrument_count_max")
+              active_instrument_count_min = _optional_summary_int(
+                  summary, "active_instrument_count_min"
+              )
+              anchor_failures = _summary_int(summary, "anchor_symbol_failure_count")
+              catalog_change_ratio = _summary_float(
+                  summary, "maximum_consecutive_catalog_count_change_ratio"
+              )
+              return (
+                  Gate(
+                      "minimum_duration_seconds",
+                      observed_duration >= thresholds.minimum_duration_seconds,
+                      observed_duration,
+                      thresholds.minimum_duration_seconds,
+                      "window",
+                  ),
+                  Gate(
+                      "minimum_attempted_samples",
+                      attempted_samples >= thresholds.minimum_attempted_samples,
+                      attempted_samples,
+                      thresholds.minimum_attempted_samples,
+                      "window",
+                  ),
+                  Gate(
+                      "minimum_successful_samples",
+                      successful_samples >= thresholds.minimum_successful_samples,
+                      successful_samples,
+                      thresholds.minimum_successful_samples,
+                      "availability",
+                  ),
+                  Gate(
+                      "minimum_availability_ratio",
+                      availability_ratio >= thresholds.minimum_availability_ratio,
+                      availability_ratio,
+                      thresholds.minimum_availability_ratio,
+                      "availability",
+                  ),
+                  Gate(
+                      "maximum_consecutive_failures",
+                      consecutive_failures <= thresholds.maximum_consecutive_failures,
+                      consecutive_failures,
+                      thresholds.maximum_consecutive_failures,
+                      "availability",
+                  ),
+                  Gate(
+                      "maximum_transport_failures",
+                      transport_failures <= thresholds.maximum_transport_failures,
+                      transport_failures,
+                      thresholds.maximum_transport_failures,
+                      "transport",
+                  ),
+                  Gate(
+                      "maximum_parse_failures",
+                      parse_failures <= thresholds.maximum_parse_failures,
+                      parse_failures,
+                      thresholds.maximum_parse_failures,
+                      "parsing",
+                  ),
+                  Gate(
+                      "maximum_integrity_failures",
+                      integrity_failures <= thresholds.maximum_integrity_failures,
+                      integrity_failures,
+                      thresholds.maximum_integrity_failures,
+                      "integrity",
+                  ),
+                  Gate(
+                      "maximum_response_duration_ms",
+                      response_duration_max is not None
+                      and response_duration_max <= thresholds.maximum_response_duration_ms,
+                      response_duration_max,
+                      thresholds.maximum_response_duration_ms,
+                      "latency",
+                  ),
+                  Gate(
+                      "maximum_response_bytes",
+                      response_bytes_max is not None
+                      and response_bytes_max <= thresholds.maximum_response_bytes,
+                      response_bytes_max,
+                      thresholds.maximum_response_bytes,
+                      "transport",
+                  ),
+                  Gate(
+                      "minimum_instrument_count",
+                      instrument_count_min is not None
+                      and instrument_count_min >= thresholds.minimum_instrument_count,
+                      instrument_count_min,
+                      thresholds.minimum_instrument_count,
+                      "catalog",
+                  ),
+                  Gate(
+                      "maximum_instrument_count",
+                      instrument_count_max is not None
+                      and instrument_count_max <= thresholds.maximum_instrument_count,
+                      instrument_count_max,
+                      thresholds.maximum_instrument_count,
+                      "catalog",
+                  ),
+                  Gate(
+                      "minimum_active_instrument_count",
+                      active_instrument_count_min is not None
+                      and active_instrument_count_min >= thresholds.minimum_active_instrument_count,
+                      active_instrument_count_min,
+                      thresholds.minimum_active_instrument_count,
+                      "catalog",
+                  ),
+                  Gate(
+                      "required_active_native_symbols",
+                      anchor_failures == 0,
+                      anchor_failures,
+                      0,
+                      "catalog",
+                  ),
+                  Gate(
+                      "maximum_consecutive_catalog_count_change_ratio",
+                      catalog_change_ratio
+                      <= thresholds.maximum_consecutive_catalog_count_change_ratio,
+                      catalog_change_ratio,
+                      thresholds.maximum_consecutive_catalog_count_change_ratio,
+                      "catalog",
+                  ),
+                  Gate(
+                      "production_source_enabled",
+                      summary.get("production_source_enabled") is False,
+                      summary.get("production_source_enabled"),
+                      False,
+                      "safety",
+                  ),
+                  Gate(
+                      "orders_submitted",
+                      summary.get("orders_submitted") == 0,
+                      summary.get("orders_submitted"),
+                      0,
+                      "safety",
+                  ),
+              )'''
+          text = text[:start] + gates + text[end:]
+          path.write_text(text, encoding="utf-8")
           PY
-      - name: Upload exact failure excerpt
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: binance-acceptance-precommit-90288008264
-          path: failure.txt
-          if-no-files-found: error
-          retention-days: 1
+
+      - name: Validate exact static repair
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "ruff==0.15.21" "mypy==2.3.0"
+          file=ai_platform/market_data/binance_spot_instrument_acceptance.py
+          ruff check --fix "$file"
+          ruff format "$file"
+          ruff check "$file"
+          ruff format --check "$file"
+          mypy "$file"
+          [[ "$(git diff --name-only)" == "$file" ]]
+
+      - name: Commit and fast-forward exact target branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          actual="$(git ls-remote "$remote" "refs/heads/${TARGET_BRANCH}" | cut -f1)"
+          [[ "$actual" == "$EXPECTED_HEAD" ]]
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/market_data/binance_spot_instrument_acceptance.py
+          git commit -m "fix(ai-platform): validate Binance acceptance summary types"
+          git push "$remote" "HEAD:refs/heads/${TARGET_BRANCH}"

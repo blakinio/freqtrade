@@ -253,6 +253,7 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/runtime-observability/availability",
         "/v1/runtime-observability/logs/search",
         "/v1/bot-management/catalog/{catalog_id}/latest",
+        "/v1/bot-management/catalog/{catalog_id}/{catalog_version}",
         "/v1/bot-management/catalog/templates/search",
         "/v1/bot-management/catalog/compatibility",
         "/v1/bot-management/builder/drafts",

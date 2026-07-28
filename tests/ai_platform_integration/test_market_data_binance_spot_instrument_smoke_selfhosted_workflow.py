@@ -7,8 +7,9 @@ WORKFLOW_PATH = (
 )
 RUNNER_ENTRYPOINT_PATH = REPOSITORY_ROOT / "deploy/synology/freqtrade-runner/entrypoint.sh"
 TRIGGER_PATH = (
-    "ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json"
+    "ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v2.json"
 )
+POLICY_PATH = "ai_platform/market_data/binance-spot-instrument-smoke-policy-v2.json"
 
 
 def _workflow() -> str:
@@ -19,7 +20,7 @@ def _runner_entrypoint() -> str:
     return RUNNER_ENTRYPOINT_PATH.read_text(encoding="utf-8")
 
 
-def test_selfhosted_workflow_is_exact_request_gated() -> None:
+def test_selfhosted_workflow_is_exact_v2_request_gated() -> None:
     workflow = _workflow()
 
     assert "types: [opened]" in workflow
@@ -78,10 +79,10 @@ def test_selfhosted_workflow_uses_pinned_isolated_uv_runtime() -> None:
     assert "run: rm -rf .venv" in workflow
 
 
-def test_selfhosted_workflow_reuses_frozen_smoke_contract() -> None:
+def test_selfhosted_workflow_reuses_frozen_reduced_payload_contract() -> None:
     workflow = _workflow()
 
-    assert "ai_platform/market_data/binance-spot-instrument-smoke-policy-v1.json" in workflow
+    assert POLICY_PATH in workflow
     assert "ai_platform.market_data.binance_spot_instrument_smoke" in workflow
     assert '"jsonschema==4.26.0"' in workflow
     assert "api1.binance.com" not in workflow
@@ -96,7 +97,9 @@ def test_selfhosted_workflow_preserves_one_shot_evidence() -> None:
 
     assert "persist-credentials: false" in workflow
     assert "cancel-in-progress: false" in workflow
+    assert "Run frozen reduced-payload single-request smoke" in workflow
     assert "Upload bounded failure evidence" in workflow
     assert "Upload immutable smoke evidence" in workflow
+    assert "if-no-files-found: error" in workflow
     assert "retention-days: 30" in workflow
     assert "Remove isolated smoke runtime" in workflow

@@ -1,4 +1,4 @@
-name: Residual PyTorch Bounded M1 V2 Request Generator
+name: Residual PyTorch Bounded M1 V3 Request Generator
 
 on:
   pull_request:
@@ -6,20 +6,20 @@ on:
     branches:
       - develop
     paths:
-      - "ai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v2.txt"
+      - "ai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v3.txt"
 
 permissions:
   contents: write
 
 concurrency:
-  group: residual-pytorch-bounded-m1-v2-request-generator
+  group: residual-pytorch-bounded-m1-v3-request-generator
   cancel-in-progress: false
 
 env:
-  MARKER_PATH: ai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v2.txt
-  REQUEST_PATH: ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v2.json
-  REQUEST_BRANCH: run/residual-pytorch-bounded-m1-v2-execution
-  TASK_PATH: docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
+  MARKER_PATH: ai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v3.txt
+  REQUEST_PATH: ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-generalization-v3.json
+  REQUEST_BRANCH: run/residual-pytorch-bounded-m1-v3-generalization
+  TASK_PATH: docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
 
 jobs:
   generate:
@@ -43,14 +43,14 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          expected=$'A\tai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v2.txt'
+          expected=$'A\tai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v3.txt'
           actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
           if [[ "$actual" != "$expected" ]]; then
-            echo "Generator PR must add exactly the canonical marker" >&2
+            echo "Generator PR must add exactly the canonical v3 marker" >&2
             printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
             exit 1
           fi
-          test "$(cat "$MARKER_PATH")" = "generate residual-pytorch-bounded-m1-execution-v2"
+          test "$(cat "$MARKER_PATH")" = "generate residual-pytorch-bounded-m1-generalization-v3"
           python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
 
       - name: Install uv and Python
@@ -65,8 +65,8 @@ jobs:
 
       - name: Generate canonical request bytes
         run: |
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_run_request \
-            --print-canonical > /tmp/residual-pytorch-bounded-m1-execution-v2.json
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v3_run_request \
+            --print-canonical > /tmp/residual-pytorch-bounded-m1-generalization-v3.json
 
       - name: Commit exactly the request to the prepared branch
         shell: bash
@@ -76,13 +76,13 @@ jobs:
           git checkout -B "$REQUEST_BRANCH" "origin/$REQUEST_BRANCH"
           test ! -e "$REQUEST_PATH"
           mkdir -p "$(dirname "$REQUEST_PATH")"
-          cp /tmp/residual-pytorch-bounded-m1-execution-v2.json "$REQUEST_PATH"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_run_request "$REQUEST_PATH"
+          cp /tmp/residual-pytorch-bounded-m1-generalization-v3.json "$REQUEST_PATH"
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v3_run_request "$REQUEST_PATH"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add "$REQUEST_PATH"
-          expected=$'A\tai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v2.json'
+          expected=$'A\tai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-generalization-v3.json'
           actual="$(git diff --cached --name-status)"
           test "$actual" = "$expected"
-          git commit -m "run(ai-platform): execute bounded M1 v2 comparison"
+          git commit -m "run(ai-platform): execute bounded M1 v3 generalization"
           git push origin HEAD:"$REQUEST_BRANCH"

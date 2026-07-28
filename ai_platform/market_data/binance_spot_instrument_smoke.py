@@ -27,10 +27,26 @@ from ai_platform.market_data.instrument_adapters import (
 
 POLICY_VERSION = "binance-spot-instrument-smoke-policy-v1"
 REQUEST_VERSION = "binance-spot-instrument-smoke-request-v1"
+REDUCED_PAYLOAD_POLICY_VERSION = "binance-spot-instrument-smoke-policy-v2"
+REDUCED_PAYLOAD_REQUEST_VERSION = "binance-spot-instrument-smoke-request-v2"
 REPORT_VERSION = "binance-spot-instrument-smoke-report-v1"
+FAILURE_REPORT_VERSION = "binance-spot-instrument-smoke-failure-report-v1"
+BINANCE_SPOT_REDUCED_PAYLOAD_URL = f"{BINANCE_SPOT_URL}?showPermissionSets=false"
 DEFAULT_TIMEOUT_SECONDS = 20
 DEFAULT_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 USER_AGENT = "freqtrade-ai-platform-market-data-smoke/1"
+
+_POLICY_CONTRACTS = {
+    POLICY_VERSION: BINANCE_SPOT_URL,
+    REDUCED_PAYLOAD_POLICY_VERSION: BINANCE_SPOT_REDUCED_PAYLOAD_URL,
+}
+_REQUEST_CONTRACTS = {
+    REQUEST_VERSION: (POLICY_VERSION, BINANCE_SPOT_URL),
+    REDUCED_PAYLOAD_REQUEST_VERSION: (
+        REDUCED_PAYLOAD_POLICY_VERSION,
+        BINANCE_SPOT_REDUCED_PAYLOAD_URL,
+    ),
+}
 
 
 class HttpResponse(Protocol):
@@ -80,6 +96,26 @@ def _open_url(
 
 
 @dataclass(frozen=True, slots=True)
+class SmokeFailureDetails:
+    stage: str
+    attempt_count: int
+    error_type: str
+    request_started_ns: int | None = None
+    response_completed_ns: int | None = None
+    http_status: int | None = None
+    content_type: str | None = None
+    final_url: str | None = None
+    declared_response_bytes: int | None = None
+    observed_response_bytes: int | None = None
+
+
+class SmokeExecutionError(RuntimeError):
+    def __init__(self, message: str, *, details: SmokeFailureDetails) -> None:
+        super().__init__(message)
+        self.details = details
+
+
+@dataclass(frozen=True, slots=True)
 class SmokePolicy:
     version: str
     source_id: str
@@ -108,12 +144,13 @@ class SmokePolicy:
         return policy
 
     def validate(self) -> None:
-        if self.version != POLICY_VERSION:
+        expected_url = _POLICY_CONTRACTS.get(self.version)
+        if expected_url is None:
             raise ValueError("unsupported smoke policy version")
         if self.source_id != "binance-spot":
             raise ValueError("smoke policy source_id must be binance-spot")
-        if self.request_url != BINANCE_SPOT_URL:
-            raise ValueError("smoke policy request_url must match the adapter URL")
+        if self.request_url != expected_url:
+            raise ValueError("smoke policy request_url must match its frozen contract")
         if self.timeout_seconds != DEFAULT_TIMEOUT_SECONDS:
             raise ValueError("smoke policy timeout_seconds must remain frozen")
         if self.max_response_bytes != DEFAULT_MAX_RESPONSE_BYTES:
@@ -155,14 +192,16 @@ class SmokeRequest:
         return request
 
     def validate(self) -> None:
-        if self.version != REQUEST_VERSION:
+        contract = _REQUEST_CONTRACTS.get(self.version)
+        if contract is None:
             raise ValueError("unsupported smoke request version")
-        if self.policy_version != POLICY_VERSION:
+        expected_policy_version, expected_url = contract
+        if self.policy_version != expected_policy_version:
             raise ValueError("request policy_version mismatch")
         if self.source_id != "binance-spot":
             raise ValueError("smoke request source_id must be binance-spot")
-        if self.request_url != BINANCE_SPOT_URL:
-            raise ValueError("smoke request URL must match the adapter URL")
+        if self.request_url != expected_url:
+            raise ValueError("smoke request URL must match its frozen contract")
         if self.execution_mode != "single_public_rest_snapshot":
             raise ValueError("unsupported smoke execution mode")
         if not self.public_only:
@@ -215,6 +254,36 @@ def _validate_content_type(headers: Mapping[str, str]) -> str:
     return content_type
 
 
+def _failure(
+    message: str,
+    *,
+    stage: str,
+    error_type: str,
+    started_ns: int,
+    ended_ns: int | None = None,
+    status: int | None = None,
+    content_type: str | None = None,
+    final_url: str | None = None,
+    declared_response_bytes: int | None = None,
+    observed_response_bytes: int | None = None,
+) -> SmokeExecutionError:
+    return SmokeExecutionError(
+        message,
+        details=SmokeFailureDetails(
+            stage=stage,
+            attempt_count=1,
+            error_type=error_type,
+            request_started_ns=started_ns,
+            response_completed_ns=ended_ns,
+            http_status=status,
+            content_type=content_type,
+            final_url=final_url,
+            declared_response_bytes=declared_response_bytes,
+            observed_response_bytes=observed_response_bytes,
+        ),
+    )
+
+
 def _fetch_once(
     policy: SmokePolicy,
     *,
@@ -226,34 +295,115 @@ def _fetch_once(
         headers={"Accept": "application/json", "User-Agent": USER_AGENT},
         method="GET",
     )
-    with opener(
-        request,
-        timeout=float(policy.timeout_seconds),
-        context=ssl.create_default_context(),
-    ) as response:
-        status = response.status
-        final_url = response.geturl()
-        if status != 200:
-            raise RuntimeError(f"unexpected HTTP status: {status}")
-        if not policy.allow_redirects and final_url != policy.request_url:
-            raise RuntimeError(f"redirects are forbidden: {final_url}")
-        content_type = _validate_content_type(response.headers)
-        content_length = response.headers.get("Content-Length") or response.headers.get(
-            "content-length"
-        )
-        if content_length:
+    try:
+        with opener(
+            request,
+            timeout=float(policy.timeout_seconds),
+            context=ssl.create_default_context(),
+        ) as response:
+            status = response.status
+            final_url = response.geturl()
+            if status != 200:
+                raise _failure(
+                    f"unexpected HTTP status: {status}",
+                    stage="transport",
+                    error_type="UnexpectedHttpStatus",
+                    started_ns=started_ns,
+                    ended_ns=time.time_ns(),
+                    status=status,
+                    final_url=final_url,
+                )
+            if not policy.allow_redirects and final_url != policy.request_url:
+                raise _failure(
+                    f"redirects are forbidden: {final_url}",
+                    stage="transport",
+                    error_type="RedirectRefused",
+                    started_ns=started_ns,
+                    ended_ns=time.time_ns(),
+                    status=status,
+                    final_url=final_url,
+                )
             try:
-                declared = int(content_length)
-            except ValueError as exc:
-                raise RuntimeError("invalid Content-Length header") from exc
-            if declared > policy.max_response_bytes:
-                raise RuntimeError("response exceeds max_response_bytes")
-        payload = response.read(policy.max_response_bytes + 1)
+                content_type = _validate_content_type(response.headers)
+            except RuntimeError as exc:
+                raise _failure(
+                    str(exc),
+                    stage="response_headers",
+                    error_type="UnexpectedContentType",
+                    started_ns=started_ns,
+                    ended_ns=time.time_ns(),
+                    status=status,
+                    final_url=final_url,
+                ) from exc
+            content_length = response.headers.get("Content-Length") or response.headers.get(
+                "content-length"
+            )
+            declared: int | None = None
+            if content_length:
+                try:
+                    declared = int(content_length)
+                except ValueError as exc:
+                    raise _failure(
+                        "invalid Content-Length header",
+                        stage="response_headers",
+                        error_type="InvalidContentLength",
+                        started_ns=started_ns,
+                        ended_ns=time.time_ns(),
+                        status=status,
+                        content_type=content_type,
+                        final_url=final_url,
+                    ) from exc
+                if declared > policy.max_response_bytes:
+                    raise _failure(
+                        "response exceeds max_response_bytes",
+                        stage="response_headers",
+                        error_type="ResponseTooLarge",
+                        started_ns=started_ns,
+                        ended_ns=time.time_ns(),
+                        status=status,
+                        content_type=content_type,
+                        final_url=final_url,
+                        declared_response_bytes=declared,
+                    )
+            payload = response.read(policy.max_response_bytes + 1)
+    except SmokeExecutionError:
+        raise
+    except Exception as exc:
+        raise _failure(
+            str(exc) or exc.__class__.__name__,
+            stage="transport",
+            error_type=exc.__class__.__name__,
+            started_ns=started_ns,
+            ended_ns=time.time_ns(),
+        ) from exc
+
     ended_ns = time.time_ns()
     if len(payload) > policy.max_response_bytes:
-        raise RuntimeError("response exceeds max_response_bytes")
+        raise _failure(
+            "response exceeds max_response_bytes",
+            stage="response_body",
+            error_type="ResponseTooLarge",
+            started_ns=started_ns,
+            ended_ns=ended_ns,
+            status=status,
+            content_type=content_type,
+            final_url=final_url,
+            declared_response_bytes=declared,
+            observed_response_bytes=len(payload),
+        )
     if not payload:
-        raise RuntimeError("response payload is empty")
+        raise _failure(
+            "response payload is empty",
+            stage="response_body",
+            error_type="EmptyResponse",
+            started_ns=started_ns,
+            ended_ns=ended_ns,
+            status=status,
+            content_type=content_type,
+            final_url=final_url,
+            declared_response_bytes=declared,
+            observed_response_bytes=0,
+        )
     return payload, status, content_type, final_url, started_ns, ended_ns
 
 
@@ -269,6 +419,78 @@ def _decode_object(payload: bytes) -> dict[str, object]:
 
 def _checksums(entries: Sequence[tuple[str, bytes]]) -> bytes:
     return "".join(f"{_sha256_bytes(value)}  {name}\n" for name, value in entries).encode("utf-8")
+
+
+def _write_failure_evidence(
+    *,
+    output_root: Path,
+    policy: SmokePolicy,
+    policy_mapping: Mapping[str, object],
+    request_mapping: Mapping[str, object],
+    collector_commit: str,
+    error: Exception,
+    stage: str,
+    attempt_count: int,
+) -> dict[str, Any]:
+    if isinstance(error, SmokeExecutionError):
+        details = error.details
+    else:
+        details = SmokeFailureDetails(
+            stage=stage,
+            attempt_count=attempt_count,
+            error_type=error.__class__.__name__,
+        )
+
+    request_name = "run-request.json"
+    policy_name = "policy.json"
+    failure_name = "failure-report.json"
+    checksums_name = "checksums.sha256"
+
+    request_bytes = canonical_json_bytes(request_mapping) + b"\n"
+    policy_bytes = canonical_json_bytes(policy_mapping) + b"\n"
+    failure_seed: dict[str, Any] = {
+        "failure_report_version": FAILURE_REPORT_VERSION,
+        "status": "fail",
+        "source_id": policy.source_id,
+        "request_url": policy.request_url,
+        "failure_stage": details.stage,
+        "error_type": details.error_type,
+        "error_message": str(error),
+        "collector_commit": collector_commit,
+        "attempt_count": details.attempt_count,
+        "timeout_seconds": policy.timeout_seconds,
+        "max_response_bytes": policy.max_response_bytes,
+        "request_started_ns": details.request_started_ns,
+        "response_completed_ns": details.response_completed_ns,
+        "http_status": details.http_status,
+        "content_type": details.content_type,
+        "final_url": details.final_url,
+        "declared_response_bytes": details.declared_response_bytes,
+        "observed_response_bytes": details.observed_response_bytes,
+        "raw_payload_persisted": False,
+        "source_acceptance": False,
+        "broad_capture": False,
+        "websocket": False,
+    }
+    failure_report = {
+        **failure_seed,
+        "failure_report_sha256": canonical_sha256(failure_seed),
+    }
+    failure_bytes = canonical_json_bytes(failure_report) + b"\n"
+    checksum_bytes = _checksums(
+        (
+            (request_name, request_bytes),
+            (policy_name, policy_bytes),
+            (failure_name, failure_bytes),
+        )
+    )
+
+    output_root.mkdir(parents=True, exist_ok=False)
+    _write_bytes(output_root / request_name, request_bytes)
+    _write_bytes(output_root / policy_name, policy_bytes)
+    _write_bytes(output_root / failure_name, failure_bytes)
+    _write_bytes(output_root / checksums_name, checksum_bytes)
+    return failure_report
 
 
 def run_smoke(
@@ -291,16 +513,34 @@ def run_smoke(
     if request.request_url != policy.request_url or request.source_id != policy.source_id:
         raise ValueError("request and policy source identity do not match")
 
-    raw_payload, status, content_type, final_url, started_ns, ended_ns = _fetch_once(
-        policy, opener=opener
-    )
-    payload_mapping = _decode_object(raw_payload)
-    captured_at_ms = ended_ns // 1_000_000
-    snapshot = parse_binance_spot_catalog(
-        payload_mapping,
-        captured_at_ms=captured_at_ms,
-        request_url=policy.request_url,
-    )
+    stage = "transport"
+    attempt_count = 1
+    try:
+        raw_payload, status, content_type, final_url, started_ns, ended_ns = _fetch_once(
+            policy, opener=opener
+        )
+        stage = "decode"
+        payload_mapping = _decode_object(raw_payload)
+        captured_at_ms = ended_ns // 1_000_000
+        stage = "parse_and_normalize"
+        snapshot = parse_binance_spot_catalog(
+            payload_mapping,
+            captured_at_ms=captured_at_ms,
+            request_url=policy.request_url,
+        )
+    except Exception as exc:
+        _write_failure_evidence(
+            output_root=output_root,
+            policy=policy,
+            policy_mapping=policy_mapping,
+            request_mapping=request_mapping,
+            collector_commit=commit,
+            error=exc,
+            stage=stage,
+            attempt_count=attempt_count,
+        )
+        raise
+
     active_count = sum(1 for item in snapshot.instruments if item.active)
 
     raw_name = "raw-response.json"

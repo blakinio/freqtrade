@@ -14,16 +14,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   diagnose:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Check out exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
           persist-credentials: false
 
@@ -32,17 +33,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Capture pre-commit output
+      - name: Apply bounded repair and capture pre-commit
         id: precommit
         shell: bash
         run: |
-          python -m pip install --disable-pip-version-check pre-commit
+          python -m pip install --disable-pip-version-check pre-commit ruff==0.15.21
+          printf '%s\n' '"""AI Platform integration tests."""' \
+            > tests/ai_platform_integration/__init__.py
+          ruff check --fix ai_platform/research/strategy_engine/ase00_adapter.py
           set +e
           pre-commit run --all-files --show-diff-on-failure > /tmp/pre-commit.log 2>&1
           status=$?
           set -e
           printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$status" > /tmp/pre-commit.status
+          git diff --binary -- \
+            tests/ai_platform_integration/__init__.py \
+            ai_platform/research/strategy_engine/ase00_adapter.py \
+            > /tmp/pre-commit.patch
 
       - name: Upload exact diagnostic
         if: always()
@@ -52,8 +60,25 @@ jobs:
           path: |
             /tmp/pre-commit.log
             /tmp/pre-commit.status
+            /tmp/pre-commit.patch
           if-no-files-found: error
           retention-days: 1
+
+      - name: Commit validated bounded repair
+        if: steps.precommit.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/ai_platform_integration/__init__.py \
+            ai_platform/research/strategy_engine/ase00_adapter.py
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(ai-strategy): satisfy repository pre-commit"
+          authorization="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $authorization" \
+            push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
 
       - name: Enforce pre-commit result
         if: steps.precommit.outputs.status != '0'

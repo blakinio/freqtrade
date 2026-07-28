@@ -1,12 +1,13 @@
 ---
 task_id: FTAI-20260728-portal-bmw01-catalog-builder
-status: active
+status: validating
 branch: feat/portal-bmw01-catalog-builder-v1
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
 depends_on:
   - FTAI-20260728-portal-bm-default-catalog
+related_pr: 615
 owned_paths:
   - ai_platform/portal/bot_catalog/service.py
   - ai_platform/portal/bot_catalog/router.py
@@ -15,6 +16,7 @@ owned_paths:
   - ai_platform/portal/web/components/bot-builder/create-bot-configuration-form.tsx
   - ai_platform/portal/web/lib/bot-management-api.ts
   - ai_platform/portal/web/lib/bot-management-contracts.ts
+  - ai_platform/portal/web/e2e/journeys/portal.journeys.ts
   - ai_platform/portal/web/e2e/specs/bots/create-bot.spec.ts
   - tests/ai_platform/portal/bot_catalog/test_snapshot_api.py
   - tests/ai_platform/portal/control_plane/test_api.py
@@ -46,11 +48,12 @@ BMW-01 finalizes configuration evidence only. It does not create a private runti
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T13:34:00+02:00
+updated_at: 2026-07-28T13:46:00+02:00
 branch: feat/portal-bmw01-catalog-builder-v1
-pr: null
-status: active
-base_head: 418f9f22d07739288c7d6941624d548e2e9b52be
+pr: 615
+status: validating
+base_merge: 97b74d210123f2d4d45883822de7e40f545d2c16
+head_parent: 21036279898d57df25e0dc0101ed8e35458ae848
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -64,6 +67,7 @@ owned_paths:
   - ai_platform/portal/web/components/bot-builder/create-bot-configuration-form.tsx
   - ai_platform/portal/web/lib/bot-management-api.ts
   - ai_platform/portal/web/lib/bot-management-contracts.ts
+  - ai_platform/portal/web/e2e/journeys/portal.journeys.ts
   - ai_platform/portal/web/e2e/specs/bots/create-bot.spec.ts
   - tests/ai_platform/portal/bot_catalog/test_snapshot_api.py
   - tests/ai_platform/portal/control_plane/test_api.py
@@ -71,8 +75,9 @@ owned_paths:
 proven:
   - The previous create form posted the legacy /api/bots contract and exposed browser-editable internal versions.
   - BM-01/BM-02 canonical services and routers are registered in the private control plane.
-  - The approved starter catalog package is the exact base of this stacked branch.
+  - The approved starter catalog merged as 97b74d210123f2d4d45883822de7e40f545d2c16.
   - Builder finalization creates immutable configuration evidence and does not submit runtime execution.
+  - OpenAPI registration workflow completed and removed itself before this exact-head validation commit.
 derived:
   - A catalog snapshot read plus BFF orchestration is sufficient to complete BMW-01 without PI-07 or PI-08.
 unknown:
@@ -93,14 +98,15 @@ changed_paths:
   - ai_platform/portal/web/components/bot-builder/create-bot-configuration-form.tsx
   - ai_platform/portal/web/lib/bot-management-api.ts
   - ai_platform/portal/web/lib/bot-management-contracts.ts
+  - ai_platform/portal/web/e2e/journeys/portal.journeys.ts
   - ai_platform/portal/web/e2e/specs/bots/create-bot.spec.ts
   - tests/ai_platform/portal/bot_catalog/test_snapshot_api.py
+  - tests/ai_platform/portal/control_plane/test_api.py
   - docs/agents/tasks/FTAI-20260728-portal-bmw01-catalog-builder.md
 validation:
   - command: exact-head standard CI
     result: NOT_RUN
-    evidence: PR will be opened after the prerequisite catalog merge.
-blockers:
-  - PR 608 must merge before BMW-01 can be reviewed against develop as a clean package.
-next_action: Complete prerequisite merge, patch the exact OpenAPI path set, run exact-head CI and merge BMW-01.
+    evidence: This connector-authored commit creates the authoritative validation head.
+blockers: []
+next_action: Run exact-head CI, repair only BMW-01 findings, audit and merge.
 ```

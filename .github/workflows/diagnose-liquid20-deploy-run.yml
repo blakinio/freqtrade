@@ -1,4 +1,4 @@
-name: Diagnose Portal Proof Candidate
+name: Verify Portal Proof Bash Semantics
 
 on:
   pull_request:
@@ -9,80 +9,18 @@ permissions:
   contents: read
 
 jobs:
-  diagnose:
+  verify:
     runs-on: freqtrade-staging
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
-      - name: Run isolated exact-image candidate diagnostic
-        env:
-          PORTAL_CONTAINER: freqtrade-portal-staging
-          LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
-          LIQUIDATIONS_CONTAINER_ROOT: /liquid20-data
+      - name: Verify empty array expansion under nounset
         run: |
           set -uo pipefail
-          candidate="freqtrade-portal-live-proof-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          cleanup() {
-            docker rm -f "$candidate" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-
-          portal_image="$(docker inspect --format '{{.Config.Image}}' "$PORTAL_CONTAINER")"
-          data_gid="$(docker run --rm \
-            --user 0:0 \
-            --entrypoint node \
-            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
-            "$portal_image" \
-            -e 'const fs=require("node:fs");process.stdout.write(String(fs.lstatSync("/liquid20-data").gid));')"
-
+          bash --version | head -n 1
           set +e
-          run_output="$(docker run -d \
-            --name "$candidate" \
-            --restart no \
-            --read-only \
-            --tmpfs /tmp:size=64m,mode=1777 \
-            --tmpfs /app/.next/cache:size=64m,mode=0755 \
-            --cap-drop ALL \
-            --security-opt no-new-privileges:true \
-            --memory 768m \
-            --group-add "$data_gid" \
-            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
-            --env PORTAL_WEB_DATA_MODE=fixture \
-            --env PORTAL_ENVIRONMENT=test \
-            --env PORTAL_IDENTITY_FIXTURE_MODE=enabled \
-            --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${LIQUIDATIONS_CONTAINER_ROOT}" \
-            --label io.freqtrade.portal.liquidations-live-proof-diagnostic=true \
-            "$portal_image" 2>&1)"
-          run_status=$?
+          bash -Eeuo pipefail -c 'pids_limit_args=(); run_args=(docker run); run_args+=("${pids_limit_args[@]}"); printf "SAFE_COUNT=%s\n" "${#run_args[@]}"' >/tmp/array.out 2>/tmp/array.err
+          status=$?
           set -e
-          echo "CANDIDATE_RUN_STATUS=$run_status"
-          echo "CANDIDATE_RUN_OUTPUT=$run_output"
-          if [[ "$run_status" -ne 0 ]]; then
-            exit 0
-          fi
-
-          for attempt in $(seq 1 70); do
-            state="$(docker inspect --format '{{.State.Status}}' "$candidate" 2>/dev/null || echo missing)"
-            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$candidate" 2>/dev/null || echo missing)"
-            if (( attempt == 1 || attempt % 5 == 0 )); then
-              echo "CANDIDATE_OBSERVATION attempt=$attempt state=$state health=$health"
-            fi
-            if [[ "$state" == "exited" || "$state" == "dead" || "$health" == "healthy" || "$health" == "unhealthy" ]]; then
-              break
-            fi
-            sleep 2
-          done
-
-          echo '--- CANDIDATE INSPECT ---'
-          docker inspect --format '{{json .State}}' "$candidate" || true
-          echo '--- CANDIDATE HEALTH LOG ---'
-          docker inspect --format '{{if .State.Health}}{{json .State.Health.Log}}{{else}}[]{{end}}' "$candidate" || true
-          echo '--- CANDIDATE PROCESS IDENTITY ---'
-          docker exec "$candidate" id 2>&1 || true
-          echo '--- CANDIDATE INTERNAL HEALTH ---'
-          docker exec "$candidate" node -e '
-            fetch("http://127.0.0.1:3000/api/market/liquidations/health", {cache:"no-store"})
-              .then(async response => console.log(JSON.stringify({status:response.status,body:await response.text()})))
-              .catch(error => { console.error(error); process.exitCode=1; });
-          ' 2>&1 || true
-          echo '--- CANDIDATE LOGS ---'
-          docker logs --tail 240 "$candidate" 2>&1 || true
+          echo "ARRAY_PROBE_STATUS=$status"
+          echo "ARRAY_PROBE_STDOUT=$(cat /tmp/array.out)"
+          echo "ARRAY_PROBE_STDERR=$(cat /tmp/array.err)"

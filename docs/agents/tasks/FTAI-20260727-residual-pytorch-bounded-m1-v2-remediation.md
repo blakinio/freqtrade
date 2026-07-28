@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation
 status: active
-branch: fix/residual-pytorch-bounded-m1-v2-cross-pair-identity
+branch: develop
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-28
@@ -49,11 +49,11 @@ V1 is retired and must not be modified or rerun. Real v2 execution requires a se
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T07:10:00Z
-head: 627b97369198fdfe8194091fcf7c97da7f31d551
-branch: fix/residual-pytorch-bounded-m1-v2-cross-pair-identity
+updated_at: 2026-07-28T07:47:00Z
+head: a7add1dd079ee59a209f0eb41502a734def976f9
+branch: develop
 pr: 566
-status: validating
+status: ready
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
@@ -76,47 +76,53 @@ owned_paths:
   - .github/workflows/residual-pytorch-bounded-m1-v2-request-generator.yml
 proven:
   - V1 run 30299203871 failed closed because %-volume-change contained infinity for both pairs; no model executed.
-  - PR 540 merged finite bounded v2 infrastructure as 7ce6f1ff20a59eff9d6ac904e20a15655f27d200 after AI Platform CI, full Freqtrade CI and zizmor passed.
-  - Generator run 30310070831 produced the canonical v2 request; marker PR 551 was closed without merge.
-  - Exact-one-file PR 554 ran guarded execution 30310204713 and was closed without merge.
-  - Run 30310204713 passed request validation plus fresh BTC/USDT and ETH/USDT pre-May data acquisition, pair coverage and combined pre-fit coverage.
-  - Both raw v2 audits completed with 272 expanded features, 8640 raw rows, 8628 eligible rows, zero non-finite feature rows, finite train/test matrices and 12 trailing target-null rows per pair.
+  - PR 540 merged finite bounded v2 infrastructure as 7ce6f1ff20a59eff9d6ac904e20a15655f27d200.
+  - Run 30310204713 passed request, pair data and combined coverage gates before model fit.
+  - Both v2 pair audits produced 272 finite expanded features, 8628 eligible rows and 12 trailing target-null rows.
+  - Run 30310204713 failed closed only because raw pair-qualified feature-name hashes were compared directly.
   - Neither consumed May-June historical OOS nor the protected final holdout was used.
-  - All three comparator models were skipped before fit because cross-pair validation failed closed.
-  - BTC and ETH raw feature hashes differ only because feature names are pair-qualified; normalizing names to PRIMARY_PAIR and CORRELATED_PAIR roles yields identical feature identity.
-  - Focused AI platform tests passed after the role-normalized validator and regression were added.
-  - Temporary Ruff diagnostics identified exactly one 103-character assertion line; it was wrapped and the standard read-only workflow was restored byte-for-byte.
+  - PR 566 added primary/correlated pair-role normalization while preserving raw hashes and semantic drift checks.
+  - PR 566 AI Platform CI 30338073583 passed tests, Ruff, format, codespell and JSON validation.
+  - PR 566 Freqtrade CI 30338073595 passed Python 3.11-3.14, coverage, distributions and CI Gate.
+  - PR 566 zizmor 30338073594 passed.
+  - PR 566 merged as a7add1dd079ee59a209f0eb41502a734def976f9.
+  - Marker PR 575 changed exactly one marker file and was closed without merge.
+  - Generator run 30339476205 failed before dependencies because the checkpoint used governance-invalid result FAIL_LINT_ONLY.
+  - Generator run 30339476205 performed no request generation, data access, training or backtesting.
 derived:
-  - Pair-qualified feature-name hashes must not be compared directly across primary pairs.
-  - Role normalization preserves primary-versus-correlated structure while still detecting semantic feature-name, ordering or count drift.
-  - The existing verified data cache remains data-only; every fresh execution must rerun pair and combined coverage before fit.
+  - Pair-qualified feature names must be normalized by primary/correlated role before cross-pair identity comparison.
+  - Role normalization preserves feature ordering and semantics while allowing the primary pair symbol to differ.
+  - A fresh request must bind the merged validator SHA and must not reuse the request from PR 554.
 unknown:
-  - Whether exact-head CI for PR 566 passes after the lint-only correction and workflow restoration.
-  - Whether a fresh exact-one-file run passes cross-pair audit after role normalization.
-  - Whether all three unchanged comparator models complete exactly once.
+  - Whether the fresh exact-one-file run passes the corrected cross-pair audit.
+  - Whether LightGBM, seeded MLP and residual MLP each complete exactly once.
+  - The terminal descriptive diagnostics for the three comparator tracks.
 conflicts: []
 first_failure:
-  marker: CROSS_PAIR_PAIR_QUALIFIED_HASH_FALSE_NEGATIVE
-  evidence: Run 30310204713 produced two audit-supported matrices but validate-audit rejected different raw hashes caused by BTC/USDT versus ETH/USDT tokens.
+  marker: CHECKPOINT_VALIDATION_ENUM_DRIFT
+  evidence: Generator run 30339476205 rejected validation result FAIL_LINT_ONLY; governance permits only PASS, FAIL, BLOCKED or NOT_RUN.
 rejected_hypotheses:
-  - V2 feature values remained non-finite; both audit reports show zero non-finite feature rows and finite transformed splits.
-  - Missing or late pre-May data caused the failure; all pair and combined coverage gates passed.
-  - A comparator model caused the failure; all three model executions were skipped before fit.
-  - The pair matrices have different semantic feature geometry; role-normalized ordered feature names are identical.
+  - Generator run 30339476205 accessed market data or trained a model; it stopped at checkpoint validation.
+  - PR 566 changed feature values, targets, thresholds or model parameters; it changed evidence validation only.
+  - The v2 matrices remained non-finite; both pair audit reports recorded zero non-finite feature rows.
 changed_paths:
-  - ai_platform/scripts/residual_pytorch_bounded_m1_v2_execution.py
-  - tests/ai_platform/test_residual_pytorch_bounded_m1_v2_cross_pair_identity.py
   - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
 validation:
   - command: guarded run 30310204713
-    result: FAIL_CLOSED
-    evidence: Data and both matrix audits passed; cross-pair raw-hash comparison failed before any model fit.
-  - command: AI Platform CI 30337143750
-    result: FAIL_LINT_ONLY
-    evidence: Tests passed; Ruff identified one long assertion line, now corrected.
-  - command: final exact-head PR 566 CI
-    result: NOT_RUN
-    evidence: Standard workflow is restored and final checkpoint head has just been created.
+    result: FAIL
+    evidence: Pair matrices passed, but raw pair-qualified cross-pair hashes caused a false-negative before model fit.
+  - command: AI Platform CI 30338073583
+    result: PASS
+    evidence: Tests, Ruff, format, codespell and JSON validation passed on the final PR 566 head.
+  - command: Freqtrade CI 30338073595
+    result: PASS
+    evidence: Python 3.11-3.14, full coverage, distributions and CI Gate passed on the final PR 566 head.
+  - command: zizmor 30338073594
+    result: PASS
+    evidence: Workflow security analysis passed on the final PR 566 head.
+  - command: request generator 30339476205
+    result: FAIL
+    evidence: Checkpoint validation rejected FAIL_LINT_ONLY before dependencies or request generation.
 blockers: []
-next_action: Validate and merge PR 566 only if exact-head AI Platform CI, Freqtrade CI and zizmor pass, then generate a fresh exact-one-file v2 request, execute guarded run to terminal, close its PR without merge, and record final evidence.
+next_action: Merge this checkpoint correction, reset the request branch to its merge SHA, generate a fresh canonical request, run the guarded v2 comparison to terminal, close the trigger PR without merge, and record final evidence.
 ```

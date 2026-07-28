@@ -284,7 +284,7 @@ def _failure(
     )
 
 
-def _fetch_once(  # noqa: C901
+def _fetch_once(
     policy: SmokePolicy,
     *,
     opener: UrlOpener = _open_url,
@@ -368,7 +368,7 @@ def _fetch_once(  # noqa: C901
             payload = response.read(policy.max_response_bytes + 1)
     except SmokeExecutionError:
         raise
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise _failure(
             str(exc) or exc.__class__.__name__,
             stage="transport",
@@ -528,7 +528,7 @@ def run_smoke(
             captured_at_ms=captured_at_ms,
             request_url=policy.request_url,
         )
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _write_failure_evidence(
             output_root=output_root,
             policy=policy,

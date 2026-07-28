@@ -41,9 +41,7 @@ def _policy(*, reduced_payload: bool = False) -> dict[str, object]:
 def _request(*, reduced_payload: bool = False) -> dict[str, object]:
     return {
         "version": REDUCED_PAYLOAD_REQUEST_VERSION if reduced_payload else REQUEST_VERSION,
-        "policy_version": (
-            REDUCED_PAYLOAD_POLICY_VERSION if reduced_payload else POLICY_VERSION
-        ),
+        "policy_version": (REDUCED_PAYLOAD_POLICY_VERSION if reduced_payload else POLICY_VERSION),
         "source_id": "binance-spot",
         "request_url": BINANCE_SPOT_REDUCED_PAYLOAD_URL if reduced_payload else BINANCE_SPOT_URL,
         "execution_mode": "single_public_rest_snapshot",
@@ -128,9 +126,7 @@ def _write_inputs(root: Path, *, reduced_payload: bool = False) -> tuple[Path, P
     request_path.write_bytes(
         canonical_json_bytes(_request(reduced_payload=reduced_payload)) + b"\n"
     )
-    policy_path.write_bytes(
-        canonical_json_bytes(_policy(reduced_payload=reduced_payload)) + b"\n"
-    )
+    policy_path.write_bytes(canonical_json_bytes(_policy(reduced_payload=reduced_payload)) + b"\n")
     return request_path, policy_path
 
 

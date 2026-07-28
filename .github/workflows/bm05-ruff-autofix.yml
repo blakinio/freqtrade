@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - diagnostic/bm05-ruff-final-20260728
+  pull_request:
+    branches:
+      - feat/portal-bm05-grid-capability
 
 permissions:
   contents: write

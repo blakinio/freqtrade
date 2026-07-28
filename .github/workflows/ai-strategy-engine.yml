@@ -54,12 +54,10 @@ jobs:
             echo '```'
           } > ai_strategy_engine/docs/ase00-ruff-report.md
 
-      - name: Restore permanent validation workflow and commit report
+      - name: Commit report
         run: |
-          git show b496ab4b84707d2491ff8ba05dbcf8369249a1b5:.github/workflows/ai-strategy-engine.yml \
-            > .github/workflows/ai-strategy-engine.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .github/workflows/ai-strategy-engine.yml ai_strategy_engine/docs/ase00-ruff-report.md
+          git add ai_strategy_engine/docs/ase00-ruff-report.md
           git commit -m "docs(ai-strategy): record strict Ruff findings"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

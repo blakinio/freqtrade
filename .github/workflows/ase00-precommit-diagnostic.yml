@@ -6,6 +6,11 @@ on:
       - agent/ase-00-ai-strategy-engine-foundation
     paths:
       - .github/workflows/ase00-precommit-diagnostic.yml
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/ase00-precommit-diagnostic.yml
   workflow_dispatch:
 
 permissions:

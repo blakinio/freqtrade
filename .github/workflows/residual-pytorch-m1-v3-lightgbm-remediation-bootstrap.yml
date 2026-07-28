@@ -1,0 +1,246 @@
+name: Residual PyTorch M1 V3 LightGBM Remediation Bootstrap
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/residual-pytorch-m1-v3-lightgbm-remediation-bootstrap.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: residual-pytorch-m1-v3-lightgbm-remediation-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  remediate:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BOOTSTRAP_PATH: .github/workflows/residual-pytorch-m1-v3-lightgbm-remediation-bootstrap.yml
+      TASK_PATH: docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
+      HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      REQUEST_BRANCH: run/residual-pytorch-bounded-m1-v3-generalization
+    steps:
+      - name: Checkout exact remediation bootstrap commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact bootstrap scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\t.github/workflows/residual-pytorch-m1-v3-lightgbm-remediation-bootstrap.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Install validation runtime
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.12"
+
+      - name: Install focused dependencies
+        run: uv pip install "ruff==0.15.21" numpy pandas pytest
+
+      - name: Apply validator remediation and regression test
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          script_path = Path("ai_platform/scripts/residual_pytorch_bounded_m1_execution.py")
+          script = script_path.read_text(encoding="utf-8")
+          old_dispatch = '        if track_id == "residual-pytorch-m1-lightgbm-v1":\n'
+          new_dispatch = (
+              '        if EXPECTED_TRACKS[track_id]["freqai_model"] '
+              '== "M1LightGBMRegressor":\n'
+          )
+          if script.count(old_dispatch) != 1:
+              raise SystemExit("Expected exactly one literal v1 LightGBM dispatch")
+          script_path.write_text(script.replace(old_dispatch, new_dispatch), encoding="utf-8")
+
+          test_path = Path("tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py")
+          test = test_path.read_text(encoding="utf-8")
+          if "import tempfile\n" not in test:
+              test = test.replace("import json\n", "import json\nimport tempfile\n", 1)
+          marker = "\ndef test_v3_workflow_is_exact_one_file_and_fail_closed() -> None:\n"
+          regression = '''
+
+def test_v3_lightgbm_training_evidence_uses_model_identity() -> None:
+    v3, _ = _numeric_modules()
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        for pair, slug in (("SOL/USDT", "sol-usdt"), ("XRP/USDT", "xrp-usdt")):
+            v3.write_json(
+                root / f"{slug}.json",
+                {
+                    "pair": pair,
+                    "wrapper_model": "M1LightGBMRegressor",
+                    "identifier": "ai-platform-residual-pytorch-m1-lightgbm-generalization-v3",
+                    "train_rows": 10,
+                    "test_rows": 2,
+                    "feature_count": 272,
+                    "training_start": "2025-12-01T00:00:00+00:00",
+                    "training_stop_exclusive": "2026-03-01T00:00:00+00:00",
+                    "lightgbm_evals_result": {"valid_0": {"l2": [0.1]}},
+                    "recorded_scalar_events": {},
+                },
+            )
+        payload = v3.validate_training_directory(
+            root,
+            track_id="residual-pytorch-m1-lightgbm-generalization-v3",
+        )
+
+    assert payload["feature_count"] == 272
+    assert payload["pairs"] == ["SOL/USDT", "XRP/USDT"]
+'''
+          if "def test_v3_lightgbm_training_evidence_uses_model_identity" in test:
+              raise SystemExit("Regression test already exists")
+          if marker not in test:
+              raise SystemExit("Unable to locate v3 workflow test insertion point")
+          test_path.write_text(test.replace(marker, regression + marker, 1), encoding="utf-8")
+          PY
+          rm "$BOOTSTRAP_PATH"
+          ruff format \
+            ai_platform/scripts/residual_pytorch_bounded_m1_execution.py \
+            tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
+          ruff check \
+            ai_platform/scripts/residual_pytorch_bounded_m1_execution.py \
+            tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
+          python -m pytest -q tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
+
+      - name: Commit implementation remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/scripts/residual_pytorch_bounded_m1_execution.py \
+            tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py \
+            "$BOOTSTRAP_PATH"
+          git commit -m "fix(ai-platform): classify LightGBM evidence by model identity"
+          printf 'IMPLEMENTATION_SHA=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Update durable task checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path(os.environ["TASK_PATH"])
+          text = path.read_text(encoding="utf-8")
+          branch = os.environ["HEAD_BRANCH"]
+          pr = os.environ["PR_NUMBER"]
+          implementation_sha = os.environ["IMPLEMENTATION_SHA"]
+
+          text = text.replace(
+              "branch: ci/residual-pytorch-bounded-m1-v3-request-generator",
+              f"branch: {branch}",
+              1,
+          )
+          text = text.replace("related_pr: 627", f"related_pr: {pr}", 1)
+          owned_anchor = (
+              "  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_generalization.py\n"
+              "  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_run_request.py\n"
+          )
+          owned_replacement = (
+              "  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_generalization.py\n"
+              "  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py\n"
+              "  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_run_request.py\n"
+          )
+          if owned_anchor not in text:
+              raise SystemExit("Unable to extend front-matter ownership")
+          text = text.replace(owned_anchor, owned_replacement, 1)
+
+          checkpoint = f'''## Context checkpoint
+
+```yaml
+checkpoint_version: 1
+updated_at: 2026-07-28T20:15:00+02:00
+head: {implementation_sha}
+branch: {branch}
+pr: {pr}
+status: validating
+context_routes:
+  - .github/workflows/residual-pytorch-bounded-m1-v3-generalization.yml
+  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
+owned_paths:
+  - docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
+  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
+proven:
+  - PR 627 merged the guarded v3 request generator as 31c61fdab351521c275687e4751682ef935407f9.
+  - Marker PR 628 generated the canonical exact-one-file request and closed without merge.
+  - Request PR 629 triggered guarded run 30360316606 and is closed without merge.
+  - Request validation, both pre-May pair coverage jobs and the 272-feature role-normalized matrix audit passed.
+  - Audit artifact 8689818122 has digest sha256:faa63b0dc0688540e73909c88abdbff6a672cb38a0c72280325018d75dc56a3a.
+  - LightGBM artifact 8689818655 contains non-empty per-pair lightgbm_evals_result evidence.
+  - Job 90288767489 failed because the shared validator compared the v3 track to a literal v1 LightGBM track ID and then required PyTorch scalar history.
+derived:
+  - LightGBM evidence dispatch must use frozen model identity rather than a version-specific track ID.
+  - The failed validation did not invalidate pre-May data coverage, matrix geometry or actual LightGBM training evidence.
+unknown:
+  - Whether the remediation PR passes exact-head CI.
+  - Whether a fresh exact-one-file request completes seeded MLP and residual MLP execution.
+  - Terminal descriptive v3 diagnostics remain unknown and unauthorized for winner selection or promotion.
+conflicts: []
+first_failure:
+  marker: V3_LIGHTGBM_TRACK_ID_DISPATCH
+  evidence: Run 30360316606 emitted SOL/USDT PyTorch train/test loss history is absent immediately after valid LightGBM evidence was written.
+rejected_hypotheses:
+  - LightGBM produced no evaluation history; artifact 8689818655 contains non-empty lightgbm_evals_result for both pairs.
+  - Data coverage or feature identity failed; all prerequisite gates passed before model validation.
+changed_paths:
+  - ai_platform/scripts/residual_pytorch_bounded_m1_execution.py
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
+  - docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
+validation:
+  - command: guarded run 30360316606
+    result: FAIL_CLOSED
+    evidence: Request, data and matrix audit passed; model evidence validation failed on version-coupled LightGBM dispatch.
+  - command: targeted v3 validator regression
+    result: PASS
+    evidence: Synthetic v3 LightGBM evidence with empty PyTorch scalar events validates by frozen model identity.
+blockers: []
+next_action: Complete exact-head CI and merge remediation PR {pr}; then reset the request branch to the remediation merge SHA and generate a fresh exact-one-file v3 request.
+```
+'''
+          pattern = r"## Context checkpoint\n\n```yaml\n.*?\n```\n"
+          updated, count = re.subn(pattern, checkpoint, text, count=1, flags=re.DOTALL)
+          if count != 1:
+              raise SystemExit("Unable to replace exactly one context checkpoint")
+          path.write_text(updated, encoding="utf-8")
+          PY
+          python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+          git add "$TASK_PATH"
+          git commit -m "docs(agents): checkpoint bounded M1 v3 validator remediation"
+
+      - name: Push remediation commits
+        shell: bash
+        run: |
+          set -euo pipefail
+          git push origin HEAD:"$HEAD_BRANCH"

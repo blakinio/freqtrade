@@ -2,6 +2,7 @@ import { canonicalBtcBotSpec } from "../../data/bot.factory";
 import { tags } from "../../config/e2e.config";
 import { expect, test } from "../../fixtures/test.fixture";
 
+
 test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () => {
   test("renders bounded fleet operations and filters by market", async ({ botFleet, page }) => {
     await botFleet.open();
@@ -23,7 +24,7 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
 
   test("renders bot-scoped runtime, valuation, risk, audit and logs", async ({ botDetail, page }) => {
     await botDetail.open();
-    await expect(page.getByRole("heading", { name: "Desired-state controls" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Audited command intents" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Create immutable revision" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Source status" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Risk decisions" })).toBeVisible();
@@ -42,30 +43,50 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
     await expect(page.getByRole("status")).toContainText("Immutable revision 2 created");
   });
 
-  test("requests lifecycle intent while observed state remains independent", async ({ botDetail, page }) => {
+  test("persists lifecycle intent without claiming runtime execution", async ({ botDetail, page }) => {
     await botDetail.open();
-    await botDetail.requestPause();
-    await expect(page.getByRole("status")).toContainText(
-      "PAUSED requested. Observed state remains independent",
-    );
+    await botDetail.requestPauseIntent();
+    await expect(page.getByRole("status")).toContainText("ACCEPTED");
+    await expect(page.getByRole("status")).toContainText("Command persisted: yes");
+    await expect(page.getByRole("status")).toContainText("Execution submitted: no");
   });
 
-  test("lifecycle BFF is idempotent and rejects stale expected state", async ({ identity, request }) => {
+  test("lifecycle BFF rejects browser-supplied runtime authority", async ({ identity, request }) => {
     await identity.authenticateRequest();
-    const idempotent = await request.post("/api/bots/bot-btc-dryrun-01/desired-state", {
+    const response = await request.post("/api/bot-management/commands/lifecycle", {
       headers: identity.csrfHeaders(),
-      data: { desired_state: "RUNNING", expected_current_state: "RUNNING" },
+      data: {
+        bot_id: "bot-btc-dryrun-01",
+        action: "PAUSE_NEW_ENTRIES",
+        expected_config_revision: 1,
+        idempotency_key: "browser-runtime-injection",
+        runtime_id: "browser-controlled-runtime",
+      },
     });
-    expect(idempotent.status()).toBe(200);
-    expect(idempotent.headers()["x-idempotent-replay"]).toBe("true");
 
-    const stale = await request.post("/api/bots/bot-btc-dryrun-01/desired-state", {
-      headers: identity.csrfHeaders(),
-      data: { desired_state: "PAUSED", expected_current_state: "STOPPED" },
+    expect(response.status()).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      detail: "Invalid lifecycle command intent request",
     });
-    expect(stale.status()).toBe(409);
-    await expect(stale.json()).resolves.toMatchObject({
-      detail: "Bot lifecycle state changed. Current desired state is RUNNING",
+  });
+
+  test("lifecycle BFF returns intent evidence, never execution success", async ({ identity, request }) => {
+    await identity.authenticateRequest();
+    const response = await request.post("/api/bot-management/commands/lifecycle", {
+      headers: identity.csrfHeaders(),
+      data: {
+        bot_id: "bot-btc-dryrun-01",
+        action: "PAUSE_NEW_ENTRIES",
+        expected_config_revision: 1,
+        idempotency_key: "e2e-lifecycle-intent",
+      },
+    });
+
+    expect(response.status()).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "ACCEPTED",
+      command_persisted: true,
+      execution_submission_performed: false,
     });
   });
 

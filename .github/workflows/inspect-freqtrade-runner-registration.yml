@@ -1,0 +1,60 @@
+name: Inspect Freqtrade Runner Registration
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/inspect-freqtrade-runner-registration.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Read exact runner metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_RUNNER_NAME: freqtrade-synology-staging
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          repository = os.environ["GITHUB_REPOSITORY"]
+          expected = os.environ["EXPECTED_RUNNER_NAME"]
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/actions/runners?per_page=100",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          matches = []
+          for runner in payload.get("runners", []):
+              if runner.get("name") != expected:
+                  continue
+              matches.append(
+                  {
+                      "id": runner.get("id"),
+                      "name": runner.get("name"),
+                      "os": runner.get("os"),
+                      "status": runner.get("status"),
+                      "busy": runner.get("busy"),
+                      "labels": sorted(
+                          label.get("name")
+                          for label in runner.get("labels", [])
+                          if isinstance(label, dict) and isinstance(label.get("name"), str)
+                      ),
+                  }
+              )
+          print("FREQTRADE_RUNNER_METADATA=" + json.dumps(matches, sort_keys=True))
+          if len(matches) != 1:
+              raise SystemExit(f"Expected exactly one {expected!r} runner, found {len(matches)}")
+          PY

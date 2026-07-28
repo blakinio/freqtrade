@@ -8,10 +8,6 @@ from ai_platform.portal.bot_builder.service import BotConfigurationBuilderServic
 from ai_platform.portal.bot_catalog.default_catalog import approved_dry_run_catalog
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.service import BotCatalogService
-from ai_platform.portal.bot_operations.intent_service import (
-    LifecycleCommandIntentService,
-    UnavailableBotRuntimeStateProvider,
-)
 from ai_platform.portal.contracts.bot_management.capabilities import BotManagementCapability
 from ai_platform.portal.contracts.bot_management.signals import (
     SignalAuthenticationMode,
@@ -34,6 +30,7 @@ from ai_platform.portal.signal_control.service import SignalControlService
 
 
 if TYPE_CHECKING:
+    from ai_platform.portal.bot_operations.intent_service import LifecycleCommandIntentService
     from ai_platform.portal.bot_operations.service import BotCommandService
 
 
@@ -120,6 +117,10 @@ def capabilities_from_request(
 def build_default_bot_management_services(
     session_factory: SessionFactory,
 ) -> BotManagementServices:
+    from ai_platform.portal.bot_operations.intent_service import (
+        LifecycleCommandIntentService,
+        UnavailableBotRuntimeStateProvider,
+    )
     from ai_platform.portal.bot_operations.service import BotCommandService
 
     catalog = BotCatalogService(InMemoryBotCatalogRepository((approved_dry_run_catalog(),)))

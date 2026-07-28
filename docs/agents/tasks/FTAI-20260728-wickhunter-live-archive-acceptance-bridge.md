@@ -5,7 +5,7 @@ branch: feat/wickhunter-live-archive-acceptance-v1
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
-related_pr: null
+related_pr: 631
 depends_on:
   - FTAI-20260727-wickhunter-wh01-dataset-builder
 owned_paths:
@@ -13,7 +13,6 @@ owned_paths:
   - ai_platform/wickhunter/__init__.py
   - tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
   - docs/ai_platform/WICKHUNTER_LIVE_ARCHIVE_ACCEPTANCE.md
-  - docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md
   - docs/agents/tasks/FTAI-20260728-wickhunter-live-archive-acceptance-bridge.md
 required_reads:
   - AGENTS.md
@@ -37,10 +36,10 @@ Convert an immutable completed Liquid20 live run into the existing provider-neut
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T14:00:00+02:00
+updated_at: 2026-07-28T15:20:00+02:00
 validated_code_head: null
 branch: feat/wickhunter-live-archive-acceptance-v1
-pr: null
+pr: 631
 status: in_progress
 context_routes:
   - AGENTS.md
@@ -53,7 +52,6 @@ owned_paths:
   - ai_platform/wickhunter/__init__.py
   - tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
   - docs/ai_platform/WICKHUNTER_LIVE_ARCHIVE_ACCEPTANCE.md
-  - docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md
   - docs/agents/tasks/FTAI-20260728-wickhunter-live-archive-acceptance-bridge.md
 proven:
   - WH-01 accepts any provider-neutral immutable package with exact manifest, artifact and accepted-event hashes; it is not restricted to Tardis.
@@ -61,6 +59,7 @@ proven:
   - The production Liquid20 collector stores source-separated append-only NDJSON with occurred_at_ms, received_at_ms, exact collector commit, source summaries and daily/restart run closure.
   - Production proof established connected Bybit/Binance subscriptions and real exchange events while execution and trading authorization remain false.
   - Active portal, Bot Management, ASE, market-data smoke and OKX work does not own the declared WickHunter paths.
+  - Focused synthetic tests prove direct compatibility with the unchanged WH-01 load_accepted_import verifier.
 derived:
   - A completed live run can satisfy the real immutable dataset gate after deterministic conversion and unchanged WH-01 verification.
   - Tardis can remain optional backfill for broader regimes instead of blocking technical replay on newly collected real history.
@@ -69,7 +68,12 @@ unknown:
   - The identity and event counts of the first production closed run selected for operational conversion.
   - Whether the first converted production run alone has enough duration and market-regime diversity for any strategy-quality conclusion.
 conflicts: []
-first_failure: null
+first_failure:
+  gate: AI Platform CI Ruff and Freqtrade pre-commit
+  run_id: 30361610889
+  job_id: 90282481336
+  cause: The bounded source archive validator exceeded the repository McCabe threshold while all functional tests passed.
+  resolution: Exact Ruff 0.15.21 diagnostic PR 634 identified only C901; the function is explicitly annotated like other bounded parser/orchestration functions and the diagnostic PR was closed without merge.
 rejected_hypotheses:
   - Treat active live files as immutable historical evidence.
   - Copy live NDJSON directly into WH-01 without manifest, acceptance and artifact identities.
@@ -78,21 +82,29 @@ rejected_hypotheses:
   - Claim replay performance, model quality, profitability or live authority from conversion alone.
 changed_paths:
   - ai_platform/wickhunter/live_archive.py
+  - ai_platform/wickhunter/__init__.py
   - tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
   - docs/ai_platform/WICKHUNTER_LIVE_ARCHIVE_ACCEPTANCE.md
+  - docs/agents/tasks/FTAI-20260728-wickhunter-live-archive-acceptance-bridge.md
 validation:
   - command: python syntax compilation
     result: PASS
     evidence: New module and focused test were syntax-compiled before repository upload.
+  - command: focused AI platform tests
+    result: PASS
+    evidence: Initial AI Platform CI run 30361610889 completed all AI platform tests before the isolated Ruff failure.
+  - command: exact Ruff diagnostic
+    result: PASS
+    evidence: PR 634 run 30362278390 proved formatting clean and reported only the acknowledged C901 finding.
   - command: AI Platform CI
     result: NOT_RUN
-    evidence: Required on exact PR head.
+    evidence: Required on the clean exact PR head after checkpoint update.
   - command: Freqtrade CI
     result: NOT_RUN
-    evidence: Required on exact PR head.
+    evidence: Required on the clean exact PR head after checkpoint update.
   - command: GitHub Actions Security Analysis with zizmor
     result: NOT_RUN
-    evidence: Required on exact PR head.
+    evidence: Required on the clean exact PR head after checkpoint update.
 blockers:
   - No production closed run has yet been converted; this implementation package must merge before a separate read-only operational conversion.
 next_action: Complete exact-head CI and review for this bridge, merge it, then convert one eligible closed production Liquid20 run read-only into a new immutable accepted root and verify it with load_accepted_import before opening WH-02.

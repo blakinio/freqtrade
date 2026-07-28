@@ -79,7 +79,8 @@ jobs:
           ruff check --fix tests/ai_platform_integration/test_ase00_vertical_slice.py
           ruff format tests/ai_platform_integration/test_ase00_vertical_slice.py
           python -m compileall -q tests/ai_platform_integration/test_ase00_vertical_slice.py
-          pytest -q -o addopts='' tests/ai_platform_integration/test_ase00_vertical_slice.py
+          pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
           python - <<'PY'
           from pathlib import Path
           import tomllib

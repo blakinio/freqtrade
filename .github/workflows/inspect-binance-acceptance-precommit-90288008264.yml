@@ -1,0 +1,59 @@
+name: Inspect Binance Acceptance Pre-commit Failure
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - ".github/workflows/inspect-binance-acceptance-precommit-90288008264.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Extract exact pre-commit diagnostics
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_JOB_ID: "90288008264"
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
+            --output full.log
+          python - <<'PY'
+          from pathlib import Path
+
+          lines = Path("full.log").read_text(encoding="utf-8", errors="replace").splitlines()
+          markers = (
+              "Failed",
+              "error:",
+              "would reformat",
+              "files were modified",
+              "hook id:",
+              "mypy",
+              "ruff",
+              "codespell",
+              "zizmor",
+          )
+          selected = []
+          for index, line in enumerate(lines):
+              if any(marker.lower() in line.lower() for marker in markers):
+                  selected.extend(lines[max(0, index - 8):min(len(lines), index + 30)])
+          if not selected:
+              selected = lines[-300:]
+          Path("failure.txt").write_text("\n".join(selected[-1200:]) + "\n", encoding="utf-8")
+          PY
+      - name: Upload exact failure excerpt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-acceptance-precommit-90288008264
+          path: failure.txt
+          if-no-files-found: error
+          retention-days: 1

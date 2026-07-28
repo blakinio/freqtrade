@@ -31,7 +31,7 @@ def test_compose_separates_restartable_live_service_from_evidence_profile() -> N
     assert "./data:/data:rw" in compose
     assert "read_only: true" in compose
     assert "no-new-privileges:true" in compose
-    assert "pids_limit: 128" in compose
+    assert "pids_limit:" not in compose
     assert "mem_limit: 512m" in compose
     assert "cpus:" not in compose
     assert "ports:" not in compose
@@ -97,7 +97,9 @@ def test_deployment_maps_runner_state_to_docker_host_candidate_root() -> None:
     assert "/volume1/docker/freqtrade/state/liquidations-live-candidates/" in script
     assert 'install -d -m 0750 -o "$puid" -g "$pgid" "$candidate_runner_root"' in script
     assert 'start_container "$candidate" "$image" "$candidate_host_root"' in script
-    assert 'state_observation "$candidate_host_root"' in script
+    assert 'wait_for_state "$candidate"' in script
+    assert 'state_observation "$candidate"' in script
+    assert 'docker exec --interactive "$selected_container" python' in script
 
 
 def test_live_bootstrap_is_bounded_to_sibling_live_root() -> None:
@@ -124,13 +126,18 @@ def test_cpu_quota_probe_is_strict_and_preserves_other_limits() -> None:
     assert "capability probe failed for an unexpected reason" in script
     assert "cpu_limit_args=(--cpus 1.0)" in script
     assert 'run_args+=("${cpu_limit_args[@]}")' in script
-    assert "--pids-limit 128" in script
+    assert "configure_pids_limit" in script
+    assert "PIDs limit discarded" in script
+    assert "pids_limit_args=(--pids-limit 128)" in script
+    assert 'run_args+=("${pids_limit_args[@]}")' in script
     assert "--memory 512m" in script
     assert 'test "$running_nano_cpus" = "1000000000"' in script
     assert 'test "$running_nano_cpus" = "0"' in script
     assert '"cpu_quota_supported": cpu_quota_supported' in script
-    assert '"memory_limit_bytes": 512 * 1024 * 1024' in script
-    assert '"pids_limit": 128' in script
+    assert '"memory_limit_bytes": memory_limit' in script
+    assert 'test "$running_memory_limit" = "536870912"' in script
+    assert '"pids_limit_supported": pids_limit_supported' in script
+    assert '"pids_limit": pids_limit' in script
 
 
 def test_synology_workflow_mutates_production_only_from_develop() -> None:
@@ -144,3 +151,19 @@ def test_synology_workflow_mutates_production_only_from_develop() -> None:
     assert "liquidations-live-synology.log" in workflow
     assert 'context":"liquidations-live-synology"' in workflow
     assert "workflow_dispatch:" in workflow
+
+
+def test_deployment_uses_validated_full_public_universe_bound() -> None:
+    script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
+    entrypoint = (DEPLOYMENT_ROOT / "live-entrypoint.sh").read_text(encoding="utf-8")
+    compose = (DEPLOYMENT_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    defaults = (DEPLOYMENT_ROOT / ".env.example").read_text(encoding="utf-8")
+
+    assert "MAXIMUM_SYMBOLS=1000" in defaults
+    assert "LIQUID20_MAXIMUM_SYMBOLS:-1000" in entrypoint
+    assert "MAXIMUM_SYMBOLS:-1000" in compose
+    assert (
+        'maximum_symbols="${LIQUID20_MAXIMUM_SYMBOLS:-$(read_default MAXIMUM_SYMBOLS)}"' in script
+    )
+    assert "LIQUID20_MAXIMUM_SYMBOLS=${maximum_symbols}" in script
+    assert 'item.get("connected") is not True' in script

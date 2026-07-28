@@ -19,8 +19,11 @@ deploy_succeeded=false
 puid=""
 pgid=""
 host_id=""
+maximum_symbols=""
 cpu_limit_supported=false
 cpu_limit_args=()
+pids_limit_supported=false
+pids_limit_args=()
 
 cleanup() {
     docker rm -f "$candidate" >/dev/null 2>&1 || true
@@ -66,11 +69,37 @@ configure_cpu_limit() {
         <<< "$probe_output"; then
         cpu_limit_supported=false
         cpu_limit_args=()
-        echo "Docker CPU quota is unavailable on this Synology kernel; retaining memory and PID limits."
+        echo "Docker CPU quota is unavailable on this Synology kernel; retaining supported resource limits."
         return 0
     fi
     printf '%s\n' "$probe_output" >&2
     echo "Docker CPU quota capability probe failed for an unexpected reason" >&2
+    return 1
+}
+
+configure_pids_limit() {
+    local probe_output=""
+    local probe_status=0
+    set +e
+    probe_output="$(docker run --rm --pids-limit 32 --entrypoint /bin/true "$image" 2>&1)"
+    probe_status=$?
+    set -e
+    if grep -Eiq \
+        'kernel does not support PIDs limit capabilities|PIDs limit discarded|pids cgroup is not mounted' \
+        <<< "$probe_output"; then
+        pids_limit_supported=false
+        pids_limit_args=()
+        echo "Docker PID limit is unavailable on this Synology kernel; retaining the memory limit."
+        return 0
+    fi
+    if [[ "$probe_status" -eq 0 ]]; then
+        pids_limit_supported=true
+        pids_limit_args=(--pids-limit 128)
+        echo "Docker PID limit supported; applying a 128 process limit."
+        return 0
+    fi
+    printf '%s\n' "$probe_output" >&2
+    echo "Docker PID limit capability probe failed for an unexpected reason" >&2
     return 1
 }
 
@@ -175,16 +204,12 @@ PY
 }
 
 state_observation() {
-    local selected_root="$1"
-    docker run --rm --interactive \
-        --read-only \
-        --entrypoint python \
-        --mount "type=bind,src=${selected_root},dst=/observed,readonly" \
-        "$image" - <<'PY'
+    local selected_container="$1"
+    timeout 10s docker exec --interactive "$selected_container" python - <<'PY'
 import json
 from pathlib import Path
 
-root = Path("/observed")
+root = Path("/data")
 pointer = root / "live" / "live-state-v1.json"
 if not pointer.is_file() or pointer.is_symlink():
     raise SystemExit(1)
@@ -213,11 +238,18 @@ PY
 }
 
 wait_for_state() {
-    local selected_root="$1"
+    local selected_container="$1"
     local minimum_heartbeat="$2"
     local observation=""
-    for _ in $(seq 1 90); do
-        observation="$(state_observation "$selected_root" 2>/dev/null || true)"
+    local container_state=""
+    for _ in $(seq 1 60); do
+        container_state="$(docker inspect --format '{{.State.Status}}' "$selected_container" 2>/dev/null || true)"
+        if [[ "$container_state" == "exited" || "$container_state" == "dead" ]]; then
+            docker logs --tail 200 "$selected_container" >&2 2>&1 || true
+            echo "Live collector container exited before becoming ready: ${selected_container}" >&2
+            return 1
+        fi
+        observation="$(state_observation "$selected_container" 2>/dev/null || true)"
         if [[ -n "$observation" ]] && python3 - "$observation" "$minimum_heartbeat" <<'PY'
 import json
 import sys
@@ -234,6 +266,8 @@ for source in ("bybit-linear", "binance-usdm"):
     item = sources.get(source)
     if not isinstance(item, dict) or item.get("configured") is not True:
         raise SystemExit(1)
+    if item.get("connected") is not True:
+        raise SystemExit(1)
     count = item.get("subscription_symbol_count")
     if not isinstance(count, int) or count < 1:
         raise SystemExit(1)
@@ -244,7 +278,9 @@ PY
         fi
         sleep 2
     done
-    echo "Live collector state did not become active with dynamic subscriptions" >&2
+    printf 'Last collector observation: %s\n' "${observation:-unavailable}" >&2
+    docker logs --tail 200 "$selected_container" >&2 2>&1 || true
+    echo "Live collector state did not become connected with dynamic subscriptions" >&2
     return 1
 }
 
@@ -263,11 +299,11 @@ start_container() {
         --tmpfs /tmp:size=64m,mode=1777
         --cap-drop ALL
         --security-opt no-new-privileges:true
-        --pids-limit 128
         --memory 512m
     )
     [[ "$selected_commit" =~ ^[0-9a-f]{40}$ ]]
     run_args+=("${cpu_limit_args[@]}")
+    run_args+=("${pids_limit_args[@]}")
     run_args+=(
         --stop-timeout 30
         --mount "type=bind,src=${selected_root},dst=/data"
@@ -276,7 +312,7 @@ start_container() {
         --env LIQUID20_DATA_ROOT=/data
         --env LIQUID20_HEARTBEAT_SECONDS=5
         --env LIQUID20_SYMBOL_REFRESH_SECONDS=3600
-        --env LIQUID20_MAXIMUM_SYMBOLS=500
+        --env "LIQUID20_MAXIMUM_SYMBOLS=${maximum_symbols}"
         --label io.freqtrade.liquidations.live=true
         --label "io.freqtrade.liquidations.commit=${selected_commit}"
         --entrypoint /usr/local/bin/liquid20-live-entrypoint
@@ -308,6 +344,7 @@ docker build \
     .
 
 configure_cpu_limit
+configure_pids_limit
 
 data_identity="$(inspect_data_root)"
 IFS='|' read -r data_gid data_mode <<< "$data_identity"
@@ -321,16 +358,19 @@ fi
 pgid="$data_gid"
 host_id="${LIQUID20_HOST_ID:-$(read_default HOST_ID)}"
 [[ "$host_id" =~ ^[A-Za-z0-9._-]+$ ]]
-printf 'Resolved collector identity: uid=%s gid=%s data_mode=%s host_id=%s\n' \
-    "$puid" "$pgid" "$data_mode" "$host_id"
+maximum_symbols="${LIQUID20_MAXIMUM_SYMBOLS:-$(read_default MAXIMUM_SYMBOLS)}"
+[[ "$maximum_symbols" =~ ^[0-9]+$ ]]
+(( maximum_symbols >= 1 && maximum_symbols <= 1000 ))
+printf 'Resolved collector identity: uid=%s gid=%s data_mode=%s host_id=%s maximum_symbols=%s\n' \
+    "$puid" "$pgid" "$data_mode" "$host_id" "$maximum_symbols"
 
 history_before="$(history_digest)"
 install -d -m 0750 -o "$puid" -g "$pgid" "$candidate_runner_root"
 candidate_started_ms="$(date +%s%3N)"
 start_container "$candidate" "$image" "$candidate_host_root" no "$commit_sha" >/dev/null
-candidate_first="$(wait_for_state "$candidate_host_root" "$candidate_started_ms")"
+candidate_first="$(wait_for_state "$candidate" "$candidate_started_ms")"
 sleep 6
-candidate_second="$(state_observation "$candidate_host_root")"
+candidate_second="$(state_observation "$candidate")"
 python3 - "$candidate_first" "$candidate_second" <<'PY'
 import json
 import sys
@@ -359,9 +399,9 @@ fi
 production_replaced=true
 production_started_ms="$(date +%s%3N)"
 start_container "$container_name" "$image" "$data_root" unless-stopped "$commit_sha" >/dev/null
-production_first="$(wait_for_state "$data_root" "$production_started_ms")"
+production_first="$(wait_for_state "$container_name" "$production_started_ms")"
 sleep 30
-production_second="$(state_observation "$data_root")"
+production_second="$(state_observation "$container_name")"
 
 running_image="$(docker inspect --format '{{.Config.Image}}' "$container_name")"
 running_uid="$(docker exec "$container_name" id -u)"
@@ -370,6 +410,8 @@ restart_policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "
 data_mount_rw="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.RW}}{{end}}{{end}}' "$container_name")"
 docker_socket_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$container_name")"
 running_nano_cpus="$(docker inspect --format '{{.HostConfig.NanoCpus}}' "$container_name")"
+running_pids_limit="$(docker inspect --format '{{if .HostConfig.PidsLimit}}{{.HostConfig.PidsLimit}}{{else}}0{{end}}' "$container_name")"
+running_memory_limit="$(docker inspect --format '{{.HostConfig.Memory}}' "$container_name")"
 history_after="$(history_digest)"
 
 test "$running_image" = "$image"
@@ -380,10 +422,16 @@ test "$restart_policy" = "unless-stopped"
 test "$data_mount_rw" = "true"
 test -z "$docker_socket_mount"
 test "$history_before" = "$history_after"
+test "$running_memory_limit" = "536870912"
 if [[ "$cpu_limit_supported" == true ]]; then
     test "$running_nano_cpus" = "1000000000"
 else
     test "$running_nano_cpus" = "0"
+fi
+if [[ "$pids_limit_supported" == true ]]; then
+    test "$running_pids_limit" = "128"
+else
+    test "$running_pids_limit" = "0"
 fi
 
 python3 - \
@@ -392,7 +440,9 @@ python3 - \
     "$history_before" "$history_after" \
     "$running_uid" "$running_gid" "$restart_policy" "$data_mount_rw" \
     "$commit_sha" "$report_path" "$host_id" \
-    "$cpu_limit_supported" "$running_nano_cpus" <<'PY'
+    "$cpu_limit_supported" "$running_nano_cpus" \
+    "$pids_limit_supported" "$running_pids_limit" "$running_memory_limit" \
+    "$maximum_symbols" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -410,6 +460,10 @@ file_growth_observed = any(
 )
 cpu_quota_supported = sys.argv[14] == "true"
 nano_cpus = int(sys.argv[15])
+pids_limit_supported = sys.argv[16] == "true"
+pids_limit = int(sys.argv[17])
+memory_limit = int(sys.argv[18])
+maximum_symbols = int(sys.argv[19])
 report = {
     "schema_version": 1,
     "commit_sha": sys.argv[11],
@@ -422,11 +476,14 @@ report = {
         "restart_policy": sys.argv[9],
         "data_mount_rw": sys.argv[10] == "true",
         "portal_mount_expected_read_only": True,
-        "memory_limit_bytes": 512 * 1024 * 1024,
-        "pids_limit": 128,
+        "memory_limit_bytes": memory_limit,
+        "pids_limit_supported": pids_limit_supported,
+        "pids_limit_applied": pids_limit == 128,
+        "pids_limit": pids_limit,
         "cpu_quota_supported": cpu_quota_supported,
         "cpu_quota_applied": nano_cpus == 1_000_000_000,
         "nano_cpus": nano_cpus,
+        "maximum_symbols": maximum_symbols,
     },
     "historical_evidence": {
         "digest_before": sys.argv[5],

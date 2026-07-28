@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   diagnose:
@@ -24,7 +24,6 @@ jobs:
       - name: Check out exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
           persist-credentials: false
 
@@ -33,7 +32,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Apply bounded repair and capture pre-commit
+      - name: Prepare bounded repair and capture pre-commit
         id: precommit
         shell: bash
         run: |
@@ -45,32 +44,29 @@ jobs:
 
           test_path = Path('ai_strategy_engine/tests/integration/test_registry_dsl.py')
           test_text = test_path.read_text(encoding='utf-8')
-          import_anchor = 'from pathlib import Path\n\nimport pytest'
-          if test_text.count(import_anchor) != 1:
-              raise SystemExit('test typing import anchor mismatch')
           test_text = test_text.replace(
-              import_anchor,
+              'from pathlib import Path\n\nimport pytest',
               'from pathlib import Path\nfrom typing import cast\n\nimport pytest',
               1,
           )
-          list_anchor = '    features = list(document["features"])  # type: ignore[arg-type]'
-          if test_text.count(list_anchor) != 2:
-              raise SystemExit('test features anchor mismatch')
-          typed_list = (
+          old = '    features = list(document["features"])  # type: ignore[arg-type]'
+          replacement = (
               '    features = [\n'
               '        dict(feature)\n'
               '        for feature in cast(list[dict[str, object]], document["features"])\n'
               '    ]'
           )
-          test_text = test_text.replace(list_anchor, typed_list)
-          spread_anchor = (
+          if test_text.count(old) != 2:
+              raise SystemExit('test features anchor mismatch')
+          test_text = test_text.replace(old, replacement)
+          old_spread = (
               '    features[0] = {**features[0], "timeframe": "1h"}  '
               '# type: ignore[arg-type]'
           )
-          if test_text.count(spread_anchor) != 1:
+          if test_text.count(old_spread) != 1:
               raise SystemExit('test spread anchor mismatch')
           test_text = test_text.replace(
-              spread_anchor,
+              old_spread,
               '    features[0] = {**features[0], "timeframe": "1h"}',
               1,
           )
@@ -78,7 +74,8 @@ jobs:
 
           adapter_path = Path('ai_platform/research/strategy_engine/ase00_adapter.py')
           adapter_text = adapter_path.read_text(encoding='utf-8')
-          squeeze_anchor = '''            columns = (
+          adapter_text = adapter_text.replace(
+              '''            columns = (
                 "squeeze_ratio",
                 "squeeze_state",
                 "squeeze_duration",
@@ -88,49 +85,47 @@ jobs:
                 "momentum_acceleration",
             )
             value = _row_mapping(squeeze, -1, columns)
-'''
-          squeeze_replacement = squeeze_anchor.replace(
-              'columns', 'squeeze_columns'
+''',
+              '''            squeeze_columns = (
+                "squeeze_ratio",
+                "squeeze_state",
+                "squeeze_duration",
+                "bars_since_release",
+                "linreg_momentum",
+                "momentum_slope",
+                "momentum_acceleration",
+            )
+            value = _row_mapping(squeeze, -1, squeeze_columns)
+''',
+              1,
           )
-          if adapter_text.count(squeeze_anchor) != 1:
-              raise SystemExit('squeeze columns anchor mismatch')
           adapter_text = adapter_text.replace(
-              squeeze_anchor, squeeze_replacement, 1
-          )
-          previous_anchor = (
-              '            previous[squeeze_ref.id] = '
-              '_row_mapping(squeeze, -2, columns)'
-          )
-          if adapter_text.count(previous_anchor) != 1:
-              raise SystemExit('squeeze previous anchor mismatch')
-          adapter_text = adapter_text.replace(
-              previous_anchor,
-              '            previous[squeeze_ref.id] = '
+              '_row_mapping(squeeze, -2, columns)',
               '_row_mapping(squeeze, -2, squeeze_columns)',
               1,
           )
-          supertrend_anchor = '''            columns = (
+          adapter_text = adapter_text.replace(
+              '''            columns = (
                 "supertrend_band",
                 "supertrend_direction",
                 "supertrend_flip",
                 "supertrend_distance_atr",
             )
             value = _row_mapping(supertrend, -1, columns)
-'''
-          supertrend_replacement = supertrend_anchor.replace(
-              'columns', 'supertrend_columns'
+''',
+              '''            supertrend_columns = (
+                "supertrend_band",
+                "supertrend_direction",
+                "supertrend_flip",
+                "supertrend_distance_atr",
+            )
+            value = _row_mapping(supertrend, -1, supertrend_columns)
+''',
+              1,
           )
-          if adapter_text.count(supertrend_anchor) != 1:
-              raise SystemExit('supertrend columns anchor mismatch')
           adapter_text = adapter_text.replace(
-              supertrend_anchor, supertrend_replacement, 1
-          )
-          prior_anchor = '            prior = _row_mapping(supertrend, -2, columns)'
-          if adapter_text.count(prior_anchor) != 1:
-              raise SystemExit('supertrend prior anchor mismatch')
-          adapter_text = adapter_text.replace(
-              prior_anchor,
-              '            prior = _row_mapping(supertrend, -2, supertrend_columns)',
+              '_row_mapping(supertrend, -2, columns)',
+              '_row_mapping(supertrend, -2, supertrend_columns)',
               1,
           )
           adapter_path.write_text(adapter_text, encoding='utf-8')
@@ -144,40 +139,30 @@ jobs:
           set -e
           printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
           printf '%s\n' "$status" > /tmp/pre-commit.status
-          git diff --binary -- \
-            tests/ai_platform_integration/__init__.py \
-            ai_platform/research/strategy_engine/ase00_adapter.py \
-            ai_strategy_engine/tests/integration/test_registry_dsl.py \
-            > /tmp/pre-commit.patch
 
-      - name: Upload exact diagnostic
+      - name: Stage validated files for artifact
+        if: always()
+        run: |
+          mkdir -p /tmp/validated/ai_platform/research/strategy_engine
+          mkdir -p /tmp/validated/ai_strategy_engine/tests/integration
+          mkdir -p /tmp/validated/tests/ai_platform_integration
+          cp ai_platform/research/strategy_engine/ase00_adapter.py \
+            /tmp/validated/ai_platform/research/strategy_engine/ase00_adapter.py
+          cp ai_strategy_engine/tests/integration/test_registry_dsl.py \
+            /tmp/validated/ai_strategy_engine/tests/integration/test_registry_dsl.py
+          cp tests/ai_platform_integration/__init__.py \
+            /tmp/validated/tests/ai_platform_integration/__init__.py
+          cp /tmp/pre-commit.log /tmp/validated/pre-commit.log
+          cp /tmp/pre-commit.status /tmp/validated/pre-commit.status
+
+      - name: Upload exact validated files
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ase00-precommit-diagnostic
-          path: |
-            /tmp/pre-commit.log
-            /tmp/pre-commit.status
-            /tmp/pre-commit.patch
+          name: ase00-precommit-validated-files
+          path: /tmp/validated
           if-no-files-found: error
           retention-days: 1
-
-      - name: Commit validated bounded repair
-        if: steps.precommit.outputs.status == '0'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tests/ai_platform_integration/__init__.py \
-            ai_platform/research/strategy_engine/ase00_adapter.py \
-            ai_strategy_engine/tests/integration/test_registry_dsl.py
-          git diff --cached --quiet && exit 1
-          git commit -m "fix(ai-strategy): satisfy repository pre-commit"
-          authorization="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $authorization" \
-            push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
 
       - name: Enforce pre-commit result
         if: steps.precommit.outputs.status != '0'

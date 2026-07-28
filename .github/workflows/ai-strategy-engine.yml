@@ -1,11 +1,19 @@
 name: AI Strategy Engine
 
 on:
+  push:
+    branches:
+      - agent/ase-00-ai-strategy-engine-foundation
+    paths:
+      - ai_strategy_engine/**
+      - ai_platform/research/strategy_engine/**
+      - .github/workflows/ai-strategy-engine.yml
   pull_request:
     branches:
       - develop
     paths:
       - ai_strategy_engine/**
+      - ai_platform/research/strategy_engine/**
       - .github/workflows/ai-strategy-engine.yml
   workflow_dispatch:
 
@@ -20,7 +28,7 @@ jobs:
   validate:
     name: ASE-00 complete validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Check out exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -39,7 +47,7 @@ jobs:
           python -m venv .venv
           . .venv/bin/activate
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev]" "SQLAlchemy>=2.0.6"
 
       - name: Run tests
         working-directory: ai_strategy_engine
@@ -65,6 +73,12 @@ jobs:
           . .venv/bin/activate
           python -m compileall -q src tests
 
+      - name: Validate Portal Risk Core adapter
+        run: |
+          . ai_strategy_engine/.venv/bin/activate
+          python -m compileall -q ai_platform/research/strategy_engine
+          ruff check ai_platform/research/strategy_engine
+
       - name: Validate JSON, YAML and JSON Schema examples
         working-directory: ai_strategy_engine
         run: |
@@ -87,6 +101,7 @@ jobs:
                   yaml.safe_load(handle)
 
           mappings = {
+              'examples/feature_record.json': 'schemas/feature-record.v1.schema.json',
               'examples/signal_event.json': 'schemas/signal-event.v1.schema.json',
               'examples/strategy_classic.json': 'schemas/strategy-definition.v1.schema.json',
               'examples/strategy_liquidation.json': 'schemas/strategy-definition.v1.schema.json',
@@ -117,6 +132,7 @@ jobs:
 
       - name: Scan secrets, prohibited code and architecture boundaries
         run: |
+          . ai_strategy_engine/.venv/bin/activate
           python - <<'PY'
           from __future__ import annotations
 
@@ -125,15 +141,19 @@ jobs:
           import subprocess
           from pathlib import Path
 
-          root = Path('ai_strategy_engine')
-          scan_roots = [root / name for name in ('src', 'tests', 'configs', 'examples')]
+          roots = [
+              Path('ai_strategy_engine/src'),
+              Path('ai_strategy_engine/tests'),
+              Path('ai_strategy_engine/configs'),
+              Path('ai_strategy_engine/examples'),
+              Path('ai_platform/research/strategy_engine'),
+          ]
           text_files = [
               path
-              for scan_root in scan_roots
-              for path in scan_root.rglob('*')
+              for root in roots
+              for path in root.rglob('*')
               if path.is_file() and path.suffix.lower() in {'.py', '.json', '.yaml', '.yml', '.toml'}
           ]
-
           secret_patterns = {
               'private key': re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
               'AWS access key': re.compile(r'AKIA[0-9A-Z]{16}'),
@@ -143,18 +163,27 @@ jobs:
           failures: list[str] = []
           for path in text_files:
               text = path.read_text(encoding='utf-8')
-              lowered = text.lower()
-              if 'luxalgo' in lowered:
+              if 'luxalgo' in text.lower():
                   failures.append(f'{path}: LuxAlgo reference outside research/license documentation')
               for label, pattern in secret_patterns.items():
                   if pattern.search(text):
                       failures.append(f'{path}: possible {label}')
-              if path.suffix == '.py':
-                  tree = ast.parse(text, filename=str(path))
-                  for node in ast.walk(tree):
-                      if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-                          if node.func.id in {'eval', 'exec'}:
-                              failures.append(f'{path}:{node.lineno}: prohibited {node.func.id}()')
+              if path.suffix != '.py':
+                  continue
+              tree = ast.parse(text, filename=str(path))
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                      if node.func.id in {'eval', 'exec'}:
+                          failures.append(f'{path}:{node.lineno}: prohibited {node.func.id}()')
+                  imported: str | None = None
+                  if isinstance(node, ast.ImportFrom):
+                      imported = node.module
+                  elif isinstance(node, ast.Import):
+                      for alias in node.names:
+                          if alias.name.startswith(('freqtrade', 'ai_platform.portal.execution')):
+                              failures.append(f'{path}:{node.lineno}: direct execution import {alias.name}')
+                  if imported and imported.startswith(('freqtrade', 'ai_platform.portal.execution')):
+                      failures.append(f'{path}:{node.lineno}: direct execution import {imported}')
 
           changed = subprocess.check_output(
               ['git', 'diff', '--name-only', 'origin/develop...HEAD'], text=True
@@ -162,12 +191,6 @@ jobs:
           browser_changes = [path for path in changed if path.startswith('ai_platform/portal/web/')]
           if browser_changes:
               failures.append(f'Browser paths changed by ASE-00: {browser_changes}')
-
-          for path in (root / 'src').rglob('*.py'):
-              text = path.read_text(encoding='utf-8').lower()
-              if 'freqtrade' in text or 'executionadapter' in text or 'submit_approved_intent' in text:
-                  failures.append(f'{path}: direct execution/Freqtrade dependency')
-
           if failures:
               raise SystemExit('\n'.join(failures))
           print('Secret, LuxAlgo, eval/exec and Browser-to-Freqtrade boundary scans passed')

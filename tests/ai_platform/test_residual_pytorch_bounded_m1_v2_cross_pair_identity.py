@@ -60,7 +60,10 @@ class ResidualPyTorchBoundedM1V2CrossPairIdentityTests(unittest.TestCase):
             result = execution.validate_audit_directory(root)
 
         self.assertEqual(result["audit_id"], "residual-pytorch-bounded-m1-cross-pair-audit-v2")
-        self.assertEqual(result["feature_identity_normalization"], "primary_and_correlated_pair_roles")
+        self.assertEqual(
+            result["feature_identity_normalization"],
+            "primary_and_correlated_pair_roles",
+        )
         self.assertEqual(result["expanded_feature_count"], 3)
         self.assertNotEqual(
             result["pair_qualified_feature_names_sha256"]["BTC/USDT"],

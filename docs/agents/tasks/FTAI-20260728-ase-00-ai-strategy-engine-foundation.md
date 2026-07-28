@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-ase-00-ai-strategy-engine-foundation
-status: ready
+status: validating
 branch: agent/ase-00-ai-strategy-engine-foundation
 base_branch: develop
 created: 2026-07-28
@@ -34,11 +34,11 @@ Deliver the research-only AI Strategy Engine foundation and one deterministic sy
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T22:55:00+02:00
-head: b1d58d8eeadafa5ce92762812c3f16401e1c17d2
+updated_at: 2026-07-28T23:17:00+02:00
+head: 5f80351b862638e6e0e9f6f064054db902068dc8
 branch: agent/ase-00-ai-strategy-engine-foundation
 pr: 584
-status: ready
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -54,22 +54,17 @@ owned_paths:
   - pyproject.toml
   - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
 proven:
-  - PR 584 is open, draft, unmerged and mergeable at the completion check.
-  - Develop be47cdfd4692ea28281e0a1158cab6c98db38608 was merged normally without force-push and the branch is behind_by 0.
-  - Exact-head post-merge validation succeeded on b1d58d8eeadafa5ce92762812c3f16401e1c17d2.
-  - AI Strategy Engine run 30397161360 completed successfully.
-  - AI Platform CI run 30397161038 completed successfully.
-  - Freqtrade CI run 30397162300 completed successfully across the configured matrix.
-  - Zizmor run 30397162077 completed successfully.
-  - Experimental Model Runtime Smoke run 30397161097 completed successfully.
-  - Residual PyTorch Runtime Smoke run 30397162273 completed successfully.
-  - The one-shot merge workflow removed itself and is absent from the final PR diff.
+  - PR 584 is open, draft, unmerged and mergeable at the post-refresh check.
+  - Develop 436b5350e54a33cbf070738a2328b142ffcd5174 was merged normally without force-push into branch commit 5f80351b862638e6e0e9f6f064054db902068dc8.
+  - The latest develop movement contains Portal Vault credential-broker and Synology deployment paths outside ASE, its adapter and integration tests.
+  - The one-shot merge workflow removed itself and is absent from the PR diff.
+  - Exact-head validation succeeded on the preceding review-ready head 18041af549cc0ad9f35deb2f5cd6489fcf7c1ec5.
   - All PR review threads are resolved and outdated; no human approval or change request is present.
   - The repository adapter, deterministic 12-case vertical slice and permanent read-only workflow are present.
   - The standalone ASE package requires Python 3.12+ while root Freqtrade Python 3.11 collection remains valid.
   - No live-order path, browser-to-Freqtrade path or nondeterministic Risk Core bypass was introduced.
 derived:
-  - ASE-00 is implementation-complete, synchronized with develop, fully validated and ready for human review.
+  - The latest develop commit does not alter the delivered ASE behavior but exact-head checks must rerun before restoring ready-for-review state.
   - Further Strategy Engine functionality belongs in a separate bounded work package using the canonical contracts delivered here.
 unknown:
   - Human review outcome and final merge timing for PR 584.
@@ -78,7 +73,7 @@ first_failure:
   marker: ROOT_PYTEST_IMPORT_AND_PYTHON_BOUNDARY
   evidence: Root CI originally failed because local ASE modules were not on pytest pythonpath and Python 3.11 collected a Python 3.12-only test surface; both boundaries were corrected and exact-head CI passed.
 rejected_hypotheses:
-  - Treat action_required records from the GITHUB_TOKEN merge push as executed test failures.
+  - Leave the PR ready for review while it is behind develop.
   - Downgrade the standalone ASE package from its declared Python 3.12+ boundary.
   - Expose Browser directly to private Freqtrade.
   - Enable live execution as part of ASE-00.
@@ -93,24 +88,24 @@ changed_paths:
   - .github/workflows/ai-strategy-engine.yml
   - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
 validation:
-  - command: AI Strategy Engine run 30397161360
-    result: PASS
-    evidence: Post-merge package tests, Ruff, formatting, mypy, compile, schema, materialization and boundary scans succeeded.
-  - command: AI Platform CI run 30397161038
-    result: PASS
-    evidence: Post-merge platform validation succeeded.
-  - command: Freqtrade CI run 30397162300
-    result: PASS
-    evidence: Post-merge pre-commit, documentation, online/live compatibility, core and configured compatibility matrices succeeded.
-  - command: GitHub Actions Security Analysis run 30397162077
-    result: PASS
-    evidence: Post-merge zizmor workflow succeeded.
-  - command: Experimental Model Runtime Smoke run 30397161097
-    result: PASS
-    evidence: Post-merge experimental runtime smoke succeeded.
-  - command: Residual PyTorch Runtime Smoke run 30397162273
-    result: PASS
-    evidence: Post-merge residual runtime smoke succeeded.
+  - command: AI Strategy Engine exact-head run
+    result: NOT_RUN
+    evidence: Triggered by this user-authored post-refresh checkpoint commit.
+  - command: AI Platform CI exact-head run
+    result: NOT_RUN
+    evidence: Triggered by this user-authored post-refresh checkpoint commit.
+  - command: Freqtrade CI exact-head run
+    result: NOT_RUN
+    evidence: Triggered by this user-authored post-refresh checkpoint commit.
+  - command: GitHub Actions Security Analysis exact-head run
+    result: NOT_RUN
+    evidence: Triggered by this user-authored post-refresh checkpoint commit.
+  - command: Experimental Model Runtime Smoke exact-head run
+    result: NOT_RUN
+    evidence: Triggered by this user-authored post-refresh checkpoint commit.
+  - command: Residual PyTorch Runtime Smoke exact-head run
+    result: NOT_RUN
+    evidence: Triggered by this user-authored post-refresh checkpoint commit.
 blockers: []
-next_action: Human-review PR 584; after approval, merge it normally into develop without bypassing required checks.
+next_action: Wait for all exact-head workflows on the post-refresh checkpoint commit; if they pass and the branch remains current and mergeable, record final evidence and mark PR 584 ready for human review.
 ```

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class ValidateStrategyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    strategy: dict
+    strategy: dict[str, JsonValue]
     generated_by_ai: bool = False
 
 
@@ -21,7 +21,7 @@ class ValidateStrategyResponse(BaseModel):
 class SubmitExperimentRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    strategy: dict
-    search_space: dict
+    strategy: dict[str, JsonValue]
+    search_space: dict[str, JsonValue]
     dataset_id: str
     budget_trials: int = Field(ge=1, le=100_000)

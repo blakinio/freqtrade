@@ -171,6 +171,7 @@ def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     assert 'cron: "*/5 * * * *"' in workflow
     assert "runs-on: freqtrade-staging" in workflow
     assert "issues: write" in workflow
+    assert "statuses: write" in workflow
     assert "cancel-in-progress: true" in workflow
     assert "persist-credentials: false" in workflow
     assert "LIQUID20_HEARTBEAT_STALE_SECONDS" in workflow
@@ -179,3 +180,6 @@ def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     assert "LIQUID20_DISK_FREE_BYTES_MIN" in workflow
     assert "steps.health.outcome != 'success'" in workflow
     assert "retention-days: 14" in workflow
+    assert "Publish pending health status" in workflow
+    assert "Publish final health status" in workflow
+    assert '"context": "liquidations-live-health"' in workflow

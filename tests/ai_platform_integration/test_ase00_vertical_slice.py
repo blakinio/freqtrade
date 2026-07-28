@@ -3,10 +3,17 @@ from __future__ import annotations
 import hashlib
 import inspect
 import math
+import sys
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+
+import pytest
+
+
+if sys.version_info < (3, 12):
+    pytest.skip("ASE-00 requires Python 3.12+", allow_module_level=True)
 
 from strategy_engine.features.records import make_confirmed_htf_record
 from strategy_engine.validation.leakage import (

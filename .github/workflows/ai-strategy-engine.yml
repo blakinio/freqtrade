@@ -79,8 +79,16 @@ jobs:
           ruff check --fix tests/ai_platform_integration/test_ase00_vertical_slice.py
           ruff format tests/ai_platform_integration/test_ase00_vertical_slice.py
           python -m compileall -q tests/ai_platform_integration/test_ase00_vertical_slice.py
+          set +e
           pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
             tests/ai_platform_integration/test_ase00_vertical_slice.py
+          pytest_status=$?
+          set -e
+          if [ "$pytest_status" -ne 0 ]; then
+            test "$pytest_status" -eq 5
+            grep -Fq 'pytest.skip("ASE-00 requires Python 3.12+"' \
+              tests/ai_platform_integration/test_ase00_vertical_slice.py
+          fi
           python - <<'PY'
           from pathlib import Path
           import tomllib

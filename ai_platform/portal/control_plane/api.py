@@ -8,21 +8,10 @@ from fastapi import Depends, FastAPI, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
-from ai_platform.portal.bot_builder.router import build_router as build_bot_builder_router
-from ai_platform.portal.bot_catalog.router import build_router as build_bot_catalog_router
-from ai_platform.portal.bot_operations.router import build_router as build_bot_operations_router
 from ai_platform.portal.control_plane.bot_management import (
     BotManagementServices,
     build_default_bot_management_services,
 )
-from ai_platform.portal.control_plane.bot_management_errors import (
-    register_bot_management_exception_handlers,
-)
-from ai_platform.portal.exchange_connections.router import (
-    build_router as build_exchange_connections_router,
-)
-from ai_platform.portal.grid_control.router import build_router as build_grid_control_router
-from ai_platform.portal.signal_control.router import build_router as build_signal_control_router
 from ai_platform.portal.contracts.audit import AuditEvent
 from ai_platform.portal.contracts.bots import BotDesiredState, BotInstance, BotSpec
 from ai_platform.portal.contracts.models import ModelVersion
@@ -507,6 +496,27 @@ def create_app(
         session_factory
     )
     context_dependency = identity_dependency(identity_context_provider)
+    from ai_platform.portal.bot_builder.router import (
+        build_router as build_bot_builder_router,
+    )
+    from ai_platform.portal.bot_catalog.router import (
+        build_router as build_bot_catalog_router,
+    )
+    from ai_platform.portal.bot_operations.router import (
+        build_router as build_bot_operations_router,
+    )
+    from ai_platform.portal.control_plane.bot_management_errors import (
+        register_bot_management_exception_handlers,
+    )
+    from ai_platform.portal.exchange_connections.router import (
+        build_router as build_exchange_connections_router,
+    )
+    from ai_platform.portal.grid_control.router import (
+        build_router as build_grid_control_router,
+    )
+    from ai_platform.portal.signal_control.router import (
+        build_router as build_signal_control_router,
+    )
     _register_exception_handlers(app)
     register_bot_management_exception_handlers(app)
     app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))

@@ -45,9 +45,9 @@ This task adds no API registration, migration, BFF route, exchange credential ac
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T09:38:00+02:00
-head_parent: 1e1d7b2d40f510a222832742fc7819588f0ce52e
-base_develop: b6f4589ff4da88a9cbd91342c657de6b57def142
+updated_at: 2026-07-28T09:40:00+02:00
+head_parent: cebedceba98cab5479a56ffe688eb4f806c98f0b
+base_develop: 9ceb684a5114faac44c45081e45d0627f85d9512
 branch: feat/portal-bm05-grid-capability
 pr: 565
 status: ready_for_merge
@@ -65,7 +65,7 @@ owned_paths:
 proven:
   - BM-00 and BM-02 policy/capability contracts are merged and expose GridPolicyVersion and GRID_CONFIGURE.
   - BM-04 merged into develop as 22b3288c141a70abe67c61f4e737561ecf6d7379 before this branch was created.
-  - The feature branch is synchronized with develop b6f4589ff4da88a9cbd91342c657de6b57def142 through feature-branch-only PR 563.
+  - The feature branch is synchronized with current develop 9ceb684a5114faac44c45081e45d0627f85d9512 through feature-branch-only PR 573; the incoming Liquid20 checkpoint path is disjoint from BM-05 ownership.
   - No open PR or existing branch owned the canonical BM-05 grid_control paths when work began.
   - PR 565 changes exactly twelve declared feature, test and checkpoint paths.
   - Forty-nine focused BM-05 test functions cover level generation, validation, exchange minima, immutable persistence and non-execution safety.
@@ -111,8 +111,8 @@ validation:
   - command: GitHub Actions security analysis
     result: PASS
     evidence: workflow 30338054982
-  - command: terminal documentation-only checkpoint head
+  - command: terminal synchronized documentation-only checkpoint head
     result: PENDING
 blockers: []
-next_action: Validate this documentation-only checkpoint exact head, audit changed paths and review state against current develop, then guarded squash-merge PR 565.
+next_action: Validate this synchronized documentation-only checkpoint exact head, audit changed paths and review state against current develop, then guarded squash-merge PR 565.
 ```

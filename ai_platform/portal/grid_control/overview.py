@@ -26,7 +26,9 @@ class GridControlOverview(ContractModel):
     def validate_overview(self) -> GridControlOverview:
         if self.capability_evidence_provider_status == GridEvidenceProviderStatus.UNAVAILABLE:
             if self.canonical_preview_enabled or self.policy_persistence_enabled:
-                raise ValueError("unavailable grid evidence provider must block preview and persistence")
+                raise ValueError(
+                    "unavailable grid evidence provider must block preview and persistence"
+                )
         if self.browser_supplied_capability_evidence_accepted:
             raise ValueError("browser must not supply authoritative grid capability evidence")
         if self.execution_submission_enabled:

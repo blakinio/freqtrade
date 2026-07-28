@@ -159,11 +159,18 @@ test "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid2
 test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$candidate")"
 test "$(docker exec "$candidate" id -u)" != "0"
 [[ " $(docker exec "$candidate" id -G) " == *" $data_gid "* ]]
-candidate_pids_limit="$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$candidate")"
+candidate_pids_limit_json="$(docker inspect --format '{{json .HostConfig.PidsLimit}}' "$candidate")"
 if [[ "$pids_limit_supported" == true ]]; then
-  test "$candidate_pids_limit" = "256"
+  test "$candidate_pids_limit_json" = "256"
 else
-  test "$candidate_pids_limit" = "0"
+  case "$candidate_pids_limit_json" in
+    null | 0)
+      ;;
+    *)
+      echo "Unexpected unlimited PID representation: $candidate_pids_limit_json" >&2
+      exit 1
+      ;;
+  esac
 fi
 
 probe() {
@@ -253,7 +260,7 @@ PORTAL_UID="$portal_uid" \
 PORTAL_GROUPS="$portal_groups" \
 DATA_GID="$data_gid" \
 PIDS_LIMIT_SUPPORTED="$pids_limit_supported" \
-CANDIDATE_PIDS_LIMIT="$candidate_pids_limit" \
+CANDIDATE_PIDS_LIMIT_JSON="$candidate_pids_limit_json" \
 MOUNT_SOURCE="$mount_source" \
 CANDIDATE="$candidate" \
 GITHUB_SHA_VALUE="${GITHUB_SHA:-unknown}" \
@@ -313,7 +320,7 @@ report = {
         "real_data_mount_read_only": True,
         "docker_socket_mounted": False,
         "pids_limit_supported": os.environ["PIDS_LIMIT_SUPPORTED"] == "true",
-        "pids_limit": int(os.environ["CANDIDATE_PIDS_LIMIT"]),
+        "pids_limit": json.loads(os.environ["CANDIDATE_PIDS_LIMIT_JSON"]),
         "first": first,
         "second": second,
     },

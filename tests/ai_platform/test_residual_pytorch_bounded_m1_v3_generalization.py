@@ -113,6 +113,37 @@ def test_canonical_request_binds_v3_inputs_without_request_presence() -> None:
     assert payload["generalization"]["source_run"] == 30340242201
 
 
+def test_v3_lightgbm_training_evidence_uses_model_identity(tmp_path: Path) -> None:
+    v3, _ = _numeric_modules()
+    identifier = "ai-platform-residual-pytorch-m1-lightgbm-generalization-v3"
+    for pair in ("SOL/USDT", "XRP/USDT"):
+        slug = pair.lower().replace("/", "-")
+        v3.write_json(
+            tmp_path / f"{slug}.json",
+            {
+                "pair": pair,
+                "wrapper_model": "M1LightGBMRegressor",
+                "identifier": identifier,
+                "train_rows": 10,
+                "test_rows": 2,
+                "feature_count": 272,
+                "training_start": "2025-12-01T00:00:00+00:00",
+                "training_stop_exclusive": "2026-03-01T00:00:00+00:00",
+                "lightgbm_evals_result": {"valid_0": {"l2": [0.1]}},
+                "recorded_scalar_events": {},
+            },
+        )
+
+    payload = v3.validate_training_directory(
+        tmp_path,
+        track_id="residual-pytorch-m1-lightgbm-generalization-v3",
+    )
+
+    assert payload["feature_count"] == 272
+    assert payload["pairs"] == ["SOL/USDT", "XRP/USDT"]
+    assert payload["track_id"] == "residual-pytorch-m1-lightgbm-generalization-v3"
+
+
 def test_v3_workflow_is_exact_one_file_and_fail_closed() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 

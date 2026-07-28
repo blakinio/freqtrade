@@ -5,7 +5,7 @@ branch: docs/residual-pytorch-bounded-m1-v2-complete
 base_branch: develop
 created: 2026-07-27
 updated: 2026-07-28
-related_pr: 0
+related_pr: 602
 owned_paths:
   - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
   - ai_platform/strategies/AiFrozenCandidateStrategyV2.py
@@ -49,9 +49,9 @@ V1 is retired and must not be modified or rerun. The terminal v2 trigger PR was 
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-28T10:15:00Z
-head: be8b86aa332dd6ef0813698a41e4cc33bfdc0f80
+head: 6099c2b0ce5125ba3a9fceb7928685c24d9f3236
 branch: docs/residual-pytorch-bounded-m1-v2-complete
-pr: 0
+pr: 602
 status: validating
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
@@ -123,5 +123,5 @@ validation:
     result: NOT_RUN
     evidence: Final checkpoint and one-shot generator removal have not yet completed repository CI.
 blockers: []
-next_action: Validate and merge the final cleanup PR, reset the request branch to the cleanup merge SHA, disable the completed run monitor, and treat this task as complete.
+next_action: Validate and merge PR 602, reset the request branch to the cleanup merge SHA, disable the completed run monitor, and treat this task as complete.
 ```

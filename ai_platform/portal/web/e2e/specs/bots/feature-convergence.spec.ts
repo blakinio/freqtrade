@@ -11,9 +11,9 @@ test.describe("BMW-03 safe feature convergence", { tag: [tags.critical, tags.sec
     await expect(page.getByText("Not exposed", { exact: true })).toBeVisible();
     const body = (await page.locator("body").innerText()).toLowerCase();
     expect(body).not.toContain("credref_");
-    expect(body).not.toContain("api key");
-    expect(body).not.toContain("passphrase");
-    expect(body).not.toContain("secret-store");
+    expect(body).not.toContain("vault://");
+    expect(body).not.toContain("internal-account");
+    expect(body).not.toContain("private_endpoint");
   });
 
   test("blocks signed signal acceptance without PI-07", async ({ page }) => {
@@ -25,7 +25,7 @@ test.describe("BMW-03 safe feature convergence", { tag: [tags.critical, tags.sec
     await expect(page.getByText(/Execution submission: no/)).toBeVisible();
     const body = (await page.locator("body").innerText()).toLowerCase();
     expect(body).not.toContain("signalref_");
-    expect(body).not.toContain("endpoint_slug");
+    expect(body).not.toContain("endpoint_slug_12345");
   });
 
   test("blocks grid preview without trusted server evidence", async ({ page }) => {

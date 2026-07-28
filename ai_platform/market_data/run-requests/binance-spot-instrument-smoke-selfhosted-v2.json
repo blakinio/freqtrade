@@ -1,0 +1,10 @@
+{
+  "version": "binance-spot-instrument-smoke-request-v2",
+  "policy_version": "binance-spot-instrument-smoke-policy-v2",
+  "source_id": "binance-spot",
+  "request_url": "https://api.binance.com/api/v3/exchangeInfo?showPermissionSets=false",
+  "execution_mode": "single_public_rest_snapshot",
+  "public_only": true,
+  "persist_raw_payload": true,
+  "source_acceptance": false
+}

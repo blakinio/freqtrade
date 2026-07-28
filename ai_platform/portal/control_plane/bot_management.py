@@ -119,6 +119,7 @@ def build_default_bot_management_services(
 ) -> BotManagementServices:
     from ai_platform.portal.bot_operations.intent_service import (
         LifecycleCommandIntentService,
+        SqlAlchemyIdempotentCommandLookup,
         UnavailableBotRuntimeStateProvider,
     )
     from ai_platform.portal.bot_operations.service import BotCommandService
@@ -135,6 +136,7 @@ def build_default_bot_management_services(
         command_intents=LifecycleCommandIntentService(
             commands,
             UnavailableBotRuntimeStateProvider(),
+            idempotency_lookup=SqlAlchemyIdempotentCommandLookup(session_factory),
         ),
         signals=SignalControlService(
             InMemorySignalControlRepository(),

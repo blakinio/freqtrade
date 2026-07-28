@@ -36,7 +36,7 @@ Add a separately reviewed reduced-payload Binance Spot smoke contract that keeps
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T11:30:00+02:00
+updated_at: 2026-07-28T13:31:00+02:00
 base_develop: fda21a72ea8e4cd3f70623e2bd44bddea5b32683
 branch: feat/binance-spot-reduced-payload-smoke-v2
 status: validating
@@ -47,6 +47,9 @@ proven:
   - Binance official REST documentation defines optional showPermissionSets and states that it controls whether permissionSets is populated.
   - Binance official changelog states showPermissionSets may be used for reduced payload size.
   - The repository Binance Spot parser does not consume permissionSets; it consumes symbol, status, baseAsset, quoteAsset, PRICE_FILTER.tickSize and LOT_SIZE.stepSize.
+  - Initial AI Platform functional tests and documentation build passed at 2bac9276508db2d198aa36e13eaec9e104659539; only Ruff and pre-commit formatting required repair.
+  - Temporary formatter PR 612 workflow 30354894301 verified exact head 2bac9276508db2d198aa36e13eaec9e104659539, changed only the runtime module and focused smoke test, passed Ruff check and format, and fast-forwarded PR 609 to 37f92f3f0b0ddfab7feb49e8540a6df05ec0cb0b.
+  - PR 612 was closed without merge and its branch was reset to current develop.
 changes:
   - Preserve the v1 request and policy contract for compatibility.
   - Add policy and request contract v2 with exact URL https://api.binance.com/api/v3/exchangeInfo?showPermissionSets=false.
@@ -69,6 +72,6 @@ rejected:
   - Persist an incomplete oversized body as a valid raw response.
   - Grant source acceptance, collector authority, WebSocket access, order capability or live-capital authority.
 blockers:
-  - Exact-head CI and review are pending.
-next_action: Complete exact-head CI and guarded merge, run one no-request v2 contract proof, then create exactly one canonical v2 trigger and record its terminal artifact while keeping source_acceptance false.
+  - Fresh exact-head CI and review are pending at the post-Ruff head.
+next_action: Complete fresh exact-head CI and guarded merge, run one no-request v2 contract proof, then create exactly one canonical v2 trigger and record its terminal artifact while keeping source_acceptance false.
 ```

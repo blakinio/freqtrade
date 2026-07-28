@@ -1,0 +1,309 @@
+name: AI Platform Binance Spot Instrument Shadow Acceptance
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260728-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binance-spot-instrument-shadow-acceptance-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260728-v1.json
+  POLICY_PATH: ai_platform/market_data/binance-spot-instrument-shadow-acceptance-policy-v1.json
+
+jobs:
+  acceptance:
+    name: Run 24-hour Binance Spot instrument shadow acceptance
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 1500
+    env:
+      ACCEPTANCE_HOST_ID: freqtrade-synology-staging
+      STATE_DIR: /var/lib/freqtrade-staging-state
+      DURABLE_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+      DURABLE_URI: file:///var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260728-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Binance instrument acceptance trigger must add exactly the canonical request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate staging identity and prepare durable storage
+        id: staging
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_NAME_VALUE" != "$ACCEPTANCE_HOST_ID" ]]; then
+            echo "BINANCE_ACCEPTANCE_RUNNER_NAME_MISMATCH" >&2
+            exit 1
+          fi
+          if [[ "$RUNNER_OS_VALUE" != "Linux" ]]; then
+            echo "BINANCE_ACCEPTANCE_RUNNER_OS_MISMATCH" >&2
+            exit 1
+          fi
+          if [[ "$RUNNER_ARCH_VALUE" != "X64" && "$RUNNER_ARCH_VALUE" != "ARM64" ]]; then
+            echo "BINANCE_ACCEPTANCE_RUNNER_ARCH_MISMATCH" >&2
+            exit 1
+          fi
+          if [[ -z "$STATE_DIR" || -z "$DURABLE_ROOT" || -z "$DURABLE_URI" ]]; then
+            echo "BINANCE_ACCEPTANCE_STORAGE_MAPPING_EMPTY" >&2
+            exit 1
+          fi
+          case "$STATE_DIR" in
+            /*) ;;
+            *) echo "BINANCE_ACCEPTANCE_STATE_DIR_NOT_ABSOLUTE" >&2; exit 1 ;;
+          esac
+          case "$DURABLE_ROOT" in
+            /*) ;;
+            *) echo "BINANCE_ACCEPTANCE_DURABLE_ROOT_NOT_ABSOLUTE" >&2; exit 1 ;;
+          esac
+          if [[ "$(dirname "$DURABLE_ROOT")" != "$STATE_DIR" ]]; then
+            echo "BINANCE_ACCEPTANCE_DURABLE_ROOT_OUTSIDE_STATE_DIR" >&2
+            exit 1
+          fi
+          if [[ ! -d "$STATE_DIR" ]]; then
+            echo "BINANCE_ACCEPTANCE_STATE_DIR_MISSING" >&2
+            exit 1
+          fi
+          if [[ ! -w "$STATE_DIR" ]]; then
+            echo "BINANCE_ACCEPTANCE_STATE_DIR_NOT_WRITABLE" >&2
+            exit 1
+          fi
+          case "$DURABLE_ROOT" in
+            "$RUNNER_TEMP"|"$RUNNER_TEMP"/*|"$GITHUB_WORKSPACE"|"$GITHUB_WORKSPACE"/*)
+              echo "BINANCE_ACCEPTANCE_DURABLE_ROOT_EPHEMERAL" >&2
+              exit 1
+              ;;
+          esac
+          umask 027
+          if ! mkdir -p "$DURABLE_ROOT"; then
+            echo "BINANCE_ACCEPTANCE_DURABLE_ROOT_CREATE_FAILED" >&2
+            exit 1
+          fi
+          if [[ ! -d "$DURABLE_ROOT" || ! -w "$DURABLE_ROOT" ]]; then
+            echo "BINANCE_ACCEPTANCE_DURABLE_ROOT_NOT_WRITABLE" >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import shutil
+          import tempfile
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          expected = {
+              "policy_id": "binance-spot-instrument-shadow-acceptance-v1",
+              "source_id": "binance-spot",
+              "request_url": "https://api.binance.com/api/v3/exchangeInfo?showPermissionSets=false",
+              "host_id": os.environ["ACCEPTANCE_HOST_ID"],
+              "host_class": "always_on_nonrestricted_linux_staging",
+              "github_hosted_runner": False,
+              "duration_seconds": 86400,
+              "sample_interval_seconds": 900,
+              "durable_storage_uri": os.environ["DURABLE_URI"],
+              "baseline_artifact_id": 8686988992,
+              "baseline_artifact_digest": "sha256:1862d17e8c117e31eec6688c8f34c32cce4a505ec125805cd095df6894cc4f6e",
+              "public_only": True,
+              "execution_enabled": False,
+              "trading_credentials_present": False,
+              "proxy_routing_present": False,
+              "performance_research_authorized": False,
+              "replay_authorized": False,
+              "model_training_authorized": False,
+              "strategy_research_authorized": False,
+              "orders_submitted": 0,
+              "production_source_enabled": False,
+          }
+          for key, value in expected.items():
+              if request.get(key) != value:
+                  raise SystemExit(f"request {key} does not match frozen staging contract")
+          run_id = str(request.get("run_id", ""))
+          request_id = str(request.get("request_id", ""))
+          for field, value in (("run_id", run_id), ("request_id", request_id)):
+              if not re.fullmatch(r"[A-Za-z0-9._-]{3,100}", value):
+                  raise SystemExit(f"request {field} is invalid")
+
+          durable_root = Path(os.environ["DURABLE_ROOT"])
+          probe_dir = Path(tempfile.mkdtemp(prefix=".acceptance-preflight-", dir=durable_root))
+          try:
+              source = probe_dir / "probe.tmp"
+              target = probe_dir / "probe.sealed"
+              payload = b"binance-spot-instrument-shadow-acceptance-v1\n"
+              with source.open("xb") as handle:
+                  handle.write(payload)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              source.replace(target)
+              if target.read_bytes() != payload:
+                  raise SystemExit("BINANCE_ACCEPTANCE_DURABLE_ROOT_ATOMIC_IO_FAILED")
+          finally:
+              shutil.rmtree(probe_dir)
+
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"run_id={run_id}\n")
+          PY
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install isolated uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Validate frozen package without network
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python - <<'PY'
+          import json
+          from pathlib import Path
+
+          from ai_platform.market_data.binance_spot_instrument_acceptance import (
+              BinanceSpotInstrumentAcceptancePolicy,
+              validate_request,
+          )
+
+          policy = BinanceSpotInstrumentAcceptancePolicy.load(Path("ai_platform/market_data/binance-spot-instrument-shadow-acceptance-policy-v1.json"))
+          request = json.loads(Path("ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260728-v1.json").read_text(encoding="utf-8"))
+          validate_request(request, policy=policy)
+          print("BINANCE_SPOT_INSTRUMENT_ACCEPTANCE_PREFLIGHT_PASS")
+          PY
+
+      - name: Run frozen 24-hour acceptance package
+        id: run
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ steps.staging.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          root="${DURABLE_ROOT%/}/$RUN_ID"
+          printf 'root=%s\n' "$root" >> "$GITHUB_OUTPUT"
+          set +e
+          PYTHONPATH=. python -m ai_platform.market_data.binance_spot_instrument_acceptance run \
+            --request "$REQUEST_PATH" \
+            --policy "$POLICY_PATH" \
+            --collector-commit "$HEAD_SHA" \
+            --output-root "$root"
+          status=$?
+          set -e
+          if [[ "$status" -ne 0 && "$status" -ne 1 && "$status" -ne 2 ]]; then
+            echo "Unexpected acceptance runner exit code: $status" >&2
+            exit 1
+          fi
+          printf 'exit_code=%s\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Independently verify complete evidence package
+        id: verify
+        shell: bash
+        env:
+          ROOT: ${{ steps.run.outputs.root }}
+          RUN_EXIT_CODE: ${{ steps.run.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          if [[ ! -f "$ROOT/binance-spot-instrument-acceptance-report.json" ]]; then
+            printf 'exit_code=1\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set +e
+          PYTHONPATH=. python -m ai_platform.market_data.binance_spot_instrument_acceptance evaluate \
+            --run-root "$ROOT" \
+            --policy "$POLICY_PATH"
+          status=$?
+          set -e
+          if [[ "$status" != "$RUN_EXIT_CODE" ]]; then
+            echo "Independent evaluator outcome differs from runner" >&2
+            exit 1
+          fi
+          printf 'exit_code=%s\n' "$status" >> "$GITHUB_OUTPUT"
+
+      - name: Upload bounded metadata evidence
+        if: ${{ always() && steps.run.outputs.root != '' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-spot-instrument-shadow-acceptance-${{ github.event.pull_request.number }}
+          path: |
+            ${{ steps.run.outputs.root }}/samples/*/sample-report.json
+            ${{ steps.run.outputs.root }}/run-request.json
+            ${{ steps.run.outputs.root }}/policy.json
+            ${{ steps.run.outputs.root }}/binance-spot-instrument-acceptance-summary.json
+            ${{ steps.run.outputs.root }}/binance-spot-instrument-acceptance-manifest.json
+            ${{ steps.run.outputs.root }}/binance-spot-instrument-acceptance-report.json
+            ${{ steps.run.outputs.root }}/artifact-sha256.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Remove isolated acceptance runtime
+        if: always()
+        shell: bash
+        run: rm -rf .venv
+
+      - name: Enforce terminal acceptance outcome
+        shell: bash
+        env:
+          RUN_EXIT_CODE: ${{ steps.run.outputs.exit_code }}
+          VERIFY_EXIT_CODE: ${{ steps.verify.outputs.exit_code }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUN_EXIT_CODE" != "$VERIFY_EXIT_CODE" ]]; then
+            echo "Runner and evaluator exit codes disagree" >&2
+            exit 1
+          fi
+          case "$RUN_EXIT_CODE" in
+            0) echo "Binance Spot instrument shadow outcome: accepted; production source remains disabled" ;;
+            2) echo "Binance Spot instrument shadow outcome: inconclusive_incomplete_window" >&2; exit 2 ;;
+            *) echo "Binance Spot instrument shadow outcome: rejected or incomplete" >&2; exit 1 ;;
+          esac

@@ -10,10 +10,7 @@ from ai_platform.portal.credentials.errors import (
     VaultProtocolError,
     VaultTransportError,
 )
-from ai_platform.portal.credentials.material import (
-    CredentialMaterial,
-    ResolvedCredentialLease,
-)
+from ai_platform.portal.credentials.material import CredentialMaterial, ResolvedCredentialLease
 from ai_platform.portal.credentials.schema import (
     CredentialLeaseEvidence,
     CredentialLeaseRequest,

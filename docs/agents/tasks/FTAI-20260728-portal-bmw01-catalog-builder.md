@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-portal-bmw01-catalog-builder
-status: validating
+status: complete
 branch: feat/portal-bmw01-catalog-builder-v1
 base_branch: develop
 created: 2026-07-28
@@ -48,12 +48,12 @@ BMW-01 finalizes configuration evidence only. It does not create a private runti
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T13:46:00+02:00
+updated_at: 2026-07-28T14:28:00+02:00
 branch: feat/portal-bmw01-catalog-builder-v1
 pr: 615
-status: validating
+status: complete
 base_merge: 97b74d210123f2d4d45883822de7e40f545d2c16
-head_parent: 21036279898d57df25e0dc0101ed8e35458ae848
+validated_head_parent: 4bb4a13bfeb78cee6e6aac76653d7b6be295ae2f
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -77,11 +77,15 @@ proven:
   - BM-01/BM-02 canonical services and routers are registered in the private control plane.
   - The approved starter catalog merged as 97b74d210123f2d4d45883822de7e40f545d2c16.
   - Builder finalization creates immutable configuration evidence and does not submit runtime execution.
-  - OpenAPI registration workflow completed and removed itself before this exact-head validation commit.
+  - Temporary OpenAPI and lint diagnostic workflows were removed before terminal validation.
+  - Portal Web CI 30356049079 passed typecheck, ESLint, production build and Chromium tests.
+  - Portal Universal E2E 30356049121 passed.
+  - AI Platform CI 30356049234 passed.
+  - Freqtrade CI 30356049101 passed its full matrix and final gate.
+  - GitHub Actions Security Analysis 30356049156 passed.
 derived:
-  - A catalog snapshot read plus BFF orchestration is sufficient to complete BMW-01 without PI-07 or PI-08.
-unknown:
-  - Exact-head Portal Web, E2E, AI Platform, Freqtrade and security CI results.
+  - A catalog snapshot read plus BFF orchestration completes BMW-01 without PI-07 or PI-08.
+unknown: []
 conflicts: []
 first_failure:
   marker: BROWSER_TYPED_INTERNAL_VERSIONS
@@ -104,9 +108,21 @@ changed_paths:
   - tests/ai_platform/portal/control_plane/test_api.py
   - docs/agents/tasks/FTAI-20260728-portal-bmw01-catalog-builder.md
 validation:
-  - command: exact-head standard CI
-    result: NOT_RUN
-    evidence: This connector-authored commit creates the authoritative validation head.
+  - command: Portal Web CI 30356049079
+    result: PASS
+    evidence: typecheck, lint, production build and Chromium suite passed on validated_head_parent.
+  - command: Portal Universal E2E 30356049121
+    result: PASS
+    evidence: universal browser/API scenarios passed on validated_head_parent.
+  - command: AI Platform CI 30356049234
+    result: PASS
+    evidence: full AI Platform validation passed on validated_head_parent.
+  - command: Freqtrade CI 30356049101
+    result: PASS
+    evidence: full Python matrix, coverage, lint, typing, smoke, distribution and final gate passed.
+  - command: GitHub Actions Security Analysis 30356049156
+    result: PASS
+    evidence: security workflow passed.
 blockers: []
-next_action: Run exact-head CI, repair only BMW-01 findings, audit and merge.
+next_action: Audit this terminal documentation-only head and merge BMW-01 after exact-head CI passes.
 ```

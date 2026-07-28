@@ -24,4 +24,4 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             "/repos/${REPOSITORY}/actions/jobs/90287647335/logs" \
             > job.log
-          tail -n 180 job.log
+          tail -n 80 job.log

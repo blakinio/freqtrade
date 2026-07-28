@@ -36,7 +36,7 @@ Convert an immutable completed Liquid20 live run into the existing provider-neut
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T20:10:00+02:00
+updated_at: 2026-07-28T20:20:00+02:00
 validated_code_head: 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d
 branch: feat/wickhunter-live-archive-acceptance-v1
 pr: 631
@@ -62,6 +62,8 @@ proven:
   - Focused synthetic tests prove direct compatibility with the unchanged WH-01 load_accepted_import verifier.
   - Exact implementation head 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d passed AI Platform CI run 30364063613, Freqtrade CI run 30364063652 and zizmor run 30364063488.
   - Synchronization PR 647 merged current develop 17eac81baa5ceaf01afbe14c5e8dadc778a57559 into the WickHunter branch as 4d374113dfc6176b2130dac3c91375065bc9ddaf without touching any owned path.
+  - Final review identified that source hashes were not repeated immediately before atomic publication; the bridge now revalidates run state, both source NDJSON files and both source summaries after staging every output artifact.
+  - A regression test mutates the Binance NDJSON after historical evaluation and proves that acceptance fails closed without publishing the output root.
 derived:
   - A completed live run can satisfy the real immutable dataset gate after deterministic conversion and unchanged WH-01 verification.
   - Tardis can remain optional backfill for broader regimes instead of blocking technical replay on newly collected real history.
@@ -107,7 +109,7 @@ validation:
   - command: GitHub Actions Security Analysis with zizmor on validated implementation head
     result: PASS
     evidence: Run 30364063488 passed on 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d.
-  - command: final exact-head CI after develop synchronization and checkpoint update
+  - command: final exact-head CI after develop synchronization, TOCTOU hardening and checkpoint update
     result: NOT_RUN
     evidence: Required on the resulting checkpoint commit before PR 631 can leave draft state and merge.
 blockers:

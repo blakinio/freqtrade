@@ -82,7 +82,7 @@ FAILED tests/unit/test_signal_policies.py::test_cooldown_blocks_rapid_direction_
         0,
   +     1,
     ]
-2 failed, 52 passed in 1.40s
+2 failed, 52 passed in 1.28s
 ```
 
 ## package_ruff

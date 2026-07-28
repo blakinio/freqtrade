@@ -58,6 +58,7 @@ def test_lifecycle_intent_api_fails_closed_without_runtime_provider() -> None:
 
     assert response.status_code == 200
     assert response.json() == {
+        "contract_version": "v1",
         "command_id": None,
         "bot_id": "bot-a",
         "action": "START",

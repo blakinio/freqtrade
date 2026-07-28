@@ -38,7 +38,9 @@ class PublicSignalEndpointView(ContractModel):
         if self.revision < 1 or self.schema_revision < 1:
             raise ValueError("public signal revisions must be positive")
         if self.authentication_reference_exposed or self.webhook_slug_exposed:
-            raise ValueError("public signal endpoint must not expose authentication routing material")
+            raise ValueError(
+                "public signal endpoint must not expose authentication routing material"
+            )
         return self
 
 
@@ -52,7 +54,9 @@ class SignalControlOverview(ContractModel):
     def validate_overview(self) -> SignalControlOverview:
         if self.authentication_provider_status == SignalAuthenticationProviderStatus.UNAVAILABLE:
             if self.accepted_signal_processing_enabled:
-                raise ValueError("unavailable authentication provider must block accepted processing")
+                raise ValueError(
+                    "unavailable authentication provider must block accepted processing"
+                )
         if self.execution_submission_enabled:
             raise ValueError("BMW-03 signal overview must not enable execution submission")
         return self

@@ -1,9 +1,9 @@
 name: AI Strategy Engine
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/ase-00-ai-strategy-engine-foundation
+      - develop
     paths:
       - .github/workflows/ai-strategy-engine.yml
   workflow_dispatch:
@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: "${{ github.workflow }}-${{ github.ref }}"
+  group: ase00-python-boundary-repair
   cancel-in-progress: true
 
 jobs:

@@ -1,7 +1,9 @@
 name: Apply Portal Proof PID Repair
 
 on:
-  pull_request:
+  push:
+    branches:
+      - test/liquidations-live-portal-synology-proof-20260727
     paths:
       - .github/workflows/patch-portal-proof-pids.yml
 
@@ -16,7 +18,7 @@ jobs:
       - name: Check out proof branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: test/liquidations-live-portal-synology-proof-20260727
 
       - name: Apply exact PID capability repair
         run: |
@@ -173,4 +175,4 @@ probe() {''',
             tests/ai_platform/portal/deployment/test_liquidations_live_portal_synology_proof.py \
             .github/workflows/patch-portal-proof-pids.yml
           git commit -m "fix(portal): probe Synology PID limit in live proof"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          git push origin HEAD:test/liquidations-live-portal-synology-proof-20260727

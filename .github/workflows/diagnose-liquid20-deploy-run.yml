@@ -1,4 +1,4 @@
-name: Inspect Portal Fixture Identity Contract
+name: Inspect Fixture Repair Helper Run
 
 on:
   pull_request:
@@ -6,50 +6,47 @@ on:
       - .github/workflows/diagnose-liquid20-deploy-run.yml
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
   inspect:
-    runs-on: freqtrade-staging
-    timeout-minutes: 8
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Check out exact repaired source
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          ref: 60f84d1302c8cf8907deff13008da2f120939a4f
-          persist-credentials: false
-          show-progress: false
-
-      - name: Inspect bounded identity contract
+      - name: Inspect exact helper push run
         env:
-          PORTAL_CONTAINER: freqtrade-portal-staging
-          REPORT: ${{ runner.temp }}/portal-identity-contract.txt
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -Eeuo pipefail
-          {
-            echo '--- REPOSITORY IDENTITY MATCHES ---'
-            grep -RInE --exclude-dir=.git --exclude-dir=node_modules \
-              'PORTAL_IDENTITY_FIXTURE_MODE|SESSION_MISSING|fixture.*session|session.*fixture|IDENTITY_FIXTURE' \
-              portal deploy tests 2>/dev/null | head -n 300 || true
-            echo '--- PORTAL TREE CANDIDATES ---'
-            find portal -maxdepth 6 -type f 2>/dev/null \
-              | grep -Ei 'auth|identity|session|middleware|fixture' \
-              | head -n 220 || true
-            echo '--- RUNNING IMAGE ENV NAMES ---'
-            docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$PORTAL_CONTAINER" \
-              | sed 's/=.*$/=<redacted>/' \
-              | grep -Ei 'PORTAL|AUTH|IDENTITY|SESSION' \
-              | sort -u || true
-            echo '--- RUNNING BUNDLE IDENTITY MATCHES ---'
-            docker exec "$PORTAL_CONTAINER" sh -lc \
-              "grep -RIlE 'PORTAL_IDENTITY_FIXTURE_MODE|SESSION_MISSING|IDENTITY_FIXTURE' /app 2>/dev/null | head -n 120" || true
-          } > "$REPORT"
-          test -s "$REPORT"
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
 
-      - name: Upload bounded identity diagnostics
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: portal-identity-contract-${{ github.run_id }}
-          path: ${{ runner.temp }}/portal-identity-contract.txt
-          if-no-files-found: error
-          retention-days: 2
+          sha = "b41dbe3e0089c33219acc59e380daaaca58db96a"
+          repository = os.environ["GITHUB_REPOSITORY"]
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/actions/runs?head_sha={sha}&event=push&per_page=100",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          runs = [
+              {
+                  "id": item["id"],
+                  "name": item["name"],
+                  "status": item["status"],
+                  "conclusion": item["conclusion"],
+                  "head_sha": item["head_sha"],
+              }
+              for item in payload.get("workflow_runs", [])
+              if item.get("name") == "Apply Portal Proof Fixture Session Repair"
+          ]
+          print("HELPER_RUNS=" + json.dumps(runs, sort_keys=True))
+          if not runs:
+              raise SystemExit("No exact helper run found")
+          PY

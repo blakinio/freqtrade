@@ -410,11 +410,65 @@ def build_prediction_diagnostics(path: Path, *, track_id: str) -> dict[str, Any]
     return payload
 
 
-def validate_training_directory(path: Path, *, track_id: str) -> dict[str, Any]:
-    with _patched_base_contract():
-        payload = base.validate_training_directory(path, track_id=track_id)
-    payload["evidence_id"] = "residual-pytorch-bounded-m1-generalization-training-evidence-index-v3"
-    return payload
+def validate_training_directory(  # noqa: C901
+    path: Path, *, track_id: str
+) -> dict[str, Any]:
+    if track_id not in EXPECTED_TRACKS:
+        raise ResidualPyTorchBoundedM1Error(f"Unknown training-evidence track: {track_id}")
+    files = sorted(path.glob("*.json"))
+    if len(files) != len(EXPECTED_PAIRS):
+        raise ResidualPyTorchBoundedM1Error(
+            f"Expected {len(EXPECTED_PAIRS)} training evidence files, found {len(files)}"
+        )
+    reports = [_read_json(file_path, "training evidence") for file_path in files]
+    by_pair = {report.get("pair"): report for report in reports}
+    if set(by_pair) != set(EXPECTED_PAIRS):
+        raise ResidualPyTorchBoundedM1Error("Training-evidence pair set drifted")
+
+    expected_track = EXPECTED_TRACKS[track_id]
+    expected_wrapper = expected_track["freqai_model"]
+    for pair, report in by_pair.items():
+        if report.get("wrapper_model") != expected_wrapper:
+            raise ResidualPyTorchBoundedM1Error(f"{pair} wrapper model identity drifted")
+        if report.get("identifier") != expected_track["identifier"]:
+            raise ResidualPyTorchBoundedM1Error(f"{pair} FreqAI identifier drifted")
+        if report.get("train_rows", 0) < 1 or report.get("test_rows", 0) < 1:
+            raise ResidualPyTorchBoundedM1Error(f"{pair} training split is empty")
+        if report.get("feature_count", 0) < 1:
+            raise ResidualPyTorchBoundedM1Error(f"{pair} training feature count is empty")
+        if report.get("training_start") != base.TRAINING_START.replace("Z", "+00:00"):
+            raise ResidualPyTorchBoundedM1Error(f"{pair} training start drifted")
+        if report.get("training_stop_exclusive") != base.TRAINING_STOP_EXCLUSIVE.replace(
+            "Z", "+00:00"
+        ):
+            raise ResidualPyTorchBoundedM1Error(f"{pair} training stop drifted")
+
+        scalar_events = report.get("recorded_scalar_events", {})
+        if expected_wrapper == "M1LightGBMRegressor":
+            if not report.get("lightgbm_evals_result"):
+                raise ResidualPyTorchBoundedM1Error(
+                    f"{pair} LightGBM evaluation history is absent"
+                )
+        elif not scalar_events.get("train_loss") or not scalar_events.get("test_loss"):
+            raise ResidualPyTorchBoundedM1Error(
+                f"{pair} PyTorch train/test loss history is absent"
+            )
+
+    feature_counts = {report["feature_count"] for report in reports}
+    if len(feature_counts) != 1:
+        raise ResidualPyTorchBoundedM1Error("Cross-pair training feature counts differ")
+    return {
+        "schema_version": 1,
+        "evidence_id": "residual-pytorch-bounded-m1-generalization-training-evidence-index-v3",
+        "track_id": track_id,
+        "pairs": EXPECTED_PAIRS,
+        "feature_count": next(iter(feature_counts)),
+        "pair_evidence": {pair: by_pair[pair] for pair in EXPECTED_PAIRS},
+        "historical_development_only": True,
+        "winner_selection_allowed": False,
+        "consumed_historical_oos_used": False,
+        "protected_final_holdout_used": False,
+    }
 
 
 def validate_run_summary(path: Path, *, track_id: str, expected_head: str) -> dict[str, Any]:

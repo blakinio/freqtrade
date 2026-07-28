@@ -28,9 +28,9 @@ def test_selfhosted_workflow_is_exact_request_gated() -> None:
 def test_selfhosted_workflow_requires_owner_managed_runner() -> None:
     workflow = _workflow()
 
-    assert "runs-on: [self-hosted, Linux, oteryn-staging]" in workflow
+    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" in workflow
     assert "environment: synology-staging" in workflow
-    assert '[[ "$RUNNER_NAME_VALUE" == "oteryn-synology-staging" ]]' in workflow
+    assert '[[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]' in workflow
     assert '[[ "$RUNNER_OS_VALUE" == "Linux" ]]' in workflow
     assert '"X64" || "$RUNNER_ARCH_VALUE" == "ARM64"' in workflow
 

@@ -17,7 +17,7 @@ services:
       LIQUID20_DATA_ROOT: /data
       LIQUID20_HEARTBEAT_SECONDS: ${LIVE_HEARTBEAT_SECONDS:-5}
       LIQUID20_SYMBOL_REFRESH_SECONDS: ${SYMBOL_REFRESH_SECONDS:-3600}
-      LIQUID20_MAXIMUM_SYMBOLS: ${MAXIMUM_SYMBOLS:-500}
+      LIQUID20_MAXIMUM_SYMBOLS: ${MAXIMUM_SYMBOLS:-1000}
       TZ: UTC
     volumes:
       - ./data:/data:rw
@@ -28,7 +28,6 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    pids_limit: 128
     mem_limit: 512m
     stop_grace_period: 30s
     logging:
@@ -66,7 +65,6 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    pids_limit: 128
     mem_limit: 512m
     stop_grace_period: 30s
     logging:

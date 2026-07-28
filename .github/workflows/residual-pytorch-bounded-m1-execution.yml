@@ -1,4 +1,4 @@
-name: Residual PyTorch Bounded M1 Execution
+name: Residual PyTorch Bounded M1 V2 Execution
 
 on:
   pull_request:
@@ -6,31 +6,30 @@ on:
     branches:
       - develop
     paths:
-      - "ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json"
+      - "ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v2.json"
 
 permissions:
   contents: read
 
 concurrency:
-  group: residual-pytorch-bounded-m1-${{ github.event.pull_request.number }}
+  group: residual-pytorch-bounded-m1-v2-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json
-  CONTRACT_PATH: ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v1.json
-  TASK_PATH: docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
+  REQUEST_PATH: ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v2.json
+  CONTRACT_PATH: ai_platform/experimental_model_research/residual-pytorch-bounded-m1-execution-contract-v2.json
+  TASK_PATH: docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
   DATA_DIR: user_data/data/kraken
-  EVIDENCE_ROOT: residual-pytorch-bounded-m1-evidence
+  EVIDENCE_ROOT: residual-pytorch-bounded-m1-v2-evidence
 
 jobs:
   validate-request:
-    name: Validate exact one-shot request
+    name: Validate exact one-shot v2 request
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-
     steps:
       - name: Checkout exact request commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -46,15 +45,15 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          expected=$'A\tai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v1.json'
+          expected=$'A\tai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-execution-v2.json'
           actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
           if [[ "$actual" != "$expected" ]]; then
-            echo "Bounded M1 execution PR must add exactly the canonical run-request file" >&2
+            echo "Bounded M1 v2 execution PR must add exactly the canonical run-request file" >&2
             printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
             exit 1
           fi
 
-      - name: Validate active bounded task checkpoint
+      - name: Validate active bounded v2 task checkpoint
         run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
 
       - name: Install uv and Python
@@ -67,14 +66,14 @@ jobs:
       - name: Install dependency-light validator requirements
         run: uv pip install numpy pandas
 
-      - name: Validate canonical request and frozen infrastructure
+      - name: Validate canonical v2 request and frozen infrastructure
         run: |
           mkdir -p "$EVIDENCE_ROOT/request"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_run_request \
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_run_request \
             "$REQUEST_PATH"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
             contract --output "$EVIDENCE_ROOT/request/contract-report.json"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_run_request \
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_run_request \
             --print-canonical > "$EVIDENCE_ROOT/request/canonical-request.json"
           cmp "$REQUEST_PATH" "$EVIDENCE_ROOT/request/canonical-request.json"
           cp "$REQUEST_PATH" "$EVIDENCE_ROOT/request/run-request.json"
@@ -83,13 +82,13 @@ jobs:
       - name: Upload request validation evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: residual-pytorch-bounded-m1-request-${{ github.event.pull_request.number }}
+          name: residual-pytorch-bounded-m1-v2-request-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/request/
           if-no-files-found: error
           retention-days: 90
 
   data:
-    name: Prepare exact pre-May Kraken history (${{ matrix.pair }})
+    name: Verify exact pre-May Kraken history (${{ matrix.pair }})
     needs: validate-request
     runs-on: ubuntu-24.04
     timeout-minutes: 240
@@ -101,7 +100,6 @@ jobs:
             slug: btc-usdt
           - pair: ETH/USDT
             slug: eth-usdt
-
     steps:
       - name: Checkout exact request commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -109,7 +107,7 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Validate active bounded task checkpoint
+      - name: Validate active bounded v2 task checkpoint
         run: python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
 
       - name: Install uv and Python
@@ -125,7 +123,7 @@ jobs:
       - name: Prepare research user directory
         run: freqtrade create-userdir --userdir user_data
 
-      - name: Restore only the exact dedicated pre-May cache
+      - name: Restore only the exact verified v1 data cache
         id: pre-may-cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -138,7 +136,7 @@ jobs:
               'ai_platform/strategies/AiFrozenCandidateStrategy.py'
             ) }}
 
-      - name: Download only the authorized pre-May history on cache miss
+      - name: Download only authorized pre-May history on cache miss
         if: steps.pre-may-cache.outputs.cache-hit != 'true'
         run: |
           freqtrade download-data \
@@ -149,16 +147,16 @@ jobs:
             --dl-trades \
             --convert
 
-      - name: Verify exact pair coverage and exclusive stop
+      - name: Reverify exact pair coverage and exclusive stop
         run: |
           mkdir -p "$EVIDENCE_ROOT/data-${{ matrix.slug }}"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
             verify-data \
             --datadir "$DATA_DIR" \
             --pair "${{ matrix.pair }}" \
             --output "$EVIDENCE_ROOT/data-${{ matrix.slug }}/coverage.json"
 
-      - name: Save cache only after successful pre-May verification
+      - name: Save data cache only after successful verification
         if: steps.pre-may-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -168,19 +166,18 @@ jobs:
       - name: Upload pair coverage evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: residual-pytorch-bounded-m1-data-${{ matrix.slug }}-${{ github.event.pull_request.number }}
+          name: residual-pytorch-bounded-m1-v2-data-${{ matrix.slug }}-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/data-${{ matrix.slug }}/
           if-no-files-found: error
           retention-days: 90
 
   execute:
-    name: Audit matrix and execute three frozen models once
+    name: Audit v2 matrix and execute three unchanged models once
     needs: data
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
       EXECUTION_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-
     steps:
       - name: Checkout exact request commit
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -198,12 +195,11 @@ jobs:
       - name: Install dependency-closed FreqAI runtime
         run: uv pip install -e ".[freqai,freqai_rl]"
 
-      - name: Revalidate task, request and contract
+      - name: Revalidate v2 task, request and contract
         run: |
           python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_run_request \
-            "$REQUEST_PATH"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution contract
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_run_request "$REQUEST_PATH"
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution contract
 
       - name: Prepare research user directory
         run: freqtrade create-userdir --userdir user_data
@@ -237,12 +233,11 @@ jobs:
       - name: Reverify combined pre-May data immediately before any fit
         run: |
           mkdir -p "$EVIDENCE_ROOT/shared"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
-            verify-data \
-            --datadir "$DATA_DIR" \
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
+            verify-data --datadir "$DATA_DIR" \
             --output "$EVIDENCE_ROOT/shared/combined-data-coverage.json"
 
-      - name: Audit exact expanded matrix before model execution
+      - name: Audit exact expanded v2 matrix before model execution
         id: audit-matrix
         shell: bash
         run: |
@@ -253,116 +248,81 @@ jobs:
           cp "$REQUEST_PATH" "$audit_root/run-request.json"
           cp "$CONTRACT_PATH" "$audit_root/execution-contract.json"
           export RESIDUAL_PYTORCH_M1_AUDIT_DIR="$audit_root/raw"
-
           set +e
           python -m ai_platform.scripts.run_experiment \
-            ai_platform/experiments/residual-pytorch-m1-data-audit-v1.json \
-            --stage backtest \
-            > audit-run-path.txt \
+            ai_platform/experiments/residual-pytorch-m1-data-audit-v2.json \
+            --stage backtest > audit-run-path.txt \
             2> >(tee "$audit_root/audit-stderr.log" >&2)
           audit_status=$?
           set -e
           cp audit-run-path.txt "$audit_root/audit-run-path.txt"
           printf '%s\n' "$audit_status" > "$audit_root/audit-exit-code.txt"
-          if (( audit_status != 0 )); then
-            exit "$audit_status"
-          fi
-
+          if (( audit_status != 0 )); then exit "$audit_status"; fi
           audit_run="$(tail -n 1 audit-run-path.txt)"
           test -d "$audit_run"
           cp -R "$audit_run" "$audit_root/runtime"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
             validate-summary "$audit_run/run-summary.json" \
             --track-id residual-pytorch-m1-data-audit-v1 \
             --expected-head "$EXECUTION_HEAD_SHA"
-          python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
-            validate-audit \
-            --audit-dir "$audit_root/raw" \
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
+            validate-audit --audit-dir "$audit_root/raw" \
             --output "$audit_root/cross-pair-audit.json"
 
-      - name: Execute each frozen model exactly once and collect descriptive evidence
+      - name: Execute each unchanged frozen model exactly once
         id: execute-models
         shell: bash
         run: |
           set -euo pipefail
-
           run_track() {
-            local slug="$1"
-            local track_id="$2"
-            local manifest="$3"
-            local config="$4"
-            local identifier="$5"
-            local model_file="$6"
+            local slug="$1" track_id="$2" manifest="$3" config="$4" identifier="$5" model_file="$6"
             local evidence="$EVIDENCE_ROOT/$slug"
-
             mkdir -p "$evidence/predictions" "$evidence/training"
             export RESIDUAL_PYTORCH_M1_PREDICTION_DIR="$evidence/predictions"
             export RESIDUAL_PYTORCH_M1_TRAINING_DIR="$evidence/training"
-
-            python -m ai_platform.scripts.run_experiment "$manifest" \
-              --stage backtest > "$slug-run-path.txt"
+            python -m ai_platform.scripts.run_experiment "$manifest" --stage backtest > "$slug-run-path.txt"
             local run_dir
             run_dir="$(tail -n 1 "$slug-run-path.txt")"
             test -d "$run_dir"
-
-            python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
-              validate-summary "$run_dir/run-summary.json" \
-              --track-id "$track_id" \
+            python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
+              validate-summary "$run_dir/run-summary.json" --track-id "$track_id" \
               --expected-head "$EXECUTION_HEAD_SHA"
-            python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
-              validate-training \
-              --training-dir "$evidence/training" \
-              --track-id "$track_id" \
+            python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
+              validate-training --training-dir "$evidence/training" --track-id "$track_id" \
               --output "$evidence/training-evidence.json"
-            python -m ai_platform.scripts.residual_pytorch_bounded_m1_execution \
-              diagnostics \
-              --prediction-dir "$evidence/predictions" \
-              --track-id "$track_id" \
+            python -m ai_platform.scripts.residual_pytorch_bounded_m1_v2_execution \
+              diagnostics --prediction-dir "$evidence/predictions" --track-id "$track_id" \
               --output "$evidence/prediction-diagnostics.json"
-
             cp -R "$run_dir" "$evidence/runtime"
             cp -R "user_data/models/$identifier" "$evidence/models"
             cp "$manifest" "$evidence/canonical-manifest.json"
             cp "$config" "$evidence/canonical-config.json"
             cp "$model_file" "$evidence/wrapper-model.py"
-            cp ai_platform/freqaimodels/residual_pytorch_m1_instrumentation.py \
-              "$evidence/instrumentation.py"
-            cp ai_platform/strategies/AiFrozenCandidateStrategy.py "$evidence/strategy.py"
+            cp ai_platform/freqaimodels/residual_pytorch_m1_instrumentation.py "$evidence/instrumentation.py"
+            cp ai_platform/strategies/AiFrozenCandidateStrategyV2.py "$evidence/strategy.py"
             cp "$REQUEST_PATH" "$evidence/run-request.json"
             cp "$CONTRACT_PATH" "$evidence/execution-contract.json"
             cp "$EVIDENCE_ROOT/shared/combined-data-coverage.json" "$evidence/"
             cp "$EVIDENCE_ROOT/audit/cross-pair-audit.json" "$evidence/"
           }
-
-          run_track \
-            lightgbm \
-            residual-pytorch-m1-lightgbm-v1 \
-            ai_platform/experiments/residual-pytorch-m1-lightgbm-v1.json \
+          run_track lightgbm residual-pytorch-m1-lightgbm-v1 \
+            ai_platform/experiments/residual-pytorch-m1-lightgbm-v2.json \
             ai_platform/configs/freqai-residual-pytorch-m1-lightgbm.example.json \
-            ai-platform-residual-pytorch-m1-lightgbm-v1 \
-            ai_platform/freqaimodels/M1LightGBMRegressor.py
-
-          run_track \
-            seeded-mlp \
-            residual-pytorch-m1-seeded-mlp-v1 \
-            ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v1.json \
+            ai-platform-residual-pytorch-m1-lightgbm-v1 ai_platform/freqaimodels/M1LightGBMRegressor.py
+          run_track seeded-mlp residual-pytorch-m1-seeded-mlp-v1 \
+            ai_platform/experiments/residual-pytorch-m1-seeded-mlp-v2.json \
             ai_platform/configs/freqai-residual-pytorch-m1-seeded-mlp.example.json \
-            ai-platform-residual-pytorch-m1-seeded-mlp-v1 \
-            ai_platform/freqaimodels/M1SeededPyTorchMLPRegressor.py
-
-          run_track \
-            residual-mlp \
-            residual-pytorch-m1-residual-mlp-v1 \
-            ai_platform/experiments/residual-pytorch-m1-residual-mlp-v1.json \
+            ai-platform-residual-pytorch-m1-seeded-mlp-v1 ai_platform/freqaimodels/M1SeededPyTorchMLPRegressor.py
+          run_track residual-mlp residual-pytorch-m1-residual-mlp-v1 \
+            ai_platform/experiments/residual-pytorch-m1-residual-mlp-v2.json \
             ai_platform/configs/freqai-residual-pytorch-m1-residual-mlp.example.json \
-            ai-platform-residual-pytorch-m1-residual-mlp-v1 \
-            ai_platform/freqaimodels/M1ResidualPyTorchRegressor.py
+            ai-platform-residual-pytorch-m1-residual-mlp-v1 ai_platform/freqaimodels/M1ResidualPyTorchRegressor.py
 
       - name: Upload matrix audit evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: residual-pytorch-bounded-m1-audit-${{ github.event.pull_request.number }}
+          name: residual-pytorch-bounded-m1-v2-audit-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/audit/
           if-no-files-found: error
           retention-days: 90
@@ -371,7 +331,7 @@ jobs:
         if: always() && steps.execute-models.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: residual-pytorch-bounded-m1-lightgbm-${{ github.event.pull_request.number }}
+          name: residual-pytorch-bounded-m1-v2-lightgbm-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/lightgbm/
           if-no-files-found: warn
           retention-days: 90
@@ -380,7 +340,7 @@ jobs:
         if: always() && steps.execute-models.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: residual-pytorch-bounded-m1-seeded-mlp-${{ github.event.pull_request.number }}
+          name: residual-pytorch-bounded-m1-v2-seeded-mlp-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/seeded-mlp/
           if-no-files-found: warn
           retention-days: 90
@@ -389,7 +349,7 @@ jobs:
         if: always() && steps.execute-models.outcome != 'skipped'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: residual-pytorch-bounded-m1-residual-mlp-${{ github.event.pull_request.number }}
+          name: residual-pytorch-bounded-m1-v2-residual-mlp-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/residual-mlp/
           if-no-files-found: warn
           retention-days: 90

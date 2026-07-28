@@ -5,9 +5,16 @@ on:
     paths:
       - "ai_platform/portal/web/**"
       - ".github/workflows/portal-web.yml"
+      - ".github/workflows/portal-e2e-scheduled.yml"
+      - "docs/ai_platform/portal/E2E_TEST_ARCHITECTURE.md"
       - "docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md"
       - "docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md"
+      - "docs/agents/tasks/FTAI-20260727-portal-e2e-architecture.md"
   workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -15,7 +22,7 @@ permissions:
 jobs:
   web-validation:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: ai_platform/portal/web
@@ -38,19 +45,32 @@ jobs:
         run: npm run typecheck
 
       - name: Lint
-        run: npm run lint
+        run: |
+          mkdir -p artifacts
+          npm run lint -- --format json --output-file artifacts/eslint.json
 
       - name: Production build
         env:
           PORTAL_WEB_DATA_MODE: fixture
           PORTAL_ENVIRONMENT: test
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
         run: npm run build
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Chromium E2E
+      - name: Chromium regression
         env:
           PORTAL_WEB_DATA_MODE: fixture
           PORTAL_ENVIRONMENT: test
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
         run: npm run test:e2e
+
+      - name: Upload failed Playwright evidence
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-web-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ai_platform/portal/web/artifacts
+          if-no-files-found: ignore
+          retention-days: 7

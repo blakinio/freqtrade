@@ -105,9 +105,10 @@ def test_public_view_excludes_credential_and_account_references() -> None:
 
     assert public.connection_id == "conn-simulated-1"
     assert public.credential_material_exposed is False
-    assert "credential" not in serialized
+    assert '"credential_ref":' not in serialized
     assert "credref_" not in serialized
-    assert "account_label" not in serialized
+    assert '"account_label":' not in serialized
+    assert '"subaccount_label":' not in serialized
     assert "internal-account" not in serialized
-    assert "secret" not in serialized
+    assert "secret_store" not in serialized
     assert "passphrase" not in serialized

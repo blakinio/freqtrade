@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ai_platform.portal.contracts.common import UtcDateTime
 from ai_platform.portal.credentials.errors import (
-    CredentialBrokerError,
     CredentialIsolationError,
     CredentialPolicyError,
     CredentialRevokedError,
@@ -30,6 +29,7 @@ from ai_platform.portal.exchange_connections.credential_interface import (
 
 
 _SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+Clock = Callable[[], datetime]
 
 
 class VaultCredentialBroker:
@@ -39,7 +39,7 @@ class VaultCredentialBroker:
         *,
         maximum_age: timedelta = timedelta(days=90),
         lease_ttl: timedelta = timedelta(minutes=5),
-        clock: callable | None = None,
+        clock: Clock | None = None,
     ) -> None:
         if maximum_age <= timedelta(0):
             raise ValueError("maximum credential age must be positive")
@@ -250,7 +250,7 @@ class VaultCredentialBroker:
 
     @classmethod
     def _optional_timestamp(cls, value: object) -> UtcDateTime | None:
-        if value in {None, ""}:
+        if value is None or value == "":
             return None
         if not isinstance(value, str):
             raise CredentialUnavailableError("CREDENTIAL_METADATA_INVALID")

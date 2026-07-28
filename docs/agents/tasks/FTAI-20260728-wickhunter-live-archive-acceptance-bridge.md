@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-wickhunter-live-archive-acceptance-bridge
-status: in_progress
+status: validating
 branch: feat/wickhunter-live-archive-acceptance-v1
 base_branch: develop
 created: 2026-07-28
@@ -36,11 +36,11 @@ Convert an immutable completed Liquid20 live run into the existing provider-neut
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T15:20:00+02:00
-validated_code_head: null
+updated_at: 2026-07-28T20:10:00+02:00
+validated_code_head: 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d
 branch: feat/wickhunter-live-archive-acceptance-v1
 pr: 631
-status: in_progress
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -60,6 +60,8 @@ proven:
   - Production proof established connected Bybit/Binance subscriptions and real exchange events while execution and trading authorization remain false.
   - Active portal, Bot Management, ASE, market-data smoke and OKX work does not own the declared WickHunter paths.
   - Focused synthetic tests prove direct compatibility with the unchanged WH-01 load_accepted_import verifier.
+  - Exact implementation head 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d passed AI Platform CI run 30364063613, Freqtrade CI run 30364063652 and zizmor run 30364063488.
+  - Synchronization PR 647 merged current develop 17eac81baa5ceaf01afbe14c5e8dadc778a57559 into the WickHunter branch as 4d374113dfc6176b2130dac3c91375065bc9ddaf without touching any owned path.
 derived:
   - A completed live run can satisfy the real immutable dataset gate after deterministic conversion and unchanged WH-01 verification.
   - Tardis can remain optional backfill for broader regimes instead of blocking technical replay on newly collected real history.
@@ -96,16 +98,19 @@ validation:
   - command: exact Ruff diagnostic
     result: PASS
     evidence: PR 634 run 30362278390 proved formatting clean and reported only the acknowledged C901 finding.
-  - command: AI Platform CI
+  - command: AI Platform CI on validated implementation head
+    result: PASS
+    evidence: Run 30364063613 passed on 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d.
+  - command: Freqtrade CI on validated implementation head
+    result: PASS
+    evidence: Run 30364063652 passed on 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d.
+  - command: GitHub Actions Security Analysis with zizmor on validated implementation head
+    result: PASS
+    evidence: Run 30364063488 passed on 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d.
+  - command: final exact-head CI after develop synchronization and checkpoint update
     result: NOT_RUN
-    evidence: Required on the clean exact PR head after checkpoint update.
-  - command: Freqtrade CI
-    result: NOT_RUN
-    evidence: Required on the clean exact PR head after checkpoint update.
-  - command: GitHub Actions Security Analysis with zizmor
-    result: NOT_RUN
-    evidence: Required on the clean exact PR head after checkpoint update.
+    evidence: Required on the resulting checkpoint commit before PR 631 can leave draft state and merge.
 blockers:
   - No production closed run has yet been converted; this implementation package must merge before a separate read-only operational conversion.
-next_action: Complete exact-head CI and review for this bridge, merge it, then convert one eligible closed production Liquid20 run read-only into a new immutable accepted root and verify it with load_accepted_import before opening WH-02.
+next_action: Complete final exact-head CI on the checkpoint commit, mark PR 631 ready and merge it, then convert one eligible closed production Liquid20 run read-only into a new immutable accepted root and verify it with load_accepted_import before opening WH-02.
 ```

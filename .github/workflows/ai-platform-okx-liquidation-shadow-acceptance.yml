@@ -116,7 +116,7 @@ jobs:
             echo "OKX_ACCEPTANCE_DURABLE_ROOT_NOT_WRITABLE" >&2
             exit 1
           fi
-          python - <<'PY'
+          python3 - <<'PY'
           import json
           import os
           import re

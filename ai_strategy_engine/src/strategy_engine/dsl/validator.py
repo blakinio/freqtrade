@@ -160,9 +160,7 @@ class StrategyValidator:
             and position_size.get("type") == "dca"
             and risk.get("max_exposure") is None
         ):
-            raise StrategyValidationError(
-                "DCA_REQUIRES_MAX_EXPOSURE", "DCA requires max_exposure"
-            )
+            raise StrategyValidationError("DCA_REQUIRES_MAX_EXPOSURE", "DCA requires max_exposure")
 
     def _validate_condition_group(
         self,

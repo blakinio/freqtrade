@@ -46,8 +46,8 @@ This package adds no PI-07 credential resolution, PI-08 private submission, runt
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T11:18:00+02:00
-head_parent: b9dfbee88c9ecde3b00d1205e0c49d3d98ae045a
+updated_at: 2026-07-28T11:24:00+02:00
+head_parent: 346481081a879f6d577de4538e92315c99d65811
 branch: feat/portal-bm-integration-owner-v1
 pr: 591
 status: validating
@@ -76,15 +76,15 @@ proven:
   - No open PR owned the declared shared control-plane or bot-management router paths when this package began.
   - PI-07 and PI-08 remain explicitly gated and outside this package.
   - PR 591 contains the module-owned routers, capability bridge, fail-closed providers, central composition and focused tests.
-  - Temporary composition workflow run 30344249683 succeeded and removed its own workflow file.
   - Focused integration run 30345128581 passed all 18 selected API tests.
   - Full diagnostic run 30345386231 identified a single circular import caused by eager router composition.
   - Lazy service and router imports removed that cycle without changing the execution safety boundary.
-  - Temporary lazy-import workflow run 30345685278 succeeded and removed its own workflow file.
+  - Exact-head AI Platform run 30345932554 passed compilation and the full AI Platform test suite before reporting Ruff-only findings.
+  - Ruff 0.15.21 workflow 30346090761 applied safe fixes and formatting, then removed its own workflow file.
 derived:
   - The integrated API can expose configuration, metadata and command-intent evidence without activating execution.
 unknown:
-  - Exact-head lint, typing and full test results for the connector-authored validation head.
+  - Exact-head lint, typing and full CI results for the formatted connector-authored validation head.
 conflicts: []
 first_failure:
   marker: BOT_OPERATIONS_CONTROL_PLANE_IMPORT_CYCLE
@@ -112,12 +112,15 @@ validation:
   - command: focused bot-management API integration run 30345128581
     result: PASS
     evidence: 18 focused tests passed.
-  - command: temporary lazy-import repair workflow 30345685278
+  - command: AI Platform CI 30345932554
+    result: FAIL
+    evidence: Compilation and full AI tests passed; Ruff-only findings remained.
+  - command: Ruff 0.15.21 fixer 30346090761
     result: PASS
-    evidence: Circular imports were deferred and the temporary workflow removed itself.
+    evidence: Safe fixes and formatter output were committed; temporary workflow removed itself.
   - command: exact-head AI Platform CI, Freqtrade CI and security analysis
     result: NOT_RUN
-    evidence: This connector-authored checkpoint commit creates the authoritative validation head.
+    evidence: This connector-authored checkpoint commit creates the authoritative formatted validation head.
 blockers: []
-next_action: Run exact-head CI for PR 591, repair only integration-owned findings, then audit and merge the package.
+next_action: Run exact-head CI for PR 591, repair only remaining integration-owned findings, then audit and merge the package.
 ```

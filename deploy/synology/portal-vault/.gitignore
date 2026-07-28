@@ -1,0 +1,7 @@
+*.env
+.env
+operator/
+approle/
+tls/
+backups/
+*.snap

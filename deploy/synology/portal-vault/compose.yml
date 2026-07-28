@@ -1,0 +1,112 @@
+name: portal-vault
+
+services:
+  vault:
+    image: ${VAULT_IMAGE:?set the immutable Vault tag and digest}
+    command:
+      - server
+      - -config=/vault/config/vault.hcl
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    expose:
+      - "8200"
+      - "8201"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          vault status -address=https://127.0.0.1:8200
+          -ca-cert=/vault/tls/ca.crt >/dev/null 2>&1;
+          code=$$?; [ $$code -eq 0 ] || [ $$code -eq 2 ]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    volumes:
+      - ./vault.hcl:/vault/config/vault.hcl:ro
+      - ${VAULT_TLS_DIRECTORY:?set an owner-managed TLS directory}:/vault/tls:ro
+      - vault_data:/vault/data
+      - vault_audit_primary:/vault/audit-primary
+      - vault_audit_secondary:/vault/audit-secondary
+    networks:
+      - vault_private
+
+  bootstrap:
+    image: ${VAULT_IMAGE:?set the immutable Vault tag and digest}
+    profiles:
+      - bootstrap
+    depends_on:
+      vault:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - /opt/portal-vault/bootstrap.sh
+    environment:
+      VAULT_ADDR: https://vault:8200
+      VAULT_CACERT: /vault/tls/ca.crt
+      VAULT_OPERATOR_TOKEN_FILE: /run/operator/vault-operator-token
+      VAULT_APPROLE_OUTPUT_DIRECTORY: /run/approle-output
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    volumes:
+      - ./bootstrap.sh:/opt/portal-vault/bootstrap.sh:ro
+      - ./broker-policy.hcl:/opt/portal-vault/broker-policy.hcl:ro
+      - ${VAULT_TLS_DIRECTORY:?set an owner-managed TLS directory}:/vault/tls:ro
+      - ${VAULT_OPERATOR_DIRECTORY:?set a protected operator directory}:/run/operator:ro
+      - ${VAULT_APPROLE_OUTPUT_DIRECTORY:?set a protected AppRole output directory}:/run/approle-output
+    networks:
+      - vault_private
+
+  rotate-approle-secret-id:
+    image: ${VAULT_IMAGE:?set the immutable Vault tag and digest}
+    profiles:
+      - rotate-approle
+    depends_on:
+      vault:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - /opt/portal-vault/rotate-approle-secret-id.sh
+    environment:
+      VAULT_ADDR: https://vault:8200
+      VAULT_CACERT: /vault/tls/ca.crt
+      VAULT_OPERATOR_TOKEN_FILE: /run/operator/vault-operator-token
+      VAULT_APPROLE_OUTPUT_DIRECTORY: /run/approle-output
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    volumes:
+      - ./rotate-approle-secret-id.sh:/opt/portal-vault/rotate-approle-secret-id.sh:ro
+      - ${VAULT_TLS_DIRECTORY:?set an owner-managed TLS directory}:/vault/tls:ro
+      - ${VAULT_OPERATOR_DIRECTORY:?set a protected operator directory}:/run/operator:ro
+      - ${VAULT_APPROLE_OUTPUT_DIRECTORY:?set a protected AppRole output directory}:/run/approle-output
+    networks:
+      - vault_private
+
+networks:
+  vault_private:
+    name: portal_vault_private
+    internal: true
+
+volumes:
+  vault_data:
+    name: portal_vault_data
+  vault_audit_primary:
+    name: portal_vault_audit_primary
+  vault_audit_secondary:
+    name: portal_vault_audit_secondary

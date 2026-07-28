@@ -5,7 +5,7 @@ branch: feat/residual-pytorch-bounded-m1-v3-generalization
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
-related_pr: 0
+related_pr: 610
 owned_paths:
   - docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
@@ -55,11 +55,11 @@ forbidden.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T12:30:00+02:00
-head: c0fba2ddf90d145211ca42fdea61ffbfe73d7185
+updated_at: 2026-07-28T13:22:00+02:00
+head: 06a51275229167740fce70ad243bcf386380f8a5
 branch: feat/residual-pytorch-bounded-m1-v3-generalization
-pr: 0
-status: implementing
+pr: 610
+status: validating
 context_routes:
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
   - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
@@ -87,7 +87,8 @@ proven:
   - V2 trigger PR 580 was closed without merge.
   - V2 cleanup PR 602 merged as 856dbfcc0dea1d5e39fdddf0d65da2e24bb6adbb.
   - Current develop preflight head is c0fba2ddf90d145211ca42fdea61ffbfe73d7185.
-  - No open bounded-M1 or pair-generalization PR owns the v3 paths.
+  - No open bounded-M1 or pair-generalization PR owned the v3 paths at preflight.
+  - PR 610 contains exactly 16 declared infrastructure files and no execution request.
 derived:
   - A fixed two-pair cohort preserves one-primary/one-correlated feature geometry.
   - SOL/USDT and XRP/USDT isolate pair-cohort generalization from feature-count growth.
@@ -105,11 +106,33 @@ rejected_hypotheses:
   - Add BTC, ETH, SOL and XRP to one correlation list; that would increase feature geometry and confound the test.
   - Reuse May-June historical OOS or the protected final holdout; both remain forbidden.
   - Select LightGBM from v2 descriptive profit; v2 did not authorize winner selection.
-changed_paths: []
+changed_paths:
+  - .github/workflows/residual-pytorch-bounded-m1-v3-generalization.yml
+  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-data-audit.example.json
+  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-lightgbm.example.json
+  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-residual-mlp.example.json
+  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-seeded-mlp.example.json
+  - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-generalization-contract-v3.json
+  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-data-audit.json
+  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-lightgbm.json
+  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-residual-mlp.json
+  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-seeded-mlp.json
+  - ai_platform/freqaimodels/ResidualPyTorchM1V3DataAuditRegressor.py
+  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_generalization.py
+  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_run_request.py
+  - docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
+  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
 validation:
-  - command: implementation PR exact-head CI
+  - command: local v3 JSON, YAML and Python syntax validation
+    result: PASS
+    evidence: All generated JSON parsed, workflow YAML parsed and Python files compiled.
+  - command: v2-to-v3 differential contract validation
+    result: PASS
+    evidence: Only pair cohort, cache namespace and isolated v3 identities differ; models and geometry match.
+  - command: implementation PR 610 exact-head CI
     result: NOT_RUN
-    evidence: Infrastructure has not yet been committed.
+    evidence: Repository CI has not yet completed on the current PR head.
 blockers: []
-next_action: Commit the v3 infrastructure, open its PR, complete exact-head CI and merge before creating the separate exact-one-file execution request.
+next_action: Complete exact-head CI for PR 610, fix any first failure, merge the infrastructure, then create the separate exact-one-file execution request.
 ```

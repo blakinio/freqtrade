@@ -1,0 +1,325 @@
+name: WickHunter Production Live Archive Conversion
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/wickhunter/run-requests/production-live-archive-conversion-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-production-live-archive-conversion-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/wickhunter/run-requests/production-live-archive-conversion-v1.json
+  DECISION_CONTRACT_PATH: docs/ai_platform/WICKHUNTER_LIVE_ARCHIVE_ACCEPTANCE.md
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+  HOST_STATE_ROOT: /volume1/docker/freqtrade/state
+  HOST_LIQUID20_DATA_ROOT: /volume1/docker/freqtrade-liquidations/data
+
+jobs:
+  convert:
+    name: Convert one closed Liquid20 run
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          expected=$'A\tai_platform/wickhunter/run-requests/production-live-archive-conversion-v1.json'
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "WickHunter conversion trigger must add exactly the canonical request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate runner, request and durable mappings
+        id: preflight
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_NAME_VALUE" != "freqtrade-synology-staging" ]]; then
+            echo "WICKHUNTER_CONVERSION_RUNNER_NAME_MISMATCH" >&2
+            exit 1
+          fi
+          if [[ "$RUNNER_OS_VALUE" != "Linux" ]]; then
+            echo "WICKHUNTER_CONVERSION_RUNNER_OS_MISMATCH" >&2
+            exit 1
+          fi
+          if [[ ! -d "$RUNNER_STATE_ROOT" || ! -w "$RUNNER_STATE_ROOT" ]]; then
+            echo "WICKHUNTER_CONVERSION_STATE_ROOT_UNAVAILABLE" >&2
+            exit 1
+          fi
+          if [[ ! -S /var/run/docker.sock ]]; then
+            echo "WICKHUNTER_CONVERSION_DOCKER_SOCKET_UNAVAILABLE" >&2
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+          expected = {
+              "schema_version": "wickhunter-production-live-archive-conversion-request-v1",
+              "selection_policy": "latest-completed-nonempty-before-holdout",
+              "live_data_root": "/liquid20-data",
+              "accepted_state_root": "/output",
+              "storage_root": (
+                  "synology:///volume1/docker/freqtrade-liquidations/data/live/runs"
+              ),
+              "protected_holdout_start_utc": "2026-08-01T00:00:00Z",
+          }
+          for key, value in expected.items():
+              if request.get(key) != value:
+                  raise SystemExit(f"request {key} does not match frozen conversion contract")
+          operation_id = str(request.get("operation_id", ""))
+          if not re.fullmatch(r"[a-z0-9][a-z0-9._-]{2,79}", operation_id):
+              raise SystemExit("request operation_id is invalid")
+          for field in (
+              "execution_enabled",
+              "trading_authorized",
+              "trading_credentials_present",
+              "model_execution_authorized",
+              "live_capital_authorized",
+          ):
+              if request.get(field) is not False:
+                  raise SystemExit(f"request must keep {field}=false")
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"operation_id={operation_id}\n")
+          PY
+
+          operation_id="$(python3 -c 'import json; print(json.load(open("'"$REQUEST_PATH"'"))["operation_id"])')"
+          source_key="${{ github.event.pull_request.number }}-${HEAD_SHA:0:12}"
+          source_runner="$RUNNER_STATE_ROOT/wickhunter-live-archive-conversion/sources/$source_key"
+          source_host="$HOST_STATE_ROOT/wickhunter-live-archive-conversion/sources/$source_key"
+          output_runner="$RUNNER_STATE_ROOT/wickhunter-accepted-imports"
+          output_host="$HOST_STATE_ROOT/wickhunter-accepted-imports"
+          mkdir -p "$(dirname "$source_runner")" "$output_runner"
+          if [[ -e "$source_runner" || -e "$output_runner/$operation_id" ]]; then
+            echo "WICKHUNTER_CONVERSION_NO_OVERWRITE_VIOLATION" >&2
+            exit 1
+          fi
+          printf 'source_runner=%s\n' "$source_runner" >> "$GITHUB_OUTPUT"
+          printf 'source_host=%s\n' "$source_host" >> "$GITHUB_OUTPUT"
+          printf 'output_runner=%s\n' "$output_runner" >> "$GITHUB_OUTPUT"
+          printf 'output_host=%s\n' "$output_host" >> "$GITHUB_OUTPUT"
+
+      - name: Refuse trading credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Stage exact source through runner state mapping
+        shell: bash
+        env:
+          SOURCE_RUNNER: ${{ steps.preflight.outputs.source_runner }}
+        run: |
+          set -euo pipefail
+          umask 027
+          mkdir "$SOURCE_RUNNER"
+          tar \
+            --exclude=.git \
+            --exclude=.venv \
+            --exclude='**/__pycache__' \
+            -cf - \
+            ai_platform docs "$REQUEST_PATH" \
+            | tar -xf - -C "$SOURCE_RUNNER"
+          test -f "$SOURCE_RUNNER/ai_platform/scripts/wickhunter_live_archive_conversion.py"
+          test -f "$SOURCE_RUNNER/$DECISION_CONTRACT_PATH"
+          test -f "$SOURCE_RUNNER/$REQUEST_PATH"
+
+      - name: Resolve exact helper image and data group
+        id: runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          runner_container="$(hostname)"
+          helper_image="$(docker inspect --format '{{.Image}}' "$runner_container")"
+          if [[ ! "$helper_image" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "WICKHUNTER_CONVERSION_HELPER_IMAGE_NOT_IMMUTABLE" >&2
+            exit 1
+          fi
+          data_gid="$(docker run --rm \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --mount "type=bind,src=$HOST_LIQUID20_DATA_ROOT,dst=/liquid20-data,readonly" \
+            --entrypoint sh \
+            "$helper_image" \
+            -c 'stat -c %g /liquid20-data')"
+          if [[ ! "$data_gid" =~ ^[0-9]+$ ]]; then
+            echo "WICKHUNTER_CONVERSION_DATA_GID_INVALID" >&2
+            exit 1
+          fi
+          printf 'helper_image=%s\n' "$helper_image" >> "$GITHUB_OUTPUT"
+          printf 'data_gid=%s\n' "$data_gid" >> "$GITHUB_OUTPUT"
+
+      - name: Convert selected production archive
+        id: convert
+        shell: bash
+        env:
+          DATA_GID: ${{ steps.runtime.outputs.data_gid }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HELPER_IMAGE: ${{ steps.runtime.outputs.helper_image }}
+          OPERATION_ID: ${{ steps.preflight.outputs.operation_id }}
+          OUTPUT_HOST: ${{ steps.preflight.outputs.output_host }}
+          OUTPUT_RUNNER: ${{ steps.preflight.outputs.output_runner }}
+          SOURCE_HOST: ${{ steps.preflight.outputs.source_host }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --network none \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --memory 768m \
+            --user "$(id -u):$(id -g)" \
+            --group-add "$DATA_GID" \
+            --env PYTHONPATH=/workspace \
+            --mount "type=bind,src=$SOURCE_HOST,dst=/workspace,readonly" \
+            --mount "type=bind,src=$HOST_LIQUID20_DATA_ROOT,dst=/liquid20-data,readonly" \
+            --mount "type=bind,src=$OUTPUT_HOST,dst=/output" \
+            --entrypoint python3 \
+            "$HELPER_IMAGE" \
+            -m ai_platform.scripts.wickhunter_live_archive_conversion \
+            convert \
+            --request "/workspace/$REQUEST_PATH" \
+            --source-commit-sha "$HEAD_SHA" \
+            --decision-contract "/workspace/$DECISION_CONTRACT_PATH" \
+            | tee "$RUNNER_TEMP/wickhunter-conversion-result.json"
+          operation_root="$OUTPUT_RUNNER/$OPERATION_ID"
+          test -d "$operation_root/accepted"
+          printf 'operation_root=%s\n' "$operation_root" >> "$GITHUB_OUTPUT"
+
+      - name: Independently verify immutable WH-01 package
+        shell: bash
+        env:
+          DATA_GID: ${{ steps.runtime.outputs.data_gid }}
+          HELPER_IMAGE: ${{ steps.runtime.outputs.helper_image }}
+          OPERATION_ID: ${{ steps.preflight.outputs.operation_id }}
+          OUTPUT_HOST: ${{ steps.preflight.outputs.output_host }}
+          SOURCE_HOST: ${{ steps.preflight.outputs.source_host }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --network none \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=32m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --memory 512m \
+            --user "$(id -u):$(id -g)" \
+            --group-add "$DATA_GID" \
+            --env PYTHONPATH=/workspace \
+            --mount "type=bind,src=$SOURCE_HOST,dst=/workspace,readonly" \
+            --mount "type=bind,src=$OUTPUT_HOST,dst=/output,readonly" \
+            --entrypoint python3 \
+            "$HELPER_IMAGE" \
+            -m ai_platform.scripts.wickhunter_live_archive_conversion \
+            verify \
+            --operation-root "/output/$OPERATION_ID" \
+            | tee "$RUNNER_TEMP/wickhunter-conversion-verification.json"
+
+      - name: Publish bounded conversion summary
+        if: always() && steps.convert.outputs.operation_root != ''
+        shell: bash
+        env:
+          OPERATION_ROOT: ${{ steps.convert.outputs.operation_root }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["OPERATION_ROOT"])
+          report = json.loads((root / "report.json").read_text(encoding="utf-8"))
+          lines = [
+              "## WickHunter production live archive conversion",
+              "",
+              f"- Operation: `{report['operation_id']}`",
+              f"- Selected closed run: `{report['selected_run_id']}`",
+              f"- Accepted records: `{report['accepted_records']}`",
+              f"- Rejected records: `{report['rejected_records']}`",
+              f"- Import run: `{report['import_run_id']}`",
+              f"- Input identity: `{report['input_identity_sha256']}`",
+              "- WH-01 independent verification: `pass`",
+              "- Trading/model/live-capital authority: `false`",
+              "- Strategy quality or profitability claim: `false`",
+          ]
+          Path(os.environ["GITHUB_STEP_SUMMARY"]).write_text(
+              "\n".join(lines) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload bounded metadata evidence
+        if: always() && steps.convert.outputs.operation_root != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-production-live-archive-${{ github.event.pull_request.number }}
+          path: |
+            ${{ steps.convert.outputs.operation_root }}/request.json
+            ${{ steps.convert.outputs.operation_root }}/report.json
+            ${{ steps.convert.outputs.operation_root }}/operation-artifacts.json
+            ${{ steps.convert.outputs.operation_root }}/accepted/manifest.json
+            ${{ steps.convert.outputs.operation_root }}/accepted/acceptance.json
+            ${{ steps.convert.outputs.operation_root }}/accepted/artifacts.json
+            ${{ steps.convert.outputs.operation_root }}/accepted/source-run.json
+            ${{ runner.temp }}/wickhunter-conversion-result.json
+            ${{ runner.temp }}/wickhunter-conversion-verification.json
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Remove staged source
+        if: always()
+        shell: bash
+        env:
+          SOURCE_RUNNER: ${{ steps.preflight.outputs.source_runner }}
+        run: |
+          set -euo pipefail
+          if [[ -n "$SOURCE_RUNNER" && "$SOURCE_RUNNER" == "$RUNNER_STATE_ROOT/wickhunter-live-archive-conversion/sources/"* ]]; then
+            rm -rf -- "$SOURCE_RUNNER"
+          fi

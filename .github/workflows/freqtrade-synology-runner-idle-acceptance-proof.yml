@@ -1,0 +1,24 @@
+name: Freqtrade Synology Runner Idle Acceptance Proof
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/freqtrade-synology-runner-idle-acceptance-proof.yml"
+
+permissions: {}
+
+jobs:
+  prove:
+    name: Prove exact runner accepts a fresh idle job
+    runs-on: [self-hosted, Linux, freqtrade-staging]
+    timeout-minutes: 3
+    steps:
+      - name: Verify exact runner identity
+        env:
+          EXPECTED_RUNNER_NAME: freqtrade-synology-staging
+        run: |
+          set -euo pipefail
+          test "$RUNNER_NAME" = "$EXPECTED_RUNNER_NAME"
+          test "$RUNNER_OS" = "Linux"
+          test -n "$RUNNER_TEMP"
+          printf 'RUNNER_ACCEPTANCE_PROOF=%s|%s\n' "$RUNNER_NAME" "$RUNNER_OS"

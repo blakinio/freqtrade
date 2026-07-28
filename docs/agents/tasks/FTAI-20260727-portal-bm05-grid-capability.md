@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260727-portal-bm05-grid-capability
-status: validating
+status: ready_for_merge
 branch: feat/portal-bm05-grid-capability
 base_branch: develop
 created: 2026-07-27
@@ -45,12 +45,12 @@ This task adds no API registration, migration, BFF route, exchange credential ac
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T09:20:00+02:00
-head_parent: 1e5fdd1a47a0048a78e142f4d3dec6a51f5ee8b8
+updated_at: 2026-07-28T09:38:00+02:00
+head_parent: 1e1d7b2d40f510a222832742fc7819588f0ce52e
 base_develop: b6f4589ff4da88a9cbd91342c657de6b57def142
 branch: feat/portal-bm05-grid-capability
 pr: 565
-status: validating
+status: ready_for_merge
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -69,15 +69,15 @@ proven:
   - No open PR or existing branch owned the canonical BM-05 grid_control paths when work began.
   - PR 565 changes exactly twelve declared feature, test and checkpoint paths.
   - Forty-nine focused BM-05 test functions cover level generation, validation, exchange minima, immutable persistence and non-execution safety.
-  - AI Platform CI 30337858985 passed compilation, the full AI Platform test suite, Ruff, Ruff format, codespell and JSON validation at head 1e5fdd1a47a0048a78e142f4d3dec6a51f5ee8b8.
-  - GitHub Actions security analysis 30337859022 passed at head 1e5fdd1a47a0048a78e142f4d3dec6a51f5ee8b8.
+  - AI Platform CI 30338054945 passed compilation, the full AI Platform test suite, Ruff, Ruff format, codespell and JSON validation at head 1e1d7b2d40f510a222832742fc7819588f0ce52e.
+  - Freqtrade CI 30338054961 passed pre-commit, documentation, Python 3.11-3.14 tests, full Python 3.12 coverage, Ruff, formatting, mypy, smoke tests, distribution build and final CI Gate at head 1e1d7b2d40f510a222832742fc7819588f0ce52e.
+  - GitHub Actions security analysis 30338054982 passed at head 1e1d7b2d40f510a222832742fc7819588f0ce52e.
   - Exact Ruff 0.15.21 formatting was applied by feature-branch-only PR 568; the remaining S101 and C901 findings were captured in artifact 8679615072 and repaired in feature-owned service code.
   - Temporary diagnostic PR 570 was closed without merge and its workflow path is absent from PR 565.
   - The service exposes preview and immutable persistence only and has no order submission or execution method.
 derived:
   - Durable database migration, feature router and root composition remain integration-owner responsibilities.
-unknown:
-  - Terminal Freqtrade CI and final CI Gate result on the checkpoint head.
+unknown: []
 conflicts: []
 first_failure:
   marker: BM05_RUFF_S101_C901
@@ -102,18 +102,17 @@ changed_paths:
   - tests/ai_platform/portal/grid_control/test_persistence_and_safety.py
   - docs/agents/tasks/FTAI-20260727-portal-bm05-grid-capability.md
 validation:
-  - command: AI Platform compilation and test suite
+  - command: AI Platform compilation, tests, Ruff, format, codespell and JSON validation
     result: PASS
-    evidence: workflow 30337858985
-  - command: Ruff, Ruff format, codespell and JSON validation
+    evidence: workflow 30338054945
+  - command: Freqtrade full matrix, typing, distribution build and final CI Gate
     result: PASS
-    evidence: workflow 30337858985
+    evidence: workflow 30338054961
   - command: GitHub Actions security analysis
     result: PASS
-    evidence: workflow 30337859022
-  - command: terminal exact-head Freqtrade CI and final CI Gate
+    evidence: workflow 30338054982
+  - command: terminal documentation-only checkpoint head
     result: PENDING
-blockers:
-  - Terminal exact-head Freqtrade CI and final CI Gate must pass before squash merge.
-next_action: Validate the checkpoint exact head, audit changed paths and review state, synchronize only if develop advances, then guarded squash-merge PR 565.
+blockers: []
+next_action: Validate this documentation-only checkpoint exact head, audit changed paths and review state against current develop, then guarded squash-merge PR 565.
 ```

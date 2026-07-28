@@ -23,7 +23,7 @@ Repository and merged-task evidence override stale status sentences. Chat histor
 
 ## 3. Verified program snapshot
 
-Snapshot date: `2026-07-26`.
+Snapshot date: `2026-07-28`.
 
 ### Roadmap stages
 
@@ -45,6 +45,14 @@ Snapshot date: `2026-07-26`.
 - PI-08 Private Dry-Run Approved Execution Submission: `planned`; depends on PI-07 and must remain dry-run-only.
 
 The concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. Deterministic simulator execution is not evidence of private Freqtrade order submission.
+
+### Bot-management packages
+
+- BM-00 through BM-06: complete for their bounded contract, catalog, builder, command, signal, grid and exchange-product scopes.
+- BMW-01 through BMW-03: complete for catalog-driven creation, operations convergence and safe signal/grid/exchange browser convergence.
+- BM-08 Dashboard Read Model Completion: `done`, PR #651, squash merge `8cabed2dd116da3e5ac2156650d0b69803667fa6`.
+- BM-07 Position/Order Command Activation: blocked until PI-08.
+- BM-09 Product E2E and Quality Closure: blocked until all required packages, including PI-07, PI-08 and BM-07, are complete.
 
 ## 4. Completed product and PI-06 subpackages
 
@@ -126,6 +134,21 @@ Exact final implementation head `b4fba695402c4dce2d1a5a79661250d3920cb856` passe
 
 This is repository deployment evidence only. No Synology host, real IdP user, MFA device, DNS/TLS route, OIDC client secret, backup retention location or restore target was provisioned or accepted.
 
+### 4.6 BM-08 authoritative dashboard read model — complete
+
+Task `FTAI-20260728-portal-bm08-dashboard-read-model-completion`, PR #651, squash merge `8cabed2dd116da3e5ac2156650d0b69803667fa6`, delivered:
+
+- versioned tenant-scoped `/v1/bot-management/dashboard/search` read model;
+- deterministic filters and cursor pagination bound to tenant and request shape;
+- independent control-plane, runtime, valuation, model and risk evidence states;
+- explicit current, attention, degraded, stale, partial, unavailable and not-applicable semantics;
+- server-owned bot totals and evidence summaries without browser-side health inference;
+- dashboard UI, API, OpenAPI, tenant-isolation, secret-exclusion and Playwright coverage.
+
+Exact final head `d9c395e0e871c3c1cf711a857ac9ba84265b7a20` passed AI Platform CI `30391613818`, Portal Web CI `30391613571`, Portal Universal E2E `30391613808`, Freqtrade CI `30391613525` and GitHub Actions Security Analysis `30391613710`.
+
+BM-08 is read-only. It does not resolve credentials, submit commands, activate BM-07 or authorize live capital.
+
 ## 5. External and owner-gated boundaries
 
 The following are not ordinary UI repairs:
@@ -147,9 +170,11 @@ Unless live repository evidence changes the order:
 2. implement PI-05 one external channel at a time only after provider and privacy decisions;
 3. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
 4. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
-5. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
-6. keep P13 deferred until measured bottleneck/SLO evidence exists;
-7. keep P14 blocked until separately authorized.
+5. activate BM-07 only after PI-08 and authoritative reconciliation acceptance;
+6. declare final BM-09 only after all required product and execution packages are complete;
+7. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
+8. keep P13 deferred until measured bottleneck/SLO evidence exists;
+9. keep P14 blocked until separately authorized.
 
 Liquid20 and other read-only feature integrations may proceed in parallel only with disjoint paths and explicit task ownership. They must not silently change identity, execution, credential, P11 or live-capital gates.
 
@@ -197,4 +222,4 @@ Stop and record a blocker instead of improvising when:
 
 ## 10. Current next action
 
-Do not create another repository-only Authentik deployment package. When the owner intentionally supplies Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target, declare `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acceptance`. Execute the merged runbook and record real OIDC login, MFA, session-cookie, logout, logout-all, membership-revocation, generic recovery, encrypted-backup and restore evidence. If those resources are unavailable, keep PI-06 `active` and blocked at the owner-managed acceptance boundary. Keep Cloudflare P11 acceptance, PI-07, PI-08 and live capital separate.
+BM-08 is complete. Do not start BM-07 or claim final BM-09 completion before PI-07 and PI-08. Do not create another repository-only Authentik deployment package. When the owner intentionally supplies Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target, declare `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acceptance`. Separately, declare PI-07 only after the secret backend, rotation policy and security review are resolved. Keep Cloudflare P11 acceptance, PI-08 and live capital separate.

@@ -1,4 +1,7 @@
-from ai_platform.portal.control_plane.api import create_app
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import (
     build_engine,
@@ -6,6 +9,9 @@ from ai_platform.portal.control_plane.database import (
     create_schema,
 )
 from ai_platform.portal.control_plane.service import ControlPlaneService
+
+if TYPE_CHECKING:
+    from ai_platform.portal.control_plane.api import create_app as create_app
 
 
 __all__ = [
@@ -16,3 +22,11 @@ __all__ = [
     "create_app",
     "create_schema",
 ]
+
+
+def __getattr__(name: str) -> object:
+    if name == "create_app":
+        from ai_platform.portal.control_plane.api import create_app
+
+        return create_app
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

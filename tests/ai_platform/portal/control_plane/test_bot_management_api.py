@@ -7,10 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import inspect
 
 from ai_platform.portal.contracts.bot_management.capabilities import BotManagementCapability
-from ai_platform.portal.contracts.bot_management.signals import (
-    SignalAuthenticationMode,
-    SignalAuthenticationReference,
-)
+from ai_platform.portal.contracts.bot_management.signals import SignalAuthenticationMode
 from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.control_plane.api import create_app
 from ai_platform.portal.control_plane.bot_management import (
@@ -69,10 +66,7 @@ def test_default_signature_provider_fails_closed_without_resolving_a_secret() ->
     provider = UnavailableSignatureVerificationProvider()
 
     decision = provider.verify(
-        authentication_ref=SignalAuthenticationReference(
-            reference_id="sigref_12345678",
-            version=1,
-        ),
+        authentication_ref="signalref_12345678",
         authentication_mode=SignalAuthenticationMode.HMAC_SHA256,
         canonical_payload=b"{}",
         signature=b"signature",

@@ -2,6 +2,7 @@ import { canonicalBtcBotSpec } from "../../data/bot.factory";
 import { tags } from "../../config/e2e.config";
 import { expect, test } from "../../fixtures/test.fixture";
 
+
 test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () => {
   test("renders bounded fleet operations and filters by market", async ({ botFleet, page }) => {
     await botFleet.open();
@@ -23,7 +24,7 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
 
   test("renders bot-scoped runtime, valuation, risk, audit and logs", async ({ botDetail, page }) => {
     await botDetail.open();
-    await expect(page.getByRole("heading", { name: "Desired-state controls" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Command intent controls" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Create immutable revision" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Source status" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Risk decisions" })).toBeVisible();
@@ -42,31 +43,41 @@ test.describe("bot operations", { tag: [tags.critical, tags.regression] }, () =>
     await expect(page.getByRole("status")).toContainText("Immutable revision 2 created");
   });
 
-  test("requests lifecycle intent while observed state remains independent", async ({ botDetail, page }) => {
+  test("records lifecycle intent while runtime state remains independent", async ({ botDetail, page }) => {
     await botDetail.open();
     await botDetail.requestPause();
+    await expect(page.getByRole("status")).toContainText("accepted and persisted");
     await expect(page.getByRole("status")).toContainText(
-      "PAUSED requested. Observed state remains independent",
+      "Desired and observed runtime state remain unchanged",
     );
   });
 
-  test("lifecycle BFF is idempotent and rejects stale expected state", async ({ identity, request }) => {
+  test("lifecycle-intent BFF is deterministic and never claims execution", async ({ identity, request }) => {
     await identity.authenticateRequest();
-    const idempotent = await request.post("/api/bots/bot-btc-dryrun-01/desired-state", {
-      headers: identity.csrfHeaders(),
-      data: { desired_state: "RUNNING", expected_current_state: "RUNNING" },
-    });
-    expect(idempotent.status()).toBe(200);
-    expect(idempotent.headers()["x-idempotent-replay"]).toBe("true");
+    const payload = {
+      bot_id: "bot-btc-dryrun-01",
+      action: "PAUSE_NEW_ENTRIES",
+      expected_config_revision: 1,
+      idempotency_key: "operations-lifecycle-intent-replay",
+    };
 
-    const stale = await request.post("/api/bots/bot-btc-dryrun-01/desired-state", {
+    const first = await request.post("/api/bot-management/commands/lifecycle-intents", {
       headers: identity.csrfHeaders(),
-      data: { desired_state: "PAUSED", expected_current_state: "STOPPED" },
+      data: payload,
     });
-    expect(stale.status()).toBe(409);
-    await expect(stale.json()).resolves.toMatchObject({
-      detail: "Bot lifecycle state changed. Current desired state is RUNNING",
+    const replay = await request.post("/api/bot-management/commands/lifecycle-intents", {
+      headers: identity.csrfHeaders(),
+      data: payload,
     });
+
+    expect(first.status()).toBe(202);
+    expect(replay.status()).toBe(202);
+    const firstBody = await first.json();
+    const replayBody = await replay.json();
+    expect(replayBody.command_id).toBe(firstBody.command_id);
+    expect(replayBody.status).toBe("ACCEPTED");
+    expect(replayBody.command_persisted).toBe(true);
+    expect(replayBody.execution_submission_performed).toBe(false);
   });
 
   test("revision BFF rejects stale and execution-mode-changing requests", async ({ identity, request }) => {

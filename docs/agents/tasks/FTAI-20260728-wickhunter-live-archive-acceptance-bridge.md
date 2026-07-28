@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-wickhunter-live-archive-acceptance-bridge
-status: validating
+status: completed
 branch: feat/wickhunter-live-archive-acceptance-v1
 base_branch: develop
 created: 2026-07-28
@@ -36,11 +36,12 @@ Convert an immutable completed Liquid20 live run into the existing provider-neut
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T20:20:00+02:00
-validated_code_head: 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d
+updated_at: 2026-07-28T20:45:00+02:00
+validated_code_head: cef3a651897f9f4784bc66d895dde92e7c87ff12
+merged_commit: a01c06e658898f651c4c32b3593ffc34fff68e8b
 branch: feat/wickhunter-live-archive-acceptance-v1
 pr: 631
-status: validating
+status: completed
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -58,16 +59,15 @@ proven:
   - The historical semantic-era registry already contains first-party Bybit and Binance Liquid20 eras from 2026-07-25.
   - The production Liquid20 collector stores source-separated append-only NDJSON with occurred_at_ms, received_at_ms, exact collector commit, source summaries and daily/restart run closure.
   - Production proof established connected Bybit/Binance subscriptions and real exchange events while execution and trading authorization remain false.
-  - Active portal, Bot Management, ASE, market-data smoke and OKX work does not own the declared WickHunter paths.
   - Focused synthetic tests prove direct compatibility with the unchanged WH-01 load_accepted_import verifier.
-  - Exact implementation head 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d passed AI Platform CI run 30364063613, Freqtrade CI run 30364063652 and zizmor run 30364063488.
-  - Synchronization PR 647 merged current develop 17eac81baa5ceaf01afbe14c5e8dadc778a57559 into the WickHunter branch as 4d374113dfc6176b2130dac3c91375065bc9ddaf without touching any owned path.
-  - Final review identified that source hashes were not repeated immediately before atomic publication; the bridge now revalidates run state, both source NDJSON files and both source summaries after staging every output artifact.
-  - A regression test mutates the Binance NDJSON after historical evaluation and proves that acceptance fails closed without publishing the output root.
+  - The bridge revalidates run state, both source NDJSON files and both source summaries immediately before atomic publication.
+  - A regression test mutates Binance NDJSON after historical evaluation and proves that acceptance fails closed without publishing the output root.
+  - Final exact head cef3a651897f9f4784bc66d895dde92e7c87ff12 passed AI Platform CI run 30388205640, Freqtrade CI run 30388205541 and zizmor run 30388205642.
+  - PR 631 merged the validated bridge to develop as a01c06e658898f651c4c32b3593ffc34fff68e8b.
 derived:
   - A completed live run can satisfy the real immutable dataset gate after deterministic conversion and unchanged WH-01 verification.
   - Tardis can remain optional backfill for broader regimes instead of blocking technical replay on newly collected real history.
-  - The bridge must reject active, changing, malformed, duplicate, parser-error or protected-holdout input and publish nothing on failure.
+  - The bridge rejects active, changing, malformed, duplicate, parser-error or protected-holdout input and publishes nothing on failure.
 unknown:
   - The identity and event counts of the first production closed run selected for operational conversion.
   - Whether the first converted production run alone has enough duration and market-regime diversity for any strategy-quality conclusion.
@@ -91,28 +91,18 @@ changed_paths:
   - docs/ai_platform/WICKHUNTER_LIVE_ARCHIVE_ACCEPTANCE.md
   - docs/agents/tasks/FTAI-20260728-wickhunter-live-archive-acceptance-bridge.md
 validation:
-  - command: python syntax compilation
+  - command: AI Platform CI on final exact head
     result: PASS
-    evidence: New module and focused test were syntax-compiled before repository upload.
-  - command: focused AI platform tests
+    evidence: Run 30388205640 passed on cef3a651897f9f4784bc66d895dde92e7c87ff12.
+  - command: Freqtrade CI on final exact head
     result: PASS
-    evidence: Initial AI Platform CI run 30361610889 completed all AI platform tests before the isolated Ruff failure.
-  - command: exact Ruff diagnostic
+    evidence: Run 30388205541 passed on cef3a651897f9f4784bc66d895dde92e7c87ff12, including pre-commit, documentation and the Python 3.11-3.14 matrix.
+  - command: GitHub Actions Security Analysis with zizmor on final exact head
     result: PASS
-    evidence: PR 634 run 30362278390 proved formatting clean and reported only the acknowledged C901 finding.
-  - command: AI Platform CI on validated implementation head
+    evidence: Run 30388205642 passed on cef3a651897f9f4784bc66d895dde92e7c87ff12.
+  - command: merge PR 631
     result: PASS
-    evidence: Run 30364063613 passed on 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d.
-  - command: Freqtrade CI on validated implementation head
-    result: PASS
-    evidence: Run 30364063652 passed on 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d.
-  - command: GitHub Actions Security Analysis with zizmor on validated implementation head
-    result: PASS
-    evidence: Run 30364063488 passed on 71c0a4b100aba0e5aa7570999cfb8fd10c2ac83d.
-  - command: final exact-head CI after develop synchronization, TOCTOU hardening and checkpoint update
-    result: NOT_RUN
-    evidence: Required on the resulting checkpoint commit before PR 631 can leave draft state and merge.
-blockers:
-  - No production closed run has yet been converted; this implementation package must merge before a separate read-only operational conversion.
-next_action: Complete final exact-head CI on the checkpoint commit, mark PR 631 ready and merge it, then convert one eligible closed production Liquid20 run read-only into a new immutable accepted root and verify it with load_accepted_import before opening WH-02.
+    evidence: Validated head merged to develop as a01c06e658898f651c4c32b3593ffc34fff68e8b.
+blockers: []
+next_action: Select one eligible completed production Liquid20 run, convert it read-only into a new immutable accepted root, and verify the package with unchanged load_accepted_import before opening WH-02. This operational conversion is a separate task and must not imply strategy quality, profitability or execution authority.
 ```

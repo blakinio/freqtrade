@@ -1,4 +1,4 @@
-name: Inspect Binance Acceptance Mypy Repair Failure
+name: Apply Binance Acceptance Typed Summary Fix
 
 on:
   pull_request:
@@ -7,43 +7,80 @@ on:
       - ".github/workflows/inspect-binance-acceptance-precommit-90288008264.yml"
 
 permissions:
-  actions: read
-  contents: read
+  contents: write
 
 jobs:
-  inspect:
+  apply:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
+    env:
+      TARGET_BRANCH: feat/binance-spot-instrument-shadow-acceptance-v1
+      EXPECTED_HEAD: ec569a0521fc46e382fa5c41cda9bb64d22a00f9
+      PATCH_COMMIT: e2f371fa24542b370b15080465d4be1a42208820
+      WORKFLOW_PATH: .github/workflows/inspect-binance-acceptance-precommit-90288008264.yml
     steps:
-      - name: Extract exact repair failure
+      - name: Verify exact remote target head
         env:
           GH_TOKEN: ${{ github.token }}
-          TARGET_JOB_ID: "90290218770"
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --location \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
-            --output full.log
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          actual="$(git ls-remote "$remote" "refs/heads/${TARGET_BRANCH}" | cut -f1)"
+          [[ "$actual" == "$EXPECTED_HEAD" ]]
+
+      - name: Checkout exact target head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ env.EXPECTED_HEAD }}
+
+      - name: Apply previously verified guarded transformation
+        run: |
+          set -euo pipefail
+          git fetch origin "$PATCH_COMMIT" --depth=1
+          git show "$PATCH_COMMIT:$WORKFLOW_PATH" > /tmp/guarded-apply.yml
           python - <<'PY'
           from pathlib import Path
 
-          lines = Path("full.log").read_text(encoding="utf-8", errors="replace").splitlines()
-          markers = ("ERROR", "error:", "Failed", "No matching distribution", "mypy", "ruff")
-          selected = []
-          for index, line in enumerate(lines):
-              if any(marker.lower() in line.lower() for marker in markers):
-                  selected.extend(lines[max(0, index - 10):min(len(lines), index + 35)])
-          if not selected:
-              selected = lines[-350:]
-          Path("failure.txt").write_text("\n".join(selected[-1400:]) + "\n", encoding="utf-8")
+          workflow = Path("/tmp/guarded-apply.yml").read_text(encoding="utf-8")
+          opening = "          python - <<'PY'\n"
+          closing = "\n          PY"
+          if workflow.count(opening) != 1:
+              raise SystemExit("guarded transformation block was not found exactly once")
+          block = workflow.split(opening, 1)[1].split(closing, 1)[0]
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in block.splitlines()
+          )
+          exec(compile(script, "guarded-binance-acceptance-transform", "exec"))
           PY
-      - name: Upload exact failure excerpt
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: binance-acceptance-mypy-repair-90290218770
-          path: failure.txt
-          if-no-files-found: error
-          retention-days: 1
+
+      - name: Validate exact static repair
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet \
+            "ruff==0.15.21" \
+            "mypy==2.3.0" \
+            "SQLAlchemy==2.0.46"
+          file=ai_platform/market_data/binance_spot_instrument_acceptance.py
+          ruff check --fix "$file"
+          ruff format "$file"
+          ruff check "$file"
+          ruff format --check "$file"
+          mypy "$file"
+          [[ "$(git diff --name-only)" == "$file" ]]
+
+      - name: Commit and fast-forward exact target branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          actual="$(git ls-remote "$remote" "refs/heads/${TARGET_BRANCH}" | cut -f1)"
+          [[ "$actual" == "$EXPECTED_HEAD" ]]
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/market_data/binance_spot_instrument_acceptance.py
+          git commit -m "fix(ai-platform): validate Binance acceptance summary types"
+          git push "$remote" "HEAD:refs/heads/${TARGET_BRANCH}"

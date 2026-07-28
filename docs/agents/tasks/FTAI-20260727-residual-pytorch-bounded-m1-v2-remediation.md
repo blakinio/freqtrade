@@ -49,8 +49,8 @@ V1 is retired and must not be modified or rerun. Real v2 execution requires a se
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T07:00:00Z
-head: 5bc0bd07cc29b5d4ecef457f02af8b6c5046ec84
+updated_at: 2026-07-28T07:10:00Z
+head: 627b97369198fdfe8194091fcf7c97da7f31d551
 branch: fix/residual-pytorch-bounded-m1-v2-cross-pair-identity
 pr: 566
 status: validating
@@ -84,12 +84,14 @@ proven:
   - Neither consumed May-June historical OOS nor the protected final holdout was used.
   - All three comparator models were skipped before fit because cross-pair validation failed closed.
   - BTC and ETH raw feature hashes differ only because feature names are pair-qualified; normalizing names to PRIMARY_PAIR and CORRELATED_PAIR roles yields identical feature identity.
+  - Focused AI platform tests passed after the role-normalized validator and regression were added.
+  - Temporary Ruff diagnostics identified exactly one 103-character assertion line; it was wrapped and the standard read-only workflow was restored byte-for-byte.
 derived:
   - Pair-qualified feature-name hashes must not be compared directly across primary pairs.
   - Role normalization preserves primary-versus-correlated structure while still detecting semantic feature-name, ordering or count drift.
   - The existing verified data cache remains data-only; every fresh execution must rerun pair and combined coverage before fit.
 unknown:
-  - Whether exact-head CI for PR 566 passes.
+  - Whether exact-head CI for PR 566 passes after the lint-only correction and workflow restoration.
   - Whether a fresh exact-one-file run passes cross-pair audit after role normalization.
   - Whether all three unchanged comparator models complete exactly once.
 conflicts: []
@@ -109,9 +111,12 @@ validation:
   - command: guarded run 30310204713
     result: FAIL_CLOSED
     evidence: Data and both matrix audits passed; cross-pair raw-hash comparison failed before any model fit.
-  - command: exact-head PR 566 CI
+  - command: AI Platform CI 30337143750
+    result: FAIL_LINT_ONLY
+    evidence: Tests passed; Ruff identified one long assertion line, now corrected.
+  - command: final exact-head PR 566 CI
     result: NOT_RUN
-    evidence: The validator-fix checkpoint commit has just been created.
+    evidence: Standard workflow is restored and final checkpoint head has just been created.
 blockers: []
 next_action: Validate and merge PR 566 only if exact-head AI Platform CI, Freqtrade CI and zizmor pass, then generate a fresh exact-one-file v2 request, execute guarded run to terminal, close its PR without merge, and record final evidence.
 ```

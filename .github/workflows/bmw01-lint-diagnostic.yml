@@ -1,0 +1,40 @@
+name: Diagnose BMW-01 lint
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    if: github.head_ref == 'feat/portal-bmw01-catalog-builder-v1'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.7.0'
+          cache: npm
+          cache-dependency-path: ai_platform/portal/web/package-lock.json
+      - run: npm ci
+        working-directory: ai_platform/portal/web
+      - name: Capture lint
+        working-directory: ai_platform/portal/web
+        run: |
+          set +e
+          npm run lint > ../../../bmw01-lint.txt 2>&1
+          status=$?
+          set -e
+          printf '%s\n' "$status" > ../../../bmw01-lint-exit.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bmw01-lint-diagnostic
+          path: |
+            bmw01-lint.txt
+            bmw01-lint-exit.txt
+          retention-days: 1

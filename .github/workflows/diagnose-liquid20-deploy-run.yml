@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   inspect:
-    runs-on: ubuntu-latest
+    runs-on: freqtrade-staging
     timeout-minutes: 5
     steps:
       - name: Read bounded proof failure diagnostics

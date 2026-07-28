@@ -277,6 +277,7 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/bot-management/exchanges",
         "/v1/bot-management/exchanges/{connection_id}",
         "/v1/bot-management/exchanges/{connection_id}/verification-requests",
+        "/v1/bot-management/dashboard/search",
     }
     serialized = str(schema).lower()
     for forbidden in ("api_key", "api_secret", "passphrase", "websocket_token"):

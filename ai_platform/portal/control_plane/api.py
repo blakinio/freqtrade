@@ -27,6 +27,8 @@ from ai_platform.portal.control_plane.service import (
     ControlPlaneConflictError,
     ControlPlaneService,
 )
+from ai_platform.portal.dashboard.router import build_router as build_dashboard_router
+from ai_platform.portal.dashboard.service import DashboardReadService
 from ai_platform.portal.intelligence.schema import TradeAnalysis, TradeInsight
 from ai_platform.portal.intelligence.service import TradeIntelligenceService
 from ai_platform.portal.learning.schema import LearningHistoryEntry
@@ -466,6 +468,7 @@ def create_app(
     runtime_observability_service: RuntimeObservabilityService | None = None,
     valuation_service: ValuationService | None = None,
     bot_management_services: BotManagementServices | None = None,
+    dashboard_read_service: DashboardReadService | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -494,6 +497,12 @@ def create_app(
     )
     bot_management = bot_management_services or build_default_bot_management_services(
         session_factory
+    )
+    dashboard = dashboard_read_service or DashboardReadService(
+        service,
+        operations,
+        valuation,
+        telemetry,
     )
     context_dependency = identity_dependency(identity_context_provider)
     from ai_platform.portal.bot_builder.router import (
@@ -546,6 +555,7 @@ def create_app(
     app.include_router(
         build_exchange_connections_router(bot_management.exchanges, context_dependency)
     )
+    app.include_router(build_dashboard_router(dashboard, context_dependency))
     _register_terminal_route(app, terminal, context_dependency)
     _register_operational_routes(app, operations, context_dependency)
     _register_valuation_routes(app, valuation, context_dependency)

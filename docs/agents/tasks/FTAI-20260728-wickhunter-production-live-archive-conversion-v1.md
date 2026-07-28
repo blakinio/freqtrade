@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260728-wickhunter-production-live-archive-conversion-v1
-status: implementing
-branch: ops/wickhunter-production-live-archive-conversion-v1
+status: validating
+branch: run/wickhunter-production-live-archive-conversion-20260728-v1
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
-related_pr: null
+related_pr: 663
 depends_on:
   - FTAI-20260728-wickhunter-live-archive-acceptance-bridge
 owned_paths:
@@ -33,12 +33,12 @@ Add a separately reviewed exact-one-request Synology operator that selects one c
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T21:20:00+02:00
-validated_code_head: null
-merged_commit: null
-branch: ops/wickhunter-production-live-archive-conversion-v1
-pr: null
-status: implementing
+updated_at: 2026-07-28T21:56:00+02:00
+validated_code_head: 052dbd17b31d3b5b0dff54931675b792847d45c2
+merged_commit: 309770a579920645f58d989f02ea27220ff64d25
+branch: run/wickhunter-production-live-archive-conversion-20260728-v1
+pr: 663
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -53,25 +53,31 @@ owned_paths:
   - docs/ai_platform/WICKHUNTER_PRODUCTION_LIVE_ARCHIVE_CONVERSION.md
   - docs/agents/tasks/FTAI-20260728-wickhunter-production-live-archive-conversion-v1.md
 proven:
-  - The merged bridge accepts only completed immutable historical live runs and publishes a WH-01-compatible package atomically without overwrite.
-  - The dedicated Synology runner has a durable state mapping at /var/lib/freqtrade-staging-state to host /volume1/docker/freqtrade/state.
-  - The production Liquid20 data root is /volume1/docker/freqtrade-liquidations/data and must remain read-only to this operation.
-  - The workflow trigger is restricted to one internal PR adding exactly one canonical request file.
-  - The helper uses the exact running runner image ID, no network, read-only root, dropped capabilities, no-new-privileges and bounded memory.
-  - The durable events.jsonl is not uploaded to GitHub; only bounded metadata and provenance are uploaded.
+  - Operator implementation PR 659 merged as 309770a579920645f58d989f02ea27220ff64d25 after exact-head validation.
+  - AI Platform CI run 30392705867 passed, including 912 tests, Ruff, format, codespell and JSON validation.
+  - Freqtrade CI run 30392705874 passed, including pre-commit, documentation, Python 3.11 through 3.14, full 3.12 coverage, distribution build and CI Gate.
+  - GitHub Actions security analysis run 30392705866 passed.
+  - The implementation changed exactly the five declared owned paths and had no review threads or submitted reviews.
+  - Exact-one-file request PR 663 at d3a8ca8e879adaea7408225d9fdbed5370f0094c opened against implementation merge 309770a579920645f58d989f02ea27220ff64d25.
+  - WickHunter conversion workflow run 30393986107 and job 90392294701 exist and are queued without having executed a step.
+  - The dedicated runner is occupied by governed OKX 24-hour acceptance run 30358400049, job 90271896559, whose frozen acceptance step remains in progress.
+  - No WickHunter production run has yet been selected, read or converted.
 derived:
-  - A successful one-shot run can satisfy the real accepted-import gate without mutating the collector or purchasing Tardis history.
-  - Conversion success alone is insufficient to claim strategy quality, profitability, regime diversity or WH-02 readiness.
+  - The WickHunter request is correctly serialized behind the existing dedicated-runner workload rather than bypassing or cancelling it.
+  - No alternate runner, Docker host, proxy, VPN or direct host-shell conversion is authorized.
+  - Conversion success alone remains insufficient to claim strategy quality, profitability, regime diversity or WH-02 readiness.
 unknown:
   - Which production closed run the deterministic selection will choose.
   - The accepted event count, duration, symbol coverage and regime diversity of that run.
+  - The terminal result of conversion workflow run 30393986107.
 conflicts: []
 first_failure: null
 rejected_hypotheses:
+  - Cancel or weaken the active governed OKX acceptance to free the runner.
   - Run conversion directly from an unrestricted shell on the host.
+  - Use an alternate runner or host path not reviewed by PR 659.
   - Mount the production Liquid20 data root writable.
   - Upload the complete accepted events file to GitHub Actions.
-  - Let a malformed newest candidate silently fall back to older evidence.
   - Start WH-02 or claim model/strategy evidence before terminal conversion review.
 changed_paths:
   - .github/workflows/wickhunter-production-live-archive-conversion.yml
@@ -80,15 +86,19 @@ changed_paths:
   - docs/ai_platform/WICKHUNTER_PRODUCTION_LIVE_ARCHIVE_CONVERSION.md
   - docs/agents/tasks/FTAI-20260728-wickhunter-production-live-archive-conversion-v1.md
 validation:
-  - command: focused conversion operator tests
+  - command: AI Platform CI 30392705867
+    result: PASS
+    evidence: Exact implementation head 052dbd17b31d3b5b0dff54931675b792847d45c2 completed successfully.
+  - command: Freqtrade CI 30392705874
+    result: PASS
+    evidence: Exact implementation head passed all required jobs and final CI Gate.
+  - command: GitHub Actions security analysis 30392705866
+    result: PASS
+    evidence: Exact implementation head completed successfully.
+  - command: production conversion workflow 30393986107
     result: NOT_RUN
-    evidence: Awaiting exact-head CI.
-  - command: repository pre-commit and Python matrix
-    result: NOT_RUN
-    evidence: Awaiting exact-head CI.
-  - command: GitHub Actions security analysis
-    result: NOT_RUN
-    evidence: Awaiting exact-head CI.
-blockers: []
-next_action: Open the implementation PR, fix any exact-head CI or review findings, merge the operator, then create one exact-one-file request PR to perform the first production conversion and close that trigger without merge after terminal evidence.
+    evidence: Job 90392294701 remains queued behind active governed OKX job 90271896559.
+blockers:
+  - The sole approved runner freqtrade-synology-staging is occupied by governed OKX 24-hour acceptance run 30358400049; do not cancel or bypass it.
+next_action: Observe existing WickHunter workflow run 30393986107 after the approved runner becomes available, capture terminal metadata and immutable WH-01 verification, close PR 663 without merge, then update this checkpoint without starting WH-02 prematurely.
 ```

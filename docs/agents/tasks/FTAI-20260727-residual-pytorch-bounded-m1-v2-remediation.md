@@ -48,11 +48,11 @@ V1 is retired and must not be modified or rerun. The terminal v2 trigger PR was 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T10:15:00Z
-head: 6099c2b0ce5125ba3a9fceb7928685c24d9f3236
+updated_at: 2026-07-28T10:20:00Z
+head: dbc206530354b9ba1ad1e51fae20fe5e28a850f1
 branch: docs/residual-pytorch-bounded-m1-v2-complete
 pr: 602
-status: validating
+status: ready
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
@@ -119,9 +119,9 @@ validation:
   - command: close trigger PR 580 without merge
     result: PASS
     evidence: PR 580 is closed, merged false, and its terminal body preserves descriptive results and artifact digests.
-  - command: final cleanup PR CI
-    result: NOT_RUN
-    evidence: Final checkpoint and one-shot generator removal have not yet completed repository CI.
+  - command: final cleanup PR CI 30349932863 and zizmor 30349932744
+    result: PASS
+    evidence: Pre-commit, documentation build, CI Gate and workflow security analysis passed on PR 602 head dbc206530354b9ba1ad1e51fae20fe5e28a850f1.
 blockers: []
-next_action: Validate and merge PR 602, reset the request branch to the cleanup merge SHA, disable the completed run monitor, and treat this task as complete.
+next_action: Treat this task as complete; any pair expansion, retuning, protected evaluation or promotion must start as a separate versioned task and contract.
 ```

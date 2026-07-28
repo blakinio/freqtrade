@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Protocol
@@ -60,6 +61,25 @@ class _CommandPolicy(Protocol):
 
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], UUID]
+
+
+def _command_business_digest(command: BotOperationCommand) -> str:
+    payload = command.model_dump(
+        mode="json",
+        exclude={
+            "command_id": True,
+            "correlation": True,
+            "submitted_at": True,
+            "confirmation": {"confirmation_reference": True},
+        },
+    )
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class BotCommandService:
@@ -203,8 +223,7 @@ class BotCommandService:
         policy: _CommandPolicy,
     ) -> CommandOutcome:
         kind = command_kind(command)
-        command_json = command.canonical_json()
-        digest = hashlib.sha256(command_json.encode()).hexdigest()
+        digest = _command_business_digest(command)
         occurred_at = self._clock()
 
         try:

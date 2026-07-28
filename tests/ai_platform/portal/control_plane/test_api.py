@@ -260,6 +260,7 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/bot-management/builder/drafts/revise",
         "/v1/bot-management/builder/drafts/preview",
         "/v1/bot-management/builder/drafts/finalize",
+        "/v1/bot-management/commands/lifecycle-intents",
         "/v1/bot-management/commands/lifecycle",
         "/v1/bot-management/commands/position",
         "/v1/bot-management/commands/order",

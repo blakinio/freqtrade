@@ -7,6 +7,43 @@ liquidations_container_root="/liquid20-data"
 report_path="${PORTAL_LIVE_PROOF_REPORT_PATH:?PORTAL_LIVE_PROOF_REPORT_PATH is required}"
 observation_delay="${PORTAL_LIVE_PROOF_DELAY_SECONDS:-12}"
 candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}}"
+proof_stage="input_validation"
+
+mkdir -p "$(dirname "$report_path")"
+work_dir="$(mktemp -d)"
+cleanup() {
+  local status=$?
+  trap - EXIT
+  docker rm -f "$candidate" >/dev/null 2>&1 || true
+  if (( status != 0 )) && [[ ! -s "$report_path" ]]; then
+    PROOF_EXIT_STATUS="$status" \
+    PROOF_FAILURE_STAGE="$proof_stage" \
+    GITHUB_SHA_VALUE="${GITHUB_SHA:-unknown}" \
+    REPORT_PATH="$report_path" \
+    python3 - <<'PY' || true
+import json
+import os
+from pathlib import Path
+
+stage = os.environ["PROOF_FAILURE_STAGE"]
+report = {
+    "schema_version": 1,
+    "report_type": "liquidations_live_portal_synology_proof",
+    "commit_sha": os.environ["GITHUB_SHA_VALUE"],
+    "result": "failure",
+    "rejection_reason": f"proof failed during {stage}",
+    "exit_status": int(os.environ["PROOF_EXIT_STATUS"]),
+}
+Path(os.environ["REPORT_PATH"]).write_text(
+    json.dumps(report, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
+  fi
+  rm -rf "$work_dir"
+  exit "$status"
+}
+trap cleanup EXIT
 
 case "$observation_delay" in
   *[!0-9]* | "")
@@ -18,14 +55,6 @@ if (( observation_delay < 5 || observation_delay > 120 )); then
   echo "PORTAL_LIVE_PROOF_DELAY_SECONDS must be between 5 and 120" >&2
   exit 64
 fi
-
-mkdir -p "$(dirname "$report_path")"
-work_dir="$(mktemp -d)"
-cleanup() {
-  docker rm -f "$candidate" >/dev/null 2>&1 || true
-  rm -rf "$work_dir"
-}
-trap cleanup EXIT
 
 pids_limit_supported=false
 pids_limit_args=()
@@ -56,6 +85,7 @@ configure_pids_limit() {
   return 1
 }
 
+proof_stage="production_container_preflight"
 docker version >/dev/null
 test -S /var/run/docker.sock
 test "$(docker inspect --format '{{.State.Running}}' "$portal_container")" = "true"
@@ -89,6 +119,7 @@ data_gid="$(
 [[ "$data_gid" =~ ^[0-9]+$ ]]
 [[ " $portal_groups " == *" $data_gid "* ]]
 
+proof_stage="production_authentication_boundary"
 production_boundary="$work_dir/production-boundary.json"
 docker exec "$portal_container" node -e '
   Promise.all([
@@ -114,6 +145,7 @@ if docker inspect "$candidate" >/dev/null 2>&1; then
   exit 73
 fi
 
+proof_stage="candidate_startup"
 run_args=(
   docker run -d
   --name "$candidate"
@@ -152,26 +184,113 @@ for _ in $(seq 1 60); do
 done
 test "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$candidate")" = "healthy"
 
-test "$(docker inspect --format '{{.Config.Image}}' "$candidate")" = "$portal_image"
-test "$(docker inspect --format '{{.Image}}' "$candidate")" = "$portal_image_id"
-test "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate")" = "no"
-test "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$candidate")" = "false"
-test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$candidate")"
-test "$(docker exec "$candidate" id -u)" != "0"
-[[ " $(docker exec "$candidate" id -G) " == *" $data_gid "* ]]
-candidate_pids_limit="$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$candidate")"
+proof_stage="candidate_runtime_security"
+candidate_image="$(docker inspect --format '{{.Config.Image}}' "$candidate")"
+candidate_image_id="$(docker inspect --format '{{.Image}}' "$candidate")"
+candidate_restart="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate")"
+candidate_mount_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.Source}}{{end}}{{end}}' "$candidate")"
+candidate_mount_rw="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$candidate")"
+candidate_docker_socket_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$candidate")"
+candidate_uid="$(docker exec "$candidate" id -u)"
+candidate_groups="$(docker exec "$candidate" id -G)"
+candidate_readonly_rootfs="$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$candidate")"
+candidate_cap_drop_json="$(docker inspect --format '{{json .HostConfig.CapDrop}}' "$candidate")"
+candidate_security_opt_json="$(docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$candidate")"
+candidate_tmpfs_json="$(docker inspect --format '{{json .HostConfig.Tmpfs}}' "$candidate")"
+candidate_memory_limit="$(docker inspect --format '{{.HostConfig.Memory}}' "$candidate")"
+candidate_pids_limit_json="$(docker inspect --format '{{json .HostConfig.PidsLimit}}' "$candidate")"
+
+test "$candidate_image" = "$portal_image"
+test "$candidate_image_id" = "$portal_image_id"
+test "$candidate_restart" = "no"
+test "$candidate_mount_source" = "$liquidations_host_root"
+test "$candidate_mount_rw" = "false"
+test -z "$candidate_docker_socket_mount"
+test "$candidate_uid" != "0"
+[[ " $candidate_groups " == *" $data_gid "* ]]
+test "$candidate_readonly_rootfs" = "true"
+test "$candidate_cap_drop_json" = '["ALL"]'
+[[ "$candidate_security_opt_json" == *'no-new-privileges:true'* ]]
+test "$candidate_memory_limit" = "805306368"
+
+CANDIDATE_TMPFS_JSON="$candidate_tmpfs_json" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["CANDIDATE_TMPFS_JSON"])
+if set(payload) != {"/tmp", "/app/.next/cache"}:
+    raise SystemExit("candidate tmpfs paths do not match the bounded proof contract")
+PY
+
 if [[ "$pids_limit_supported" == true ]]; then
-  test "$candidate_pids_limit" = "256"
+  test "$candidate_pids_limit_json" = "256"
 else
-  test "$candidate_pids_limit" = "0"
+  case "$candidate_pids_limit_json" in
+    null | 0)
+      ;;
+    *)
+      echo "Unexpected unlimited PID representation: $candidate_pids_limit_json" >&2
+      exit 1
+      ;;
+  esac
 fi
 
-probe() {
+proof_stage="candidate_fixture_session"
+fixture_cookie="$(
   docker exec "$candidate" node -e '
+    (async () => {
+      const unauthenticated = await fetch(
+        "http://127.0.0.1:3000/api/market/liquidations/health",
+        {cache:"no-store", headers:{accept:"application/json"}},
+      );
+      const unauthenticatedPayload = await unauthenticated.json().catch(() => ({}));
+      if (unauthenticated.status !== 401 || unauthenticatedPayload.code !== "SESSION_MISSING") {
+        throw new Error("isolated candidate did not reject the unauthenticated API request");
+      }
+      const login = await fetch(
+        "http://127.0.0.1:3000/api/identity/login?return_to=%2Fplatform%2Fadmin",
+        {redirect:"manual"},
+      );
+      if (login.status !== 303) throw new Error(`fixture login status ${login.status}`);
+      const location = login.headers.get("location");
+      if (!location || new URL(location, "http://127.0.0.1:3000").pathname !== "/platform/admin") {
+        throw new Error("fixture login redirect mismatch");
+      }
+      const setCookies = login.headers.getSetCookie?.() ?? [];
+      if (!setCookies.some((value) => value.startsWith("portal_fixture_session="))) {
+        throw new Error("fixture session cookie missing");
+      }
+      if (!setCookies.some((value) => value.startsWith("portal_fixture_csrf="))) {
+        throw new Error("fixture CSRF cookie missing");
+      }
+      const cookie = setCookies.map((value) => value.split(";", 1)[0]).join("; ");
+      const session = await fetch("http://127.0.0.1:3000/api/identity/session", {
+        cache:"no-store",
+        headers:{cookie},
+      });
+      const sessionPayload = await session.json().catch(() => ({}));
+      if (session.status !== 200 || sessionPayload.tenant_id !== "tenant-demo") {
+        throw new Error("fixture session validation failed");
+      }
+      process.stdout.write(cookie);
+    })().catch((error) => { console.error(error); process.exit(1); });
+  '
+)"
+test -n "$fixture_cookie"
+[[ "$fixture_cookie" == *"portal_fixture_session="* ]]
+[[ "$fixture_cookie" == *"portal_fixture_csrf="* ]]
+
+probe() {
+  docker exec --env "PORTAL_FIXTURE_COOKIE=$fixture_cookie" "$candidate" node -e '
     const fs = require("node:fs");
     const path = require("node:path");
+    const fixtureCookie = process.env.PORTAL_FIXTURE_COOKIE ?? "";
+    if (!fixtureCookie.includes("portal_fixture_session=")) throw new Error("fixture session is unavailable");
     async function requestJson(route) {
-      const response = await fetch(`http://127.0.0.1:3000${route}`, {cache:"no-store", headers:{accept:"application/json"}});
+      const response = await fetch(`http://127.0.0.1:3000${route}`, {
+        cache:"no-store",
+        headers:{accept:"application/json",cookie:fixtureCookie},
+      });
       const payload = await response.json().catch(() => ({}));
       if (response.status !== 200) throw new Error(`${route} status ${response.status}: ${JSON.stringify(payload)}`);
       const cacheControl = response.headers.get("cache-control") || "";
@@ -199,7 +318,10 @@ probe() {
       requestJson("/api/market/liquidations/health"),
       requestJson("/api/market/liquidations?limit=20"),
       requestJson("/api/market/liquidations/summary"),
-      fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store"}),
+      fetch("http://127.0.0.1:3000/market/liquidations", {
+        cache:"no-store",
+        headers:{cookie:fixtureCookie},
+      }),
     ]).then(([healthResult, listResult, summaryResult, page]) => {
       const health = healthResult.payload;
       const list = listResult.payload;
@@ -215,6 +337,7 @@ probe() {
         if (!state?.configured || !state?.connected) throw new Error(`${source} is not connected`);
         if (!Number.isSafeInteger(state.subscription_symbol_count) || state.subscription_symbol_count < 1) throw new Error(`${source} subscriptions missing`);
         if (!Number.isSafeInteger(state.last_heartbeat_at_ms)) throw new Error(`${source} heartbeat missing`);
+        if (!Number.isSafeInteger(state.events) || state.events < 0) throw new Error(`${source} event count missing`);
       }
       if (list.mode !== "live" || !Array.isArray(list.events)) throw new Error("list is not live");
       if (summary.mode !== "live" || !Array.isArray(summary.windows)) throw new Error("summary is not live");
@@ -225,6 +348,7 @@ probe() {
         health,
         event_ids: list.events.map((event) => `${event.source}:${event.source_event_id}`),
         event_count: list.events.length,
+        source_event_count: health.sources["bybit-linear"].events + health.sources["binance-usdm"].events,
         summary_anchor_at_ms: summary.anchor_at_ms,
         page_status: page.status,
         labels_present: labelsPresent,
@@ -238,10 +362,13 @@ probe() {
   '
 }
 
+proof_stage="candidate_first_authenticated_observation"
 probe > "$work_dir/first.json"
 sleep "$observation_delay"
+proof_stage="candidate_second_authenticated_observation"
 probe > "$work_dir/second.json"
 
+proof_stage="evidence_report_generation"
 PRODUCTION_BOUNDARY_PATH="$production_boundary" \
 FIRST_PATH="$work_dir/first.json" \
 SECOND_PATH="$work_dir/second.json" \
@@ -253,7 +380,17 @@ PORTAL_UID="$portal_uid" \
 PORTAL_GROUPS="$portal_groups" \
 DATA_GID="$data_gid" \
 PIDS_LIMIT_SUPPORTED="$pids_limit_supported" \
-CANDIDATE_PIDS_LIMIT="$candidate_pids_limit" \
+CANDIDATE_PIDS_LIMIT_JSON="$candidate_pids_limit_json" \
+CANDIDATE_IMAGE="$candidate_image" \
+CANDIDATE_IMAGE_ID="$candidate_image_id" \
+CANDIDATE_UID="$candidate_uid" \
+CANDIDATE_GROUPS="$candidate_groups" \
+CANDIDATE_RESTART="$candidate_restart" \
+CANDIDATE_READONLY_ROOTFS="$candidate_readonly_rootfs" \
+CANDIDATE_CAP_DROP_JSON="$candidate_cap_drop_json" \
+CANDIDATE_SECURITY_OPT_JSON="$candidate_security_opt_json" \
+CANDIDATE_TMPFS_JSON="$candidate_tmpfs_json" \
+CANDIDATE_MEMORY_LIMIT="$candidate_memory_limit" \
 MOUNT_SOURCE="$mount_source" \
 CANDIDATE="$candidate" \
 GITHUB_SHA_VALUE="${GITHUB_SHA:-unknown}" \
@@ -279,6 +416,8 @@ for source in ("bybit-linear", "binance-usdm"):
     second_source = second_health["sources"][source]
     if second_source["last_heartbeat_at_ms"] < first_source["last_heartbeat_at_ms"]:
         raise SystemExit(f"{source} heartbeat moved backwards")
+    if second_source["events"] < first_source["events"]:
+        raise SystemExit(f"{source} event count moved backwards")
 
 first_ids = set(first["event_ids"])
 second_ids = set(second["event_ids"])
@@ -288,12 +427,31 @@ last_event_advanced = (
     and first_health.get("last_event_at_ms") is not None
     and second_health["last_event_at_ms"] > first_health["last_event_at_ms"]
 )
-real_event_observed = bool(new_event_ids or last_event_advanced)
+real_event_present = bool(
+    first["source_event_count"] > 0
+    or second["source_event_count"] > 0
+    or first_ids
+    or second_ids
+)
+event_count_advanced = second["source_event_count"] > first["source_event_count"]
+real_event_observed = bool(new_event_ids or last_event_advanced or event_count_advanced)
+
+cap_drop = json.loads(os.environ["CANDIDATE_CAP_DROP_JSON"])
+security_opt = json.loads(os.environ["CANDIDATE_SECURITY_OPT_JSON"])
+tmpfs = json.loads(os.environ["CANDIDATE_TMPFS_JSON"])
+if cap_drop != ["ALL"]:
+    raise SystemExit("candidate capability drop evidence mismatch")
+if "no-new-privileges:true" not in security_opt:
+    raise SystemExit("candidate no-new-privileges evidence mismatch")
+if set(tmpfs) != {"/tmp", "/app/.next/cache"}:
+    raise SystemExit("candidate tmpfs evidence mismatch")
 
 report = {
     "schema_version": 1,
     "report_type": "liquidations_live_portal_synology_proof",
     "commit_sha": os.environ["GITHUB_SHA_VALUE"],
+    "result": "success",
+    "rejection_reason": None,
     "production_portal": {
         "container": os.environ["PORTAL_CONTAINER"],
         "image": os.environ["PORTAL_IMAGE"],
@@ -309,11 +467,23 @@ report = {
     },
     "isolated_candidate": {
         "container": os.environ["CANDIDATE"],
+        "image": os.environ["CANDIDATE_IMAGE"],
+        "image_id": os.environ["CANDIDATE_IMAGE_ID"],
+        "uid": int(os.environ["CANDIDATE_UID"]),
+        "groups": [int(value) for value in os.environ["CANDIDATE_GROUPS"].split()],
+        "restart_policy": os.environ["CANDIDATE_RESTART"],
         "fixture_identity": True,
+        "fixture_session_validated": True,
+        "unauthenticated_api_rejected": True,
+        "read_only_root_filesystem": os.environ["CANDIDATE_READONLY_ROOTFS"] == "true",
+        "tmpfs": tmpfs,
+        "cap_drop": cap_drop,
+        "no_new_privileges": "no-new-privileges:true" in security_opt,
+        "memory_limit_bytes": int(os.environ["CANDIDATE_MEMORY_LIMIT"]),
         "real_data_mount_read_only": True,
         "docker_socket_mounted": False,
         "pids_limit_supported": os.environ["PIDS_LIMIT_SUPPORTED"] == "true",
-        "pids_limit": int(os.environ["CANDIDATE_PIDS_LIMIT"]),
+        "pids_limit": json.loads(os.environ["CANDIDATE_PIDS_LIMIT_JSON"]),
         "first": first,
         "second": second,
     },
@@ -324,6 +494,14 @@ report = {
         "source_heartbeats_non_decreasing": True,
         "no_store_api": True,
         "truthful_timestamp_labels": True,
+        "event_counts": {
+            "list_first": first["event_count"],
+            "list_second": second["event_count"],
+            "source_total_first": first["source_event_count"],
+            "source_total_second": second["source_event_count"],
+        },
+        "real_exchange_event_present": real_event_present,
+        "event_count_advanced_during_observation": event_count_advanced,
         "real_exchange_event_observed": real_event_observed,
         "new_event_ids": new_event_ids,
         "quiet_window_note": None if real_event_observed else "No new exchange liquidation was observed during the bounded proof window; heartbeat, subscriptions and live API reads were proven without fabricating an event.",
@@ -331,7 +509,10 @@ report = {
         "trading_authorized": False,
     },
 }
-Path(os.environ["REPORT_PATH"]).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+Path(os.environ["REPORT_PATH"]).write_text(
+    json.dumps(report, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
 PY
 
 python3 - "$report_path" <<'PY'
@@ -340,10 +521,17 @@ import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
+assert payload["result"] == "success"
+assert payload["rejection_reason"] is None
+assert payload["isolated_candidate"]["uid"] != 0
+assert payload["isolated_candidate"]["read_only_root_filesystem"] is True
+assert payload["isolated_candidate"]["cap_drop"] == ["ALL"]
+assert payload["isolated_candidate"]["no_new_privileges"] is True
 assert payload["proof"]["collector_heartbeat_advanced"] is True
 assert payload["proof"]["portal_checked_at_advanced"] is True
 assert payload["proof"]["trading_authorized"] is False
 PY
 
+proof_stage="completed"
 printf 'Liquidations live portal proof passed: report=%s image=%s candidate=%s\n' \
   "$report_path" "$portal_image" "$candidate"

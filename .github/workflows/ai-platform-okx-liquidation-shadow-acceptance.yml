@@ -25,13 +25,13 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
-    runs-on: [self-hosted, Linux, okx-liquidation-staging]
-    environment: okx-liquidation-staging
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
     timeout-minutes: 1500
     env:
-      ACCEPTANCE_HOST_ID: ${{ vars.OKX_ACCEPTANCE_HOST_ID }}
-      DURABLE_ROOT: ${{ vars.OKX_ACCEPTANCE_DURABLE_ROOT }}
-      DURABLE_URI: ${{ vars.OKX_ACCEPTANCE_DURABLE_URI }}
+      ACCEPTANCE_HOST_ID: freqtrade-synology-staging
+      DURABLE_ROOT: /var/lib/freqtrade-staging-state/okx-liquidation-acceptance
+      DURABLE_URI: file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance
 
     steps:
       - name: Checkout exact request commit
@@ -59,15 +59,21 @@ jobs:
       - name: Validate staging identity and durable storage
         id: staging
         shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
         run: |
           set -euo pipefail
+          test "$RUNNER_NAME_VALUE" = "$ACCEPTANCE_HOST_ID"
+          test "$RUNNER_OS_VALUE" = "Linux"
           test -n "$ACCEPTANCE_HOST_ID"
           test -n "$DURABLE_ROOT"
           test -n "$DURABLE_URI"
           case "$DURABLE_ROOT" in
             /*) ;;
-            *) echo "OKX_ACCEPTANCE_DURABLE_ROOT must be absolute" >&2; exit 1 ;;
+            *) echo "DURABLE_ROOT must be absolute" >&2; exit 1 ;;
           esac
+          test "$(dirname "$DURABLE_ROOT")" = "/var/lib/freqtrade-staging-state"
           test -d "$DURABLE_ROOT"
           test -w "$DURABLE_ROOT"
           case "$DURABLE_ROOT" in

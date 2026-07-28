@@ -52,8 +52,20 @@ def test_script_uses_explicit_fixture_identity_only_in_isolated_candidate() -> N
     assert "--env PORTAL_IDENTITY_FIXTURE_MODE=enabled" in text
     assert "--env PORTAL_WEB_DATA_MODE=fixture" in text
     assert 'candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-' in text
-    assert 'fixture_identity": True' in text
+    assert '"fixture_identity": True' in text
+    assert '"fixture_session_validated": True' in text
+    assert '"unauthenticated_api_rejected": True' in text
+    assert "/api/identity/login?return_to=%2Fplatform%2Fadmin" in text
+    assert "portal_fixture_session=" in text
+    assert "portal_fixture_csrf=" in text
+    assert "/api/identity/session" in text
+    assert 'sessionPayload.tenant_id !== "tenant-demo"' in text
+    assert 'docker exec --env "PORTAL_FIXTURE_COOKIE=$fixture_cookie"' in text
+    assert 'headers:{accept:"application/json",cookie:fixtureCookie}' in text
+    assert '"fixture_cookie":' not in text
+    assert '"PORTAL_FIXTURE_COOKIE":' not in text
     assert "SESSION_MISSING" in text
+    assert text.index("const unauthenticated =") < text.index("const login =")
     assert "production_boundary" in text
 
 
@@ -69,6 +81,9 @@ def test_script_requires_truthful_live_health_and_timestamps() -> None:
     assert "Ostatnie sprawdzenie przez portal" in text
     assert "collector heartbeat did not advance" in text
     assert "portal read timestamp did not advance" in text
+    assert "source_event_count" in text
+    assert "real_exchange_event_present" in text
+    assert "event_count_advanced_during_observation" in text
     assert "real_exchange_event_observed" in text
     assert "without fabricating an event" in text
     assert '"trading_authorized": False' in text
@@ -85,6 +100,25 @@ def test_script_checks_sources_no_store_and_same_process() -> None:
     assert '"no_store_api": True' in text
 
 
+def test_script_records_candidate_runtime_security_and_fail_closed_result() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "proof_stage=" in text
+    assert '"result": "failure"' in text
+    assert '"rejection_reason": f"proof failed during {stage}"' in text
+    assert '"result": "success"' in text
+    assert '"rejection_reason": None' in text
+    assert 'CANDIDATE_UID="$candidate_uid"' in text
+    assert 'CANDIDATE_GROUPS="$candidate_groups"' in text
+    assert 'CANDIDATE_TMPFS_JSON="$candidate_tmpfs_json"' in text
+    assert '"read_only_root_filesystem":' in text
+    assert '"cap_drop": cap_drop' in text
+    assert '"no_new_privileges":' in text
+    assert '"memory_limit_bytes":' in text
+    assert '"restart_policy": os.environ["CANDIDATE_RESTART"]' in text
+    assert '"cookie":' not in text
+
+
 def test_script_probes_synology_pid_limit_and_records_runtime_setting() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
 
@@ -93,6 +127,13 @@ def test_script_probes_synology_pid_limit_and_records_runtime_setting() -> None:
     assert "pids cgroup is not mounted" in text
     assert "pids_limit_args=(--pids-limit 256)" in text
     assert 'run_args+=("${pids_limit_args[@]}")' in text
-    assert 'candidate_pids_limit="$(docker inspect' in text
+    assert 'candidate_pids_limit_json="$(docker inspect' in text
+    assert "{{json .HostConfig.PidsLimit}}" in text
+    assert 'test "$candidate_pids_limit_json" = "256"' in text
+    assert 'case "$candidate_pids_limit_json" in' in text
+    assert "null | 0)" in text
+    assert "Unexpected unlimited PID representation" in text
+    assert 'CANDIDATE_PIDS_LIMIT_JSON="$candidate_pids_limit_json"' in text
     assert '"pids_limit_supported":' in text
-    assert '"pids_limit": int(' in text
+    assert '"pids_limit": json.loads(' in text
+    assert '"pids_limit": int(' not in text

@@ -16,10 +16,10 @@ permissions:
   contents: write
 
 jobs:
-  capture:
+  repair:
     if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -32,32 +32,84 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Capture strict Ruff output
+      - name: Apply typed FeatureReference repair
         run: |
-          python -m venv ai_strategy_engine/.venv
-          . ai_strategy_engine/.venv/bin/activate
-          python -m pip install --upgrade pip
-          pip install -e "ai_strategy_engine[dev]" "SQLAlchemy>=2.0.6" "fastapi>=0.115"
-          set +e
-          ruff check ai_strategy_engine ai_platform/research/strategy_engine \
-            tests/ai_platform_integration/test_ase00_vertical_slice.py \
-            > /tmp/ase00-ruff.txt 2>&1
-          status=$?
-          set -e
-          {
-            echo '# ASE-00 strict Ruff report'
-            echo
-            echo "- exit code: \`$status\`"
-            echo
-            echo '```text'
-            cat /tmp/ase00-ruff.txt
-            echo '```'
-          } > ai_strategy_engine/docs/ase00-ruff-report.md
+          python - <<'PY'
+          from pathlib import Path
 
-      - name: Commit report
+          path = Path('ai_platform/research/strategy_engine/ase00_adapter.py')
+          text = path.read_text(encoding='utf-8')
+
+          old_import = '''    Action,
+    FeatureRecord,
+    Provenance,
+'''
+          new_import = '''    Action,
+    FeatureRecord,
+    FeatureReference,
+    Provenance,
+'''
+          if text.count(old_import) != 1:
+              raise SystemExit('FeatureReference import anchor mismatch')
+          text = text.replace(old_import, new_import, 1)
+
+          old_helper = '''        reference: object,
+        event: AcceptedSyntheticEvent,
+        value: dict[str, JsonValue],
+        data_hash: str,
+        config_hash: str,
+    ) -> FeatureRecord:
+        feature_id = cast(str, getattr(reference, "id"))
+        timeframe = cast(str, getattr(reference, "timeframe"))
+        parameters = cast(dict[str, JsonValue], dict(getattr(reference, "params")))
+'''
+          new_helper = '''        reference: FeatureReference,
+        event: AcceptedSyntheticEvent,
+        value: dict[str, JsonValue],
+        data_hash: str,
+        config_hash: str,
+    ) -> FeatureRecord:
+        feature_id = reference.id
+        timeframe = reference.timeframe
+        parameters = dict(reference.params)
+'''
+          if text.count(old_helper) != 1:
+              raise SystemExit('market feature helper anchor mismatch')
+          text = text.replace(old_helper, new_helper, 1)
+          path.write_text(text, encoding='utf-8')
+
+          report = Path('ai_strategy_engine/docs/ase00-ruff-report.md')
+          if report.exists():
+              report.unlink()
+          PY
+
+      - name: Install development dependencies
+        working-directory: ai_strategy_engine
+        run: |
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" "SQLAlchemy>=2.0.6" "fastapi>=0.115"
+
+      - name: Validate repair
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/ai_strategy_engine/src"
+        run: |
+          . ai_strategy_engine/.venv/bin/activate
+          pytest -q ai_strategy_engine/tests
+          ruff check ai_strategy_engine ai_platform/research/strategy_engine \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+          mypy ai_strategy_engine/src/strategy_engine
+          python -m compileall -q ai_strategy_engine/src ai_strategy_engine/tests \
+            ai_platform/research/strategy_engine
+          pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+
+      - name: Commit validated code repair
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ai_strategy_engine/docs/ase00-ruff-report.md
-          git commit -m "docs(ai-strategy): record strict Ruff findings"
+          git add ai_platform/research/strategy_engine/ase00_adapter.py \
+            ai_strategy_engine/docs/ase00-ruff-report.md
+          git commit -m "fix(ai-strategy): type feature record references"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

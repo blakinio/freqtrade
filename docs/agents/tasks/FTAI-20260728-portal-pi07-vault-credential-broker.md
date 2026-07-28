@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260728-portal-pi07-vault-credential-broker
-status: implementing
+status: validating
 branch: feat/portal-pi07-vault-credential-broker
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
-related_pr: null
+related_pr: 666
 depends_on:
   - FTAI-20260727-portal-bm06-exchange-connection-product
 owned_paths:
@@ -62,12 +62,12 @@ On 2026-07-28 the repository owner selected HashiCorp Vault with these mandatory
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T22:10:00+02:00
+updated_at: 2026-07-28T22:55:00+02:00
 validated_code_head: null
 merged_commit: null
 branch: feat/portal-pi07-vault-credential-broker
-pr: null
-status: implementing
+pr: 666
+status: validating
 base_head: bdee5cce80e12f49a1f72ca462e072a8510bbddc
 context_routes:
   - AGENTS.md
@@ -79,12 +79,16 @@ proven:
   - Existing portal contracts reject secret values and withdrawal-enabled exchange observations.
   - The owner explicitly selected HashiCorp Vault, TLS-only private networking, audit, 90-day rotation, withdrawal-disabled and dry-run-only behavior.
   - The deployment target is Linux containers, primarily Docker on Synology.
+  - Tenant-scoped KV v2 resolution, AppRole authentication, bounded in-memory leases and fail-closed policy checks are implemented.
+  - The Synology package pins HashiCorp Vault 2.0.3 by the exact multi-platform digest and exposes no host port.
+  - Focused PI-07 broker and deployment tests pass in AI Platform CI.
+  - Ruff lint passes and exact Ruff 0.15.21 formatting has been applied by a self-removing workflow; no temporary workflow remains in the PR diff.
 derived:
-  - PI-07 can be additive under ai_platform/portal/credentials without changing public exchange-connection contracts.
-  - Vault KV v2 metadata can drive current, rotation-required and revoked inspection while secret values remain available only to the broker resolve path.
+  - PI-07 remains additive under ai_platform/portal/credentials and does not alter public exchange-connection contracts.
+  - Vault KV v2 metadata drives current, rotation-required and revoked inspection while secret values remain available only to the broker resolve path.
 unknown:
-  - Exact immutable Vault image digest and target TLS certificate material remain deployment-owner inputs.
-  - Real Synology initialization, unseal, AppRole issuance and restore acceptance require target access and are not repository evidence.
+  - Target TLS certificate material and actual exchange/runtime credentials remain owner-managed inputs.
+  - Real Synology initialization, unseal, AppRole issuance, audit retention and restore acceptance require target access and are not repository evidence.
 conflicts: []
 first_failure: null
 rejected_hypotheses:
@@ -93,8 +97,17 @@ rejected_hypotheses:
   - Permit non-TLS Vault access, withdrawals, live mode or credentials older than 90 days.
   - Combine PI-07 with PI-08 submission in one unreviewed package.
 changed_paths:
+  - ai_platform/portal/credentials/**
+  - deploy/synology/portal-vault/**
+  - tests/ai_platform/portal/credentials/test_vault_broker.py
+  - tests/ai_platform/portal/deployment/test_vault_synology_deployment.py
+  - docs/ai_platform/portal/PI07_VAULT_CREDENTIAL_BROKER.md
+  - docs/ai_platform/portal/runbooks/PI07_VAULT_SYNOLOGY.md
   - docs/agents/tasks/FTAI-20260728-portal-pi07-vault-credential-broker.md
-validation: []
+validation:
+  - AI Platform tests passed on all implementation heads inspected before exact-head validation.
+  - Ruff lint passed before the final exact-format commit.
+  - Final exact-head AI Platform CI, Freqtrade CI and security analysis are pending.
 blockers: []
-next_action: Implement the secret-free contracts, Vault transport, tenant-scoped broker and deterministic focused tests before adding the Synology deployment package.
+next_action: Require all final exact-head checks to pass, verify current develop ancestry and review threads, then mark PR 666 ready and squash merge PI-07.
 ```

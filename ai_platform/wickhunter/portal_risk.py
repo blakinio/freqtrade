@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import TypeAlias
 from uuid import NAMESPACE_URL, UUID, uuid5
 
+from pydantic import BaseModel
+
 from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.environment import Environment
 from ai_platform.portal.contracts.execution import RuntimeHealthState
@@ -82,11 +84,8 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _model_payload(model: object) -> object:
-    model_dump = getattr(model, "model_dump", None)
-    if model_dump is None:
-        raise TypeError(f"{type(model).__name__} is not a portal contract model")
-    return model_dump(mode="json")
+def _model_payload(model: BaseModel) -> object:
+    return model.model_dump(mode="json")
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,12 +125,13 @@ class PortalRiskBinding:
     portal_risk_policy_version: str
 
     def __post_init__(self) -> None:
-        for field_name in (
-            "tenant_id",
-            "source_actor_id",
-            "portal_risk_policy_version",
-        ):
-            if not getattr(self, field_name).strip():
+        values = {
+            "tenant_id": self.tenant_id,
+            "source_actor_id": self.source_actor_id,
+            "portal_risk_policy_version": self.portal_risk_policy_version,
+        }
+        for field_name, value in values.items():
+            if not value.strip():
                 raise ValueError(f"{field_name} must be non-empty")
         if self.environment is Environment.PRODUCTION:
             raise PortalRiskBridgeBlockedError(
@@ -159,10 +159,7 @@ class PortalRiskRequestEvidence:
             raise ValueError("portal snapshot cannot be observed after request preparation")
         if self.execution_adapter_authorized or self.live_capital_authorized:
             raise ValueError("WH-06 evidence cannot authorize execution or live capital")
-        if (
-            self.portal_trade_intent.environment is Environment.PRODUCTION
-            or self.portal_trade_intent.environment.value == "production"
-        ):
+        if self.portal_trade_intent.environment is Environment.PRODUCTION:
             raise ValueError("production portal trade intents are forbidden")
 
     def payload(self) -> dict[str, object]:

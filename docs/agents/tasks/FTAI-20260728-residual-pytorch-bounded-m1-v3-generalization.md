@@ -55,8 +55,8 @@ forbidden.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T13:22:00+02:00
-head: 06a51275229167740fce70ad243bcf386380f8a5
+updated_at: 2026-07-28T13:44:00+02:00
+head: 38f86bc7e6dd76aefca22872d89e69b21fed83d6
 branch: feat/residual-pytorch-bounded-m1-v3-generalization
 pr: 610
 status: validating
@@ -86,9 +86,9 @@ proven:
   - V2 role-normalized feature-name SHA-256 is c65ec5f29963f1bb541f1c5416b52a4be8bfe2a1328a04577c17eea197d2945c.
   - V2 trigger PR 580 was closed without merge.
   - V2 cleanup PR 602 merged as 856dbfcc0dea1d5e39fdddf0d65da2e24bb6adbb.
-  - Current develop preflight head is c0fba2ddf90d145211ca42fdea61ffbfe73d7185.
-  - No open bounded-M1 or pair-generalization PR owned the v3 paths at preflight.
   - PR 610 contains exactly 16 declared infrastructure files and no execution request.
+  - Diagnostic run 30355416315 applied exactly three mechanical style fixes and passed the AI Platform tests.
+  - The temporary diagnostic workflow was removed at head 38f86bc7e6dd76aefca22872d89e69b21fed83d6.
 derived:
   - A fixed two-pair cohort preserves one-primary/one-correlated feature geometry.
   - SOL/USDT and XRP/USDT isolate pair-cohort generalization from feature-count growth.
@@ -100,8 +100,8 @@ unknown:
   - The terminal descriptive diagnostics and trading outcomes for the v3 cohort.
 conflicts: []
 first_failure:
-  marker: NONE
-  evidence: No v3 execution has been requested.
+  marker: V3_FORMAT_AND_IMPORT_STYLE
+  evidence: Initial PR 610 CI failed before lint completion because three files required Ruff formatting and Iterator had to move to collections.abc; no experimental contract change was required.
 rejected_hypotheses:
   - Add BTC, ETH, SOL and XRP to one correlation list; that would increase feature geometry and confound the test.
   - Reuse May-June historical OOS or the protected final holdout; both remain forbidden.
@@ -130,9 +130,12 @@ validation:
   - command: v2-to-v3 differential contract validation
     result: PASS
     evidence: Only pair cohort, cache namespace and isolated v3 identities differ; models and geometry match.
+  - command: diagnostic run 30355416315
+    result: PASS
+    evidence: Exact mechanical Ruff fixes were committed and the complete AI Platform test suite passed.
   - command: implementation PR 610 exact-head CI
     result: NOT_RUN
-    evidence: Repository CI has not yet completed on the current PR head.
+    evidence: Repository CI is pending after removal of the temporary diagnostic workflow.
 blockers: []
 next_action: Complete exact-head CI for PR 610, fix any first failure, merge the infrastructure, then create the separate exact-one-file execution request.
 ```

@@ -64,6 +64,20 @@ def test_selfhosted_workflow_refuses_credentials_and_proxies() -> None:
         assert name in workflow
 
 
+def test_selfhosted_workflow_uses_pinned_isolated_uv_runtime() -> None:
+    workflow = _workflow()
+
+    assert "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0" in workflow
+    assert "activate-environment: true" in workflow
+    assert 'python-version: "3.12"' in workflow
+    assert "enable-cache: false" in workflow
+    assert 'uv pip install "jsonschema==4.26.0"' in workflow
+    assert "python3 -m venv" not in workflow
+    assert "python -m pip" not in workflow
+    assert "PYTHONPATH=. python" in workflow
+    assert "run: rm -rf .venv" in workflow
+
+
 def test_selfhosted_workflow_reuses_frozen_smoke_contract() -> None:
     workflow = _workflow()
 

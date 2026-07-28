@@ -93,6 +93,13 @@ def test_script_probes_synology_pid_limit_and_records_runtime_setting() -> None:
     assert "pids cgroup is not mounted" in text
     assert "pids_limit_args=(--pids-limit 256)" in text
     assert 'run_args+=("${pids_limit_args[@]}")' in text
-    assert 'candidate_pids_limit="$(docker inspect' in text
+    assert 'candidate_pids_limit_json="$(docker inspect' in text
+    assert "{{json .HostConfig.PidsLimit}}" in text
+    assert 'test "$candidate_pids_limit_json" = "256"' in text
+    assert 'case "$candidate_pids_limit_json" in' in text
+    assert "null | 0)" in text
+    assert "Unexpected unlimited PID representation" in text
+    assert 'CANDIDATE_PIDS_LIMIT_JSON="$candidate_pids_limit_json"' in text
     assert '"pids_limit_supported":' in text
-    assert '"pids_limit": int(' in text
+    assert '"pids_limit": json.loads(' in text
+    assert '"pids_limit": int(' not in text

@@ -11,7 +11,7 @@ def test_no_repeat_keeps_direction_transitions_only() -> None:
     assert result.tolist() == [0, 1, 0, 0, -1, 0, 1]
 
 
-def test_cooldown_blocks_rapid_direction_change_without_replaying_it() -> None:
+def test_cooldown_blocks_rapid_direction_change_until_expiry() -> None:
     raw = pd.Series([1, 0, -1, 0, 0, -1, 0, 1])
     result = no_repeat_signals(raw, cooldown_bars=3)
-    assert result.tolist() == [1, 0, 0, 0, 0, 0, 0, 1]
+    assert result.tolist() == [1, 0, 0, 0, 0, -1, 0, 0]

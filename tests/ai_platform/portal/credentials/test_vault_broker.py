@@ -34,7 +34,9 @@ NOW = datetime(2026, 7, 28, 20, 0, tzinfo=UTC)
 
 class FakeVaultTransport:
     def __init__(self, *, document: dict[str, Any] | None = None) -> None:
-        self.calls: list[tuple[str, str, str | None, dict[str, Any] | None]] = []
+        self.calls: list[
+            tuple[str, str, str | None, dict[str, Any] | None]
+        ] = []
         self.document = document or credential_document()
         self.metadata = credential_metadata()
         self.available = True
@@ -180,7 +182,9 @@ def test_lease_request_rejects_non_dry_run() -> None:
         request(execution_mode=ExecutionMode.SIMULATED)
 
 
-def test_approle_login_is_bounded_and_secret_document_is_redacted(tmp_path: Path) -> None:
+def test_approle_login_is_bounded_and_secret_document_is_redacted(
+    tmp_path: Path,
+) -> None:
     transport = FakeVaultTransport()
     vault = client(tmp_path, transport)
 
@@ -250,7 +254,10 @@ def test_broker_denies_cross_tenant_and_exchange_scope(tmp_path: Path) -> None:
     wrong_exchange = FakeVaultTransport(
         document=credential_document(exchange_id="binance")
     )
-    with pytest.raises(CredentialIsolationError, match="CREDENTIAL_EXCHANGE_MISMATCH"):
+    with pytest.raises(
+        CredentialIsolationError,
+        match="CREDENTIAL_EXCHANGE_MISMATCH",
+    ):
         broker(tmp_path, wrong_exchange).resolve(request())
 
 
@@ -262,17 +269,24 @@ def test_broker_denies_withdrawals_and_rotation_overdue(tmp_path: Path) -> None:
         broker(tmp_path, withdrawals).resolve(request())
 
     overdue = FakeVaultTransport(
-        document=credential_document(rotated_at=(NOW - timedelta(days=90)).isoformat())
+        document=credential_document(
+            rotated_at=(NOW - timedelta(days=90)).isoformat()
+        )
     )
     with pytest.raises(CredentialRotationRequiredError):
         broker(tmp_path, overdue).resolve(request())
 
 
-def test_broker_rejects_unsafe_secret_paths_before_vault_call(tmp_path: Path) -> None:
+def test_broker_rejects_unsafe_secret_paths_before_vault_call(
+    tmp_path: Path,
+) -> None:
     transport = FakeVaultTransport()
     credential_broker = broker(tmp_path, transport)
 
-    with pytest.raises(CredentialIsolationError, match="CREDENTIAL_REFERENCE_PATH_INVALID"):
+    with pytest.raises(
+        CredentialIsolationError,
+        match="CREDENTIAL_REFERENCE_PATH_INVALID",
+    ):
         credential_broker.inspect_reference(
             tenant_id="tenant/escape",
             credential_ref="credref_okxDryRun01",

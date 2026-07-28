@@ -29,6 +29,7 @@ Completed integration packages include:
 - `FTAI-20260724-portal-pi04-central-runtime-observability` for permission-gated private runtime logs and correlation evidence;
 - `FTAI-20260723-portal-remaining-product-capabilities` for signals, strategy metadata, grid configuration, in-app notification preferences, profile/security and RBAC surfaces;
 - `FTAI-20260726-portal-bot-operations-completion` for bounded bot fleet/detail convergence and immutable revision/lifecycle commands;
+- `FTAI-20260728-portal-bm08-dashboard-read-model-completion` for the tenant-scoped server-owned bot-management dashboard and explicit source-evidence states;
 - the Liquid20 read-only packages for source-labelled liquidation research preview;
 - `FTAI-20260726-portal-pi06-product-identity-lifecycle` for the authoritative repository identity/session backend;
 - `FTAI-20260726-portal-pi06-bff-browser-session-integration` for same-origin login, callback, session, logout, logout-all, CSRF and protected browser behavior.
@@ -41,7 +42,7 @@ Remaining authoritative-source and external/private work is routed through `POST
 
 | Product surface | Route | Current delivery | Data boundary |
 |---|---|---|---|
-| Dashboard | `/` | integrated | bot/control-plane snapshot behind protected same-origin session boundary |
+| Dashboard | `/` | integrated | tenant-scoped server-owned bot-management read model aggregating control-plane, runtime, valuation, model and risk evidence with explicit current/stale/partial/unavailable states |
 | PNL & Performance | `/performance` | integrated for realized and bounded unrealized evidence | persisted closed trades plus exact-runtime mark-to-entry valuation; stale, unavailable, cross-currency and leveraged evidence remains non-current |
 | Open Positions | `/positions` | integrated for runtime evidence | private collector -> tenant/bot/runtime mirror with `CURRENT`, `STALE`, `PARTIAL`, `SOURCE_UNAVAILABLE` |
 | Liquidations | `/market/liquidations` | integrated read-only research preview | same-origin BFF -> bounded Liquid20 read model -> read-only evidence mount; `trading_authorized=false` |
@@ -92,6 +93,10 @@ Exact final head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passed Portal Web CI
 ### Bot Operations
 
 The fleet and Bot Detail compose canonical APIs instead of creating a second source or execution authority. Permission-denied, stale, conflict, partial, unavailable, unpriced, empty and mutation-pending states remain explicit. Lifecycle controls do not submit orders.
+
+### BM-08 dashboard
+
+The dashboard consumes `/v1/bot-management/dashboard/search` and does not reconstruct health from `/v1/bots`. Control-plane, runtime, valuation, model and risk evidence retain independent source states and observation times. Missing evidence is `UNAVAILABLE`, incomplete evidence is `PARTIAL`, absent valuation for a bot without open positions is `NOT_APPLICABLE`, and no browser path gains secret or private-runtime authority.
 
 ### Liquidations
 

@@ -427,6 +427,8 @@ def validate_training_directory(  # noqa: C901
 
     expected_track = EXPECTED_TRACKS[track_id]
     expected_wrapper = expected_track["freqai_model"]
+    expected_training_start = base.TRAINING_START.replace("Z", "+00:00")
+    expected_training_stop = base.TRAINING_STOP_EXCLUSIVE.replace("Z", "+00:00")
     for pair, report in by_pair.items():
         if report.get("wrapper_model") != expected_wrapper:
             raise ResidualPyTorchBoundedM1Error(f"{pair} wrapper model identity drifted")
@@ -436,11 +438,9 @@ def validate_training_directory(  # noqa: C901
             raise ResidualPyTorchBoundedM1Error(f"{pair} training split is empty")
         if report.get("feature_count", 0) < 1:
             raise ResidualPyTorchBoundedM1Error(f"{pair} training feature count is empty")
-        if report.get("training_start") != base.TRAINING_START.replace("Z", "+00:00"):
+        if report.get("training_start") != expected_training_start:
             raise ResidualPyTorchBoundedM1Error(f"{pair} training start drifted")
-        if report.get("training_stop_exclusive") != base.TRAINING_STOP_EXCLUSIVE.replace(
-            "Z", "+00:00"
-        ):
+        if report.get("training_stop_exclusive") != expected_training_stop:
             raise ResidualPyTorchBoundedM1Error(f"{pair} training stop drifted")
 
         scalar_events = report.get("recorded_scalar_events", {})

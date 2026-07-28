@@ -133,9 +133,8 @@ class LifecycleCommandIntentService:
             )
 
         policy = lifecycle_command_policy(request.action)
-        command_id = str(self._id_factory())
         command = BotLifecycleCommand(
-            command_id=command_id,
+            command_id=str(self._id_factory()),
             tenant_id=context.tenant_id,
             actor=context.actor,
             environment=runtime.environment,
@@ -164,11 +163,12 @@ class LifecycleCommandIntentService:
             capabilities=context.capabilities,
         )
         outcome = self._commands.submit_lifecycle(command_context, command, runtime)
+        command_persisted = CommandReasonCode.DUPLICATE_IDEMPOTENCY_KEY not in outcome.reason_codes
         return LifecycleIntentResult(
-            command_id=command_id,
+            command_id=outcome.command_id if command_persisted else None,
             bot_id=request.bot_id,
             action=request.action,
             status=outcome.status,
             reason_codes=outcome.reason_codes,
-            command_persisted=True,
+            command_persisted=command_persisted,
         )

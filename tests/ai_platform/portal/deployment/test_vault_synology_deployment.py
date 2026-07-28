@@ -55,7 +55,7 @@ def test_vault_configuration_enforces_tls_13_and_raft() -> None:
     assert "tls_disable" not in text
     assert 'default_lease_ttl = "10m"' in text
     assert 'max_lease_ttl = "15m"' in text
-    assert 'ui = false' in text
+    assert "ui = false" in text
 
 
 def test_broker_policy_is_read_only_and_tenant_scoped() -> None:
@@ -79,9 +79,7 @@ def test_bootstrap_requires_dual_audit_and_short_approle_tokens() -> None:
 
 
 def test_deployment_contract_preserves_owner_and_capital_boundaries() -> None:
-    contract = json.loads(
-        (PACKAGE / "deployment-contract-v1.json").read_text(encoding="utf-8")
-    )
+    contract = json.loads((PACKAGE / "deployment-contract-v1.json").read_text(encoding="utf-8"))
     assert contract["status"] == "repository_validated_target_not_accepted"
     assert contract["execution_mode"] == "dry_run"
     assert contract["withdrawals_enabled"] is False

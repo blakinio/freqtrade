@@ -50,9 +50,7 @@ class VaultCredentialBroker:
         if maximum_age <= timedelta(0):
             raise ValueError("maximum credential age must be positive")
         if lease_ttl <= timedelta(0) or lease_ttl > timedelta(minutes=5):
-            raise ValueError(
-                "credential lease TTL must be between zero and five minutes"
-            )
+            raise ValueError("credential lease TTL must be between zero and five minutes")
         self._client = client
         self._maximum_age = maximum_age
         self._lease_ttl = lease_ttl
@@ -77,11 +75,7 @@ class VaultCredentialBroker:
             )
 
         state = CredentialReferenceState.CURRENT
-        if (
-            metadata.revoked
-            or metadata.destroyed
-            or metadata.deletion_time is not None
-        ):
+        if metadata.revoked or metadata.destroyed or metadata.deletion_time is not None:
             state = CredentialReferenceState.REVOKED
         elif metadata.withdrawals_enabled or not metadata.dry_run_only:
             state = CredentialReferenceState.REVOKED
@@ -171,10 +165,7 @@ class VaultCredentialBroker:
             destroyed=self._required_bool(version_info, "destroyed"),
             deletion_time=self._optional_timestamp(version_info.get("deletion_time")),
         )
-        if (
-            metadata.tenant_id != tenant_id
-            or metadata.credential_ref != credential_ref
-        ):
+        if metadata.tenant_id != tenant_id or metadata.credential_ref != credential_ref:
             raise CredentialIsolationError()
         return metadata
 
@@ -217,9 +208,7 @@ class VaultCredentialBroker:
         credential_ref: str,
         version: int,
     ) -> str:
-        digest = hashlib.sha256(
-            f"{tenant_id}\0{credential_ref}\0{version}".encode()
-        ).hexdigest()
+        digest = hashlib.sha256(f"{tenant_id}\0{credential_ref}\0{version}".encode()).hexdigest()
         return f"vault-kv-v2-{digest}"
 
     @staticmethod

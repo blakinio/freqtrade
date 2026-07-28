@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "policy_id": "binance-spot-instrument-shadow-acceptance-v1",
+  "classification": "shadow_source_operational_acceptance",
+  "source_id": "binance-spot",
+  "request_url": "https://api.binance.com/api/v3/exchangeInfo?showPermissionSets=false",
+  "minimum_duration_seconds": 86400,
+  "sample_interval_seconds": 900,
+  "timeout_seconds": 20,
+  "max_response_bytes": 16777216,
+  "allow_redirects": false,
+  "retries_per_sample": 0,
+  "host": {
+    "required_class": "always_on_nonrestricted_linux_staging",
+    "exact_host_id_required": true,
+    "github_hosted_runner_allowed": false
+  },
+  "baseline_evidence": {
+    "artifact_id": 8686988992,
+    "artifact_digest": "sha256:1862d17e8c117e31eec6688c8f34c32cce4a505ec125805cd095df6894cc4f6e",
+    "workflow_run": 30356428207,
+    "workflow_job": 90265595023,
+    "raw_response_sha256": "d8964a30646d5ce1918b00d9d69393f2555fbf10c31581eb22e845880fd2cd12",
+    "instrument_count": 3659,
+    "active_instrument_count": 1369
+  },
+  "thresholds": {
+    "minimum_duration_seconds": 86400,
+    "minimum_attempted_samples": 97,
+    "minimum_successful_samples": 95,
+    "minimum_availability_ratio": 0.98,
+    "maximum_consecutive_failures": 1,
+    "maximum_transport_failures": 2,
+    "maximum_parse_failures": 0,
+    "maximum_integrity_failures": 0,
+    "maximum_response_duration_ms": 15000,
+    "maximum_response_bytes": 16777216,
+    "minimum_instrument_count": 3000,
+    "maximum_instrument_count": 10000,
+    "minimum_active_instrument_count": 1000,
+    "maximum_consecutive_catalog_count_change_ratio": 0.02,
+    "required_active_native_symbols": [
+      "BTCUSDT",
+      "ETHUSDT"
+    ]
+  },
+  "requirements": {
+    "public_only": true,
+    "execution_enabled": false,
+    "trading_credentials_present": false,
+    "proxy_routing_present": false,
+    "performance_research_authorized": false,
+    "replay_authorized": false,
+    "model_training_authorized": false,
+    "strategy_research_authorized": false,
+    "orders_submitted": 0,
+    "production_source_enabled": false,
+    "new_output": true,
+    "collector_commit": true,
+    "request_id": true,
+    "run_id": true,
+    "host_id": true,
+    "raw_snapshots": true,
+    "normalized_snapshots": true,
+    "manifest_self_hash": true,
+    "report_self_hash": true,
+    "checksum_index": true,
+    "independent_evaluation": true
+  },
+  "durability": {
+    "raw_snapshots_required": true,
+    "normalized_snapshots_required": true,
+    "sample_reports_required": true,
+    "summary_required": true,
+    "manifest_required": true,
+    "report_required": true,
+    "checksum_index_required": true,
+    "immutable_storage_uri_required": true,
+    "ephemeral_ci_artifact_alone_is_sufficient": false,
+    "retention_rule": "retain immutably until an explicit evidence-retirement task is merged"
+  },
+  "outcomes": {
+    "accepted": "Every safety, identity, duration, availability, transport, parsing, normalization, anchor-symbol, catalog-stability and artifact-integrity gate passes.",
+    "rejected": "Any safety, identity, transport, parsing, normalization, anchor-symbol, catalog-stability or artifact-integrity gate fails.",
+    "inconclusive_incomplete_window": "The package is internally valid but the minimum observation duration or scheduled sample count was not completed. This outcome does not accept or reject source quality."
+  },
+  "boundary": "Acceptance authorizes only a later separately reviewed proposal to integrate this public Binance Spot instrument-catalog source. It does not enable a production source, recurring production collector, WebSocket, strategy research, replay, model work, orders, trading authority or live capital."
+}

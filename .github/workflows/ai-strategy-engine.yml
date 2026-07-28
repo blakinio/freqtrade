@@ -16,10 +16,10 @@ permissions:
   contents: write
 
 jobs:
-  repair-ai-platform-lint:
+  diagnose-ai-platform-matrix:
     if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 25
     steps:
       - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -40,37 +40,43 @@ jobs:
           "httpx>=0.24.1" fastapi pyjwt cryptography
           ruff==0.15.21 codespell==2.4.2
 
-      - name: Apply exact reported repairs
+      - name: Capture separated matrix results
         run: |
           ruff check --fix ai_platform/portal/control_plane/__init__.py
           ruff format ai_platform/research/strategy_engine/ase00_adapter.py
+          set +e
+          ruff check ai_platform tests/ai_platform > /tmp/check.txt 2>&1
+          check_status=$?
+          ruff format --check ai_platform tests/ai_platform > /tmp/format.txt 2>&1
+          format_status=$?
+          python -m compileall -q ai_platform tests/ai_platform > /tmp/compile.txt 2>&1
+          compile_status=$?
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform \
+            > /tmp/pytest.txt 2>&1
+          pytest_status=$?
+          git checkout -- ai_platform/portal/control_plane/__init__.py \
+            ai_platform/research/strategy_engine/ase00_adapter.py
+          set -e
+          {
+            echo '# AI Platform post-format matrix diagnostic'
+            echo
+            echo "- Ruff check: \`$check_status\`"
+            echo "- Ruff format: \`$format_status\`"
+            echo "- compileall: \`$compile_status\`"
+            echo "- pytest: \`$pytest_status\`"
+            for section in check format compile pytest; do
+              echo
+              echo "## $section"
+              echo '```text'
+              cat "/tmp/$section.txt"
+              echo '```'
+            done
+          } > ai_strategy_engine/docs/ai-platform-matrix-diagnostic.md
 
-      - name: Validate AI Platform matrix
-        run: |
-          ruff check ai_platform tests/ai_platform
-          ruff format --check ai_platform tests/ai_platform
-          python -m compileall -q ai_platform tests/ai_platform
-          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform
-
-      - name: Validate complete ASE-00 matrix
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/ai_strategy_engine/src"
-        run: |
-          pytest -q ai_strategy_engine/tests
-          ruff check ai_strategy_engine ai_platform/research/strategy_engine \
-            tests/ai_platform_integration/test_ase00_vertical_slice.py
-          mypy ai_strategy_engine/src/strategy_engine
-          python -m compileall -q ai_strategy_engine/src ai_strategy_engine/tests \
-            ai_platform/research/strategy_engine
-          pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
-            tests/ai_platform_integration/test_ase00_vertical_slice.py
-
-      - name: Commit validated lint repairs
+      - name: Commit diagnostic
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ai_platform/portal/control_plane/__init__.py \
-            ai_platform/research/strategy_engine/ase00_adapter.py
-          git diff --cached --quiet && exit 1
-          git commit -m "style(ai-platform): normalize ASE-00 Python formatting"
+          git add ai_strategy_engine/docs/ai-platform-matrix-diagnostic.md
+          git commit -m "docs(ai-platform): record post-format matrix failure"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

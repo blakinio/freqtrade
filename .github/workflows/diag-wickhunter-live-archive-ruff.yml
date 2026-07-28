@@ -1,0 +1,40 @@
+name: Diagnose WickHunter live archive Ruff
+
+on:
+  pull_request:
+    branches:
+      - feat/wickhunter-live-archive-acceptance-v1
+
+permissions:
+  contents: read
+
+jobs:
+  ruff-report:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Run concise exact Ruff report
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet ruff==0.15.21
+          git init --quiet repo
+          cd repo
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --quiet --depth=1 origin "${GITHUB_HEAD_REF}"
+          git checkout --quiet FETCH_HEAD
+          set +e
+          ruff check --output-format concise \
+            ai_platform/wickhunter/__init__.py \
+            ai_platform/wickhunter/live_archive.py \
+            tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
+          lint_status=$?
+          ruff format --check \
+            ai_platform/wickhunter/__init__.py \
+            ai_platform/wickhunter/live_archive.py \
+            tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
+          format_status=$?
+          set -e
+          echo "lint_status=${lint_status} format_status=${format_status}"
+          exit 0

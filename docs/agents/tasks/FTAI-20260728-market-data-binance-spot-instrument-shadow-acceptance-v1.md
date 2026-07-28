@@ -34,7 +34,7 @@ optional_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T15:17:00+02:00
+updated_at: 2026-07-28T15:43:00+02:00
 status: validating
 branch: feat/binance-spot-instrument-shadow-acceptance-v1
 base_develop: 81a45bbae0e7b63655ca5a684fb110c5a03fb4d5
@@ -49,11 +49,16 @@ proven:
   - Smoke policy, request and report kept source_acceptance false and production remained disabled.
   - Repository OKX precedent requires a separate operational acceptance window, durable raw evidence, independent evaluation and accepted/rejected/inconclusive outcomes before any later integration proposal.
   - PR 633 initial AI Platform CI 30362097366 compiled the package and passed all focused functional tests, including the virtual 24-hour runner, independent evaluator, fail-closed parse sample, credential and proxy refusal, and tamper detection.
-  - The only initial AI Platform failure was Ruff static validation after tests had passed.
   - Temporary diagnostic PR 635 workflow 30362301758 job 90284741497 captured exact Ruff 0.15.21 diagnostics without network or branch mutation.
-  - Ruff required one local C901 justification on the frozen request validator, itertools.pairwise for consecutive catalog counts, removal of one unused noqa, and formatter output for the runner and focused test.
-  - SHA-guarded workflow 30362494245 job 90285387351 verified exact target head 803e7ce021022bba7de08a66502da393098dfdd8, changed only the runner and focused test, passed Ruff check and format, and fast-forwarded PR 633 to af3e0b763e90e5d08ae61750d6deb89a06924201.
-  - Diagnostic PR 635 was closed without merge and its branch was reset to develop.
+  - SHA-guarded Ruff workflow 30362494245 job 90285387351 changed only the runner and focused test, passed Ruff check and format, and fast-forwarded PR 633.
+  - Full Freqtrade CI exposed one overly narrow tamper-test assertion: the evaluator correctly rejected modified raw evidence on manifest size before reaching the hash comparison. The assertion now accepts either fail-closed size or hash mismatch.
+  - Temporary diagnostic PR 636 extracted that exact failure and was closed without merge; its branch was reset to develop.
+  - AI Platform CI 30363206794 passed after the tamper assertion repair.
+  - Pre-commit job 90288008264 identified only mypy typing gaps around dynamic JSON summary values; runtime validation semantics were already fail-closed.
+  - Temporary diagnostic PR 637 captured the mypy output and was used only for SHA-guarded transformations without Binance or Synology access.
+  - Complete typed-summary workflow 30364594023 job 90292487644 verified exact target head ec569a0521fc46e382fa5c41cda9bb64d22a00f9, changed only ai_platform/market_data/binance_spot_instrument_acceptance.py, passed Ruff, formatter and mypy, and fast-forwarded PR 633 to d9cbd0be6507e4a171c53432652e49c180aea25c.
+  - The typing repair added fail-closed numeric summary accessors, an explicitly typed sleep wrapper and typed independent-evaluator summary reads; acceptance thresholds and outcomes are unchanged.
+  - Diagnostic PRs 635, 636 and 637 were closed without merge and their branches were reset to develop.
 changes:
   - Add a frozen 24-hour Binance Spot instrument shadow-acceptance policy.
   - Schedule 97 observations at 15-minute intervals on exact runner freqtrade-synology-staging.
@@ -92,11 +97,12 @@ safety:
   - No alternate endpoint, VPN, WebSocket, order, replay, model, strategy or live-capital capability is added.
   - An accepted shadow package authorizes only a later separately reviewed integration proposal.
 validation:
-  - Focused policy, request, virtual 24-hour runner and independent-evaluator tests passed at the initial head before Ruff repair.
-  - Static workflow and documentation boundary tests passed at the initial head before Ruff repair.
-  - Fresh exact-head AI Platform CI pending at the post-Ruff checkpoint head.
-  - Fresh exact-head Freqtrade CI including CI Gate pending at the post-Ruff checkpoint head.
-  - Fresh exact-head zizmor pending at the post-Ruff checkpoint head.
+  - Focused policy, request, virtual 24-hour runner and independent-evaluator tests passed.
+  - Static workflow and documentation boundary tests passed.
+  - Ruff, formatter and mypy passed on the complete typed-summary repair before push.
+  - Fresh exact-head AI Platform CI pending on the auditable post-repair checkpoint head.
+  - Fresh exact-head Freqtrade CI including Python 3.11 through 3.14, build and CI Gate pending on the auditable post-repair checkpoint head.
+  - Fresh exact-head zizmor pending on the auditable post-repair checkpoint head.
 blockers:
   - Guarded merge requires full exact-head green CI and no unresolved review threads.
 next_action: Complete fresh exact-head CI and guarded merge. Do not create the 24-hour trigger until the merged package passes a separate no-network proof on freqtrade-synology-staging.

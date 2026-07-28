@@ -33,18 +33,10 @@ def test_default_catalog_is_immutable_dry_run_only_and_secret_free() -> None:
         catalog_id="portal-approved-dry-run",
         version="1",
     )
-    assert snapshot.templates[0].template.supported_execution_modes == (
-        ExecutionMode.DRY_RUN,
-    )
-    assert snapshot.strategies[0].supported_execution_modes == (
-        ExecutionMode.DRY_RUN,
-    )
-    assert snapshot.runtimes[0].supported_execution_modes == (
-        ExecutionMode.DRY_RUN,
-    )
-    assert snapshot.risk_policies[0].supported_execution_modes == (
-        ExecutionMode.DRY_RUN,
-    )
+    assert snapshot.templates[0].template.supported_execution_modes == (ExecutionMode.DRY_RUN,)
+    assert snapshot.strategies[0].supported_execution_modes == (ExecutionMode.DRY_RUN,)
+    assert snapshot.runtimes[0].supported_execution_modes == (ExecutionMode.DRY_RUN,)
+    assert snapshot.risk_policies[0].supported_execution_modes == (ExecutionMode.DRY_RUN,)
     assert snapshot.exchange_profiles[0].profile.exchange_id == "simulated"
     assert all(len(entry.sha256) == 64 for entry in snapshot.templates)
     assert all(len(entry.sha256) == 64 for entry in snapshot.strategies)
@@ -71,7 +63,5 @@ def test_default_catalog_is_available_through_read_only_service() -> None:
 
     assert latest == snapshot.catalog_ref
     assert page.catalog_ref == snapshot.catalog_ref
-    assert [item.template.template_id for item in page.items] == [
-        "ai-directional-dry-run"
-    ]
+    assert [item.template.template_id for item in page.items] == ["ai-directional-dry-run"]
     assert page.page_info.result_count == 1

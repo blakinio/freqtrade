@@ -117,9 +117,7 @@ def build_default_bot_management_services(
 ) -> BotManagementServices:
     from ai_platform.portal.bot_operations.service import BotCommandService
 
-    catalog = BotCatalogService(
-        InMemoryBotCatalogRepository((approved_dry_run_catalog(),))
-    )
+    catalog = BotCatalogService(InMemoryBotCatalogRepository((approved_dry_run_catalog(),)))
     return BotManagementServices(
         catalog=catalog,
         builder=BotConfigurationBuilderService(

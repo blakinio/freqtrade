@@ -1,0 +1,27 @@
+name: Freqtrade Synology Runner Custom Label Acceptance Proof
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/freqtrade-synology-runner-custom-label-acceptance-proof.yml"
+
+permissions: {}
+
+jobs:
+  prove:
+    name: Prove exact runner accepts custom-label job
+    runs-on: freqtrade-staging
+    timeout-minutes: 3
+    steps:
+      - name: Verify exact runner identity
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          printf 'RUNNER_ACCEPTANCE_PROOF=%s|%s|%s\n' \
+            "$RUNNER_NAME_VALUE" "$RUNNER_OS_VALUE" "$RUNNER_ARCH_VALUE"

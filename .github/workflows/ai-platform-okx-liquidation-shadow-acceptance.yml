@@ -30,6 +30,7 @@ jobs:
     timeout-minutes: 1500
     env:
       ACCEPTANCE_HOST_ID: freqtrade-synology-staging
+      STATE_DIR: /var/lib/freqtrade-staging-state
       DURABLE_ROOT: /var/lib/freqtrade-staging-state/okx-liquidation-acceptance
       DURABLE_URI: file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance
 
@@ -56,7 +57,7 @@ jobs:
             exit 1
           fi
 
-      - name: Validate staging identity and durable storage
+      - name: Validate staging identity and prepare durable storage
         id: staging
         shell: bash
         env:
@@ -64,28 +65,63 @@ jobs:
           RUNNER_OS_VALUE: ${{ runner.os }}
         run: |
           set -euo pipefail
-          test "$RUNNER_NAME_VALUE" = "$ACCEPTANCE_HOST_ID"
-          test "$RUNNER_OS_VALUE" = "Linux"
-          test -n "$ACCEPTANCE_HOST_ID"
-          test -n "$DURABLE_ROOT"
-          test -n "$DURABLE_URI"
+          if [[ "$RUNNER_NAME_VALUE" != "$ACCEPTANCE_HOST_ID" ]]; then
+            echo "OKX_ACCEPTANCE_RUNNER_NAME_MISMATCH" >&2
+            exit 1
+          fi
+          if [[ "$RUNNER_OS_VALUE" != "Linux" ]]; then
+            echo "OKX_ACCEPTANCE_RUNNER_OS_MISMATCH" >&2
+            exit 1
+          fi
+          if [[ -z "$ACCEPTANCE_HOST_ID" || -z "$STATE_DIR" || -z "$DURABLE_ROOT" || -z "$DURABLE_URI" ]]; then
+            echo "OKX_ACCEPTANCE_STORAGE_MAPPING_EMPTY" >&2
+            exit 1
+          fi
+          case "$STATE_DIR" in
+            /*) ;;
+            *) echo "OKX_ACCEPTANCE_STATE_DIR_NOT_ABSOLUTE" >&2; exit 1 ;;
+          esac
           case "$DURABLE_ROOT" in
             /*) ;;
-            *) echo "DURABLE_ROOT must be absolute" >&2; exit 1 ;;
+            *) echo "OKX_ACCEPTANCE_DURABLE_ROOT_NOT_ABSOLUTE" >&2; exit 1 ;;
           esac
-          test "$(dirname "$DURABLE_ROOT")" = "/var/lib/freqtrade-staging-state"
-          test -d "$DURABLE_ROOT"
-          test -w "$DURABLE_ROOT"
+          if [[ "$(dirname "$DURABLE_ROOT")" != "$STATE_DIR" ]]; then
+            echo "OKX_ACCEPTANCE_DURABLE_ROOT_OUTSIDE_STATE_DIR" >&2
+            exit 1
+          fi
+          if [[ ! -d "$STATE_DIR" ]]; then
+            echo "OKX_ACCEPTANCE_STATE_DIR_MISSING" >&2
+            exit 1
+          fi
+          if [[ ! -w "$STATE_DIR" ]]; then
+            echo "OKX_ACCEPTANCE_STATE_DIR_NOT_WRITABLE" >&2
+            exit 1
+          fi
           case "$DURABLE_ROOT" in
             "$RUNNER_TEMP"|"$RUNNER_TEMP"/*|"$GITHUB_WORKSPACE"|"$GITHUB_WORKSPACE"/*)
-              echo "Durable root must not be runner-temporary or workspace storage" >&2
+              echo "OKX_ACCEPTANCE_DURABLE_ROOT_EPHEMERAL" >&2
               exit 1
               ;;
           esac
+          umask 027
+          if ! mkdir -p "$DURABLE_ROOT"; then
+            echo "OKX_ACCEPTANCE_DURABLE_ROOT_CREATE_FAILED" >&2
+            exit 1
+          fi
+          if [[ ! -d "$DURABLE_ROOT" ]]; then
+            echo "OKX_ACCEPTANCE_DURABLE_ROOT_MISSING" >&2
+            exit 1
+          fi
+          if [[ ! -w "$DURABLE_ROOT" ]]; then
+            echo "OKX_ACCEPTANCE_DURABLE_ROOT_NOT_WRITABLE" >&2
+            exit 1
+          fi
           python - <<'PY'
           import json
           import os
           import re
+          import shutil
+          import tempfile
           from pathlib import Path
 
           request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
@@ -101,6 +137,23 @@ jobs:
           run_id = str(request.get("run_id", ""))
           if not re.fullmatch(r"[A-Za-z0-9._-]{3,80}", run_id):
               raise SystemExit("request run_id is invalid")
+
+          durable_root = Path(os.environ["DURABLE_ROOT"])
+          probe_dir = Path(tempfile.mkdtemp(prefix=".acceptance-preflight-", dir=durable_root))
+          try:
+              source = probe_dir / "probe.tmp"
+              target = probe_dir / "probe.sealed"
+              payload = b"okx-shadow-acceptance-durable-root-v1\n"
+              with source.open("xb") as handle:
+                  handle.write(payload)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+              source.replace(target)
+              if target.read_bytes() != payload:
+                  raise SystemExit("OKX_ACCEPTANCE_DURABLE_ROOT_ATOMIC_IO_FAILED")
+          finally:
+              shutil.rmtree(probe_dir)
+
           with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"run_id={run_id}\n")
           PY

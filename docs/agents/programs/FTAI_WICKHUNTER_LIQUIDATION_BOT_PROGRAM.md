@@ -33,7 +33,7 @@ The program consumes existing contracts instead of replacing them:
 
 The frozen `liquid20-v1` symbol set remains immutable collection and acceptance evidence. It is not the WickHunter trading universe. WickHunter uses a separate dynamic universe derived from instrument metadata and decision-time data quality.
 
-The current portal risk service is DB-backed and currently exposes a manual-intent application flow with a smaller risk snapshot than this program requires. WickHunter therefore starts with pure, fail-closed strategy-owned risk contracts and does not modify active portal/BM paths. WH-06 will add a reviewed adapter after the required portal contract owner confirms the integration seam.
+The current portal risk service is DB-backed and exposes a manual-intent application flow. WH-06 adds a reviewed WickHunter-owned fail-closed mapping into the canonical portal risk contracts while leaving that manual service and active portal/BM paths unchanged.
 
 RL-v2 remains a separate experimental track. It is not eligible for promotion into this program until the supervised/replay pipeline is accepted and a later package proves incremental value under the same evaluation contract.
 
@@ -290,11 +290,20 @@ Deliver immutable hard-bound spaces, rolling walk-forward search, reproducibilit
 
 ### WH-06 — Risk Engine and TradeIntent integration
 
-Status: `not_started`
+Status: `completed`
 
 Depends on: WH-00, a frozen portal/BM integration seam and current path-ownership preflight.
 
-Deliver a reviewed mapping to canonical portal risk authority, full required risk snapshot/adapters and deterministic persistence. It activates no submission adapter and changes no shared portal contract without delegation.
+Delivered by PR #588:
+
+- fail-closed mapping from a locally allowed WickHunterTradeIntent into canonical portal TradeIntent and RiskEvaluationSnapshot;
+- deterministic UUIDv5 identities and correlation context;
+- conservative notional mapping including bounded total DCA risk;
+- full projected exposure/open-position, daily-loss, drawdown and runtime-health snapshot mapping;
+- strict research/shadow/paper environment policy with structural production refusal;
+- canonical approved/rejected result identity and policy validation;
+- atomic no-overwrite request/result/manifest evidence with exact hashes;
+- no portal/BM contract mutation, manual-service invocation, execution adapter, order submission or live-capital authority.
 
 ### WH-07 — shadow runtime
 

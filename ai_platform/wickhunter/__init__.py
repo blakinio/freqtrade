@@ -35,6 +35,18 @@ from ai_platform.wickhunter.parameters import (
     WickHunterParameters,
     validate_parameters,
 )
+from ai_platform.wickhunter.portal_risk import (
+    PortalRiskArtifactSet,
+    PortalRiskBinding,
+    PortalRiskBridgeBlockedError,
+    PortalRiskBridgeError,
+    PortalRiskEvidenceMismatchError,
+    PortalRiskRequestEvidence,
+    PortalRiskSnapshotSource,
+    build_portal_risk_request,
+    persist_portal_risk_evidence,
+    validate_portal_risk_result,
+)
 from ai_platform.wickhunter.risk import evaluate_trade_intent
 from ai_platform.wickhunter.shadow import ShadowDecisionRequest, evaluate_shadow_decision
 from ai_platform.wickhunter.strategy import SignalMemory, generate_candidate
@@ -54,6 +66,13 @@ __all__ = [
     "DatasetSplitWindow",
     "INITIAL_COMPATIBILITY_PRIOR",
     "LiquidationFeatureVector",
+    "PortalRiskArtifactSet",
+    "PortalRiskBinding",
+    "PortalRiskBridgeBlockedError",
+    "PortalRiskBridgeError",
+    "PortalRiskEvidenceMismatchError",
+    "PortalRiskRequestEvidence",
+    "PortalRiskSnapshotSource",
     "RiskDecision",
     "ShadowDecisionEvidence",
     "ShadowDecisionRequest",
@@ -66,12 +85,15 @@ __all__ = [
     "WickHunterParameters",
     "WickHunterTradeIntent",
     "build_liquidation_features",
+    "build_portal_risk_request",
     "build_wickhunter_dataset",
     "evaluate_shadow_decision",
     "evaluate_trade_intent",
     "generate_candidate",
     "load_accepted_import",
     "normalize_historical_event",
+    "persist_portal_risk_evidence",
     "select_dynamic_universe",
     "validate_parameters",
+    "validate_portal_risk_result",
 ]

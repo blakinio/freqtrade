@@ -3,13 +3,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TypeAlias, cast
 
 from pydantic import JsonValue
 
 from strategy_engine.domain.models import Action, Side, StrategyDefinition
 
-SnapshotValue: TypeAlias = JsonValue | Mapping[str, JsonValue]
+type SnapshotValue = JsonValue | Mapping[str, JsonValue]
 
 
 class DslEvaluationError(ValueError):
@@ -109,10 +108,9 @@ class StrategyEvaluator:
                 continue
             if not isinstance(raw_conditions, list):
                 raise DslEvaluationError(f"{label}.{operator} must be a list")
-            conditions = cast(list[JsonValue], raw_conditions)
             condition_results = [
                 self._evaluate_node(condition, snapshot, f"{label}.{operator}[{index}]")
-                for index, condition in enumerate(conditions)
+                for index, condition in enumerate(raw_conditions)
             ]
             if operator == "all":
                 results.append(all(condition_results))
@@ -132,7 +130,7 @@ class StrategyEvaluator:
     ) -> bool:
         if not isinstance(raw_node, dict):
             raise DslEvaluationError(f"{label} must be an object")
-        node = cast(dict[str, JsonValue], raw_node)
+        node = raw_node
         if set(node) & {"all", "any", "none"}:
             return self._evaluate_group(node, snapshot, label)
         if "feature" in node:

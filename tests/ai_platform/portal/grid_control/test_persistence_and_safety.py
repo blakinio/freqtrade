@@ -7,6 +7,7 @@ from ai_platform.portal.contracts.environment import ExecutionMode
 from ai_platform.portal.grid_control.repository import InMemoryGridControlRepository
 from ai_platform.portal.grid_control.schema import (
     GridControlReasonCode,
+    GridPreview,
     PersistGridPolicyRequest,
 )
 from ai_platform.portal.grid_control.service import GridControlService, GridControlServiceError
@@ -19,7 +20,7 @@ from tests.ai_platform.portal.grid_control.support import (
 )
 
 
-def _service_and_preview() -> tuple[GridControlService, object]:
+def _service_and_preview() -> tuple[GridControlService, GridPreview]:
     grid_service = GridControlService(InMemoryGridControlRepository(), clock=clock)
     preview = grid_service.preview(context(), request(), template(), exchange())
     return grid_service, preview

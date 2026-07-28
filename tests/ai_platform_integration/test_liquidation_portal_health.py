@@ -94,7 +94,7 @@ def successful_proof() -> dict[str, Any]:
             "unauthenticated_api_rejected": True,
             "read_only_root_filesystem": True,
             "tmpfs": {
-                "/tmp": "size=64m,mode=1777",
+                "/tmp": "size=64m,mode=1777",  # noqa: S108
                 "/app/.next/cache": "size=64m,mode=0755",
             },
             "cap_drop": ["ALL"],
@@ -190,7 +190,7 @@ def test_existing_proof_script_preserves_security_and_session_boundaries() -> No
     assert "--read-only" in script
     assert "--cap-drop ALL" in script
     assert "--security-opt no-new-privileges:true" in script
-    assert 'dst=${liquidations_container_root},readonly' in script
+    assert "dst=${liquidations_container_root},readonly" in script
     assert 'test -z "$candidate_docker_socket_mount"' in script
     assert "--env PORTAL_IDENTITY_FIXTURE_MODE=enabled" in script
     assert '"SESSION_MISSING"' in script

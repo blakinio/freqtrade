@@ -1,0 +1,339 @@
+name: Prove Binance Spot Instrument Shadow Acceptance V1
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - ".github/workflows/prove-binance-spot-instrument-shadow-acceptance-v1.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 15
+    env:
+      MERGED_SHA: aeb858ebe5266742c257aa7b45b5cffd11c4b5ba
+      STATE_DIR: /var/lib/freqtrade-staging-state
+      CANONICAL_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+
+    steps:
+      - name: Validate exact approved runner and durable root
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$CANONICAL_ROOT"
+          [[ -d "$CANONICAL_ROOT" && -w "$CANONICAL_ROOT" ]]
+          probe="$(mktemp -d "$CANONICAL_ROOT/.no-network-proof-XXXXXX")"
+          trap 'rm -rf "$probe"' EXIT
+          printf 'binance-spot-acceptance-proof\n' > "$probe/source.tmp"
+          sync "$probe/source.tmp"
+          mv "$probe/source.tmp" "$probe/source.sealed"
+          [[ "$(cat "$probe/source.sealed")" == "binance-spot-acceptance-proof" ]]
+
+      - name: Checkout exact merged implementation
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ env.MERGED_SHA }}
+
+      - name: Refuse any credential or proxy environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Prove complete acceptance package without network
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 - <<'PY'
+          import json
+          import tempfile
+          from pathlib import Path
+          from typing import Self
+
+          from ai_platform.market_data.binance_spot_instrument_acceptance import (
+              POLICY_PATH,
+              BinanceSpotInstrumentAcceptancePolicy,
+              evaluate_package,
+              run_acceptance,
+              validate_request,
+          )
+          from ai_platform.market_data.binance_spot_instrument_smoke import (
+              BINANCE_SPOT_REDUCED_PAYLOAD_URL,
+          )
+          from ai_platform.market_data.common import canonical_json_bytes
+
+          COMMIT = "aeb858ebe5266742c257aa7b45b5cffd11c4b5ba"
+          REPOSITORY_ROOT = Path.cwd()
+          merged_policy_path = REPOSITORY_ROOT / POLICY_PATH
+          merged_policy = BinanceSpotInstrumentAcceptancePolicy.load(merged_policy_path)
+          assert merged_policy.minimum_duration_seconds == 86400
+          assert merged_policy.sample_interval_seconds == 900
+          assert merged_policy.thresholds.minimum_attempted_samples == 97
+          assert merged_policy.thresholds.minimum_successful_samples == 95
+          assert merged_policy.thresholds.minimum_availability_ratio == 0.98
+          assert merged_policy.retries_per_sample == 0
+          assert merged_policy.request_url == BINANCE_SPOT_REDUCED_PAYLOAD_URL
+          assert merged_policy.github_hosted_runner_allowed is False
+          assert not Path(
+              "ai_platform/market_data/run-requests/"
+              "binance-spot-instrument-shadow-acceptance-20260728-v1.json"
+          ).exists()
+
+          def request_mapping() -> dict[str, object]:
+              return {
+                  "schema_version": 1,
+                  "request_id": "binance-spot-instrument-shadow-proof-v1",
+                  "run_id": "binance-spot-instrument-shadow-proof-r1",
+                  "policy_id": "binance-spot-instrument-shadow-acceptance-v1",
+                  "source_id": "binance-spot",
+                  "request_url": BINANCE_SPOT_REDUCED_PAYLOAD_URL,
+                  "duration_seconds": 86400,
+                  "sample_interval_seconds": 900,
+                  "host_id": "freqtrade-synology-staging",
+                  "host_class": "always_on_nonrestricted_linux_staging",
+                  "github_hosted_runner": False,
+                  "durable_storage_uri": "file:///tmp/binance-spot-instrument-shadow-proof",
+                  "baseline_artifact_id": 8686988992,
+                  "baseline_artifact_digest": (
+                      "sha256:1862d17e8c117e31eec6688c8f34c32c"
+                      "ce4a505ec125805cd095df6894cc4f6e"
+                  ),
+                  "public_only": True,
+                  "execution_enabled": False,
+                  "trading_credentials_present": False,
+                  "proxy_routing_present": False,
+                  "performance_research_authorized": False,
+                  "replay_authorized": False,
+                  "model_training_authorized": False,
+                  "strategy_research_authorized": False,
+                  "orders_submitted": 0,
+                  "production_source_enabled": False,
+              }
+
+          def payload(sequence: int, *, invalid: bool = False) -> dict[str, object]:
+              symbols: list[dict[str, object]] = [
+                  {
+                      "symbol": "BTCUSDT",
+                      "status": "TRADING",
+                      "baseAsset": "BTC",
+                      "quoteAsset": "USDT",
+                      "filters": (
+                          []
+                          if invalid
+                          else [
+                              {"filterType": "PRICE_FILTER", "tickSize": "0.1"},
+                              {"filterType": "LOT_SIZE", "stepSize": "0.00001"},
+                          ]
+                      ),
+                  },
+                  {
+                      "symbol": "ETHUSDT",
+                      "status": "TRADING",
+                      "baseAsset": "ETH",
+                      "quoteAsset": "USDT",
+                      "filters": [
+                          {"filterType": "PRICE_FILTER", "tickSize": "0.01"},
+                          {"filterType": "LOT_SIZE", "stepSize": "0.0001"},
+                      ],
+                  },
+              ]
+              return {"timezone": "UTC", "serverTime": sequence, "symbols": symbols}
+
+          class FakeClock:
+              def __init__(self) -> None:
+                  self.value = 0.0
+                  self.base_ns = 1_900_000_000_000_000_000
+
+              def monotonic(self) -> float:
+                  return self.value
+
+              def sleep(self, seconds: float) -> None:
+                  self.value += max(0.0, seconds)
+
+              def wall_ns(self) -> int:
+                  return self.base_ns + int(self.value * 1_000_000_000)
+
+          class FakeResponse:
+              status = 200
+
+              def __init__(self, body: bytes) -> None:
+                  self.body = body
+                  self.headers = {
+                      "Content-Type": "application/json;charset=UTF-8",
+                      "Content-Length": str(len(body)),
+                  }
+
+              def geturl(self) -> str:
+                  return BINANCE_SPOT_REDUCED_PAYLOAD_URL
+
+              def read(self, amount: int = -1) -> bytes:
+                  return self.body if amount < 0 else self.body[:amount]
+
+              def __enter__(self) -> Self:
+                  return self
+
+              def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+                  return None
+
+          class FakeOpener:
+              def __init__(self, invalid_call: int | None = None) -> None:
+                  self.calls = 0
+                  self.invalid_call = invalid_call
+
+              def __call__(self, request: object, *, timeout: float, context: object) -> FakeResponse:
+                  del request, context
+                  assert timeout == 20.0
+                  self.calls += 1
+                  body = canonical_json_bytes(
+                      payload(self.calls, invalid=self.calls == self.invalid_call)
+                  )
+                  return FakeResponse(body)
+
+          with tempfile.TemporaryDirectory(prefix="binance-acceptance-proof-") as directory:
+              root = Path(directory)
+              policy_mapping = json.loads(merged_policy_path.read_text(encoding="utf-8"))
+              thresholds = policy_mapping["thresholds"]
+              thresholds.update(
+                  {
+                      "minimum_successful_samples": 97,
+                      "minimum_availability_ratio": 1.0,
+                      "maximum_consecutive_failures": 0,
+                      "maximum_transport_failures": 0,
+                      "minimum_instrument_count": 2,
+                      "maximum_instrument_count": 10,
+                      "minimum_active_instrument_count": 2,
+                      "maximum_consecutive_catalog_count_change_ratio": 0.01,
+                  }
+              )
+              policy_path = root / "policy.json"
+              policy_path.write_bytes(canonical_json_bytes(policy_mapping) + b"\n")
+              proof_policy = BinanceSpotInstrumentAcceptancePolicy.load(policy_path)
+
+              request = request_mapping()
+              validate_request(request, policy=proof_policy)
+              request_path = root / "request.json"
+              request_path.write_bytes(canonical_json_bytes(request) + b"\n")
+
+              accepted_clock = FakeClock()
+              accepted_opener = FakeOpener()
+              accepted_root = root / "accepted"
+              accepted = run_acceptance(
+                  request_path=request_path,
+                  policy_path=policy_path,
+                  output_root=accepted_root,
+                  collector_commit=COMMIT,
+                  environment={},
+                  opener=accepted_opener,
+                  sleeper=accepted_clock.sleep,
+                  monotonic=accepted_clock.monotonic,
+                  wall_clock_ns=accepted_clock.wall_ns,
+              )
+              assert accepted_opener.calls == 97
+              assert accepted["outcome"] == "accepted"
+              assert accepted["source_acceptance"] is False
+              assert accepted["production_source_enabled"] is False
+              assert accepted["orders_submitted"] == 0
+              assert evaluate_package(
+                  run_root=accepted_root, policy_path=policy_path
+              ) == accepted
+              assert len(list((accepted_root / "samples").glob("*/sample-report.json"))) == 97
+              assert len(list((accepted_root / "samples").glob("*/raw-response.json"))) == 97
+              assert len(
+                  list(
+                      (accepted_root / "samples").glob(
+                          "*/instrument-catalog-snapshot.json"
+                      )
+                  )
+              ) == 97
+
+              tampered = accepted_root / "samples/0000/raw-response.json"
+              tampered.write_bytes(tampered.read_bytes() + b" ")
+              try:
+                  evaluate_package(run_root=accepted_root, policy_path=policy_path)
+              except ValueError as error:
+                  assert "manifest artifact" in str(error)
+                  assert "mismatch" in str(error)
+              else:
+                  raise AssertionError("tampered evidence must fail closed")
+
+              rejected_clock = FakeClock()
+              rejected_opener = FakeOpener(invalid_call=50)
+              rejected_root = root / "rejected"
+              rejected = run_acceptance(
+                  request_path=request_path,
+                  policy_path=policy_path,
+                  output_root=rejected_root,
+                  collector_commit=COMMIT,
+                  environment={},
+                  opener=rejected_opener,
+                  sleeper=rejected_clock.sleep,
+                  monotonic=rejected_clock.monotonic,
+                  wall_clock_ns=rejected_clock.wall_ns,
+              )
+              assert rejected_opener.calls == 97
+              assert rejected["outcome"] == "rejected"
+              failed_root = rejected_root / "samples/0049"
+              failed = json.loads((failed_root / "sample-report.json").read_text())
+              assert failed["failure_stage"] == "parse_and_normalize"
+              assert failed["attempt_count"] == 1
+              assert failed["raw_payload_persisted"] is False
+              assert not (failed_root / "raw-response.json").exists()
+              assert not (failed_root / "instrument-catalog-snapshot.json").exists()
+              assert evaluate_package(
+                  run_root=rejected_root, policy_path=policy_path
+              )["outcome"] == "rejected"
+
+              blocked_opener = FakeOpener()
+              for index, environment in enumerate(
+                  ({"BINANCE_API_KEY": "secret"}, {"HTTPS_PROXY": "http://proxy.invalid"})
+              ):
+                  try:
+                      run_acceptance(
+                          request_path=request_path,
+                          policy_path=policy_path,
+                          output_root=root / f"blocked-{index}",
+                          collector_commit=COMMIT,
+                          environment=environment,
+                          opener=blocked_opener,
+                      )
+                  except RuntimeError:
+                      pass
+                  else:
+                      raise AssertionError("credential or proxy environment must be refused")
+              assert blocked_opener.calls == 0
+
+          print("BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V1_NO_NETWORK_PROOF_PASS")
+          PY
+
+      - name: Confirm proof left no durable package
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "$CANONICAL_ROOT" -maxdepth 1 -type d -name '.no-network-proof-*' -print -quit | grep -q . && exit 1 || true

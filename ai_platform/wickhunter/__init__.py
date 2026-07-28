@@ -28,6 +28,11 @@ from ai_platform.wickhunter.dataset import (
     normalize_historical_event,
 )
 from ai_platform.wickhunter.features import build_liquidation_features
+from ai_platform.wickhunter.live_archive import (
+    LiveArchiveAcceptanceRequest,
+    LiveArchiveArtifactSet,
+    accept_closed_live_run,
+)
 from ai_platform.wickhunter.parameters import (
     DEFAULT_RESEARCH_BOUNDS,
     INITIAL_COMPATIBILITY_PRIOR,
@@ -66,6 +71,8 @@ __all__ = [
     "DatasetSplitWindow",
     "INITIAL_COMPATIBILITY_PRIOR",
     "LiquidationFeatureVector",
+    "LiveArchiveAcceptanceRequest",
+    "LiveArchiveArtifactSet",
     "PortalRiskArtifactSet",
     "PortalRiskBinding",
     "PortalRiskBridgeBlockedError",
@@ -84,6 +91,7 @@ __all__ = [
     "WickHunterParameterBounds",
     "WickHunterParameters",
     "WickHunterTradeIntent",
+    "accept_closed_live_run",
     "build_liquidation_features",
     "build_portal_risk_request",
     "build_wickhunter_dataset",

@@ -119,11 +119,36 @@ class LifecycleCommandIntentService:
         context: LifecycleIntentContext,
         request: LifecycleIntentRequest,
     ) -> LifecycleIntentResult:
+        policy = lifecycle_command_policy(request.action)
+        existing = self._commands.find_idempotent_command(
+            context.tenant_id,
+            request.idempotency_key,
+        )
+        if existing is not None:
+            existing_command, existing_outcome = existing
+            if self._is_transport_replay(context, request, policy.capability, existing_command):
+                return LifecycleIntentResult(
+                    command_id=existing_outcome.command_id,
+                    bot_id=request.bot_id,
+                    action=request.action,
+                    status=existing_outcome.status,
+                    reason_codes=existing_outcome.reason_codes,
+                    command_persisted=True,
+                )
+
         runtime = self._runtime_states.resolve(
             tenant_id=context.tenant_id,
             bot_id=request.bot_id,
         )
         if runtime is None:
+            if existing is not None:
+                return LifecycleIntentResult(
+                    bot_id=request.bot_id,
+                    action=request.action,
+                    status=CommandOutcomeStatus.REJECTED,
+                    reason_codes=(CommandReasonCode.DUPLICATE_IDEMPOTENCY_KEY,),
+                    command_persisted=False,
+                )
             return LifecycleIntentResult(
                 bot_id=request.bot_id,
                 action=request.action,
@@ -132,7 +157,6 @@ class LifecycleCommandIntentService:
                 command_persisted=False,
             )
 
-        policy = lifecycle_command_policy(request.action)
         command = BotLifecycleCommand(
             command_id=str(self._id_factory()),
             tenant_id=context.tenant_id,
@@ -174,4 +198,22 @@ class LifecycleCommandIntentService:
             status=outcome.status,
             reason_codes=outcome.reason_codes,
             command_persisted=not conflict,
+        )
+
+    @staticmethod
+    def _is_transport_replay(
+        context: LifecycleIntentContext,
+        request: LifecycleIntentRequest,
+        required_capability: BotManagementCapability,
+        existing_command: object,
+    ) -> bool:
+        return (
+            isinstance(existing_command, BotLifecycleCommand)
+            and existing_command.actor == context.actor
+            and required_capability in context.capabilities
+            and existing_command.capability == required_capability
+            and existing_command.target.tenant_id == context.tenant_id
+            and existing_command.target.bot_id == request.bot_id
+            and existing_command.target.config_revision == request.expected_config_revision
+            and existing_command.action == request.action
         )

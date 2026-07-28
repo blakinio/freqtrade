@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends
 
 from ai_platform.portal.bot_catalog.schema import (
+    BotCatalogSnapshot,
     CatalogAccessContext,
     CatalogPageRequest,
     CatalogTemplateFilters,
@@ -51,6 +52,17 @@ def build_router(
         context: RequestContext = Depends(context_dependency),
     ) -> CatalogVersionRef:
         return service.latest_catalog_ref(access(context), catalog_id)
+
+    @router.get("/{catalog_id}/{catalog_version}", response_model=BotCatalogSnapshot)
+    def get_catalog_snapshot(
+        catalog_id: str,
+        catalog_version: str,
+        context: RequestContext = Depends(context_dependency),
+    ) -> BotCatalogSnapshot:
+        return service.get_snapshot(
+            access(context),
+            CatalogVersionRef(catalog_id=catalog_id, version=catalog_version),
+        )
 
     @router.post("/templates/search", response_model=TemplateCatalogPage)
     def search_templates(

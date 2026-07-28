@@ -3,22 +3,36 @@ name: AI Platform CI
 on:
   pull_request:
     paths:
+      - "AGENTS.md"
+      - "ai_platform/**"
+      - "docs/ai_platform/**"
+      - "tests/ai_platform/**"
       - ".github/workflows/ai-platform.yml"
-  workflow_dispatch:
+  push:
+    branches:
+      - develop
+    paths:
+      - "AGENTS.md"
+      - "ai_platform/**"
+      - "docs/ai_platform/**"
+      - "tests/ai_platform/**"
+      - ".github/workflows/ai-platform.yml"
 
 permissions:
   contents: read
 
+concurrency:
+  group: "ai-platform-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
 jobs:
   validate:
-    name: Export validated ASE-00 pre-commit files
+    name: AI platform tests and lint
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python
@@ -26,136 +40,35 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Prepare fixes and run full pre-commit
-        id: precommit
-        shell: bash
-        run: |
-          python -m pip install --disable-pip-version-check pre-commit ruff==0.15.21
-          printf '%s\n' '"""AI Platform integration tests."""' \
-            > tests/ai_platform_integration/__init__.py
-          python - <<'PY'
-          from pathlib import Path
+      - name: Install lightweight validation dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          "httpx>=0.24.1" fastapi pyjwt cryptography
+          ruff==0.15.21 codespell==2.4.2
 
-          test_path = Path('ai_strategy_engine/tests/integration/test_registry_dsl.py')
-          test_text = test_path.read_text(encoding='utf-8')
-          anchor = 'from pathlib import Path\n\nimport pytest'
-          if test_text.count(anchor) != 1:
-              raise SystemExit('test import anchor mismatch')
-          test_text = test_text.replace(
-              anchor,
-              'from pathlib import Path\nfrom typing import cast\n\nimport pytest',
-              1,
-          )
-          old = '    features = list(document["features"])  # type: ignore[arg-type]'
-          if test_text.count(old) != 2:
-              raise SystemExit('test features anchor mismatch')
-          new = (
-              '    features = [\n'
-              '        dict(feature)\n'
-              '        for feature in cast(list[dict[str, object]], document["features"])\n'
-              '    ]'
-          )
-          test_text = test_text.replace(old, new)
-          old = (
-              '    features[0] = {**features[0], "timeframe": "1h"}  '
-              '# type: ignore[arg-type]'
-          )
-          if test_text.count(old) != 1:
-              raise SystemExit('test spread anchor mismatch')
-          test_text = test_text.replace(
-              old,
-              '    features[0] = {**features[0], "timeframe": "1h"}',
-              1,
-          )
-          test_path.write_text(test_text, encoding='utf-8')
+      - name: Compile AI platform Python
+        run: python -m compileall -q ai_platform tests/ai_platform
 
-          adapter_path = Path('ai_platform/research/strategy_engine/ase00_adapter.py')
-          adapter_text = adapter_path.read_text(encoding='utf-8')
-          old = '''            columns = (
-                "squeeze_ratio",
-                "squeeze_state",
-                "squeeze_duration",
-                "bars_since_release",
-                "linreg_momentum",
-                "momentum_slope",
-                "momentum_acceleration",
-            )
-            value = _row_mapping(squeeze, -1, columns)
-'''
-          if adapter_text.count(old) != 1:
-              raise SystemExit('squeeze columns anchor mismatch')
-          adapter_text = adapter_text.replace(
-              old,
-              old.replace('columns', 'squeeze_columns'),
-              1,
-          )
-          old = '_row_mapping(squeeze, -2, columns)'
-          if adapter_text.count(old) != 1:
-              raise SystemExit('squeeze previous anchor mismatch')
-          adapter_text = adapter_text.replace(
-              old,
-              '_row_mapping(squeeze, -2, squeeze_columns)',
-              1,
-          )
-          old = '''            columns = (
-                "supertrend_band",
-                "supertrend_direction",
-                "supertrend_flip",
-                "supertrend_distance_atr",
-            )
-            value = _row_mapping(supertrend, -1, columns)
-'''
-          if adapter_text.count(old) != 1:
-              raise SystemExit('supertrend columns anchor mismatch')
-          adapter_text = adapter_text.replace(
-              old,
-              old.replace('columns', 'supertrend_columns'),
-              1,
-          )
-          old = '_row_mapping(supertrend, -2, columns)'
-          if adapter_text.count(old) != 1:
-              raise SystemExit('supertrend prior anchor mismatch')
-          adapter_text = adapter_text.replace(
-              old,
-              '_row_mapping(supertrend, -2, supertrend_columns)',
-              1,
-          )
-          adapter_path.write_text(adapter_text, encoding='utf-8')
-          PY
-          ruff check --fix \
-            ai_platform/research/strategy_engine/ase00_adapter.py \
-            ai_strategy_engine/tests/integration/test_registry_dsl.py
-          set +e
-          pre-commit run --all-files --show-diff-on-failure > /tmp/pre-commit.log 2>&1
-          status=$?
-          set -e
-          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "$status" > /tmp/pre-commit.status
+      - name: Run AI platform tests
+        run: >-
+          python -m pytest -q -o addopts=''
+          --confcutdir=tests/ai_platform tests/ai_platform
 
-      - name: Prepare artifact
-        if: always()
-        run: |
-          mkdir -p /tmp/validated/ai_platform/research/strategy_engine
-          mkdir -p /tmp/validated/ai_strategy_engine/tests/integration
-          mkdir -p /tmp/validated/tests/ai_platform_integration
-          cp ai_platform/research/strategy_engine/ase00_adapter.py \
-            /tmp/validated/ai_platform/research/strategy_engine/ase00_adapter.py
-          cp ai_strategy_engine/tests/integration/test_registry_dsl.py \
-            /tmp/validated/ai_strategy_engine/tests/integration/test_registry_dsl.py
-          cp tests/ai_platform_integration/__init__.py \
-            /tmp/validated/tests/ai_platform_integration/__init__.py
-          cp /tmp/pre-commit.log /tmp/validated/pre-commit.log
-          cp /tmp/pre-commit.status /tmp/validated/pre-commit.status
+      - name: Ruff
+        run: ruff check ai_platform tests/ai_platform
 
-      - name: Upload artifact
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ase00-final-precommit-files
-          path: /tmp/validated
-          if-no-files-found: error
-          retention-days: 1
+      - name: Ruff format
+        run: ruff format --check ai_platform tests/ai_platform
 
-      - name: Enforce full pre-commit
-        if: steps.precommit.outputs.status != '0'
-        run: exit 1
+      - name: Codespell
+        run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform
+
+      - name: Validate baseline JSON
+        run: python -m json.tool ai_platform/configs/freqai-baseline.example.json > /dev/null
+
+      - name: Validate experiment manifest JSON
+        run: python -m json.tool ai_platform/experiments/baseline-v1.json > /dev/null
+
+      - name: Validate experiment schema JSON
+        run: python -m json.tool ai_platform/experiments/schema-v1.json > /dev/null

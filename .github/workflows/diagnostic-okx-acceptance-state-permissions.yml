@@ -1,0 +1,52 @@
+name: Diagnostic OKX Acceptance State Permissions
+
+on:
+  push:
+    branches:
+      - diag/okx-acceptance-state-permissions-20260728
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+    env:
+      STATE_DIR: /var/lib/freqtrade-staging-state
+      DURABLE_ROOT: /var/lib/freqtrade-staging-state/okx-liquidation-acceptance
+    steps:
+      - name: Capture bounded read-only state report
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          REPORT: ${{ runner.temp }}/okx-state-permissions.txt
+        run: |
+          set -euo pipefail
+          {
+            printf 'runner_name=%s\n' "$RUNNER_NAME_VALUE"
+            printf 'runner_os=%s\n' "$RUNNER_OS_VALUE"
+            printf 'uid=%s\n' "$(id -u)"
+            printf 'gid=%s\n' "$(id -g)"
+            printf 'user=%s\n' "$(id -un)"
+            printf 'groups=%s\n' "$(id -Gn)"
+            printf 'state_exists=%s\n' "$(test -e "$STATE_DIR" && echo true || echo false)"
+            printf 'state_is_dir=%s\n' "$(test -d "$STATE_DIR" && echo true || echo false)"
+            printf 'state_writable=%s\n' "$(test -w "$STATE_DIR" && echo true || echo false)"
+            printf 'durable_exists=%s\n' "$(test -e "$DURABLE_ROOT" && echo true || echo false)"
+            printf 'durable_is_dir=%s\n' "$(test -d "$DURABLE_ROOT" && echo true || echo false)"
+            printf 'durable_writable=%s\n' "$(test -w "$DURABLE_ROOT" && echo true || echo false)"
+            printf 'state_stat='; stat -c '%F|%a|%u|%g|%n' "$STATE_DIR" 2>&1 || true
+            printf 'durable_stat='; stat -c '%F|%a|%u|%g|%n' "$DURABLE_ROOT" 2>&1 || true
+            printf 'mount='; findmnt -T "$STATE_DIR" -n -o TARGET,SOURCE,FSTYPE,OPTIONS 2>&1 || true
+          } > "$REPORT"
+          cat "$REPORT"
+
+      - name: Upload bounded diagnostic report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: okx-acceptance-state-permissions
+          path: ${{ runner.temp }}/okx-state-permissions.txt
+          retention-days: 1

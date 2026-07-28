@@ -11,7 +11,10 @@ PACKAGE = ROOT / "deploy" / "synology" / "portal-vault"
 
 
 def load_validator() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("portal_vault_validate", PACKAGE / "validate.py")
+    spec = importlib.util.spec_from_file_location(
+        "portal_vault_validate",
+        PACKAGE / "validate.py",
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

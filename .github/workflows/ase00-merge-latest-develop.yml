@@ -1,0 +1,43 @@
+name: ASE-00 Merge Latest Develop
+
+on:
+  push:
+    branches:
+      - agent/ase-00-ai-strategy-engine-foundation
+    paths:
+      - .github/workflows/ase00-merge-latest-develop.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ase00-merge-latest-develop
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: agent/ase-00-ai-strategy-engine-foundation
+          fetch-depth: 0
+      - name: Merge current origin/develop without rewriting history
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin develop
+          printf '%s\n' "$(git rev-parse origin/develop)" > /tmp/ase00_latest_develop
+          git merge --no-ff --no-edit origin/develop
+      - name: Remove temporary workflow and push
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f .github/workflows/ase00-merge-latest-develop.yml
+          git add -A
+          git commit -m "chore(ai-strategy): remove temporary develop merge workflow"
+          git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
+          echo "Merged develop $(cat /tmp/ase00_latest_develop)"

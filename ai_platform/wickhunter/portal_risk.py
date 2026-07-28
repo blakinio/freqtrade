@@ -11,8 +11,6 @@ from pathlib import Path
 from typing import TypeAlias
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from pydantic import BaseModel
-
 from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.environment import Environment
 from ai_platform.portal.contracts.execution import RuntimeHealthState
@@ -31,6 +29,7 @@ from ai_platform.wickhunter.contracts import (
     TradeDirection,
     WickHunterTradeIntent,
 )
+from pydantic import BaseModel
 
 
 PortalRiskEvaluationResult: TypeAlias = ApprovedExecutionIntent | RejectedExecutionIntent

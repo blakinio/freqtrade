@@ -1,4 +1,4 @@
-name: ASE-00 Stage 1 PR Materialize
+name: ASE-00 Bundle Forensics
 
 on:
   pull_request:
@@ -11,115 +11,206 @@ permissions:
   contents: write
 
 concurrency:
-  group: ase00-stage1-pr-materialize-${{ github.event.pull_request.number }}
+  group: ase00-bundle-forensics-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
-  materialize:
+  forensics:
     if: github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - name: Check out continued branch
+      - name: Check out full repository history
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
 
-      - name: Merge current develop without rewriting history
+      - name: Inspect bundle provenance and recover exact archive when present
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git fetch --all --prune --tags
+          python - <<'PY'
+          from __future__ import annotations
+
+          import base64
+          import hashlib
+          import io
+          import os
+          import subprocess
+          import zipfile
+          from pathlib import Path
+
+          EXPECTED = "73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f"
+          ROOT = Path("ai_strategy_engine")
+          PATTERN = "ai_strategy_engine/bootstrap/strategy_engine_source.zip.b64.part"
+
+          def git(*args: str, check: bool = True) -> str:
+              result = subprocess.run(
+                  ["git", *args], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+              )
+              if check and result.returncode:
+                  raise RuntimeError(result.stderr.strip())
+              return result.stdout
+
+          def decode_parts(parts: list[tuple[str, bytes]]) -> tuple[bytes | None, str]:
+              try:
+                  encoded = b"".join(content.strip() for _, content in parts)
+                  payload = base64.b64decode(encoded, validate=True)
+              except Exception as exc:
+                  return None, f"base64_error:{type(exc).__name__}:{exc}"
+              return payload, hashlib.sha256(payload).hexdigest()
+
+          report: list[str] = [
+              "# ASE-00 bundle forensics",
+              "",
+              f"- expected ZIP SHA-256: `{EXPECTED}`",
+              f"- inspected branch head: `{git('rev-parse', 'HEAD').strip()}`",
+              f"- inspected develop: `{git('rev-parse', 'origin/develop').strip()}`",
+              "",
+              "## Current parts",
+          ]
+
+          current_paths = sorted((ROOT / "bootstrap").glob("strategy_engine_source.zip.b64.part*"))
+          current_parts = [(str(path), path.read_bytes()) for path in current_paths]
+          for path, content in current_parts:
+              report.append(
+                  f"- `{path}`: bytes={len(content)}, blob_sha=`{git('hash-object', path).strip()}`, "
+                  f"sha256=`{hashlib.sha256(content).hexdigest()}`"
+              )
+          payload, digest = decode_parts(current_parts)
+          report.extend(["", f"- current reconstructed ZIP SHA-256: `{digest}`"])
+
+          if payload is not None:
+              report.append(f"- reconstructed bytes: `{len(payload)}`")
+              try:
+                  with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                      names = archive.namelist()
+                      bad = archive.testzip()
+                      report.extend(
+                          [
+                              f"- ZIP readable: `true`",
+                              f"- ZIP member count: `{len(names)}`",
+                              f"- ZIP test failure: `{bad}`",
+                              "",
+                              "## Current ZIP members",
+                              "```text",
+                              *names,
+                              "```",
+                          ]
+                      )
+              except Exception as exc:
+                  report.append(f"- ZIP readable: `false` (`{type(exc).__name__}: {exc}`)")
+
+          commits = set()
+          history = git("log", "--all", "--format=%H", "--", "ai_strategy_engine/bootstrap").splitlines()
+          commits.update(history)
+          history_materialized = git(
+              "log", "--all", "--format=%H", "--", "ai_strategy_engine/src", "ai_strategy_engine/configs",
+              "ai_strategy_engine/schemas", "ai_strategy_engine/examples", "ai_strategy_engine/tests"
+          ).splitlines()
+          commits.update(history_materialized)
+          report.extend(["", "## Historical candidate commits"])
+
+          recovered_commit: str | None = None
+          observed: dict[str, list[str]] = {}
+          for commit in sorted(commits):
+              listing = git("ls-tree", "-r", "--name-only", commit, "ai_strategy_engine/bootstrap", check=False)
+              names = sorted(name for name in listing.splitlines() if PATTERN in name)
+              if not names:
+                  continue
+              parts: list[tuple[str, bytes]] = []
+              missing = False
+              for name in names:
+                  result = subprocess.run(
+                      ["git", "show", f"{commit}:{name}"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                  )
+                  if result.returncode:
+                      missing = True
+                      break
+                  parts.append((name, result.stdout))
+              if missing:
+                  continue
+              historical_payload, historical_digest = decode_parts(parts)
+              observed.setdefault(historical_digest, []).append(commit)
+              report.append(
+                  f"- `{commit}`: parts={len(parts)}, digest=`{historical_digest}`, "
+                  f"bytes={len(historical_payload) if historical_payload is not None else 'n/a'}"
+              )
+              if historical_digest == EXPECTED and historical_payload is not None:
+                  recovered_commit = commit
+                  Path("/tmp/ase00-expected.zip").write_bytes(historical_payload)
+                  break
+
+          report.extend(["", "## Digest summary"])
+          for observed_digest, digest_commits in sorted(observed.items()):
+              report.append(f"- `{observed_digest}`: {len(digest_commits)} commit(s)")
+
+          report.extend(["", "## Materialized-path history", "```text"])
+          report.extend(
+              git(
+                  "log", "--all", "--date=iso-strict", "--pretty=format:%H %ad %s", "--name-status", "--",
+                  "ai_strategy_engine/src", "ai_strategy_engine/configs", "ai_strategy_engine/schemas",
+                  "ai_strategy_engine/examples", "ai_strategy_engine/tests"
+              ).splitlines()
+          )
+          report.append("```")
+
+          object_matches = git(
+              "rev-list", "--objects", "--all"
+          ).splitlines()
+          relevant_objects = [
+              line for line in object_matches
+              if "strategy_engine_source" in line or "ai_strategy_engine/src/" in line
+              or "ai_strategy_engine/configs/" in line or "ai_strategy_engine/schemas/" in line
+              or "ai_strategy_engine/examples/" in line
+          ]
+          report.extend(["", "## Reachable relevant objects", "```text", *relevant_objects, "```"])
+
+          if recovered_commit:
+              report.extend(
+                  [
+                      "",
+                      "## Recovery",
+                      f"- exact expected bundle recovered from commit `{recovered_commit}`.",
+                  ]
+              )
+              with zipfile.ZipFile("/tmp/ase00-expected.zip") as archive:
+                  for member in archive.infolist():
+                      destination = (ROOT / member.filename).resolve()
+                      root = ROOT.resolve()
+                      if root not in destination.parents and destination != root:
+                          raise RuntimeError(f"unsafe archive path: {member.filename}")
+                  archive.extractall(ROOT)
+              os.environ["ASE00_RECOVERED"] = "1"
+              Path("/tmp/ase00_recovered").write_text("1", encoding="ascii")
+          else:
+              report.extend(
+                  [
+                      "",
+                      "## Recovery",
+                      "- exact expected bundle was not found in reachable Git history.",
+                  ]
+              )
+              Path("/tmp/ase00_recovered").write_text("0", encoding="ascii")
+
+          Path("ai_strategy_engine/docs/bundle-forensics.md").write_text(
+              "\n".join(report) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Commit forensic evidence or recovered source
         shell: bash
         run: |
           set -Eeuo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin develop
-          BASE_SHA="$(git rev-parse origin/develop)"
-          PRE_MERGE_HEAD="$(git rev-parse HEAD)"
-          git merge --no-ff --no-edit origin/develop
-          printf '%s\n' "$BASE_SHA" > /tmp/ase00_base_sha
-          printf '%s\n' "$PRE_MERGE_HEAD" > /tmp/ase00_pre_merge_head
-
-      - name: Materialize and collect exact diagnostics
-        shell: bash
-        run: |
-          set -u
-          mkdir -p ai_strategy_engine/docs
-          set +e
-          python ai_strategy_engine/materialize_starter.py > /tmp/ase00-materialize.log 2>&1
-          rc=$?
-          set -e
-          printf '%s\n' "$rc" > /tmp/ase00_materialize_rc
-          find ai_strategy_engine -maxdepth 5 -type f -print | LC_ALL=C sort > /tmp/ase00_file_inventory
-          cat /tmp/ase00-materialize.log
-
-      - name: Record evidence and commit observable state
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          BASE_SHA="$(cat /tmp/ase00_base_sha)"
-          PRE_MERGE_HEAD="$(cat /tmp/ase00_pre_merge_head)"
-          RC="$(cat /tmp/ase00_materialize_rc)"
-          required=(
-            ai_strategy_engine/configs/feature_registry.v1.yaml
-            ai_strategy_engine/configs/search_spaces.v1.yaml
-            ai_strategy_engine/configs/miyagi_parameter_map.v1.yaml
-            ai_strategy_engine/schemas
-            ai_strategy_engine/examples
-            ai_strategy_engine/src/strategy_engine
-            ai_strategy_engine/tests
-            ai_strategy_engine/docs
-          )
-          : > /tmp/ase00_missing
-          for path in "${required[@]}"; do
-            if [[ ! -e "$path" ]]; then
-              printf '%s\n' "$path" >> /tmp/ase00_missing
-            fi
-          done
-          status=incomplete
-          if [[ "$RC" == "0" && ! -s /tmp/ase00_missing ]]; then
-            status=complete
+          git add -f ai_strategy_engine/docs/bundle-forensics.md
+          if [[ "$(cat /tmp/ase00_recovered)" == "1" ]]; then
+            git add -f ai_strategy_engine/configs ai_strategy_engine/schemas ai_strategy_engine/examples \
+              ai_strategy_engine/src ai_strategy_engine/tests ai_strategy_engine/pyproject.toml \
+              ai_strategy_engine/README.md || true
           fi
-          MATERIALIZED_TREE_HASH="$(find ai_strategy_engine -type f ! -path '*/bootstrap/*' -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
-          {
-            echo '# ASE-00 materialization evidence'
-            echo
-            echo "- status: \`$status\`"
-            echo "- develop SHA merged in runner: \`$BASE_SHA\`"
-            echo "- branch head before runner merge: \`$PRE_MERGE_HEAD\`"
-            echo "- materializer exit code: \`$RC\`"
-            echo '- expected source ZIP SHA-256: `73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f`'
-            echo "- materialized source tree hash: \`$MATERIALIZED_TREE_HASH\`"
-            echo '- command: `python ai_strategy_engine/materialize_starter.py`'
-            echo '- update method: non-force merge preserving both parent histories'
-            echo
-            echo '## Missing required paths'
-            if [[ -s /tmp/ase00_missing ]]; then
-              sed 's/^/- `/' /tmp/ase00_missing | sed 's/$/`/'
-            else
-              echo '- none'
-            fi
-            echo
-            echo '## Materializer output'
-            echo '```text'
-            cat /tmp/ase00-materialize.log
-            echo '```'
-            echo
-            echo '## Materialized file inventory'
-            echo '```text'
-            cat /tmp/ase00_file_inventory
-            echo '```'
-          } > ai_strategy_engine/docs/materialization-evidence.md
-          if [[ "$status" == "complete" ]]; then
-            rm -f ai_strategy_engine/bootstrap/strategy_engine_source.zip.b64.part*
-            rmdir ai_strategy_engine/bootstrap 2>/dev/null || true
-            rm -f .github/workflows/ase00-stage1-materialize.yml
-            rm -f .github/workflows/ase00-stage1-pr.yml
-          fi
-          printf '%s\n' "$status" > /tmp/ase00_materialize_status
-          git add -A
-          git commit -m "feat(ai-strategy): materialize ASE-00 starter on current develop"
+          git commit -m "docs(ai-strategy): record ASE-00 bundle provenance forensics"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
-
-      - name: Enforce complete materialization
-        shell: bash
-        run: test "$(cat /tmp/ase00_materialize_status)" = complete

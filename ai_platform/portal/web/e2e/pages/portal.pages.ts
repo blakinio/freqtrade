@@ -52,9 +52,9 @@ export class BotDetailPage {
     await this.page.getByRole("button", { name: "Create revision 2" }).click();
   }
 
-  async requestPause(): Promise<void> {
+  async requestPauseIntent(): Promise<void> {
     this.page.once("dialog", (dialog) => dialog.accept());
-    await this.page.getByRole("button", { name: "Pause" }).click();
+    await this.page.getByRole("button", { name: "Pause new entries" }).click();
   }
 }
 

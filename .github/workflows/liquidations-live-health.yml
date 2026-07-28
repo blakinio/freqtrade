@@ -26,8 +26,36 @@ jobs:
     permissions:
       contents: read
       issues: write
+      statuses: write
 
     steps:
+      - name: Publish pending health status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_SHA: ${{ github.sha }}
+          STATUS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          payload=$(python - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({
+              "state": "pending",
+              "context": "liquidations-live-health",
+              "description": "Checking Synology liquidation collector health",
+              "target_url": os.environ["STATUS_URL"],
+          }))
+          PY
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$STATUS_SHA" \
+            --data "$payload" >/dev/null
+
       - name: Check out exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
@@ -95,6 +123,44 @@ jobs:
           path: ${{ runner.temp }}/liquidations-live-health.json
           if-no-files-found: warn
           retention-days: 14
+
+      - name: Publish final health status
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEALTH_EXIT_CODE: ${{ steps.health.outputs.exit_code }}
+          STATUS_SHA: ${{ github.sha }}
+          STATUS_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$HEALTH_EXIT_CODE" == "0" ]]; then
+            state=success
+            description="Synology liquidation collector is healthy"
+          else
+            state=failure
+            description="Synology liquidation collector health check failed"
+          fi
+          export state description
+          payload=$(python - <<'PY'
+          import json
+          import os
+
+          print(json.dumps({
+              "state": os.environ["state"],
+              "context": "liquidations-live-health",
+              "description": os.environ["description"],
+              "target_url": os.environ["STATUS_URL"],
+          }))
+          PY
+          )
+          curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$STATUS_SHA" \
+            --data "$payload" >/dev/null
 
       - name: Enforce healthy result
         if: always()

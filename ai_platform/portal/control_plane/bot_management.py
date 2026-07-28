@@ -27,6 +27,7 @@ from ai_platform.portal.signal_control.schema import (
 )
 from ai_platform.portal.signal_control.service import SignalControlService
 
+
 if TYPE_CHECKING:
     from ai_platform.portal.bot_operations.service import BotCommandService
 

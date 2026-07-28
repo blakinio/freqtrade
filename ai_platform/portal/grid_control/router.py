@@ -5,10 +5,22 @@ from collections.abc import Callable
 from fastapi import APIRouter, Depends
 
 from ai_platform.portal.contracts.common import ContractModel
-from ai_platform.portal.control_plane.bot_management import actor_from_request, capabilities_from_request
+from ai_platform.portal.control_plane.bot_management import (
+    actor_from_request,
+    capabilities_from_request,
+)
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.grid_control.evidence import GridControlContext, GridExchangeCapabilityEvidence, GridTemplateCapabilityEvidence
-from ai_platform.portal.grid_control.schema import GridPolicyRevision, GridPreview, GridPreviewRequest, PersistGridPolicyRequest
+from ai_platform.portal.grid_control.evidence import (
+    GridControlContext,
+    GridExchangeCapabilityEvidence,
+    GridTemplateCapabilityEvidence,
+)
+from ai_platform.portal.grid_control.schema import (
+    GridPolicyRevision,
+    GridPreview,
+    GridPreviewRequest,
+    PersistGridPolicyRequest,
+)
 from ai_platform.portal.grid_control.service import GridControlService
 
 
@@ -18,7 +30,9 @@ class GridPreviewApiRequest(ContractModel):
     exchange: GridExchangeCapabilityEvidence
 
 
-def build_router(service: GridControlService, context_dependency: Callable[..., RequestContext]) -> APIRouter:
+def build_router(
+    service: GridControlService, context_dependency: Callable[..., RequestContext]
+) -> APIRouter:
     router = APIRouter(prefix="/v1/bot-management/grid", tags=["bot-management"])
 
     def access(context: RequestContext) -> GridControlContext:

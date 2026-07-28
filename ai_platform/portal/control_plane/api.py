@@ -8,14 +8,14 @@ from fastapi import Depends, FastAPI, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 
-from ai_platform.portal.control_plane.bot_management import (
-    BotManagementServices,
-    build_default_bot_management_services,
-)
 from ai_platform.portal.contracts.audit import AuditEvent
 from ai_platform.portal.contracts.bots import BotDesiredState, BotInstance, BotSpec
 from ai_platform.portal.contracts.models import ModelVersion
 from ai_platform.portal.contracts.risk import RiskDecision, TradeSide
+from ai_platform.portal.control_plane.bot_management import (
+    BotManagementServices,
+    build_default_bot_management_services,
+)
 from ai_platform.portal.control_plane.context import (
     IdentityContextProvider,
     RequestContext,
@@ -517,6 +517,7 @@ def create_app(
     from ai_platform.portal.signal_control.router import (
         build_router as build_signal_control_router,
     )
+
     _register_exception_handlers(app)
     register_bot_management_exception_handlers(app)
     app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))

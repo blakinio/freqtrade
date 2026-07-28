@@ -55,11 +55,11 @@ forbidden.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T13:44:00+02:00
-head: 38f86bc7e6dd76aefca22872d89e69b21fed83d6
+updated_at: 2026-07-28T14:12:00+02:00
+head: e1c006aad0eb6ca0776017c28d228b7915420705
 branch: feat/residual-pytorch-bounded-m1-v3-generalization
 pr: 610
-status: validating
+status: ready
 context_routes:
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
   - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
@@ -87,8 +87,10 @@ proven:
   - V2 trigger PR 580 was closed without merge.
   - V2 cleanup PR 602 merged as 856dbfcc0dea1d5e39fdddf0d65da2e24bb6adbb.
   - PR 610 contains exactly 16 declared infrastructure files and no execution request.
-  - Diagnostic run 30355416315 applied exactly three mechanical style fixes and passed the AI Platform tests.
-  - The temporary diagnostic workflow was removed at head 38f86bc7e6dd76aefca22872d89e69b21fed83d6.
+  - AI Platform CI 30356817157 passed tests, Ruff, format, codespell and JSON validation on head e1c006aad0eb6ca0776017c28d228b7915420705.
+  - Experimental Model Runtime Smoke 30356817219 passed the full FreqAI/PyTorch runtime on the same head.
+  - Freqtrade CI 30356817166 passed Python 3.11-3.14, coverage, documentation, distributions and CI Gate on the same head.
+  - Zizmor 30356817156 passed on the same head.
 derived:
   - A fixed two-pair cohort preserves one-primary/one-correlated feature geometry.
   - SOL/USDT and XRP/USDT isolate pair-cohort generalization from feature-count growth.
@@ -101,7 +103,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: V3_FORMAT_AND_IMPORT_STYLE
-  evidence: Initial PR 610 CI failed before lint completion because three files required Ruff formatting and Iterator had to move to collections.abc; no experimental contract change was required.
+  evidence: Initial PR 610 CI required mechanical Ruff formatting and a collections.abc import; subsequent lightweight collection required dependency-conditional numeric tests, without any experimental contract change.
 rejected_hypotheses:
   - Add BTC, ETH, SOL and XRP to one correlation list; that would increase feature geometry and confound the test.
   - Reuse May-June historical OOS or the protected final holdout; both remain forbidden.
@@ -124,18 +126,21 @@ changed_paths:
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
   - tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
 validation:
-  - command: local v3 JSON, YAML and Python syntax validation
-    result: PASS
-    evidence: All generated JSON parsed, workflow YAML parsed and Python files compiled.
   - command: v2-to-v3 differential contract validation
     result: PASS
     evidence: Only pair cohort, cache namespace and isolated v3 identities differ; models and geometry match.
-  - command: diagnostic run 30355416315
+  - command: AI Platform CI 30356817157
     result: PASS
-    evidence: Exact mechanical Ruff fixes were committed and the complete AI Platform test suite passed.
-  - command: implementation PR 610 exact-head CI
-    result: NOT_RUN
-    evidence: Repository CI is pending after removal of the temporary diagnostic workflow.
+    evidence: Tests, Ruff, format, codespell and JSON validation passed.
+  - command: Experimental Model Runtime Smoke 30356817219
+    result: PASS
+    evidence: Canonical experimental-model runtime smoke passed with FreqAI and PyTorch dependencies.
+  - command: Freqtrade CI 30356817166
+    result: PASS
+    evidence: Python 3.11-3.14, coverage, docs, distributions and CI Gate passed.
+  - command: zizmor 30356817156
+    result: PASS
+    evidence: Workflow security analysis passed.
 blockers: []
-next_action: Complete exact-head CI for PR 610, fix any first failure, merge the infrastructure, then create the separate exact-one-file execution request.
+next_action: Merge PR 610 after final exact-head CI, then add a guarded one-shot generator and create the separate exact-one-file v3 execution request.
 ```

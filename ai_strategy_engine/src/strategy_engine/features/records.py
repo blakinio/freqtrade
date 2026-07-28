@@ -129,11 +129,13 @@ def make_confirmed_pivot_record(
     producer: str,
     source_event_id: str,
     parameters: dict[str, JsonValue],
+    detection_event_confirmed: bool = True,
 ) -> FeatureRecord:
     event_time = _as_datetime(pivot.event_time)
     detected_at = _as_datetime(pivot.detected_at)
     available_at = _as_datetime(pivot.available_at)
-    confirmed = available_at <= decision_time
+    available_before_decision = available_at <= decision_time
+    confirmed = detection_event_confirmed and available_before_decision
     return make_feature_record(
         feature_id="confirmed_pivot.v1",
         symbol=symbol,
@@ -158,7 +160,9 @@ def make_confirmed_pivot_record(
         parameters=parameters,
         provenance_details={
             "pivot_confirmed": confirmed,
-            "right_bars_confirmed": confirmed,
+            "right_bars_confirmed": detection_event_confirmed,
+            "detection_event_confirmed": detection_event_confirmed,
+            "available_before_decision": available_before_decision,
         },
     )
 

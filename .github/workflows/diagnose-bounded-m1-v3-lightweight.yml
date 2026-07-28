@@ -1,0 +1,39 @@
+name: Diagnose Bounded M1 V3 Lightweight
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - "ai_platform/**"
+      - "tests/ai_platform/**"
+      - ".github/workflows/**"
+      - "docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Capture active AI Platform CI definition
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic
+          grep -R -l '^name: AI Platform CI$' .github/workflows > diagnostic/workflow-path.txt
+          test "$(wc -l < diagnostic/workflow-path.txt)" -eq 1
+          workflow="$(cat diagnostic/workflow-path.txt)"
+          cp "$workflow" diagnostic/ai-platform-ci.yml
+          sed -n '1,240p' "$workflow" > diagnostic/ai-platform-ci-first-240.txt
+      - name: Upload definition
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bounded-m1-v3-lightweight-definition-${{ github.event.pull_request.number }}
+          path: diagnostic/
+          if-no-files-found: error
+          retention-days: 1

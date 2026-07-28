@@ -4,10 +4,10 @@ import pandas as pd
 
 
 def no_repeat_signals(raw: pd.Series, cooldown_bars: int = 0) -> pd.Series:
-    """Keep emitted non-zero direction changes and enforce an optional cooldown.
+    """Emit raw non-zero direction transitions that are outside the cooldown window.
 
-    Input values are expected to be -1, 0 or 1. A direction blocked by cooldown remains
-    eligible for emission after the cooldown expires; only an emitted direction updates state.
+    A transition observed during cooldown is dropped rather than replayed later. A later signal
+    requires a new raw direction transition, preserving edge-triggered no-repeat semantics.
     """
     if cooldown_bars < 0:
         raise ValueError("cooldown_bars must be >= 0")
@@ -15,14 +15,15 @@ def no_repeat_signals(raw: pd.Series, cooldown_bars: int = 0) -> pd.Series:
         raise ValueError("raw signals must be in {-1, 0, 1}")
     output = pd.Series(0, index=raw.index, dtype="Int64")
     last_emitted_index = -(10**12)
-    last_emitted_direction = 0
+    last_observed_direction = 0
     for index, value in enumerate(raw.fillna(0).astype(int)):
-        transition = value != 0 and value != last_emitted_direction
+        transition = value != 0 and value != last_observed_direction
         cooldown_elapsed = index - last_emitted_index > cooldown_bars
         if transition and cooldown_elapsed:
             output.iloc[index] = value
             last_emitted_index = index
-            last_emitted_direction = value
+        if value != 0:
+            last_observed_direction = value
     return output
 
 

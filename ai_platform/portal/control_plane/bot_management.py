@@ -8,6 +8,10 @@ from ai_platform.portal.bot_builder.service import BotConfigurationBuilderServic
 from ai_platform.portal.bot_catalog.default_catalog import approved_dry_run_catalog
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.service import BotCatalogService
+from ai_platform.portal.bot_operations.intent_service import (
+    LifecycleCommandIntentService,
+    UnavailableBotRuntimeStateProvider,
+)
 from ai_platform.portal.contracts.bot_management.capabilities import BotManagementCapability
 from ai_platform.portal.contracts.bot_management.signals import (
     SignalAuthenticationMode,
@@ -88,6 +92,7 @@ class BotManagementServices:
     catalog: BotCatalogService
     builder: BotConfigurationBuilderService
     commands: BotCommandService
+    command_intents: LifecycleCommandIntentService
     signals: SignalControlService
     grid: GridControlService
     exchanges: ExchangeConnectionService
@@ -118,13 +123,18 @@ def build_default_bot_management_services(
     from ai_platform.portal.bot_operations.service import BotCommandService
 
     catalog = BotCatalogService(InMemoryBotCatalogRepository((approved_dry_run_catalog(),)))
+    commands = BotCommandService(session_factory)
     return BotManagementServices(
         catalog=catalog,
         builder=BotConfigurationBuilderService(
             InMemoryBotConfigurationRepository(),
             catalog,
         ),
-        commands=BotCommandService(session_factory),
+        commands=commands,
+        command_intents=LifecycleCommandIntentService(
+            commands,
+            UnavailableBotRuntimeStateProvider(),
+        ),
         signals=SignalControlService(
             InMemorySignalControlRepository(),
             UnavailableSignatureVerificationProvider(),

@@ -1,0 +1,33 @@
+name: Inspect Binance Smoke Job 90229653635
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - ".github/workflows/inspect-binance-smoke-job-90229653635.yml"
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Print exact smoke failure section
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_JOB_ID: "90229653635"
+        run: |
+          set -euo pipefail
+          log="$(mktemp)"
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/$TARGET_JOB_ID/logs" \
+            --output "$log"
+          sed -n '/Run frozen single-request smoke/,/Upload bounded failure evidence/p' "$log"
+          printf '%s\n' '--- terminal tail ---'
+          tail -n 120 "$log"

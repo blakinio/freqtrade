@@ -410,9 +410,7 @@ def build_prediction_diagnostics(path: Path, *, track_id: str) -> dict[str, Any]
     return payload
 
 
-def validate_training_directory(  # noqa: C901
-    path: Path, *, track_id: str
-) -> dict[str, Any]:
+def validate_training_directory(path: Path, *, track_id: str) -> dict[str, Any]:  # noqa: C901
     if track_id not in EXPECTED_TRACKS:
         raise ResidualPyTorchBoundedM1Error(f"Unknown training-evidence track: {track_id}")
     files = sorted(path.glob("*.json"))

@@ -39,47 +39,87 @@ jobs:
           printf '%s\n' "$BASE_SHA" > /tmp/ase00_base_sha
           printf '%s\n' "$PRE_MERGE_HEAD" > /tmp/ase00_pre_merge_head
 
-      - name: Materialize verified starter
+      - name: Materialize and collect exact diagnostics
         shell: bash
         run: |
-          set -Eeuo pipefail
-          python ai_strategy_engine/materialize_starter.py
-          test -f ai_strategy_engine/configs/feature_registry.v1.yaml
-          test -f ai_strategy_engine/configs/search_spaces.v1.yaml
-          test -f ai_strategy_engine/configs/miyagi_parameter_map.v1.yaml
-          test -d ai_strategy_engine/schemas
-          test -d ai_strategy_engine/examples
-          test -d ai_strategy_engine/src/strategy_engine
-          test -d ai_strategy_engine/tests
-          test -d ai_strategy_engine/docs
+          set -u
+          mkdir -p ai_strategy_engine/docs
+          set +e
+          python ai_strategy_engine/materialize_starter.py > /tmp/ase00-materialize.log 2>&1
+          rc=$?
+          set -e
+          printf '%s\n' "$rc" > /tmp/ase00_materialize_rc
+          find ai_strategy_engine -maxdepth 5 -type f -print | LC_ALL=C sort > /tmp/ase00_file_inventory
+          cat /tmp/ase00-materialize.log
 
-      - name: Record evidence and remove duplicate bootstrap
+      - name: Record evidence and commit observable state
         shell: bash
         run: |
           set -Eeuo pipefail
           BASE_SHA="$(cat /tmp/ase00_base_sha)"
           PRE_MERGE_HEAD="$(cat /tmp/ase00_pre_merge_head)"
+          RC="$(cat /tmp/ase00_materialize_rc)"
+          required=(
+            ai_strategy_engine/configs/feature_registry.v1.yaml
+            ai_strategy_engine/configs/search_spaces.v1.yaml
+            ai_strategy_engine/configs/miyagi_parameter_map.v1.yaml
+            ai_strategy_engine/schemas
+            ai_strategy_engine/examples
+            ai_strategy_engine/src/strategy_engine
+            ai_strategy_engine/tests
+            ai_strategy_engine/docs
+          )
+          : > /tmp/ase00_missing
+          for path in "${required[@]}"; do
+            if [[ ! -e "$path" ]]; then
+              printf '%s\n' "$path" >> /tmp/ase00_missing
+            fi
+          done
+          status=incomplete
+          if [[ "$RC" == "0" && ! -s /tmp/ase00_missing ]]; then
+            status=complete
+          fi
           MATERIALIZED_TREE_HASH="$(find ai_strategy_engine -type f ! -path '*/bootstrap/*' -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')"
-          cat > ai_strategy_engine/docs/materialization-evidence.md <<EOF
-          # ASE-00 materialization evidence
-
-          - develop SHA merged: \`$BASE_SHA\`
-          - branch head before merge: \`$PRE_MERGE_HEAD\`
-          - expected source ZIP SHA-256: \`73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f\`
-          - materialized source tree hash: \`$MATERIALIZED_TREE_HASH\`
-          - command: \`python ai_strategy_engine/materialize_starter.py\`
-          - update method: non-force merge commit preserving both parent histories
-          - bootstrap parts: removed after verified materialization; provenance remains in Git history and \`ARCHIVE_MANIFEST.md\`.
-          EOF
-          rm -f ai_strategy_engine/bootstrap/strategy_engine_source.zip.b64.part*
-          rmdir ai_strategy_engine/bootstrap 2>/dev/null || true
-          rm -f .github/workflows/ase00-stage1-materialize.yml
-          rm -f .github/workflows/ase00-stage1-pr.yml
-
-      - name: Commit and push materialized sources
-        shell: bash
-        run: |
-          set -Eeuo pipefail
+          {
+            echo '# ASE-00 materialization evidence'
+            echo
+            echo "- status: \`$status\`"
+            echo "- develop SHA merged in runner: \`$BASE_SHA\`"
+            echo "- branch head before runner merge: \`$PRE_MERGE_HEAD\`"
+            echo "- materializer exit code: \`$RC\`"
+            echo '- expected source ZIP SHA-256: `73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f`'
+            echo "- materialized source tree hash: \`$MATERIALIZED_TREE_HASH\`"
+            echo '- command: `python ai_strategy_engine/materialize_starter.py`'
+            echo '- update method: non-force merge preserving both parent histories'
+            echo
+            echo '## Missing required paths'
+            if [[ -s /tmp/ase00_missing ]]; then
+              sed 's/^/- `/' /tmp/ase00_missing | sed 's/$/`/'
+            else
+              echo '- none'
+            fi
+            echo
+            echo '## Materializer output'
+            echo '```text'
+            cat /tmp/ase00-materialize.log
+            echo '```'
+            echo
+            echo '## Materialized file inventory'
+            echo '```text'
+            cat /tmp/ase00_file_inventory
+            echo '```'
+          } > ai_strategy_engine/docs/materialization-evidence.md
+          if [[ "$status" == "complete" ]]; then
+            rm -f ai_strategy_engine/bootstrap/strategy_engine_source.zip.b64.part*
+            rmdir ai_strategy_engine/bootstrap 2>/dev/null || true
+            rm -f .github/workflows/ase00-stage1-materialize.yml
+            rm -f .github/workflows/ase00-stage1-pr.yml
+          fi
+          printf '%s\n' "$status" > /tmp/ase00_materialize_status
           git add -A
           git commit -m "feat(ai-strategy): materialize ASE-00 starter on current develop"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
+
+      - name: Enforce complete materialization
+        shell: bash
+        run: test "$(cat /tmp/ase00_materialize_status)" = complete

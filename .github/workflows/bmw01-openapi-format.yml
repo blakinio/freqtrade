@@ -1,0 +1,59 @@
+name: Finalize BMW-01 OpenAPI and formatting
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'feat/portal-bmw01-catalog-builder-v1'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/portal-bmw01-catalog-builder-v1
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Patch exact OpenAPI path and format Python
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/ai_platform/portal/control_plane/test_api.py")
+          text = path.read_text()
+          marker = '        "/v1/bot-management/catalog/{catalog_id}/latest",\n'
+          addition = marker + '        "/v1/bot-management/catalog/{catalog_id}/{catalog_version}",\n'
+          if addition not in text:
+              if marker not in text:
+                  raise SystemExit("OpenAPI catalog marker missing")
+              text = text.replace(marker, addition, 1)
+          path.write_text(text)
+          Path(".github/workflows/bmw01-openapi-format.yml").unlink()
+          PY
+          python -m pip install --disable-pip-version-check -q ruff==0.15.21
+          ruff check --fix \
+            ai_platform/portal/bot_catalog/service.py \
+            ai_platform/portal/bot_catalog/router.py \
+            tests/ai_platform/portal/bot_catalog/test_snapshot_api.py \
+            tests/ai_platform/portal/control_plane/test_api.py
+          ruff format \
+            ai_platform/portal/bot_catalog/service.py \
+            ai_platform/portal/bot_catalog/router.py \
+            tests/ai_platform/portal/bot_catalog/test_snapshot_api.py \
+            tests/ai_platform/portal/control_plane/test_api.py
+      - name: Commit exact patch
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/portal/bot_catalog \
+            tests/ai_platform/portal/bot_catalog \
+            tests/ai_platform/portal/control_plane/test_api.py \
+            .github/workflows/bmw01-openapi-format.yml
+          git commit -m "test(portal): register BMW-01 catalog snapshot route"
+          git push origin HEAD:feat/portal-bmw01-catalog-builder-v1

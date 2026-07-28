@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation
 status: active
-branch: fix/residual-pytorch-bounded-m1-v2-volume-change
+branch: develop
 base_branch: develop
 created: 2026-07-27
-updated: 2026-07-27
-related_pr: 540
+updated: 2026-07-28
+related_pr: 566
 owned_paths:
   - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
   - ai_platform/strategies/AiFrozenCandidateStrategyV2.py
@@ -18,6 +18,7 @@ owned_paths:
   - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v2.json
   - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
   - tests/ai_platform/test_residual_pytorch_bounded_m1_v2_remediation.py
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_v2_cross_pair_identity.py
   - .github/workflows/residual-pytorch-bounded-m1-execution.yml
   - .github/workflows/residual-pytorch-bounded-m1-v2-request-generator.yml
 required_reads:
@@ -38,21 +39,21 @@ Retire the failed v1 feature contract and complete the same bounded development-
 
 ## Authorization
 
-The user explicitly authorized autonomous continuation to completion on 2026-07-27. V2 may replace the undefined prior-volume percentage change with the finite symmetric formula `2*(current-previous)/(abs(current)+abs(previous))`, using `0` when the denominator is zero or the result is non-finite. For non-negative market volume the result is bounded to `[-2, 2]`.
+The user explicitly authorized autonomous continuation to completion on 2026-07-27 and repeated that authorization on 2026-07-28. V2 may replace the undefined prior-volume percentage change with the finite symmetric formula `2*(current-previous)/(abs(current)+abs(previous))`, using `0` when the denominator is zero or the result is non-finite. For non-negative market volume the result is bounded to `[-2, 2]`.
 
 All targets, thresholds, models, model parameters, pairs, timeframes, fees, seeds, temporal boundaries, execution counts, the consumed May-June historical OOS prohibition, protected final holdout prohibition, Phase 6 isolation, no-winner-selection rule and no-profitability/superiority claims remain unchanged.
 
-V1 is retired and must not be modified or rerun. Real v2 execution still requires a separate PR adding exactly the canonical v2 request file, and that trigger PR must be closed without merge after terminal evidence collection.
+V1 is retired and must not be modified or rerun. Real v2 execution requires a separate PR adding exactly the canonical v2 request file, and every trigger PR must be closed without merge after terminal evidence collection.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-27T22:00:00Z
-head: 8d0cc85d06edb8dd003dcbea47f406b01a5bdb3b
-branch: fix/residual-pytorch-bounded-m1-v2-volume-change
-pr: 540
-status: validating
+updated_at: 2026-07-28T07:47:00Z
+head: a7add1dd079ee59a209f0eb41502a734def976f9
+branch: develop
+pr: 566
+status: ready
 context_routes:
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260726-residual-pytorch-bounded-m1-execution.md
@@ -70,38 +71,58 @@ owned_paths:
   - ai_platform/experiments/residual-pytorch-m1-residual-mlp-v2.json
   - tests/ai_platform/test_residual_pytorch_bounded_m1_execution.py
   - tests/ai_platform/test_residual_pytorch_bounded_m1_v2_remediation.py
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_v2_cross_pair_identity.py
   - .github/workflows/residual-pytorch-bounded-m1-execution.yml
   - .github/workflows/residual-pytorch-bounded-m1-v2-request-generator.yml
 proven:
-  - V1 run 30299203871 passed request and data gates but failed closed because %-volume-change contained infinity for both pairs.
-  - PR 540 versions only the finite volume feature and its bounded infrastructure; no canonical request is present.
-  - The finite zero-volume regression and the complete lightweight AI platform suite passed with 792 tests and 66 skips.
-  - AI Platform CI 30308972544 passed tests, Ruff, format, codespell and JSON validation after applying its exact reported fixes.
-  - The standard AI Platform workflow was restored byte-for-byte with read-only permissions after diagnostics.
+  - V1 run 30299203871 failed closed because %-volume-change contained infinity for both pairs; no model executed.
+  - PR 540 merged finite bounded v2 infrastructure as 7ce6f1ff20a59eff9d6ac904e20a15655f27d200.
+  - Run 30310204713 passed request, pair data and combined coverage gates before model fit.
+  - Both v2 pair audits produced 272 finite expanded features, 8628 eligible rows and 12 trailing target-null rows.
+  - Run 30310204713 failed closed only because raw pair-qualified feature-name hashes were compared directly.
+  - Neither consumed May-June historical OOS nor the protected final holdout was used.
+  - PR 566 added primary/correlated pair-role normalization while preserving raw hashes and semantic drift checks.
+  - PR 566 AI Platform CI 30338073583 passed tests, Ruff, format, codespell and JSON validation.
+  - PR 566 Freqtrade CI 30338073595 passed Python 3.11-3.14, coverage, distributions and CI Gate.
+  - PR 566 zizmor 30338073594 passed.
+  - PR 566 merged as a7add1dd079ee59a209f0eb41502a734def976f9.
+  - Marker PR 575 changed exactly one marker file and was closed without merge.
+  - Generator run 30339476205 failed before dependencies because the checkpoint used governance-invalid result FAIL_LINT_ONLY.
+  - Generator run 30339476205 performed no request generation, data access, training or backtesting.
 derived:
-  - Symmetric volume change avoids division by prior volume alone and is finite at zero-volume transitions.
-  - The verified pre-May cache is data-only and may be reused because pair universe, timeframes and temporal geometry are unchanged; coverage gates still rerun before fit.
+  - Pair-qualified feature names must be normalized by primary/correlated role before cross-pair identity comparison.
+  - Role normalization preserves feature ordering and semantics while allowing the primary pair symbol to differ.
+  - A fresh request must bind the merged validator SHA and must not reuse the request from PR 554.
 unknown:
-  - Whether the final exact-head infrastructure CI passes after the restored workflow and checkpoint update.
-  - Whether the exact expanded v2 matrix passes all finite, target and cross-pair identity gates.
-  - Whether all three unchanged comparator models complete exactly once.
+  - Whether the fresh exact-one-file run passes the corrected cross-pair audit.
+  - Whether LightGBM, seeded MLP and residual MLP each complete exactly once.
+  - The terminal descriptive diagnostics for the three comparator tracks.
 conflicts: []
 first_failure:
-  marker: EXPANDED_VOLUME_CHANGE_INFINITY
-  evidence: V1 artifact 8667673779 preserved the exact BTC/USDT and ETH/USDT training exceptions.
+  marker: CHECKPOINT_VALIDATION_ENUM_DRIFT
+  evidence: Generator run 30339476205 rejected validation result FAIL_LINT_ONLY; governance permits only PASS, FAIL, BLOCKED or NOT_RUN.
 rejected_hypotheses:
-  - Missing or late pre-May data caused v1 failure; pair and combined coverage verification passed.
-  - A comparator model caused v1 failure; all three were skipped before fit.
-  - The v2 lightweight suite requires NumPy or Pandas; the regression was rewritten dependency-light and the full suite passed.
+  - Generator run 30339476205 accessed market data or trained a model; it stopped at checkpoint validation.
+  - PR 566 changed feature values, targets, thresholds or model parameters; it changed evidence validation only.
+  - The v2 matrices remained non-finite; both pair audit reports recorded zero non-finite feature rows.
 changed_paths:
-  - versioned v2 strategy, contract, manifests, validators, tests and guarded workflows; no canonical request
+  - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
 validation:
-  - command: AI Platform CI 30308972544
+  - command: guarded run 30310204713
+    result: FAIL
+    evidence: Pair matrices passed, but raw pair-qualified cross-pair hashes caused a false-negative before model fit.
+  - command: AI Platform CI 30338073583
     result: PASS
-    evidence: Tests, Ruff, format, codespell and JSON validation all passed before restoring the standard workflow.
-  - command: final exact-head PR 540 CI
-    result: NOT_RUN
-    evidence: The final checkpoint commit has not completed its CI yet.
+    evidence: Tests, Ruff, format, codespell and JSON validation passed on the final PR 566 head.
+  - command: Freqtrade CI 30338073595
+    result: PASS
+    evidence: Python 3.11-3.14, full coverage, distributions and CI Gate passed on the final PR 566 head.
+  - command: zizmor 30338073594
+    result: PASS
+    evidence: Workflow security analysis passed on the final PR 566 head.
+  - command: request generator 30339476205
+    result: FAIL
+    evidence: Checkpoint validation rejected FAIL_LINT_ONLY before dependencies or request generation.
 blockers: []
-next_action: Validate the final exact head of PR 540 with AI Platform CI, Freqtrade CI and zizmor; merge only if all pass, then generate and execute the separate exact-one-file v2 request.
+next_action: Merge this checkpoint correction, reset the request branch to its merge SHA, generate a fresh canonical request, run the guarded v2 comparison to terminal, close the trigger PR without merge, and record final evidence.
 ```

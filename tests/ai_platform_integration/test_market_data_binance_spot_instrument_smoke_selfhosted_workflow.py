@@ -5,6 +5,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = (
     REPOSITORY_ROOT / ".github/workflows/ai-platform-binance-spot-instrument-smoke-selfhosted.yml"
 )
+RUNNER_ENTRYPOINT_PATH = REPOSITORY_ROOT / "deploy/synology/freqtrade-runner/entrypoint.sh"
 TRIGGER_PATH = (
     "ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json"
 )
@@ -12,6 +13,10 @@ TRIGGER_PATH = (
 
 def _workflow() -> str:
     return WORKFLOW_PATH.read_text(encoding="utf-8")
+
+
+def _runner_entrypoint() -> str:
+    return RUNNER_ENTRYPOINT_PATH.read_text(encoding="utf-8")
 
 
 def test_selfhosted_workflow_is_exact_request_gated() -> None:
@@ -27,8 +32,13 @@ def test_selfhosted_workflow_is_exact_request_gated() -> None:
 
 def test_selfhosted_workflow_requires_owner_managed_runner() -> None:
     workflow = _workflow()
+    runner_entrypoint = _runner_entrypoint()
 
-    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" in workflow
+    assert "runs-on: freqtrade-staging" in workflow
+    assert "runs-on: [self-hosted, Linux, freqtrade-staging]" not in workflow
+    assert 'RUNNER_LABELS="${RUNNER_LABELS:-freqtrade-staging}"' in runner_entrypoint
+    assert '--labels "$RUNNER_LABELS"' in runner_entrypoint
+    assert "--no-default-labels" in runner_entrypoint
     assert "environment: synology-staging" in workflow
     assert '[[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]' in workflow
     assert '[[ "$RUNNER_OS_VALUE" == "Linux" ]]' in workflow

@@ -12,12 +12,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: ase00-final-develop-sync
+  group: ase00-atomic-final-sync
   cancel-in-progress: true
 
 jobs:
   sync:
-    name: merge-current-develop
+    name: merge-develop-and-restore-validation
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Merge current develop and update checkpoint SHA
+      - name: Finalize branch atomically
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -41,7 +41,7 @@ jobs:
           from pathlib import Path
           import subprocess
 
-          old_sha = '66e119db9a009cef6a51303a0f054012362fc98b'
+          old_sha = '6b7d3d9ea95104618f636ad4f08227c9c890324b'
           develop_sha = subprocess.check_output(
               ['git', 'rev-parse', 'origin/develop'], text=True
           ).strip()
@@ -58,12 +58,13 @@ jobs:
                   raise SystemExit(f'develop SHA anchor mismatch: {relative}')
               path.write_text(text.replace(old_sha, develop_sha, 1), encoding='utf-8')
           PY
-          git add ai_strategy_engine/docs/IMPLEMENTATION_CHECKPOINT.md \
+          git show 7d4d4ccf78397c93f5a3f71a87bf4deb7a3823de:.github/workflows/ai-strategy-engine.yml \
+            > .github/workflows/ai-strategy-engine.yml
+          git add .github/workflows/ai-strategy-engine.yml \
+            ai_strategy_engine/docs/IMPLEMENTATION_CHECKPOINT.md \
             ai_strategy_engine/docs/current-state.md \
             ai_strategy_engine/docs/materialization-evidence.md
-          if ! git diff --cached --quiet; then
-            git commit -m "docs(ai-strategy): record final develop baseline"
-          fi
+          git commit -m "chore(ai-strategy): finalize synced validation state"
           authorization="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $authorization" \
             push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

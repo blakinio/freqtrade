@@ -173,12 +173,61 @@ else
   esac
 fi
 
-probe() {
+fixture_cookie="$(
   docker exec "$candidate" node -e '
+    (async () => {
+      const unauthenticated = await fetch(
+        "http://127.0.0.1:3000/api/market/liquidations/health",
+        {cache:"no-store", headers:{accept:"application/json"}},
+      );
+      const unauthenticatedPayload = await unauthenticated.json().catch(() => ({}));
+      if (unauthenticated.status !== 401 || unauthenticatedPayload.code !== "SESSION_MISSING") {
+        throw new Error("isolated candidate did not reject the unauthenticated API request");
+      }
+      const login = await fetch(
+        "http://127.0.0.1:3000/api/identity/login?return_to=%2Fplatform%2Fadmin",
+        {redirect:"manual"},
+      );
+      if (login.status !== 303) throw new Error(`fixture login status ${login.status}`);
+      const location = login.headers.get("location");
+      if (!location || new URL(location, "http://127.0.0.1:3000").pathname !== "/platform/admin") {
+        throw new Error("fixture login redirect mismatch");
+      }
+      const setCookies = login.headers.getSetCookie?.() ?? [];
+      if (!setCookies.some((value) => value.startsWith("portal_fixture_session="))) {
+        throw new Error("fixture session cookie missing");
+      }
+      if (!setCookies.some((value) => value.startsWith("portal_fixture_csrf="))) {
+        throw new Error("fixture CSRF cookie missing");
+      }
+      const cookie = setCookies.map((value) => value.split(";", 1)[0]).join("; ");
+      const session = await fetch("http://127.0.0.1:3000/api/identity/session", {
+        cache:"no-store",
+        headers:{cookie},
+      });
+      const sessionPayload = await session.json().catch(() => ({}));
+      if (session.status !== 200 || sessionPayload.tenant_id !== "tenant-demo") {
+        throw new Error("fixture session validation failed");
+      }
+      process.stdout.write(cookie);
+    })().catch((error) => { console.error(error); process.exit(1); });
+  '
+)"
+test -n "$fixture_cookie"
+[[ "$fixture_cookie" == *"portal_fixture_session="* ]]
+[[ "$fixture_cookie" == *"portal_fixture_csrf="* ]]
+
+probe() {
+  docker exec --env "PORTAL_FIXTURE_COOKIE=$fixture_cookie" "$candidate" node -e '
     const fs = require("node:fs");
     const path = require("node:path");
+    const fixtureCookie = process.env.PORTAL_FIXTURE_COOKIE ?? "";
+    if (!fixtureCookie.includes("portal_fixture_session=")) throw new Error("fixture session is unavailable");
     async function requestJson(route) {
-      const response = await fetch(`http://127.0.0.1:3000${route}`, {cache:"no-store", headers:{accept:"application/json"}});
+      const response = await fetch(`http://127.0.0.1:3000${route}`, {
+        cache:"no-store",
+        headers:{accept:"application/json",cookie:fixtureCookie},
+      });
       const payload = await response.json().catch(() => ({}));
       if (response.status !== 200) throw new Error(`${route} status ${response.status}: ${JSON.stringify(payload)}`);
       const cacheControl = response.headers.get("cache-control") || "";
@@ -206,7 +255,10 @@ probe() {
       requestJson("/api/market/liquidations/health"),
       requestJson("/api/market/liquidations?limit=20"),
       requestJson("/api/market/liquidations/summary"),
-      fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store"}),
+      fetch("http://127.0.0.1:3000/market/liquidations", {
+        cache:"no-store",
+        headers:{cookie:fixtureCookie},
+      }),
     ]).then(([healthResult, listResult, summaryResult, page]) => {
       const health = healthResult.payload;
       const list = listResult.payload;
@@ -317,6 +369,8 @@ report = {
     "isolated_candidate": {
         "container": os.environ["CANDIDATE"],
         "fixture_identity": True,
+        "fixture_session_validated": True,
+        "unauthenticated_api_rejected": True,
         "real_data_mount_read_only": True,
         "docker_socket_mounted": False,
         "pids_limit_supported": os.environ["PIDS_LIMIT_SUPPORTED"] == "true",

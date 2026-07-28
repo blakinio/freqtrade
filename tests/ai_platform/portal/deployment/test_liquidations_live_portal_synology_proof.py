@@ -53,6 +53,17 @@ def test_script_uses_explicit_fixture_identity_only_in_isolated_candidate() -> N
     assert "--env PORTAL_WEB_DATA_MODE=fixture" in text
     assert 'candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-' in text
     assert 'fixture_identity": True' in text
+    assert '"fixture_session_validated": True' in text
+    assert '"unauthenticated_api_rejected": True' in text
+    assert "/api/identity/login?return_to=%2Fplatform%2Fadmin" in text
+    assert "portal_fixture_session=" in text
+    assert "portal_fixture_csrf=" in text
+    assert "/api/identity/session" in text
+    assert 'sessionPayload.tenant_id !== "tenant-demo"' in text
+    assert 'docker exec --env "PORTAL_FIXTURE_COOKIE=$fixture_cookie"' in text
+    assert 'headers:{accept:"application/json",cookie:fixtureCookie}' in text
+    assert '"fixture_cookie":' not in text
+    assert '"PORTAL_FIXTURE_COOKIE":' not in text
     assert "SESSION_MISSING" in text
     assert "production_boundary" in text
 

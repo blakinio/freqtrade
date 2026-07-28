@@ -48,6 +48,15 @@ def test_okx_acceptance_prepares_and_probes_only_the_canonical_durable_root() ->
         assert marker in workflow
 
 
+def test_okx_acceptance_uses_image_bootstrap_python_before_setup_python() -> None:
+    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    validation_step = workflow.split("- name: Refuse trading credential environment", 1)[0]
+
+    assert "python3 - <<'PY'" in validation_step
+    assert "python - <<'PY'" not in validation_step
+    assert validation_step.index("python3 - <<'PY'") < workflow.index("- name: Set up Python")
+
+
 def test_okx_acceptance_rejects_legacy_mapping_and_mutable_variables() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 

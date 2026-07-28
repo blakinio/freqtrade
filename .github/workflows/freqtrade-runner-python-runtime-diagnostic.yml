@@ -1,0 +1,38 @@
+name: Freqtrade Runner Python Runtime Diagnostic
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/freqtrade-runner-python-runtime-diagnostic.yml"
+
+permissions: {}
+
+jobs:
+  diagnose:
+    runs-on: freqtrade-staging
+    timeout-minutes: 3
+    steps:
+      - name: Inspect local Python runtime without network
+        run: |
+          set -u
+          python3 --version
+          python3 - <<'PY'
+          import importlib.util
+          for name in ("ensurepip", "pip", "jsonschema"):
+              print(f"MODULE_{name.upper()}={importlib.util.find_spec(name) is not None}")
+          PY
+          for package in python3 python3-venv python3-pip; do
+            dpkg-query -W -f='PACKAGE_${binary:Package}=${Status}|${Version}\n' "$package" 2>/dev/null || \
+              printf 'PACKAGE_%s=NOT_INSTALLED\n' "$package"
+          done
+          target="$RUNNER_TEMP/python-runtime-diagnostic-venv"
+          set +e
+          python3 -m venv "$target" >"$RUNNER_TEMP/venv.stdout" 2>"$RUNNER_TEMP/venv.stderr"
+          rc=$?
+          set -e
+          printf 'VENV_EXIT_CODE=%s\n' "$rc"
+          printf '%s\n' '--- VENV STDOUT ---'
+          cat "$RUNNER_TEMP/venv.stdout"
+          printf '%s\n' '--- VENV STDERR ---'
+          cat "$RUNNER_TEMP/venv.stderr"
+          rm -rf "$target" "$RUNNER_TEMP/venv.stdout" "$RUNNER_TEMP/venv.stderr"

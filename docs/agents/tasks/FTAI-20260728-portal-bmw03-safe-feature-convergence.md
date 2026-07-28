@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-portal-bmw03-safe-feature-convergence
-status: active
+status: completed
 branch: feat/portal-bmw03-safe-feature-convergence-v2
 base_branch: develop
 created: 2026-07-28
@@ -23,6 +23,7 @@ owned_paths:
   - ai_platform/portal/web/app/bots/signals/page.tsx
   - ai_platform/portal/web/app/bots/grid/page.tsx
   - ai_platform/portal/web/e2e/specs/bots/feature-convergence.spec.ts
+  - ai_platform/portal/web/e2e/specs/platform/product-surfaces.spec.ts
   - tests/ai_platform/portal/exchange_connections/test_public_view.py
   - tests/ai_platform/portal/signal_control/test_public_overview.py
   - tests/ai_platform/portal/grid_control/test_overview.py
@@ -54,11 +55,13 @@ BMW-03 performs no credential resolution, signature acceptance, grid runtime act
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T19:48:00+02:00
+updated_at: 2026-07-28T20:24:00+02:00
 branch: feat/portal-bmw03-safe-feature-convergence-v2
 pr: 641
-status: active
+status: completed
 base_head: 6270cb012ddf7366c07050d1faa97c05afbfd321
+validated_head: f93387faf946f55f20006e258a56971bc4be0220
+merge_commit: 9614217182a71fe5fa495b6552e50dabe9854a96
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -82,6 +85,7 @@ owned_paths:
   - ai_platform/portal/web/app/bots/signals/page.tsx
   - ai_platform/portal/web/app/bots/grid/page.tsx
   - ai_platform/portal/web/e2e/specs/bots/feature-convergence.spec.ts
+  - ai_platform/portal/web/e2e/specs/platform/product-surfaces.spec.ts
   - tests/ai_platform/portal/exchange_connections/test_public_view.py
   - tests/ai_platform/portal/signal_control/test_public_overview.py
   - tests/ai_platform/portal/grid_control/test_overview.py
@@ -90,16 +94,16 @@ owned_paths:
 proven:
   - BMW-01 merged through PR 625 as 81a45bbae0e7b63655ca5a684fb110c5a03fb4d5.
   - BMW-02 merged through PR 632 as 6270cb012ddf7366c07050d1faa97c05afbfd321.
-  - BM-06 router previously returned ExchangeConnectionProduct including metadata.credential_ref.
-  - The legacy signal page posted unsigned advisory records through /v1/signals rather than BM-04 signed control.
-  - The legacy grid form supplied its own configuration and did not resolve authoritative BM-05 capability evidence.
-  - Default signal verification is unavailable and no PI-07 secret backend is selected.
-  - PR 641 is mergeable and its current diff contains no workflow file.
+  - BMW-03 merged through PR 641 as 9614217182a71fe5fa495b6552e50dabe9854a96.
+  - Public exchange responses exclude credential_ref and account_label.
+  - Public signal views exclude authentication references and webhook slugs.
+  - Grid overview rejects browser-supplied authority and remains fail-closed without a trusted evidence provider.
+  - Legacy unsigned signal and browser-generated grid mutations are absent from the primary web surfaces.
+  - The merged diff contains no temporary diagnostic or integration workflow.
 derived:
-  - Safe web convergence requires truthful unavailable states instead of fixture-like provider or execution success.
-  - A fresh commit on the workflow-free diff is required to obtain exact-head validation after the temporary integration workflow self-removal.
-unknown:
-  - Exact-head CI result for the refreshed workflow-free head.
+  - Safe feature convergence requires truthful unavailable states instead of fixture-like provider or execution success.
+  - BM-08 should replace the web-composed dashboard snapshot with an authoritative server-side read model and explicit source availability/freshness.
+unknown: []
 conflicts: []
 first_failure:
   marker: BROWSER_FEATURE_AUTHORITY_LEAK
@@ -127,16 +131,23 @@ changed_paths:
   - ai_platform/portal/web/app/bots/signals/page.tsx
   - ai_platform/portal/web/app/bots/grid/page.tsx
   - ai_platform/portal/web/e2e/specs/bots/feature-convergence.spec.ts
+  - ai_platform/portal/web/e2e/specs/platform/product-surfaces.spec.ts
   - tests/ai_platform/portal/control_plane/test_api.py
   - tests/ai_platform/portal/exchange_connections/test_public_view.py
   - tests/ai_platform/portal/grid_control/test_overview.py
   - tests/ai_platform/portal/signal_control/test_public_overview.py
   - docs/agents/tasks/FTAI-20260728-portal-bmw03-safe-feature-convergence.md
 validation:
-  - command: pull_request workflows for exact refreshed head
-    result: PENDING
-    evidence: Previous runs on f8343dd3b4d7507105115c6a02c19d2cb76fbf0c ended action_required after a temporary self-removing workflow; the current diff no longer contains that workflow.
-blockers:
-  - Exact-head required workflows must complete successfully before BMW-03 can leave draft state or merge.
-next_action: Validate the refreshed exact head, resolve the outdated workflow review thread and merge PR 641 only after every required check is green.
+  - command: AI Platform CI run 30385988192
+    result: PASS
+  - command: Portal Web CI run 30385988261
+    result: PASS
+  - command: Portal Universal E2E run 30385988241
+    result: PASS
+  - command: Freqtrade CI run 30385988170
+    result: PASS
+  - command: GitHub Actions Security Analysis run 30385988318
+    result: PASS
+blockers: []
+next_action: Start BM-08 from merge commit 9614217182a71fe5fa495b6552e50dabe9854a96 with a server-side dashboard read model; do not activate BM-07 execution before PI-08.
 ```

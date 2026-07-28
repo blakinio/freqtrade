@@ -17,6 +17,7 @@ from ai_platform.portal.risk.service import RiskService
 from strategy_engine.domain.models import (
     Action,
     FeatureRecord,
+    FeatureReference,
     Provenance,
     ShadowDecisionEvidence,
     Side,
@@ -536,15 +537,15 @@ class Ase00ShadowEngine:
     def _market_feature_record(
         self,
         *,
-        reference: object,
+        reference: FeatureReference,
         event: AcceptedSyntheticEvent,
         value: dict[str, JsonValue],
         data_hash: str,
         config_hash: str,
     ) -> FeatureRecord:
-        feature_id = cast(str, getattr(reference, "id"))
-        timeframe = cast(str, getattr(reference, "timeframe"))
-        parameters = cast(dict[str, JsonValue], dict(getattr(reference, "params")))
+        feature_id = reference.id
+        timeframe = reference.timeframe
+        parameters = dict(reference.params)
         return make_feature_record(
             feature_id=feature_id,
             symbol=event.symbol,

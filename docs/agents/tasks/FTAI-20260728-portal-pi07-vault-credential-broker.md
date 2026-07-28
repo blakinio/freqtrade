@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-portal-pi07-vault-credential-broker
-status: validating
+status: completed
 branch: feat/portal-pi07-vault-credential-broker
 base_branch: develop
 created: 2026-07-28
@@ -62,12 +62,12 @@ On 2026-07-28 the repository owner selected HashiCorp Vault with these mandatory
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T23:02:00+02:00
-validated_code_head: null
-merged_commit: null
+updated_at: 2026-07-28T23:18:00+02:00
+validated_code_head: 1a0a769d0eb5ba424246c614359d5993595e5703
+merged_commit: 436b5350e54a33cbf070738a2328b142ffcd5174
 branch: feat/portal-pi07-vault-credential-broker
 pr: 666
-status: validating
+status: completed
 base_head: bdee5cce80e12f49a1f72ca462e072a8510bbddc
 context_routes:
   - AGENTS.md
@@ -82,11 +82,13 @@ proven:
   - Tenant-scoped KV v2 resolution, AppRole authentication, bounded in-memory leases and fail-closed policy checks are implemented.
   - The Synology package pins HashiCorp Vault 2.0.3 by the exact multi-platform digest and exposes no host port.
   - Focused PI-07 broker and deployment tests pass in AI Platform CI.
-  - Ruff lint and exact Ruff 0.15.21 formatting pass; no temporary workflow remains in the PR diff.
+  - Ruff lint and exact Ruff 0.15.21 formatting pass; no temporary workflow remains in the reviewed diff.
   - The deployment validator has a unique module name, avoiding the existing Authentik validator during repository-wide mypy.
+  - PR 666 was squash merged as 436b5350e54a33cbf070738a2328b142ffcd5174.
 derived:
   - PI-07 remains additive under ai_platform/portal/credentials and does not alter public exchange-connection contracts.
   - Vault KV v2 metadata drives current, rotation-required and revoked inspection while secret values remain available only to the broker resolve path.
+  - PI-08 is now the next authorized repository software package.
 unknown:
   - Target TLS certificate material and actual exchange/runtime credentials remain owner-managed inputs.
   - Real Synology initialization, unseal, AppRole issuance, audit retention and restore acceptance require target access and are not repository evidence.
@@ -109,10 +111,10 @@ changed_paths:
   - docs/ai_platform/portal/runbooks/PI07_VAULT_SYNOLOGY.md
   - docs/agents/tasks/FTAI-20260728-portal-pi07-vault-credential-broker.md
 validation:
-  - AI Platform CI 30398314469 passed on the prior exact-format head.
-  - Security analysis 30398314426 passed on the prior exact-format head.
-  - Freqtrade CI 30398314525 isolated the duplicate validator module and format mutation; both are fixed.
-  - Final exact-head AI Platform CI, Freqtrade CI and security analysis are pending.
+  - AI Platform CI 30398764940: success.
+  - Freqtrade CI 30398765008: success, including pre-commit, Python 3.11 through 3.14, coverage, Ruff, formatting, mypy, smoke tests, distribution build and CI Gate.
+  - GitHub Actions security analysis 30398764968: success.
+  - No unresolved review threads.
 blockers: []
-next_action: Require all final exact-head checks to pass, verify current develop ancestry and review threads, then mark PR 666 ready and squash merge PI-07.
+next_action: Implement PI-08 private risk-approved dry-run submission as a separate bounded package; keep real Vault target acceptance and live capital separate.
 ```

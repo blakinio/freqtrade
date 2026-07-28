@@ -1,0 +1,126 @@
+---
+task_id: FTAI-20260728-portal-bm-integration-owner
+status: validating
+branch: feat/portal-bm-integration-owner-v1
+base_branch: develop
+created: 2026-07-28
+updated: 2026-07-28
+related_pr: 591
+owned_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/control_plane/bot_management.py
+  - ai_platform/portal/control_plane/bot_management_errors.py
+  - ai_platform/portal/bot_catalog/router.py
+  - ai_platform/portal/bot_builder/router.py
+  - ai_platform/portal/bot_operations/router.py
+  - ai_platform/portal/signal_control/router.py
+  - ai_platform/portal/grid_control/router.py
+  - ai_platform/portal/exchange_connections/router.py
+  - tests/ai_platform/portal/control_plane/test_bot_management_api.py
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - docs/agents/tasks/FTAI-20260728-portal-bm-integration-owner.md
+---
+
+# Bot-management integration owner
+
+## Goal
+
+Compose the merged BM-01 through BM-06 feature services into the canonical private control-plane API without adding credential resolution, private execution submission, runtime activation or live-capital authority.
+
+## Delivered
+
+- Deterministic trusted-permission bridge to the frozen BM-00 capability vocabulary.
+- Feature-owned FastAPI router factories for catalog, builder, command persistence, signal control, grid configuration and exchange metadata.
+- Central composition through the existing control-plane application factory.
+- Fail-closed signature verification until a separately reviewed provider is injected.
+- BM-03 SQLAlchemy model registration in the development/test schema.
+- Exact tenant, actor, environment, revision and correlation propagation.
+- Focused API, OpenAPI, tenant, permission, persistence and secret-boundary tests.
+
+## Safety boundary
+
+This package adds no PI-07 credential resolution, PI-08 private submission, runtime adapter invocation, exchange request, browser-to-Freqtrade path, withdrawal authority or live capital. Persisted BM-03 commands remain intent and audit evidence only.
+
+## Context checkpoint
+
+```yaml
+checkpoint_version: 1
+updated_at: 2026-07-28T11:24:00+02:00
+head_parent: 346481081a879f6d577de4538e92315c99d65811
+branch: feat/portal-bm-integration-owner-v1
+pr: 591
+status: validating
+context_routes:
+  - AGENTS.md
+  - docs/agents/CONTEXT_HANDOFF.md
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
+  - docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
+  - docs/ai_platform/portal/BOT_MANAGEMENT_AGENT_PLAN.md
+owned_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/control_plane/bot_management.py
+  - ai_platform/portal/control_plane/bot_management_errors.py
+  - ai_platform/portal/bot_catalog/router.py
+  - ai_platform/portal/bot_builder/router.py
+  - ai_platform/portal/bot_operations/router.py
+  - ai_platform/portal/signal_control/router.py
+  - ai_platform/portal/grid_control/router.py
+  - ai_platform/portal/exchange_connections/router.py
+  - tests/ai_platform/portal/control_plane/test_bot_management_api.py
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - docs/agents/tasks/FTAI-20260728-portal-bm-integration-owner.md
+proven:
+  - BM-00 through BM-06 are merged on develop.
+  - No open PR owned the declared shared control-plane or bot-management router paths when this package began.
+  - PI-07 and PI-08 remain explicitly gated and outside this package.
+  - PR 591 contains the module-owned routers, capability bridge, fail-closed providers, central composition and focused tests.
+  - Focused integration run 30345128581 passed all 18 selected API tests.
+  - Full diagnostic run 30345386231 identified a single circular import caused by eager router composition.
+  - Lazy service and router imports removed that cycle without changing the execution safety boundary.
+  - Exact-head AI Platform run 30345932554 passed compilation and the full AI Platform test suite before reporting Ruff-only findings.
+  - Ruff 0.15.21 workflow 30346090761 applied safe fixes and formatting, then removed its own workflow file.
+derived:
+  - The integrated API can expose configuration, metadata and command-intent evidence without activating execution.
+unknown:
+  - Exact-head lint, typing and full CI results for the formatted connector-authored validation head.
+conflicts: []
+first_failure:
+  marker: BOT_OPERATIONS_CONTROL_PLANE_IMPORT_CYCLE
+  evidence: Full AI collection reached bot_operations models through control_plane database while control_plane package initialization eagerly loaded API router composition; imports are now deferred until create_app executes.
+rejected_hypotheses:
+  - Treat BM-05 merge as completion of the entire bot-management program.
+  - Start PI-07 or PI-08 without the required owner and security decisions.
+  - Resolve signal or exchange secrets inside a public feature router.
+  - Remove durable BM-03 model registration to avoid the import cycle.
+changed_paths:
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/control_plane/bot_management.py
+  - ai_platform/portal/control_plane/bot_management_errors.py
+  - ai_platform/portal/bot_catalog/router.py
+  - ai_platform/portal/bot_builder/router.py
+  - ai_platform/portal/bot_operations/router.py
+  - ai_platform/portal/signal_control/router.py
+  - ai_platform/portal/grid_control/router.py
+  - ai_platform/portal/exchange_connections/router.py
+  - tests/ai_platform/portal/control_plane/test_bot_management_api.py
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - docs/agents/tasks/FTAI-20260728-portal-bm-integration-owner.md
+validation:
+  - command: focused bot-management API integration run 30345128581
+    result: PASS
+    evidence: 18 focused tests passed.
+  - command: AI Platform CI 30345932554
+    result: FAIL
+    evidence: Compilation and full AI tests passed; Ruff-only findings remained.
+  - command: Ruff 0.15.21 fixer 30346090761
+    result: PASS
+    evidence: Safe fixes and formatter output were committed; temporary workflow removed itself.
+  - command: exact-head AI Platform CI, Freqtrade CI and security analysis
+    result: NOT_RUN
+    evidence: This connector-authored checkpoint commit creates the authoritative formatted validation head.
+blockers: []
+next_action: Run exact-head CI for PR 591, repair only remaining integration-owned findings, then audit and merge the package.
+```

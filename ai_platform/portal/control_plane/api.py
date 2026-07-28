@@ -12,6 +12,10 @@ from ai_platform.portal.contracts.audit import AuditEvent
 from ai_platform.portal.contracts.bots import BotDesiredState, BotInstance, BotSpec
 from ai_platform.portal.contracts.models import ModelVersion
 from ai_platform.portal.contracts.risk import RiskDecision, TradeSide
+from ai_platform.portal.control_plane.bot_management import (
+    BotManagementServices,
+    build_default_bot_management_services,
+)
 from ai_platform.portal.control_plane.context import (
     IdentityContextProvider,
     RequestContext,
@@ -461,6 +465,7 @@ def create_app(
     inference_telemetry_service: InferenceTelemetryService | None = None,
     runtime_observability_service: RuntimeObservabilityService | None = None,
     valuation_service: ValuationService | None = None,
+    bot_management_services: BotManagementServices | None = None,
 ) -> FastAPI:
     app = FastAPI(
         title="AI Trading Portal Control Plane",
@@ -487,8 +492,42 @@ def create_app(
         session_factory,
         UnavailableRuntimeValuationSource(checked_at=datetime.now(UTC)),
     )
+    bot_management = bot_management_services or build_default_bot_management_services(
+        session_factory
+    )
     context_dependency = identity_dependency(identity_context_provider)
+    from ai_platform.portal.bot_builder.router import (
+        build_router as build_bot_builder_router,
+    )
+    from ai_platform.portal.bot_catalog.router import (
+        build_router as build_bot_catalog_router,
+    )
+    from ai_platform.portal.bot_operations.router import (
+        build_router as build_bot_operations_router,
+    )
+    from ai_platform.portal.control_plane.bot_management_errors import (
+        register_bot_management_exception_handlers,
+    )
+    from ai_platform.portal.exchange_connections.router import (
+        build_router as build_exchange_connections_router,
+    )
+    from ai_platform.portal.grid_control.router import (
+        build_router as build_grid_control_router,
+    )
+    from ai_platform.portal.signal_control.router import (
+        build_router as build_signal_control_router,
+    )
+
     _register_exception_handlers(app)
+    register_bot_management_exception_handlers(app)
+    app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))
+    app.include_router(build_bot_builder_router(bot_management.builder, context_dependency))
+    app.include_router(build_bot_operations_router(bot_management.commands, context_dependency))
+    app.include_router(build_signal_control_router(bot_management.signals, context_dependency))
+    app.include_router(build_grid_control_router(bot_management.grid, context_dependency))
+    app.include_router(
+        build_exchange_connections_router(bot_management.exchanges, context_dependency)
+    )
     _register_terminal_route(app, terminal, context_dependency)
     _register_operational_routes(app, operations, context_dependency)
     _register_valuation_routes(app, valuation, context_dependency)

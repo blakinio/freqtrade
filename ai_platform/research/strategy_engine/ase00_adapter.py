@@ -24,9 +24,13 @@ from strategy_engine.domain.models import (
     StrategyDefinition,
     canonical_sha256,
 )
-from strategy_engine.dsl.evaluator import EvaluationSnapshot, StrategyEvaluator
+from strategy_engine.dsl.evaluator import (
+    DslEvaluationError,
+    EvaluationSnapshot,
+    StrategyEvaluator,
+)
 from strategy_engine.dsl.validator import StrategyValidationError, StrategyValidator
-from strategy_engine.features.pivots import PivotEvent, confirmed_pivots
+from strategy_engine.features.pivots import confirmed_pivots
 from strategy_engine.features.records import make_confirmed_pivot_record, make_feature_record
 from strategy_engine.features.squeeze import squeeze_features
 from strategy_engine.features.supertrend import supertrend_features
@@ -80,10 +84,7 @@ class AcceptedSyntheticEvent:
             raise ValueError("detected_at cannot precede event_time")
         if self.available_at < self.detected_at:
             raise ValueError("available_at cannot precede detected_at")
-        if len(self.source_data_version) != 64 or any(
-            char not in "0123456789abcdef" for char in self.source_data_version
-        ):
-            raise ValueError("source_data_version must be a lowercase SHA-256")
+        _require_sha256(self.source_data_version, "source_data_version")
 
     def canonical_payload(self) -> dict[str, JsonValue]:
         return {
@@ -116,10 +117,7 @@ class Ase00FailClosed(RuntimeError):
 
 
 class Ase00ShadowEngine:
-    """Synthetic ASE-00 vertical slice using only the existing Portal Risk Core.
-
-    This provider has no order-submission, runtime-management, or private trading-engine dependency.
-    """
+    """Deterministic ASE-00 shadow slice using the existing Portal Risk Core."""
 
     def __init__(
         self,
@@ -175,7 +173,7 @@ class Ase00ShadowEngine:
                     "search_space_version": self.search_spaces.version,
                 }
             )
-            records, current_snapshot, previous_snapshot, event_snapshot = self._features(
+            records, current, previous, event_snapshot = self._features(
                 normalized,
                 strategy,
                 decision_time,
@@ -195,8 +193,8 @@ class Ase00ShadowEngine:
             dsl_decision = self.evaluator.evaluate(
                 strategy,
                 EvaluationSnapshot(
-                    features=current_snapshot,
-                    previous_features=previous_snapshot,
+                    features=current,
+                    previous_features=previous,
                     events=event_snapshot,
                     risk={},
                 ),
@@ -216,14 +214,6 @@ class Ase00ShadowEngine:
                 risk_limits=risk_limits,
                 risk_snapshot=risk_snapshot,
             )
-            reason_codes = _unique_codes(
-                (
-                    *normalized.reason_codes,
-                    *dsl_decision.reason_codes,
-                    *risk_reason_codes,
-                    Ase00Reason.SHADOW_ONLY,
-                )
-            )
             evidence = self._evidence(
                 decision_time=decision_time,
                 symbol=symbol,
@@ -232,7 +222,14 @@ class Ase00ShadowEngine:
                 records=records,
                 signal=signal,
                 risk_outcome=risk_outcome,
-                reason_codes=reason_codes,
+                reason_codes=_unique_codes(
+                    (
+                        *normalized.reason_codes,
+                        *dsl_decision.reason_codes,
+                        *risk_reason_codes,
+                        Ase00Reason.SHADOW_ONLY,
+                    )
+                ),
                 data_hash=normalized.data_hash,
                 config_hash=config_hash,
             )
@@ -246,6 +243,17 @@ class Ase00ShadowEngine:
                 data_hash=raw_data_hash,
                 config_hash=_safe_config_hash(strategy_document),
                 reason_codes=(Ase00Reason.STRATEGY_REJECTED, exc.reason_code),
+            )
+        except DslEvaluationError as exc:
+            evidence = self._rejected_evidence(
+                decision_time=decision_time,
+                symbol=symbol,
+                timeframe=timeframe,
+                strategy_id=strategy_id,
+                strategy_version=strategy_version,
+                data_hash=raw_data_hash,
+                config_hash=_safe_config_hash(strategy_document),
+                reason_codes=(Ase00Reason.STRATEGY_REJECTED, type(exc).__name__),
             )
         except LeakageError as exc:
             evidence = self._rejected_evidence(
@@ -285,11 +293,13 @@ class Ase00ShadowEngine:
                 existing_evidence = ShadowDecisionEvidence.model_validate_json(existing)
             except ValueError as exc:
                 raise Ase00FailClosed(
-                    "EVIDENCE_CONFLICT", "existing evidence is not a valid ASE record"
+                    "EVIDENCE_CONFLICT",
+                    "existing evidence is not a valid ASE record",
                 ) from exc
             if existing_evidence.idempotency_key == evidence.idempotency_key:
                 raise Ase00FailClosed(
-                    "EVIDENCE_CONFLICT", "same idempotency key maps to different evidence"
+                    "EVIDENCE_CONFLICT",
+                    "same idempotency key maps to different evidence",
                 )
         temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
         temporary.write_text(encoded, encoding="utf-8")
@@ -303,13 +313,13 @@ class Ase00ShadowEngine:
             )
         raw_order = [self._event_sort_key(event) for event in events]
         out_of_order = raw_order != sorted(raw_order)
-        by_idempotency_key: dict[str, AcceptedSyntheticEvent] = {}
-        event_hashes: dict[str, str] = {}
+        by_key: dict[str, AcceptedSyntheticEvent] = {}
+        hashes: dict[str, str] = {}
         duplicate_count = 0
         delayed_count = 0
         for event in events:
             event_hash = canonical_sha256(event.canonical_payload())
-            prior_hash = event_hashes.get(event.idempotency_key)
+            prior_hash = hashes.get(event.idempotency_key)
             if prior_hash is not None:
                 if prior_hash != event_hash:
                     raise Ase00FailClosed(
@@ -318,11 +328,11 @@ class Ase00ShadowEngine:
                     )
                 duplicate_count += 1
                 continue
-            event_hashes[event.idempotency_key] = event_hash
-            by_idempotency_key[event.idempotency_key] = event
+            hashes[event.idempotency_key] = event_hash
+            by_key[event.idempotency_key] = event
             if event.available_at - event.detected_at > self.processing_delay_threshold:
                 delayed_count += 1
-        normalized = tuple(sorted(by_idempotency_key.values(), key=self._event_sort_key))
+        normalized = tuple(sorted(by_key.values(), key=self._event_sort_key))
         reason_codes: list[str] = []
         if duplicate_count:
             reason_codes.append(Ase00Reason.DUPLICATE_EVENT_IGNORED)
@@ -358,7 +368,7 @@ class Ase00ShadowEngine:
         if len(symbols) != 1 or len(timeframes) != 1:
             raise Ase00FailClosed(
                 Ase00Reason.MARKET_BAR_INVALID,
-                "events must resolve to exactly one symbol and market timeframe",
+                "events must resolve to one symbol and one market timeframe",
             )
         return next(iter(symbols)), next(iter(timeframes))
 
@@ -374,156 +384,186 @@ class Ase00ShadowEngine:
         dict[str, JsonValue | Mapping[str, JsonValue]],
         dict[str, JsonValue],
     ]:
-        market_events = tuple(event for event in normalized.events if event.kind == "market_bar")
+        market_events = tuple(
+            event for event in normalized.events if event.kind == "market_bar"
+        )
         frame = self._market_frame(market_events)
-        latest_event = market_events[-1]
-        records: list[FeatureRecord] = []
-        current_snapshot: dict[str, JsonValue | Mapping[str, JsonValue]] = {}
-        previous_snapshot: dict[str, JsonValue | Mapping[str, JsonValue]] = {}
-
+        latest_market = market_events[-1]
         configured = {feature.id: feature for feature in strategy.features}
+        records: list[FeatureRecord] = []
+        current: dict[str, JsonValue | Mapping[str, JsonValue]] = {}
+        previous: dict[str, JsonValue | Mapping[str, JsonValue]] = {}
+        event_snapshot: dict[str, JsonValue] = {}
+
         squeeze_ref = configured.get("squeeze_ratio.v1")
         if squeeze_ref is not None:
             squeeze = squeeze_features(frame, **squeeze_ref.params)
-            value = _row_mapping(
-                squeeze,
-                -1,
-                (
-                    "squeeze_ratio",
-                    "squeeze_state",
-                    "squeeze_duration",
-                    "bars_since_release",
-                    "linreg_momentum",
-                    "momentum_slope",
-                    "momentum_acceleration",
-                ),
+            columns = (
+                "squeeze_ratio",
+                "squeeze_state",
+                "squeeze_duration",
+                "bars_since_release",
+                "linreg_momentum",
+                "momentum_slope",
+                "momentum_acceleration",
             )
-            record = make_feature_record(
-                feature_id=squeeze_ref.id,
-                symbol=latest_event.symbol,
-                timeframe=squeeze_ref.timeframe,
-                event_time=latest_event.event_time,
-                detected_at=latest_event.detected_at,
-                available_at=latest_event.available_at,
+            value = _row_mapping(squeeze, -1, columns)
+            record = self._market_feature_record(
+                reference=squeeze_ref,
+                event=latest_market,
                 value=value,
-                is_confirmed=latest_event.is_confirmed,
-                source=latest_event.source,
-                idempotency_key=(
-                    f"feature:{squeeze_ref.id}:{latest_event.symbol}:"
-                    f"{latest_event.available_at.isoformat()}"
-                ),
-                data_version=normalized.data_hash,
-                code_version=self.code_hash,
-                configuration_hash=config_hash,
-                producer="ase00-feature-engine",
-                source_event_id=latest_event.event_id,
-                parameters=dict(squeeze_ref.params),
+                data_hash=normalized.data_hash,
+                config_hash=config_hash,
             )
             records.append(record)
-            current_snapshot[squeeze_ref.id] = value
-            previous_snapshot[squeeze_ref.id] = _row_mapping(
-                squeeze,
-                -2,
-                (
-                    "squeeze_ratio",
-                    "squeeze_state",
-                    "squeeze_duration",
-                    "bars_since_release",
-                    "linreg_momentum",
-                    "momentum_slope",
-                    "momentum_acceleration",
-                ),
-            )
+            current[squeeze_ref.id] = value
+            previous[squeeze_ref.id] = _row_mapping(squeeze, -2, columns)
 
         supertrend_ref = configured.get("supertrend_direction.v1")
         if supertrend_ref is not None:
             supertrend = supertrend_features(frame, **supertrend_ref.params)
-            value = _row_mapping(
-                supertrend,
-                -1,
-                (
-                    "supertrend_band",
-                    "supertrend_direction",
-                    "supertrend_flip",
-                    "supertrend_distance_atr",
-                ),
+            columns = (
+                "supertrend_band",
+                "supertrend_direction",
+                "supertrend_flip",
+                "supertrend_distance_atr",
             )
-            record = make_feature_record(
-                feature_id=supertrend_ref.id,
-                symbol=latest_event.symbol,
-                timeframe=supertrend_ref.timeframe,
-                event_time=latest_event.event_time,
-                detected_at=latest_event.detected_at,
-                available_at=latest_event.available_at,
+            value = _row_mapping(supertrend, -1, columns)
+            value["direction"] = value["supertrend_direction"]
+            prior = _row_mapping(supertrend, -2, columns)
+            prior["direction"] = prior["supertrend_direction"]
+            record = self._market_feature_record(
+                reference=supertrend_ref,
+                event=latest_market,
                 value=value,
-                is_confirmed=latest_event.is_confirmed,
-                source=latest_event.source,
-                idempotency_key=(
-                    f"feature:{supertrend_ref.id}:{latest_event.symbol}:"
-                    f"{latest_event.available_at.isoformat()}"
-                ),
-                data_version=normalized.data_hash,
-                code_version=self.code_hash,
-                configuration_hash=config_hash,
-                producer="ase00-feature-engine",
-                source_event_id=latest_event.event_id,
-                parameters=dict(supertrend_ref.params),
+                data_hash=normalized.data_hash,
+                config_hash=config_hash,
             )
             records.append(record)
-            current_snapshot[supertrend_ref.id] = value
-            previous_snapshot[supertrend_ref.id] = _row_mapping(
-                supertrend,
-                -2,
-                (
-                    "supertrend_band",
-                    "supertrend_direction",
-                    "supertrend_flip",
-                    "supertrend_distance_atr",
-                ),
-            )
+            current[supertrend_ref.id] = value
+            previous[supertrend_ref.id] = prior
+            event_snapshot["supertrend_flip"] = _supertrend_flip_event(value)
 
         pivot_ref = configured.get("confirmed_pivot.v1")
         if pivot_ref is not None:
             pivot_params = dict(pivot_ref.params)
+            latency = _numeric_parameter(
+                pivot_params,
+                "processing_latency_seconds",
+                default=0.0,
+            )
             pivots = confirmed_pivots(
                 frame,
                 left_bars=cast(int, pivot_params["left_bars"]),
                 right_bars=cast(int, pivot_params["right_bars"]),
-                processing_latency=pd.to_timedelta(
-                    cast(float, pivot_params["processing_latency_seconds"]), unit="s"
-                ),
+                processing_latency=pd.to_timedelta(latency, unit="s"),
             )
             eligible = [pivot for pivot in pivots if pivot.available_at <= decision_time]
-            pivot = eligible[-1] if eligible else _unavailable_pivot(frame, pivot_params)
-            pivot_detected_event = market_events[pivot.detection_position]
+            if not eligible:
+                raise Ase00FailClosed(
+                    Ase00Reason.MISSING_REQUIRED_DATA,
+                    "no confirmed pivot is available at decision time",
+                )
+            pivot = eligible[-1]
+            detection_event = market_events[pivot.detected_index]
             record = make_confirmed_pivot_record(
-                symbol=latest_event.symbol,
+                symbol=latest_market.symbol,
                 timeframe=pivot_ref.timeframe,
                 pivot=pivot,
                 decision_time=decision_time,
                 idempotency_key=(
-                    f"feature:{pivot_ref.id}:{latest_event.symbol}:"
+                    f"feature:{pivot_ref.id}:{latest_market.symbol}:"
                     f"{pivot.available_at.isoformat()}"
                 ),
                 data_version=normalized.data_hash,
                 code_version=self.code_hash,
                 configuration_hash=config_hash,
                 producer="ase00-feature-engine",
-                source_event_id=pivot_detected_event.event_id,
+                source_event_id=detection_event.event_id,
                 parameters=cast(dict[str, JsonValue], pivot_params),
-                detection_event_confirmed=pivot_detected_event.is_confirmed,
+                detection_event_confirmed=detection_event.is_confirmed,
             )
             records.append(record)
-            value = cast(Mapping[str, JsonValue], record.value)
-            current_snapshot[pivot_ref.id] = value
-            previous_snapshot[pivot_ref.id] = value
+            pivot_value = cast(Mapping[str, JsonValue], record.value)
+            current[pivot_ref.id] = pivot_value
+            previous[pivot_ref.id] = pivot_value
 
-        event_snapshot = self._liquidation_snapshot(normalized.events, decision_time)
+        event_snapshot.update(self._liquidation_snapshot(normalized.events, decision_time))
+        liquidation_ref = configured.get("liquidation_notional_z.v1")
+        if liquidation_ref is not None:
+            liquidations = [
+                event
+                for event in normalized.events
+                if event.kind == "liquidation" and event.available_at <= decision_time
+            ]
+            latest_liquidation = liquidations[-1]
+            liquidation_value: dict[str, JsonValue] = {
+                "notional_z": event_snapshot["liquidation_notional_z"],
+                "liquidation_burst": event_snapshot["liquidation_burst"],
+            }
+            record = make_feature_record(
+                feature_id=liquidation_ref.id,
+                symbol=latest_liquidation.symbol,
+                timeframe=liquidation_ref.timeframe,
+                event_time=latest_liquidation.event_time,
+                detected_at=latest_liquidation.detected_at,
+                available_at=latest_liquidation.available_at,
+                value=liquidation_value,
+                source=latest_liquidation.source,
+                is_confirmed=latest_liquidation.is_confirmed,
+                idempotency_key=(
+                    f"feature:{liquidation_ref.id}:{latest_liquidation.symbol}:"
+                    f"{latest_liquidation.available_at.isoformat()}"
+                ),
+                code_version=self.code_hash,
+                data_version=normalized.data_hash,
+                configuration_hash=config_hash,
+                producer="ase00-feature-engine",
+                source_event_id=latest_liquidation.event_id,
+                parameters=dict(liquidation_ref.params),
+            )
+            records.append(record)
+            current[liquidation_ref.id] = liquidation_value
+            previous[liquidation_ref.id] = liquidation_value
+
         return (
             tuple(sorted(records, key=lambda item: item.feature_id)),
-            current_snapshot,
-            previous_snapshot,
+            current,
+            previous,
             event_snapshot,
+        )
+
+    def _market_feature_record(
+        self,
+        *,
+        reference: object,
+        event: AcceptedSyntheticEvent,
+        value: dict[str, JsonValue],
+        data_hash: str,
+        config_hash: str,
+    ) -> FeatureRecord:
+        feature_id = cast(str, getattr(reference, "id"))
+        timeframe = cast(str, getattr(reference, "timeframe"))
+        parameters = cast(dict[str, JsonValue], dict(getattr(reference, "params")))
+        return make_feature_record(
+            feature_id=feature_id,
+            symbol=event.symbol,
+            timeframe=timeframe,
+            event_time=event.event_time,
+            detected_at=event.detected_at,
+            available_at=event.available_at,
+            value=value,
+            source=event.source,
+            is_confirmed=event.is_confirmed,
+            idempotency_key=(
+                f"feature:{feature_id}:{event.symbol}:{event.available_at.isoformat()}"
+            ),
+            code_version=self.code_hash,
+            data_version=data_hash,
+            configuration_hash=config_hash,
+            producer="ase00-feature-engine",
+            source_event_id=event.event_id,
+            parameters=parameters,
         )
 
     @staticmethod
@@ -553,12 +593,20 @@ class Ase00ShadowEngine:
                         f"market event {event.event_id} has invalid {name}",
                     )
                 values[name] = number
-            if values["high"] < max(values["open"], values["close"], values["low"]):
+            if values["high"] < max(
+                values["open"],
+                values["close"],
+                values["low"],
+            ):
                 raise Ase00FailClosed(
                     Ase00Reason.MARKET_BAR_INVALID,
                     f"market event {event.event_id} has inconsistent high",
                 )
-            if values["low"] > min(values["open"], values["close"], values["high"]):
+            if values["low"] > min(
+                values["open"],
+                values["close"],
+                values["high"],
+            ):
                 raise Ase00FailClosed(
                     Ase00Reason.MARKET_BAR_INVALID,
                     f"market event {event.event_id} has inconsistent low",
@@ -566,9 +614,7 @@ class Ase00ShadowEngine:
             rows.append(values)
             times.append(event.event_time)
         frame = pd.DataFrame(rows, index=pd.DatetimeIndex(times))
-        if not frame.index.is_monotonic_increasing:
-            frame = frame.sort_index()
-        return frame
+        return frame.sort_index() if not frame.index.is_monotonic_increasing else frame
 
     @staticmethod
     def _liquidation_snapshot(
@@ -592,9 +638,15 @@ class Ase00ShadowEngine:
                 Ase00Reason.MISSING_REQUIRED_DATA,
                 "liquidation event requires numeric notional_z",
             )
+        normalized_z = float(notional_z)
+        if not math.isfinite(normalized_z):
+            raise Ase00FailClosed(
+                Ase00Reason.MISSING_REQUIRED_DATA,
+                "liquidation notional_z must be finite",
+            )
         return {
-            "liquidation_burst": bool(float(notional_z) >= 1.0),
-            "liquidation_notional_z": float(notional_z),
+            "liquidation_burst": normalized_z >= 1.0,
+            "liquidation_notional_z": normalized_z,
         }
 
     def _signal(
@@ -611,37 +663,48 @@ class Ase00ShadowEngine:
     ) -> SignalEvent | None:
         if dsl_action is not Action.ENTER or dsl_side is Side.FLAT:
             return None
-        detected_at = max(record.available_at for record in records)
-        confidence = _confidence(records)
-        provenance = Provenance(
-            producer="ase00-strategy-evaluator",
-            source_event_id=canonical_sha256([record.idempotency_key for record in records]),
-            parent_ids=tuple(record.idempotency_key for record in records),
-            details={
-                "lineage_complete": True,
-                "future_shift": 0,
-                "reason_codes": list(dsl_reason_codes),
-            },
+        lineage = tuple(record.idempotency_key for record in records)
+        feature_snapshot = {record.feature_id: record.value for record in records}
+        signal_id = canonical_sha256(
+            {
+                "strategy_id": strategy.strategy_id,
+                "strategy_version": strategy.version,
+                "decision_time": decision_time.isoformat(),
+                "lineage": list(lineage),
+            }
         )
         return SignalEvent(
+            signal_id=signal_id,
             signal_version="1",
             strategy_id=strategy.strategy_id,
             strategy_version=strategy.version,
             symbol=records[0].symbol,
             timeframe=records[0].timeframe,
-            event_time=decision_time,
-            detected_at=detected_at,
-            available_at=detected_at,
             side=dsl_side,
             action=dsl_action,
-            confidence=confidence,
+            event_time=decision_time,
+            detected_at=decision_time,
+            available_at=decision_time,
             source="ase00-strategy-evaluator",
             is_confirmed=True,
             idempotency_key=f"signal:{strategy.strategy_id}:{decision_time.isoformat()}",
             code_version=self.code_hash,
             data_version=data_hash,
             configuration_hash=config_hash,
-            provenance=provenance,
+            confidence=_confidence(records),
+            reason_codes=dsl_reason_codes,
+            feature_snapshot=feature_snapshot,
+            provenance=Provenance(
+                producer="ase00-strategy-evaluator",
+                source_event_id=canonical_sha256(list(lineage)),
+                lineage=lineage,
+                details={
+                    "lineage_complete": True,
+                    "future_shift": 0,
+                    "reason_codes": list(dsl_reason_codes),
+                },
+            ),
+            execution_policy=dict(strategy.execution),
         )
 
     @staticmethod
@@ -653,21 +716,19 @@ class Ase00ShadowEngine:
     ) -> tuple[str, tuple[str, ...]]:
         if signal is None:
             return "no_signal", ("NO_ENTRY_SIGNAL",)
-        projected_open_positions = risk_snapshot.current_open_positions + 1
-        service = object.__new__(RiskService)
-        outcome, reason_codes, evaluations = service._evaluate(
-            limits=risk_limits,
-            snapshot=risk_snapshot,
-            projected_open_positions=projected_open_positions,
+        outcome, reason_codes, evaluations = RiskService._evaluate(
+            risk_limits,
+            risk_snapshot,
+            kill_switch_active=False,
         )
-        risk_codes = tuple(
-            reason.value for reason in reason_codes
-        ) or ("RISK_APPROVED_NO_REJECTIONS",)
         if outcome is RiskDecisionOutcome.REJECTED:
-            return "rejected", risk_codes
+            return "rejected", tuple(reason_codes)
         if any(not evaluation.passed for evaluation in evaluations):
-            raise Ase00FailClosed("RISK_EVIDENCE_INCONSISTENT", "risk evidence is inconsistent")
-        return "approved_shadow_only", risk_codes
+            raise Ase00FailClosed(
+                "RISK_EVIDENCE_INCONSISTENT",
+                "risk evidence is inconsistent",
+            )
+        return "approved", tuple(reason_codes)
 
     def _evidence(
         self,
@@ -683,17 +744,7 @@ class Ase00ShadowEngine:
         data_hash: str,
         config_hash: str,
     ) -> ShadowDecisionEvidence:
-        provenance = Provenance(
-            producer="ase00-shadow-engine",
-            source_event_id=canonical_sha256([record.idempotency_key for record in records]),
-            parent_ids=tuple(record.idempotency_key for record in records),
-            details={
-                "lineage_complete": True,
-                "future_shift": 0,
-                "risk_core": "ai_platform.portal.risk.service.RiskService._evaluate",
-                "shadow_only": True,
-            },
-        )
+        lineage = tuple(record.idempotency_key for record in records)
         return ShadowDecisionEvidence.create(
             evidence_version="1",
             decision_time=decision_time,
@@ -709,7 +760,18 @@ class Ase00ShadowEngine:
             config_hash=config_hash,
             code_hash=self.code_hash,
             idempotency_key=f"ase00:{strategy.strategy_id}:{symbol}:{decision_time.isoformat()}",
-            provenance=provenance,
+            provenance=Provenance(
+                producer="ase00-shadow-engine",
+                source_event_id=canonical_sha256(list(lineage)),
+                lineage=lineage,
+                details={
+                    "lineage_complete": True,
+                    "future_shift": 0,
+                    "risk_core": "ai_platform.portal.risk.service.RiskService._evaluate",
+                    "shadow_only": True,
+                    "execution_adapter_used": False,
+                },
+            ),
             no_order_submitted=True,
         )
 
@@ -739,7 +801,9 @@ class Ase00ShadowEngine:
             data_hash=data_hash,
             config_hash=config_hash,
             code_hash=self.code_hash,
-            idempotency_key=f"ase00-rejected:{strategy_id}:{symbol}:{decision_time.isoformat()}",
+            idempotency_key=(
+                f"ase00-rejected:{strategy_id}:{symbol}:{decision_time.isoformat()}"
+            ),
             provenance=Provenance(
                 producer="ase00-shadow-engine",
                 source_event_id=canonical_sha256(
@@ -750,32 +814,26 @@ class Ase00ShadowEngine:
                         "reason_codes": list(reason_codes),
                     }
                 ),
-                details={"lineage_complete": True, "future_shift": 0, "shadow_only": True},
+                details={
+                    "lineage_complete": True,
+                    "future_shift": 0,
+                    "shadow_only": True,
+                    "execution_adapter_used": False,
+                },
             ),
             no_order_submitted=True,
         )
 
 
-def _unavailable_pivot(frame: pd.DataFrame, params: Mapping[str, JsonValue]) -> PivotEvent:
-    right_bars = cast(int, params["right_bars"])
-    processing_latency = pd.to_timedelta(
-        cast(float, params["processing_latency_seconds"]), unit="s"
-    )
-    position = max(0, len(frame) - right_bars - 1)
-    detection_position = min(len(frame) - 1, position + right_bars)
-    event_time = cast(datetime, frame.index[position].to_pydatetime())
-    detected_at = cast(datetime, frame.index[detection_position].to_pydatetime())
-    return PivotEvent(
-        kind="high",
-        position=position,
-        detection_position=detection_position,
-        event_time=event_time,
-        detected_at=detected_at,
-        available_at=detected_at + processing_latency,
-        price=float(frame["high"].iloc[position]),
-        left_bars=cast(int, params["left_bars"]),
-        right_bars=right_bars,
-    )
+def _supertrend_flip_event(value: Mapping[str, JsonValue]) -> str:
+    if value.get("supertrend_flip") is not True:
+        return "none"
+    direction = value.get("direction")
+    if direction == 1:
+        return "up"
+    if direction == -1:
+        return "down"
+    return "none"
 
 
 def _confidence(records: tuple[FeatureRecord, ...]) -> float:
@@ -789,14 +847,15 @@ def _confidence(records: tuple[FeatureRecord, ...]) -> float:
             if isinstance(ratio, (int, float)) and not isinstance(ratio, bool):
                 strengths.append(max(0.0, min(1.0, float(ratio) / 2.0)))
         elif record.feature_id == "supertrend_direction.v1":
-            direction = value.get("supertrend_direction")
-            if direction in (-1, 1):
+            if value.get("direction") in (-1, 1):
                 strengths.append(1.0)
         elif record.feature_id == "confirmed_pivot.v1":
             strengths.append(1.0 if record.is_confirmed else 0.0)
-    if not strengths:
-        return 0.0
-    return sum(strengths) / len(strengths)
+        elif record.feature_id == "liquidation_notional_z.v1":
+            notional_z = value.get("notional_z")
+            if isinstance(notional_z, (int, float)) and not isinstance(notional_z, bool):
+                strengths.append(max(0.0, min(1.0, abs(float(notional_z)) / 5.0)))
+    return sum(strengths) / len(strengths) if strengths else 0.0
 
 
 def _row_mapping(
@@ -817,12 +876,31 @@ def _json_scalar(value: object) -> JsonValue:
     if isinstance(value, int):
         return int(value)
     if isinstance(value, float):
-        if not math.isfinite(value):
-            return None
-        return float(value)
+        return float(value) if math.isfinite(value) else None
     if hasattr(value, "item"):
         return _json_scalar(value.item())
     return str(value)
+
+
+def _numeric_parameter(
+    parameters: Mapping[str, JsonValue],
+    name: str,
+    *,
+    default: float,
+) -> float:
+    value = parameters.get(name, default)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise Ase00FailClosed(
+            Ase00Reason.STRATEGY_REJECTED,
+            f"{name} must be numeric",
+        )
+    result = float(value)
+    if not math.isfinite(result) or result < 0:
+        raise Ase00FailClosed(
+            Ase00Reason.STRATEGY_REJECTED,
+            f"{name} must be finite and non-negative",
+        )
+    return result
 
 
 def _safe_config_hash(document: Mapping[str, object]) -> str:

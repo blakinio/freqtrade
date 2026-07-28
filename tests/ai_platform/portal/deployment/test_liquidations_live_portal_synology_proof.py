@@ -56,7 +56,7 @@ def test_script_uses_explicit_fixture_identity_only_in_isolated_candidate() -> N
     assert "SESSION_MISSING" in text
     assert "production_boundary" in text
     assert "/api/identity/login?return_to=%2Fmarket%2Fliquidations" in text
-    assert 'login.status !== 303' in text
+    assert "login.status !== 303" in text
     assert 'value.startsWith("portal_fixture_session=")' in text
     assert 'value.startsWith("portal_fixture_csrf=")' in text
     assert 'headers:{accept:"application/json", cookie}' in text

@@ -45,6 +45,14 @@ class BotCatalogService:
         self._repository = repository
         self._evaluator = evaluator or BotCatalogCompatibilityEvaluator()
 
+    def get_snapshot(
+        self,
+        access: CatalogAccessContext,
+        catalog_ref: CatalogVersionRef,
+    ) -> BotCatalogSnapshot:
+        self._require_capability(access, BotManagementCapability.CATALOG_READ)
+        return self._require_snapshot(catalog_ref)
+
     def list_templates(
         self,
         access: CatalogAccessContext,

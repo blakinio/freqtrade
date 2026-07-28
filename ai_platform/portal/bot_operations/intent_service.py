@@ -7,16 +7,19 @@ from uuid import UUID, uuid4
 
 from pydantic import PositiveInt, model_validator
 
+from ai_platform.portal.bot_operations.command_store import BotCommandStore
 from ai_platform.portal.bot_operations.lifecycle import lifecycle_command_policy
 from ai_platform.portal.bot_operations.schema import (
     AuthoritativeBotRuntimeState,
     BotCommandContext,
+    BotOperationCommand,
 )
 from ai_platform.portal.bot_operations.service import BotCommandService
 from ai_platform.portal.contracts.bot_management.capabilities import BotManagementCapability
 from ai_platform.portal.contracts.bot_management.commands import (
     BotLifecycleCommand,
     CommandConfirmationRequirement,
+    CommandOutcome,
     CommandOutcomeStatus,
     CommandReasonCode,
     CommandTarget,
@@ -29,10 +32,12 @@ from ai_platform.portal.contracts.common import (
     NonEmptyStr,
 )
 from ai_platform.portal.contracts.identity import Actor
+from ai_platform.portal.control_plane.database import SessionFactory
 
 
 Clock = Callable[[], datetime]
 IdFactory = Callable[[], UUID]
+IdempotentCommand = tuple[BotOperationCommand, CommandOutcome]
 
 
 class AuthoritativeBotRuntimeStateProvider(Protocol):
@@ -55,6 +60,61 @@ class UnavailableBotRuntimeStateProvider:
     ) -> AuthoritativeBotRuntimeState | None:
         del tenant_id, bot_id
         return None
+
+
+class IdempotentCommandLookup(Protocol):
+    def find(
+        self,
+        *,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> IdempotentCommand | None: ...
+
+
+class UnavailableIdempotentCommandLookup:
+    def find(
+        self,
+        *,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> IdempotentCommand | None:
+        del tenant_id, idempotency_key
+        return None
+
+
+class SqlAlchemyIdempotentCommandLookup:
+    """Read existing append-only BM-03 evidence without changing command semantics."""
+
+    def __init__(
+        self,
+        session_factory: SessionFactory,
+        store: BotCommandStore | None = None,
+    ) -> None:
+        self._session_factory = session_factory
+        self._store = store or BotCommandStore()
+
+    def find(
+        self,
+        *,
+        tenant_id: str,
+        idempotency_key: str,
+    ) -> IdempotentCommand | None:
+        with self._session_factory() as session:
+            stored = self._store.get_by_idempotency_key(
+                session,
+                tenant_id,
+                idempotency_key,
+            )
+            if stored is None:
+                return None
+            history = self._store.list_history(
+                session,
+                tenant_id,
+                stored.command.command_id,
+            )
+            if not history:
+                raise RuntimeError("idempotent command history is missing")
+            return stored.command, history[-1].outcome
 
 
 class LifecycleIntentContext(ContractModel):
@@ -106,11 +166,13 @@ class LifecycleCommandIntentService:
         commands: BotCommandService,
         runtime_states: AuthoritativeBotRuntimeStateProvider,
         *,
+        idempotency_lookup: IdempotentCommandLookup | None = None,
         clock: Clock | None = None,
         id_factory: IdFactory = uuid4,
     ) -> None:
         self._commands = commands
         self._runtime_states = runtime_states
+        self._idempotency_lookup = idempotency_lookup or UnavailableIdempotentCommandLookup()
         self._clock = clock or (lambda: datetime.now(UTC))
         self._id_factory = id_factory
 
@@ -120,9 +182,9 @@ class LifecycleCommandIntentService:
         request: LifecycleIntentRequest,
     ) -> LifecycleIntentResult:
         policy = lifecycle_command_policy(request.action)
-        existing = self._commands.find_idempotent_command(
-            context.tenant_id,
-            request.idempotency_key,
+        existing = self._idempotency_lookup.find(
+            tenant_id=context.tenant_id,
+            idempotency_key=request.idempotency_key,
         )
         if existing is not None:
             existing_command, existing_outcome = existing

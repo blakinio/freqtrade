@@ -1,4 +1,4 @@
-name: Inspect Portal Proof Preflight
+name: Diagnose Portal Proof Candidate
 
 on:
   pull_request:
@@ -9,88 +9,80 @@ permissions:
   contents: read
 
 jobs:
-  inspect:
+  diagnose:
     runs-on: freqtrade-staging
     timeout-minutes: 8
     steps:
-      - name: Inspect production boundary read-only
+      - name: Run isolated exact-image candidate diagnostic
         env:
           PORTAL_CONTAINER: freqtrade-portal-staging
           LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
           LIQUIDATIONS_CONTAINER_ROOT: /liquid20-data
         run: |
           set -uo pipefail
-          portal_image="$(docker inspect --format '{{.Config.Image}}' "$PORTAL_CONTAINER")"
-          running="$(docker inspect --format '{{.State.Running}}' "$PORTAL_CONTAINER")"
-          mount_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.Source}}{{end}}{{end}}' "$PORTAL_CONTAINER")"
-          mount_rw="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$PORTAL_CONTAINER")"
-          restart_policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$PORTAL_CONTAINER")"
-          portal_uid="$(docker exec "$PORTAL_CONTAINER" id -u)"
-          portal_groups="$(docker exec "$PORTAL_CONTAINER" id -G)"
+          candidate="freqtrade-portal-live-proof-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm -f "$candidate" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
 
-          set +e
-          data_gid_output="$(docker run --rm \
+          portal_image="$(docker inspect --format '{{.Config.Image}}' "$PORTAL_CONTAINER")"
+          data_gid="$(docker run --rm \
             --user 0:0 \
             --entrypoint node \
             --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
             "$portal_image" \
-            -e 'const fs=require("node:fs");const s=fs.lstatSync("/liquid20-data");if(!s.isDirectory()||s.isSymbolicLink())process.exit(1);process.stdout.write(String(s.gid));' 2>&1)"
-          data_gid_status=$?
+            -e 'const fs=require("node:fs");process.stdout.write(String(fs.lstatSync("/liquid20-data").gid));')"
 
-          boundary_output="$(docker exec "$PORTAL_CONTAINER" node -e '
-            Promise.all([
-              fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store"}),
-              fetch("http://127.0.0.1:3000/api/market/liquidations/health", {cache:"no-store"}),
-            ]).then(async ([page, health]) => {
-              const payload = await health.json().catch(() => ({}));
-              process.stdout.write(JSON.stringify({
-                page_status: page.status,
-                health_status: health.status,
-                health_code: payload.code ?? null,
-                cache_control: health.headers.get("cache-control"),
-              }));
-            }).catch((error) => { console.error(error); process.exit(1); });
-          ' 2>&1)"
-          boundary_status=$?
+          set +e
+          run_output="$(docker run -d \
+            --name "$candidate" \
+            --restart no \
+            --read-only \
+            --tmpfs /tmp:size=64m,mode=1777 \
+            --tmpfs /app/.next/cache:size=64m,mode=0755 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --memory 768m \
+            --group-add "$data_gid" \
+            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
+            --env PORTAL_WEB_DATA_MODE=fixture \
+            --env PORTAL_ENVIRONMENT=test \
+            --env PORTAL_IDENTITY_FIXTURE_MODE=enabled \
+            --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${LIQUIDATIONS_CONTAINER_ROOT}" \
+            --label io.freqtrade.portal.liquidations-live-proof-diagnostic=true \
+            "$portal_image" 2>&1)"
+          run_status=$?
           set -e
+          echo "CANDIDATE_RUN_STATUS=$run_status"
+          echo "CANDIDATE_RUN_OUTPUT=$run_output"
+          if [[ "$run_status" -ne 0 ]]; then
+            exit 0
+          fi
 
-          PORTAL_IMAGE="$portal_image" \
-          RUNNING="$running" \
-          MOUNT_SOURCE="$mount_source" \
-          MOUNT_RW="$mount_rw" \
-          RESTART_POLICY="$restart_policy" \
-          PORTAL_UID="$portal_uid" \
-          PORTAL_GROUPS="$portal_groups" \
-          DATA_GID_STATUS="$data_gid_status" \
-          DATA_GID_OUTPUT="$data_gid_output" \
-          BOUNDARY_STATUS="$boundary_status" \
-          BOUNDARY_OUTPUT="$boundary_output" \
-          python3 - <<'PY'
-          import json
-          import os
-          import re
+          for attempt in $(seq 1 70); do
+            state="$(docker inspect --format '{{.State.Status}}' "$candidate" 2>/dev/null || echo missing)"
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$candidate" 2>/dev/null || echo missing)"
+            if (( attempt == 1 || attempt % 5 == 0 )); then
+              echo "CANDIDATE_OBSERVATION attempt=$attempt state=$state health=$health"
+            fi
+            if [[ "$state" == "exited" || "$state" == "dead" || "$health" == "healthy" || "$health" == "unhealthy" ]]; then
+              break
+            fi
+            sleep 2
+          done
 
-          data_gid_output = os.environ["DATA_GID_OUTPUT"]
-          data_gid = int(data_gid_output) if re.fullmatch(r"[0-9]+", data_gid_output) else None
-          groups = [int(value) for value in os.environ["PORTAL_GROUPS"].split()]
-          boundary_raw = os.environ["BOUNDARY_OUTPUT"]
-          try:
-              boundary = json.loads(boundary_raw)
-          except json.JSONDecodeError:
-              boundary = {"raw": boundary_raw[:500]}
-          report = {
-              "portal_image": os.environ["PORTAL_IMAGE"],
-              "running": os.environ["RUNNING"] == "true",
-              "mount_source": os.environ["MOUNT_SOURCE"],
-              "mount_read_only": os.environ["MOUNT_RW"] == "false",
-              "restart_policy": os.environ["RESTART_POLICY"],
-              "portal_uid": int(os.environ["PORTAL_UID"]),
-              "portal_groups": groups,
-              "data_gid_helper_status": int(os.environ["DATA_GID_STATUS"]),
-              "data_gid": data_gid,
-              "production_has_data_group": data_gid in groups if data_gid is not None else False,
-              "boundary_status": int(os.environ["BOUNDARY_STATUS"]),
-              "boundary": boundary,
-          }
-          print("PORTAL_PREFLIGHT=" + json.dumps(report, sort_keys=True))
-          PY
+          echo '--- CANDIDATE INSPECT ---'
+          docker inspect --format '{{json .State}}' "$candidate" || true
+          echo '--- CANDIDATE HEALTH LOG ---'
+          docker inspect --format '{{if .State.Health}}{{json .State.Health.Log}}{{else}}[]{{end}}' "$candidate" || true
+          echo '--- CANDIDATE PROCESS IDENTITY ---'
+          docker exec "$candidate" id 2>&1 || true
+          echo '--- CANDIDATE INTERNAL HEALTH ---'
+          docker exec "$candidate" node -e '
+            fetch("http://127.0.0.1:3000/api/market/liquidations/health", {cache:"no-store"})
+              .then(async response => console.log(JSON.stringify({status:response.status,body:await response.text()})))
+              .catch(error => { console.error(error); process.exitCode=1; });
+          ' 2>&1 || true
+          echo '--- CANDIDATE LOGS ---'
+          docker logs --tail 240 "$candidate" 2>&1 || true

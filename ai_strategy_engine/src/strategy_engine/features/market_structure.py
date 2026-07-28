@@ -1,6 +1,6 @@
 """Clean-room research interface.
 
-Do not copy or port LuxAlgo implementation into this module.
+Do not copy or port proprietary indicator implementations into this module.
 Implement only from an independently authored specification and tests.
 """
 

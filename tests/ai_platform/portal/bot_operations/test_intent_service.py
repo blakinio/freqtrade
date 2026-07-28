@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from ai_platform.portal.bot_operations.intent_service import (
@@ -33,6 +33,7 @@ from ai_platform.portal.execution.private_read import RuntimeReadFreshness
 
 NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 COMMAND_ID = UUID("11111111-1111-4111-8111-111111111111")
+RETRY_COMMAND_ID = UUID("44444444-4444-4444-8444-444444444444")
 
 
 class FixedRuntimeProvider:
@@ -56,7 +57,7 @@ def _session_factory():
     return build_session_factory(engine)
 
 
-def _context() -> LifecycleIntentContext:
+def _context(*, retry: bool = False) -> LifecycleIntentContext:
     return LifecycleIntentContext(
         tenant_id="tenant-a",
         actor=Actor(
@@ -64,10 +65,26 @@ def _context() -> LifecycleIntentContext:
             tenant_id="tenant-a",
             actor_type=ActorType.USER,
         ),
-        capabilities=(BotManagementCapability.BOT_START,),
+        capabilities=tuple(
+            sorted(
+                (
+                    BotManagementCapability.BOT_PAUSE,
+                    BotManagementCapability.BOT_START,
+                ),
+                key=lambda item: item.value,
+            )
+        ),
         correlation=CorrelationContext(
-            request_id=UUID("22222222-2222-4222-8222-222222222222"),
-            correlation_id=UUID("33333333-3333-4333-8333-333333333333"),
+            request_id=(
+                UUID("55555555-5555-4555-8555-555555555555")
+                if retry
+                else UUID("22222222-2222-4222-8222-222222222222")
+            ),
+            correlation_id=(
+                UUID("66666666-6666-4666-8666-666666666666")
+                if retry
+                else UUID("33333333-3333-4333-8333-333333333333")
+            ),
         ),
     )
 
@@ -86,10 +103,14 @@ def _runtime() -> AuthoritativeBotRuntimeState:
     )
 
 
-def _request(expected_config_revision: int = 3) -> LifecycleIntentRequest:
+def _request(
+    expected_config_revision: int = 3,
+    *,
+    action: LifecycleAction = LifecycleAction.START,
+) -> LifecycleIntentRequest:
     return LifecycleIntentRequest(
         bot_id="bot-a",
-        action=LifecycleAction.START,
+        action=action,
         expected_config_revision=expected_config_revision,
         idempotency_key="lifecycle-start-bot-a-r3",
     )
@@ -159,3 +180,58 @@ def test_stale_configuration_is_persisted_as_rejected_evidence() -> None:
     assert result.reason_codes == (CommandReasonCode.STALE_REVISION,)
     assert result.command_persisted is True
     assert result.execution_submission_performed is False
+
+
+def test_transport_variant_retry_returns_existing_command_without_duplicate_history() -> None:
+    session_factory = _session_factory()
+    commands = BotCommandService(session_factory, clock=lambda: NOW)
+    ids = iter((COMMAND_ID, RETRY_COMMAND_ID))
+    times = iter((NOW, NOW + timedelta(seconds=5)))
+    service = LifecycleCommandIntentService(
+        commands,
+        FixedRuntimeProvider(_runtime()),
+        clock=lambda: next(times),
+        id_factory=lambda: next(ids),
+    )
+
+    first = service.submit(_context(), _request())
+    retry = service.submit(_context(retry=True), _request())
+
+    assert first.status == CommandOutcomeStatus.ACCEPTED
+    assert retry.status == CommandOutcomeStatus.ACCEPTED
+    assert retry.command_id == first.command_id == str(COMMAND_ID)
+    assert retry.command_persisted is True
+    history = commands.list_history(
+        BotCommandContext(
+            tenant_id="tenant-a",
+            actor=_context().actor,
+            environment=Environment.TEST,
+            capabilities=(BotManagementCapability.COMMAND_READ,),
+        ),
+        str(COMMAND_ID),
+    )
+    assert len(history) == 1
+
+
+def test_same_idempotency_key_with_different_business_action_is_rejected() -> None:
+    commands = BotCommandService(_session_factory(), clock=lambda: NOW)
+    ids = iter((COMMAND_ID, RETRY_COMMAND_ID))
+    service = LifecycleCommandIntentService(
+        commands,
+        FixedRuntimeProvider(_runtime()),
+        clock=lambda: NOW,
+        id_factory=lambda: next(ids),
+    )
+
+    first = service.submit(_context(), _request())
+    conflict = service.submit(
+        _context(retry=True),
+        _request(action=LifecycleAction.PAUSE_NEW_ENTRIES),
+    )
+
+    assert first.status == CommandOutcomeStatus.ACCEPTED
+    assert conflict.status == CommandOutcomeStatus.REJECTED
+    assert conflict.reason_codes == (CommandReasonCode.DUPLICATE_IDEMPOTENCY_KEY,)
+    assert conflict.command_id is None
+    assert conflict.command_persisted is False
+    assert conflict.execution_submission_performed is False

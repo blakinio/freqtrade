@@ -1,0 +1,132 @@
+name: Apply bot-management integration composition
+
+on:
+  push:
+    branches:
+      - feat/portal-bm-integration-owner-v1
+    paths:
+      - .github/workflows/bm-integration-owner-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/portal-bm-integration-owner-v1
+      - name: Apply bounded composition changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          api = Path("ai_platform/portal/control_plane/api.py")
+          text = api.read_text()
+          imports = '''from ai_platform.portal.bot_builder.router import build_router as build_bot_builder_router
+          from ai_platform.portal.bot_catalog.router import build_router as build_bot_catalog_router
+          from ai_platform.portal.bot_operations.router import build_router as build_bot_operations_router
+          from ai_platform.portal.control_plane.bot_management import (
+              BotManagementServices,
+              build_default_bot_management_services,
+          )
+          from ai_platform.portal.control_plane.bot_management_errors import (
+              register_bot_management_exception_handlers,
+          )
+          from ai_platform.portal.exchange_connections.router import (
+              build_router as build_exchange_connections_router,
+          )
+          from ai_platform.portal.grid_control.router import build_router as build_grid_control_router
+          from ai_platform.portal.signal_control.router import build_router as build_signal_control_router
+          '''
+          marker = "from ai_platform.portal.contracts.audit import AuditEvent\n"
+          if imports not in text:
+              text = text.replace(marker, imports + marker)
+
+          old_signature = "    valuation_service: ValuationService | None = None,\n) -> FastAPI:"
+          new_signature = "    valuation_service: ValuationService | None = None,\n    bot_management_services: BotManagementServices | None = None,\n) -> FastAPI:"
+          if old_signature not in text:
+              raise SystemExit("create_app signature marker missing")
+          text = text.replace(old_signature, new_signature, 1)
+
+          valuation = '''    valuation = valuation_service or ValuationService(
+              session_factory,
+              UnavailableRuntimeValuationSource(checked_at=datetime.now(UTC)),
+          )
+          '''
+          composition = valuation + '''    bot_management = bot_management_services or build_default_bot_management_services(
+              session_factory
+          )
+          '''
+          if valuation not in text:
+              raise SystemExit("valuation marker missing")
+          text = text.replace(valuation, composition, 1)
+
+          handler_marker = "    _register_exception_handlers(app)\n"
+          router_block = handler_marker + '''    register_bot_management_exception_handlers(app)
+              app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))
+              app.include_router(build_bot_builder_router(bot_management.builder, context_dependency))
+              app.include_router(build_bot_operations_router(bot_management.commands, context_dependency))
+              app.include_router(build_signal_control_router(bot_management.signals, context_dependency))
+              app.include_router(build_grid_control_router(bot_management.grid, context_dependency))
+              app.include_router(
+                  build_exchange_connections_router(bot_management.exchanges, context_dependency)
+              )
+          '''
+          if handler_marker not in text:
+              raise SystemExit("exception handler marker missing")
+          text = text.replace(handler_marker, router_block, 1)
+          api.write_text(text)
+
+          database = Path("ai_platform/portal/control_plane/database.py")
+          text = database.read_text()
+          marker = "    from ai_platform.portal.control_plane import models as control_plane_models  # noqa: F401\n"
+          addition = marker + "    from ai_platform.portal.bot_operations import models as bot_operation_models  # noqa: F401\n"
+          if marker not in text:
+              raise SystemExit("database import marker missing")
+          text = text.replace(marker, addition, 1)
+          database.write_text(text)
+
+          test_api = Path("tests/ai_platform/portal/control_plane/test_api.py")
+          text = test_api.read_text()
+          marker = '        "/v1/runtime-observability/logs/search",\n'
+          paths = marker + '''        "/v1/bot-management/catalog/{catalog_id}/latest",
+                  "/v1/bot-management/catalog/templates/search",
+                  "/v1/bot-management/catalog/compatibility",
+                  "/v1/bot-management/builder/drafts",
+                  "/v1/bot-management/builder/drafts/revise",
+                  "/v1/bot-management/builder/drafts/preview",
+                  "/v1/bot-management/builder/drafts/finalize",
+                  "/v1/bot-management/commands/lifecycle",
+                  "/v1/bot-management/commands/position",
+                  "/v1/bot-management/commands/order",
+                  "/v1/bot-management/commands/{command_id}/history",
+                  "/v1/bot-management/commands/idempotency/conflicts",
+                  "/v1/bot-management/signals/endpoints",
+                  "/v1/bot-management/signals/endpoints/revise",
+                  "/v1/bot-management/signals/preview",
+                  "/v1/bot-management/signals/process",
+                  "/v1/bot-management/grid/preview",
+                  "/v1/bot-management/grid/policies",
+                  "/v1/bot-management/exchanges",
+                  "/v1/bot-management/exchanges/{connection_id}",
+                  "/v1/bot-management/exchanges/{connection_id}/verification-requests",
+          '''
+          if marker not in text:
+              raise SystemExit("OpenAPI path marker missing")
+          text = text.replace(marker, paths, 1)
+          test_api.write_text(text)
+
+          Path(".github/workflows/bm-integration-owner-apply.yml").unlink()
+          PY
+      - name: Commit bounded composition
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/portal/control_plane/api.py \
+            ai_platform/portal/control_plane/database.py \
+            tests/ai_platform/portal/control_plane/test_api.py \
+            .github/workflows/bm-integration-owner-apply.yml
+          git commit -m "feat(portal): register bot-management routers"
+          git push origin HEAD:feat/portal-bm-integration-owner-v1

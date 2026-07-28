@@ -1,0 +1,180 @@
+name: ASE-00 Repair Pivot And Validate
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/ase00-fix-lint-pivot.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ase00-repair-pivot-validate
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out continued branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: agent/ase-00-ai-strategy-engine-foundation
+          fetch-depth: 0
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: '3.12'
+
+      - name: Patch pivot confirmation contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          records_path = Path('ai_strategy_engine/src/strategy_engine/features/records.py')
+          records = records_path.read_text(encoding='utf-8')
+          if 'detection_event_confirmed: bool = True' not in records:
+              old = '''    source_event_id: str,
+              parameters: dict[str, JsonValue],
+          ) -> FeatureRecord:
+          '''.replace('          ', '')
+              new = '''    source_event_id: str,
+              parameters: dict[str, JsonValue],
+              detection_event_confirmed: bool = True,
+          ) -> FeatureRecord:
+          '''.replace('          ', '')
+              if old not in records:
+                  raise SystemExit('pivot factory signature anchor not found')
+              records = records.replace(old, new, 1)
+              old = '    confirmed = available_at <= decision_time\n'
+              new = (
+                  '    available_before_decision = available_at <= decision_time\n'
+                  '    confirmed = detection_event_confirmed and available_before_decision\n'
+              )
+              if old not in records:
+                  raise SystemExit('pivot confirmation anchor not found')
+              records = records.replace(old, new, 1)
+              old = '''            "pivot_confirmed": confirmed,
+                      "right_bars_confirmed": confirmed,
+          '''.replace('          ', '')
+              new = '''            "pivot_confirmed": confirmed,
+                      "right_bars_confirmed": detection_event_confirmed,
+                      "detection_event_confirmed": detection_event_confirmed,
+                      "available_before_decision": available_before_decision,
+          '''.replace('          ', '')
+              if old not in records:
+                  raise SystemExit('pivot provenance anchor not found')
+              records = records.replace(old, new, 1)
+              records_path.write_text(records, encoding='utf-8')
+
+          adapter_path = Path('ai_platform/research/strategy_engine/ase00_adapter.py')
+          adapter = adapter_path.read_text(encoding='utf-8')
+          if 'detection_event_confirmed=pivot_detected_event.is_confirmed' not in adapter:
+              old = '''            source_event_id=pivot_detected_event.event_id,
+                      parameters=cast(dict[str, JsonValue], pivot_params),
+                  )
+          '''.replace('          ', '')
+              new = '''            source_event_id=pivot_detected_event.event_id,
+                      parameters=cast(dict[str, JsonValue], pivot_params),
+                      detection_event_confirmed=pivot_detected_event.is_confirmed,
+                  )
+          '''.replace('          ', '')
+              if old not in adapter:
+                  raise SystemExit('adapter pivot factory call anchor not found')
+              adapter_path.write_text(adapter.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Install validation dependencies
+        run: |
+          python -m venv ai_strategy_engine/.venv
+          . ai_strategy_engine/.venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -e "ai_strategy_engine[dev]" "SQLAlchemy>=2.0.6" "ruff==0.15.21"
+
+      - name: Apply bounded Ruff fixes
+        shell: bash
+        run: |
+          . ai_strategy_engine/.venv/bin/activate
+          (
+            cd ai_strategy_engine
+            ruff check --fix --unsafe-fixes . || true
+            ruff format .
+          )
+          ruff check --fix ai_platform/research/strategy_engine \
+            tests/ai_platform_integration/conftest.py \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py || true
+          ruff format ai_platform/research/strategy_engine \
+            tests/ai_platform_integration/conftest.py \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+
+      - name: Run and capture complete validation
+        shell: bash
+        run: |
+          set +e
+          . ai_strategy_engine/.venv/bin/activate
+          run_check() {
+            name="$1"
+            shift
+            "$@" > "/tmp/${name}.log" 2>&1
+            printf '%s' "$?" > "/tmp/${name}.rc"
+          }
+          run_check package_pytest bash -lc 'cd ai_strategy_engine && . .venv/bin/activate && pytest'
+          run_check package_ruff bash -lc 'cd ai_strategy_engine && . .venv/bin/activate && ruff check .'
+          run_check package_mypy bash -lc 'cd ai_strategy_engine && . .venv/bin/activate && mypy src/strategy_engine'
+          run_check package_compile bash -lc 'cd ai_strategy_engine && . .venv/bin/activate && python -m compileall -q src tests'
+          run_check platform_ruff ruff check ai_platform/research/strategy_engine tests/ai_platform_integration/conftest.py tests/ai_platform_integration/test_ase00_vertical_slice.py
+          run_check platform_compile python -m compileall -q ai_platform/research/strategy_engine tests/ai_platform_integration/test_ase00_vertical_slice.py
+          run_check platform_pytest pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration tests/ai_platform_integration/test_ase00_vertical_slice.py
+          set -e
+          python - <<'PY'
+          from pathlib import Path
+
+          checks = (
+              'package_pytest',
+              'package_ruff',
+              'package_mypy',
+              'package_compile',
+              'platform_ruff',
+              'platform_compile',
+              'platform_pytest',
+          )
+          lines = ['# ASE-00 validation report', '']
+          failed = False
+          for check in checks:
+              rc = Path(f'/tmp/{check}.rc').read_text()
+              failed = failed or rc != '0'
+              output = Path(f'/tmp/{check}.log').read_text(errors='replace').splitlines()
+              lines.extend(
+                  [
+                      f'## {check}',
+                      '',
+                      f'- exit code: `{rc}`',
+                      '',
+                      '```text',
+                      *output[-300:],
+                      '```',
+                      '',
+                  ]
+              )
+          Path('ai_strategy_engine/docs/validation-report.md').write_text(
+              '\n'.join(lines) + '\n', encoding='utf-8'
+          )
+          Path('/tmp/ase00-validation-status').write_text('1' if failed else '0')
+          PY
+
+      - name: Commit repair and evidence
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/ase00-diagnostic.yml
+          rm -f .github/workflows/ase00-fix-lint-pivot.yml
+          rm -f ai_strategy_engine/docs/diagnostic-report.md
+          git add -A
+          git commit -m "fix(ai-strategy): close ASE-00 validation findings"
+          git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
+          test "$(cat /tmp/ase00-validation-status)" = "0"

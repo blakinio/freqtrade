@@ -1,6 +1,12 @@
 name: WH-06 program checkpoint
 
 on:
+  push:
+    branches:
+      - "feat/wickhunter-wh06-portal-risk-seam-v1"
+    paths:
+      - ".github/workflows/wh06-program-checkpoint.yml"
+      - "docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md"
   pull_request:
     paths:
       - ".github/workflows/wh06-program-checkpoint.yml"
@@ -22,7 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
-          HEAD_BRANCH: ${{ github.head_ref }}
+          HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
         shell: bash
         run: |
           set -euo pipefail

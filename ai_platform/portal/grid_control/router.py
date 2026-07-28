@@ -15,6 +15,10 @@ from ai_platform.portal.grid_control.evidence import (
     GridExchangeCapabilityEvidence,
     GridTemplateCapabilityEvidence,
 )
+from ai_platform.portal.grid_control.overview import (
+    GridControlOverview,
+    GridControlOverviewService,
+)
 from ai_platform.portal.grid_control.schema import (
     GridPolicyRevision,
     GridPreview,
@@ -31,7 +35,9 @@ class GridPreviewApiRequest(ContractModel):
 
 
 def build_router(
-    service: GridControlService, context_dependency: Callable[..., RequestContext]
+    service: GridControlService,
+    overview_service: GridControlOverviewService,
+    context_dependency: Callable[..., RequestContext],
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/bot-management/grid", tags=["bot-management"])
 
@@ -41,6 +47,12 @@ def build_router(
             actor=actor_from_request(context),
             capabilities=capabilities_from_request(context),
         )
+
+    @router.get("/overview", response_model=GridControlOverview)
+    def grid_overview(
+        context: RequestContext = Depends(context_dependency),
+    ) -> GridControlOverview:
+        return overview_service.overview(capabilities_from_request(context))
 
     @router.post("/preview", response_model=GridPreview)
     def preview_grid(

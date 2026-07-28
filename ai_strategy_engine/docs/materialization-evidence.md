@@ -1,7 +1,7 @@
 # ASE-00 materialization evidence
 
 - status: `complete`
-- latest develop SHA merged: `c6c345b9d2d6e5a67cccbaef16dd42ca3b9c125e`
+- latest develop SHA merged: `865d8c08f526772c39c5d15192b6326b3b9fc710`
 - required and recovered source ZIP SHA-256: `73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f`
 - materialized source tree hash before later ASE-00 integration changes: `c8875a8e812f01604efa14a846324a05511c4fc06d18500c4fe5da6ec65898e4`
 - materializer command: `python ai_strategy_engine/materialize_starter.py`

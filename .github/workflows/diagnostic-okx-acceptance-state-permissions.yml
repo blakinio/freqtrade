@@ -1,15 +1,21 @@
 name: Diagnostic OKX Acceptance State Permissions
 
 on:
-  push:
+  pull_request:
+    types: [opened, reopened, synchronize]
     branches:
-      - diag/okx-acceptance-state-permissions-20260728
+      - develop
+    paths:
+      - ".github/workflows/diagnostic-okx-acceptance-state-permissions.yml"
 
 permissions:
   contents: read
 
 jobs:
   inspect:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     environment: synology-staging
     timeout-minutes: 10

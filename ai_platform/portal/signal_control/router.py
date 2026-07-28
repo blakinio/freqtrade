@@ -12,6 +12,8 @@ from ai_platform.portal.control_plane.bot_management import (
     capabilities_from_request,
 )
 from ai_platform.portal.control_plane.context import RequestContext
+from ai_platform.portal.signal_control.overview_service import SignalControlOverviewService
+from ai_platform.portal.signal_control.public_schema import SignalControlOverview
 from ai_platform.portal.signal_control.schema import (
     AuthoritativeSignalTargetState,
     CreateSignalEndpoint,
@@ -43,6 +45,7 @@ class ProcessSignalApiRequest(ContractModel):
 
 def build_router(
     service: SignalControlService,
+    overview_service: SignalControlOverviewService,
     context_dependency: Callable[..., RequestContext],
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/bot-management/signals", tags=["bot-management"])
@@ -57,6 +60,15 @@ def build_router(
             environment=environment,
             capabilities=capabilities_from_request(context),
             correlation=context.correlation_context(),
+        )
+
+    @router.get("/overview", response_model=SignalControlOverview)
+    def signal_overview(
+        context: RequestContext = Depends(context_dependency),
+    ) -> SignalControlOverview:
+        return overview_service.overview(
+            tenant_id=context.tenant_id,
+            capabilities=capabilities_from_request(context),
         )
 
     @router.post(

@@ -1,76 +1,9 @@
-.....F.                                                                  [100%]
-=================================== FAILURES ===================================
-_______ test_lifecycle_intent_api_fails_closed_without_runtime_provider ________
-
-    def test_lifecycle_intent_api_fails_closed_without_runtime_provider() -> None:
-        response = _client().post(
-            "/v1/bot-management/commands/lifecycle-intents",
-            json={
-                "bot_id": "bot-a",
-                "action": "START",
-                "expected_config_revision": 3,
-                "idempotency_key": "intent-a",
-            },
-        )
-    
-        assert response.status_code == 200
->       assert response.json() == {
-            "command_id": None,
-            "bot_id": "bot-a",
-            "action": "START",
-            "status": "BLOCKED",
-            "reason_codes": ["RUNTIME_UNAVAILABLE"],
-            "command_persisted": False,
-            "execution_submission_performed": False,
-        }
-E       AssertionError: assert {'contract_ve... 'START', ...} == {'command_id'...BLOCKED', ...}
-E         
-E         Omitting 7 identical items, use -vv to show
-E         Left contains 1 more item:
-E         {'contract_version': 'v1'}
-E         
-E         Full diff:
-E           {
-E         +     'contract_version': 'v1',
-E               'command_id': None,
-E               'bot_id': 'bot-a',
-E               'action': 'START',
-E               'status': 'BLOCKED',
-E               'reason_codes': [
-E                   'RUNTIME_UNAVAILABLE',
-E               ],
-E               'command_persisted': False,
-E               'execution_submission_performed': False,
-E           }
-
-tests/ai_platform/portal/bot_operations/test_intent_api.py:60: AssertionError
------------------------------- Captured log call -------------------------------
-2026-07-28 13:19:06 INFO HTTP Request: POST http://testserver/v1/bot-management/commands/lifecycle-intents "HTTP/1.1 200 OK"
+.......                                                                  [100%]
 =============================== warnings summary ===============================
 ../../../../../opt/hostedtoolcache/Python/3.13.14/x64/lib/python3.13/site-packages/fastapi/testclient.py:1
   /opt/hostedtoolcache/Python/3.13.14/x64/lib/python3.13/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-FAILED tests/ai_platform/portal/bot_operations/test_intent_api.py::test_lifecycle_intent_api_fails_closed_without_runtime_provider - AssertionError: assert {'contract_ve... 'START', ...} == {'command_id'...BLOCKED', ...}
-  
-  Omitting 7 identical items, use -vv to show
-  Left contains 1 more item:
-  {'contract_version': 'v1'}
-  
-  Full diff:
-    {
-  +     'contract_version': 'v1',
-        'command_id': None,
-        'bot_id': 'bot-a',
-        'action': 'START',
-        'status': 'BLOCKED',
-        'reason_codes': [
-            'RUNTIME_UNAVAILABLE',
-        ],
-        'command_persisted': False,
-        'execution_submission_performed': False,
-    }
-1 failed, 6 passed, 1 warning in 0.88s
-exit_status=1
+7 passed, 1 warning in 1.12s
+exit_status=0

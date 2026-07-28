@@ -35,8 +35,8 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check ruff==0.15.21
-          ruff check --fix ai_platform tests/ai_platform
           ruff format ai_platform tests/ai_platform
+          ruff check --fix ai_platform tests/ai_platform
           git diff --binary -- ai_platform tests/ai_platform > ruff-fix.patch
           ruff check ai_platform tests/ai_platform > ruff-check-after.txt 2>&1
           ruff format --check ai_platform tests/ai_platform > ruff-format-after.txt 2>&1

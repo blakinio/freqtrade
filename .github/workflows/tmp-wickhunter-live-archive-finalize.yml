@@ -1,0 +1,133 @@
+name: Temporary WickHunter live archive finalize
+
+on:
+  push:
+    branches:
+      - feat/wickhunter-live-archive-acceptance-v1
+    paths:
+      - .github/workflows/tmp-wickhunter-live-archive-finalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-live-archive-acceptance-v1
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Update governed documentation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          program = Path("docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md")
+          text = program.read_text(encoding="utf-8")
+          anchor = (
+              "The frozen `liquid20-v1` symbol set remains immutable collection and acceptance evidence. "
+              "It is not the WickHunter trading universe. WickHunter uses a separate dynamic universe derived "
+              "from instrument metadata and decision-time data quality.\n"
+          )
+          addition = (
+              anchor
+              + "\nCompleted first-party Liquid20 live runs are an eligible prospective historical source only "
+              "after read-only conversion into the unchanged provider-neutral acceptance package. Tardis remains "
+              "an optional long-history backfill rather than the only path to real WickHunter evidence.\n"
+          )
+          if anchor not in text:
+              raise SystemExit("program repository-state anchor missing")
+          text = text.replace(anchor, addition, 1)
+          old_gate = (
+              "The first real paid bulk Tardis import remains owner/provider-access dependent. WH-01 provides "
+              "the accepted-import builder but does not claim a real historical dataset was purchased, imported "
+              "or accepted. WH-02 cannot consume or evaluate real history until such a package passes the unchanged "
+              "historical acceptance contract."
+          )
+          new_gate = (
+              "WH-01 remains provider-neutral. A real accepted package may come from a paid immutable Tardis "
+              "backfill or from an immutable completed first-party Liquid20 live run converted by WH-A1. No real "
+              "production live run is claimed accepted until the separate operational conversion passes the "
+              "unchanged loader and protected-holdout gates."
+          )
+          if old_gate not in text:
+              raise SystemExit("program WH-01 gate anchor missing")
+          text = text.replace(old_gate, new_gate, 1)
+          wh02 = "### WH-02 — deterministic replay and event labels\n"
+          auxiliary = """### WH-A1 — first-party live archive acceptance bridge
+
+Status: `in_progress`
+
+Depends on: WH-01 and the frozen `liquidation-live-state-v1` closed-run contract.
+
+Deliver read-only validation of completed Liquid20 runs; exact run/source/file identities; first-party availability-time normalization; unchanged historical acceptance evaluation; atomic no-overwrite publication; and direct WH-01 loader compatibility. It changes no collector, Synology deployment, portal, replay, model or execution path.
+
+The implementation package does not itself prove a production run was converted. WH-02 remains gated until a separate operational conversion produces a real non-empty zero-rejection package.
+
+"""
+          if wh02 not in text:
+              raise SystemExit("program WH-02 anchor missing")
+          text = text.replace(wh02, auxiliary + wh02, 1)
+          program.write_text(text, encoding="utf-8")
+
+          task = Path(
+              "docs/agents/tasks/FTAI-20260728-wickhunter-live-archive-acceptance-bridge.md"
+          )
+          task_text = task.read_text(encoding="utf-8")
+          task_text = task_text.replace("related_pr: null", "related_pr: 631", 1)
+          task_text = task_text.replace("pr: null", "pr: 631", 1)
+          task_text = task_text.replace(
+              "changed_paths:\n  - ai_platform/wickhunter/live_archive.py\n",
+              "changed_paths:\n  - ai_platform/wickhunter/live_archive.py\n"
+              "  - ai_platform/wickhunter/__init__.py\n",
+              1,
+          )
+          task_text = task_text.replace(
+              "  - docs/ai_platform/WICKHUNTER_LIVE_ARCHIVE_ACCEPTANCE.md\nvalidation:",
+              "  - docs/ai_platform/WICKHUNTER_LIVE_ARCHIVE_ACCEPTANCE.md\n"
+              "  - docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md\n"
+              "  - docs/agents/tasks/FTAI-20260728-wickhunter-live-archive-acceptance-bridge.md\n"
+              "validation:",
+              1,
+          )
+          task.write_text(task_text, encoding="utf-8")
+          PY
+
+      - name: Apply repository Ruff fixes
+        shell: bash
+        run: |
+          python -m pip install --disable-pip-version-check ruff==0.15.21
+          ruff check --fix \
+            ai_platform/wickhunter/__init__.py \
+            ai_platform/wickhunter/live_archive.py \
+            tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
+          ruff format \
+            ai_platform/wickhunter/__init__.py \
+            ai_platform/wickhunter/live_archive.py \
+            tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py
+
+      - name: Remove temporary workflow and commit
+        shell: bash
+        run: |
+          rm .github/workflows/tmp-wickhunter-live-archive-finalize.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/wickhunter/__init__.py \
+            ai_platform/wickhunter/live_archive.py \
+            tests/ai_platform_integration/test_wickhunter_live_archive_acceptance.py \
+            docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md \
+            docs/agents/tasks/FTAI-20260728-wickhunter-live-archive-acceptance-bridge.md \
+            .github/workflows/tmp-wickhunter-live-archive-finalize.yml
+          git diff --cached --check
+          git commit -m "style(wickhunter): finalize live archive bridge"
+          git push origin HEAD:feat/wickhunter-live-archive-acceptance-v1

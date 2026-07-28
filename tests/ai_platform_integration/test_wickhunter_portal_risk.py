@@ -5,14 +5,18 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import NAMESPACE_URL, uuid5
 
+import pytest
+
 from ai_platform.portal.contracts.environment import Environment
 from ai_platform.portal.contracts.execution import RuntimeHealthState
 from ai_platform.portal.contracts.risk import (
     ApprovedExecutionIntent,
-    RiskDecision as PortalRiskDecision,
     RiskDecisionOutcome,
     RiskLimitEvaluation,
     TradeSide,
+)
+from ai_platform.portal.contracts.risk import (
+    RiskDecision as PortalRiskDecision,
 )
 from ai_platform.wickhunter.contracts import (
     BotMode,
@@ -33,7 +37,6 @@ from ai_platform.wickhunter.portal_risk import (
     persist_portal_risk_evidence,
     validate_portal_risk_result,
 )
-import pytest
 
 
 def _hash(character: str) -> str:

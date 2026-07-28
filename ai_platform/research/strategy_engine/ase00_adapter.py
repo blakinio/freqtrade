@@ -10,10 +10,6 @@ from typing import Literal, cast
 
 import pandas as pd
 from pydantic import JsonValue
-
-from ai_platform.portal.contracts.risk import RiskDecisionOutcome
-from ai_platform.portal.risk.schema import RiskEvaluationSnapshot, RiskPolicyLimits
-from ai_platform.portal.risk.service import RiskService
 from strategy_engine.domain.models import (
     Action,
     FeatureRecord,
@@ -41,6 +37,10 @@ from strategy_engine.validation.leakage import (
     LeakageError,
     assert_features_available,
 )
+
+from ai_platform.portal.contracts.risk import RiskDecisionOutcome
+from ai_platform.portal.risk.schema import RiskEvaluationSnapshot, RiskPolicyLimits
+from ai_platform.portal.risk.service import RiskService
 
 
 EventKind = Literal["market_bar", "liquidation"]
@@ -397,7 +397,7 @@ class Ase00ShadowEngine:
         squeeze_ref = configured.get("squeeze_ratio.v1")
         if squeeze_ref is not None:
             squeeze = squeeze_features(frame, **squeeze_ref.params)
-            columns = (
+            squeeze_columns = (
                 "squeeze_ratio",
                 "squeeze_state",
                 "squeeze_duration",
@@ -406,7 +406,7 @@ class Ase00ShadowEngine:
                 "momentum_slope",
                 "momentum_acceleration",
             )
-            value = _row_mapping(squeeze, -1, columns)
+            value = _row_mapping(squeeze, -1, squeeze_columns)
             record = self._market_feature_record(
                 reference=squeeze_ref,
                 event=latest_market,
@@ -416,20 +416,20 @@ class Ase00ShadowEngine:
             )
             records.append(record)
             current[squeeze_ref.id] = value
-            previous[squeeze_ref.id] = _row_mapping(squeeze, -2, columns)
+            previous[squeeze_ref.id] = _row_mapping(squeeze, -2, squeeze_columns)
 
         supertrend_ref = configured.get("supertrend_direction.v1")
         if supertrend_ref is not None:
             supertrend = supertrend_features(frame, **supertrend_ref.params)
-            columns = (
+            supertrend_columns = (
                 "supertrend_band",
                 "supertrend_direction",
                 "supertrend_flip",
                 "supertrend_distance_atr",
             )
-            value = _row_mapping(supertrend, -1, columns)
+            value = _row_mapping(supertrend, -1, supertrend_columns)
             value["direction"] = value["supertrend_direction"]
-            prior = _row_mapping(supertrend, -2, columns)
+            prior = _row_mapping(supertrend, -2, supertrend_columns)
             prior["direction"] = prior["supertrend_direction"]
             record = self._market_feature_record(
                 reference=supertrend_ref,

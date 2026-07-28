@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -155,7 +156,7 @@ def test_registry_to_dsl_validation_and_feature_resolution() -> None:
 def test_dsl_rejects_feature_outside_registry() -> None:
     registry, spaces = _registries()
     document = _strategy()
-    features = list(document["features"])  # type: ignore[arg-type]
+    features = [dict(feature) for feature in cast(list[dict[str, object]], document["features"])]
     features[0] = {
         "id": "unknown.v1",
         "params": {},
@@ -171,8 +172,8 @@ def test_dsl_rejects_feature_outside_registry() -> None:
 def test_dsl_rejects_undeclared_timeframe() -> None:
     registry, spaces = _registries()
     document = _strategy()
-    features = list(document["features"])  # type: ignore[arg-type]
-    features[0] = {**features[0], "timeframe": "1h"}  # type: ignore[arg-type]
+    features = [dict(feature) for feature in cast(list[dict[str, object]], document["features"])]
+    features[0] = {**features[0], "timeframe": "1h"}
     document["features"] = features
     with pytest.raises(StrategyValidationError) as captured:
         StrategyValidator(registry, spaces).validate(document)

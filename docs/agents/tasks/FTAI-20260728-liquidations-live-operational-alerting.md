@@ -25,9 +25,9 @@ Provide autonomous fail-closed monitoring for both the completed Synology Liquid
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-07-28T11:10:00Z
-head: pending
+checkpoint_version: 1
+updated_at: 2026-07-28T17:49:17Z
+head: f9c1b74bf30002efa090668d95467fecd6b32f1b
 branch: fix/liquidations-live-health-status-20260728
 pr: 594
 status: validating
@@ -48,31 +48,25 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260728-liquidations-live-operational-alerting.md
 proven:
   - "PR #578 merged the recurring five-minute collector monitor, deduplicated GitHub Issue lifecycle and failure-only evidence retention."
-  - "The collector monitor evaluates container state, live-state contract, active run, collector/source heartbeat freshness, configured connected subscriptions, data-only safety and disk capacity."
-  - "PR #594 publishes pending/final liquidations-live-health commit statuses with minimal statuses: write permission."
-  - "The extension keeps production authentication fail-closed: the public page must return 200 and the protected production health API must return exact 401 SESSION_MISSING with no-store."
-  - "Protected health/list/summary reads reuse the existing terminally proven portal proof script and its isolated candidate created from the exact production image and image ID."
-  - "The candidate uses the real Liquid20 root read-only, non-root identity, read-only root filesystem, bounded tmpfs, cap-drop ALL, no-new-privileges, 768 MiB memory, no restart and no Docker socket."
-  - "Fixture identity and its ephemeral cookies remain confined to the existing candidate-local proof process and are never written to JSON, issue bodies or artifacts."
-  - "The combined monitor records and alerts on portal LIVE, STALE, OFFLINE or unexpected HISTORICAL state and validates Bybit/Binance connectivity, subscriptions, event counts and no-store API behavior."
-  - "Collector and portal failures reconcile through the same exact-title deduplicated GitHub Issue."
+  - "PR #594 extends the same monitor to the production portal page, fail-closed production auth boundary and isolated exact-image protected API proof."
+  - "The candidate keeps Liquid20 read-only, runs non-root with read-only rootfs, bounded tmpfs, cap-drop ALL, no-new-privileges, 768 MiB and no Docker socket."
+  - "Collector and portal failures reconcile through one exact-title GitHub Issue and publish liquidations-live-health commit status."
+  - "Exact implementation head f9c1b74bf30002efa090668d95467fecd6b32f1b passed AI Platform CI 30360553463, Freqtrade CI 30360553340 and zizmor 30360551180."
+  - "PR #594 has six changed paths and zero review threads."
 derived:
-  - "A real unattended production session is neither required nor fabricated; the production auth boundary is checked directly while protected read behavior is exercised in an isolated exact-image candidate."
-  - "Using the exact deployed image and real read-only data detects deployed bundle/read-model regressions without restarting or modifying the production portal."
-  - "Failure-only artifact retention prevents five-minute healthy runs from consuming unnecessary Actions storage."
+  - "No unattended production session is required; production auth is checked directly while protected reads run only in the isolated candidate."
+  - "Failure-only artifacts avoid persistent storage growth from healthy five-minute checks."
 unknown:
-  - "Whether exact-head repository CI and zizmor accept the extended workflow, wrapper and tests."
-  - "Whether the first trusted develop run reports portal mode LIVE and closes any pre-existing deduplicated health issue."
+  - "Whether PR #594 remains conflict-free after synchronizing the four newer develop commits."
+  - "Whether the first trusted develop Liquidations Live Health run reports healthy collector and portal LIVE state."
 conflicts: []
 first_failure:
   marker: PORTAL_OPERATIONAL_MONITORING_GAP
   evidence: "The merged monitor covered the collector and data root but did not execute the deployed portal read model or alert on LIVE/STALE/OFFLINE transitions."
 rejected_hypotheses:
   - "Store or fabricate a real production portal session."
-  - "Enable fixture identity in the production portal."
-  - "Bypass or weaken SESSION_MISSING."
-  - "Mount Liquid20 writable or mount the Docker socket inside the portal candidate."
-  - "Restart or replace the production portal as part of monitoring."
+  - "Enable fixture identity in the production portal or weaken SESSION_MISSING."
+  - "Mount Liquid20 writable, mount the Docker socket or restart production as part of monitoring."
   - "Upload artifacts for healthy five-minute checks."
 changed_paths:
   - .github/workflows/liquidations-live-health.yml
@@ -82,21 +76,24 @@ changed_paths:
   - tests/ai_platform_integration/test_liquidation_portal_health.py
   - docs/agents/tasks/FTAI-20260728-liquidations-live-operational-alerting.md
 validation:
-  - command: "bash -n deploy/synology/portal/prove-liquidations-live.sh"
-    result: PASS
-    evidence: "The existing trusted portal proof script remains unchanged and passed shell syntax validation in its terminal proof task."
-  - command: "pytest -q tests/ai_platform_integration/test_liquidation_portal_health.py"
-    result: PASS
-    evidence: "Six isolated contract tests passed against the combined wrapper, workflow and existing proof-script contract."
   - command: "python -m py_compile ai_platform/scripts/liquidation_portal_health.py"
     result: PASS
-    evidence: "The combined monitoring wrapper compiled successfully."
-  - command: "exact-head PR #594 CI and zizmor"
-    result: NOT_RUN
-    evidence: "Awaiting the updated exact head."
+    evidence: "Portal monitoring wrapper compiled successfully."
+  - command: "pytest -q tests/ai_platform_integration/test_liquidation_portal_health.py"
+    result: PASS
+    evidence: "Six isolated portal-monitor contract tests passed."
+  - command: "AI Platform CI 30360553463 on f9c1b74bf30002efa090668d95467fecd6b32f1b"
+    result: PASS
+    evidence: "Exact-head platform tests, Ruff, formatting, codespell and JSON validation succeeded."
+  - command: "Freqtrade CI 30360553340 on f9c1b74bf30002efa090668d95467fecd6b32f1b"
+    result: PASS
+    evidence: "Python 3.11-3.14, coverage 3.12, pre-commit, docs, distributions and CI Gate succeeded."
+  - command: "zizmor 30360551180 on f9c1b74bf30002efa090668d95467fecd6b32f1b"
+    result: PASS
+    evidence: "Workflow security analysis succeeded."
   - command: "first trusted develop Liquidations Live Health workflow"
     result: NOT_RUN
-    evidence: "Runs after reviewed merge."
+    evidence: "Requires reviewed merge."
 blockers: []
-next_action: "Require green exact-head PR #594 CI/security and zero review threads, merge, then verify one terminal trusted five-minute collector-and-portal health run."
+next_action: "Synchronize PR #594 with current develop, require green exact-head CI/security and zero review threads, merge with expected-head protection, then verify one terminal trusted five-minute collector-and-portal health run."
 ```

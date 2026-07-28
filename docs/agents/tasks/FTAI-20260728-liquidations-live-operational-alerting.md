@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260728-liquidations-live-operational-alerting
 status: validating
-branch: fix/liquidations-live-health-status-20260728
+branch: develop
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
@@ -26,9 +26,9 @@ Provide autonomous fail-closed monitoring for both the completed Synology Liquid
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T17:52:00Z
-head: 8191bf14e5024d876533d6e236648b934c768255
-branch: fix/liquidations-live-health-status-20260728
+updated_at: 2026-07-28T18:46:59Z
+head: 6179566a37a80d2f8c389b46854d2afb90371587
+branch: develop
 pr: 594
 status: validating
 context_routes:
@@ -48,17 +48,19 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260728-liquidations-live-operational-alerting.md
 proven:
   - "PR #578 merged the recurring five-minute collector monitor, deduplicated GitHub Issue lifecycle and failure-only evidence retention."
-  - "PR #594 extends the same monitor to the production portal page, fail-closed production auth boundary and isolated exact-image protected API proof."
+  - "PR #594 merged exact validated feature head 04a01018b9e0b21a3ef5b2746544204c10acbaf0 into develop as 6179566a37a80d2f8c389b46854d2afb90371587."
+  - "Exact feature head 04a01018b9e0b21a3ef5b2746544204c10acbaf0 passed AI Platform CI 30385606203, Freqtrade CI 30385606041 and zizmor 30385606274."
+  - "PR #594 had the expected six changed paths and zero review threads before merge."
+  - "The merged monitor covers the production portal page, exact fail-closed production auth boundary and isolated exact-image protected API proof while retaining the collector monitor."
   - "The candidate keeps Liquid20 read-only, runs non-root with read-only rootfs, bounded tmpfs, cap-drop ALL, no-new-privileges, 768 MiB and no Docker socket."
   - "Collector and portal failures reconcile through one exact-title GitHub Issue and publish liquidations-live-health commit status."
-  - "Implementation head f9c1b74bf30002efa090668d95467fecd6b32f1b passed AI Platform CI 30360553463, Freqtrade CI 30360553340 and zizmor 30360551180."
-  - "PR #594 is synchronized with develop 31c61fdab351521c275687e4751682ef935407f9, mergeable, draft, has six changed paths and zero review threads."
+  - "Current develop f2431821f29878f3308469e035cba0f70d933b05 contains merge commit 6179566a37a80d2f8c389b46854d2afb90371587."
 derived:
   - "No unattended production session is required; production auth is checked directly while protected reads run only in the isolated candidate."
   - "Failure-only artifacts avoid persistent storage growth from healthy five-minute checks."
 unknown:
-  - "Whether AI Platform CI 30384713787 and Freqtrade CI 30384710124 finish green on checkpoint head 8191bf14e5024d876533d6e236648b934c768255."
-  - "Whether the first trusted develop Liquidations Live Health run reports healthy collector and portal LIVE state."
+  - "Whether the first trusted develop Liquidations Live Health execution reports healthy collector and portal LIVE state."
+  - "Why no pending liquidations-live-health status was published during the observed 18:30, 18:35 or 18:45 UTC scheduling opportunities."
 conflicts: []
 first_failure:
   marker: PORTAL_OPERATIONAL_MONITORING_GAP
@@ -82,18 +84,23 @@ validation:
   - command: "pytest -q tests/ai_platform_integration/test_liquidation_portal_health.py"
     result: PASS
     evidence: "Six isolated portal-monitor contract tests passed."
-  - command: "AI Platform CI 30360553463 and Freqtrade CI 30360553340 on f9c1b74bf30002efa090668d95467fecd6b32f1b"
+  - command: "AI Platform CI 30385606203 on 04a01018b9e0b21a3ef5b2746544204c10acbaf0"
     result: PASS
-    evidence: "Platform tests, Ruff, formatting, codespell, Python 3.11-3.14, coverage, pre-commit, distributions and CI Gate succeeded."
-  - command: "zizmor 30384709951 on 8191bf14e5024d876533d6e236648b934c768255"
+    evidence: "Exact-head platform tests, Ruff, formatting, codespell and JSON validation succeeded."
+  - command: "Freqtrade CI 30385606041 on 04a01018b9e0b21a3ef5b2746544204c10acbaf0"
+    result: PASS
+    evidence: "Python 3.11-3.14, coverage, pre-commit, documentation, distributions and CI Gate succeeded."
+  - command: "zizmor 30385606274 on 04a01018b9e0b21a3ef5b2746544204c10acbaf0"
     result: PASS
     evidence: "Exact-head workflow security analysis succeeded."
-  - command: "AI Platform CI 30384713787 and Freqtrade CI 30384710124 on 8191bf14e5024d876533d6e236648b934c768255"
+  - command: "PR #594 merge"
+    result: PASS
+    evidence: "Merged exact feature head 04a01018b9e0b21a3ef5b2746544204c10acbaf0 as develop commit 6179566a37a80d2f8c389b46854d2afb90371587."
+  - command: "trusted develop liquidations-live-health status through 2026-07-28T18:46:59Z"
     result: NOT_RUN
-    evidence: "Both exact-head workflows are in progress."
-  - command: "first trusted develop Liquidations Live Health workflow"
-    result: NOT_RUN
-    evidence: "Requires reviewed merge."
-blockers: []
-next_action: "Require green exact-head AI Platform and Freqtrade CI, recheck mergeability and zero review threads, mark PR #594 ready, merge with expected-head protection, then verify one terminal trusted five-minute collector-and-portal health run."
+    evidence: "GitHub returned no pending or terminal liquidations-live-health status on merge commit 6179566a37a80d2f8c389b46854d2afb90371587 or current develop f2431821f29878f3308469e035cba0f70d933b05 after the observed 18:30, 18:35 and 18:45 UTC scheduling opportunities."
+blockers:
+  - marker: TRUSTED_HEALTH_RUN_NOT_PUBLISHED
+    evidence: "No pending or terminal liquidations-live-health commit status was observable, so collector and portal production health cannot be concluded."
+next_action: "Obtain one terminal trusted Liquidations Live Health execution on current develop; if no pending status appears, inspect the freqtrade-staging runner and workflow queue first, then record the run ID and terminal collector-and-portal outcome."
 ```

@@ -1,0 +1,1 @@
+{"allow_redirects":false,"max_response_bytes":16777216,"request_url":"https://api.binance.com/api/v3/exchangeInfo?showPermissionSets=false","retries":0,"source_acceptance":false,"source_id":"binance-spot","timeout_seconds":20,"version":"binance-spot-instrument-smoke-policy-v2"}

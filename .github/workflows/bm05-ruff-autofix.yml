@@ -25,11 +25,19 @@ jobs:
       - name: Apply exact Ruff changes and remove helper
         run: |
           python -m pip install --disable-pip-version-check ruff==0.15.21
-          ruff check --fix --unsafe-fixes ai_platform/portal/grid_control tests/ai_platform/portal/grid_control
+          ruff check --fix --unsafe-fixes ai_platform/portal/grid_control tests/ai_platform/portal/grid_control || true
           ruff format ai_platform/portal/grid_control tests/ai_platform/portal/grid_control
+          ruff check ai_platform/portal/grid_control tests/ai_platform/portal/grid_control > bm05-ruff.txt 2>&1 || true
           rm .github/workflows/bm05-ruff-autofix.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ai_platform/portal/grid_control tests/ai_platform/portal/grid_control .github/workflows/bm05-ruff-autofix.yml
           git commit -m "style(portal): apply exact BM-05 Ruff fixes"
           git push origin HEAD:diagnostic/bm05-ruff-final-20260728
+      - name: Upload remaining diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bm05-ruff-diagnostics
+          path: bm05-ruff.txt
+          if-no-files-found: error
+          retention-days: 1

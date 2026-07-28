@@ -6,13 +6,18 @@ on:
       - develop
     paths:
       - .github/workflows/ase00-align-pivot-contract.yml
+  push:
+    branches:
+      - agent/ase-00-ai-strategy-engine-foundation
+    paths:
+      - .github/workflows/ase00-align-pivot-contract.yml
 
 permissions:
   contents: write
 
 jobs:
   repair:
-    if: github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

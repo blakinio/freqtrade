@@ -137,7 +137,11 @@ class ClosedRunCandidate:
     events_written: int
 
 
-def _candidate_from_run(run_root: Path, *, holdout_start_ms: int) -> ClosedRunCandidate | None:
+def _candidate_from_run(  # noqa: C901
+    run_root: Path,
+    *,
+    holdout_start_ms: int,
+) -> ClosedRunCandidate | None:
     if run_root.is_symlink() or not run_root.is_dir() or not LIVE_RUN_ID_PATTERN.fullmatch(run_root.name):
         return None
     state_path = run_root / "run-state-v1.json"

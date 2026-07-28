@@ -45,9 +45,9 @@ This task adds no API registration, migration, BFF route, exchange credential ac
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T09:40:00+02:00
-head_parent: cebedceba98cab5479a56ffe688eb4f806c98f0b
-base_develop: 9ceb684a5114faac44c45081e45d0627f85d9512
+updated_at: 2026-07-28T09:59:00+02:00
+head_parent: a0f2b07a320288041cd7267d92e07780c8d4a6f9
+base_develop: 59b62adad7b21d4e1c1114a118ce192eae6a7eea
 branch: feat/portal-bm05-grid-capability
 pr: 565
 status: ready_for_merge
@@ -65,13 +65,13 @@ owned_paths:
 proven:
   - BM-00 and BM-02 policy/capability contracts are merged and expose GridPolicyVersion and GRID_CONFIGURE.
   - BM-04 merged into develop as 22b3288c141a70abe67c61f4e737561ecf6d7379 before this branch was created.
-  - The feature branch is synchronized with current develop 9ceb684a5114faac44c45081e45d0627f85d9512 through feature-branch-only PR 573; the incoming Liquid20 checkpoint path is disjoint from BM-05 ownership.
+  - The feature branch is synchronized with develop 59b62adad7b21d4e1c1114a118ce192eae6a7eea through feature-branch-only PR 581; all eight incoming M1 and Binance smoke paths are disjoint from BM-05 ownership.
   - No open PR or existing branch owned the canonical BM-05 grid_control paths when work began.
   - PR 565 changes exactly twelve declared feature, test and checkpoint paths.
   - Forty-nine focused BM-05 test functions cover level generation, validation, exchange minima, immutable persistence and non-execution safety.
-  - AI Platform CI 30338054945 passed compilation, the full AI Platform test suite, Ruff, Ruff format, codespell and JSON validation at head 1e1d7b2d40f510a222832742fc7819588f0ce52e.
-  - Freqtrade CI 30338054961 passed pre-commit, documentation, Python 3.11-3.14 tests, full Python 3.12 coverage, Ruff, formatting, mypy, smoke tests, distribution build and final CI Gate at head 1e1d7b2d40f510a222832742fc7819588f0ce52e.
-  - GitHub Actions security analysis 30338054982 passed at head 1e1d7b2d40f510a222832742fc7819588f0ce52e.
+  - AI Platform CI 30339361465 passed compilation, the full AI Platform test suite, Ruff, Ruff format, codespell and JSON validation at head 802dec49c1d2f881a30306436da0540f3b1e4e5a.
+  - Freqtrade CI 30339361469 passed pre-commit, documentation, Python 3.11-3.14 tests, full Python 3.12 coverage, Ruff, formatting, mypy, smoke tests, distribution build and final CI Gate at head 802dec49c1d2f881a30306436da0540f3b1e4e5a.
+  - GitHub Actions security analysis 30339361471 passed at head 802dec49c1d2f881a30306436da0540f3b1e4e5a.
   - Exact Ruff 0.15.21 formatting was applied by feature-branch-only PR 568; the remaining S101 and C901 findings were captured in artifact 8679615072 and repaired in feature-owned service code.
   - Temporary diagnostic PR 570 was closed without merge and its workflow path is absent from PR 565.
   - The service exposes preview and immutable persistence only and has no order submission or execution method.
@@ -104,15 +104,15 @@ changed_paths:
 validation:
   - command: AI Platform compilation, tests, Ruff, format, codespell and JSON validation
     result: PASS
-    evidence: workflow 30338054945
+    evidence: workflow 30339361465 on 802dec49c1d2f881a30306436da0540f3b1e4e5a
   - command: Freqtrade full matrix, typing, distribution build and final CI Gate
     result: PASS
-    evidence: workflow 30338054961
+    evidence: workflow 30339361469 on 802dec49c1d2f881a30306436da0540f3b1e4e5a
   - command: GitHub Actions security analysis
     result: PASS
-    evidence: workflow 30338054982
-  - command: terminal synchronized documentation-only checkpoint head
+    evidence: workflow 30339361471 on 802dec49c1d2f881a30306436da0540f3b1e4e5a
+  - command: terminal latest-develop synchronized checkpoint head
     result: PENDING
 blockers: []
-next_action: Validate this synchronized documentation-only checkpoint exact head, audit changed paths and review state against current develop, then guarded squash-merge PR 565.
+next_action: Validate this latest-develop synchronized checkpoint exact head, audit changed paths and review state, then guarded squash-merge PR 565.
 ```

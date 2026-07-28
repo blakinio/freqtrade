@@ -34,7 +34,7 @@ jobs:
           set +e
           ruff check ai_platform tests/ai_platform > ruff-check.txt 2>&1
           echo $? > ruff-exit-code.txt
-          ruff format --check ai_platform tests/ai_platform > ruff-format.txt 2>&1
+          ruff format --diff ai_platform/scripts/liquidation_live_health.py > ruff-format.txt 2>&1
           echo $? > ruff-format-exit-code.txt
           exit 0
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

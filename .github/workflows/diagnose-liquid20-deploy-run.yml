@@ -1,4 +1,4 @@
-name: Inspect Portal Candidate Limits
+name: Inspect Terminal Portal Proof Run
 
 on:
   pull_request:
@@ -6,45 +6,50 @@ on:
       - .github/workflows/diagnose-liquid20-deploy-run.yml
 
 permissions:
+  actions: read
   contents: read
 
 jobs:
   inspect:
-    runs-on: freqtrade-staging
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Inspect exact-image candidate limits
+      - name: Inspect exact portal proof push run
         env:
-          PORTAL_CONTAINER: freqtrade-portal-staging
-          LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
-          LIQUIDATIONS_CONTAINER_ROOT: /liquid20-data
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -Eeuo pipefail
-          candidate="freqtrade-portal-limit-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          cleanup() { docker rm -f "$candidate" >/dev/null 2>&1 || true; }
-          trap cleanup EXIT
-          portal_image="$(docker inspect --format '{{.Config.Image}}' "$PORTAL_CONTAINER")"
-          data_gid="$(docker run --rm --user 0:0 --entrypoint node \
-            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
-            "$portal_image" \
-            -e 'const fs=require("node:fs");process.stdout.write(String(fs.lstatSync("/liquid20-data").gid));')"
-          docker run -d \
-            --name "$candidate" \
-            --restart no \
-            --read-only \
-            --tmpfs /tmp:size=64m,mode=1777 \
-            --tmpfs /app/.next/cache:size=64m,mode=0755 \
-            --cap-drop ALL \
-            --security-opt no-new-privileges:true \
-            --memory 768m \
-            --group-add "$data_gid" \
-            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
-            --env PORTAL_WEB_DATA_MODE=fixture \
-            --env PORTAL_ENVIRONMENT=test \
-            --env PORTAL_IDENTITY_FIXTURE_MODE=enabled \
-            --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${LIQUIDATIONS_CONTAINER_ROOT}" \
-            "$portal_image" >/dev/null
-          echo "PIDS_LIMIT_TEMPLATE=$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$candidate")"
-          echo "PIDS_LIMIT_JSON=$(docker inspect --format '{{json .HostConfig.PidsLimit}}' "$candidate")"
-          echo "MEMORY_LIMIT=$(docker inspect --format '{{.HostConfig.Memory}}' "$candidate")"
-          echo "NANO_CPUS=$(docker inspect --format '{{.HostConfig.NanoCpus}}' "$candidate")"
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          sha = "60f84d1302c8cf8907deff13008da2f120939a4f"
+          repository = os.environ["GITHUB_REPOSITORY"]
+          request = urllib.request.Request(
+              f"https://api.github.com/repos/{repository}/actions/runs?head_sha={sha}&event=push&per_page=100",
+              headers={
+                  "Accept": "application/vnd.github+json",
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "X-GitHub-Api-Version": "2022-11-28",
+              },
+          )
+          with urllib.request.urlopen(request, timeout=30) as response:
+              payload = json.load(response)
+          runs = [
+              {
+                  "id": item["id"],
+                  "name": item["name"],
+                  "status": item["status"],
+                  "conclusion": item["conclusion"],
+                  "head_sha": item["head_sha"],
+                  "run_attempt": item["run_attempt"],
+                  "created_at": item["created_at"],
+                  "updated_at": item["updated_at"],
+              }
+              for item in payload.get("workflow_runs", [])
+              if item.get("name") == "Liquidations Live Portal Synology Proof"
+          ]
+          print("PORTAL_PROOF_RUNS=" + json.dumps(runs, sort_keys=True))
+          if not runs:
+              raise SystemExit("No exact portal proof push run found")
+          PY

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from importlib import import_module
 from typing import TYPE_CHECKING
 
 from ai_platform.portal.control_plane.context import RequestContext
@@ -26,7 +27,5 @@ __all__ = [
 
 def __getattr__(name: str) -> object:
     if name == "create_app":
-        from ai_platform.portal.control_plane.api import create_app
-
-        return create_app
+        return import_module("ai_platform.portal.control_plane.api").create_app
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

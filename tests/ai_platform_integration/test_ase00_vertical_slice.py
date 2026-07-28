@@ -4,9 +4,16 @@ import hashlib
 import inspect
 import math
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+
+from strategy_engine.features.records import make_confirmed_htf_record
+from strategy_engine.validation.leakage import (
+    LeakageError,
+    LeakageReason,
+    assert_features_available,
+)
 
 from ai_platform.portal.contracts.execution import RuntimeHealthState
 from ai_platform.portal.risk.schema import RiskEvaluationSnapshot, RiskPolicyLimits
@@ -16,13 +23,12 @@ from ai_platform.research.strategy_engine.ase00_adapter import (
     Ase00Reason,
     Ase00ShadowEngine,
 )
-from strategy_engine.features.records import make_confirmed_htf_record
-from strategy_engine.validation.leakage import LeakageError, LeakageReason, assert_features_available
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CODE_HASH = hashlib.sha256(b"ase00-code").hexdigest()
 SOURCE_VERSION = hashlib.sha256(b"accepted-synthetic-dataset-v1").hexdigest()
-START = datetime(2026, 7, 28, 0, 0, tzinfo=timezone.utc)
+START = datetime(2026, 7, 28, 0, 0, tzinfo=UTC)
 
 
 def _event_id(kind: str, index: int) -> str:
@@ -186,10 +192,10 @@ def _strategy() -> dict[str, object]:
 
 def _limits() -> RiskPolicyLimits:
     return RiskPolicyLimits(
-        max_order_notional=Decimal("1000"),
-        max_projected_gross_exposure=Decimal("5000"),
+        max_order_notional=Decimal(1000),
+        max_projected_gross_exposure=Decimal(5000),
         max_projected_open_positions=3,
-        max_daily_loss=Decimal("500"),
+        max_daily_loss=Decimal(500),
         max_drawdown=Decimal("0.20"),
         require_healthy_runtime=True,
     )
@@ -198,10 +204,10 @@ def _limits() -> RiskPolicyLimits:
 def _snapshot(*, intent_notional: str = "100") -> RiskEvaluationSnapshot:
     return RiskEvaluationSnapshot(
         intent_notional=Decimal(intent_notional),
-        projected_gross_exposure=Decimal("100"),
+        projected_gross_exposure=Decimal(100),
         projected_open_positions=1,
-        daily_loss=Decimal("0"),
-        current_drawdown=Decimal("0"),
+        daily_loss=Decimal(0),
+        current_drawdown=Decimal(0),
         runtime_health=RuntimeHealthState.HEALTHY,
     )
 

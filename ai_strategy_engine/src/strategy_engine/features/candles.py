@@ -22,5 +22,7 @@ def candle_geometry(frame: pd.DataFrame, epsilon: float = 1e-12) -> pd.DataFrame
     result["lower_wick_ratio"] = result["lower_wick"] / denominator
     result["is_bullish"] = frame["close"] > frame["open"]
     result["is_bearish"] = frame["close"] < frame["open"]
-    result.loc[candle_range <= epsilon, ["body_ratio", "upper_wick_ratio", "lower_wick_ratio"]] = np.nan
+    result.loc[candle_range <= epsilon, ["body_ratio", "upper_wick_ratio", "lower_wick_ratio"]] = (
+        np.nan
+    )
     return result

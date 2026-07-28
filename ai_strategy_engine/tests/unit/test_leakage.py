@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -14,7 +14,7 @@ from strategy_engine.validation.leakage import (
     assert_replay_stable,
 )
 
-NOW = datetime(2026, 7, 28, 12, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 7, 28, 12, 0, tzinfo=UTC)
 HASH_A = hashlib.sha256(b"a").hexdigest()
 HASH_B = hashlib.sha256(b"b").hexdigest()
 HASH_C = hashlib.sha256(b"c").hexdigest()

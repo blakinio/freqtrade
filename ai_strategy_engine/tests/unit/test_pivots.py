@@ -7,9 +7,9 @@ def test_pivot_available_only_after_right_bars() -> None:
     idx = pd.date_range("2026-01-01", periods=7, freq="5min", tz="UTC")
     frame = pd.DataFrame(
         {
-            "open":  [1, 2, 3, 2, 1, 2, 3],
-            "high":  [1, 2, 5, 2, 1, 2, 3],
-            "low":   [0, 1, 2, 1, 0, 1, 2],
+            "open": [1, 2, 3, 2, 1, 2, 3],
+            "high": [1, 2, 5, 2, 1, 2, 3],
+            "low": [0, 1, 2, 1, 0, 1, 2],
             "close": [1, 2, 3, 2, 1, 2, 3],
         },
         index=idx,

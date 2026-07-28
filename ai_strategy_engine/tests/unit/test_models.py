@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from pydantic import ValidationError
@@ -14,7 +14,7 @@ HASH_C = hashlib.sha256(b"c").hexdigest()
 
 
 def _feature(**overrides: object) -> FeatureRecord:
-    event = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    event = datetime(2026, 1, 1, tzinfo=UTC)
     values: dict[str, object] = {
         "feature_id": "x.v1",
         "feature_version": "1",
@@ -41,7 +41,7 @@ def _feature(**overrides: object) -> FeatureRecord:
 
 
 def test_feature_timestamp_order_is_enforced() -> None:
-    event = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    event = datetime(2026, 1, 1, tzinfo=UTC)
     with pytest.raises(ValidationError):
         _feature(detected_at=event - timedelta(seconds=1))
 
@@ -53,7 +53,7 @@ def test_timezone_must_be_utc() -> None:
 
 
 def test_shadow_evidence_hash_is_self_verifying() -> None:
-    decision_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    decision_time = datetime(2026, 1, 1, tzinfo=UTC)
     provenance = Provenance(
         producer="test",
         source_event_id="evidence:test",
@@ -82,7 +82,7 @@ def test_shadow_evidence_hash_is_self_verifying() -> None:
 
 
 def test_shadow_evidence_rejects_modified_hash() -> None:
-    decision_time = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    decision_time = datetime(2026, 1, 1, tzinfo=UTC)
     provenance = Provenance(producer="test", source_event_id="evidence:test")
     with pytest.raises(ValidationError):
         ShadowDecisionEvidence(

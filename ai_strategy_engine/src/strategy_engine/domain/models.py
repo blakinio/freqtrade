@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Self
 
@@ -49,7 +49,7 @@ def canonical_sha256(payload: JsonValue | dict[str, Any] | BaseModel) -> str:
 def _require_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware")
-    if value.utcoffset() != timezone.utc.utcoffset(value):
+    if value.utcoffset() != UTC.utcoffset(value):
         raise ValueError("timestamp must be normalized to UTC")
     return value
 

@@ -1,7 +1,11 @@
-
 import pytest
 
-from strategy_engine.risk.position_management import DcaLevel, TakeProfitLevel, validate_dca_plan, validate_take_profit_plan
+from strategy_engine.risk.position_management import (
+    DcaLevel,
+    TakeProfitLevel,
+    validate_dca_plan,
+    validate_take_profit_plan,
+)
 
 
 def test_valid_partial_take_profit_plan() -> None:

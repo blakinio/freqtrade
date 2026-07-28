@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 import math
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Literal, cast
 
@@ -38,6 +36,7 @@ from strategy_engine.validation.leakage import (
     LeakageError,
     assert_features_available,
 )
+
 
 EventKind = Literal["market_bar", "liquidation"]
 
@@ -219,7 +218,12 @@ class Ase00ShadowEngine:
                 risk_snapshot=risk_snapshot,
             )
             reason_codes = _unique_codes(
-                (*normalized.reason_codes, *dsl_decision.reason_codes, *risk_reason_codes, Ase00Reason.SHADOW_ONLY)
+                (
+                    *normalized.reason_codes,
+                    *dsl_decision.reason_codes,
+                    *risk_reason_codes,
+                    Ase00Reason.SHADOW_ONLY,
+                )
             )
             evidence = self._evidence(
                 decision_time=decision_time,
@@ -551,9 +555,7 @@ class Ase00ShadowEngine:
             "squeeze_ratio.v1": squeeze_value,
             "supertrend_direction.v1": supertrend_value,
             "confirmed_pivot.v1": cast(Mapping[str, JsonValue], pivot_record.value),
-            "liquidation_notional_z.v1": cast(
-                Mapping[str, JsonValue], liquidation_record.value
-            ),
+            "liquidation_notional_z.v1": cast(Mapping[str, JsonValue], liquidation_record.value),
         }
         previous: dict[str, JsonValue | Mapping[str, JsonValue]] = {
             "squeeze_ratio.v1": squeeze_previous,
@@ -600,9 +602,7 @@ class Ase00ShadowEngine:
                     Ase00Reason.MARKET_BAR_INVALID, "high is below an OHLC component"
                 )
             if row["volume"] < 0:
-                raise Ase00FailClosed(
-                    Ase00Reason.MARKET_BAR_INVALID, "volume cannot be negative"
-                )
+                raise Ase00FailClosed(Ase00Reason.MARKET_BAR_INVALID, "volume cannot be negative")
             rows.append(row)
             index.append(event.event_time)
         frame = pd.DataFrame(rows, index=pd.DatetimeIndex(index))
@@ -832,7 +832,7 @@ def _finite_float(value: object, label: str) -> float:
 
 
 def _require_utc(value: datetime, label: str) -> None:
-    if value.tzinfo is None or value.utcoffset() != timezone.utc.utcoffset(value):
+    if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
         raise ValueError(f"{label} must be normalized to UTC")
 
 

@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from strategy_engine.features.records import make_confirmed_htf_record
-from strategy_engine.validation.leakage import LeakageError, LeakageReason, assert_features_available
+from strategy_engine.validation.leakage import (
+    LeakageError,
+    LeakageReason,
+    assert_features_available,
+)
 
 CODE = hashlib.sha256(b"code").hexdigest()
 DATA = hashlib.sha256(b"data").hexdigest()
 CONFIG = hashlib.sha256(b"config").hexdigest()
-OPEN = datetime(2026, 7, 28, 10, 0, tzinfo=timezone.utc)
+OPEN = datetime(2026, 7, 28, 10, 0, tzinfo=UTC)
 
 
 def _htf(decision_time: datetime):

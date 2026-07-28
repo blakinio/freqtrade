@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import pandas as pd
@@ -14,7 +13,7 @@ def no_repeat_signals(raw: pd.Series, cooldown_bars: int = 0) -> pd.Series:
     if not raw.dropna().isin([-1, 0, 1]).all():
         raise ValueError("raw signals must be in {-1, 0, 1}")
     output = pd.Series(0, index=raw.index, dtype="Int64")
-    last_emitted_index = -10**12
+    last_emitted_index = -(10**12)
     last_direction = 0
     for i, value in enumerate(raw.fillna(0).astype(int)):
         transition = value != 0 and value != last_direction

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime, timezone
-from typing import Any, cast
+from datetime import UTC, datetime
+from typing import cast
 
 from pydantic import ValidationError
 
@@ -120,7 +120,9 @@ class StrategyValidator:
 
         self._validate_condition_group(parsed.regime, declared_features, "regime", optional=True)
         self._validate_condition_group(parsed.entry_long, declared_features, "entry_long")
-        self._validate_condition_group(parsed.entry_short, declared_features, "entry_short", optional=True)
+        self._validate_condition_group(
+            parsed.entry_short, declared_features, "entry_short", optional=True
+        )
         self._validate_condition_group(parsed.exit, declared_features, "exit")
         return parsed
 
@@ -131,7 +133,7 @@ class StrategyValidator:
         generated_by_ai: bool = False,
         checked_at: datetime | None = None,
     ) -> ValidationReport:
-        checked = checked_at or datetime.now(timezone.utc)
+        checked = checked_at or datetime.now(UTC)
         errors: tuple[str, ...]
         try:
             parsed = StrategyDefinition.model_validate(strategy)
@@ -217,7 +219,8 @@ class StrategyValidator:
         selectors = [key for key in ("feature", "event", "risk") if key in condition]
         if len(selectors) != 1:
             raise StrategyValidationError(
-                "CONDITION_INVALID", f"{label} requires exactly one feature, event, or risk selector"
+                "CONDITION_INVALID",
+                f"{label} requires exactly one feature, event, or risk selector",
             )
         feature = condition.get("feature")
         if feature is not None:

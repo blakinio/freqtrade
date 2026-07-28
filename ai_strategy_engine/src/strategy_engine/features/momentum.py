@@ -1,7 +1,5 @@
-
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from strategy_engine.features.common import rma, safe_divide, source_series
@@ -75,9 +73,9 @@ def wavetrend_features(
         raise ValueError("constant must be > 0")
     src = source_series(frame, source)
     esa = src.ewm(span=channel_length, adjust=False, min_periods=channel_length).mean()
-    deviation = (src - esa).abs().ewm(
-        span=channel_length, adjust=False, min_periods=channel_length
-    ).mean()
+    deviation = (
+        (src - esa).abs().ewm(span=channel_length, adjust=False, min_periods=channel_length).mean()
+    )
     channel_index = safe_divide(src - esa, constant * deviation)
     wt1 = channel_index.ewm(span=average_length, adjust=False, min_periods=average_length).mean()
     wt2 = wt1.rolling(signal_length, min_periods=signal_length).mean()

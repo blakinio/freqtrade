@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -137,9 +137,7 @@ def test_registry_rejects_unknown_and_out_of_range_parameters() -> None:
 def test_search_space_keeps_legacy_squeeze_test_only() -> None:
     _, spaces = _registries()
     with pytest.raises(RegistryError):
-        spaces.get("squeeze").validate_parameters(
-            {"compatibility_mode": "legacy_bug_compatible"}
-        )
+        spaces.get("squeeze").validate_parameters({"compatibility_mode": "legacy_bug_compatible"})
     spaces.get("squeeze").validate_parameters({"compatibility_mode": "corrected"})
 
 
@@ -234,7 +232,7 @@ def test_evaluator_handles_crosses_and_risk_named_values() -> None:
 
 def test_validation_report_is_deterministic_at_fixed_time() -> None:
     registry, spaces = _registries()
-    checked_at = datetime(2026, 7, 28, tzinfo=timezone.utc)
+    checked_at = datetime(2026, 7, 28, tzinfo=UTC)
     validator = StrategyValidator(registry, spaces)
     first = validator.validate_report(_strategy(), checked_at=checked_at)
     second = validator.validate_report(_strategy(), checked_at=checked_at)

@@ -39,8 +39,12 @@ def supertrend_features(
         prev_close = frame["close"].iloc[i - 1]
         close = frame["close"].iloc[i]
 
-        final_up.iloc[i] = max(basic_up.iloc[i], prev_up) if prev_close > prev_up else basic_up.iloc[i]
-        final_down.iloc[i] = min(basic_down.iloc[i], prev_down) if prev_close < prev_down else basic_down.iloc[i]
+        final_up.iloc[i] = (
+            max(basic_up.iloc[i], prev_up) if prev_close > prev_up else basic_up.iloc[i]
+        )
+        final_down.iloc[i] = (
+            min(basic_down.iloc[i], prev_down) if prev_close < prev_down else basic_down.iloc[i]
+        )
 
         prev_direction = direction.iloc[i - 1]
         if prev_direction == -1 and close > prev_down:
@@ -62,6 +66,8 @@ def supertrend_features(
     result["supertrend_down"] = final_down
     result["supertrend_direction"] = direction.astype("Int64")
     result["supertrend_band"] = active_band
-    result["supertrend_distance_atr"] = (frame["close"] - active_band) / atr_values.replace(0.0, np.nan)
+    result["supertrend_distance_atr"] = (frame["close"] - active_band) / atr_values.replace(
+        0.0, np.nan
+    )
     result["supertrend_flip"] = direction.ne(direction.shift(1)) & direction.shift(1).notna()
     return result

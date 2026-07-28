@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -33,9 +32,7 @@ def vwap_features(
         if rolling_window is None or rolling_window < 2:
             raise ValueError("rolling_window must be >= 2 for rolling mode")
         numerator = pv.rolling(rolling_window, min_periods=rolling_window).sum()
-        denominator = frame["volume"].rolling(
-            rolling_window, min_periods=rolling_window
-        ).sum()
+        denominator = frame["volume"].rolling(rolling_window, min_periods=rolling_window).sum()
     else:
         raise ValueError("mode must be session, cumulative or rolling")
 

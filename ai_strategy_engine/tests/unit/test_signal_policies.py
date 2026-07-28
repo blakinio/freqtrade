@@ -1,4 +1,3 @@
-
 import pandas as pd
 
 from strategy_engine.policies.signals import no_repeat_signals

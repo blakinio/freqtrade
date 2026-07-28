@@ -48,9 +48,8 @@ class StrategyEvaluator:
         *,
         position_side: Side = Side.FLAT,
     ) -> DslDecision:
-        regime_matches = (
-            strategy.regime is None
-            or self._evaluate_group(strategy.regime, snapshot, "regime")
+        regime_matches = strategy.regime is None or self._evaluate_group(
+            strategy.regime, snapshot, "regime"
         )
         exit_matches = self._evaluate_group(strategy.exit, snapshot, "exit")
         if position_side is not Side.FLAT and exit_matches:
@@ -155,7 +154,9 @@ class StrategyEvaluator:
             raise DslEvaluationError(f"{label}.feature must be a string")
         if feature_id not in snapshot.features:
             raise DslEvaluationError(f"missing feature value: {feature_id}")
-        current = self._select_parameter(snapshot.features[feature_id], node.get("parameter"), label)
+        current = self._select_parameter(
+            snapshot.features[feature_id], node.get("parameter"), label
+        )
         previous = None
         if feature_id in snapshot.previous_features:
             previous = self._select_parameter(

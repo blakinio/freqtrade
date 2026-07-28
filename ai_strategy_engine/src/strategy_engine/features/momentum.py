@@ -63,10 +63,7 @@ def wavetrend_features(
     source: str = "hl2",
     constant: float = 0.015,
 ) -> pd.DataFrame:
-    """Independent WaveTrend-style oscillator for research.
-
-    This is a generic public-formula implementation, not a parity claim for Miyagi.
-    """
+    """Independent public-formula WaveTrend-style oscillator for research."""
     if min(channel_length, average_length, signal_length) < 1:
         raise ValueError("periods must be >= 1")
     if constant <= 0:

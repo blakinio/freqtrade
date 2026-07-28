@@ -1,4 +1,4 @@
-name: AI Platform Binance Spot Instrument Smoke Self-Hosted
+name: AI Platform Binance Spot Reduced-Payload Smoke Self-Hosted
 
 on:
   pull_request:
@@ -6,23 +6,23 @@ on:
     branches:
       - develop
     paths:
-      - "ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json"
+      - "ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v2.json"
 
 permissions:
   contents: read
 
 concurrency:
-  group: binance-spot-instrument-smoke-selfhosted-${{ github.event.pull_request.number }}
+  group: binance-spot-instrument-smoke-selfhosted-v2-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json
-  POLICY_PATH: ai_platform/market_data/binance-spot-instrument-smoke-policy-v1.json
-  EVIDENCE_ROOT: binance-spot-instrument-smoke-selfhosted-v1
+  REQUEST_PATH: ai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v2.json
+  POLICY_PATH: ai_platform/market_data/binance-spot-instrument-smoke-policy-v2.json
+  EVIDENCE_ROOT: binance-spot-instrument-smoke-selfhosted-v2
 
 jobs:
   smoke:
-    name: Run one public Binance Spot snapshot on approved self-hosted runner
+    name: Run one reduced-payload Binance Spot snapshot on approved self-hosted runner
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
@@ -45,10 +45,10 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          expected=$'A\tai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v1.json'
+          expected=$'A\tai_platform/market_data/run-requests/binance-spot-instrument-smoke-selfhosted-v2.json'
           actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
           if [[ "$actual" != "$expected" ]]; then
-            echo "Self-hosted Binance Spot smoke must add exactly the canonical request" >&2
+            echo "Self-hosted Binance Spot smoke must add exactly the canonical v2 request" >&2
             printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
             exit 1
           fi
@@ -99,7 +99,7 @@ jobs:
           python -c \
             "from jsonschema import Draft202012Validator; print(Draft202012Validator.__name__)"
 
-      - name: Run frozen single-request smoke
+      - name: Run frozen reduced-payload single-request smoke
         id: smoke
         shell: bash
         env:
@@ -117,16 +117,16 @@ jobs:
         if: ${{ failure() && steps.smoke.outcome == 'failure' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: binance-spot-instrument-smoke-selfhosted-failure-${{ github.event.pull_request.number }}
+          name: binance-spot-instrument-smoke-selfhosted-v2-failure-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 30
 
       - name: Upload immutable smoke evidence
         if: ${{ success() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: binance-spot-instrument-smoke-selfhosted-${{ github.event.pull_request.number }}
+          name: binance-spot-instrument-smoke-selfhosted-v2-${{ github.event.pull_request.number }}
           path: ${{ env.EVIDENCE_ROOT }}/
           if-no-files-found: error
           retention-days: 30

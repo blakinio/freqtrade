@@ -20,39 +20,119 @@ jobs:
     environment: synology-staging
     timeout-minutes: 10
     env:
+      REQUEST_PATH: ai_platform/research/liquidations/run-requests/okx-shadow-acceptance-20260727-v1.json
+      ACCEPTANCE_HOST_ID: freqtrade-synology-staging
       STATE_DIR: /var/lib/freqtrade-staging-state
       DURABLE_ROOT: /var/lib/freqtrade-staging-state/okx-liquidation-acceptance
+      DURABLE_URI: file:///var/lib/freqtrade-staging-state/okx-liquidation-acceptance
     steps:
-      - name: Capture bounded read-only state report
+      - name: Checkout exact failed trigger request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: 8e4a51de7e9d614d86d621ae7e2bfd8c1590bed9
+
+      - name: Capture bounded validation diagnostic
         shell: bash
         env:
           RUNNER_NAME_VALUE: ${{ runner.name }}
           RUNNER_OS_VALUE: ${{ runner.os }}
-          REPORT: ${{ runner.temp }}/okx-state-permissions.txt
+          REPORT: ${{ runner.temp }}/okx-validation-diagnostic.json
         run: |
           set -euo pipefail
-          {
-            printf 'runner_name=%s\n' "$RUNNER_NAME_VALUE"
-            printf 'runner_os=%s\n' "$RUNNER_OS_VALUE"
-            printf 'uid=%s\n' "$(id -u)"
-            printf 'gid=%s\n' "$(id -g)"
-            printf 'user=%s\n' "$(id -un)"
-            printf 'groups=%s\n' "$(id -Gn)"
-            printf 'state_exists=%s\n' "$(test -e "$STATE_DIR" && echo true || echo false)"
-            printf 'state_is_dir=%s\n' "$(test -d "$STATE_DIR" && echo true || echo false)"
-            printf 'state_writable=%s\n' "$(test -w "$STATE_DIR" && echo true || echo false)"
-            printf 'durable_exists=%s\n' "$(test -e "$DURABLE_ROOT" && echo true || echo false)"
-            printf 'durable_is_dir=%s\n' "$(test -d "$DURABLE_ROOT" && echo true || echo false)"
-            printf 'durable_writable=%s\n' "$(test -w "$DURABLE_ROOT" && echo true || echo false)"
-            printf 'state_stat='; stat -c '%F|%a|%u|%g|%n' "$STATE_DIR" 2>&1 || true
-            printf 'durable_stat='; stat -c '%F|%a|%u|%g|%n' "$DURABLE_ROOT" 2>&1 || true
-            printf 'mount='; findmnt -T "$STATE_DIR" -n -o TARGET,SOURCE,FSTYPE,OPTIONS 2>&1 || true
-          } > "$REPORT"
-          cat "$REPORT"
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import shutil
+          import tempfile
+          import traceback
+          from pathlib import Path
+
+          report = {
+              "runner_name": os.environ.get("RUNNER_NAME_VALUE"),
+              "runner_os": os.environ.get("RUNNER_OS_VALUE"),
+              "uid": os.getuid(),
+              "gid": os.getgid(),
+              "state_dir": os.environ.get("STATE_DIR"),
+              "durable_root": os.environ.get("DURABLE_ROOT"),
+              "checks": {},
+              "failure_phase": None,
+              "error_type": None,
+              "error": None,
+          }
+
+          def check(name, value):
+              report["checks"][name] = bool(value)
+              if not value:
+                  raise RuntimeError(name)
+
+          phase = "identity"
+          try:
+              check("runner_name", report["runner_name"] == os.environ["ACCEPTANCE_HOST_ID"])
+              check("runner_os", report["runner_os"] == "Linux")
+
+              phase = "mapping"
+              state_dir = Path(os.environ["STATE_DIR"])
+              durable_root = Path(os.environ["DURABLE_ROOT"])
+              check("state_absolute", state_dir.is_absolute())
+              check("durable_absolute", durable_root.is_absolute())
+              check("durable_parent", durable_root.parent == state_dir)
+              check("state_exists", state_dir.exists())
+              check("state_is_dir", state_dir.is_dir())
+              check("state_writable", os.access(state_dir, os.W_OK))
+              durable_root.mkdir(mode=0o750, parents=True, exist_ok=True)
+              check("durable_exists", durable_root.exists())
+              check("durable_is_dir", durable_root.is_dir())
+              check("durable_writable", os.access(durable_root, os.W_OK))
+
+              phase = "request"
+              request = json.loads(Path(os.environ["REQUEST_PATH"]).read_text(encoding="utf-8"))
+              expected = {
+                  "host_id": os.environ["ACCEPTANCE_HOST_ID"],
+                  "host_class": "always_on_nonrestricted_linux_staging",
+                  "github_hosted_runner": False,
+                  "durable_storage_uri": os.environ["DURABLE_URI"],
+              }
+              for key, value in expected.items():
+                  check(f"request_{key}", request.get(key) == value)
+              run_id = str(request.get("run_id", ""))
+              check("request_run_id", re.fullmatch(r"[A-Za-z0-9._-]{3,80}", run_id) is not None)
+
+              phase = "atomic_io"
+              probe_dir = Path(tempfile.mkdtemp(prefix=".acceptance-diagnostic-", dir=durable_root))
+              try:
+                  source = probe_dir / "probe.tmp"
+                  target = probe_dir / "probe.sealed"
+                  payload = b"okx-shadow-acceptance-diagnostic-v1\n"
+                  with source.open("xb") as handle:
+                      handle.write(payload)
+                      handle.flush()
+                      os.fsync(handle.fileno())
+                  source.replace(target)
+                  check("atomic_readback", target.read_bytes() == payload)
+              finally:
+                  shutil.rmtree(probe_dir)
+
+              report["outcome"] = "pass"
+          except Exception as exc:
+              report["outcome"] = "failure"
+              report["failure_phase"] = phase
+              report["error_type"] = type(exc).__name__
+              report["error"] = str(exc)
+              report["traceback"] = traceback.format_exc(limit=8)
+
+          Path(os.environ["REPORT"]).write_text(
+              json.dumps(report, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, sort_keys=True))
+          PY
 
       - name: Upload bounded diagnostic report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: okx-acceptance-state-permissions
-          path: ${{ runner.temp }}/okx-state-permissions.txt
+          name: okx-acceptance-validation-diagnostic
+          path: ${{ runner.temp }}/okx-validation-diagnostic.json
           retention-days: 1

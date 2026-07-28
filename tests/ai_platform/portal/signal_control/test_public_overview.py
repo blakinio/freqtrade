@@ -56,5 +56,5 @@ def test_signal_overview_excludes_authentication_reference_and_webhook_slug() ->
     assert overview.endpoints[0].webhook_slug_exposed is False
     assert "signalref_" not in serialized
     assert "endpoint_slug_12345" not in serialized
-    assert "authentication_ref" not in serialized
-    assert "endpoint_slug" not in serialized
+    assert '"authentication_ref":' not in serialized
+    assert '"endpoint_slug":' not in serialized

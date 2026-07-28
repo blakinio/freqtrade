@@ -1,6 +1,11 @@
 name: ASE-00 Repair Pivot And Lint
 
 on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/ase00-fix-lint-pivot.yml
   push:
     branches:
       - agent/ase-00-ai-strategy-engine-foundation
@@ -16,6 +21,7 @@ concurrency:
 
 jobs:
   repair:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

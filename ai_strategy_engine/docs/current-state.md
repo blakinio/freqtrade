@@ -13,7 +13,7 @@ Required source ZIP SHA-256:
 Latest `develop` SHA merged at this checkpoint:
 
 ```text
-6b7d3d9ea95104618f636ad4f08227c9c890324b
+b450fa0f297858b01c02fa1d0a18da40950fd059
 ```
 
 The branch is synchronized with `develop` by a normal merge and has not been force-pushed.

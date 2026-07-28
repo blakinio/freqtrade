@@ -7,6 +7,7 @@ liquidations_container_root="/liquid20-data"
 report_path="${PORTAL_LIVE_PROOF_REPORT_PATH:?PORTAL_LIVE_PROOF_REPORT_PATH is required}"
 observation_delay="${PORTAL_LIVE_PROOF_DELAY_SECONDS:-12}"
 candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}}"
+proof_stage="initialization"
 
 case "$observation_delay" in
   *[!0-9]* | "")
@@ -22,8 +23,36 @@ fi
 mkdir -p "$(dirname "$report_path")"
 work_dir="$(mktemp -d)"
 cleanup() {
+  local status=$?
+  trap - EXIT
   docker rm -f "$candidate" >/dev/null 2>&1 || true
+  if (( status != 0 )) && [[ ! -s "$report_path" ]]; then
+    PROOF_EXIT_STATUS="$status" \
+    PROOF_FAILURE_STAGE="$proof_stage" \
+    GITHUB_SHA_VALUE="${GITHUB_SHA:-unknown}" \
+    REPORT_PATH="$report_path" \
+    python3 - <<'PY' || true
+import json
+import os
+from pathlib import Path
+
+stage = os.environ["PROOF_FAILURE_STAGE"]
+report = {
+    "schema_version": 1,
+    "report_type": "liquidations_live_portal_synology_proof",
+    "commit_sha": os.environ["GITHUB_SHA_VALUE"],
+    "result": "failure",
+    "rejection_reason": f"proof failed during {stage}",
+    "exit_status": int(os.environ["PROOF_EXIT_STATUS"]),
+}
+Path(os.environ["REPORT_PATH"]).write_text(
+    json.dumps(report, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+PY
+  fi
   rm -rf "$work_dir"
+  exit "$status"
 }
 trap cleanup EXIT
 
@@ -56,6 +85,7 @@ configure_pids_limit() {
   return 1
 }
 
+proof_stage="production_container_preflight"
 docker version >/dev/null
 test -S /var/run/docker.sock
 test "$(docker inspect --format '{{.State.Running}}' "$portal_container")" = "true"
@@ -89,6 +119,7 @@ data_gid="$(
 [[ "$data_gid" =~ ^[0-9]+$ ]]
 [[ " $portal_groups " == *" $data_gid "* ]]
 
+proof_stage="production_authentication_boundary"
 production_boundary="$work_dir/production-boundary.json"
 docker exec "$portal_container" node -e '
   Promise.all([
@@ -114,6 +145,7 @@ if docker inspect "$candidate" >/dev/null 2>&1; then
   exit 73
 fi
 
+proof_stage="candidate_startup"
 run_args=(
   docker run -d
   --name "$candidate"
@@ -152,13 +184,19 @@ for _ in $(seq 1 60); do
 done
 test "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$candidate")" = "healthy"
 
+proof_stage="candidate_runtime_security"
 test "$(docker inspect --format '{{.Config.Image}}' "$candidate")" = "$portal_image"
 test "$(docker inspect --format '{{.Image}}' "$candidate")" = "$portal_image_id"
 test "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate")" = "no"
 test "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$candidate")" = "false"
 test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$candidate")"
-test "$(docker exec "$candidate" id -u)" != "0"
-[[ " $(docker exec "$candidate" id -G) " == *" $data_gid "* ]]
+candidate_uid="$(docker exec "$candidate" id -u)"
+candidate_groups="$(docker exec "$candidate" id -G)"
+test "$candidate_uid" != "0"
+[[ " $candidate_groups " == *" $data_gid "* ]]
+test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' "$candidate")" = "true"
+test "$(docker inspect --format '{{json .HostConfig.CapDrop}}' "$candidate")" = '["ALL"]'
+[[ "$(docker inspect --format '{{json .HostConfig.SecurityOpt}}' "$candidate")" == *'no-new-privileges:true'* ]]
 candidate_pids_limit_json="$(docker inspect --format '{{json .HostConfig.PidsLimit}}' "$candidate")"
 if [[ "$pids_limit_supported" == true ]]; then
   test "$candidate_pids_limit_json" = "256"
@@ -177,8 +215,30 @@ probe() {
   docker exec "$candidate" node -e '
     const fs = require("node:fs");
     const path = require("node:path");
-    async function requestJson(route) {
-      const response = await fetch(`http://127.0.0.1:3000${route}`, {cache:"no-store", headers:{accept:"application/json"}});
+    async function fixtureCookie() {
+      const login = await fetch(
+        "http://127.0.0.1:3000/api/identity/login?return_to=%2Fmarket%2Fliquidations",
+        {redirect:"manual", cache:"no-store"},
+      );
+      if (login.status !== 303) throw new Error(`fixture login status ${login.status}`);
+      const location = login.headers.get("location");
+      if (!location || new URL(location, "http://127.0.0.1:3000").pathname !== "/market/liquidations") {
+        throw new Error("fixture login redirect mismatch");
+      }
+      const setCookies = login.headers.getSetCookie?.() ?? [];
+      if (!setCookies.some((value) => value.startsWith("portal_fixture_session="))) {
+        throw new Error("fixture session cookie missing");
+      }
+      if (!setCookies.some((value) => value.startsWith("portal_fixture_csrf="))) {
+        throw new Error("fixture csrf cookie missing");
+      }
+      return setCookies.map((value) => value.split(";", 1)[0]).join("; ");
+    }
+    async function requestJson(route, cookie) {
+      const response = await fetch(`http://127.0.0.1:3000${route}`, {
+        cache:"no-store",
+        headers:{accept:"application/json", cookie},
+      });
       const payload = await response.json().catch(() => ({}));
       if (response.status !== 200) throw new Error(`${route} status ${response.status}: ${JSON.stringify(payload)}`);
       const cacheControl = response.headers.get("cache-control") || "";
@@ -202,12 +262,14 @@ probe() {
       }
       return required.every((label) => found.has(label));
     }
-    Promise.all([
-      requestJson("/api/market/liquidations/health"),
-      requestJson("/api/market/liquidations?limit=20"),
-      requestJson("/api/market/liquidations/summary"),
-      fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store"}),
-    ]).then(([healthResult, listResult, summaryResult, page]) => {
+    (async () => {
+      const cookie = await fixtureCookie();
+      const [healthResult, listResult, summaryResult, page] = await Promise.all([
+        requestJson("/api/market/liquidations/health", cookie),
+        requestJson("/api/market/liquidations?limit=20", cookie),
+        requestJson("/api/market/liquidations/summary", cookie),
+        fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store", headers:{cookie}}),
+      ]);
       const health = healthResult.payload;
       const list = listResult.payload;
       const summary = summaryResult.payload;
@@ -241,14 +303,17 @@ probe() {
           summary: summaryResult.cache_control,
         },
       }));
-    }).catch((error) => { console.error(error); process.exit(1); });
+    })().catch((error) => { console.error(error); process.exit(1); });
   '
 }
 
+proof_stage="candidate_first_authenticated_observation"
 probe > "$work_dir/first.json"
 sleep "$observation_delay"
+proof_stage="candidate_second_authenticated_observation"
 probe > "$work_dir/second.json"
 
+proof_stage="evidence_report_generation"
 PRODUCTION_BOUNDARY_PATH="$production_boundary" \
 FIRST_PATH="$work_dir/first.json" \
 SECOND_PATH="$work_dir/second.json" \
@@ -261,6 +326,8 @@ PORTAL_GROUPS="$portal_groups" \
 DATA_GID="$data_gid" \
 PIDS_LIMIT_SUPPORTED="$pids_limit_supported" \
 CANDIDATE_PIDS_LIMIT_JSON="$candidate_pids_limit_json" \
+CANDIDATE_UID="$candidate_uid" \
+CANDIDATE_GROUPS="$candidate_groups" \
 MOUNT_SOURCE="$mount_source" \
 CANDIDATE="$candidate" \
 GITHUB_SHA_VALUE="${GITHUB_SHA:-unknown}" \
@@ -295,12 +362,21 @@ last_event_advanced = (
     and first_health.get("last_event_at_ms") is not None
     and second_health["last_event_at_ms"] > first_health["last_event_at_ms"]
 )
+real_event_present = bool(
+    first_ids
+    or second_ids
+    or first_health.get("last_event_at_ms") is not None
+    or second_health.get("last_event_at_ms") is not None
+)
+event_count_advanced = second["event_count"] > first["event_count"]
 real_event_observed = bool(new_event_ids or last_event_advanced)
 
 report = {
     "schema_version": 1,
     "report_type": "liquidations_live_portal_synology_proof",
     "commit_sha": os.environ["GITHUB_SHA_VALUE"],
+    "result": "success",
+    "rejection_reason": None,
     "production_portal": {
         "container": os.environ["PORTAL_CONTAINER"],
         "image": os.environ["PORTAL_IMAGE"],
@@ -316,7 +392,15 @@ report = {
     },
     "isolated_candidate": {
         "container": os.environ["CANDIDATE"],
+        "uid": int(os.environ["CANDIDATE_UID"]),
+        "groups": [int(value) for value in os.environ["CANDIDATE_GROUPS"].split()],
         "fixture_identity": True,
+        "authenticated_with_fixture_session": True,
+        "read_only_root_filesystem": True,
+        "cap_drop_all": True,
+        "no_new_privileges": True,
+        "tmpfs_only_for_required_paths": True,
+        "memory_limit_bytes": 805306368,
         "real_data_mount_read_only": True,
         "docker_socket_mounted": False,
         "pids_limit_supported": os.environ["PIDS_LIMIT_SUPPORTED"] == "true",
@@ -331,6 +415,8 @@ report = {
         "source_heartbeats_non_decreasing": True,
         "no_store_api": True,
         "truthful_timestamp_labels": True,
+        "real_exchange_event_present": real_event_present,
+        "event_count_advanced_during_observation": event_count_advanced,
         "real_exchange_event_observed": real_event_observed,
         "new_event_ids": new_event_ids,
         "quiet_window_note": None if real_event_observed else "No new exchange liquidation was observed during the bounded proof window; heartbeat, subscriptions and live API reads were proven without fabricating an event.",
@@ -347,10 +433,13 @@ import sys
 
 with open(sys.argv[1], encoding="utf-8") as handle:
     payload = json.load(handle)
+assert payload["result"] == "success"
+assert payload["rejection_reason"] is None
 assert payload["proof"]["collector_heartbeat_advanced"] is True
 assert payload["proof"]["portal_checked_at_advanced"] is True
 assert payload["proof"]["trading_authorized"] is False
 PY
 
+proof_stage="completed"
 printf 'Liquidations live portal proof passed: report=%s image=%s candidate=%s\n' \
   "$report_path" "$portal_image" "$candidate"

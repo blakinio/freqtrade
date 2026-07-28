@@ -29,7 +29,7 @@ jobs:
           enable-cache: false
           python-version: "3.12"
       - name: Install project and diagnostic dependencies
-        run: uv pip install -e . numpy pandas pytest pytest-xdist pre-commit
+        run: uv pip install -e . numpy pandas pytest pytest-xdist pytest-mock pre-commit
       - name: Apply exact mechanical formatting fixes
         shell: bash
         run: |
@@ -62,15 +62,6 @@ jobs:
           expected=$'ai_platform/scripts/residual_pytorch_bounded_m1_v3_generalization.py\nai_platform/scripts/residual_pytorch_bounded_m1_v3_run_request.py\ntests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py'
           actual="$(git diff --name-only | sort)"
           test "$actual" = "$expected"
-      - name: Run AI platform tests after formatting
-        shell: bash
-        run: |
-          set +e
-          python -m pytest tests/ai_platform -q > pytest.log 2>&1
-          status=$?
-          printf '%s\n' "$status" > pytest-exit-code.txt
-          cat pytest.log
-          exit "$status"
       - name: Commit exact formatted files
         shell: bash
         env:
@@ -85,6 +76,15 @@ jobs:
             tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
           git commit -m "style(ai-platform): format bounded M1 v3 package"
           git push origin HEAD:"$HEAD_BRANCH"
+      - name: Run AI platform tests after formatting
+        shell: bash
+        run: |
+          set +e
+          python -m pytest tests/ai_platform -q > pytest.log 2>&1
+          status=$?
+          printf '%s\n' "$status" > pytest-exit-code.txt
+          cat pytest.log
+          exit "$status"
       - name: Upload diagnostic test log
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

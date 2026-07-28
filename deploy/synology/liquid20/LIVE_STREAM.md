@@ -64,6 +64,27 @@ The operational report records the universe bound, actual CPU/PID capability and
 
 A real liquidation is not required during a short validation window. When none is observed, the report explicitly records that only heartbeat, subscription and deterministic append tests were proven.
 
+## Automated operational health
+
+`.github/workflows/liquidations-live-health.yml` runs on the Synology runner every five minutes, after monitor changes reach `develop`, and on manual dispatch. It checks:
+
+- Docker container state, restart state and OOM state;
+- the `liquidation-live-state-v1` contract and an active run;
+- collector heartbeat freshness within 60 seconds;
+- configured, connected and non-empty Bybit and Binance subscriptions;
+- source heartbeat freshness within 60 seconds;
+- continued execution-disabled, unauthorized and credential-free data-only state;
+- data-volume usage below 90% and at least 20 GiB free.
+
+An unhealthy check creates or updates one deduplicated GitHub issue named `[liquidations-live] operational health alert`, fails the workflow and uploads the JSON health report for 14 days. Healthy checks do not upload artifacts. After recovery, the monitor posts a recovery comment and closes the alert issue automatically.
+
+The same check can be run manually on the Synology runner:
+
+```bash
+GH_TOKEN=... GITHUB_REPOSITORY=blakinio/freqtrade \
+  python -m ai_platform.scripts.liquidation_live_health
+```
+
 ## Rollback
 
 Automatic rollback runs when deployment fails after the old container is replaced. Manual rollback uses the previous exact image with the same hardened runtime arguments and the same `/data` bind mount.

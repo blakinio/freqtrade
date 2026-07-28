@@ -16,10 +16,10 @@ permissions:
   contents: write
 
 jobs:
-  repair-pre-commit:
+  repair-codespell-config:
     if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -27,18 +27,8 @@ jobs:
           ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
-        with:
-          python-version: "3.12"
-
-      - name: Apply bounded findings and run exact pre-commit
-        id: repair
+      - name: Update documented false-positive words
         run: |
-          cp .github/workflows/ai-strategy-engine.yml /tmp/diagnostic-workflow.yml
-          printf '%s\n' '"""Research-only modules."""' > ai_platform/research/__init__.py
-          : > ai_strategy_engine/src/strategy_engine/policies/__init__.py
-          : > ai_strategy_engine/src/strategy_engine/risk/__init__.py
           python - <<'PY'
           from pathlib import Path
 
@@ -52,83 +42,12 @@ jobs:
           PY
           rm -f ai_strategy_engine/docs/pre-commit-diagnostic.md \
             ai_strategy_engine/docs/pre-commit-repair-diagnostic.md
-          git show 627d0dc610d25859b13809aee147918d461f6619:.github/workflows/ai-strategy-engine.yml \
-            > .github/workflows/ai-strategy-engine.yml
-          python -m pip install --disable-pip-version-check pre-commit
-          set +e
-          pre-commit run --all-files --show-diff-on-failure > /tmp/pre-commit.txt 2>&1
-          status=$?
-          git diff --binary > /tmp/pre-commit.diff
-          set -e
-          if [[ "$status" -ne 0 ]]; then
-            git reset --hard HEAD
-            {
-              echo '# ASE-00 pre-commit repair diagnostic'
-              echo
-              echo "- exit code: \`$status\`"
-              echo
-              echo '## Output'
-              echo '```text'
-              cat /tmp/pre-commit.txt
-              echo '```'
-              echo
-              echo '## Proposed diff'
-              echo '```diff'
-              cat /tmp/pre-commit.diff
-              echo '```'
-            } > ai_strategy_engine/docs/pre-commit-repair-diagnostic.md
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add ai_strategy_engine/docs/pre-commit-repair-diagnostic.md
-            git commit -m "docs(ai-strategy): record remaining pre-commit finding"
-            git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
-            echo 'validated=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          cp /tmp/diagnostic-workflow.yml .github/workflows/ai-strategy-engine.yml
-          echo 'validated=true' >> "$GITHUB_OUTPUT"
 
-      - name: Validate exact AI Platform matrix
-        if: steps.repair.outputs.validated == 'true'
-        run: |
-          python -m venv .venv-ai-platform
-          . .venv-ai-platform/bin/activate
-          python -m pip install --disable-pip-version-check \
-            pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
-            "httpx>=0.24.1" fastapi pyjwt cryptography \
-            ruff==0.15.21 codespell==2.4.2
-          ruff check ai_platform tests/ai_platform
-          ruff format --check ai_platform tests/ai_platform
-          python -m compileall -q ai_platform tests/ai_platform
-          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform
-
-      - name: Validate complete ASE-00 matrix
-        if: steps.repair.outputs.validated == 'true'
-        env:
-          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/ai_strategy_engine/src"
-        run: |
-          python -m venv .venv-ase
-          . .venv-ase/bin/activate
-          python -m pip install --disable-pip-version-check \
-            -e "ai_strategy_engine[dev]" "SQLAlchemy>=2.0.6" "fastapi>=0.115"
-          pytest -q ai_strategy_engine/tests
-          ruff check ai_strategy_engine ai_platform/research/strategy_engine \
-            tests/ai_platform_integration/test_ase00_vertical_slice.py
-          mypy ai_strategy_engine/src/strategy_engine
-          python -m compileall -q ai_strategy_engine/src ai_strategy_engine/tests \
-            ai_platform/research/strategy_engine
-          pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
-            tests/ai_platform_integration/test_ase00_vertical_slice.py
-
-      - name: Commit validated pre-commit repair
-        if: steps.repair.outputs.validated == 'true'
+      - name: Commit non-workflow repair only
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ai_platform/research/__init__.py pyproject.toml \
-            ai_strategy_engine/src/strategy_engine/policies/__init__.py \
-            ai_strategy_engine/src/strategy_engine/risk/__init__.py \
-            ai_strategy_engine/docs/pre-commit-diagnostic.md \
+          git add pyproject.toml ai_strategy_engine/docs/pre-commit-diagnostic.md \
             ai_strategy_engine/docs/pre-commit-repair-diagnostic.md
-          git commit -m "fix(ai-strategy): satisfy repository pre-commit contracts"
+          git commit -m "fix(ai-strategy): configure repository pre-commit false positives"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

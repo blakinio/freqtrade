@@ -19,7 +19,7 @@ def _classified_names(section: Mapping[str, Any]) -> set[str]:
         elif isinstance(values, Sequence) and not isinstance(values, (str, bytes)):
             names.update(str(value) for value in values)
         else:
-            raise AssertionError(f"invalid classification payload: {classification}")
+            raise TypeError(f"invalid classification payload: {classification}")
     return names
 
 

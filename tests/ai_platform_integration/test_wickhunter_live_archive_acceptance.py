@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import ai_platform.wickhunter.live_archive as live_archive_module
 from ai_platform.research.liquidations.contracts import (
     LiquidatedPositionSide,
     LiquidationEvent,
@@ -226,6 +227,31 @@ def test_rejects_summary_state_mismatch(tmp_path: Path) -> None:
             output_root=tmp_path / "accepted",
             request=_request(),
         )
+
+
+def test_rejects_source_change_before_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_root = _write_closed_run(tmp_path)
+    output_root = tmp_path / "accepted"
+    events_path = run_root / "binance-usdm.ndjson"
+    original_evaluate = live_archive_module.evaluate_historical_import
+
+    def mutate_then_evaluate(**kwargs: object):
+        result = original_evaluate(**kwargs)
+        events_path.write_text(
+            events_path.read_text(encoding="utf-8") + "\n",
+            encoding="utf-8",
+        )
+        return result
+
+    monkeypatch.setattr(live_archive_module, "evaluate_historical_import", mutate_then_evaluate)
+
+    with pytest.raises(ValueError, match="closed live source changed during acceptance"):
+        accept_closed_live_run(run_root=run_root, output_root=output_root, request=_request())
+
+    assert not output_root.exists()
 
 
 def test_rejects_invalid_live_availability_time(tmp_path: Path) -> None:

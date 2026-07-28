@@ -19,9 +19,10 @@ def test_v3_contract_is_pair_only_generalization() -> None:
     contract = v3.load_contract()
 
     assert contract["market_data"]["pairs"] == ["SOL/USDT", "XRP/USDT"]
-    assert contract["feature_target_contract"]["feature_parameters"][
-        "include_corr_pairlist"
-    ] == ["SOL/USDT", "XRP/USDT"]
+    assert contract["feature_target_contract"]["feature_parameters"]["include_corr_pairlist"] == [
+        "SOL/USDT",
+        "XRP/USDT",
+    ]
     assert contract["geometry"]["development_stop_exclusive"] == "2026-05-01T00:00:00Z"
     assert contract["authorization"]["feature_changes_allowed"] is False
     assert contract["authorization"]["historical_oos_used"] is False
@@ -47,19 +48,18 @@ def test_v3_model_parameters_and_non_pair_feature_geometry_match_v2() -> None:
     source_features.pop("include_corr_pairlist")
     target_features.pop("include_corr_pairlist")
     assert target_features == source_features
-    assert target["feature_target_contract"]["data_split_parameters"] == source[
-        "feature_target_contract"
-    ]["data_split_parameters"]
+    assert (
+        target["feature_target_contract"]["data_split_parameters"]
+        == source["feature_target_contract"]["data_split_parameters"]
+    )
     assert target["feature_target_contract"]["entry_prediction_threshold"] == 0.006
     assert target["feature_target_contract"]["exit_prediction_threshold"] == -0.009
 
     source_parameters = {
-        item["freqai_model"]: item["model_training_parameters"]
-        for item in source["tracks"]
+        item["freqai_model"]: item["model_training_parameters"] for item in source["tracks"]
     }
     target_parameters = {
-        item["freqai_model"]: item["model_training_parameters"]
-        for item in target["tracks"]
+        item["freqai_model"]: item["model_training_parameters"] for item in target["tracks"]
     }
     assert target_parameters == source_parameters
 

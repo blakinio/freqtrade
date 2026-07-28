@@ -33,9 +33,7 @@ class ResidualPyTorchBoundedM1V3RunRequestError(RuntimeError):
 
 def _execution_module() -> ModuleType:
     try:
-        return import_module(
-            "ai_platform.scripts.residual_pytorch_bounded_m1_v3_generalization"
-        )
+        return import_module("ai_platform.scripts.residual_pytorch_bounded_m1_v3_generalization")
     except ModuleNotFoundError as exc:
         if exc.name in {"numpy", "pandas"}:
             raise ResidualPyTorchBoundedM1V3RunRequestError(
@@ -87,9 +85,7 @@ def canonical_run_request() -> dict[str, Any]:
         "contract_sha256": _sha256_file(CONTRACT_PATH),
         "strategy_path": str(inputs["strategy_path"].relative_to(REPO_ROOT)),
         "strategy_sha256": _sha256_file(inputs["strategy_path"]),
-        "instrumentation_path": str(
-            inputs["instrumentation_path"].relative_to(REPO_ROOT)
-        ),
+        "instrumentation_path": str(inputs["instrumentation_path"].relative_to(REPO_ROOT)),
         "instrumentation_sha256": _sha256_file(inputs["instrumentation_path"]),
         "geometry": contract["geometry"],
         "market_data": contract["market_data"],
@@ -109,9 +105,7 @@ def load_run_request(path: Path) -> dict[str, Any]:
             f"Unable to read bounded M1 v3 run request {path}: {exc}"
         ) from exc
     if not isinstance(request, dict):
-        raise ResidualPyTorchBoundedM1V3RunRequestError(
-            "Run request must contain a JSON object"
-        )
+        raise ResidualPyTorchBoundedM1V3RunRequestError("Run request must contain a JSON object")
     if request != canonical_run_request():
         raise ResidualPyTorchBoundedM1V3RunRequestError(
             "Run request drifted from the canonical exact-byte inputs"

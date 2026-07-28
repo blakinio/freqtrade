@@ -7,9 +7,10 @@ import argparse
 import hashlib
 import json
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from ai_platform.scripts import residual_pytorch_bounded_m1_execution as base
 
@@ -24,9 +25,7 @@ REQUEST_REPO_PATH = (
     "ai_platform/experimental_model_research/run-requests/"
     "residual-pytorch-bounded-m1-generalization-v3.json"
 )
-TASK_REPO_PATH = (
-    "docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md"
-)
+TASK_REPO_PATH = "docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md"
 STRATEGY_NAME = "AiFrozenCandidateStrategyV2"
 STRATEGY_REPO_PATH = "ai_platform/strategies/AiFrozenCandidateStrategyV2.py"
 EXPECTED_PAIRS = ["SOL/USDT", "XRP/USDT"]
@@ -64,12 +63,9 @@ EXPECTED_SPLIT_PARAMETERS = {
 EXPECTED_TRACKS = {
     "residual-pytorch-m1-lightgbm-generalization-v3": {
         "config": (
-            "ai_platform/configs/"
-            "freqai-residual-pytorch-m1-generalization-v3-lightgbm.example.json"
+            "ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-lightgbm.example.json"
         ),
-        "manifest": (
-            "ai_platform/experiments/residual-pytorch-m1-generalization-v3-lightgbm.json"
-        ),
+        "manifest": ("ai_platform/experiments/residual-pytorch-m1-generalization-v3-lightgbm.json"),
         "freqai_model": "M1LightGBMRegressor",
         "model_file": "ai_platform/freqaimodels/M1LightGBMRegressor.py",
         "underlying_model_file": "freqtrade/freqai/prediction_models/LightGBMRegressor.py",
@@ -91,8 +87,7 @@ EXPECTED_TRACKS = {
             "freqai-residual-pytorch-m1-generalization-v3-seeded-mlp.example.json"
         ),
         "manifest": (
-            "ai_platform/experiments/"
-            "residual-pytorch-m1-generalization-v3-seeded-mlp.json"
+            "ai_platform/experiments/residual-pytorch-m1-generalization-v3-seeded-mlp.json"
         ),
         "freqai_model": "M1SeededPyTorchMLPRegressor",
         "model_file": "ai_platform/freqaimodels/M1SeededPyTorchMLPRegressor.py",
@@ -119,8 +114,7 @@ EXPECTED_TRACKS = {
             "freqai-residual-pytorch-m1-generalization-v3-residual-mlp.example.json"
         ),
         "manifest": (
-            "ai_platform/experiments/"
-            "residual-pytorch-m1-generalization-v3-residual-mlp.json"
+            "ai_platform/experiments/residual-pytorch-m1-generalization-v3-residual-mlp.json"
         ),
         "freqai_model": "M1ResidualPyTorchRegressor",
         "model_file": "ai_platform/freqaimodels/M1ResidualPyTorchRegressor.py",
@@ -149,12 +143,9 @@ EXPECTED_TRACKS = {
 EXPECTED_AUDIT_TRACK = {
     "track_id": "residual-pytorch-m1-data-audit-generalization-v3",
     "config": (
-        "ai_platform/configs/"
-        "freqai-residual-pytorch-m1-generalization-v3-data-audit.example.json"
+        "ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-data-audit.example.json"
     ),
-    "manifest": (
-        "ai_platform/experiments/residual-pytorch-m1-generalization-v3-data-audit.json"
-    ),
+    "manifest": ("ai_platform/experiments/residual-pytorch-m1-generalization-v3-data-audit.json"),
     "freqai_model": "ResidualPyTorchM1V3DataAuditRegressor",
     "model_file": "ai_platform/freqaimodels/ResidualPyTorchM1V3DataAuditRegressor.py",
     "identifier": "ai-platform-residual-pytorch-m1-data-audit-generalization-v3",
@@ -206,8 +197,7 @@ def validate_contract(contract: dict[str, Any]) -> None:  # noqa: C901
         raise ResidualPyTorchBoundedM1Error("One-shot trigger contract drifted")
 
     source_path = (
-        REPO_ROOT
-        / "ai_platform/experimental_model_research/"
+        REPO_ROOT / "ai_platform/experimental_model_research/"
         "residual-pytorch-bounded-m1-execution-contract-v2.json"
     )
     source = _read_json(source_path, "bounded M1 v2 source contract")
@@ -302,15 +292,11 @@ def _load_and_validate_config(track: dict[str, Any]) -> dict[str, Any]:
         "identifier": track["identifier"],
         "feature_parameters": EXPECTED_FEATURE_PARAMETERS,
         "data_split_parameters": EXPECTED_SPLIT_PARAMETERS,
-        "model_training_parameters": track.get(
-            "model_training_parameters", {"research_seed": 42}
-        ),
+        "model_training_parameters": track.get("model_training_parameters", {"research_seed": 42}),
     }
     for field, expected in expected_common.items():
         if freqai.get(field) != expected:
-            raise ResidualPyTorchBoundedM1Error(
-                f"{track['track_id']} config field {field} drifted"
-            )
+            raise ResidualPyTorchBoundedM1Error(f"{track['track_id']} config field {field} drifted")
     return config
 
 
@@ -336,8 +322,7 @@ def _load_and_validate_manifest(track: dict[str, Any]) -> dict[str, Any]:
             )
     output_root = manifest.get("output_root")
     if not isinstance(output_root, str) or not output_root.startswith(
-        "ai_platform/artifacts/experimental-model-research/"
-        "residual-pytorch-m1-generalization-v3/"
+        "ai_platform/artifacts/experimental-model-research/residual-pytorch-m1-generalization-v3/"
     ):
         raise ResidualPyTorchBoundedM1Error(f"{track['track_id']} output root drifted")
     return manifest
@@ -398,9 +383,7 @@ def build_raw_matrix_audit(
     pair: str,
 ) -> dict[str, Any]:
     with _patched_base_contract():
-        report = base.build_raw_matrix_audit(
-            dataframe, feature_names, label_names, pair=pair
-        )
+        report = base.build_raw_matrix_audit(dataframe, feature_names, label_names, pair=pair)
     report["generalization_cohort"] = "sol_xrp_v3"
     return report
 
@@ -411,9 +394,7 @@ def finalize_matrix_audit(
     return base.finalize_matrix_audit(raw_audit, data_dictionary)
 
 
-def verify_downloaded_data(
-    datadir: Path, *, pairs: list[str] | None = None
-) -> dict[str, Any]:
+def verify_downloaded_data(datadir: Path, *, pairs: list[str] | None = None) -> dict[str, Any]:
     with _patched_base_contract():
         payload = base.verify_downloaded_data(datadir, pairs=pairs)
     payload["verification_id"] = "residual-pytorch-m1-generalization-pre-may-data-v3"
@@ -432,19 +413,13 @@ def build_prediction_diagnostics(path: Path, *, track_id: str) -> dict[str, Any]
 def validate_training_directory(path: Path, *, track_id: str) -> dict[str, Any]:
     with _patched_base_contract():
         payload = base.validate_training_directory(path, track_id=track_id)
-    payload["evidence_id"] = (
-        "residual-pytorch-bounded-m1-generalization-training-evidence-index-v3"
-    )
+    payload["evidence_id"] = "residual-pytorch-bounded-m1-generalization-training-evidence-index-v3"
     return payload
 
 
-def validate_run_summary(
-    path: Path, *, track_id: str, expected_head: str
-) -> dict[str, Any]:
+def validate_run_summary(path: Path, *, track_id: str, expected_head: str) -> dict[str, Any]:
     with _patched_base_contract():
-        return base.validate_run_summary(
-            path, track_id=track_id, expected_head=expected_head
-        )
+        return base.validate_run_summary(path, track_id=track_id, expected_head=expected_head)
 
 
 def _normalized_feature_identity(report: dict[str, Any]) -> str:
@@ -452,9 +427,7 @@ def _normalized_feature_identity(report: dict[str, Any]) -> str:
     names = report.get("expanded_feature_names")
     if pair not in EXPECTED_PAIRS:
         raise ResidualPyTorchBoundedM1Error("Audit pair set drifted")
-    if not isinstance(names, list) or not names or not all(
-        isinstance(name, str) for name in names
-    ):
+    if not isinstance(names, list) or not names or not all(isinstance(name, str) for name in names):
         raise ResidualPyTorchBoundedM1Error("Audit feature-name evidence is missing")
 
     normalized = []
@@ -494,15 +467,10 @@ def validate_audit_directory(path: Path) -> dict[str, Any]:
         raise ResidualPyTorchBoundedM1Error(
             "Role-normalized feature identity differs from the terminal v2 source audit"
         )
-    if any(
-        report["target"]["trailing_null_rows"] != EXPECTED_HORIZON
-        for report in reports
-    ):
+    if any(report["target"]["trailing_null_rows"] != EXPECTED_HORIZON for report in reports):
         raise ResidualPyTorchBoundedM1Error("Cross-pair target edge geometry drifted")
     if any(report["liquidation_features_used"] for report in reports):
-        raise ResidualPyTorchBoundedM1Error(
-            "Liquidation feature entered audit evidence"
-        )
+        raise ResidualPyTorchBoundedM1Error("Liquidation feature entered audit evidence")
 
     return {
         "schema_version": 1,
@@ -515,8 +483,7 @@ def validate_audit_directory(path: Path) -> dict[str, Any]:
         "expanded_feature_names_sha256": SOURCE_ROLE_NORMALIZED_FEATURE_HASH,
         "feature_identity_normalization": "primary_and_correlated_pair_roles",
         "pair_qualified_feature_names_sha256": {
-            pair: by_pair[pair]["expanded_feature_names_sha256"]
-            for pair in EXPECTED_PAIRS
+            pair: by_pair[pair]["expanded_feature_names_sha256"] for pair in EXPECTED_PAIRS
         },
         "transformed_feature_count": EXPECTED_EXPANDED_FEATURE_COUNT,
         "pair_reports": {pair: by_pair[pair] for pair in EXPECTED_PAIRS},
@@ -571,23 +538,17 @@ def main(argv: list[str] | None = None) -> int:
         if mode == "contract":
             base._emit(build_contract_report(), getattr(args, "output", None))
         elif mode == "verify-data":
-            base._emit(
-                verify_downloaded_data(args.datadir, pairs=args.pairs), args.output
-            )
+            base._emit(verify_downloaded_data(args.datadir, pairs=args.pairs), args.output)
         elif mode == "validate-audit":
             base._emit(validate_audit_directory(args.audit_dir), args.output)
         elif mode == "diagnostics":
             base._emit(
-                build_prediction_diagnostics(
-                    args.prediction_dir, track_id=args.track_id
-                ),
+                build_prediction_diagnostics(args.prediction_dir, track_id=args.track_id),
                 args.output,
             )
         elif mode == "validate-training":
             base._emit(
-                validate_training_directory(
-                    args.training_dir, track_id=args.track_id
-                ),
+                validate_training_directory(args.training_dir, track_id=args.track_id),
                 args.output,
             )
         elif mode == "validate-summary":

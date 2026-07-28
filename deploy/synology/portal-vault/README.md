@@ -31,7 +31,7 @@ The Vault certificate must be valid for the internal DNS name `vault`. The opera
 ## Repository validation
 
 ```bash
-python deploy/synology/portal-vault/validate.py \
+python deploy/synology/portal-vault/validate_vault.py \
   --env-file deploy/synology/portal-vault/.env.example \
   --example
 ```

@@ -16,17 +16,18 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
-    name: Export validated pre-commit repair
+    name: Commit validated pre-commit repair
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
-      - name: Check out exact source
+      - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
           persist-credentials: false
 
@@ -35,40 +36,32 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Prepare bounded files
+      - name: Prepare and validate bounded files
         run: |
+          python -m pip install --disable-pip-version-check \
+            pre-commit ruff==0.15.21
           python ai_strategy_engine/tools/prepare_precommit_files.py
-          python -m pip install --disable-pip-version-check ruff==0.15.21
           ruff check --fix \
             ai_platform/research/strategy_engine/ase00_adapter.py \
             ai_strategy_engine/tests/integration/test_registry_dsl.py \
             ai_strategy_engine/tools/prepare_precommit_files.py
+          ruff format \
+            ai_platform/research/strategy_engine/ase00_adapter.py \
+            ai_strategy_engine/tests/integration/test_registry_dsl.py \
+            ai_strategy_engine/tools/prepare_precommit_files.py
+          pre-commit run --all-files --show-diff-on-failure
 
-      - name: Run complete repository pre-commit
-        id: precommit
+      - name: Commit validated bounded repair
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          python -m pip install --disable-pip-version-check pre-commit
-          set +e
-          pre-commit run --all-files --show-diff-on-failure > /tmp/pre-commit.log 2>&1
-          status=$?
-          set -e
-          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "$status" > /tmp/pre-commit.status
-
-      - name: Upload validated files and diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ase00-final-precommit-files
-          path: |
-            ai_platform/research/strategy_engine/ase00_adapter.py
-            ai_strategy_engine/tests/integration/test_registry_dsl.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/research/strategy_engine/ase00_adapter.py \
+            ai_strategy_engine/tests/integration/test_registry_dsl.py \
             tests/ai_platform_integration/__init__.py
-            /tmp/pre-commit.log
-            /tmp/pre-commit.status
-          if-no-files-found: error
-          retention-days: 1
-
-      - name: Enforce complete repository pre-commit
-        if: steps.precommit.outputs.status != '0'
-        run: exit 1
+          git diff --cached --quiet && exit 1
+          git commit -m "fix(ai-strategy): satisfy repository pre-commit"
+          authorization="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $authorization" \
+            push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

@@ -1,0 +1,111 @@
+name: Apply BMW-02 idempotency repair
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.head_ref == 'feat/portal-bmw02-command-intent-v3'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/portal-bmw02-command-intent-v3
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.13'
+      - name: Restore BM-03 semantics and add facade lookup
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("ai_platform/portal/bot_operations/service.py")
+          text = path.read_text()
+          text = text.replace("import hashlib\nimport json\n", "import hashlib\n", 1)
+          helper = '''def _command_business_digest(command: BotOperationCommand) -> str:
+              payload = command.model_dump(
+                  mode="json",
+                  exclude={
+                      "command_id": True,
+                      "correlation": True,
+                      "submitted_at": True,
+                      "confirmation": {"confirmation_reference": True},
+                  },
+              )
+              canonical = json.dumps(
+                  payload,
+                  ensure_ascii=False,
+                  separators=(",", ":"),
+                  sort_keys=True,
+              )
+              return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+          '''
+          if helper not in text:
+              raise SystemExit("business digest helper marker missing")
+          text = text.replace(helper, "", 1)
+          text = text.replace(
+              "        digest = _command_business_digest(command)\n",
+              "        command_json = command.canonical_json()\n"
+              "        digest = hashlib.sha256(command_json.encode()).hexdigest()\n",
+              1,
+          )
+          marker = "    def _submit(\n"
+          method = '''    def find_idempotent_command(
+              self,
+              tenant_id: str,
+              idempotency_key: str,
+          ) -> tuple[BotOperationCommand, CommandOutcome] | None:
+              """Return existing command and latest outcome for trusted application services."""
+
+              with self._session_factory() as session:
+                  stored = self._store.get_by_idempotency_key(
+                      session,
+                      tenant_id,
+                      idempotency_key,
+                  )
+                  if stored is None:
+                      return None
+                  history = self._store.list_history(
+                      session,
+                      tenant_id,
+                      stored.command.command_id,
+                  )
+                  if not history:
+                      raise BotCommandTransitionError("idempotent command history is missing")
+                  return stored.command, history[-1].outcome
+
+'''
+          if "def find_idempotent_command" not in text:
+              if marker not in text:
+                  raise SystemExit("submit marker missing")
+              text = text.replace(marker, method + marker, 1)
+          path.write_text(text)
+
+          for temporary in (
+              Path(".github/workflows/bmw02-full-ai-artifact.yml"),
+              Path(".github/workflows/bmw02-idempotency-repair.yml"),
+          ):
+              if temporary.exists():
+                  temporary.unlink()
+          PY
+          python -m pip install --disable-pip-version-check -q ruff==0.15.21
+          ruff check --fix \
+            ai_platform/portal/bot_operations/service.py \
+            ai_platform/portal/bot_operations/intent_service.py
+          ruff format \
+            ai_platform/portal/bot_operations/service.py \
+            ai_platform/portal/bot_operations/intent_service.py
+      - name: Commit scoped repair
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/portal/bot_operations .github/workflows
+          git commit -m "fix(portal): scope idempotent replay to BMW-02"
+          git push origin HEAD:feat/portal-bmw02-command-intent-v3

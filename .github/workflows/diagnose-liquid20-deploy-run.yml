@@ -1,4 +1,4 @@
-name: Verify Portal Proof Bash Semantics
+name: Inspect Portal Candidate Limits
 
 on:
   pull_request:
@@ -9,18 +9,42 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  inspect:
     runs-on: freqtrade-staging
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
-      - name: Verify empty array expansion under nounset
+      - name: Inspect exact-image candidate limits
+        env:
+          PORTAL_CONTAINER: freqtrade-portal-staging
+          LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
+          LIQUIDATIONS_CONTAINER_ROOT: /liquid20-data
         run: |
-          set -uo pipefail
-          bash --version | head -n 1
-          set +e
-          bash -Eeuo pipefail -c 'pids_limit_args=(); run_args=(docker run); run_args+=("${pids_limit_args[@]}"); printf "SAFE_COUNT=%s\n" "${#run_args[@]}"' >/tmp/array.out 2>/tmp/array.err
-          status=$?
-          set -e
-          echo "ARRAY_PROBE_STATUS=$status"
-          echo "ARRAY_PROBE_STDOUT=$(cat /tmp/array.out)"
-          echo "ARRAY_PROBE_STDERR=$(cat /tmp/array.err)"
+          set -Eeuo pipefail
+          candidate="freqtrade-portal-limit-diagnostic-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() { docker rm -f "$candidate" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          portal_image="$(docker inspect --format '{{.Config.Image}}' "$PORTAL_CONTAINER")"
+          data_gid="$(docker run --rm --user 0:0 --entrypoint node \
+            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
+            "$portal_image" \
+            -e 'const fs=require("node:fs");process.stdout.write(String(fs.lstatSync("/liquid20-data").gid));')"
+          docker run -d \
+            --name "$candidate" \
+            --restart no \
+            --read-only \
+            --tmpfs /tmp:size=64m,mode=1777 \
+            --tmpfs /app/.next/cache:size=64m,mode=0755 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --memory 768m \
+            --group-add "$data_gid" \
+            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
+            --env PORTAL_WEB_DATA_MODE=fixture \
+            --env PORTAL_ENVIRONMENT=test \
+            --env PORTAL_IDENTITY_FIXTURE_MODE=enabled \
+            --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${LIQUIDATIONS_CONTAINER_ROOT}" \
+            "$portal_image" >/dev/null
+          echo "PIDS_LIMIT_TEMPLATE=$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$candidate")"
+          echo "PIDS_LIMIT_JSON=$(docker inspect --format '{{json .HostConfig.PidsLimit}}' "$candidate")"
+          echo "MEMORY_LIMIT=$(docker inspect --format '{{.HostConfig.Memory}}' "$candidate")"
+          echo "NANO_CPUS=$(docker inspect --format '{{.HostConfig.NanoCpus}}' "$candidate")"

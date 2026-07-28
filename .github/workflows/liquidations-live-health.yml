@@ -9,7 +9,7 @@ on:
       - ai_platform/scripts/liquidation_live_health.py
       - ai_platform/scripts/liquidation_portal_health.py
       - deploy/synology/liquid20/LIVE_STREAM.md
-      - deploy/synology/portal/check-liquidations-live-health.sh
+      - deploy/synology/portal/prove-liquidations-live.sh
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -63,20 +63,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Probe production portal and isolated read path
-        id: portal
-        continue-on-error: true
-        env:
-          LIQUID20_PORTAL_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-portal-health.json
-          PORTAL_CONTAINER_NAME: freqtrade-portal-staging
-          PORTAL_LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
-        run: |
-          set +e
-          bash deploy/synology/portal/check-liquidations-live-health.sh
-          status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit "$status"
-
       - name: Check combined health and reconcile alert
         id: health
         continue-on-error: true
@@ -89,8 +75,10 @@ jobs:
           LIQUID20_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-health.json
           LIQUID20_HEARTBEAT_STALE_SECONDS: "60"
           LIQUID20_PORTAL_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-portal-health.json
+          LIQUID20_PORTAL_PROOF_SCRIPT: deploy/synology/portal/prove-liquidations-live.sh
           LIQUID20_REQUIRE_PORTAL_HEALTH: "true"
           LIQUID20_SOURCE_STALE_SECONDS: "60"
+          PORTAL_LIVE_PROOF_DELAY_SECONDS: "5"
         run: |
           set +e
           python -m ai_platform.scripts.liquidation_portal_health
@@ -126,6 +114,7 @@ jobs:
               f"- Healthy: `{report.get('healthy')}`",
               f"- Checked at: `{report.get('checked_at_ms')}`",
               f"- Portal mode: `{portal.get('mode')}`",
+              f"- Portal proof exit: `{portal.get('proof_exit_code')}`",
               f"- Production page: `{production.get('page_status')}`",
               (
                   "- Production protected health: "

@@ -1,0 +1,107 @@
+name: Liquidations Live Health
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquidations-live-health.yml
+      - ai_platform/scripts/liquidation_live_health.py
+      - deploy/synology/liquid20/LIVE_STREAM.md
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: liquidations-live-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    name: Check Synology collector
+    runs-on: freqtrade-staging
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Check collector health and reconcile alert
+        id: health
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIQUID20_CONTAINER_NAME: liquid20-live
+          LIQUID20_DATA_ROOT: /volume1/docker/freqtrade-liquidations/data
+          LIQUID20_DISK_FREE_BYTES_MIN: "21474836480"
+          LIQUID20_DISK_USED_PERCENT_MAX: "90"
+          LIQUID20_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-health.json
+          LIQUID20_HEARTBEAT_STALE_SECONDS: "60"
+          LIQUID20_SOURCE_STALE_SECONDS: "60"
+        run: |
+          set +e
+          python -m ai_platform.scripts.liquidation_live_health
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Publish health summary
+        if: always()
+        env:
+          REPORT: ${{ runner.temp }}/liquidations-live-health.json
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path(os.environ["REPORT"])
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          if not report_path.is_file():
+              summary_path.write_text(
+                  "## Liquidations live health\n\nHealth report was not created.\n",
+                  encoding="utf-8",
+              )
+              raise SystemExit(0)
+          report = json.loads(report_path.read_text(encoding="utf-8"))
+          alerts = report.get("alerts", [])
+          lines = [
+              "## Liquidations live health",
+              "",
+              f"- Healthy: `{report.get('healthy')}`",
+              f"- Checked at: `{report.get('checked_at_ms')}`",
+              f"- GitHub alert action: `{report.get('github_alert_action')}`",
+              f"- Alert count: `{len(alerts) if isinstance(alerts, list) else 'unknown'}`",
+          ]
+          if alerts:
+              lines.extend(["", "### Alerts"])
+              for alert in alerts:
+                  lines.append(f"- `{alert.get('code')}`: {alert.get('message')}")
+          summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Upload unhealthy evidence
+        if: always() && steps.health.outcome != 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: liquidations-live-health-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/liquidations-live-health.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce healthy result
+        if: always()
+        env:
+          HEALTH_EXIT_CODE: ${{ steps.health.outputs.exit_code }}
+        run: |
+          if [[ "$HEALTH_EXIT_CODE" != "0" ]]; then
+            echo "Liquidations live health check failed with exit code ${HEALTH_EXIT_CODE:-missing}" >&2
+            exit 1
+          fi

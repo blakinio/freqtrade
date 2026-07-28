@@ -24,14 +24,17 @@ It must not switch to `api1.binance.com`, `api-gcp.binance.com`, `data-api.binan
 
 ## Runner and environment boundary
 
-The guarded workflow requires:
+The guarded workflow routes by the dedicated runner's only registered custom label:
 
-- runner name: `freqtrade-synology-staging`;
-- labels: `self-hosted`, `Linux`, `freqtrade-staging`;
+- routing label: `freqtrade-staging`;
+- exact runner name asserted after assignment: `freqtrade-synology-staging`;
 - protected environment: `synology-staging`;
-- runner architecture: `X64` or `ARM64`.
+- runner operating system asserted after assignment: `Linux`;
+- runner architecture asserted after assignment: `X64` or `ARM64`.
 
-The workflow fails before transport when the runner identity, operating system or architecture does not match. There is no fallback to GitHub-hosted runners or another self-hosted label.
+The dedicated runner entrypoint registers with `--labels freqtrade-staging --no-default-labels`. Therefore `self-hosted`, `Linux` and `X64` are not routing labels and must not be added to `runs-on`. Identity, operating system and architecture remain fail-closed runtime assertions before transport.
+
+There is no fallback to GitHub-hosted runners, another self-hosted label or an alternate runner identity.
 
 ## Credential and routing refusal
 

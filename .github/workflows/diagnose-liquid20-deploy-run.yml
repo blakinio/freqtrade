@@ -1,4 +1,4 @@
-name: Inspect Portal Proof Failure
+name: Inspect Portal Proof Preflight
 
 on:
   pull_request:
@@ -6,26 +6,91 @@ on:
       - .github/workflows/diagnose-liquid20-deploy-run.yml
 
 permissions:
-  actions: read
   contents: read
 
 jobs:
   inspect:
     runs-on: freqtrade-staging
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Read bounded proof failure diagnostics
+      - name: Inspect production boundary read-only
         env:
-          GH_TOKEN: ${{ github.token }}
+          PORTAL_CONTAINER: freqtrade-portal-staging
+          LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
+          LIQUIDATIONS_CONTAINER_ROOT: /liquid20-data
         run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --location \
-            --header "Authorization: Bearer $GH_TOKEN" \
-            --header "Accept: application/vnd.github+json" \
-            --header "X-GitHub-Api-Version: 2022-11-28" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/90215928048/logs" \
-            --output /tmp/portal-proof-job.log
-          echo '--- PROOF FAILURE TAIL ---'
-          awk 'length($0) < 1800' /tmp/portal-proof-job.log \
-            | grep -E 'Docker PID|Candidate|candidate|SESSION_MISSING|healthy|health|Error|SystemExit|Process completed|exit code|permission|group|mount|LIVE|heartbeat|status|not found|No such|failed|failure|curl:|test:' \
-            | tail -n 100
+          set -uo pipefail
+          portal_image="$(docker inspect --format '{{.Config.Image}}' "$PORTAL_CONTAINER")"
+          running="$(docker inspect --format '{{.State.Running}}' "$PORTAL_CONTAINER")"
+          mount_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.Source}}{{end}}{{end}}' "$PORTAL_CONTAINER")"
+          mount_rw="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$PORTAL_CONTAINER")"
+          restart_policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$PORTAL_CONTAINER")"
+          portal_uid="$(docker exec "$PORTAL_CONTAINER" id -u)"
+          portal_groups="$(docker exec "$PORTAL_CONTAINER" id -G)"
+
+          set +e
+          data_gid_output="$(docker run --rm \
+            --user 0:0 \
+            --entrypoint node \
+            --mount "type=bind,src=${LIQUIDATIONS_HOST_ROOT},dst=${LIQUIDATIONS_CONTAINER_ROOT},readonly" \
+            "$portal_image" \
+            -e 'const fs=require("node:fs");const s=fs.lstatSync("/liquid20-data");if(!s.isDirectory()||s.isSymbolicLink())process.exit(1);process.stdout.write(String(s.gid));' 2>&1)"
+          data_gid_status=$?
+
+          boundary_output="$(docker exec "$PORTAL_CONTAINER" node -e '
+            Promise.all([
+              fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store"}),
+              fetch("http://127.0.0.1:3000/api/market/liquidations/health", {cache:"no-store"}),
+            ]).then(async ([page, health]) => {
+              const payload = await health.json().catch(() => ({}));
+              process.stdout.write(JSON.stringify({
+                page_status: page.status,
+                health_status: health.status,
+                health_code: payload.code ?? null,
+                cache_control: health.headers.get("cache-control"),
+              }));
+            }).catch((error) => { console.error(error); process.exit(1); });
+          ' 2>&1)"
+          boundary_status=$?
+          set -e
+
+          PORTAL_IMAGE="$portal_image" \
+          RUNNING="$running" \
+          MOUNT_SOURCE="$mount_source" \
+          MOUNT_RW="$mount_rw" \
+          RESTART_POLICY="$restart_policy" \
+          PORTAL_UID="$portal_uid" \
+          PORTAL_GROUPS="$portal_groups" \
+          DATA_GID_STATUS="$data_gid_status" \
+          DATA_GID_OUTPUT="$data_gid_output" \
+          BOUNDARY_STATUS="$boundary_status" \
+          BOUNDARY_OUTPUT="$boundary_output" \
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+
+          data_gid_output = os.environ["DATA_GID_OUTPUT"]
+          data_gid = int(data_gid_output) if re.fullmatch(r"[0-9]+", data_gid_output) else None
+          groups = [int(value) for value in os.environ["PORTAL_GROUPS"].split()]
+          boundary_raw = os.environ["BOUNDARY_OUTPUT"]
+          try:
+              boundary = json.loads(boundary_raw)
+          except json.JSONDecodeError:
+              boundary = {"raw": boundary_raw[:500]}
+          report = {
+              "portal_image": os.environ["PORTAL_IMAGE"],
+              "running": os.environ["RUNNING"] == "true",
+              "mount_source": os.environ["MOUNT_SOURCE"],
+              "mount_read_only": os.environ["MOUNT_RW"] == "false",
+              "restart_policy": os.environ["RESTART_POLICY"],
+              "portal_uid": int(os.environ["PORTAL_UID"]),
+              "portal_groups": groups,
+              "data_gid_helper_status": int(os.environ["DATA_GID_STATUS"]),
+              "data_gid": data_gid,
+              "production_has_data_group": data_gid in groups if data_gid is not None else False,
+              "boundary_status": int(os.environ["BOUNDARY_STATUS"]),
+              "boundary": boundary,
+          }
+          print("PORTAL_PREFLIGHT=" + json.dumps(report, sort_keys=True))
+          PY

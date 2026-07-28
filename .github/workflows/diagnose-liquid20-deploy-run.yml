@@ -23,7 +23,7 @@ jobs:
           import os
           import urllib.request
 
-          sha = "dfc64badb505e9cda5b9dd67ba4551668be92bba"
+          sha = "591dbaf41da56036ac74ab33c96eb83e3b2d0b1a"
           repository = os.environ["GITHUB_REPOSITORY"]
           request = urllib.request.Request(
               f"https://api.github.com/repos/{repository}/actions/runs?head_sha={sha}&event=push&per_page=100",

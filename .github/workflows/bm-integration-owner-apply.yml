@@ -1,17 +1,17 @@
 name: Apply bot-management integration composition
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/portal-bm-integration-owner-v1
-    paths:
-      - .github/workflows/bm-integration-owner-apply.yml
+      - develop
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.head_ref == 'feat/portal-bm-integration-owner-v1'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -21,10 +21,12 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           api = Path("ai_platform/portal/control_plane/api.py")
           text = api.read_text()
-          imports = '''from ai_platform.portal.bot_builder.router import build_router as build_bot_builder_router
+          imports = dedent('''\
+          from ai_platform.portal.bot_builder.router import build_router as build_bot_builder_router
           from ai_platform.portal.bot_catalog.router import build_router as build_bot_catalog_router
           from ai_platform.portal.bot_operations.router import build_router as build_bot_operations_router
           from ai_platform.portal.control_plane.bot_management import (
@@ -39,7 +41,7 @@ jobs:
           )
           from ai_platform.portal.grid_control.router import build_router as build_grid_control_router
           from ai_platform.portal.signal_control.router import build_router as build_signal_control_router
-          '''
+          ''')
           marker = "from ai_platform.portal.contracts.audit import AuditEvent\n"
           if imports not in text:
               text = text.replace(marker, imports + marker)
@@ -50,21 +52,24 @@ jobs:
               raise SystemExit("create_app signature marker missing")
           text = text.replace(old_signature, new_signature, 1)
 
-          valuation = '''    valuation = valuation_service or ValuationService(
-              session_factory,
-              UnavailableRuntimeValuationSource(checked_at=datetime.now(UTC)),
-          )
-          '''
-          composition = valuation + '''    bot_management = bot_management_services or build_default_bot_management_services(
-              session_factory
-          )
-          '''
+          valuation = dedent('''\
+              valuation = valuation_service or ValuationService(
+                  session_factory,
+                  UnavailableRuntimeValuationSource(checked_at=datetime.now(UTC)),
+              )
+          ''')
+          composition = valuation + dedent('''\
+              bot_management = bot_management_services or build_default_bot_management_services(
+                  session_factory
+              )
+          ''')
           if valuation not in text:
               raise SystemExit("valuation marker missing")
           text = text.replace(valuation, composition, 1)
 
           handler_marker = "    _register_exception_handlers(app)\n"
-          router_block = handler_marker + '''    register_bot_management_exception_handlers(app)
+          router_block = handler_marker + dedent('''\
+              register_bot_management_exception_handlers(app)
               app.include_router(build_bot_catalog_router(bot_management.catalog, context_dependency))
               app.include_router(build_bot_builder_router(bot_management.builder, context_dependency))
               app.include_router(build_bot_operations_router(bot_management.commands, context_dependency))
@@ -73,7 +78,7 @@ jobs:
               app.include_router(
                   build_exchange_connections_router(bot_management.exchanges, context_dependency)
               )
-          '''
+          ''')
           if handler_marker not in text:
               raise SystemExit("exception handler marker missing")
           text = text.replace(handler_marker, router_block, 1)
@@ -91,7 +96,8 @@ jobs:
           test_api = Path("tests/ai_platform/portal/control_plane/test_api.py")
           text = test_api.read_text()
           marker = '        "/v1/runtime-observability/logs/search",\n'
-          paths = marker + '''        "/v1/bot-management/catalog/{catalog_id}/latest",
+          paths = marker + dedent('''\
+                  "/v1/bot-management/catalog/{catalog_id}/latest",
                   "/v1/bot-management/catalog/templates/search",
                   "/v1/bot-management/catalog/compatibility",
                   "/v1/bot-management/builder/drafts",
@@ -112,7 +118,7 @@ jobs:
                   "/v1/bot-management/exchanges",
                   "/v1/bot-management/exchanges/{connection_id}",
                   "/v1/bot-management/exchanges/{connection_id}/verification-requests",
-          '''
+          ''')
           if marker not in text:
               raise SystemExit("OpenAPI path marker missing")
           text = text.replace(marker, paths, 1)

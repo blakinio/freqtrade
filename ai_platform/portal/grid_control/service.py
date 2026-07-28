@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from collections.abc import Callable
 from datetime import UTC, datetime
 from decimal import Decimal, localcontext
@@ -96,10 +97,7 @@ class GridControlService:
                 if len(set(prices)) != len(prices):
                     reasons.add(GridControlReasonCode.PRECISION_COLLAPSE)
                     reasons.add(GridControlReasonCode.DUPLICATE_LEVELS)
-                if any(
-                    current >= following
-                    for current, following in zip(prices, prices[1:])
-                ):
+                if any(current >= following for current, following in itertools.pairwise(prices)):
                     reasons.add(GridControlReasonCode.NON_MONOTONIC_LEVELS)
                 levels = self._levels(raw_levels, prices, per_level, exchange)
                 if any(level.quantity == 0 for level in levels):
@@ -122,9 +120,7 @@ class GridControlService:
             exchange_profile_id=request.exchange_profile_id,
             exchange_profile_revision=request.exchange_profile_revision,
             policy=request.policy,
-            status=(
-                GridPreviewStatus.REJECTED if reason_codes else GridPreviewStatus.VALID
-            ),
+            status=(GridPreviewStatus.REJECTED if reason_codes else GridPreviewStatus.VALID),
             reason_codes=reason_codes,
             levels=levels,
             total_quote_allocation=requested_total,
@@ -188,9 +184,7 @@ class GridControlService:
         try:
             self._repository.save_revision(revision)
         except ValueError as exc:
-            raise GridControlServiceError(
-                (GridControlReasonCode.POLICY_ALREADY_EXISTS,)
-            ) from exc
+            raise GridControlServiceError((GridControlReasonCode.POLICY_ALREADY_EXISTS,)) from exc
         return revision
 
     @staticmethod
@@ -214,7 +208,7 @@ class GridControlService:
         exchange: GridExchangeCapabilityEvidence,
     ) -> tuple[GridLevel, ...]:
         result: list[GridLevel] = []
-        for index, (raw_price, price) in enumerate(zip(raw_levels, prices), start=1):
+        for index, (raw_price, price) in enumerate(zip(raw_levels, prices, strict=False), start=1):
             quantity = floor_to_step(per_level / price, exchange.quantity_step)
             notional = quantity * price
             result.append(

@@ -25,7 +25,7 @@ Copy `.env.example` to a protected runtime environment file and keep it mode `06
 ## 2. Validate repository package
 
 ```bash
-python deploy/synology/portal-vault/validate.py \
+python deploy/synology/portal-vault/validate_vault.py \
   --env-file /volume1/docker/portal-vault/portal-vault.env
 ```
 

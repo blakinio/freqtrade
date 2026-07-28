@@ -235,7 +235,7 @@ def test_rejects_invalid_live_availability_time(tmp_path: Path) -> None:
     payload["received_at_ms"] = payload["occurred_at_ms"] - 1
     _write_json(events_path, payload)
 
-    with pytest.raises(ValueError, match="invalid canonical liquidation event"):
+    with pytest.raises(ValueError, match="received_at_ms must be >= occurred_at_ms"):
         accept_closed_live_run(
             run_root=run_root,
             output_root=tmp_path / "accepted",

@@ -47,7 +47,7 @@ def test_feature_timestamp_order_is_enforced() -> None:
 
 
 def test_timezone_must_be_utc() -> None:
-    naive = datetime(2026, 1, 1)
+    naive = datetime(2026, 1, 1)  # noqa: DTZ001 - deliberately invalid test fixture
     with pytest.raises(ValidationError):
         _feature(event_time=naive, detected_at=naive, available_at=naive)
 

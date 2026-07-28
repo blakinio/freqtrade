@@ -75,15 +75,14 @@ class GridControlService:
             reasons.add(GridControlReasonCode.OVER_ALLOCATION)
 
         levels: tuple[GridLevel, ...] = ()
-        if not reasons.intersection(
-            {
-                GridControlReasonCode.TENANT_MISMATCH,
-                GridControlReasonCode.TEMPLATE_REVISION_MISMATCH,
-                GridControlReasonCode.CAPABILITY_REVISION_MISMATCH,
-                GridControlReasonCode.SPACING_UNSUPPORTED,
-                GridControlReasonCode.LEVEL_COUNT_UNSUPPORTED,
-            }
-        ):
+        blocking_reasons = {
+            GridControlReasonCode.TENANT_MISMATCH,
+            GridControlReasonCode.TEMPLATE_REVISION_MISMATCH,
+            GridControlReasonCode.CAPABILITY_REVISION_MISMATCH,
+            GridControlReasonCode.SPACING_UNSUPPORTED,
+            GridControlReasonCode.LEVEL_COUNT_UNSUPPORTED,
+        }
+        if not reasons.intersection(blocking_reasons):
             raw_levels = generate_raw_levels(
                 lower=request.policy.lower_price,
                 upper=request.policy.upper_price,
@@ -91,18 +90,24 @@ class GridControlService:
                 spacing=request.policy.spacing,
             )
             prices = apply_price_precision(raw_levels, exchange.price_step)
-            if len(set(prices)) != len(prices):
+            if any(price <= 0 for price in prices):
                 reasons.add(GridControlReasonCode.PRECISION_COLLAPSE)
-                reasons.add(GridControlReasonCode.DUPLICATE_LEVELS)
-            if any(current >= following for current, following in zip(prices, prices[1:])):
-                reasons.add(GridControlReasonCode.NON_MONOTONIC_LEVELS)
-            levels = self._levels(raw_levels, prices, per_level, exchange)
-            if any(level.quantity == 0 for level in levels):
-                reasons.add(GridControlReasonCode.ALLOCATION_ZERO)
-            if any(not level.meets_minimum_amount for level in levels):
-                reasons.add(GridControlReasonCode.MINIMUM_AMOUNT_NOT_MET)
-            if any(not level.meets_minimum_notional for level in levels):
-                reasons.add(GridControlReasonCode.MINIMUM_NOTIONAL_NOT_MET)
+            else:
+                if len(set(prices)) != len(prices):
+                    reasons.add(GridControlReasonCode.PRECISION_COLLAPSE)
+                    reasons.add(GridControlReasonCode.DUPLICATE_LEVELS)
+                if any(
+                    current >= following
+                    for current, following in zip(prices, prices[1:])
+                ):
+                    reasons.add(GridControlReasonCode.NON_MONOTONIC_LEVELS)
+                levels = self._levels(raw_levels, prices, per_level, exchange)
+                if any(level.quantity == 0 for level in levels):
+                    reasons.add(GridControlReasonCode.ALLOCATION_ZERO)
+                if any(not level.meets_minimum_amount for level in levels):
+                    reasons.add(GridControlReasonCode.MINIMUM_AMOUNT_NOT_MET)
+                if any(not level.meets_minimum_notional for level in levels):
+                    reasons.add(GridControlReasonCode.MINIMUM_NOTIONAL_NOT_MET)
 
         unallocated = max(request.available_quote - requested_total, Decimal("0"))
         reason_codes = _sorted_reasons(reasons)

@@ -14,7 +14,7 @@ Build a secure, modern and extensible portal above the existing Freqtrade AI Pla
 
 ## Current program state
 
-Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages, completed Bot Operations convergence in PR #320, completed the bounded PI-06 repository identity backend in PR #341, completed the same-origin BFF/browser-session package in PR #361 and completed the secret-free Authentik/Synology repository deployment package in PR #385.
+Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages, completed Bot Operations convergence in PR #320, completed the bounded PI-06 repository identity and deployment packages, and completed the owner-approved PI-07 HashiCorp Vault credential broker in PR #666.
 
 Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
 
@@ -24,9 +24,9 @@ Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMA
 - P13 measured-need assessment completed with NO-GO, so scale/service extraction is deferred until evidence demonstrates a need;
 - P14 remains separately blocked and this program does not authorize live capital.
 
-The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 is active: the architecture decision, repository identity backend, same-origin BFF/browser-session integration and Authentik/Synology repository deployment package are complete, while real owner-managed provisioning, MFA enrollment, recovery, encrypted backup/restore and target-environment acceptance remain. PI-05, PI-07 and PI-08 remain separately planned and gated.
+The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03, PI-04 and repository-side PI-07 are complete. PI-06 remains active at its owner-managed target-acceptance boundary. PI-05 remains provider-gated. PI-08 is now the next authorized software package and remains dry-run-only; real PI-07 Synology target acceptance is separate.
 
-Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. No further repository-only Authentik deployment package is authorized. The next PI-06 action is real owner-managed target acceptance and may begin only when Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target are intentionally available. Cloudflare P11 remains separate.
+Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. PI-08 private risk-approved dry-run submission is the next software package. Real PI-06 and PI-07 target acceptance require intentional owner-managed resources and remain separate from Cloudflare P11.
 
 Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
 

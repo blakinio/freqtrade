@@ -41,8 +41,8 @@ Snapshot date: `2026-07-28`.
 - PI-04 Centralized Runtime Observability: `done` for repository-side contracts, PR #261; target-environment backend connectivity remains deployment-owned and must fail closed when absent.
 - PI-05 External Notification Delivery: `planned`; provider/channel and privacy policy are unresolved.
 - PI-06 Product Identity and Session Lifecycle: `active`; the accepted architecture, repository backend, same-origin BFF/browser-session integration and secret-free Authentik/Synology repository deployment package are complete. Real target provisioning, MFA enrollment, recovery, backup/restore and owner-managed acceptance remain.
-- PI-07 Runtime Credential Broker and Rotation: `planned`; requires a selected secret backend and security review.
-- PI-08 Private Dry-Run Approved Execution Submission: `planned`; depends on PI-07 and must remain dry-run-only.
+- PI-07 Runtime Credential Broker and Rotation: `done` for repository-side software and deployment contracts, PR #666, squash merge `436b5350e54a33cbf070738a2328b142ffcd5174`; real Synology Vault initialization and target acceptance remain owner-managed.
+- PI-08 Private Dry-Run Approved Execution Submission: `planned` and now the next authorized software package; it must remain private, risk-gated, reconciled and dry-run-only.
 
 The concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. Deterministic simulator execution is not evidence of private Freqtrade order submission.
 
@@ -155,7 +155,7 @@ The following are not ordinary UI repairs:
 
 - real Authentik/Synology target provisioning and identity acceptance require intentional owner-managed resources and secrets;
 - email/webhook/push delivery requires the PI-05 provider and destination policy decision;
-- runtime credential injection requires PI-07 and a security-reviewed secret backend;
+- PI-07 repository credential brokering is complete; real Vault initialization, certificates, credential enrollment and restore acceptance remain owner-managed target work;
 - approved private Freqtrade dry-run submission requires PI-08 after PI-07;
 - real Cloudflare production-like staging requires intentional owner provisioning under P11;
 - live-small remains P14 and requires separate explicit authorization.
@@ -168,8 +168,8 @@ Unless live repository evidence changes the order:
 
 1. when owner-managed Synology access, runtime secrets, DNS/TLS route, test users, MFA devices and an offline `age` recovery key are intentionally available, declare a separate PI-06 target acceptance task and prove real login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, recovery, encrypted backup and isolated restore;
 2. implement PI-05 one external channel at a time only after provider and privacy decisions;
-3. declare PI-07 only after the secret backend, rotation policy and security review are resolved;
-4. implement PI-08 only after PI-07, keeping execution private, risk-gated, audited and dry-run-only;
+3. keep the merged PI-07 Vault boundary unchanged unless a separate reviewed credential package is declared;
+4. implement PI-08 now that PI-07 repository acceptance is complete, keeping execution private, risk-gated, audited, reconciled and dry-run-only;
 5. activate BM-07 only after PI-08 and authoritative reconciliation acceptance;
 6. declare final BM-09 only after all required product and execution packages are complete;
 7. resume P11 whenever the owner intentionally starts real external staging and run all five protected ingress probes;
@@ -189,7 +189,7 @@ The Authentik/Synology repository package has passed its bounded acceptance:
 - bootstrap is restricted and removed after first setup;
 - health, backup, restore verification and rollback procedures are deterministic;
 - repository evidence remains distinct from owner-managed deployment evidence;
-- Cloudflare P11 acceptance, PI-07, PI-08 and P14 remain separate.
+- Cloudflare P11 acceptance, real PI-07 target acceptance, PI-08 and P14 remain separate.
 
 The remaining PI-06 acceptance cannot proceed autonomously without target resources. Stop and record the blocker rather than fabricating success when Synology access, DNS, certificates, real users, MFA devices, protected secrets, an offline `age` key or an isolated restore target are unavailable.
 
@@ -222,4 +222,4 @@ Stop and record a blocker instead of improvising when:
 
 ## 10. Current next action
 
-BM-08 is complete. Do not start BM-07 or claim final BM-09 completion before PI-07 and PI-08. Do not create another repository-only Authentik deployment package. When the owner intentionally supplies Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target, declare `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acceptance`. Separately, declare PI-07 only after the secret backend, rotation policy and security review are resolved. Keep Cloudflare P11 acceptance, PI-08 and live capital separate.
+PI-07 repository acceptance is complete. Declare and implement `FTAI-YYYYMMDD-portal-pi08-private-dry-run-submission` next. Do not activate BM-07 or claim final BM-09 completion before PI-08 acceptance. Keep real Synology Vault target acceptance, PI-06 target acceptance, Cloudflare P11 and live capital as separate owner-gated boundaries.

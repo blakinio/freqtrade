@@ -45,7 +45,7 @@ Every package inherits these invariants:
 | 4 | `PI-06` Product Identity and Session Lifecycle | `active` | real product authentication, MFA, revocation and membership lifecycle | P1 and accepted PI-06 decision |
 | 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `done` | attributable valuation with freshness and reconciliation | PI-01 and authoritative mark source |
 | 6 | `PI-05` External Notification Delivery | `planned` | auditable external delivery without secret leakage | in-app notifications; PI-06 where identity/contact data is required |
-| 7 | `PI-07` Runtime Credential Broker and Rotation | `planned` | secret-store-backed credential injection and revocation | P1 secret references, P3 isolation, security review |
+| 7 | `PI-07` Runtime Credential Broker and Rotation | `done` | Vault-backed tenant-scoped credential resolution, revocation and rotation | P1 secret references, P3 isolation, owner-approved Vault policy |
 | 8 | `PI-08` Private Dry-Run Approved Execution Submission | `planned` | risk-approved intents submitted privately to dry-run runtimes | PI-01, PI-07, P7 and audit |
 | External gate | P11 Real Cloudflare Production-Like Staging | `blocked` | real protected ingress and five-probe acceptance | owner-approved Cloudflare and protected GitHub environment |
 | Conditional | P13 Scale and Service Extraction | `deferred` | smallest measured response to a proven bottleneck | durable measurement bundle |
@@ -258,15 +258,16 @@ Recommended next task: `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acce
 
 ### PI-07 — Runtime Credential Broker and Rotation
 
-Status: `planned`.
+Status: `done` for repository-side PI-07 software and deployment contracts, PR #666, squash merge `436b5350e54a33cbf070738a2328b142ffcd5174`. Real Synology initialization, unseal, certificates, audit retention, credential enrollment and restore acceptance remain owner-managed target evidence.
 
-Entry gates:
+Accepted decision and delivered controls:
 
-- select secret store/KMS and deployment environment;
-- review withdrawal-disabled policy;
-- make runtime and tenant identity deterministic;
-- approve rotation, revocation and incident procedures;
-- prove research/training denial.
+- HashiCorp Vault KV v2 with integrated Raft storage;
+- TLS-only private networking and no host-published Vault port;
+- AppRole with bounded token leases and read-only tenant paths;
+- dual audit devices and explicit target runbook;
+- withdrawal-disabled, dry-run-only and 90-day maximum credential age;
+- secret-free public evidence, tenant isolation and deterministic revocation/rotation states.
 
 Acceptance:
 
@@ -276,7 +277,7 @@ Acceptance:
 4. Research/training cannot access runtime credentials.
 5. Rotation does not silently change bot/config identity.
 
-Recommended task: `FTAI-YYYYMMDD-portal-pi07-runtime-credential-broker`.
+Completed task: `FTAI-20260728-portal-pi07-vault-credential-broker`. Next software package: `FTAI-YYYYMMDD-portal-pi08-private-dry-run-submission`.
 
 ### PI-08 — Private Dry-Run Approved Execution Submission
 
@@ -331,7 +332,7 @@ Declare PI-05 only after provider, channel, privacy and destination ownership de
 
 ### Wave PI-C — High-risk private execution enablement
 
-Declare PI-07 before PI-08. No live-capital path exists.
+PI-07 repository acceptance is complete. Declare PI-08 next; keep submission private, risk-gated, audited, reconciled and dry-run-only. No live-capital path exists.
 
 ### Wave PI-D — Real external staging
 

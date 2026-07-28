@@ -13,6 +13,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Protocol
 
+
 LIVE_CONTRACT = "liquidation-live-state-v1"
 REQUIRED_SOURCES = ("bybit-linear", "binance-usdm")
 ALERT_TITLE = "[liquidations-live] operational health alert"
@@ -20,9 +21,11 @@ ALERT_MARKER = "<!-- liquidations-live-operational-health -->"
 
 
 class IssueClient(Protocol):
-    def list_open_issues(self, repository: str) -> list[dict[str, Any]]: ...
+    def list_open_issues(self, repository: str) -> list[dict[str, Any]]:
+        ...
 
-    def create_issue(self, repository: str, *, title: str, body: str) -> dict[str, Any]: ...
+    def create_issue(self, repository: str, *, title: str, body: str) -> dict[str, Any]:
+        ...
 
     def update_issue(
         self,
@@ -31,9 +34,11 @@ class IssueClient(Protocol):
         *,
         body: str | None = None,
         state: str | None = None,
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+        ...
 
-    def create_comment(self, repository: str, issue_number: int, *, body: str) -> None: ...
+    def create_comment(self, repository: str, issue_number: int, *, body: str) -> None:
+        ...
 
 
 class GitHubIssueClient:
@@ -65,7 +70,7 @@ class GitHubIssueClient:
             },
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310
                 raw = response.read()
         except urllib.error.HTTPError as error:
             detail = error.read().decode("utf-8", errors="replace")[:1000]
@@ -122,8 +127,188 @@ class GitHubIssueClient:
         )
 
 
-def _alert(code: str, message: str, *, severity: str = "critical") -> dict[str, str]:
-    return {"code": code, "message": message, "severity": severity}
+def _alert(code: str, message: str) -> dict[str, str]:
+    return {"code": code, "message": message, "severity": "critical"}
+
+
+def _heartbeat_age(now_ms: int, value: object) -> int | None:
+    return now_ms - value if isinstance(value, int) else None
+
+
+def _fresh(age_ms: int | None, limit_ms: int) -> bool:
+    return isinstance(age_ms, int) and -limit_ms <= age_ms <= limit_ms
+
+
+def _container_result(container: dict[str, Any]) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    healthy = (
+        container.get("running") is True
+        and container.get("status") == "running"
+        and container.get("restarting") is not True
+        and container.get("oom_killed") is not True
+        and not container.get("error")
+    )
+    alerts: list[dict[str, str]] = []
+    if not healthy:
+        alerts.append(
+            _alert(
+                "LIQUID20_CONTAINER_UNHEALTHY",
+                f"Collector container is not healthy: status={container.get('status', 'unknown')}",
+            )
+        )
+    return {**container, "healthy": healthy}, alerts
+
+
+def _source_result(
+    *,
+    source_name: str,
+    source: object,
+    now_ms: int,
+    stale_after_ms: int,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    configured = isinstance(source, dict) and source.get("configured") is True
+    connected = isinstance(source, dict) and source.get("connected") is True
+    subscriptions = source.get("subscription_symbol_count") if isinstance(source, dict) else None
+    heartbeat = source.get("last_heartbeat_at_ms") if isinstance(source, dict) else None
+    heartbeat_age_ms = _heartbeat_age(now_ms, heartbeat)
+    healthy = (
+        configured
+        and connected
+        and isinstance(subscriptions, int)
+        and subscriptions >= 1
+        and _fresh(heartbeat_age_ms, stale_after_ms)
+    )
+    result = {
+        "configured": configured,
+        "connected": connected,
+        "subscription_symbol_count": subscriptions,
+        "heartbeat_age_ms": heartbeat_age_ms,
+        "healthy": healthy,
+    }
+    if healthy:
+        return result, []
+    message = (
+        f"{source_name} unhealthy: configured={configured}, connected={connected}, "
+        f"subscriptions={subscriptions!r}, heartbeat_age_ms={heartbeat_age_ms!r}"
+    )
+    return result, [_alert("LIQUID20_SOURCE_UNHEALTHY", message)]
+
+
+def _state_result(
+    *,
+    pointer: dict[str, Any] | None,
+    now_ms: int,
+    stale_after_ms: int,
+    source_stale_after_ms: int,
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, str]]]:
+    if not isinstance(pointer, dict):
+        return (
+            {"healthy": False},
+            {},
+            [_alert("LIQUID20_STATE_UNAVAILABLE", "Live state pointer is missing or invalid.")],
+        )
+
+    state = pointer.get("state")
+    state_dict = state if isinstance(state, dict) else {}
+    contract_ok = (
+        pointer.get("contract") == LIVE_CONTRACT
+        and state_dict.get("contract") == LIVE_CONTRACT
+    )
+    active = state_dict.get("run_state") == "active"
+    heartbeat_age_ms = _heartbeat_age(now_ms, state_dict.get("collector_heartbeat_at_ms"))
+    heartbeat_fresh = _fresh(heartbeat_age_ms, stale_after_ms)
+    safety_ok = (
+        state_dict.get("execution_enabled") is False
+        and state_dict.get("trading_authorized") is False
+        and state_dict.get("trading_credentials_present") is False
+    )
+
+    alerts: list[dict[str, str]] = []
+    if not contract_ok:
+        alerts.append(
+            _alert(
+                "LIQUID20_STATE_CONTRACT_INVALID",
+                "Live state contract does not match liquidation-live-state-v1.",
+            )
+        )
+    if not active:
+        alerts.append(_alert("LIQUID20_RUN_NOT_ACTIVE", "Collector run is not active."))
+    if not heartbeat_fresh:
+        alerts.append(
+            _alert(
+                "LIQUID20_COLLECTOR_HEARTBEAT_STALE",
+                f"Collector heartbeat age is {heartbeat_age_ms!r} ms.",
+            )
+        )
+    if not safety_ok:
+        alerts.append(
+            _alert(
+                "LIQUID20_DATA_ONLY_SAFETY_VIOLATION",
+                "Collector no longer proves execution-disabled, credential-free data-only mode.",
+            )
+        )
+
+    source_results: dict[str, Any] = {}
+    sources = state_dict.get("sources")
+    for source_name in REQUIRED_SOURCES:
+        source = sources.get(source_name) if isinstance(sources, dict) else None
+        result, source_alerts = _source_result(
+            source_name=source_name,
+            source=source,
+            now_ms=now_ms,
+            stale_after_ms=source_stale_after_ms,
+        )
+        source_results[source_name] = result
+        alerts.extend(source_alerts)
+
+    state_result = {
+        "active": active,
+        "collector_heartbeat_age_ms": heartbeat_age_ms,
+        "contract_ok": contract_ok,
+        "healthy": contract_ok and active and heartbeat_fresh and safety_ok,
+        "run_id": state_dict.get("run_id"),
+        "safety_ok": safety_ok,
+    }
+    return state_result, source_results, alerts
+
+
+def _disk_result(
+    *,
+    disk: dict[str, int],
+    used_percent_max: float,
+    free_bytes_min: int,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    total = int(disk.get("total", 0))
+    used = int(disk.get("used", 0))
+    free = int(disk.get("free", 0))
+    used_percent = (used / total * 100.0) if total > 0 else 100.0
+    healthy = total > 0 and used_percent < used_percent_max and free >= free_bytes_min
+    result = {
+        "total_bytes": total,
+        "used_bytes": used,
+        "free_bytes": free,
+        "used_percent": round(used_percent, 3),
+        "used_percent_max": used_percent_max,
+        "free_bytes_min": free_bytes_min,
+        "healthy": healthy,
+    }
+    alerts: list[dict[str, str]] = []
+    if total <= 0:
+        alerts.append(_alert("LIQUID20_DISK_UNAVAILABLE", "Disk usage is unavailable."))
+    if total > 0 and used_percent >= used_percent_max:
+        alerts.append(
+            _alert(
+                "LIQUID20_DISK_USAGE_HIGH",
+                f"Data volume usage is {used_percent:.2f}% (limit {used_percent_max:.2f}%).",
+            )
+        )
+    if total > 0 and free < free_bytes_min:
+        alerts.append(
+            _alert(
+                "LIQUID20_DISK_FREE_LOW",
+                f"Data volume free bytes are {free} (minimum {free_bytes_min}).",
+            )
+        )
+    return result, alerts
 
 
 def evaluate_health(
@@ -137,183 +322,30 @@ def evaluate_health(
     disk_used_percent_max: float,
     disk_free_bytes_min: int,
 ) -> dict[str, Any]:
-    alerts: list[dict[str, str]] = []
-    checks: dict[str, Any] = {}
-
-    container_running = (
-        container.get("running") is True
-        and container.get("status") == "running"
-        and container.get("restarting") is not True
-        and container.get("oom_killed") is not True
-        and not container.get("error")
+    container_result, container_alerts = _container_result(container)
+    state_result, source_results, state_alerts = _state_result(
+        pointer=pointer,
+        now_ms=now_ms,
+        stale_after_ms=stale_after_ms,
+        source_stale_after_ms=source_stale_after_ms,
     )
-    checks["container"] = {**container, "healthy": container_running}
-    if not container_running:
-        alerts.append(
-            _alert(
-                "LIQUID20_CONTAINER_UNHEALTHY",
-                f"Collector container is not healthy: status={container.get('status', 'unknown')}",
-            )
-        )
-
-    state_check: dict[str, Any] = {"healthy": False}
-    source_checks: dict[str, Any] = {}
-    if not isinstance(pointer, dict):
-        alerts.append(
-            _alert(
-                "LIQUID20_STATE_UNAVAILABLE",
-                "Live state pointer is missing, invalid or unsafe.",
-            )
-        )
-    else:
-        state = pointer.get("state")
-        pointer_contract_ok = pointer.get("contract") == LIVE_CONTRACT
-        state_contract_ok = isinstance(state, dict) and state.get("contract") == LIVE_CONTRACT
-        active = isinstance(state, dict) and state.get("run_state") == "active"
-        heartbeat = state.get("collector_heartbeat_at_ms") if isinstance(state, dict) else None
-        heartbeat_age_ms = now_ms - heartbeat if isinstance(heartbeat, int) else None
-        heartbeat_fresh = (
-            isinstance(heartbeat_age_ms, int)
-            and -stale_after_ms <= heartbeat_age_ms <= stale_after_ms
-        )
-        safety_ok = (
-            isinstance(state, dict)
-            and state.get("execution_enabled") is False
-            and state.get("trading_authorized") is False
-            and state.get("trading_credentials_present") is False
-        )
-        state_check = {
-            "active": active,
-            "collector_heartbeat_age_ms": heartbeat_age_ms,
-            "contract_ok": pointer_contract_ok and state_contract_ok,
-            "healthy": bool(
-                pointer_contract_ok
-                and state_contract_ok
-                and active
-                and heartbeat_fresh
-                and safety_ok
-            ),
-            "run_id": state.get("run_id") if isinstance(state, dict) else None,
-            "safety_ok": safety_ok,
-        }
-        if not pointer_contract_ok or not state_contract_ok:
-            alerts.append(
-                _alert(
-                    "LIQUID20_STATE_CONTRACT_INVALID",
-                    "Live state contract does not match liquidation-live-state-v1.",
-                )
-            )
-        if not active:
-            alerts.append(
-                _alert(
-                    "LIQUID20_RUN_NOT_ACTIVE",
-                    "Collector state does not report an active run.",
-                )
-            )
-        if not heartbeat_fresh:
-            alerts.append(
-                _alert(
-                    "LIQUID20_COLLECTOR_HEARTBEAT_STALE",
-                    f"Collector heartbeat age is {heartbeat_age_ms!r} ms.",
-                )
-            )
-        if not safety_ok:
-            alerts.append(
-                _alert(
-                    "LIQUID20_DATA_ONLY_SAFETY_VIOLATION",
-                    (
-                        "Collector state no longer proves execution-disabled, "
-                        "unauthorized data-only mode."
-                    ),
-                )
-            )
-
-        sources = state.get("sources") if isinstance(state, dict) else None
-        for source_name in REQUIRED_SOURCES:
-            source = sources.get(source_name) if isinstance(sources, dict) else None
-            configured = isinstance(source, dict) and source.get("configured") is True
-            connected = isinstance(source, dict) and source.get("connected") is True
-            subscriptions = (
-                source.get("subscription_symbol_count") if isinstance(source, dict) else None
-            )
-            heartbeat = source.get("last_heartbeat_at_ms") if isinstance(source, dict) else None
-            heartbeat_age_ms = now_ms - heartbeat if isinstance(heartbeat, int) else None
-            heartbeat_fresh = (
-                isinstance(heartbeat_age_ms, int)
-                and -source_stale_after_ms <= heartbeat_age_ms <= source_stale_after_ms
-            )
-            source_healthy = (
-                configured
-                and connected
-                and isinstance(subscriptions, int)
-                and subscriptions >= 1
-                and heartbeat_fresh
-            )
-            source_checks[source_name] = {
-                "configured": configured,
-                "connected": connected,
-                "subscription_symbol_count": subscriptions,
-                "heartbeat_age_ms": heartbeat_age_ms,
-                "healthy": source_healthy,
-            }
-            if not source_healthy:
-                alerts.append(
-                    _alert(
-                        "LIQUID20_SOURCE_UNHEALTHY",
-                        (
-                            f"{source_name} unhealthy: configured={configured}, "
-                            f"connected={connected}, subscriptions={subscriptions!r}, "
-                            f"heartbeat_age_ms={heartbeat_age_ms!r}"
-                        ),
-                    )
-                )
-
-    checks["state"] = state_check
-    checks["sources"] = source_checks
-
-    total = int(disk.get("total", 0))
-    used = int(disk.get("used", 0))
-    free = int(disk.get("free", 0))
-    used_percent = (used / total * 100.0) if total > 0 else 100.0
-    disk_healthy = (
-        total > 0 and used_percent < disk_used_percent_max and free >= disk_free_bytes_min
+    disk_result, disk_alerts = _disk_result(
+        disk=disk,
+        used_percent_max=disk_used_percent_max,
+        free_bytes_min=disk_free_bytes_min,
     )
-    checks["disk"] = {
-        "total_bytes": total,
-        "used_bytes": used,
-        "free_bytes": free,
-        "used_percent": round(used_percent, 3),
-        "used_percent_max": disk_used_percent_max,
-        "free_bytes_min": disk_free_bytes_min,
-        "healthy": disk_healthy,
-    }
-    if total <= 0:
-        alerts.append(_alert("LIQUID20_DISK_UNAVAILABLE", "Disk usage could not be determined."))
-    else:
-        if used_percent >= disk_used_percent_max:
-            alerts.append(
-                _alert(
-                    "LIQUID20_DISK_USAGE_HIGH",
-                    (
-                        f"Data volume usage is {used_percent:.2f}% "
-                        f"(limit {disk_used_percent_max:.2f}%)."
-                    ),
-                )
-            )
-        if free < disk_free_bytes_min:
-            alerts.append(
-                _alert(
-                    "LIQUID20_DISK_FREE_LOW",
-                    f"Data volume free bytes are {free} (minimum {disk_free_bytes_min}).",
-                )
-            )
-
+    alerts = container_alerts + state_alerts + disk_alerts
     return {
         "schema_version": 1,
         "checked_at_ms": now_ms,
         "healthy": not alerts,
         "alerts": alerts,
-        "checks": checks,
+        "checks": {
+            "container": container_result,
+            "state": state_result,
+            "sources": source_results,
+            "disk": disk_result,
+        },
     }
 
 
@@ -373,7 +405,7 @@ def render_issue_body(report: dict[str, Any], *, run_url: str | None) -> str:
     alerts = report.get("alerts", [])
     lines = [
         ALERT_MARKER,
-        "The Synology liquidation live collector failed its automated operational health check.",
+        "The Synology liquidation live collector failed its operational health check.",
         "",
         f"- Checked at (epoch ms): `{report.get('checked_at_ms')}`",
         f"- Workflow run: {run_url or 'unavailable'}",
@@ -383,7 +415,7 @@ def render_issue_body(report: dict[str, Any], *, run_url: str | None) -> str:
         json.dumps(report, indent=2, sort_keys=True),
         "```",
         "",
-        "This issue is updated in place while unhealthy and closed automatically after recovery.",
+        "This issue is updated while unhealthy and closed automatically after recovery.",
     ]
     return "\n".join(lines)
 
@@ -396,31 +428,29 @@ def reconcile_alert_issue(
     run_url: str | None = None,
 ) -> str:
     open_issues = client.list_open_issues(repository)
-    matches = [
-        item
-        for item in open_issues
-        if item.get("title") == ALERT_TITLE and "pull_request" not in item
-    ]
-    existing = matches[0] if matches else None
-
+    existing = next(
+        (
+            item
+            for item in open_issues
+            if item.get("title") == ALERT_TITLE and "pull_request" not in item
+        ),
+        None,
+    )
     if report.get("healthy") is not True:
         body = render_issue_body(report, run_url=run_url)
         if existing is None:
             client.create_issue(repository, title=ALERT_TITLE, body=body)
             return "created"
-        issue_number = int(existing["number"])
-        client.update_issue(repository, issue_number, body=body)
+        client.update_issue(repository, int(existing["number"]), body=body)
         return "updated"
-
     if existing is None:
         return "none"
-
     issue_number = int(existing["number"])
     client.create_comment(
         repository,
         issue_number,
         body=(
-            "Collector health recovered. The automated monitor now reports a fresh heartbeat, "
+            "Collector health recovered. The monitor now reports a fresh heartbeat, "
             "connected sources and acceptable disk capacity."
         ),
     )
@@ -443,7 +473,7 @@ def _percentage(value: str) -> float:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Monitor the Synology liquidation live collector.")
+    parser = argparse.ArgumentParser(description="Monitor the Synology liquidation collector.")
     parser.add_argument(
         "--data-root",
         type=Path,
@@ -483,30 +513,29 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=Path(os.environ.get("LIQUID20_HEALTH_REPORT", "/tmp/liquid20-health.json")),
     )
-    parser.add_argument(
-        "--github-repository",
-        default=os.environ.get("GITHUB_REPOSITORY"),
-    )
-    parser.add_argument(
-        "--github-token-env",
-        default="GH_TOKEN",
-    )
+    parser.add_argument("--github-repository", default=os.environ.get("GITHUB_REPOSITORY"))
+    parser.add_argument("--github-token-env", default="GH_TOKEN")
     parser.add_argument(
         "--github-api-url",
         default=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
     )
-    parser.add_argument(
-        "--run-url",
-        default=None,
-    )
+    parser.add_argument("--run-url", default=None)
     return parser
+
+
+def _workflow_run_url() -> str | None:
+    run_id = os.environ.get("GITHUB_RUN_ID")
+    repository = os.environ.get("GITHUB_REPOSITORY")
+    if not run_id or not repository:
+        return None
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    return f"{server}/{repository}/actions/runs/{run_id}"
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    now_ms = time.time_ns() // 1_000_000
     report = evaluate_health(
-        now_ms=now_ms,
+        now_ms=time.time_ns() // 1_000_000,
         container=inspect_container(args.container_name),
         pointer=read_live_pointer(args.data_root),
         disk=disk_snapshot(args.data_root),
@@ -515,12 +544,6 @@ def main(argv: list[str] | None = None) -> int:
         disk_used_percent_max=args.disk_used_percent_max,
         disk_free_bytes_min=args.disk_free_bytes_min,
     )
-    run_url = args.run_url
-    if run_url is None and os.environ.get("GITHUB_RUN_ID"):
-        server = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
-        repository = os.environ.get("GITHUB_REPOSITORY", "")
-        run_url = f"{server}/{repository}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-
     token = os.environ.get(args.github_token_env, "")
     if args.github_repository and token:
         try:
@@ -529,9 +552,9 @@ def main(argv: list[str] | None = None) -> int:
                 client,
                 args.github_repository,
                 report,
-                run_url=run_url,
+                run_url=args.run_url or _workflow_run_url(),
             )
-        except (OSError, RuntimeError, ValueError, urllib.error.URLError) as error:
+        except (OSError, RuntimeError, ValueError) as error:
             report["alerts"].append(
                 _alert(
                     "LIQUID20_ALERT_DELIVERY_FAILED",

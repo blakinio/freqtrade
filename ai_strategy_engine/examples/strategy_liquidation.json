@@ -1,0 +1,133 @@
+{
+  "strategy_id": "liquidation-reversal-v1",
+  "version": "1.0.0",
+  "universe": {
+    "symbols": [
+      "BTC/USDT:USDT"
+    ],
+    "timeframes": [
+      "1m",
+      "5m"
+    ]
+  },
+  "features": [
+    {
+      "id": "liquidation_notional_z.v1",
+      "params": {
+        "window": 288,
+        "cluster_seconds": 60
+      },
+      "timeframe": "1m",
+      "confirmation": "closed_bar"
+    },
+    {
+      "id": "confirmed_pivot.v1",
+      "params": {
+        "left_bars": 15,
+        "right_bars": 15
+      },
+      "timeframe": "5m",
+      "confirmation": "closed_bar"
+    },
+    {
+      "id": "candle_geometry.v1",
+      "params": {},
+      "timeframe": "1m",
+      "confirmation": "closed_bar"
+    }
+  ],
+  "regime": {
+    "all": []
+  },
+  "entry_long": {
+    "all": [
+      {
+        "feature": "long_liquidation_z",
+        "op": "gte",
+        "parameter": "liq_threshold"
+      },
+      {
+        "feature": "oi_change_z",
+        "op": "lte",
+        "parameter": "oi_drop_threshold"
+      },
+      {
+        "feature": "lower_wick_ratio",
+        "op": "gte",
+        "parameter": "wick_threshold"
+      },
+      {
+        "feature": "distance_to_support_atr",
+        "op": "lte",
+        "parameter": "support_distance"
+      }
+    ]
+  },
+  "entry_short": {
+    "all": [
+      {
+        "feature": "short_liquidation_z",
+        "op": "gte",
+        "parameter": "liq_threshold"
+      },
+      {
+        "feature": "oi_change_z",
+        "op": "lte",
+        "parameter": "oi_drop_threshold"
+      },
+      {
+        "feature": "upper_wick_ratio",
+        "op": "gte",
+        "parameter": "wick_threshold"
+      },
+      {
+        "feature": "distance_to_resistance_atr",
+        "op": "lte",
+        "parameter": "resistance_distance"
+      }
+    ]
+  },
+  "exit": {
+    "any": [
+      {
+        "risk": "time_stop"
+      },
+      {
+        "risk": "atr_stop"
+      },
+      {
+        "event": "opposite_liquidation_impulse"
+      }
+    ]
+  },
+  "risk": {
+    "max_leverage": 2,
+    "max_open_positions": 1,
+    "position_size": {
+      "type": "risk_fraction",
+      "value": 0.003
+    },
+    "initial_stop": {
+      "type": "atr",
+      "multiple": 1.5
+    },
+    "trailing_stop": {
+      "type": "atr",
+      "multiple": 1.0
+    },
+    "max_exposure": 0.15
+  },
+  "execution": {
+    "signal_delay_ms": 500,
+    "order_type": "market",
+    "slippage_model": "liquidation_event_empirical_v1",
+    "fee_model": "exchange_v1",
+    "funding_model": "perpetual_v1",
+    "use_closed_bars_only": true
+  },
+  "provenance": {
+    "created_by": "human",
+    "generator_version": "starter-pack",
+    "parent_experiments": []
+  }
+}

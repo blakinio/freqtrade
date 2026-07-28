@@ -1,3 +1,4 @@
+
 # Techniczny audyt źródeł strategii
 
 ## Zakres

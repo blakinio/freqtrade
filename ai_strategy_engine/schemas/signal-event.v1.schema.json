@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inwestycja.local/schemas/signal-event.v1.json",
+  "title": "SignalEvent",
+  "type": "object",
+  "required": [
+    "signal_id",
+    "strategy_id",
+    "strategy_version",
+    "symbol",
+    "timeframe",
+    "side",
+    "action",
+    "event_time",
+    "detected_at",
+    "available_at",
+    "source",
+    "reason_codes",
+    "feature_snapshot",
+    "provenance",
+    "execution_policy"
+  ],
+  "properties": {
+    "signal_id": {
+      "type": "string"
+    },
+    "strategy_id": {
+      "type": "string"
+    },
+    "strategy_version": {
+      "type": "string"
+    },
+    "symbol": {
+      "type": "string"
+    },
+    "timeframe": {
+      "type": "string"
+    },
+    "side": {
+      "type": "string",
+      "enum": [
+        "long",
+        "short",
+        "flat"
+      ]
+    },
+    "action": {
+      "type": "string",
+      "enum": [
+        "enter",
+        "exit",
+        "reduce",
+        "hold"
+      ]
+    },
+    "event_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "available_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "source": {
+      "type": "string"
+    },
+    "confidence": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "feature_snapshot": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    },
+    "execution_policy": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

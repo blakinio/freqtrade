@@ -1,0 +1,262 @@
+version: 1.0.0
+spaces:
+  squeeze:
+    bb_length:
+      type: int
+      low: 10
+      high: 60
+    bb_mult:
+      type: float
+      low: 1.2
+      high: 3.0
+    kc_length:
+      type: int
+      low: 10
+      high: 60
+    kc_mult:
+      type: float
+      low: 1.0
+      high: 3.0
+    use_true_range:
+      type: categorical
+      choices:
+      - true
+      - false
+    compatibility_mode:
+      fixed: corrected
+  supertrend:
+    atr_period:
+      type: int
+      low: 5
+      high: 50
+    multiplier:
+      type: float
+      low: 1.0
+      high: 6.0
+    atr_type:
+      type: categorical
+      choices:
+      - rma
+      - sma
+    source:
+      type: categorical
+      choices:
+      - close
+      - hl2
+      - ohlc4
+  macd:
+    fast:
+      type: int
+      low: 4
+      high: 30
+    slow:
+      type: int
+      low: 10
+      high: 80
+    signal:
+      type: int
+      low: 3
+      high: 30
+    signal_ma_type:
+      type: categorical
+      choices:
+      - ema
+      - sma
+  pivot:
+    left_bars:
+      type: int
+      low: 2
+      high: 50
+    right_bars:
+      type: int
+      low: 2
+      high: 50
+    break_buffer_atr:
+      type: float
+      low: 0.0
+      high: 1.0
+  liquidation:
+    window:
+      type: int
+      low: 50
+      high: 2000
+    z_threshold:
+      type: float
+      low: 1.0
+      high: 6.0
+    cluster_seconds:
+      type: int
+      low: 5
+      high: 900
+    oi_drop_z:
+      type: float
+      low: -6.0
+      high: -0.5
+  rsi:
+    period:
+      type: int
+      low: 5
+      high: 50
+    ma_type:
+      type: categorical
+      choices:
+      - rma
+      - sma
+    lower_threshold:
+      type: float
+      low: 10.0
+      high: 50.0
+    upper_threshold:
+      type: float
+      low: 50.0
+      high: 90.0
+  stoch_rsi:
+    rsi_period:
+      type: int
+      low: 5
+      high: 50
+    stochastic_period:
+      type: int
+      low: 5
+      high: 50
+    k_smoothing:
+      type: int
+      low: 1
+      high: 10
+    d_smoothing:
+      type: int
+      low: 1
+      high: 10
+  adx:
+    period:
+      type: int
+      low: 5
+      high: 50
+    threshold:
+      type: float
+      low: 5.0
+      high: 60.0
+  mfi:
+    period:
+      type: int
+      low: 5
+      high: 50
+    lower_threshold:
+      type: float
+      low: 10.0
+      high: 50.0
+    upper_threshold:
+      type: float
+      low: 50.0
+      high: 90.0
+  roc:
+    period:
+      type: int
+      low: 1
+      high: 100
+    threshold:
+      type: float
+      low: -20.0
+      high: 20.0
+  wavetrend:
+    channel_length:
+      type: int
+      low: 5
+      high: 50
+    average_length:
+      type: int
+      low: 5
+      high: 80
+    signal_length:
+      type: int
+      low: 1
+      high: 10
+  psar:
+    step:
+      type: float
+      low: 0.005
+      high: 0.1
+    max_step:
+      type: float
+      low: 0.05
+      high: 0.5
+  atr_range_filter:
+    atr_period:
+      type: int
+      low: 5
+      high: 50
+    multiplier:
+      type: float
+      low: 0.5
+      high: 6.0
+    source:
+      type: categorical
+      choices:
+      - close
+      - hl2
+      - ohlc4
+  volume:
+    fast:
+      type: int
+      low: 2
+      high: 20
+    slow:
+      type: int
+      low: 5
+      high: 60
+    robust_window:
+      type: int
+      low: 20
+      high: 1000
+    threshold_quantile:
+      type: float
+      low: 0.5
+      high: 0.99
+  signal_policy:
+    cooldown_bars:
+      type: int
+      low: 0
+      high: 100
+  position_management:
+    stop_atr:
+      type: float
+      low: 0.5
+      high: 6.0
+    trail_atr:
+      type: float
+      low: 0.5
+      high: 8.0
+    time_stop_bars:
+      type: int
+      low: 1
+      high: 1000
+    max_dca_levels:
+      type: int
+      low: 0
+      high: 5
+    risk_fraction:
+      type: float
+      low: 0.0005
+      high: 0.02
+constraints:
+- macd.fast < macd.slow
+- pivot.right_bars >= 1
+- decision_time >= available_at
+- all_htf_features_are_confirmed
+- risk_per_trade <= risk_core_limit
+- rsi.lower_threshold < rsi.upper_threshold
+- mfi.lower_threshold < mfi.upper_threshold
+- volume.fast < volume.slow
+- psar.step <= psar.max_step
+- position_management.total_exposure <= risk_core_limit
+forbidden:
+- legacy_bug_compatible in production
+- unconfirmed_htf
+- pivot_before_detected_at
+- dca_without_max_exposure
+- leverage_optimization_without_risk_constraint
+- lookahead_data
+- adaptive_live_parameter_mutation_without_new_version
+- final_holdout_reuse
+- unbounded_partial_take_profit
+- unbounded_dca

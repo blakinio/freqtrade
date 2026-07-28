@@ -1,0 +1,116 @@
+{
+  "strategy_id": "trend-squeeze-v1",
+  "version": "1.0.0",
+  "universe": {
+    "symbols": [
+      "BTC/USDT:USDT"
+    ],
+    "timeframes": [
+      "5m",
+      "1h"
+    ]
+  },
+  "features": [
+    {
+      "id": "squeeze_ratio.v1",
+      "params": {
+        "bb_length": 20,
+        "bb_mult": 2.0,
+        "kc_length": 20,
+        "kc_mult": 1.5,
+        "use_true_range": true,
+        "compatibility_mode": "corrected"
+      },
+      "timeframe": "5m",
+      "confirmation": "closed_bar"
+    },
+    {
+      "id": "supertrend_direction.v1",
+      "params": {
+        "atr_period": 10,
+        "multiplier": 3.0,
+        "atr_type": "rma",
+        "source": "hl2"
+      },
+      "timeframe": "1h",
+      "confirmation": "confirmed_htf"
+    },
+    {
+      "id": "macd.v1",
+      "params": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9,
+        "signal_ma_type": "ema",
+        "confirmation": "closed_bar"
+      },
+      "timeframe": "5m",
+      "confirmation": "closed_bar"
+    }
+  ],
+  "regime": {
+    "all": [
+      {
+        "feature": "supertrend_direction.v1",
+        "op": "eq",
+        "value": 1
+      }
+    ]
+  },
+  "entry_long": {
+    "all": [
+      {
+        "event": "squeeze_release",
+        "direction": "up"
+      },
+      {
+        "feature": "macd_hist_slope",
+        "op": "gt",
+        "value": 0
+      }
+    ]
+  },
+  "entry_short": {
+    "all": []
+  },
+  "exit": {
+    "any": [
+      {
+        "event": "supertrend_flip",
+        "direction": "down"
+      },
+      {
+        "risk": "atr_trailing_stop"
+      }
+    ]
+  },
+  "risk": {
+    "max_leverage": 2,
+    "max_open_positions": 2,
+    "position_size": {
+      "type": "risk_fraction",
+      "value": 0.005
+    },
+    "initial_stop": {
+      "type": "atr",
+      "multiple": 2.0
+    },
+    "trailing_stop": {
+      "type": "supertrend"
+    },
+    "max_exposure": 0.25
+  },
+  "execution": {
+    "signal_delay_ms": 250,
+    "order_type": "market",
+    "slippage_model": "empirical_v1",
+    "fee_model": "exchange_v1",
+    "funding_model": "perpetual_v1",
+    "use_closed_bars_only": true
+  },
+  "provenance": {
+    "created_by": "human",
+    "generator_version": "starter-pack",
+    "parent_experiments": []
+  }
+}

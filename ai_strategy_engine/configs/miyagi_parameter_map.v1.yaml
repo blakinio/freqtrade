@@ -1,0 +1,56 @@
+
+version: 1.0.0
+source_policy:
+  parity_claim: false
+  execution_dependency: false
+  provenance_only: true
+miyagi_10_in_1:
+  confirmed_ui:
+    ema: ema_dependency
+    macd: macd.v1
+    rsi: rsi.v1
+    stochastic_rsi: stoch_rsi.v1
+    vwap: vwap.v1
+    squeeze: squeeze_ratio.v1
+    adx: adx.v1
+    supertrend: supertrend_direction.v1
+    mfi: mfi.v1
+    roc: roc.v1
+    wavetrend: wavetrend.v1
+    psar: psar.v1
+    price_action: candle_geometry.v1
+    no_repeat_signals: no_repeat_signals_policy.v1
+    alerts: signal-event.v1
+  probable:
+    weighted_confluence: ensemble_score.v1
+  unknown:
+    - formula_variants
+    - filter_order
+    - current_bar_semantics
+    - htf_semantics
+    - repaint_behavior
+    - alert_plot_parity
+miyagi_bonsai:
+  confirmed_ui:
+    atr_range_filter: atr_range_filter.v1
+    fib_ma: fib_ma_ensemble.v1
+    volume_filter: volume_robust_z.v1
+    rsi: rsi.v1
+    adx: adx.v1
+    mfi: mfi.v1
+    time_filter: time_window_policy.v1
+    take_profit: risk.take_profit.v1
+    stop_loss: risk.initial_stop.v1
+    trailing_exit: risk.trailing_stop.v1
+    alerts: signal-event.v1
+  related_backtester_controls:
+    dca: risk.dca.v1
+    leverage: risk.max_leverage.v1
+    sizing: risk.position_size.v1
+    pair_limit: universe.max_pairs.v1
+  unknown:
+    - exact_atr_range_filter
+    - exact_fib_ma
+    - entry_filter_order
+    - intrabar_execution
+    - fee_slippage_funding_assumptions

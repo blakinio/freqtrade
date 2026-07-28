@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inwestycja.local/schemas/feature-record.v1.json",
+  "title": "FeatureRecord",
+  "type": "object",
+  "required": [
+    "feature_id",
+    "symbol",
+    "timeframe",
+    "event_time",
+    "detected_at",
+    "available_at",
+    "value",
+    "is_confirmed",
+    "source",
+    "code_version",
+    "data_version"
+  ],
+  "properties": {
+    "feature_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "symbol": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timeframe": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_time": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "available_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "value": {},
+    "is_confirmed": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "string"
+    },
+    "code_version": {
+      "type": "string"
+    },
+    "data_version": {
+      "type": "string"
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "provenance": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

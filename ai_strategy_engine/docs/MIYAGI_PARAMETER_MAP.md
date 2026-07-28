@@ -1,3 +1,4 @@
+
 # Miyagi — mapa parametrów do komponentów wewnętrznych
 
 Pełny kod Miyagi nie został udostępniony. Mapa nie jest implementacją zgodności. Rozdziela fakty widoczne w UI/opisie od niezależnych komponentów, które można badać w naszym systemie.

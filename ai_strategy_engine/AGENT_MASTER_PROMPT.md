@@ -147,6 +147,7 @@ Początkowe cechy:
 - niezależny ATR Range Filter prototype bez parity claim,
 - no-repeat/cooldown signal policy,
 - partial TP, initial SL, trailing stop, time stop i bounded DCA w Risk DSL,
+
 - ATR RMA/SMA,
 - EMA/SMA,
 - BB,

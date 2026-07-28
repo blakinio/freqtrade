@@ -27,6 +27,7 @@
 - [x] referencyjne VWAP/ADX/MFI/volume features
 - [x] research WaveTrend/PSAR/FIB MA/ATR Range Filter
 - [x] no-repeat policy i position-management guards
+
 - [ ] ATR RMA/SMA
 - [ ] SMA/EMA
 - [ ] BB/KC

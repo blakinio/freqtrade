@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://inwestycja.local/schemas/strategy-definition.v1.json",
+  "title": "StrategyDefinition",
+  "type": "object",
+  "required": [
+    "strategy_id",
+    "version",
+    "universe",
+    "features",
+    "entry_long",
+    "exit",
+    "risk",
+    "execution",
+    "provenance"
+  ],
+  "properties": {
+    "strategy_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "universe": {
+      "type": "object",
+      "required": [
+        "symbols",
+        "timeframes"
+      ],
+      "properties": {
+        "symbols": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        },
+        "timeframes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "params",
+          "timeframe",
+          "confirmation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "params": {
+            "type": "object"
+          },
+          "timeframe": {
+            "type": "string"
+          },
+          "confirmation": {
+            "type": "string",
+            "enum": [
+              "closed_bar",
+              "confirmed_htf"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "regime": {
+      "$ref": "#/$defs/conditionGroup"
+    },
+    "entry_long": {
+      "$ref": "#/$defs/conditionGroup"
+    },
+    "entry_short": {
+      "$ref": "#/$defs/conditionGroup"
+    },
+    "exit": {
+      "$ref": "#/$defs/conditionGroup"
+    },
+    "risk": {
+      "type": "object",
+      "required": [
+        "max_leverage",
+        "max_open_positions",
+        "position_size"
+      ],
+      "properties": {
+        "max_leverage": {
+          "type": "number",
+          "minimum": 1
+        },
+        "max_open_positions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "position_size": {
+          "type": "object"
+        },
+        "initial_stop": {
+          "type": "object"
+        },
+        "trailing_stop": {
+          "type": "object"
+        },
+        "max_exposure": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "required": [
+        "signal_delay_ms",
+        "order_type",
+        "slippage_model",
+        "fee_model",
+        "use_closed_bars_only"
+      ],
+      "properties": {
+        "signal_delay_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "order_type": {
+          "type": "string",
+          "enum": [
+            "market",
+            "limit"
+          ]
+        },
+        "slippage_model": {
+          "type": "string"
+        },
+        "fee_model": {
+          "type": "string"
+        },
+        "funding_model": {
+          "type": "string"
+        },
+        "use_closed_bars_only": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "created_by",
+        "generator_version"
+      ],
+      "properties": {
+        "created_by": {
+          "type": "string",
+          "enum": [
+            "human",
+            "ai",
+            "hybrid"
+          ]
+        },
+        "generator_version": {
+          "type": "string"
+        },
+        "parent_experiments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "condition": {
+      "type": "object",
+      "properties": {
+        "feature": {
+          "type": "string"
+        },
+        "event": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "eq",
+            "ne",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "crosses_above",
+            "crosses_below",
+            "in_range",
+            "bars_since_lte"
+          ]
+        },
+        "value": {},
+        "parameter": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string"
+        },
+        "risk": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "feature"
+          ]
+        },
+        {
+          "required": [
+            "event"
+          ]
+        },
+        {
+          "required": [
+            "risk"
+          ]
+        }
+      ]
+    },
+    "conditionGroup": {
+      "type": "object",
+      "properties": {
+        "all": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "any": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        },
+        "none": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,3 +1,4 @@
+
 # Polityka adaptacji i optymalizacji przez AI
 
 ## Dozwolone

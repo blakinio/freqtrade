@@ -92,6 +92,7 @@ P1 research:
 - clean-room market structure,
 - order-block-like zones jako własna, opisana heurystyka.
 
+
 ### 2.2.1 Katalog komponentów inspirowanych materiałami TradingView
 
 Komponenty zatwierdzone do implementacji referencyjnej:

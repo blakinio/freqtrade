@@ -1,3 +1,4 @@
+
 # Checkpoint — AI Strategy Engine foundation
 
 ## Zakres pakietu

@@ -1,0 +1,39 @@
+{
+  "signal_id": "00000000-0000-0000-0000-000000000001",
+  "strategy_id": "liquidation-reversal-v1",
+  "strategy_version": "1.0.0",
+  "symbol": "BTC/USDT:USDT",
+  "timeframe": "1m",
+  "side": "long",
+  "action": "enter",
+  "event_time": "2026-07-28T01:00:00Z",
+  "detected_at": "2026-07-28T01:00:00.180Z",
+  "available_at": "2026-07-28T01:00:00.310Z",
+  "expires_at": "2026-07-28T01:01:00Z",
+  "source": "strategy-engine",
+  "confidence": 0.71,
+  "reason_codes": [
+    "LIQ_LONG_Z_HIGH",
+    "OI_DROP_CONFIRMED",
+    "SUPPORT_PROXIMITY",
+    "LOWER_WICK_REJECTION"
+  ],
+  "feature_snapshot": {
+    "long_liquidation_z": 3.4,
+    "oi_change_z": -2.1,
+    "distance_to_support_atr": 0.3,
+    "lower_wick_ratio": 0.62
+  },
+  "provenance": {
+    "code_version": "git-sha",
+    "data_version": "dataset-sha",
+    "feature_registry_version": "1.0.0",
+    "experiment_id": "exp-uuid",
+    "model_id": null
+  },
+  "execution_policy": {
+    "use_closed_bar": true,
+    "max_latency_ms": 1500,
+    "max_slippage_bps": 12
+  }
+}

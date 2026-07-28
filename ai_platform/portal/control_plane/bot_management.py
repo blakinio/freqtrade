@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from ai_platform.portal.bot_builder.repository import InMemoryBotConfigurationRepository
 from ai_platform.portal.bot_builder.service import BotConfigurationBuilderService
 from ai_platform.portal.bot_catalog.repository import InMemoryBotCatalogRepository
 from ai_platform.portal.bot_catalog.service import BotCatalogService
-from ai_platform.portal.bot_operations.service import BotCommandService
 from ai_platform.portal.contracts.bot_management.capabilities import BotManagementCapability
 from ai_platform.portal.contracts.bot_management.signals import (
     SignalAuthenticationMode,
@@ -26,6 +26,9 @@ from ai_platform.portal.signal_control.schema import (
     SignatureVerificationStatus,
 )
 from ai_platform.portal.signal_control.service import SignalControlService
+
+if TYPE_CHECKING:
+    from ai_platform.portal.bot_operations.service import BotCommandService
 
 
 _PERMISSION_CAPABILITIES: dict[Permission, tuple[BotManagementCapability, ...]] = {
@@ -110,6 +113,8 @@ def capabilities_from_request(
 def build_default_bot_management_services(
     session_factory: SessionFactory,
 ) -> BotManagementServices:
+    from ai_platform.portal.bot_operations.service import BotCommandService
+
     catalog = BotCatalogService(InMemoryBotCatalogRepository(()))
     return BotManagementServices(
         catalog=catalog,

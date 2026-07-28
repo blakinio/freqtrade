@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/liquidations-live-portal-synology-proof.yml
       - deploy/synology/portal/prove-liquidations-live.sh
+      - deploy/synology/portal/run-liquidations-live-portal-proof.sh
   workflow_dispatch:
 
 permissions: {}
@@ -57,7 +58,7 @@ jobs:
           PORTAL_LIVE_PROOF_DELAY_SECONDS: "12"
         run: |
           set -o pipefail
-          bash deploy/synology/portal/prove-liquidations-live.sh 2>&1 \
+          bash deploy/synology/portal/run-liquidations-live-portal-proof.sh 2>&1 \
             | tee "${{ runner.temp }}/liquidations-live-portal-synology-proof.log"
 
       - name: Publish final status

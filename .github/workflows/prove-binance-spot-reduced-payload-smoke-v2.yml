@@ -1,0 +1,142 @@
+name: Prove Binance Spot Reduced-Payload Smoke V2
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - ".github/workflows/prove-binance-spot-reduced-payload-smoke-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    runs-on: freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 8
+    steps:
+      - name: Validate exact approved runner identity
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+
+      - name: Checkout exact merged v2 contract
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: 68aad2c9593b158af72d8885dd620e5680625d69
+
+      - name: Install isolated uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Prove v2 contract and deterministic failure evidence without network
+        run: |
+          set -euo pipefail
+          uv pip install "jsonschema==4.26.0"
+          PYTHONPATH=. python - <<'PY'
+          import json
+          import tempfile
+          from pathlib import Path
+
+          from ai_platform.market_data.binance_spot_instrument_smoke import (
+              BINANCE_SPOT_REDUCED_PAYLOAD_URL,
+              DEFAULT_MAX_RESPONSE_BYTES,
+              REDUCED_PAYLOAD_POLICY_VERSION,
+              REDUCED_PAYLOAD_REQUEST_VERSION,
+              SmokePolicy,
+              SmokeRequest,
+              run_smoke,
+          )
+          from ai_platform.market_data.common import canonical_json_bytes
+
+          policy_path = Path("ai_platform/market_data/binance-spot-instrument-smoke-policy-v2.json")
+          policy_mapping = json.loads(policy_path.read_text(encoding="utf-8"))
+          policy = SmokePolicy.from_mapping(policy_mapping)
+          assert policy.version == REDUCED_PAYLOAD_POLICY_VERSION
+          assert policy.request_url == BINANCE_SPOT_REDUCED_PAYLOAD_URL
+          assert policy.max_response_bytes == DEFAULT_MAX_RESPONSE_BYTES
+          assert policy.retries == 0
+          assert policy.source_acceptance is False
+
+          request_mapping = {
+              "version": REDUCED_PAYLOAD_REQUEST_VERSION,
+              "policy_version": REDUCED_PAYLOAD_POLICY_VERSION,
+              "source_id": "binance-spot",
+              "request_url": BINANCE_SPOT_REDUCED_PAYLOAD_URL,
+              "execution_mode": "single_public_rest_snapshot",
+              "public_only": True,
+              "persist_raw_payload": True,
+              "source_acceptance": False,
+          }
+          SmokeRequest.from_mapping(request_mapping)
+
+          class Response:
+              status = 200
+              headers = {
+                  "Content-Type": "application/json",
+                  "Content-Length": str(DEFAULT_MAX_RESPONSE_BYTES + 1),
+              }
+              def geturl(self):
+                  return BINANCE_SPOT_REDUCED_PAYLOAD_URL
+              def read(self, amount=-1):
+                  raise AssertionError("body must not be read when declared response is oversized")
+              def __enter__(self):
+                  return self
+              def __exit__(self, exc_type, exc, traceback):
+                  return None
+
+          calls = 0
+          def opener(request, *, timeout, context):
+              global calls
+              calls += 1
+              assert request.full_url == BINANCE_SPOT_REDUCED_PAYLOAD_URL
+              assert request.get_header("Accept") == "application/json"
+              assert timeout == 20.0
+              assert context is not None
+              return Response()
+
+          with tempfile.TemporaryDirectory() as directory:
+              root = Path(directory)
+              request_path = root / "request.json"
+              request_path.write_bytes(canonical_json_bytes(request_mapping) + b"\n")
+              output = root / "evidence"
+              try:
+                  run_smoke(
+                      request_path=request_path,
+                      policy_path=policy_path,
+                      output_root=output,
+                      collector_commit="68aad2c9593b158af72d8885dd620e5680625d69",
+                      environment={},
+                      opener=opener,
+                  )
+              except RuntimeError as error:
+                  assert str(error) == "response exceeds max_response_bytes"
+              else:
+                  raise AssertionError("synthetic oversized response must fail closed")
+              assert calls == 1
+              failure = json.loads((output / "failure-report.json").read_text())
+              assert failure["failure_stage"] == "response_headers"
+              assert failure["error_type"] == "ResponseTooLarge"
+              assert failure["attempt_count"] == 1
+              assert failure["declared_response_bytes"] == DEFAULT_MAX_RESPONSE_BYTES + 1
+              assert failure["raw_payload_persisted"] is False
+              assert failure["source_acceptance"] is False
+              assert (output / "checksums.sha256").exists()
+              assert not (output / "raw-response.json").exists()
+
+          print("BINANCE_SPOT_REDUCED_PAYLOAD_SMOKE_V2_NO_REQUEST_PROOF_PASS")
+          PY
+
+      - name: Remove isolated proof runtime
+        if: always()
+        run: rm -rf .venv

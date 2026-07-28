@@ -18,9 +18,11 @@ from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.exchange_connections.repository import InMemoryExchangeConnectionRepository
 from ai_platform.portal.exchange_connections.service import ExchangeConnectionService
+from ai_platform.portal.grid_control.overview import GridControlOverviewService
 from ai_platform.portal.grid_control.repository import InMemoryGridControlRepository
 from ai_platform.portal.grid_control.service import GridControlService
 from ai_platform.portal.signal_control.authentication import SignatureVerificationProvider
+from ai_platform.portal.signal_control.overview_service import SignalControlOverviewService
 from ai_platform.portal.signal_control.repository import InMemorySignalControlRepository
 from ai_platform.portal.signal_control.schema import (
     SignatureVerificationDecision,
@@ -91,7 +93,9 @@ class BotManagementServices:
     commands: BotCommandService
     command_intents: LifecycleCommandIntentService
     signals: SignalControlService
+    signal_overview: SignalControlOverviewService
     grid: GridControlService
+    grid_overview: GridControlOverviewService
     exchanges: ExchangeConnectionService
 
 
@@ -126,6 +130,7 @@ def build_default_bot_management_services(
 
     catalog = BotCatalogService(InMemoryBotCatalogRepository((approved_dry_run_catalog(),)))
     commands = BotCommandService(session_factory)
+    signal_repository = InMemorySignalControlRepository()
     return BotManagementServices(
         catalog=catalog,
         builder=BotConfigurationBuilderService(
@@ -139,9 +144,16 @@ def build_default_bot_management_services(
             idempotency_lookup=SqlAlchemyIdempotentCommandLookup(session_factory),
         ),
         signals=SignalControlService(
-            InMemorySignalControlRepository(),
+            signal_repository,
             UnavailableSignatureVerificationProvider(),
         ),
+        signal_overview=SignalControlOverviewService(
+            signal_repository,
+            authentication_provider_available=False,
+        ),
         grid=GridControlService(InMemoryGridControlRepository()),
+        grid_overview=GridControlOverviewService(
+            capability_evidence_provider_available=False,
+        ),
         exchanges=ExchangeConnectionService(InMemoryExchangeConnectionRepository()),
     )

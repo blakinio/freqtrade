@@ -1,4 +1,5 @@
 name: Liquidations Live Health
+# Operational trigger: verify trusted runner execution after PR #594 merge.
 
 on:
   push:

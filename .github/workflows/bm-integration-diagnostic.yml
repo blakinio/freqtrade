@@ -22,7 +22,8 @@ jobs:
           python-version: '3.13'
       - name: Capture focused tests
         run: |
-          python -m pip install --disable-pip-version-check -q -e . pytest pytest-xdist
+          python -m pip install --disable-pip-version-check -q -e . \
+            pytest pytest-asyncio pytest-mock pytest-xdist
           set +e
           pytest \
             tests/ai_platform/portal/control_plane/test_bot_management_api.py \

@@ -31,30 +31,26 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Capture exact Ruff diagnostics
+      - name: Generate exact Ruff fix patch
         run: |
-          set -uo pipefail
+          set -euo pipefail
           python -m pip install --disable-pip-version-check ruff==0.15.21
-          set +e
-          ruff check ai_platform tests/ai_platform > ruff-check.txt 2>&1
-          check_status=$?
-          ruff format --check ai_platform tests/ai_platform > ruff-format.txt 2>&1
-          format_status=$?
-          set -e
-          printf 'ruff_check_status=%s\nruff_format_status=%s\n' \
-            "$check_status" "$format_status" > ruff-status.txt
-          cat ruff-status.txt
-          cat ruff-check.txt
-          cat ruff-format.txt
+          ruff check --fix ai_platform tests/ai_platform
+          ruff format ai_platform tests/ai_platform
+          git diff --binary -- ai_platform tests/ai_platform > ruff-fix.patch
+          ruff check ai_platform tests/ai_platform > ruff-check-after.txt 2>&1
+          ruff format --check ai_platform tests/ai_platform > ruff-format-after.txt 2>&1
+          test -s ruff-fix.patch
+          cat ruff-fix.patch
 
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: bmw03-ruff-diagnostics
+          name: bmw03-ruff-fix
           path: |
-            ruff-status.txt
-            ruff-check.txt
-            ruff-format.txt
+            ruff-fix.patch
+            ruff-check-after.txt
+            ruff-format-after.txt
           if-no-files-found: error
           retention-days: 1

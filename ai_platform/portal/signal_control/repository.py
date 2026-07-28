@@ -39,6 +39,11 @@ class SignalControlRepository(Protocol):
         revision: int,
     ) -> SignalEndpointRevision | None: ...
 
+    def list_latest_endpoints(
+        self,
+        tenant_id: str,
+    ) -> tuple[SignalEndpointRevision, ...]: ...
+
     def save_endpoint(self, endpoint: SignalEndpointRevision) -> None: ...
 
     def claim_replay(
@@ -112,6 +117,19 @@ class InMemorySignalControlRepository:
         if not matches:
             return None
         return sorted(matches, key=lambda item: item.tenant_id)[0]
+
+    def list_latest_endpoints(
+        self,
+        tenant_id: str,
+    ) -> tuple[SignalEndpointRevision, ...]:
+        latest: dict[str, SignalEndpointRevision] = {}
+        for (stored_tenant, endpoint_id, _), endpoint in self._endpoints.items():
+            if stored_tenant != tenant_id:
+                continue
+            previous = latest.get(endpoint_id)
+            if previous is None or endpoint.revision > previous.revision:
+                latest[endpoint_id] = endpoint
+        return tuple(latest[key] for key in sorted(latest))
 
     def save_endpoint(self, endpoint: SignalEndpointRevision) -> None:
         key = (endpoint.tenant_id, endpoint.endpoint_id, endpoint.revision)

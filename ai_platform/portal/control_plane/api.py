@@ -529,8 +529,20 @@ def create_app(
             context_dependency,
         )
     )
-    app.include_router(build_signal_control_router(bot_management.signals, context_dependency))
-    app.include_router(build_grid_control_router(bot_management.grid, context_dependency))
+    app.include_router(
+        build_signal_control_router(
+            bot_management.signals,
+            bot_management.signal_overview,
+            context_dependency,
+        )
+    )
+    app.include_router(
+        build_grid_control_router(
+            bot_management.grid,
+            bot_management.grid_overview,
+            context_dependency,
+        )
+    )
     app.include_router(
         build_exchange_connections_router(bot_management.exchanges, context_dependency)
     )

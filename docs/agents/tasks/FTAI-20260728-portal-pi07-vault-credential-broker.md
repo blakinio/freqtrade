@@ -62,7 +62,7 @@ On 2026-07-28 the repository owner selected HashiCorp Vault with these mandatory
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T22:55:00+02:00
+updated_at: 2026-07-28T23:02:00+02:00
 validated_code_head: null
 merged_commit: null
 branch: feat/portal-pi07-vault-credential-broker
@@ -82,7 +82,8 @@ proven:
   - Tenant-scoped KV v2 resolution, AppRole authentication, bounded in-memory leases and fail-closed policy checks are implemented.
   - The Synology package pins HashiCorp Vault 2.0.3 by the exact multi-platform digest and exposes no host port.
   - Focused PI-07 broker and deployment tests pass in AI Platform CI.
-  - Ruff lint passes and exact Ruff 0.15.21 formatting has been applied by a self-removing workflow; no temporary workflow remains in the PR diff.
+  - Ruff lint and exact Ruff 0.15.21 formatting pass; no temporary workflow remains in the PR diff.
+  - The deployment validator has a unique module name, avoiding the existing Authentik validator during repository-wide mypy.
 derived:
   - PI-07 remains additive under ai_platform/portal/credentials and does not alter public exchange-connection contracts.
   - Vault KV v2 metadata drives current, rotation-required and revoked inspection while secret values remain available only to the broker resolve path.
@@ -90,7 +91,10 @@ unknown:
   - Target TLS certificate material and actual exchange/runtime credentials remain owner-managed inputs.
   - Real Synology initialization, unseal, AppRole issuance, audit retention and restore acceptance require target access and are not repository evidence.
 conflicts: []
-first_failure: null
+first_failure:
+  marker: PRE_COMMIT_DUPLICATE_VALIDATE_MODULE
+  evidence: Repository-wide mypy mapped both Synology validate.py files to the same top-level module; PI-07 now uses validate_vault.py and all references were updated.
+  resolved: true
 rejected_hypotheses:
   - Store Vault tokens or exchange credentials in browser-readable state or committed env files.
   - Publish Vault port 8200 on the Synology host or route it through Cloudflare.
@@ -105,8 +109,9 @@ changed_paths:
   - docs/ai_platform/portal/runbooks/PI07_VAULT_SYNOLOGY.md
   - docs/agents/tasks/FTAI-20260728-portal-pi07-vault-credential-broker.md
 validation:
-  - AI Platform tests passed on all implementation heads inspected before exact-head validation.
-  - Ruff lint passed before the final exact-format commit.
+  - AI Platform CI 30398314469 passed on the prior exact-format head.
+  - Security analysis 30398314426 passed on the prior exact-format head.
+  - Freqtrade CI 30398314525 isolated the duplicate validator module and format mutation; both are fixed.
   - Final exact-head AI Platform CI, Freqtrade CI and security analysis are pending.
 blockers: []
 next_action: Require all final exact-head checks to pass, verify current develop ancestry and review threads, then mark PR 666 ready and squash merge PI-07.

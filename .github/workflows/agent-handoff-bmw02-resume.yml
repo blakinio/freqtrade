@@ -1,9 +1,10 @@
 name: Generate BMW-02 compact resume handoff
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/handoff-bmw02-resume-20260728
+      - develop
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read

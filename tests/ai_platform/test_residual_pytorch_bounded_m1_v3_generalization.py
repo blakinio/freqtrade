@@ -10,13 +10,11 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = REPO_ROOT / ".github/workflows/residual-pytorch-bounded-m1-v3-generalization.yml"
 CONTRACT = (
-    REPO_ROOT
-    / "ai_platform/experimental_model_research/"
+    REPO_ROOT / "ai_platform/experimental_model_research/"
     "residual-pytorch-bounded-m1-generalization-contract-v3.json"
 )
 SOURCE_CONTRACT = (
-    REPO_ROOT
-    / "ai_platform/experimental_model_research/"
+    REPO_ROOT / "ai_platform/experimental_model_research/"
     "residual-pytorch-bounded-m1-execution-contract-v2.json"
 )
 SOURCE_ROLE_NORMALIZED_FEATURE_HASH = (
@@ -41,9 +39,10 @@ def test_v3_contract_is_pair_only_generalization() -> None:
     contract = _load(CONTRACT)
 
     assert contract["market_data"]["pairs"] == ["SOL/USDT", "XRP/USDT"]
-    assert contract["feature_target_contract"]["feature_parameters"][
-        "include_corr_pairlist"
-    ] == ["SOL/USDT", "XRP/USDT"]
+    assert contract["feature_target_contract"]["feature_parameters"]["include_corr_pairlist"] == [
+        "SOL/USDT",
+        "XRP/USDT",
+    ]
     assert contract["geometry"]["development_stop_exclusive"] == "2026-05-01T00:00:00Z"
     assert contract["authorization"]["feature_changes_allowed"] is False
     assert contract["authorization"]["historical_oos_used"] is False

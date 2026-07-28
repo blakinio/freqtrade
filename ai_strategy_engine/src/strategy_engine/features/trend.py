@@ -143,10 +143,7 @@ def fibonacci_ma_ensemble(
     ma_type: str = "ema",
     aggregation: str = "mean",
 ) -> pd.DataFrame:
-    """Independent Fibonacci-period MA ensemble.
-
-    It is a research substitute. It does not claim parity with the unknown Miyagi FIB MA.
-    """
+    """Independent Fibonacci-period moving-average ensemble for bounded research."""
     parsed = tuple(int(period) for period in periods)
     if not parsed or min(parsed) < 1 or len(set(parsed)) != len(parsed):
         raise ValueError("periods must be unique positive integers")

@@ -61,9 +61,7 @@ def test_snapshot_api_is_session_scoped_and_secret_free() -> None:
     )
     client = TestClient(create_app(session_factory, lambda: context))
 
-    response = client.get(
-        "/v1/bot-management/catalog/portal-approved-dry-run/1"
-    )
+    response = client.get("/v1/bot-management/catalog/portal-approved-dry-run/1")
 
     assert response.status_code == 200
     payload = response.text.lower()

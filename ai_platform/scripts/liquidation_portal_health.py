@@ -13,13 +13,16 @@ from ai_platform.scripts.liquidation_live_health import (
     GitHubIssueClient,
     _alert,
     _workflow_run_url,
-    build_parser as build_collector_parser,
     disk_snapshot,
     evaluate_health,
     inspect_container,
     read_live_pointer,
     reconcile_alert_issue,
 )
+from ai_platform.scripts.liquidation_live_health import (
+    build_parser as build_collector_parser,
+)
+
 
 MAX_PORTAL_REPORT_BYTES = 2 * 1024 * 1024
 REQUIRED_SOURCES = ("bybit-linear", "binance-usdm")
@@ -186,9 +189,7 @@ def normalize_portal_report(
     else:
         mode = portal_mode_from_pointer(pointer, now_ms=now_ms)
         observation = {
-            "page_status": _record(production.get("unauthenticated_boundary")).get(
-                "page_status"
-            ),
+            "page_status": _record(production.get("unauthenticated_boundary")).get("page_status"),
             "unauthenticated_boundary": {},
             "api_status": {},
             "cache_control": {},
@@ -258,7 +259,7 @@ def evaluate_portal_report(
         and candidate.get("memory_limit_bytes") == 805306368
         and candidate.get("real_data_mount_read_only") is True
         and candidate.get("docker_socket_mounted") is False
-        and set(_record(candidate.get("tmpfs"))) == {"/tmp", "/app/.next/cache"}
+        and set(_record(candidate.get("tmpfs"))) == {"/tmp", "/app/.next/cache"}  # noqa: S108
     )
     api_ok = (
         observation.get("page_status") == 200
@@ -330,9 +331,7 @@ def evaluate_portal_report(
         code, message = mode_alerts[mode]
         alerts.append(_alert(code, message))
     elif mode != "live":
-        alerts.append(
-            _alert("PORTAL_LIQUIDATIONS_MODE_INVALID", f"Invalid portal mode: {mode!r}.")
-        )
+        alerts.append(_alert("PORTAL_LIQUIDATIONS_MODE_INVALID", f"Invalid portal mode: {mode!r}."))
     if report.get("result") != "success":
         reason = str(report.get("rejection_reason") or "Portal proof failed.")[:500]
         alerts.append(_alert("PORTAL_LIQUIDATIONS_PROBE_FAILED", reason))

@@ -116,10 +116,9 @@ class Ase00FailClosed(RuntimeError):
 
 
 class Ase00ShadowEngine:
-    """Synthetic ASE-00 vertical slice.
+    """Synthetic ASE-00 vertical slice using only the existing Portal Risk Core.
 
-    The class intentionally imports only Portal Risk Core models/service. It does not import or
-    construct an ExecutionAdapter and never creates an execution intent or order.
+    This provider has no order-submission, runtime-management, or private trading-engine dependency.
     """
 
     def __init__(
@@ -359,7 +358,7 @@ class Ase00ShadowEngine:
         if len(symbols) != 1 or len(timeframes) != 1:
             raise Ase00FailClosed(
                 Ase00Reason.MARKET_BAR_INVALID,
-                "ASE-00 requires one symbol and one market timeframe",
+                "events must resolve to exactly one symbol and market timeframe",
             )
         return next(iter(symbols)), next(iter(timeframes))
 
@@ -376,250 +375,217 @@ class Ase00ShadowEngine:
         dict[str, JsonValue],
     ]:
         market_events = tuple(event for event in normalized.events if event.kind == "market_bar")
-        liquidation_events = tuple(
-            event for event in normalized.events if event.kind == "liquidation"
-        )
         frame = self._market_frame(market_events)
-        if len(frame) < 25:
-            raise Ase00FailClosed(
-                Ase00Reason.MISSING_REQUIRED_DATA,
-                "at least 25 closed synthetic bars are required",
+        latest_event = market_events[-1]
+        records: list[FeatureRecord] = []
+        current_snapshot: dict[str, JsonValue | Mapping[str, JsonValue]] = {}
+        previous_snapshot: dict[str, JsonValue | Mapping[str, JsonValue]] = {}
+
+        configured = {feature.id: feature for feature in strategy.features}
+        squeeze_ref = configured.get("squeeze_ratio.v1")
+        if squeeze_ref is not None:
+            squeeze = squeeze_features(frame, **squeeze_ref.params)
+            value = _row_mapping(
+                squeeze,
+                -1,
+                (
+                    "squeeze_ratio",
+                    "squeeze_state",
+                    "squeeze_duration",
+                    "bars_since_release",
+                    "linreg_momentum",
+                    "momentum_slope",
+                    "momentum_acceleration",
+                ),
             )
-        symbol = market_events[0].symbol
-        timeframe = market_events[0].timeframe
-        latest_market = market_events[-1]
-        feature_parameters = {feature.id: dict(feature.params) for feature in strategy.features}
-
-        squeeze_params = self.registry.validate_parameters(
-            "squeeze_ratio.v1", feature_parameters.get("squeeze_ratio.v1", {})
-        )
-        squeeze_frame = squeeze_features(frame, **cast(dict[str, object], squeeze_params))
-        squeeze_current = self._require_finite_row(
-            squeeze_frame,
-            -1,
-            ("squeeze_ratio", "linreg_momentum", "momentum_slope"),
-            "squeeze",
-        )
-        squeeze_previous = self._require_finite_row(
-            squeeze_frame,
-            -2,
-            ("squeeze_ratio", "linreg_momentum", "momentum_slope"),
-            "squeeze previous",
-        )
-        squeeze_value: dict[str, JsonValue] = {
-            **squeeze_current,
-            "squeeze_on": bool(squeeze_frame["squeeze_on"].iloc[-1]),
-            "squeeze_release": bool(squeeze_frame["squeeze_release"].iloc[-1]),
-        }
-        squeeze_record = make_feature_record(
-            feature_id="squeeze_ratio.v1",
-            symbol=symbol,
-            timeframe=timeframe,
-            event_time=latest_market.event_time,
-            detected_at=latest_market.detected_at,
-            available_at=latest_market.available_at,
-            value=squeeze_value,
-            source="ase00-clean-room-squeeze",
-            is_confirmed=latest_market.is_confirmed,
-            idempotency_key=canonical_sha256(
-                {"feature": "squeeze_ratio.v1", "source": latest_market.idempotency_key}
-            ),
-            code_version=self.code_hash,
-            data_version=normalized.data_hash,
-            configuration_hash=config_hash,
-            producer="ase00-shadow-engine",
-            source_event_id=latest_market.event_id,
-            parameters=cast(dict[str, JsonValue], squeeze_params),
-        )
-
-        supertrend_params = self.registry.validate_parameters(
-            "supertrend_direction.v1",
-            feature_parameters.get("supertrend_direction.v1", {}),
-        )
-        supertrend_frame = supertrend_features(
-            frame,
-            **cast(dict[str, object], supertrend_params),
-        )
-        direction = int(supertrend_frame["supertrend_direction"].iloc[-1])
-        previous_direction = int(supertrend_frame["supertrend_direction"].iloc[-2])
-        band = _finite_float(supertrend_frame["supertrend_band"].iloc[-1], "supertrend band")
-        supertrend_value: dict[str, JsonValue] = {
-            "value": direction,
-            "direction": direction,
-            "band": band,
-            "flip": bool(supertrend_frame["supertrend_flip"].iloc[-1]),
-        }
-        supertrend_record = make_feature_record(
-            feature_id="supertrend_direction.v1",
-            symbol=symbol,
-            timeframe=timeframe,
-            event_time=latest_market.event_time,
-            detected_at=latest_market.detected_at,
-            available_at=latest_market.available_at,
-            value=supertrend_value,
-            source="ase00-clean-room-supertrend",
-            is_confirmed=latest_market.is_confirmed,
-            idempotency_key=canonical_sha256(
-                {"feature": "supertrend_direction.v1", "source": latest_market.idempotency_key}
-            ),
-            code_version=self.code_hash,
-            data_version=normalized.data_hash,
-            configuration_hash=config_hash,
-            producer="ase00-shadow-engine",
-            source_event_id=latest_market.event_id,
-            parameters=cast(dict[str, JsonValue], supertrend_params),
-            provenance_details={"closed_bar": latest_market.is_confirmed},
-        )
-
-        pivot_params = self.registry.validate_parameters(
-            "confirmed_pivot.v1",
-            feature_parameters.get("confirmed_pivot.v1", {"left_bars": 2, "right_bars": 2}),
-        )
-        pivots = confirmed_pivots(
-            frame,
-            left_bars=int(cast(int, pivot_params["left_bars"])),
-            right_bars=int(cast(int, pivot_params["right_bars"])),
-        )
-        if not pivots:
-            raise Ase00FailClosed(
-                Ase00Reason.MISSING_REQUIRED_DATA,
-                "no confirmed synthetic pivot is available",
+            record = make_feature_record(
+                registry=self.registry,
+                feature_id=squeeze_ref.id,
+                symbol=latest_event.symbol,
+                timeframe=squeeze_ref.timeframe,
+                event_time=latest_event.event_time,
+                detected_at=latest_event.detected_at,
+                available_at=latest_event.available_at,
+                value=value,
+                is_confirmed=latest_event.is_confirmed,
+                source=latest_event.source,
+                data_version=normalized.data_hash,
+                code_version=self.code_hash,
+                configuration_hash=config_hash,
+                source_event_id=latest_event.event_id,
+                parameters=dict(squeeze_ref.params),
             )
-        event_by_time = {event.event_time: event for event in market_events}
-        available_pivots: list[PivotEvent] = []
-        for pivot in pivots:
-            detected_event = event_by_time.get(pivot.detected_at.to_pydatetime())
-            if detected_event is None:
-                continue
-            available_pivots.append(replace(pivot, available_at=detected_event.available_at))
-        if not available_pivots:
-            raise Ase00FailClosed(
-                Ase00Reason.MISSING_REQUIRED_DATA,
-                "pivot detection event is missing",
+            records.append(record)
+            current_snapshot[squeeze_ref.id] = value
+            previous_snapshot[squeeze_ref.id] = _row_mapping(
+                squeeze,
+                -2,
+                (
+                    "squeeze_ratio",
+                    "squeeze_state",
+                    "squeeze_duration",
+                    "bars_since_release",
+                    "linreg_momentum",
+                    "momentum_slope",
+                    "momentum_acceleration",
+                ),
             )
-        latest_pivot = available_pivots[-1]
-        pivot_detected_event = event_by_time[latest_pivot.detected_at.to_pydatetime()]
-        pivot_record = make_confirmed_pivot_record(
-            pivot=latest_pivot,
-            symbol=symbol,
-            timeframe=timeframe,
-            decision_time=decision_time,
-            idempotency_key=canonical_sha256(
-                {
-                    "feature": "confirmed_pivot.v1",
-                    "source": pivot_detected_event.idempotency_key,
-                    "pivot_index": latest_pivot.pivot_index,
-                }
-            ),
-            code_version=self.code_hash,
-            data_version=normalized.data_hash,
-            configuration_hash=config_hash,
-            producer="ase00-shadow-engine",
-            source_event_id=pivot_detected_event.event_id,
-            parameters=cast(dict[str, JsonValue], pivot_params),
-            detection_event_confirmed=pivot_detected_event.is_confirmed,
-        )
 
-        latest_liquidation = liquidation_events[-1]
-        notional_z = _payload_number(latest_liquidation.payload, "notional_z")
-        liquidation_record = make_feature_record(
-            feature_id="liquidation_notional_z.v1",
-            symbol=symbol,
-            timeframe=latest_liquidation.timeframe,
-            event_time=latest_liquidation.event_time,
-            detected_at=latest_liquidation.detected_at,
-            available_at=latest_liquidation.available_at,
-            value={"value": notional_z, "notional_z": notional_z},
-            source="accepted-synthetic-liquidation",
-            is_confirmed=latest_liquidation.is_confirmed,
-            idempotency_key=canonical_sha256(
-                {
-                    "feature": "liquidation_notional_z.v1",
-                    "source": latest_liquidation.idempotency_key,
-                }
-            ),
-            code_version=self.code_hash,
-            data_version=normalized.data_hash,
-            configuration_hash=config_hash,
-            producer="ase00-shadow-engine",
-            source_event_id=latest_liquidation.event_id,
-            parameters={},
-        )
+        supertrend_ref = configured.get("supertrend_direction.v1")
+        if supertrend_ref is not None:
+            supertrend = supertrend_features(frame, **supertrend_ref.params)
+            value = _row_mapping(
+                supertrend,
+                -1,
+                (
+                    "supertrend",
+                    "supertrend_direction",
+                    "supertrend_flip",
+                    "supertrend_distance_atr",
+                ),
+            )
+            record = make_feature_record(
+                registry=self.registry,
+                feature_id=supertrend_ref.id,
+                symbol=latest_event.symbol,
+                timeframe=supertrend_ref.timeframe,
+                event_time=latest_event.event_time,
+                detected_at=latest_event.detected_at,
+                available_at=latest_event.available_at,
+                value=value,
+                is_confirmed=latest_event.is_confirmed,
+                source=latest_event.source,
+                data_version=normalized.data_hash,
+                code_version=self.code_hash,
+                configuration_hash=config_hash,
+                source_event_id=latest_event.event_id,
+                parameters=dict(supertrend_ref.params),
+            )
+            records.append(record)
+            current_snapshot[supertrend_ref.id] = value
+            previous_snapshot[supertrend_ref.id] = _row_mapping(
+                supertrend,
+                -2,
+                (
+                    "supertrend",
+                    "supertrend_direction",
+                    "supertrend_flip",
+                    "supertrend_distance_atr",
+                ),
+            )
 
-        records = (
-            squeeze_record,
-            supertrend_record,
-            pivot_record,
-            liquidation_record,
+        pivot_ref = configured.get("confirmed_pivot.v1")
+        if pivot_ref is not None:
+            pivot_params = dict(pivot_ref.params)
+            pivots = confirmed_pivots(
+                frame,
+                left_bars=cast(int, pivot_params["left_bars"]),
+                right_bars=cast(int, pivot_params["right_bars"]),
+                processing_latency=pd.to_timedelta(
+                    cast(float, pivot_params["processing_latency_seconds"]), unit="s"
+                ),
+            )
+            eligible = [pivot for pivot in pivots if pivot.available_at <= decision_time]
+            pivot = eligible[-1] if eligible else _unavailable_pivot(frame, pivot_params)
+            pivot_detected_event = market_events[pivot.detection_position]
+            record = make_confirmed_pivot_record(
+                registry=self.registry,
+                feature_id=pivot_ref.id,
+                symbol=latest_event.symbol,
+                timeframe=pivot_ref.timeframe,
+                pivot=pivot,
+                decision_time=decision_time,
+                source=pivot_detected_event.source,
+                data_version=normalized.data_hash,
+                code_version=self.code_hash,
+                configuration_hash=config_hash,
+                source_event_id=pivot_detected_event.event_id,
+                parameters=cast(dict[str, JsonValue], pivot_params),
+                detection_event_confirmed=pivot_detected_event.is_confirmed,
+            )
+            records.append(record)
+            value = cast(Mapping[str, JsonValue], record.value)
+            current_snapshot[pivot_ref.id] = value
+            previous_snapshot[pivot_ref.id] = value
+
+        event_snapshot = self._liquidation_snapshot(normalized.events, decision_time)
+        return (
+            tuple(sorted(records, key=lambda item: item.feature_id)),
+            current_snapshot,
+            previous_snapshot,
+            event_snapshot,
         )
-        current: dict[str, JsonValue | Mapping[str, JsonValue]] = {
-            "squeeze_ratio.v1": squeeze_value,
-            "supertrend_direction.v1": supertrend_value,
-            "confirmed_pivot.v1": cast(Mapping[str, JsonValue], pivot_record.value),
-            "liquidation_notional_z.v1": cast(Mapping[str, JsonValue], liquidation_record.value),
-        }
-        previous: dict[str, JsonValue | Mapping[str, JsonValue]] = {
-            "squeeze_ratio.v1": squeeze_previous,
-            "supertrend_direction.v1": {
-                "value": previous_direction,
-                "direction": previous_direction,
-            },
-        }
-        event_snapshot: dict[str, JsonValue] = {
-            "squeeze_release": "up" if squeeze_value["squeeze_release"] else "none",
-            "supertrend_flip": (
-                "up"
-                if supertrend_value["flip"] and direction == 1
-                else "down"
-                if supertrend_value["flip"] and direction == -1
-                else "none"
-            ),
-            "pivot_confirmed": pivot_record.is_confirmed,
-        }
-        return records, current, previous, event_snapshot
 
     @staticmethod
     def _market_frame(events: tuple[AcceptedSyntheticEvent, ...]) -> pd.DataFrame:
         rows: list[dict[str, float]] = []
-        index: list[datetime] = []
-        observed_times: set[datetime] = set()
+        times: list[datetime] = []
+        seen_times: set[datetime] = set()
         for event in events:
-            if event.event_time in observed_times:
+            if event.event_time in seen_times:
                 raise Ase00FailClosed(
                     Ase00Reason.DUPLICATE_MARKET_TIMESTAMP,
-                    f"multiple market bars at {event.event_time.isoformat()}",
+                    f"duplicate market timestamp: {event.event_time.isoformat()}",
                 )
-            observed_times.add(event.event_time)
-            row = {
-                key: _payload_number(event.payload, key)
-                for key in ("open", "high", "low", "close", "volume")
-            }
-            if row["low"] > min(row["open"], row["close"], row["high"]):
+            seen_times.add(event.event_time)
+            values: dict[str, float] = {}
+            for name in ("open", "high", "low", "close", "volume"):
+                value = event.payload.get(name)
+                if not isinstance(value, (int, float)) or isinstance(value, bool):
+                    raise Ase00FailClosed(
+                        Ase00Reason.MARKET_BAR_INVALID,
+                        f"market event {event.event_id} has invalid {name}",
+                    )
+                number = float(value)
+                if not math.isfinite(number) or number < 0:
+                    raise Ase00FailClosed(
+                        Ase00Reason.MARKET_BAR_INVALID,
+                        f"market event {event.event_id} has invalid {name}",
+                    )
+                values[name] = number
+            if values["high"] < max(values["open"], values["close"], values["low"]):
                 raise Ase00FailClosed(
-                    Ase00Reason.MARKET_BAR_INVALID, "low exceeds an OHLC component"
+                    Ase00Reason.MARKET_BAR_INVALID,
+                    f"market event {event.event_id} has inconsistent high",
                 )
-            if row["high"] < max(row["open"], row["close"], row["low"]):
+            if values["low"] > min(values["open"], values["close"], values["high"]):
                 raise Ase00FailClosed(
-                    Ase00Reason.MARKET_BAR_INVALID, "high is below an OHLC component"
+                    Ase00Reason.MARKET_BAR_INVALID,
+                    f"market event {event.event_id} has inconsistent low",
                 )
-            if row["volume"] < 0:
-                raise Ase00FailClosed(Ase00Reason.MARKET_BAR_INVALID, "volume cannot be negative")
-            rows.append(row)
-            index.append(event.event_time)
-        frame = pd.DataFrame(rows, index=pd.DatetimeIndex(index))
-        return frame.sort_index()
+            rows.append(values)
+            times.append(event.event_time)
+        frame = pd.DataFrame(rows, index=pd.DatetimeIndex(times))
+        if not frame.index.is_monotonic_increasing:
+            frame = frame.sort_index()
+        return frame
 
     @staticmethod
-    def _require_finite_row(
-        frame: pd.DataFrame,
-        position: int,
-        columns: tuple[str, ...],
-        label: str,
+    def _liquidation_snapshot(
+        events: tuple[AcceptedSyntheticEvent, ...],
+        decision_time: datetime,
     ) -> dict[str, JsonValue]:
-        result: dict[str, JsonValue] = {}
-        for column in columns:
-            result[column] = _finite_float(frame[column].iloc[position], f"{label}.{column}")
-        return result
+        liquidations = [
+            event
+            for event in events
+            if event.kind == "liquidation" and event.available_at <= decision_time
+        ]
+        if not liquidations:
+            raise Ase00FailClosed(
+                Ase00Reason.MISSING_REQUIRED_DATA,
+                "no point-in-time liquidation event is available",
+            )
+        latest = liquidations[-1]
+        notional_z = latest.payload.get("notional_z")
+        if not isinstance(notional_z, (int, float)) or isinstance(notional_z, bool):
+            raise Ase00FailClosed(
+                Ase00Reason.MISSING_REQUIRED_DATA,
+                "liquidation event requires numeric notional_z",
+            )
+        return {
+            "liquidation_burst": bool(float(notional_z) >= 1.0),
+            "liquidation_notional_z": float(notional_z),
+        }
 
     def _signal(
         self,
@@ -635,57 +601,37 @@ class Ase00ShadowEngine:
     ) -> SignalEvent | None:
         if dsl_action is not Action.ENTER or dsl_side is Side.FLAT:
             return None
-        latest_event_time = max(record.event_time for record in records)
-        latest_detected_at = max(record.detected_at for record in records)
-        latest_available_at = max(record.available_at for record in records)
-        feature_snapshot: dict[str, JsonValue] = {
-            record.feature_id: record.value for record in records
-        }
-        idempotency_key = canonical_sha256(
-            {
-                "strategy": strategy.strategy_id,
-                "version": strategy.version,
-                "decision_time": decision_time.isoformat(),
-                "feature_ids": [record.idempotency_key for record in records],
-            }
+        detected_at = max(record.available_at for record in records)
+        confidence = _confidence(records)
+        provenance = Provenance(
+            producer="ase00-strategy-evaluator",
+            source_event_id=canonical_sha256([record.idempotency_key for record in records]),
+            parent_ids=tuple(record.idempotency_key for record in records),
+            details={
+                "lineage_complete": True,
+                "future_shift": 0,
+                "reason_codes": list(dsl_reason_codes),
+            },
         )
         return SignalEvent(
-            signal_id=idempotency_key,
             signal_version="1",
             strategy_id=strategy.strategy_id,
             strategy_version=strategy.version,
             symbol=records[0].symbol,
             timeframe=records[0].timeframe,
+            event_time=decision_time,
+            detected_at=detected_at,
+            available_at=detected_at,
             side=dsl_side,
             action=dsl_action,
-            event_time=latest_event_time,
-            detected_at=latest_detected_at,
-            available_at=latest_available_at,
-            expires_at=None,
-            source="ase00-shadow-engine",
-            is_confirmed=all(record.is_confirmed for record in records),
-            idempotency_key=idempotency_key,
+            confidence=confidence,
+            source="ase00-strategy-evaluator",
+            is_confirmed=True,
+            idempotency_key=f"signal:{strategy.strategy_id}:{decision_time.isoformat()}",
             code_version=self.code_hash,
             data_version=data_hash,
             configuration_hash=config_hash,
-            confidence=None,
-            reason_codes=dsl_reason_codes,
-            feature_snapshot=feature_snapshot,
-            provenance=Provenance(
-                producer="ase00-shadow-engine",
-                source_event_id=idempotency_key,
-                lineage=tuple(record.idempotency_key for record in records),
-                details={
-                    "lineage_complete": True,
-                    "future_shift": 0,
-                    "shadow_only": True,
-                },
-            ),
-            execution_policy={
-                "use_closed_bar": True,
-                "shadow_only": True,
-                "order_submission_allowed": False,
-            },
+            provenance=provenance,
         )
 
     @staticmethod
@@ -694,17 +640,24 @@ class Ase00ShadowEngine:
         signal: SignalEvent | None,
         risk_limits: RiskPolicyLimits,
         risk_snapshot: RiskEvaluationSnapshot,
-    ) -> tuple[Literal["approved", "rejected", "no_signal"], tuple[str, ...]]:
+    ) -> tuple[str, tuple[str, ...]]:
         if signal is None:
-            return "no_signal", ("NO_SIGNAL",)
-        outcome, reason_codes, _evaluations = RiskService._evaluate(
-            risk_limits,
-            risk_snapshot,
-            kill_switch_active=False,
+            return "no_signal", ("NO_ENTRY_SIGNAL",)
+        projected_open_positions = risk_snapshot.current_open_positions + 1
+        service = object.__new__(RiskService)
+        outcome, reason_codes, evaluations = service._evaluate(
+            limits=risk_limits,
+            snapshot=risk_snapshot,
+            projected_open_positions=projected_open_positions,
         )
-        if outcome is RiskDecisionOutcome.APPROVED:
-            return "approved", tuple(reason_codes)
-        return "rejected", tuple(reason_codes)
+        risk_codes = tuple(
+            reason.value for reason in reason_codes
+        ) or ("RISK_APPROVED_NO_REJECTIONS",)
+        if outcome is RiskDecisionOutcome.REJECTED:
+            return "rejected", risk_codes
+        if any(not evaluation.passed for evaluation in evaluations):
+            raise Ase00FailClosed("RISK_EVIDENCE_INCONSISTENT", "risk evidence is inconsistent")
+        return "approved_shadow_only", risk_codes
 
     def _evidence(
         self,
@@ -715,17 +668,21 @@ class Ase00ShadowEngine:
         strategy: StrategyDefinition,
         records: tuple[FeatureRecord, ...],
         signal: SignalEvent | None,
-        risk_outcome: Literal["approved", "rejected", "no_signal"],
+        risk_outcome: str,
         reason_codes: tuple[str, ...],
         data_hash: str,
         config_hash: str,
     ) -> ShadowDecisionEvidence:
-        idempotency_key = canonical_sha256(
-            {
-                "decision_time": decision_time.isoformat(),
-                "strategy_hash": strategy.canonical_sha256(),
-                "features": [record.idempotency_key for record in records],
-            }
+        provenance = Provenance(
+            producer="ase00-shadow-engine",
+            source_event_id=canonical_sha256([record.idempotency_key for record in records]),
+            parent_ids=tuple(record.idempotency_key for record in records),
+            details={
+                "lineage_complete": True,
+                "future_shift": 0,
+                "risk_core": "ai_platform.portal.risk.service.RiskService._evaluate",
+                "shadow_only": True,
+            },
         )
         return ShadowDecisionEvidence.create(
             evidence_version="1",
@@ -741,18 +698,8 @@ class Ase00ShadowEngine:
             data_hash=data_hash,
             config_hash=config_hash,
             code_hash=self.code_hash,
-            idempotency_key=idempotency_key,
-            provenance=Provenance(
-                producer="ase00-shadow-engine",
-                source_event_id=idempotency_key,
-                lineage=tuple(record.idempotency_key for record in records),
-                details={
-                    "lineage_complete": True,
-                    "future_shift": 0,
-                    "risk_core": "ai_platform.portal.risk.service.RiskService._evaluate",
-                    "execution_adapter_used": False,
-                },
-            ),
+            idempotency_key=f"ase00:{strategy.strategy_id}:{symbol}:{decision_time.isoformat()}",
+            provenance=provenance,
             no_order_submitted=True,
         )
 
@@ -768,15 +715,6 @@ class Ase00ShadowEngine:
         config_hash: str,
         reason_codes: tuple[str, ...],
     ) -> ShadowDecisionEvidence:
-        idempotency_key = canonical_sha256(
-            {
-                "decision_time": decision_time.isoformat(),
-                "strategy_id": strategy_id,
-                "strategy_version": strategy_version,
-                "data_hash": data_hash,
-                "reason_codes": list(reason_codes),
-            }
-        )
         return ShadowDecisionEvidence.create(
             evidence_version="1",
             decision_time=decision_time,
@@ -791,68 +729,110 @@ class Ase00ShadowEngine:
             data_hash=data_hash,
             config_hash=config_hash,
             code_hash=self.code_hash,
-            idempotency_key=idempotency_key,
+            idempotency_key=f"ase00-rejected:{strategy_id}:{symbol}:{decision_time.isoformat()}",
             provenance=Provenance(
                 producer="ase00-shadow-engine",
-                source_event_id=idempotency_key,
-                lineage=(),
-                details={
-                    "lineage_complete": True,
-                    "future_shift": 0,
-                    "execution_adapter_used": False,
-                    "fail_closed": True,
-                },
+                source_event_id=canonical_sha256(
+                    {
+                        "strategy_id": strategy_id,
+                        "symbol": symbol,
+                        "decision_time": decision_time.isoformat(),
+                        "reason_codes": list(reason_codes),
+                    }
+                ),
+                details={"lineage_complete": True, "future_shift": 0, "shadow_only": True},
             ),
             no_order_submitted=True,
         )
 
 
-def _payload_number(payload: Mapping[str, JsonValue], key: str) -> float:
-    value = payload.get(key)
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        raise Ase00FailClosed(
-            Ase00Reason.MARKET_BAR_INVALID,
-            f"payload field {key} must be numeric",
-        )
-    return _finite_float(value, key)
+def _unavailable_pivot(frame: pd.DataFrame, params: Mapping[str, JsonValue]) -> PivotEvent:
+    right_bars = cast(int, params["right_bars"])
+    processing_latency = pd.to_timedelta(
+        cast(float, params["processing_latency_seconds"]), unit="s"
+    )
+    position = max(0, len(frame) - right_bars - 1)
+    detection_position = min(len(frame) - 1, position + right_bars)
+    event_time = cast(datetime, frame.index[position].to_pydatetime())
+    detected_at = cast(datetime, frame.index[detection_position].to_pydatetime())
+    return PivotEvent(
+        kind="high",
+        position=position,
+        detection_position=detection_position,
+        event_time=event_time,
+        detected_at=detected_at,
+        available_at=detected_at + processing_latency,
+        price=float(frame["high"].iloc[position]),
+        left_bars=cast(int, params["left_bars"]),
+        right_bars=right_bars,
+    )
 
 
-def _finite_float(value: object, label: str) -> float:
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        raise Ase00FailClosed(
-            Ase00Reason.MISSING_REQUIRED_DATA,
-            f"{label} is not numeric",
-        )
-    converted = float(value)
-    if not math.isfinite(converted):
-        raise Ase00FailClosed(
-            Ase00Reason.MISSING_REQUIRED_DATA,
-            f"{label} is not finite",
-        )
-    return converted
+def _confidence(records: tuple[FeatureRecord, ...]) -> float:
+    strengths: list[float] = []
+    for record in records:
+        value = record.value
+        if not isinstance(value, Mapping):
+            continue
+        if record.feature_id == "squeeze_ratio.v1":
+            ratio = value.get("squeeze_ratio")
+            if isinstance(ratio, (int, float)) and not isinstance(ratio, bool):
+                strengths.append(max(0.0, min(1.0, float(ratio) / 2.0)))
+        elif record.feature_id == "supertrend_direction.v1":
+            direction = value.get("supertrend_direction")
+            if direction in (-1, 1):
+                strengths.append(1.0)
+        elif record.feature_id == "confirmed_pivot.v1":
+            strengths.append(1.0 if record.is_confirmed else 0.0)
+    if not strengths:
+        return 0.0
+    return sum(strengths) / len(strengths)
 
 
-def _require_utc(value: datetime, label: str) -> None:
-    if value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value):
-        raise ValueError(f"{label} must be normalized to UTC")
+def _row_mapping(
+    frame: pd.DataFrame,
+    position: int,
+    columns: tuple[str, ...],
+) -> dict[str, JsonValue]:
+    if len(frame) < abs(position):
+        return {column: None for column in columns}
+    return {column: _json_scalar(frame[column].iloc[position]) for column in columns}
 
 
-def _require_sha256(value: str, label: str) -> None:
-    if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
-        raise ValueError(f"{label} must be a lowercase SHA-256")
+def _json_scalar(value: object) -> JsonValue:
+    if pd.isna(value):
+        return None
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int):
+        return int(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return None
+        return float(value)
+    if hasattr(value, "item"):
+        return _json_scalar(value.item())
+    return str(value)
+
+
+def _safe_config_hash(document: Mapping[str, object]) -> str:
+    return canonical_sha256(document)
 
 
 def _document_string(document: Mapping[str, object], key: str, default: str) -> str:
     value = document.get(key)
-    return value if isinstance(value, str) and value else default
-
-
-def _safe_config_hash(strategy_document: Mapping[str, object]) -> str:
-    try:
-        return canonical_sha256(cast(dict[str, object], dict(strategy_document)))
-    except (TypeError, ValueError):
-        return canonical_sha256({"unserializable_strategy": True})
+    return value if isinstance(value, str) else default
 
 
 def _unique_codes(codes: Sequence[str]) -> tuple[str, ...]:
     return tuple(dict.fromkeys(codes))
+
+
+def _require_utc(value: datetime, name: str) -> None:
+    if value.tzinfo is None or value.utcoffset() != timedelta(0):
+        raise ValueError(f"{name} must be UTC-aware")
+
+
+def _require_sha256(value: str, name: str) -> None:
+    if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
+        raise ValueError(f"{name} must be a lowercase SHA-256")

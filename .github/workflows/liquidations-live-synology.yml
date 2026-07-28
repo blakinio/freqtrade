@@ -63,7 +63,7 @@ jobs:
           LIQUID20_DEPLOY_LOG: ${{ runner.temp }}/liquidations-live-synology.log
         run: |
           set -o pipefail
-          bash deploy/synology/liquid20/deploy-live.sh 2>&1 | tee "$LIQUID20_DEPLOY_LOG"
+          bash deploy/synology/liquid20/deploy-live-bounded.sh 2>&1 | tee "$LIQUID20_DEPLOY_LOG"
 
       - name: Publish final status
         if: always()

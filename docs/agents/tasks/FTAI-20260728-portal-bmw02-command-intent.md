@@ -1,12 +1,13 @@
 ---
 task_id: FTAI-20260728-portal-bmw02-command-intent
-status: implementing
+status: validating
 branch: feat/portal-bmw02-command-intent-v3
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
 depends_on:
   - FTAI-20260728-portal-bmw01-catalog-builder
+related_pr: 632
 owned_paths:
   - ai_platform/portal/bot_operations/intent_service.py
   - ai_platform/portal/bot_operations/router.py
@@ -46,18 +47,20 @@ Replace the legacy browser desired-state mutation with a same-origin lifecycle c
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T15:10:00+02:00
+updated_at: 2026-07-28T15:18:00+02:00
 branch: feat/portal-bmw02-command-intent-v3
+pr: 632
 base_merge: 81a45bbae0e7b63655ca5a684fb110c5a03fb4d5
-status: implementing
+status: validating
 proven:
   - BMW-01 merged as 81a45bbae0e7b63655ca5a684fb110c5a03fb4d5.
   - BM-03 persists command intent and evidence without invoking a runtime adapter.
-  - Existing desired-state BFF mutates the legacy bot resource and does not bind an authoritative runtime revision.
+  - Shared composition, stable business digest, config-revision binding and OpenAPI registration were applied and formatted.
+  - The integration workflow removed itself before this connector-authored validation head.
 derived:
-  - A separate lifecycle-intent facade can safely expose BM-03 without accepting browser runtime authority.
+  - A separate lifecycle-intent facade safely exposes BM-03 without accepting browser runtime authority.
 unknown:
-  - Exact-head CI results.
+  - Exact-head Portal Web, Universal E2E, AI Platform, Freqtrade and security CI results.
 conflicts: []
 first_failure:
   marker: BROWSER_DESIRED_STATE_MUTATION
@@ -65,7 +68,8 @@ first_failure:
 validation:
   - command: exact-head standard CI
     result: NOT_RUN
+    evidence: This connector-authored commit creates the authoritative validation head.
 blockers:
   - PI-08 remains required before any accepted command can be submitted to a private runtime and moved to pending reconciliation.
-next_action: Apply shared composition and stable-digest patches, run exact-head CI, audit and merge.
+next_action: Run exact-head CI, repair only BMW-02 findings, audit and merge.
 ```

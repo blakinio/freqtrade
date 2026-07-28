@@ -5,32 +5,145 @@ on:
     branches:
       - agent/ase-00-ai-strategy-engine-foundation
     paths:
+      - ai_strategy_engine/**
+      - ai_platform/research/strategy_engine/**
+      - tests/ai_platform_integration/conftest.py
+      - tests/ai_platform_integration/test_ase00_vertical_slice.py
       - .github/workflows/ai-strategy-engine.yml
   pull_request:
     branches:
       - develop
     paths:
+      - ai_strategy_engine/**
+      - ai_platform/research/strategy_engine/**
+      - tests/ai_platform_integration/conftest.py
+      - tests/ai_platform_integration/test_ase00_vertical_slice.py
       - .github/workflows/ai-strategy-engine.yml
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
 
 jobs:
-  capture:
-    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
+  validate:
+    name: ASE-00 complete validation
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - name: Check out branch
+      - name: Check out exact source
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
+          persist-credentials: false
 
-      - name: Capture boundary scan
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Install development dependencies
+        working-directory: ai_strategy_engine
         run: |
-          set +e
-          python - <<'PY' > /tmp/ase00-scan.txt 2>&1
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]" "SQLAlchemy>=2.0.6" "fastapi>=0.115"
+
+      - name: Run package tests
+        working-directory: ai_strategy_engine
+        run: |
+          . .venv/bin/activate
+          pytest -q
+
+      - name: Run Ruff
+        run: |
+          . ai_strategy_engine/.venv/bin/activate
+          ruff check ai_strategy_engine ai_platform/research/strategy_engine \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+
+      - name: Run mypy
+        working-directory: ai_strategy_engine
+        run: |
+          . .venv/bin/activate
+          mypy src/strategy_engine
+
+      - name: Compile source and tests
+        run: |
+          . ai_strategy_engine/.venv/bin/activate
+          python -m compileall -q ai_strategy_engine/src ai_strategy_engine/tests \
+            ai_platform/research/strategy_engine
+
+      - name: Validate deterministic repository E2E
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/ai_strategy_engine/src"
+        run: |
+          . ai_strategy_engine/.venv/bin/activate
+          pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+
+      - name: Validate JSON YAML and JSON Schema examples
+        working-directory: ai_strategy_engine
+        run: |
+          . .venv/bin/activate
+          python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          from pathlib import Path
+
+          import jsonschema
+          import yaml
+
+          root = Path('.')
+          for path in sorted(root.rglob('*.json')):
+              json.loads(path.read_text(encoding='utf-8'))
+          yaml_paths = sorted(root.rglob('*.yaml')) + sorted(root.rglob('*.yml'))
+          for path in yaml_paths:
+              yaml.safe_load(path.read_text(encoding='utf-8'))
+
+          mappings = {
+              'examples/feature_record.json': 'schemas/feature-record.v1.schema.json',
+              'examples/signal_event.json': 'schemas/signal-event.v1.schema.json',
+              'examples/strategy_classic.json': 'schemas/strategy-definition.v1.schema.json',
+              'examples/strategy_liquidation.json': 'schemas/strategy-definition.v1.schema.json',
+              'examples/strategy_miyagi_ensemble_research.json': (
+                  'schemas/strategy-definition.v1.schema.json'
+              ),
+              'examples/strategy_bonsai_research.json': (
+                  'schemas/strategy-definition.v1.schema.json'
+              ),
+          }
+          for example_name, schema_name in mappings.items():
+              example = json.loads((root / example_name).read_text(encoding='utf-8'))
+              schema = json.loads((root / schema_name).read_text(encoding='utf-8'))
+              jsonschema.Draft202012Validator.check_schema(schema)
+              jsonschema.validate(example, schema)
+          print('JSON/YAML parsing and JSON Schema validation passed')
+          PY
+
+      - name: Verify materialization evidence and required paths
+        working-directory: ai_strategy_engine
+        run: |
+          test -f configs/feature_registry.v1.yaml
+          test -f configs/search_spaces.v1.yaml
+          test -f configs/miyagi_parameter_map.v1.yaml
+          test -d schemas
+          test -d examples
+          test -d src/strategy_engine
+          test -d tests
+          test -d docs
+          grep -Fq '73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f' \
+            docs/materialization-evidence.md
+          grep -Fq 'status: `complete`' docs/materialization-evidence.md
+
+      - name: Scan secrets prohibited code and architecture boundaries
+        run: |
+          . ai_strategy_engine/.venv/bin/activate
+          python - <<'PY'
           from __future__ import annotations
 
           import ast
@@ -109,22 +222,3 @@ jobs:
               raise SystemExit('\n'.join(failures))
           print('Security and architecture boundary scans passed')
           PY
-          status=$?
-          set -e
-          {
-            echo '# ASE-00 final boundary scan report'
-            echo
-            echo "- exit code: \`$status\`"
-            echo
-            echo '```text'
-            cat /tmp/ase00-scan.txt
-            echo '```'
-          } > ai_strategy_engine/docs/ase00-boundary-scan-report.md
-
-      - name: Commit report
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ai_strategy_engine/docs/ase00-boundary-scan-report.md
-          git commit -m "docs(ai-strategy): record final boundary scan finding"
-          git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

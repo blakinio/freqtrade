@@ -5,9 +5,9 @@ from ai_platform.portal.grid_control.overview import GridControlOverviewService
 
 
 def test_grid_overview_blocks_preview_without_trusted_evidence_provider() -> None:
-    overview = GridControlOverviewService(
-        capability_evidence_provider_available=False
-    ).overview((BotManagementCapability.GRID_CONFIGURE,))
+    overview = GridControlOverviewService(capability_evidence_provider_available=False).overview(
+        (BotManagementCapability.GRID_CONFIGURE,)
+    )
 
     assert overview.capability_evidence_provider_status == "UNAVAILABLE"
     assert overview.canonical_preview_enabled is False

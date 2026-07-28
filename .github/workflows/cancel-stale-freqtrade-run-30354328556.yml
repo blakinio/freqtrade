@@ -1,0 +1,28 @@
+name: Cancel Stale Freqtrade Run 30354328556
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - ".github/workflows/cancel-stale-freqtrade-run-30354328556.yml"
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  cancel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Cancel exact stale run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_RUN_ID: "30354328556"
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --request POST \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$TARGET_RUN_ID/cancel"

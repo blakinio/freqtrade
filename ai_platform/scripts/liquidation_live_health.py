@@ -21,11 +21,9 @@ ALERT_MARKER = "<!-- liquidations-live-operational-health -->"
 
 
 class IssueClient(Protocol):
-    def list_open_issues(self, repository: str) -> list[dict[str, Any]]:
-        ...
+    def list_open_issues(self, repository: str) -> list[dict[str, Any]]: ...
 
-    def create_issue(self, repository: str, *, title: str, body: str) -> dict[str, Any]:
-        ...
+    def create_issue(self, repository: str, *, title: str, body: str) -> dict[str, Any]: ...
 
     def update_issue(
         self,
@@ -34,11 +32,9 @@ class IssueClient(Protocol):
         *,
         body: str | None = None,
         state: str | None = None,
-    ) -> dict[str, Any]:
-        ...
+    ) -> dict[str, Any]: ...
 
-    def create_comment(self, repository: str, issue_number: int, *, body: str) -> None:
-        ...
+    def create_comment(self, repository: str, issue_number: int, *, body: str) -> None: ...
 
 
 class GitHubIssueClient:
@@ -57,7 +53,7 @@ class GitHubIssueClient:
         data = None
         if payload is not None:
             data = json.dumps(payload, separators=(",", ":")).encode()
-        request = urllib.request.Request(
+        request = urllib.request.Request(  # noqa: S310
             f"{self._api_url}{path}",
             data=data,
             method=method,
@@ -210,8 +206,7 @@ def _state_result(
     state = pointer.get("state")
     state_dict = state if isinstance(state, dict) else {}
     contract_ok = (
-        pointer.get("contract") == LIVE_CONTRACT
-        and state_dict.get("contract") == LIVE_CONTRACT
+        pointer.get("contract") == LIVE_CONTRACT and state_dict.get("contract") == LIVE_CONTRACT
     )
     active = state_dict.get("run_state") == "active"
     heartbeat_age_ms = _heartbeat_age(now_ms, state_dict.get("collector_heartbeat_at_ms"))
@@ -511,7 +506,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--report",
         type=Path,
-        default=Path(os.environ.get("LIQUID20_HEALTH_REPORT", "/tmp/liquid20-health.json")),
+        default=Path(os.environ.get("LIQUID20_HEALTH_REPORT", "liquid20-health.json")),
     )
     parser.add_argument("--github-repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--github-token-env", default="GH_TOKEN")

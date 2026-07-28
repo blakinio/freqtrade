@@ -442,7 +442,7 @@ class Ase00ShadowEngine:
                 supertrend,
                 -1,
                 (
-                    "supertrend",
+                    "supertrend_band",
                     "supertrend_direction",
                     "supertrend_flip",
                     "supertrend_distance_atr",
@@ -475,7 +475,7 @@ class Ase00ShadowEngine:
                 supertrend,
                 -2,
                 (
-                    "supertrend",
+                    "supertrend_band",
                     "supertrend_direction",
                     "supertrend_flip",
                     "supertrend_distance_atr",

@@ -1,0 +1,349 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+portal_container="${PORTAL_CONTAINER_NAME:-freqtrade-portal-staging}"
+liquidations_host_root="${PORTAL_LIQUIDATIONS_HOST_ROOT:-/volume1/docker/freqtrade-liquidations/data}"
+liquidations_container_root="/liquid20-data"
+report_path="${PORTAL_LIVE_PROOF_REPORT_PATH:?PORTAL_LIVE_PROOF_REPORT_PATH is required}"
+observation_delay="${PORTAL_LIVE_PROOF_DELAY_SECONDS:-12}"
+candidate="${PORTAL_LIVE_PROOF_CANDIDATE:-freqtrade-portal-live-proof-${GITHUB_RUN_ID:-manual}-${GITHUB_RUN_ATTEMPT:-1}}"
+
+case "$observation_delay" in
+  *[!0-9]* | "")
+    echo "PORTAL_LIVE_PROOF_DELAY_SECONDS must be a positive integer" >&2
+    exit 64
+    ;;
+esac
+if (( observation_delay < 5 || observation_delay > 120 )); then
+  echo "PORTAL_LIVE_PROOF_DELAY_SECONDS must be between 5 and 120" >&2
+  exit 64
+fi
+
+mkdir -p "$(dirname "$report_path")"
+work_dir="$(mktemp -d)"
+cleanup() {
+  docker rm -f "$candidate" >/dev/null 2>&1 || true
+  rm -rf "$work_dir"
+}
+trap cleanup EXIT
+
+pids_limit_supported=false
+pids_limit_args=()
+
+configure_pids_limit() {
+  local probe_output=""
+  local probe_status=0
+  set +e
+  probe_output="$(docker run --rm --pids-limit 32 --entrypoint /bin/true "$portal_image" 2>&1)"
+  probe_status=$?
+  set -e
+  if grep -Eiq \
+    'kernel does not support PIDs limit capabilities|PIDs limit discarded|pids cgroup is not mounted' \
+    <<< "$probe_output"; then
+    pids_limit_supported=false
+    pids_limit_args=()
+    echo "Docker PID limit is unavailable on this Synology kernel; retaining the memory limit."
+    return 0
+  fi
+  if [[ "$probe_status" -eq 0 ]]; then
+    pids_limit_supported=true
+    pids_limit_args=(--pids-limit 256)
+    echo "Docker PID limit supported; applying a 256 process limit."
+    return 0
+  fi
+  printf '%s\n' "$probe_output" >&2
+  echo "Docker PID limit capability probe failed for an unexpected reason" >&2
+  return 1
+}
+
+docker version >/dev/null
+test -S /var/run/docker.sock
+test "$(docker inspect --format '{{.State.Running}}' "$portal_container")" = "true"
+
+portal_image="$(docker inspect --format '{{.Config.Image}}' "$portal_container")"
+portal_image_id="$(docker inspect --format '{{.Image}}' "$portal_container")"
+mount_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.Source}}{{end}}{{end}}' "$portal_container")"
+mount_rw="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$portal_container")"
+docker_socket_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$portal_container")"
+portal_restart="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$portal_container")"
+portal_uid="$(docker exec "$portal_container" id -u)"
+portal_groups="$(docker exec "$portal_container" id -G)"
+
+test -n "$portal_image"
+test -n "$portal_image_id"
+test "$mount_source" = "$liquidations_host_root"
+test "$mount_rw" = "false"
+test -z "$docker_socket_mount"
+test "$portal_uid" != "0"
+test "$portal_restart" = "unless-stopped"
+configure_pids_limit
+
+data_gid="$(
+  docker run --rm \
+    --user 0:0 \
+    --entrypoint node \
+    --mount "type=bind,src=${liquidations_host_root},dst=${liquidations_container_root},readonly" \
+    "$portal_image" \
+    -e 'const fs=require("node:fs");const s=fs.lstatSync("/liquid20-data");if(!s.isDirectory()||s.isSymbolicLink())process.exit(1);process.stdout.write(String(s.gid));'
+)"
+[[ "$data_gid" =~ ^[0-9]+$ ]]
+[[ " $portal_groups " == *" $data_gid "* ]]
+
+production_boundary="$work_dir/production-boundary.json"
+docker exec "$portal_container" node -e '
+  Promise.all([
+    fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store"}),
+    fetch("http://127.0.0.1:3000/api/market/liquidations/health", {cache:"no-store"}),
+  ]).then(async ([page, health]) => {
+    const payload = await health.json().catch(() => ({}));
+    const result = {
+      page_status: page.status,
+      health_status: health.status,
+      health_code: payload.code ?? null,
+      health_cache_control: health.headers.get("cache-control"),
+    };
+    if (page.status !== 200) process.exit(1);
+    if (health.status !== 401 || payload.code !== "SESSION_MISSING") process.exit(1);
+    if (!(result.health_cache_control || "").includes("no-store")) process.exit(1);
+    process.stdout.write(JSON.stringify(result));
+  }).catch((error) => { console.error(error); process.exit(1); });
+' > "$production_boundary"
+
+if docker inspect "$candidate" >/dev/null 2>&1; then
+  echo "Candidate already exists: $candidate" >&2
+  exit 73
+fi
+
+run_args=(
+  docker run -d
+  --name "$candidate"
+  --restart no
+  --read-only
+  --tmpfs /tmp:size=64m,mode=1777
+  --tmpfs /app/.next/cache:size=64m,mode=0755
+  --cap-drop ALL
+  --security-opt no-new-privileges:true
+  --memory 768m
+)
+run_args+=("${pids_limit_args[@]}")
+run_args+=(
+  --group-add "$data_gid"
+  --mount "type=bind,src=${liquidations_host_root},dst=${liquidations_container_root},readonly"
+  --env PORTAL_WEB_DATA_MODE=fixture
+  --env PORTAL_ENVIRONMENT=test
+  --env PORTAL_IDENTITY_FIXTURE_MODE=enabled
+  --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${liquidations_container_root}"
+  --label io.freqtrade.portal.liquidations-live-proof=true
+  --label "io.freqtrade.portal.proof-commit=${GITHUB_SHA:-unknown}"
+  "$portal_image"
+)
+"${run_args[@]}" >/dev/null
+
+for _ in $(seq 1 60); do
+  status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$candidate" 2>/dev/null || true)"
+  if [[ "$status" == "healthy" ]]; then
+    break
+  fi
+  if [[ "$status" == "exited" || "$status" == "dead" ]]; then
+    docker logs --tail 120 "$candidate" >&2 || true
+    exit 1
+  fi
+  sleep 2
+done
+test "$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$candidate")" = "healthy"
+
+test "$(docker inspect --format '{{.Config.Image}}' "$candidate")" = "$portal_image"
+test "$(docker inspect --format '{{.Image}}' "$candidate")" = "$portal_image_id"
+test "$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$candidate")" = "no"
+test "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$candidate")" = "false"
+test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$candidate")"
+test "$(docker exec "$candidate" id -u)" != "0"
+[[ " $(docker exec "$candidate" id -G) " == *" $data_gid "* ]]
+candidate_pids_limit="$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$candidate")"
+if [[ "$pids_limit_supported" == true ]]; then
+  test "$candidate_pids_limit" = "256"
+else
+  test "$candidate_pids_limit" = "0"
+fi
+
+probe() {
+  docker exec "$candidate" node -e '
+    const fs = require("node:fs");
+    const path = require("node:path");
+    async function requestJson(route) {
+      const response = await fetch(`http://127.0.0.1:3000${route}`, {cache:"no-store", headers:{accept:"application/json"}});
+      const payload = await response.json().catch(() => ({}));
+      if (response.status !== 200) throw new Error(`${route} status ${response.status}: ${JSON.stringify(payload)}`);
+      const cacheControl = response.headers.get("cache-control") || "";
+      if (!cacheControl.includes("no-store")) throw new Error(`${route} is not no-store`);
+      return {payload, cache_control: cacheControl};
+    }
+    function containsLabels(root) {
+      const required = ["Ostatnie zdarzenie", "Ostatni heartbeat collectora", "Ostatnie sprawdzenie przez portal"];
+      const found = new Set();
+      const stack = [root];
+      while (stack.length) {
+        const current = stack.pop();
+        for (const entry of fs.readdirSync(current, {withFileTypes:true})) {
+          const child = path.join(current, entry.name);
+          if (entry.isDirectory()) stack.push(child);
+          else if (entry.isFile() && entry.name.endsWith(".js")) {
+            const content = fs.readFileSync(child, "utf8");
+            for (const label of required) if (content.includes(label)) found.add(label);
+          }
+        }
+      }
+      return required.every((label) => found.has(label));
+    }
+    Promise.all([
+      requestJson("/api/market/liquidations/health"),
+      requestJson("/api/market/liquidations?limit=20"),
+      requestJson("/api/market/liquidations/summary"),
+      fetch("http://127.0.0.1:3000/market/liquidations", {cache:"no-store"}),
+    ]).then(([healthResult, listResult, summaryResult, page]) => {
+      const health = healthResult.payload;
+      const list = listResult.payload;
+      const summary = summaryResult.payload;
+      if (page.status !== 200) throw new Error(`page status ${page.status}`);
+      if (health.contract !== "portal-liquidations-health-v2") throw new Error("health contract mismatch");
+      if (health.mode !== "live" || health.run_state !== "active") throw new Error(`health is not live: ${health.mode}/${health.run_state}`);
+      if (!Number.isSafeInteger(health.collector_heartbeat_at_ms)) throw new Error("collector heartbeat missing");
+      if (!Number.isSafeInteger(health.portal_checked_at_ms)) throw new Error("portal checked timestamp missing");
+      if (health.research_preview !== true || health.trading_authorized !== false) throw new Error("safety contract mismatch");
+      for (const source of ["bybit-linear", "binance-usdm"]) {
+        const state = health.sources?.[source];
+        if (!state?.configured || !state?.connected) throw new Error(`${source} is not connected`);
+        if (!Number.isSafeInteger(state.subscription_symbol_count) || state.subscription_symbol_count < 1) throw new Error(`${source} subscriptions missing`);
+        if (!Number.isSafeInteger(state.last_heartbeat_at_ms)) throw new Error(`${source} heartbeat missing`);
+      }
+      if (list.mode !== "live" || !Array.isArray(list.events)) throw new Error("list is not live");
+      if (summary.mode !== "live" || !Array.isArray(summary.windows)) throw new Error("summary is not live");
+      const labelsPresent = containsLabels("/app/.next/static");
+      if (!labelsPresent) throw new Error("truthful timestamp labels missing from production bundle");
+      process.stdout.write(JSON.stringify({
+        observed_at_ms: Date.now(),
+        health,
+        event_ids: list.events.map((event) => `${event.source}:${event.source_event_id}`),
+        event_count: list.events.length,
+        summary_anchor_at_ms: summary.anchor_at_ms,
+        page_status: page.status,
+        labels_present: labelsPresent,
+        cache_control: {
+          health: healthResult.cache_control,
+          list: listResult.cache_control,
+          summary: summaryResult.cache_control,
+        },
+      }));
+    }).catch((error) => { console.error(error); process.exit(1); });
+  '
+}
+
+probe > "$work_dir/first.json"
+sleep "$observation_delay"
+probe > "$work_dir/second.json"
+
+PRODUCTION_BOUNDARY_PATH="$production_boundary" \
+FIRST_PATH="$work_dir/first.json" \
+SECOND_PATH="$work_dir/second.json" \
+REPORT_PATH="$report_path" \
+PORTAL_IMAGE="$portal_image" \
+PORTAL_IMAGE_ID="$portal_image_id" \
+PORTAL_CONTAINER="$portal_container" \
+PORTAL_UID="$portal_uid" \
+PORTAL_GROUPS="$portal_groups" \
+DATA_GID="$data_gid" \
+PIDS_LIMIT_SUPPORTED="$pids_limit_supported" \
+CANDIDATE_PIDS_LIMIT="$candidate_pids_limit" \
+MOUNT_SOURCE="$mount_source" \
+CANDIDATE="$candidate" \
+GITHUB_SHA_VALUE="${GITHUB_SHA:-unknown}" \
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+production = json.loads(Path(os.environ["PRODUCTION_BOUNDARY_PATH"]).read_text(encoding="utf-8"))
+first = json.loads(Path(os.environ["FIRST_PATH"]).read_text(encoding="utf-8"))
+second = json.loads(Path(os.environ["SECOND_PATH"]).read_text(encoding="utf-8"))
+
+first_health = first["health"]
+second_health = second["health"]
+if second_health["run_id"] != first_health["run_id"]:
+    raise SystemExit("live run rotated during the bounded observation")
+if second_health["collector_heartbeat_at_ms"] <= first_health["collector_heartbeat_at_ms"]:
+    raise SystemExit("collector heartbeat did not advance")
+if second_health["portal_checked_at_ms"] <= first_health["portal_checked_at_ms"]:
+    raise SystemExit("portal read timestamp did not advance")
+for source in ("bybit-linear", "binance-usdm"):
+    first_source = first_health["sources"][source]
+    second_source = second_health["sources"][source]
+    if second_source["last_heartbeat_at_ms"] < first_source["last_heartbeat_at_ms"]:
+        raise SystemExit(f"{source} heartbeat moved backwards")
+
+first_ids = set(first["event_ids"])
+second_ids = set(second["event_ids"])
+new_event_ids = sorted(second_ids - first_ids)
+last_event_advanced = (
+    second_health.get("last_event_at_ms") is not None
+    and first_health.get("last_event_at_ms") is not None
+    and second_health["last_event_at_ms"] > first_health["last_event_at_ms"]
+)
+real_event_observed = bool(new_event_ids or last_event_advanced)
+
+report = {
+    "schema_version": 1,
+    "report_type": "liquidations_live_portal_synology_proof",
+    "commit_sha": os.environ["GITHUB_SHA_VALUE"],
+    "production_portal": {
+        "container": os.environ["PORTAL_CONTAINER"],
+        "image": os.environ["PORTAL_IMAGE"],
+        "image_id": os.environ["PORTAL_IMAGE_ID"],
+        "uid": int(os.environ["PORTAL_UID"]),
+        "groups": [int(value) for value in os.environ["PORTAL_GROUPS"].split()],
+        "data_gid": int(os.environ["DATA_GID"]),
+        "mount_source": os.environ["MOUNT_SOURCE"],
+        "mount_read_only": True,
+        "docker_socket_mounted": False,
+        "restart_policy": "unless-stopped",
+        "unauthenticated_boundary": production,
+    },
+    "isolated_candidate": {
+        "container": os.environ["CANDIDATE"],
+        "fixture_identity": True,
+        "real_data_mount_read_only": True,
+        "docker_socket_mounted": False,
+        "pids_limit_supported": os.environ["PIDS_LIMIT_SUPPORTED"] == "true",
+        "pids_limit": int(os.environ["CANDIDATE_PIDS_LIMIT"]),
+        "first": first,
+        "second": second,
+    },
+    "proof": {
+        "collector_heartbeat_advanced": True,
+        "portal_checked_at_advanced": True,
+        "same_portal_process": True,
+        "source_heartbeats_non_decreasing": True,
+        "no_store_api": True,
+        "truthful_timestamp_labels": True,
+        "real_exchange_event_observed": real_event_observed,
+        "new_event_ids": new_event_ids,
+        "quiet_window_note": None if real_event_observed else "No new exchange liquidation was observed during the bounded proof window; heartbeat, subscriptions and live API reads were proven without fabricating an event.",
+        "research_preview": True,
+        "trading_authorized": False,
+    },
+}
+Path(os.environ["REPORT_PATH"]).write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
+python3 - "$report_path" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    payload = json.load(handle)
+assert payload["proof"]["collector_heartbeat_advanced"] is True
+assert payload["proof"]["portal_checked_at_advanced"] is True
+assert payload["proof"]["trading_authorized"] is False
+PY
+
+printf 'Liquidations live portal proof passed: report=%s image=%s candidate=%s\n' \
+  "$report_path" "$portal_image" "$candidate"

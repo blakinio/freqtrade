@@ -45,11 +45,18 @@ jobs:
             ai_strategy_engine/tools/prepare_precommit_files.py
 
       - name: Run complete repository pre-commit
+        id: precommit
         run: |
           python -m pip install --disable-pip-version-check pre-commit
-          pre-commit run --all-files --show-diff-on-failure
+          set +e
+          pre-commit run --all-files --show-diff-on-failure > /tmp/pre-commit.log 2>&1
+          status=$?
+          set -e
+          printf 'status=%s\n' "$status" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$status" > /tmp/pre-commit.status
 
-      - name: Upload validated files
+      - name: Upload validated files and diagnostics
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ase00-final-precommit-files
@@ -57,5 +64,11 @@ jobs:
             ai_platform/research/strategy_engine/ase00_adapter.py
             ai_strategy_engine/tests/integration/test_registry_dsl.py
             tests/ai_platform_integration/__init__.py
+            /tmp/pre-commit.log
+            /tmp/pre-commit.status
           if-no-files-found: error
           retention-days: 1
+
+      - name: Enforce complete repository pre-commit
+        if: steps.precommit.outputs.status != '0'
+        run: exit 1

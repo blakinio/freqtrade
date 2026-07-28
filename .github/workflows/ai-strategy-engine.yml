@@ -16,10 +16,10 @@ permissions:
   contents: write
 
 jobs:
-  diagnose-ai-platform-ruff:
+  repair-ai-platform-lint:
     if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Check out branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -27,54 +27,50 @@ jobs:
           ref: agent/ase-00-ai-strategy-engine-foundation
           fetch-depth: 0
 
-      - name: Install exact Ruff version
-        run: python -m pip install --disable-pip-version-check ruff==0.15.21
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
 
-      - name: Capture separated repair results
+      - name: Install validation dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          -e "ai_strategy_engine[dev]"
+          pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
+          "httpx>=0.24.1" fastapi pyjwt cryptography
+          ruff==0.15.21 codespell==2.4.2
+
+      - name: Apply exact reported repairs
         run: |
-          set +e
-          ruff check --fix ai_platform/portal/control_plane/__init__.py \
-            > /tmp/fix.txt 2>&1
-          fix_status=$?
-          git diff -- ai_platform/portal/control_plane/__init__.py > /tmp/fix.diff
-          ruff check ai_platform tests/ai_platform > /tmp/check.txt 2>&1
-          check_status=$?
-          ruff format --check ai_platform tests/ai_platform > /tmp/format.txt 2>&1
-          format_status=$?
-          git checkout -- ai_platform/portal/control_plane/__init__.py
-          set -e
-          {
-            echo '# AI Platform Ruff repair diagnostic'
-            echo
-            echo "- fix exit code: \`$fix_status\`"
-            echo "- check exit code: \`$check_status\`"
-            echo "- format exit code: \`$format_status\`"
-            echo
-            echo '## Fix output'
-            echo '```text'
-            cat /tmp/fix.txt
-            echo '```'
-            echo
-            echo '## Proposed diff'
-            echo '```diff'
-            cat /tmp/fix.diff
-            echo '```'
-            echo
-            echo '## Full check output'
-            echo '```text'
-            cat /tmp/check.txt
-            echo '```'
-            echo
-            echo '## Format check output'
-            echo '```text'
-            cat /tmp/format.txt
-            echo '```'
-          } > ai_strategy_engine/docs/ai-platform-ruff-repair-diagnostic.md
+          ruff check --fix ai_platform/portal/control_plane/__init__.py
+          ruff format ai_platform/research/strategy_engine/ase00_adapter.py
 
-      - name: Commit diagnostic
+      - name: Validate AI Platform matrix
+        run: |
+          ruff check ai_platform tests/ai_platform
+          ruff format --check ai_platform tests/ai_platform
+          python -m compileall -q ai_platform tests/ai_platform
+          python -m pytest -q -o addopts='' --confcutdir=tests/ai_platform tests/ai_platform
+
+      - name: Validate complete ASE-00 matrix
+        env:
+          PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/ai_strategy_engine/src"
+        run: |
+          pytest -q ai_strategy_engine/tests
+          ruff check ai_strategy_engine ai_platform/research/strategy_engine \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+          mypy ai_strategy_engine/src/strategy_engine
+          python -m compileall -q ai_strategy_engine/src ai_strategy_engine/tests \
+            ai_platform/research/strategy_engine
+          pytest -q -o addopts='' --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+
+      - name: Commit validated lint repairs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ai_strategy_engine/docs/ai-platform-ruff-repair-diagnostic.md
-          git commit -m "docs(ai-platform): record separated Ruff repair results"
+          git add ai_platform/portal/control_plane/__init__.py \
+            ai_platform/research/strategy_engine/ase00_adapter.py
+          git diff --cached --quiet && exit 1
+          git commit -m "style(ai-platform): normalize ASE-00 Python formatting"
           git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

@@ -1,0 +1,144 @@
+name: ASE-00 Align Record Factories
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/ase00-align-record-factories.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.ref == 'agent/ase-00-ai-strategy-engine-foundation'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: agent/ase-00-ai-strategy-engine-foundation
+          fetch-depth: 0
+      - name: Align canonical record factory calls
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('ai_platform/research/strategy_engine/ase00_adapter.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '''            record = make_feature_record(
+                  registry=self.registry,
+                  feature_id=squeeze_ref.id,
+          ''',
+              '''            record = make_feature_record(
+                  feature_id=squeeze_ref.id,
+          ''',
+              1,
+          )
+          text = text.replace(
+              '''                source=latest_event.source,
+                  data_version=normalized.data_hash,
+          ''',
+              '''                source=latest_event.source,
+                  idempotency_key=(
+                      f"feature:{squeeze_ref.id}:{latest_event.symbol}:"
+                      f"{latest_event.available_at.isoformat()}"
+                  ),
+                  data_version=normalized.data_hash,
+          ''',
+              1,
+          )
+          text = text.replace(
+              '''                configuration_hash=config_hash,
+                  source_event_id=latest_event.event_id,
+                  parameters=dict(squeeze_ref.params),
+          ''',
+              '''                configuration_hash=config_hash,
+                  producer="ase00-feature-engine",
+                  source_event_id=latest_event.event_id,
+                  parameters=dict(squeeze_ref.params),
+          ''',
+              1,
+          )
+          text = text.replace(
+              '''            record = make_feature_record(
+                  registry=self.registry,
+                  feature_id=supertrend_ref.id,
+          ''',
+              '''            record = make_feature_record(
+                  feature_id=supertrend_ref.id,
+          ''',
+              1,
+          )
+          marker = '''                source=latest_event.source,
+                  data_version=normalized.data_hash,
+          '''
+          replacement = '''                source=latest_event.source,
+                  idempotency_key=(
+                      f"feature:{supertrend_ref.id}:{latest_event.symbol}:"
+                      f"{latest_event.available_at.isoformat()}"
+                  ),
+                  data_version=normalized.data_hash,
+          '''
+          if marker not in text:
+              raise SystemExit('supertrend source marker not found')
+          text = text.replace(marker, replacement, 1)
+          marker = '''                configuration_hash=config_hash,
+                  source_event_id=latest_event.event_id,
+                  parameters=dict(supertrend_ref.params),
+          '''
+          replacement = '''                configuration_hash=config_hash,
+                  producer="ase00-feature-engine",
+                  source_event_id=latest_event.event_id,
+                  parameters=dict(supertrend_ref.params),
+          '''
+          if marker not in text:
+              raise SystemExit('supertrend provenance marker not found')
+          text = text.replace(marker, replacement, 1)
+          text = text.replace(
+              '''            record = make_confirmed_pivot_record(
+                  registry=self.registry,
+                  feature_id=pivot_ref.id,
+          ''',
+              '''            record = make_confirmed_pivot_record(
+          ''',
+              1,
+          )
+          text = text.replace(
+              '''                decision_time=decision_time,
+                  source=pivot_detected_event.source,
+                  data_version=normalized.data_hash,
+          ''',
+              '''                decision_time=decision_time,
+                  idempotency_key=(
+                      f"feature:{pivot_ref.id}:{latest_event.symbol}:"
+                      f"{pivot.available_at.isoformat()}"
+                  ),
+                  data_version=normalized.data_hash,
+          ''',
+              1,
+          )
+          text = text.replace(
+              '''                configuration_hash=config_hash,
+                  source_event_id=pivot_detected_event.event_id,
+                  parameters=cast(dict[str, JsonValue], pivot_params),
+          ''',
+              '''                configuration_hash=config_hash,
+                  producer="ase00-feature-engine",
+                  source_event_id=pivot_detected_event.event_id,
+                  parameters=cast(dict[str, JsonValue], pivot_params),
+          ''',
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+      - name: Commit repair and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/ase00-align-record-factories.yml
+          git add -A
+          git commit -m "fix(ai-strategy): align canonical record factory calls"
+          git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation

@@ -44,9 +44,9 @@ It also rejects uppercase and lowercase HTTP, HTTPS and all-protocol proxy varia
 
 ## Isolated runtime
 
-The workflow uses the runner's existing `python3` only to create a temporary virtual environment below `runner.temp`. It installs the repository-pinned `jsonschema==4.26.0`, verifies `Draft202012Validator`, runs the existing smoke module and removes the virtual environment in an `always()` cleanup step.
+The runner image intentionally provides only the system `python3`; it does not include `ensurepip`, `pip`, `jsonschema` or `python3-venv`. The workflow therefore reuses the repository-approved, SHA-pinned `astral-sh/setup-uv` action to install and activate an isolated Python 3.12 environment. Action caching is disabled. The runtime installs only `jsonschema==4.26.0`, verifies `Draft202012Validator`, runs the existing smoke module and removes `.venv` in an `always()` cleanup step.
 
-No global package installation, Docker mutation, persistent runner configuration or service restart is authorized.
+No global package installation, Docker mutation, runner-image change, persistent runner configuration or service restart is authorized.
 
 ## Trigger contract
 

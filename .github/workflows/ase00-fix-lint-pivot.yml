@@ -1,0 +1,116 @@
+name: ASE-00 Repair Pivot And Lint
+
+on:
+  push:
+    branches:
+      - agent/ase-00-ai-strategy-engine-foundation
+    paths:
+      - .github/workflows/ase00-fix-lint-pivot.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ase00-repair-pivot-lint
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out continued branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: agent/ase-00-ai-strategy-engine-foundation
+          fetch-depth: 0
+
+      - name: Patch pivot confirmation contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          records_path = Path('ai_strategy_engine/src/strategy_engine/features/records.py')
+          records = records_path.read_text(encoding='utf-8')
+          old_signature = '''    source_event_id: str,
+              parameters: dict[str, JsonValue],
+          ) -> FeatureRecord:
+          '''.replace('          ', '')
+          new_signature = '''    source_event_id: str,
+              parameters: dict[str, JsonValue],
+              detection_event_confirmed: bool = True,
+          ) -> FeatureRecord:
+          '''.replace('          ', '')
+          if old_signature not in records:
+              raise SystemExit('pivot factory signature anchor not found')
+          records = records.replace(old_signature, new_signature, 1)
+          old_confirmation = '    confirmed = available_at <= decision_time\n'
+          new_confirmation = (
+              '    available_before_decision = available_at <= decision_time\n'
+              '    confirmed = detection_event_confirmed and available_before_decision\n'
+          )
+          if old_confirmation not in records:
+              raise SystemExit('pivot confirmation anchor not found')
+          records = records.replace(old_confirmation, new_confirmation, 1)
+          old_details = '''            "pivot_confirmed": confirmed,
+                      "right_bars_confirmed": confirmed,
+          '''.replace('          ', '')
+          new_details = '''            "pivot_confirmed": confirmed,
+                      "right_bars_confirmed": detection_event_confirmed,
+                      "detection_event_confirmed": detection_event_confirmed,
+                      "available_before_decision": available_before_decision,
+          '''.replace('          ', '')
+          if old_details not in records:
+              raise SystemExit('pivot provenance anchor not found')
+          records = records.replace(old_details, new_details, 1)
+          records_path.write_text(records, encoding='utf-8')
+
+          adapter_path = Path('ai_platform/research/strategy_engine/ase00_adapter.py')
+          adapter = adapter_path.read_text(encoding='utf-8')
+          old_call = '''            source_event_id=pivot_detected_event.event_id,
+                      parameters=cast(dict[str, JsonValue], pivot_params),
+                  )
+          '''.replace('          ', '')
+          new_call = '''            source_event_id=pivot_detected_event.event_id,
+                      parameters=cast(dict[str, JsonValue], pivot_params),
+                      detection_event_confirmed=pivot_detected_event.is_confirmed,
+                  )
+          '''.replace('          ', '')
+          if old_call not in adapter:
+              raise SystemExit('adapter pivot factory call anchor not found')
+          adapter = adapter.replace(old_call, new_call, 1)
+          adapter_path.write_text(adapter, encoding='utf-8')
+          PY
+
+      - name: Apply repository Ruff fixes
+        run: |
+          python -m pip install --disable-pip-version-check ruff==0.15.21
+          targets=(
+            ai_platform/research/strategy_engine
+            tests/ai_platform_integration/conftest.py
+            tests/ai_platform_integration/test_ase00_vertical_slice.py
+          )
+          ruff check --fix "${targets[@]}" || true
+          ruff format "${targets[@]}"
+          set +e
+          ruff check "${targets[@]}" > /tmp/ase00-ruff.txt 2>&1
+          status=$?
+          set -e
+          if [[ "$status" -eq 0 ]]; then
+            rm -f ai_strategy_engine/docs/ruff-diagnostic.txt
+          else
+            cp /tmp/ase00-ruff.txt ai_strategy_engine/docs/ruff-diagnostic.txt
+          fi
+          cat /tmp/ase00-ruff.txt
+          printf '%s\n' "$status" > /tmp/ase00-ruff-status
+
+      - name: Commit repairs and remove temporary workflows
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/ase00-diagnostic.yml
+          rm -f .github/workflows/ase00-fix-lint-pivot.yml
+          git add -A
+          git commit -m "fix(ai-strategy): fail closed on pivot confirmation and lint adapter"
+          git push origin HEAD:agent/ase-00-ai-strategy-engine-foundation
+          test "$(cat /tmp/ase00-ruff-status)" = "0"

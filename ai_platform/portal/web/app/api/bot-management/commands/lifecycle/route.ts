@@ -21,9 +21,19 @@ const actions = new Set<LifecycleAction>([
   "RESTART_RUNTIME",
   "RETIRE",
 ]);
+const allowedKeys = new Set([
+  "bot_id",
+  "action",
+  "expected_config_revision",
+  "idempotency_key",
+]);
 
 function validRequest(value: unknown): value is LifecycleIntentRequest {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length !== allowedKeys.size || keys.some((key) => !allowedKeys.has(key))) {
+    return false;
+  }
   const request = value as Partial<LifecycleIntentRequest>;
   return (
     typeof request.bot_id === "string" &&

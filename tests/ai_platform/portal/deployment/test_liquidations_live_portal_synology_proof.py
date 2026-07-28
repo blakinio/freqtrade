@@ -65,6 +65,7 @@ def test_script_uses_explicit_fixture_identity_only_in_isolated_candidate() -> N
     assert '"fixture_cookie":' not in text
     assert '"PORTAL_FIXTURE_COOKIE":' not in text
     assert "SESSION_MISSING" in text
+    assert text.index("const unauthenticated =") < text.index("const login =")
     assert "production_boundary" in text
 
 

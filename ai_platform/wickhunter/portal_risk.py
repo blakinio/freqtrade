@@ -229,11 +229,7 @@ def build_portal_risk_request(
         intent.requested_base_risk_ratio,
         intent.dca_plan.maximum_total_risk_ratio,
     )
-    intent_notional = (
-        snapshot.account_equity_quote
-        * planned_risk_ratio
-        * intent.requested_leverage
-    )
+    intent_notional = snapshot.account_equity_quote * planned_risk_ratio * intent.requested_leverage
     _require_positive(intent_notional, field="intent_notional")
     amount = intent_notional / intent.decision_price
     _require_positive(amount, field="portal amount")
@@ -263,9 +259,7 @@ def build_portal_risk_request(
     )
     portal_snapshot = RiskEvaluationSnapshot(
         intent_notional=intent_notional,
-        projected_gross_exposure=(
-            snapshot.current_gross_exposure_quote + intent_notional
-        ),
+        projected_gross_exposure=(snapshot.current_gross_exposure_quote + intent_notional),
         projected_open_positions=snapshot.current_open_positions + 1,
         daily_loss=snapshot.daily_loss_quote,
         current_drawdown=snapshot.current_drawdown,
@@ -292,20 +286,11 @@ def validate_portal_risk_result(
         raise PortalRiskEvidenceMismatchError("portal result tenant mismatch")
     if result.trade_intent != request.portal_trade_intent:
         raise PortalRiskEvidenceMismatchError("portal result trade intent mismatch")
-    if (
-        result.risk_decision.trade_intent_id
-        != request.portal_trade_intent.trade_intent_id
-    ):
+    if result.risk_decision.trade_intent_id != request.portal_trade_intent.trade_intent_id:
         raise PortalRiskEvidenceMismatchError("portal decision intent identity mismatch")
-    if (
-        result.risk_decision.risk_policy_version
-        != request.portal_risk_policy_version
-    ):
+    if result.risk_decision.risk_policy_version != request.portal_risk_policy_version:
         raise PortalRiskEvidenceMismatchError("portal risk policy version mismatch")
-    if (
-        result.context.correlation_id
-        != request.portal_trade_intent.context.correlation_id
-    ):
+    if result.context.correlation_id != request.portal_trade_intent.context.correlation_id:
         raise PortalRiskEvidenceMismatchError("portal result correlation mismatch")
     expected = (
         RiskDecisionOutcome.APPROVED
@@ -318,11 +303,7 @@ def validate_portal_risk_result(
 
 def _result_payload(result: PortalRiskEvaluationResult) -> dict[str, object]:
     return {
-        "result_kind": (
-            "approved"
-            if isinstance(result, ApprovedExecutionIntent)
-            else "rejected"
-        ),
+        "result_kind": ("approved" if isinstance(result, ApprovedExecutionIntent) else "rejected"),
         "result": _model_payload(result),
         "order_submission_performed": False,
         "execution_adapter_called": False,
@@ -371,19 +352,11 @@ def persist_portal_risk_evidence(
             "status": (
                 "prepared"
                 if result is None
-                else (
-                    "approved"
-                    if isinstance(result, ApprovedExecutionIntent)
-                    else "rejected"
-                )
+                else ("approved" if isinstance(result, ApprovedExecutionIntent) else "rejected")
             ),
             "files": {
                 "request.json": request_file_sha,
-                **(
-                    {"result.json": result_file_sha}
-                    if result_file_sha is not None
-                    else {}
-                ),
+                **({"result.json": result_file_sha} if result_file_sha is not None else {}),
             },
             "order_submission_performed": False,
             "execution_adapter_called": False,
@@ -401,9 +374,7 @@ def persist_portal_risk_evidence(
         return PortalRiskArtifactSet(
             root=final_root,
             request_path=final_root / request_path.name,
-            result_path=(
-                final_root / result_path.name if result_path is not None else None
-            ),
+            result_path=(final_root / result_path.name if result_path is not None else None),
             manifest_path=final_root / manifest_path.name,
             request_sha256=request.request_sha256,
             result_sha256=result_file_sha,

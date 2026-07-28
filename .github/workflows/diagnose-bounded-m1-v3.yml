@@ -1,0 +1,56 @@
+name: Diagnose Bounded M1 V3
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - "ai_platform/**"
+      - "tests/ai_platform/**"
+      - ".github/workflows/**"
+      - "docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.12"
+      - name: Install diagnostic dependencies
+        run: uv pip install numpy pandas pytest pre-commit
+      - name: Capture AI platform tests
+        shell: bash
+        run: |
+          set +e
+          python -m pytest tests/ai_platform -q > pytest.log 2>&1
+          printf '%s\n' "$?" > pytest-exit-code.txt
+          cat pytest.log
+          exit 0
+      - name: Capture pre-commit hooks
+        shell: bash
+        run: |
+          set +e
+          pre-commit run --all-files > precommit.log 2>&1
+          printf '%s\n' "$?" > precommit-exit-code.txt
+          cat precommit.log
+          exit 0
+      - name: Upload diagnostic logs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bounded-m1-v3-diagnostic-${{ github.event.pull_request.number }}
+          path: |
+            pytest.log
+            pytest-exit-code.txt
+            precommit.log
+            precommit-exit-code.txt
+          if-no-files-found: error
+          retention-days: 1

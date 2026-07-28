@@ -1,4 +1,4 @@
-name: Inspect Portal Proof Repair Run
+name: Inspect Portal Proof Repair Failure
 
 on:
   pull_request:
@@ -14,42 +14,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Inspect exact push runs
+      - name: Read bounded failed-job tail
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import urllib.request
-
-          sha = "591dbaf41da56036ac74ab33c96eb83e3b2d0b1a"
-          repository = os.environ["GITHUB_REPOSITORY"]
-          request = urllib.request.Request(
-              f"https://api.github.com/repos/{repository}/actions/runs?head_sha={sha}&event=push&per_page=100",
-              headers={
-                  "Accept": "application/vnd.github+json",
-                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
-                  "X-GitHub-Api-Version": "2022-11-28",
-              },
-          )
-          with urllib.request.urlopen(request, timeout=30) as response:
-              payload = json.load(response)
-          runs = [
-              {
-                  "id": item["id"],
-                  "name": item["name"],
-                  "status": item["status"],
-                  "conclusion": item["conclusion"],
-                  "event": item["event"],
-                  "head_sha": item["head_sha"],
-                  "run_attempt": item["run_attempt"],
-                  "created_at": item["created_at"],
-                  "updated_at": item["updated_at"],
-              }
-              for item in payload.get("workflow_runs", [])
-          ]
-          print("PORTAL_PATCH_RUNS=" + json.dumps(runs, sort_keys=True))
-          if not runs:
-              raise SystemExit("No exact push run found")
-          PY
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/jobs/90206827335/logs" \
+            --output /tmp/failed-job.log
+          echo '--- FAILED JOB TAIL ---'
+          tail -n 45 /tmp/failed-job.log

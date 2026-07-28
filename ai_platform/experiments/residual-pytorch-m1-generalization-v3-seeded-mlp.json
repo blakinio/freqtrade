@@ -1,0 +1,22 @@
+{
+  "config": "ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-seeded-mlp.example.json",
+  "description": "Frozen M1SeededPyTorchMLPRegressor comparator on the bounded SOL/XRP M1 v3 generalization cohort.",
+  "download_timerange": "1754006400-1777593599",
+  "experiment_id": "residual-pytorch-m1-seeded-mlp-generalization-v3",
+  "fee": 0.002,
+  "freqai_model": "M1SeededPyTorchMLPRegressor",
+  "output_root": "ai_platform/artifacts/experimental-model-research/residual-pytorch-m1-generalization-v3/seeded-mlp",
+  "pairs": [
+    "SOL/USDT",
+    "XRP/USDT"
+  ],
+  "schema_version": 1,
+  "strategy": "AiFrozenCandidateStrategyV2",
+  "strategy_path": "ai_platform/strategies",
+  "timeframes": [
+    "15m",
+    "1h",
+    "4h"
+  ],
+  "timerange": "1772323200-1777593599"
+}

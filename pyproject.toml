@@ -159,6 +159,7 @@ version = {attr = "freqtrade.__version__"}
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
 addopts = ["--dist", "loadscope"]
+pythonpath = ["ai_strategy_engine/src", "ai_strategy_engine"]
 
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

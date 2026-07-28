@@ -444,13 +444,9 @@ def validate_training_directory(path: Path, *, track_id: str) -> dict[str, Any]:
         scalar_events = report.get("recorded_scalar_events", {})
         if expected_wrapper == "M1LightGBMRegressor":
             if not report.get("lightgbm_evals_result"):
-                raise ResidualPyTorchBoundedM1Error(
-                    f"{pair} LightGBM evaluation history is absent"
-                )
+                raise ResidualPyTorchBoundedM1Error(f"{pair} LightGBM evaluation history is absent")
         elif not scalar_events.get("train_loss") or not scalar_events.get("test_loss"):
-            raise ResidualPyTorchBoundedM1Error(
-                f"{pair} PyTorch train/test loss history is absent"
-            )
+            raise ResidualPyTorchBoundedM1Error(f"{pair} PyTorch train/test loss history is absent")
 
     feature_counts = {report["feature_count"] for report in reports}
     if len(feature_counts) != 1:

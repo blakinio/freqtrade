@@ -26,27 +26,31 @@ jobs:
 
           api = Path("ai_platform/portal/control_plane/api.py")
           text = api.read_text()
-          old = '''    app.include_router(build_signal_control_router(bot_management.signals, context_dependency))
-          app.include_router(build_grid_control_router(bot_management.grid, context_dependency))
-          '''
-          new = '''    app.include_router(
+          signal_old = "    app.include_router(build_signal_control_router(bot_management.signals, context_dependency))\n"
+          signal_new = """    app.include_router(
               build_signal_control_router(
                   bot_management.signals,
                   bot_management.signal_overview,
                   context_dependency,
               )
           )
-          app.include_router(
+          """
+          grid_old = "    app.include_router(build_grid_control_router(bot_management.grid, context_dependency))\n"
+          grid_new = """    app.include_router(
               build_grid_control_router(
                   bot_management.grid,
                   bot_management.grid_overview,
                   context_dependency,
               )
           )
-          '''
-          if old not in text:
-              raise SystemExit("router composition marker missing")
-          api.write_text(text.replace(old, new, 1))
+          """
+          if signal_old not in text:
+              raise SystemExit("signal router composition marker missing")
+          if grid_old not in text:
+              raise SystemExit("grid router composition marker missing")
+          text = text.replace(signal_old, signal_new, 1)
+          text = text.replace(grid_old, grid_new, 1)
+          api.write_text(text)
 
           tests = Path("tests/ai_platform/portal/control_plane/test_api.py")
           text = tests.read_text()

@@ -10,9 +10,7 @@ import sys
 from pathlib import Path
 
 
-VAULT_IMAGE_RE = re.compile(
-    r"^docker\.io/hashicorp/vault:2\.0\.3@sha256:[0-9a-f]{64}$"
-)
+VAULT_IMAGE_RE = re.compile(r"^docker\.io/hashicorp/vault:2\.0\.3@sha256:[0-9a-f]{64}$")
 PLACEHOLDER_MARKERS = ("REPLACE", "CHANGEME", "EXAMPLE", "<", ">")
 
 

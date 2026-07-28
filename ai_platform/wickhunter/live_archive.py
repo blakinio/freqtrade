@@ -185,7 +185,7 @@ def _validate_run_state(run_root: Path) -> tuple[dict[str, Any], str, str]:
     return state, collector_commit, completion_reason
 
 
-def _load_source_archive(
+def _load_source_archive(  # noqa: C901
     *,
     run_root: Path,
     run_id: str,

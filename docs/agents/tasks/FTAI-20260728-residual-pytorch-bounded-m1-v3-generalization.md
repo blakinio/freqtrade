@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization
 status: active
-branch: ci/residual-pytorch-bounded-m1-v3-request-generator
+branch: docs/residual-pytorch-m1-v3-checkpoint-contract-20260728
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-28
-related_pr: 627
+related_pr: 648
 owned_paths:
   - docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
   - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
@@ -56,70 +56,66 @@ forbidden.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T14:36:00+02:00
-head: e5ef202ca7bf14a5a1a194537b81678846c1c5af
-branch: ci/residual-pytorch-bounded-m1-v3-request-generator
-pr: 627
-status: validating
+updated_at: 2026-07-28T21:29:00+02:00
+head: 5b0c66a1167fbcf84aef95908234ea35451d9ebf
+branch: docs/residual-pytorch-m1-v3-checkpoint-contract-20260728
+pr: 648
+status: ready
 context_routes:
-  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
-  - docs/agents/tasks/FTAI-20260727-residual-pytorch-bounded-m1-v2-remediation.md
+  - .github/workflows/residual-pytorch-bounded-m1-v3-request-generator.yml
+  - .github/workflows/residual-pytorch-bounded-m1-v3-generalization.yml
+  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_generalization.py
+  - tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
 owned_paths:
   - docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
-  - docs/ai_platform/RESIDUAL_PYTORCH_BOUNDED_M1_V3_GENERALIZATION.md
-  - ai_platform/experimental_model_research/residual-pytorch-bounded-m1-generalization-contract-v3.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-data-audit.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-lightgbm.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-seeded-mlp.example.json
-  - ai_platform/configs/freqai-residual-pytorch-m1-generalization-v3-residual-mlp.example.json
-  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-data-audit.json
-  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-lightgbm.json
-  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-seeded-mlp.json
-  - ai_platform/experiments/residual-pytorch-m1-generalization-v3-residual-mlp.json
-  - ai_platform/freqaimodels/ResidualPyTorchM1V3DataAuditRegressor.py
   - ai_platform/scripts/residual_pytorch_bounded_m1_v3_generalization.py
-  - ai_platform/scripts/residual_pytorch_bounded_m1_v3_run_request.py
-  - .github/workflows/residual-pytorch-bounded-m1-v3-generalization.yml
-  - .github/workflows/residual-pytorch-bounded-m1-v3-request-generator.yml
   - tests/ai_platform/test_residual_pytorch_bounded_m1_v3_generalization.py
 proven:
-  - V2 guarded run 30340242201 completed request, data, audit and all three model jobs successfully.
-  - V2 used BTC/USDT and ETH/USDT with 272 expanded and transformed features.
-  - V2 role-normalized feature-name SHA-256 is c65ec5f29963f1bb541f1c5416b52a4be8bfe2a1328a04577c17eea197d2945c.
-  - PR 610 merged the 16-file v3 infrastructure as d987c30847b44c168752c0fc3cea20534be99617.
-  - Final PR 610 exact-head AI Platform CI 30358028425 passed.
-  - Final PR 610 exact-head Experimental Model Runtime Smoke 30358028478 passed.
-  - Final PR 610 exact-head Freqtrade CI 30358028439 passed Python 3.11-3.14, coverage, distributions and CI Gate.
-  - Final PR 610 exact-head zizmor 30358028562 passed.
-  - PR 627 adds only the one-shot request generator and this checkpoint update; it contains no marker or request.
+  - PR 627 merged the guarded v3 request generator as 31c61fdab351521c275687e4751682ef935407f9.
+  - Marker PR 628 generated the canonical exact-one-file request and closed without merge.
+  - Request PR 629 triggered guarded run 30360316606 and closed without merge after the fail-closed result.
+  - Request validation and exact authorized pre-May Kraken coverage passed for SOL/USDT and XRP/USDT on 15m, 1h and 4h.
+  - The matrix audit passed with 272 finite transformed features and terminal-v2 role-normalized hash c65ec5f29963f1bb541f1c5416b52a4be8bfe2a1328a04577c17eea197d2945c.
+  - Audit artifact 8689818122 has digest sha256:faa63b0dc0688540e73909c88abdbff6a672cb38a0c72280325018d75dc56a3a.
+  - LightGBM artifact 8689818655 has digest sha256:66e031ae1989364c4d877c259196c9c5fd6d1ecaa8457e1897934a3367bc1dbd and contains non-empty per-pair lightgbm_evals_result evidence.
+  - Job 90288767489 failed because v3 delegated to a version-coupled validator branch that treated the v3 LightGBM track as PyTorch.
+  - PR 648 merged the v3 model-identity evidence fix as 5b0c66a1167fbcf84aef95908234ea35451d9ebf.
+  - Final PR 648 head f9dd925685887c0d0259ee60156253e142697e25 passed AI Platform CI 30390614107.
+  - Final PR 648 head f9dd925685887c0d0259ee60156253e142697e25 passed zizmor 30390611913.
+  - Final PR 648 head f9dd925685887c0d0259ee60156253e142697e25 passed Freqtrade CI 30390612276, including Python 3.11-3.14, coverage, distributions and CI Gate.
+  - Marker PR 655 run 30391885196 stopped before request generation because the checkpoint used non-canonical enum values.
 derived:
-  - A fixed two-pair cohort preserves one-primary/one-correlated feature geometry.
-  - SOL/USDT and XRP/USDT isolate pair-cohort generalization from feature-count growth.
-  - Exact equality to the v2 role-normalized feature hash can fail closed before model fitting.
-  - A separately merged generator keeps canonical request bytes out of implementation review and preserves exact-one-file execution scope.
+  - The failed model-evidence classification did not invalidate data coverage, matrix geometry or actual LightGBM execution evidence.
+  - V3-specific evidence validation remains fail-closed while selecting the required evidence shape from frozen model identity.
+  - Normalizing checkpoint enum values changes governance metadata only and does not change experimental authorization.
 unknown:
-  - Whether exact authorized pre-May Kraken coverage exists for both v3 pairs and all three timeframes.
-  - Whether both v3 matrices retain exactly 272 finite features and the v2 normalized identity.
-  - Whether each frozen model completes exactly once on the v3 cohort.
-  - The terminal descriptive diagnostics and trading outcomes for the v3 cohort.
+  - Whether a fresh exact-one-file request completes LightGBM, seeded MLP and residual MLP exactly once.
+  - Terminal descriptive v3 diagnostics remain unknown and unauthorized for winner selection or promotion.
 conflicts: []
 first_failure:
-  marker: V3_FORMAT_AND_IMPORT_STYLE
-  evidence: Initial PR 610 CI required mechanical Ruff formatting and dependency-conditional numeric tests; no experimental contract change was required.
+  marker: V3_CHECKPOINT_ENUM_CONTRACT
+  evidence: Marker run 30391885196 rejected status ready_to_merge and validation result FAIL_CLOSED before request generation.
 rejected_hypotheses:
-  - Add BTC, ETH, SOL and XRP to one correlation list; that would increase feature geometry and confound the test.
-  - Reuse May-June historical OOS or the protected final holdout; both remain forbidden.
-  - Select LightGBM from v2 descriptive profit; v2 did not authorize winner selection.
+  - The request generator changed model or data scope; it stopped before installing numeric dependencies or writing a request.
+  - The request branch contains a generated request; it remains reset to merge commit 5b0c66a1167fbcf84aef95908234ea35451d9ebf.
 changed_paths:
-  - .github/workflows/residual-pytorch-bounded-m1-v3-request-generator.yml
   - docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
 validation:
-  - command: PR 610 final exact-head CI
+  - command: guarded run 30360316606
+    result: FAIL
+    evidence: Request, data and matrix audit passed; model evidence validation failed closed on version-coupled LightGBM classification.
+  - command: AI Platform CI 30390614107
     result: PASS
-    evidence: AI Platform CI, heavy runtime, Freqtrade CI including CI Gate and zizmor all passed before merge d987c30847b44c168752c0fc3cea20534be99617.
-  - command: request generator PR 627 exact-head CI
-    result: NOT_RUN
-    evidence: Repository CI has not yet completed on the checkpointed generator head.
+    evidence: Compile, AI platform tests, Ruff lint, Ruff format, codespell and JSON validation passed on final PR 648 head.
+  - command: zizmor 30390611913
+    result: PASS
+    evidence: GitHub Actions security analysis passed on final PR 648 head.
+  - command: Freqtrade CI 30390612276
+    result: PASS
+    evidence: Pre-commit, docs, Python 3.11-3.14, coverage, distributions and CI Gate passed on final PR 648 head.
+  - command: request generator 30391885196
+    result: FAIL
+    evidence: Exact marker scope passed; checkpoint enum validation failed before request generation.
 blockers: []
-next_action: Complete exact-head CI and merge PR 627, reset the prepared request branch to its merge SHA, then create one exact marker PR to generate the canonical v3 request.
+next_action: Merge the documentation-only checkpoint normalization, reset the request branch to that merge SHA and open a fresh exact-one-file marker PR.
 ```

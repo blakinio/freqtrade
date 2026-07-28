@@ -1,0 +1,60 @@
+name: Reconstruct clean BMW-01 package
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.head_ref == 'feat/portal-bmw01-catalog-builder-v2'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/portal-bmw01-catalog-builder-v2
+          fetch-depth: 0
+      - name: Copy validated BMW-01-only paths
+        run: |
+          git fetch origin feat/portal-bmw01-catalog-builder-v1
+          source_ref=origin/feat/portal-bmw01-catalog-builder-v1
+          paths=(
+            ai_platform/portal/bot_catalog/router.py
+            ai_platform/portal/bot_catalog/service.py
+            ai_platform/portal/web/app/api/bot-management/builder/route.ts
+            ai_platform/portal/web/app/bots/new/page.tsx
+            ai_platform/portal/web/components/bot-builder/create-bot-configuration-form.tsx
+            ai_platform/portal/web/e2e/journeys/portal.journeys.ts
+            ai_platform/portal/web/e2e/specs/bots/create-bot.spec.ts
+            ai_platform/portal/web/lib/bot-management-api.ts
+            ai_platform/portal/web/lib/bot-management-contracts.ts
+            tests/ai_platform/portal/bot_catalog/test_snapshot_api.py
+          )
+          for path in "${paths[@]}"; do
+            mkdir -p "$(dirname "$path")"
+            git show "$source_ref:$path" > "$path"
+          done
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("tests/ai_platform/portal/control_plane/test_api.py")
+          text = path.read_text()
+          marker = '        "/v1/bot-management/catalog/{catalog_id}/latest",\n'
+          addition = marker + '        "/v1/bot-management/catalog/{catalog_id}/{catalog_version}",\n'
+          if addition not in text:
+              if marker not in text:
+                  raise SystemExit("OpenAPI catalog marker missing")
+              text = text.replace(marker, addition, 1)
+          path.write_text(text)
+          Path(".github/workflows/bmw01-clean-reconstruct.yml").unlink()
+          PY
+      - name: Commit clean package
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/portal tests/ai_platform/portal \
+            .github/workflows/bmw01-clean-reconstruct.yml
+          git commit -m "feat(portal-web): reconstruct clean BMW-01 package"
+          git push origin HEAD:feat/portal-bmw01-catalog-builder-v2

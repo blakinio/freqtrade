@@ -1,0 +1,40 @@
+name: Inspect Binance Acceptance Ruff 803e7ce
+
+on:
+  pull_request:
+    types: [opened]
+    paths:
+      - ".github/workflows/inspect-binance-acceptance-ruff-803e7ce.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact target head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: 803e7ce021022bba7de08a66502da393098dfdd8
+      - name: Capture exact Ruff diagnostics
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet "ruff==0.15.21"
+          files=(
+            ai_platform/market_data/binance_spot_instrument_acceptance.py
+            tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance.py
+          )
+          ruff check --output-format=json "${files[@]}" > ruff.json || true
+          ruff format --check --diff "${files[@]}" > format.diff || true
+      - name: Upload exact diagnostics
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-acceptance-ruff-803e7ce
+          path: |
+            ruff.json
+            format.diff
+          if-no-files-found: error
+          retention-days: 1

@@ -18,25 +18,38 @@ jobs:
         with:
           ref: 60f84d1302c8cf8907deff13008da2f120939a4f
           persist-credentials: false
+          show-progress: false
 
       - name: Inspect bounded identity contract
         env:
           PORTAL_CONTAINER: freqtrade-portal-staging
+          REPORT: ${{ runner.temp }}/portal-identity-contract.txt
         run: |
           set -Eeuo pipefail
-          echo '--- REPOSITORY IDENTITY MATCHES ---'
-          grep -RInE --exclude-dir=.git --exclude-dir=node_modules \
-            'PORTAL_IDENTITY_FIXTURE_MODE|SESSION_MISSING|fixture.*session|session.*fixture|IDENTITY_FIXTURE' \
-            portal deploy tests 2>/dev/null | head -n 240 || true
-          echo '--- PORTAL TREE CANDIDATES ---'
-          find portal -maxdepth 5 -type f 2>/dev/null \
-            | grep -Ei 'auth|identity|session|middleware|fixture' \
-            | head -n 160 || true
-          echo '--- RUNNING IMAGE ENV NAMES ---'
-          docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$PORTAL_CONTAINER" \
-            | sed 's/=.*$/=<redacted>/' \
-            | grep -Ei 'PORTAL|AUTH|IDENTITY|SESSION' \
-            | sort -u || true
-          echo '--- RUNNING BUNDLE IDENTITY MATCHES ---'
-          docker exec "$PORTAL_CONTAINER" sh -lc \
-            "grep -RIlE 'PORTAL_IDENTITY_FIXTURE_MODE|SESSION_MISSING|IDENTITY_FIXTURE' /app 2>/dev/null | head -n 80" || true
+          {
+            echo '--- REPOSITORY IDENTITY MATCHES ---'
+            grep -RInE --exclude-dir=.git --exclude-dir=node_modules \
+              'PORTAL_IDENTITY_FIXTURE_MODE|SESSION_MISSING|fixture.*session|session.*fixture|IDENTITY_FIXTURE' \
+              portal deploy tests 2>/dev/null | head -n 300 || true
+            echo '--- PORTAL TREE CANDIDATES ---'
+            find portal -maxdepth 6 -type f 2>/dev/null \
+              | grep -Ei 'auth|identity|session|middleware|fixture' \
+              | head -n 220 || true
+            echo '--- RUNNING IMAGE ENV NAMES ---'
+            docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$PORTAL_CONTAINER" \
+              | sed 's/=.*$/=<redacted>/' \
+              | grep -Ei 'PORTAL|AUTH|IDENTITY|SESSION' \
+              | sort -u || true
+            echo '--- RUNNING BUNDLE IDENTITY MATCHES ---'
+            docker exec "$PORTAL_CONTAINER" sh -lc \
+              "grep -RIlE 'PORTAL_IDENTITY_FIXTURE_MODE|SESSION_MISSING|IDENTITY_FIXTURE' /app 2>/dev/null | head -n 120" || true
+          } > "$REPORT"
+          test -s "$REPORT"
+
+      - name: Upload bounded identity diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: portal-identity-contract-${{ github.run_id }}
+          path: ${{ runner.temp }}/portal-identity-contract.txt
+          if-no-files-found: error
+          retention-days: 2

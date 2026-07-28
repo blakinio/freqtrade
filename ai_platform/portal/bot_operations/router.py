@@ -4,6 +4,12 @@ from collections.abc import Callable
 
 from fastapi import APIRouter, Depends
 
+from ai_platform.portal.bot_operations.intent_service import (
+    LifecycleCommandIntentService,
+    LifecycleIntentContext,
+    LifecycleIntentRequest,
+    LifecycleIntentResult,
+)
 from ai_platform.portal.bot_operations.schema import (
     AuthoritativeBotRuntimeState,
     BotCommandContext,
@@ -43,6 +49,7 @@ class OrderCommandRequest(ContractModel):
 
 def build_router(
     service: BotCommandService,
+    intent_service: LifecycleCommandIntentService,
     context_dependency: Callable[..., RequestContext],
 ) -> APIRouter:
     router = APIRouter(prefix="/v1/bot-management/commands", tags=["bot-management"])
@@ -56,6 +63,21 @@ def build_router(
             actor=actor_from_request(context),
             environment=environment,
             capabilities=capabilities_from_request(context),
+        )
+
+    @router.post("/lifecycle-intents", response_model=LifecycleIntentResult)
+    def submit_lifecycle_intent(
+        request: LifecycleIntentRequest,
+        context: RequestContext = Depends(context_dependency),
+    ) -> LifecycleIntentResult:
+        return intent_service.submit(
+            LifecycleIntentContext(
+                tenant_id=context.tenant_id,
+                actor=actor_from_request(context),
+                capabilities=capabilities_from_request(context),
+                correlation=context.correlation_context(),
+            ),
+            request,
         )
 
     @router.post("/lifecycle", response_model=CommandOutcome)

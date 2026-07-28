@@ -7,7 +7,9 @@ on:
     paths:
       - .github/workflows/liquidations-live-health.yml
       - ai_platform/scripts/liquidation_live_health.py
+      - ai_platform/scripts/liquidation_portal_health.py
       - deploy/synology/liquid20/LIVE_STREAM.md
+      - deploy/synology/portal/check-liquidations-live-health.sh
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -20,7 +22,7 @@ concurrency:
 
 jobs:
   health:
-    name: Check Synology collector
+    name: Check Synology collector and portal
     runs-on: freqtrade-staging
     timeout-minutes: 5
     permissions:
@@ -43,7 +45,7 @@ jobs:
           print(json.dumps({
               "state": "pending",
               "context": "liquidations-live-health",
-              "description": "Checking Synology liquidation collector health",
+              "description": "Checking Synology Liquid20 collector and portal",
               "target_url": os.environ["STATUS_URL"],
           }))
           PY
@@ -61,7 +63,21 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check collector health and reconcile alert
+      - name: Probe production portal and isolated read path
+        id: portal
+        continue-on-error: true
+        env:
+          LIQUID20_PORTAL_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-portal-health.json
+          PORTAL_CONTAINER_NAME: freqtrade-portal-staging
+          PORTAL_LIQUIDATIONS_HOST_ROOT: /volume1/docker/freqtrade-liquidations/data
+        run: |
+          set +e
+          bash deploy/synology/portal/check-liquidations-live-health.sh
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Check combined health and reconcile alert
         id: health
         continue-on-error: true
         env:
@@ -72,10 +88,12 @@ jobs:
           LIQUID20_DISK_USED_PERCENT_MAX: "90"
           LIQUID20_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-health.json
           LIQUID20_HEARTBEAT_STALE_SECONDS: "60"
+          LIQUID20_PORTAL_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-portal-health.json
+          LIQUID20_REQUIRE_PORTAL_HEALTH: "true"
           LIQUID20_SOURCE_STALE_SECONDS: "60"
         run: |
           set +e
-          python -m ai_platform.scripts.liquidation_live_health
+          python -m ai_platform.scripts.liquidation_portal_health
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -100,11 +118,20 @@ jobs:
               raise SystemExit(0)
           report = json.loads(report_path.read_text(encoding="utf-8"))
           alerts = report.get("alerts", [])
+          portal = report.get("checks", {}).get("portal", {})
+          production = portal.get("production", {})
           lines = [
               "## Liquidations live health",
               "",
               f"- Healthy: `{report.get('healthy')}`",
               f"- Checked at: `{report.get('checked_at_ms')}`",
+              f"- Portal mode: `{portal.get('mode')}`",
+              f"- Production page: `{production.get('page_status')}`",
+              (
+                  "- Production protected health: "
+                  f"`{production.get('protected_health_status')} "
+                  f"{production.get('protected_health_code')}`"
+              ),
               f"- GitHub alert action: `{report.get('github_alert_action')}`",
               f"- Alert count: `{len(alerts) if isinstance(alerts, list) else 'unknown'}`",
           ]
@@ -120,7 +147,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: liquidations-live-health-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/liquidations-live-health.json
+          path: |
+            ${{ runner.temp }}/liquidations-live-health.json
+            ${{ runner.temp }}/liquidations-live-portal-health.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -136,10 +165,10 @@ jobs:
           set -euo pipefail
           if [[ "$HEALTH_EXIT_CODE" == "0" ]]; then
             state=success
-            description="Synology liquidation collector is healthy"
+            description="Synology Liquid20 collector and portal are healthy"
           else
             state=failure
-            description="Synology liquidation collector health check failed"
+            description="Synology Liquid20 collector or portal health failed"
           fi
           export state description
           payload=$(python - <<'PY'

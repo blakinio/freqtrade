@@ -1,6 +1,11 @@
 name: Temporary Liquidations Health Ruff Diagnostic
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/tmp-liquidations-health-ruff-diagnostic.yml
+      - ai_platform/scripts/liquidation_live_health.py
+      - tests/ai_platform_integration/test_liquidation_live_health.py
   push:
     branches:
       - feat/liquidations-live-operational-alerting-20260728

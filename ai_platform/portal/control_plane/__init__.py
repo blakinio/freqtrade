@@ -11,6 +11,7 @@ from ai_platform.portal.control_plane.database import (
 )
 from ai_platform.portal.control_plane.service import ControlPlaneService
 
+
 if TYPE_CHECKING:
     from ai_platform.portal.control_plane.api import create_app as create_app
 

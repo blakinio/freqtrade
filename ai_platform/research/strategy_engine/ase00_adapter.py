@@ -385,9 +385,7 @@ class Ase00ShadowEngine:
         dict[str, JsonValue | Mapping[str, JsonValue]],
         dict[str, JsonValue],
     ]:
-        market_events = tuple(
-            event for event in normalized.events if event.kind == "market_bar"
-        )
+        market_events = tuple(event for event in normalized.events if event.kind == "market_bar")
         frame = self._market_frame(market_events)
         latest_market = market_events[-1]
         configured = {feature.id: feature for feature in strategy.features}
@@ -802,9 +800,7 @@ class Ase00ShadowEngine:
             data_hash=data_hash,
             config_hash=config_hash,
             code_hash=self.code_hash,
-            idempotency_key=(
-                f"ase00-rejected:{strategy_id}:{symbol}:{decision_time.isoformat()}"
-            ),
+            idempotency_key=(f"ase00-rejected:{strategy_id}:{symbol}:{decision_time.isoformat()}"),
             provenance=Provenance(
                 producer="ase00-shadow-engine",
                 source_event_id=canonical_sha256(

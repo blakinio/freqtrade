@@ -83,3 +83,16 @@ def test_script_checks_sources_no_store_and_same_process() -> None:
     assert 'cacheControl.includes("no-store")' in text
     assert '"same_portal_process": True' in text
     assert '"no_store_api": True' in text
+
+
+def test_script_probes_synology_pid_limit_and_records_runtime_setting() -> None:
+    text = SCRIPT.read_text(encoding="utf-8")
+
+    assert "configure_pids_limit" in text
+    assert "PIDs limit discarded" in text
+    assert "pids cgroup is not mounted" in text
+    assert "pids_limit_args=(--pids-limit 256)" in text
+    assert 'run_args+=("${pids_limit_args[@]}")' in text
+    assert 'candidate_pids_limit="$(docker inspect' in text
+    assert '"pids_limit_supported":' in text
+    assert '"pids_limit": int(' in text

@@ -27,6 +27,35 @@ cleanup() {
 }
 trap cleanup EXIT
 
+pids_limit_supported=false
+pids_limit_args=()
+
+configure_pids_limit() {
+  local probe_output=""
+  local probe_status=0
+  set +e
+  probe_output="$(docker run --rm --pids-limit 32 --entrypoint /bin/true "$portal_image" 2>&1)"
+  probe_status=$?
+  set -e
+  if grep -Eiq \
+    'kernel does not support PIDs limit capabilities|PIDs limit discarded|pids cgroup is not mounted' \
+    <<< "$probe_output"; then
+    pids_limit_supported=false
+    pids_limit_args=()
+    echo "Docker PID limit is unavailable on this Synology kernel; retaining the memory limit."
+    return 0
+  fi
+  if [[ "$probe_status" -eq 0 ]]; then
+    pids_limit_supported=true
+    pids_limit_args=(--pids-limit 256)
+    echo "Docker PID limit supported; applying a 256 process limit."
+    return 0
+  fi
+  printf '%s\n' "$probe_output" >&2
+  echo "Docker PID limit capability probe failed for an unexpected reason" >&2
+  return 1
+}
+
 docker version >/dev/null
 test -S /var/run/docker.sock
 test "$(docker inspect --format '{{.State.Running}}' "$portal_container")" = "true"
@@ -47,6 +76,7 @@ test "$mount_rw" = "false"
 test -z "$docker_socket_mount"
 test "$portal_uid" != "0"
 test "$portal_restart" = "unless-stopped"
+configure_pids_limit
 
 data_gid="$(
   docker run --rm \
@@ -84,25 +114,30 @@ if docker inspect "$candidate" >/dev/null 2>&1; then
   exit 73
 fi
 
-docker run -d \
-  --name "$candidate" \
-  --restart no \
-  --read-only \
-  --tmpfs /tmp:size=64m,mode=1777 \
-  --tmpfs /app/.next/cache:size=64m,mode=0755 \
-  --cap-drop ALL \
-  --security-opt no-new-privileges:true \
-  --pids-limit 256 \
-  --memory 768m \
-  --group-add "$data_gid" \
-  --mount "type=bind,src=${liquidations_host_root},dst=${liquidations_container_root},readonly" \
-  --env PORTAL_WEB_DATA_MODE=fixture \
-  --env PORTAL_ENVIRONMENT=test \
-  --env PORTAL_IDENTITY_FIXTURE_MODE=enabled \
-  --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${liquidations_container_root}" \
-  --label io.freqtrade.portal.liquidations-live-proof=true \
-  --label "io.freqtrade.portal.proof-commit=${GITHUB_SHA:-unknown}" \
-  "$portal_image" >/dev/null
+run_args=(
+  docker run -d
+  --name "$candidate"
+  --restart no
+  --read-only
+  --tmpfs /tmp:size=64m,mode=1777
+  --tmpfs /app/.next/cache:size=64m,mode=0755
+  --cap-drop ALL
+  --security-opt no-new-privileges:true
+  --memory 768m
+)
+run_args+=("${pids_limit_args[@]}")
+run_args+=(
+  --group-add "$data_gid"
+  --mount "type=bind,src=${liquidations_host_root},dst=${liquidations_container_root},readonly"
+  --env PORTAL_WEB_DATA_MODE=fixture
+  --env PORTAL_ENVIRONMENT=test
+  --env PORTAL_IDENTITY_FIXTURE_MODE=enabled
+  --env "PORTAL_LIQUIDATIONS_DATA_ROOT=${liquidations_container_root}"
+  --label io.freqtrade.portal.liquidations-live-proof=true
+  --label "io.freqtrade.portal.proof-commit=${GITHUB_SHA:-unknown}"
+  "$portal_image"
+)
+"${run_args[@]}" >/dev/null
 
 for _ in $(seq 1 60); do
   status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$candidate" 2>/dev/null || true)"
@@ -124,6 +159,12 @@ test "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid2
 test -z "$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$candidate")"
 test "$(docker exec "$candidate" id -u)" != "0"
 [[ " $(docker exec "$candidate" id -G) " == *" $data_gid "* ]]
+candidate_pids_limit="$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$candidate")"
+if [[ "$pids_limit_supported" == true ]]; then
+  test "$candidate_pids_limit" = "256"
+else
+  test "$candidate_pids_limit" = "0"
+fi
 
 probe() {
   docker exec "$candidate" node -e '
@@ -211,6 +252,8 @@ PORTAL_CONTAINER="$portal_container" \
 PORTAL_UID="$portal_uid" \
 PORTAL_GROUPS="$portal_groups" \
 DATA_GID="$data_gid" \
+PIDS_LIMIT_SUPPORTED="$pids_limit_supported" \
+CANDIDATE_PIDS_LIMIT="$candidate_pids_limit" \
 MOUNT_SOURCE="$mount_source" \
 CANDIDATE="$candidate" \
 GITHUB_SHA_VALUE="${GITHUB_SHA:-unknown}" \
@@ -269,6 +312,8 @@ report = {
         "fixture_identity": True,
         "real_data_mount_read_only": True,
         "docker_socket_mounted": False,
+        "pids_limit_supported": os.environ["PIDS_LIMIT_SUPPORTED"] == "true",
+        "pids_limit": int(os.environ["CANDIDATE_PIDS_LIMIT"]),
         "first": first,
         "second": second,
     },

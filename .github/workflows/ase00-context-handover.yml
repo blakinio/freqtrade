@@ -1,0 +1,41 @@
+name: ASE-00 Context Handover
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
+      - .github/workflows/ase00-context-handover.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ase00-context-handover
+  cancel-in-progress: true
+
+jobs:
+  resume:
+    name: validate-and-resume
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out active branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: agent/ase-00-ai-strategy-engine-foundation
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Validate checkpoint and render resume
+        shell: bash
+        run: |
+          set -euo pipefail
+          task="docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md"
+          python tools/agents/checkpoint.py "$task" --require-checkpoint >/tmp/checkpoint-validation.txt
+          python tools/agents/resume.py --task "$task"

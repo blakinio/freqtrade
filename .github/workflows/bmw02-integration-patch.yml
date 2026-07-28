@@ -52,6 +52,27 @@ jobs:
               raise SystemExit("bot lifecycle component marker missing")
           detail.write_text(text.replace(old, new, 1))
 
+          service = Path("ai_platform/portal/bot_operations/service.py")
+          text = service.read_text()
+          import_marker = "from ai_platform.portal.bot_operations.command_store import BotCommandStore\n"
+          import_line = (
+              import_marker
+              + "from ai_platform.portal.bot_operations.idempotency import stable_command_idempotency_digest\n"
+          )
+          if "stable_command_idempotency_digest" not in text:
+              if import_marker not in text:
+                  raise SystemExit("command service import marker missing")
+              text = text.replace(import_marker, import_line, 1)
+          old_digest = (
+              "        command_json = command.canonical_json()\n"
+              "        digest = hashlib.sha256(command_json.encode()).hexdigest()\n"
+          )
+          new_digest = "        digest = stable_command_idempotency_digest(command)\n"
+          if old_digest not in text:
+              raise SystemExit("command digest marker missing")
+          text = text.replace(old_digest, new_digest, 1)
+          service.write_text(text)
+
           tests = Path("tests/ai_platform/portal/control_plane/test_api.py")
           text = tests.read_text()
           marker = '        "/v1/bot-management/commands/lifecycle",\n'
@@ -66,16 +87,20 @@ jobs:
           PY
           python -m pip install --disable-pip-version-check -q ruff==0.15.21
           ruff check --fix \
+            ai_platform/portal/bot_operations/idempotency.py \
             ai_platform/portal/bot_operations/intent_service.py \
             ai_platform/portal/bot_operations/router.py \
+            ai_platform/portal/bot_operations/service.py \
             ai_platform/portal/control_plane/bot_management.py \
             ai_platform/portal/control_plane/api.py \
             tests/ai_platform/portal/bot_operations/test_intent_service.py \
             tests/ai_platform/portal/bot_operations/test_intent_api.py \
             tests/ai_platform/portal/control_plane/test_api.py
           ruff format \
+            ai_platform/portal/bot_operations/idempotency.py \
             ai_platform/portal/bot_operations/intent_service.py \
             ai_platform/portal/bot_operations/router.py \
+            ai_platform/portal/bot_operations/service.py \
             ai_platform/portal/control_plane/bot_management.py \
             ai_platform/portal/control_plane/api.py \
             tests/ai_platform/portal/bot_operations/test_intent_service.py \

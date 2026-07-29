@@ -11,12 +11,13 @@ The blocking v2 workflow is removed. It must not be restored, reopened or rerun.
 Runtime v3 preserves the frozen source policy while splitting execution into short jobs:
 
 1. An exact-one-file trigger PR initializes immutable state under the approved Synology durable root.
-2. A scheduled workflow runs every 15 minutes.
-3. Each scheduled job collects at most one due observation and exits.
-4. The next observation cannot occur less than 900 seconds after the previous completed observation.
-5. After observation 97, the same short job seals the complete package, runs the independent evaluator and uploads bounded metadata.
+2. A scheduled workflow performs a lightweight due check every five minutes.
+3. When an observation is due, that job installs the isolated dependency, collects at most one observation and exits.
+4. When no observation is due or no active run exists, the job exits before dependency installation.
+5. The next observation cannot occur less than 900 seconds after the previous completed observation.
+6. After observation 97, the same short job seals the complete package, runs the independent evaluator and uploads bounded metadata.
 
-Both the initializer and sampler have a ten-minute job timeout. There is no sleep loop and no job can reserve the runner for the 24-hour window.
+The initializer has a ten-minute timeout and the recurring sampler has a five-minute timeout. There is no sleep loop and no job can reserve the runner for the 24-hour window. The five-minute due-check cadence prevents ordinary GitHub scheduling and startup jitter from turning a 15-minute observation interval into an unintended 30-minute interval.
 
 ## Durable state and concurrency
 
@@ -29,6 +30,8 @@ The scheduler uses:
 An active-pointer document selects exactly one run. The run contains a self-hashed incremental state document, immutable request and policy copies, and the existing raw, normalized and sample-report evidence. A Linux file lock and one global GitHub Actions concurrency group prevent overlapping initialization or sampling.
 
 The active pointer is removed only after the package is sealed and independently evaluated. A completed state can therefore be finalized again after an interrupted terminal job without recollecting observations.
+
+Before every request, the sampler writes an attempt marker. If the process stops before the observation report is sealed, the next invocation records one bounded interrupted failure and does not make a second request. If the report was already sealed but the state update was interrupted, the next invocation reuses the existing report without retrying the source.
 
 ## Frozen v3 identity
 

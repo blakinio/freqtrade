@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from strategy_engine.domain.models import StrategyDefinition
-from strategy_engine.dsl.validator import StrategyValidator
 
 from ai_platform.portal.strategy_lab.schema import ParameterKind, StrategyLabDefinition
 
@@ -24,9 +23,11 @@ class StrategyLabCatalog:
         self._definitions = {(item.strategy_id, item.strategy_version): item for item in loaded}
         if len(self._definitions) != len(loaded):
             raise StrategyCatalogError("duplicate strategy identity")
-        validator = StrategyValidator()
+        # Runtime loading validates the canonical typed Strategy DSL contract without
+        # importing the registry/YAML service into every lightweight Portal process.
+        # Full registry-aware semantic validation lives in Strategy Engine tests/CI.
         for item in loaded:
-            validator.validate(StrategyDefinition.model_validate(item.dsl))
+            StrategyDefinition.model_validate(item.dsl)
 
     def list(self) -> tuple[StrategyLabDefinition, ...]:
         return tuple(self._definitions[key] for key in sorted(self._definitions))

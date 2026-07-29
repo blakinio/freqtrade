@@ -170,13 +170,32 @@ class HttpxPrivateFreqtradeTransport:
         payload: Mapping[str, Any] | None,
         ambiguous_on_transport: bool,
     ) -> dict[str, Any]:
-        url = f"{target.endpoint}{path}"
-        try:
-            username_text = username.decode("utf-8")
-            password_text = password.decode("utf-8")
-        except UnicodeError:
-            raise SubmissionTransportError("RUNTIME_AUTHENTICATION_ENCODING_INVALID") from None
+        username_text, password_text = _decode_authentication(username, password)
+        response = self._send(
+            target,
+            method,
+            path,
+            username_text,
+            password_text,
+            payload,
+            ambiguous_on_transport=ambiguous_on_transport,
+        )
+        return self._decode_response(
+            response,
+            ambiguous_on_transport=ambiguous_on_transport,
+        )
 
+    def _send(
+        self,
+        target: PrivateRuntimeTarget,
+        method: str,
+        path: str,
+        username: str,
+        password: str,
+        payload: Mapping[str, Any] | None,
+        *,
+        ambiguous_on_transport: bool,
+    ) -> httpx.Response:
         try:
             with httpx.Client(
                 verify=str(target.ca_certificate_path),
@@ -185,10 +204,10 @@ class HttpxPrivateFreqtradeTransport:
                 trust_env=False,
                 transport=self._http_transport,
             ) as client:
-                response = client.request(
+                return client.request(
                     method,
-                    url,
-                    auth=(username_text, password_text),
+                    f"{target.endpoint}{path}",
+                    auth=(username, password),
                     headers={"Accept": "application/json", "Content-Type": "application/json"},
                     json=dict(payload) if payload is not None else None,
                 )
@@ -197,38 +216,57 @@ class HttpxPrivateFreqtradeTransport:
                 raise SubmissionTransportAmbiguousError() from None
             raise SubmissionTransportError("RUNTIME_CONFIG_TRANSPORT_UNAVAILABLE") from None
 
-        if 300 <= response.status_code < 400:
-            raise SubmissionTransportError("RUNTIME_REDIRECT_REJECTED")
-        if response.status_code in {401, 403}:
-            raise SubmissionTransportError("RUNTIME_AUTHENTICATION_FAILED")
-        if response.status_code in {408, 425, 429} or response.status_code >= 500:
-            digest = hashlib.sha256(response.content).hexdigest() if response.content else None
+    def _decode_response(
+        self,
+        response: httpx.Response,
+        *,
+        ambiguous_on_transport: bool,
+    ) -> dict[str, Any]:
+        _raise_for_status(response, ambiguous_on_transport=ambiguous_on_transport)
+        if len(response.content) > self._max_body_bytes:
+            digest = hashlib.sha256(response.content).hexdigest()
             if ambiguous_on_transport:
                 raise SubmissionTransportAmbiguousError(digest) from None
-            raise SubmissionTransportError("RUNTIME_CONFIG_TRANSPORT_UNAVAILABLE")
-        if response.status_code >= 400:
-            if ambiguous_on_transport:
-                raise SubmissionRuntimeRejectedError() from None
-            raise SubmissionTransportError("RUNTIME_CONFIG_REQUEST_REJECTED")
-        if len(response.content) > self._max_body_bytes:
-            if ambiguous_on_transport:
-                raise SubmissionTransportAmbiguousError(
-                    hashlib.sha256(response.content).hexdigest()
-                ) from None
             raise SubmissionTransportError("RUNTIME_RESPONSE_TOO_LARGE")
         try:
             decoded = response.json()
         except ValueError:
+            digest = hashlib.sha256(response.content).hexdigest()
             if ambiguous_on_transport:
-                raise SubmissionTransportAmbiguousError(
-                    hashlib.sha256(response.content).hexdigest()
-                ) from None
+                raise SubmissionTransportAmbiguousError(digest) from None
             raise SubmissionTransportError("RUNTIME_CONFIG_INVALID_JSON") from None
         if not isinstance(decoded, dict):
             if ambiguous_on_transport:
                 raise SubmissionTransportAmbiguousError(_digest(decoded)) from None
             raise SubmissionTransportError("RUNTIME_CONFIG_INVALID_SHAPE")
         return decoded
+
+
+def _decode_authentication(username: bytes, password: bytes) -> tuple[str, str]:
+    try:
+        return username.decode("utf-8"), password.decode("utf-8")
+    except UnicodeError:
+        raise SubmissionTransportError("RUNTIME_AUTHENTICATION_ENCODING_INVALID") from None
+
+
+def _raise_for_status(
+    response: httpx.Response,
+    *,
+    ambiguous_on_transport: bool,
+) -> None:
+    if 300 <= response.status_code < 400:
+        raise SubmissionTransportError("RUNTIME_REDIRECT_REJECTED")
+    if response.status_code in {401, 403}:
+        raise SubmissionTransportError("RUNTIME_AUTHENTICATION_FAILED")
+    if response.status_code in {408, 425, 429} or response.status_code >= 500:
+        digest = hashlib.sha256(response.content).hexdigest() if response.content else None
+        if ambiguous_on_transport:
+            raise SubmissionTransportAmbiguousError(digest) from None
+        raise SubmissionTransportError("RUNTIME_CONFIG_TRANSPORT_UNAVAILABLE")
+    if response.status_code >= 400:
+        if ambiguous_on_transport:
+            raise SubmissionRuntimeRejectedError() from None
+        raise SubmissionTransportError("RUNTIME_CONFIG_REQUEST_REJECTED")
 
 
 def _require_force_entry_acknowledgement(

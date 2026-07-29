@@ -23,7 +23,10 @@ from ai_platform.portal.execution_submission.schema import (
     RuntimeSubmissionResponse,
 )
 from ai_platform.portal.execution_submission.service import PrivateDryRunSubmissionService
-from ai_platform.portal.execution_submission.store import ExecutionSubmissionStore, StoredSubmission
+from ai_platform.portal.execution_submission.store import (
+    ExecutionSubmissionStore,
+    StoredSubmission,
+)
 from ai_platform.portal.execution_submission.transport import (
     HttpxPrivateFreqtradeTransport,
     PrivateRuntimeTarget,

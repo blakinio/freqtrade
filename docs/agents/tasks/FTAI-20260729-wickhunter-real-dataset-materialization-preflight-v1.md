@@ -5,7 +5,7 @@ branch: preflight/wickhunter-real-dataset-materialization-v1
 base_branch: develop
 created: 2026-07-29
 updated: 2026-07-29
-related_pr: null
+related_pr: 718
 depends_on:
   - FTAI-20260727-wickhunter-wh01-dataset-builder
   - FTAI-20260728-wickhunter-production-live-archive-conversion-v1
@@ -33,10 +33,10 @@ Bind the first real accepted immutable Liquid20 import to the existing WH-01 con
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T17:59:00+02:00
+updated_at: 2026-07-29T18:04:00+02:00
 branch: preflight/wickhunter-real-dataset-materialization-v1
-head: b7ac4e9d4de30a90579457438832fab86fe9478d
-pr: null
+head: f06502a186d25db6c5153b4c15b51b6cb9e774d0
+pr: 718
 status: blocked
 context_routes:
   - AGENTS.md

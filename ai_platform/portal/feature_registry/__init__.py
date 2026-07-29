@@ -2,4 +2,5 @@
 
 from ai_platform.portal.feature_registry.service import FeatureRegistryService
 
+
 __all__ = ["FeatureRegistryService"]

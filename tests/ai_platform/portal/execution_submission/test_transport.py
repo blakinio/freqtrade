@@ -47,7 +47,10 @@ CONTEXT = CorrelationContext(
 )
 
 
-def _target(tmp_path: Path, endpoint: str = "https://freqtrade.internal:8443") -> PrivateRuntimeTarget:
+def _target(
+    tmp_path: Path,
+    endpoint: str = "https://freqtrade.internal:8443",
+) -> PrivateRuntimeTarget:
     certificate = tmp_path / "runtime-ca.pem"
     certificate.write_text("test-ca", encoding="utf-8")
     return PrivateRuntimeTarget(

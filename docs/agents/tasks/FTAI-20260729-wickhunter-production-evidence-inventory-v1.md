@@ -5,7 +5,7 @@ branch: docs/wickhunter-production-evidence-inventory-20260729
 base_branch: develop
 created: 2026-07-29
 updated: 2026-07-29
-related_pr: null
+related_pr: 737
 depends_on:
   - FTAI-20260729-wickhunter-real-dataset-materialization-operator-v1
 owned_paths:
@@ -31,10 +31,10 @@ Inventory immutable production evidence that could supply WH-01 market context a
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T20:56:00+02:00
-head: 8bd538f8616f57a1b7fa4a68659a861832f05967
+updated_at: 2026-07-29T20:59:00+02:00
+head: 0c29e5d106df8d3dda924359efe8d58c09200ede
 branch: docs/wickhunter-production-evidence-inventory-20260729
-pr: none
+pr: 737
 status: blocked
 context_routes:
   - AGENTS.md
@@ -55,6 +55,7 @@ proven:
   - Binance Spot instrument acceptance v2 was cancelled after five observations without a terminal outcome; its market type is incompatible with Binance USD-M and Bybit Linear accepted events.
   - No reviewed path was found that supplies exact as-of derivative instrument identity, spread, volume, completed-candle availability, history depth, source health and risk evidence for every intended decision timestamp.
   - The merged materialization request requires exact market-context and universe-history hashes plus prospectively frozen split geometry.
+  - PR 737 contains exactly the inventory document and this checkpoint.
 derived:
   - A current catalog or live subscription universe cannot be backdated to the accepted interval.
   - The accepted interval cannot provide its own complete quote_volume_24h_usd context and requires pre-roll evidence.
@@ -81,6 +82,9 @@ validation:
   - command: Authority and temporal compatibility review
     result: PASS
     evidence: No current-state backfill, synthetic fixture, cross-market substitution, replay, model or trading authority was introduced.
+  - command: PR 737 changed-path audit
+    result: PASS
+    evidence: The branch is based on current develop and changes exactly two declared documentation paths.
 blockers:
   - Missing immutable source-separated Binance USD-M and Bybit Linear candle and market-quality evidence covering the decision interval and required pre-roll.
   - Missing immutable as-of derivative instrument and universe-quality history.

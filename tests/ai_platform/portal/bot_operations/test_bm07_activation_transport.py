@@ -114,9 +114,7 @@ def test_retryable_or_malformed_runtime_response_is_ambiguous(tmp_path: Path) ->
     assert error.value.response_digest is not None
 
     malformed = HttpxPrivateRuntimeCommandTransport(
-        http_transport=httpx.MockTransport(
-            lambda request: httpx.Response(200, content=b"not-json")
-        )
+        http_transport=httpx.MockTransport(lambda request: httpx.Response(200, content=b"not-json"))
     )
     with _lease() as lease, pytest.raises(CommandActivationAmbiguousError):
         malformed.cancel_open_order(_target(tmp_path), lease, trade_id="77")
@@ -146,8 +144,6 @@ def test_timeout_is_ambiguous_and_never_claims_success(tmp_path: Path) -> None:
     def timeout(request: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("timeout", request=request)
 
-    transport = HttpxPrivateRuntimeCommandTransport(
-        http_transport=httpx.MockTransport(timeout)
-    )
+    transport = HttpxPrivateRuntimeCommandTransport(http_transport=httpx.MockTransport(timeout))
     with _lease() as lease, pytest.raises(CommandActivationAmbiguousError):
         transport.force_exit(_target(tmp_path), lease, trade_id="all")

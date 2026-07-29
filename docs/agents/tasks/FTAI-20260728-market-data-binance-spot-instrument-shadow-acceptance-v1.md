@@ -34,7 +34,7 @@ checkpoint_version: 1
 updated_at: 2026-07-29T20:51:00+02:00
 head: 1675e66dbff382720f9717c43c650f270da88029
 branch: docs/binance-v3-no-network-proof-checkpoint
-pr: none
+pr: "#736"
 status: ready
 context_routes:
   - Binance Spot public instrument-catalog acceptance

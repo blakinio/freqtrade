@@ -63,9 +63,7 @@ def test_bm09_repository_acceptance_preserves_external_and_capital_gates() -> No
 
 
 def test_universal_e2e_workflow_runs_bm09_backend_and_browser_closure() -> None:
-    workflow = Path(".github/workflows/portal-universal-e2e.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = Path(".github/workflows/portal-universal-e2e.yml").read_text(encoding="utf-8")
 
     assert '"ai_platform/portal/e2e/**"' in workflow
     assert '"tests/ai_platform/portal/e2e/**"' in workflow

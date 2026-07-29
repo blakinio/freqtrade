@@ -31,8 +31,8 @@ Inventory immutable production evidence that could supply WH-01 market context a
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T20:59:00+02:00
-head: 0c29e5d106df8d3dda924359efe8d58c09200ede
+updated_at: 2026-07-29T21:01:00+02:00
+head: 566a178c8d84be5aa9b0eb168af0d66582ec4870
 branch: docs/wickhunter-production-evidence-inventory-20260729
 pr: 737
 status: blocked
@@ -85,6 +85,15 @@ validation:
   - command: PR 737 changed-path audit
     result: PASS
     evidence: The branch is based on current develop and changes exactly two declared documentation paths.
+  - command: AI Platform CI 30482401801
+    result: PASS
+    evidence: Exact PR head 566a178c8d84be5aa9b0eb168af0d66582ec4870 passed the AI platform test and lint workflow.
+  - command: Freqtrade CI 30482401867
+    result: PASS
+    evidence: Exact PR head 566a178c8d84be5aa9b0eb168af0d66582ec4870 passed pre-commit, changed-scope classification and documentation validation.
+  - command: GitHub Actions security analysis 30482401814
+    result: PASS
+    evidence: Zizmor passed on exact PR head 566a178c8d84be5aa9b0eb168af0d66582ec4870.
 blockers:
   - Missing immutable source-separated Binance USD-M and Bybit Linear candle and market-quality evidence covering the decision interval and required pre-roll.
   - Missing immutable as-of derivative instrument and universe-quality history.

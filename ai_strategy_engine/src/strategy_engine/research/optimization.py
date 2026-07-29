@@ -163,7 +163,15 @@ def _sample_parameter(trial: Trial, key: str, parameter: SearchParameter) -> Jso
     if parameter.kind == "categorical":
         if not parameter.choices:
             raise RegistryError(f"categorical search parameter {key} requires choices")
-        return cast(JsonValue, trial.suggest_categorical(key, list(parameter.choices)))
+        choices: list[str | int | float | bool | None] = []
+        for choice in parameter.choices:
+            if choice is None or isinstance(choice, (str, int, float, bool)):
+                choices.append(choice)
+            else:
+                raise RegistryError(
+                    f"categorical search parameter {key} contains a non-scalar choice"
+                )
+        return cast(JsonValue, trial.suggest_categorical(key, choices))
     raise RegistryError(f"unsupported search parameter kind for {key}: {parameter.kind}")
 
 
@@ -362,6 +370,6 @@ class ConstrainedOptimizer:
             parameters=parameters,
             constraints=_constraints_from_trial(trial),
             metrics=metrics,
-            score=cast(float | None, trial.value),
+            score=trial.value,
             failure_reason=failure_reason,
         )

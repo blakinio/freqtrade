@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260729-portal-pi06-emulated-target-acceptance
-status: validating
+status: ready
 branch: test/portal-pi06-emulated-target-acceptance
 base_branch: develop
 created: 2026-07-29
@@ -41,11 +41,11 @@ Run the existing Authentik/Synology package in isolated real containers, replay 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T12:27:00+02:00
-head: 3707c4c3fbd694bcc19470df727951458faa1b78
+updated_at: 2026-07-29T13:00:00+02:00
+head: 7c193b14d9899fcd9e1ecb98f86cb9397bca52d4
 branch: test/portal-pi06-emulated-target-acceptance
 pr: 678
-status: validating
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -64,21 +64,25 @@ owned_paths:
 proven:
   - PI-06 repository identity, BFF/browser and Authentik/Synology deployment packages are complete.
   - The owner authorized an emulation-first acceptance package and can perform manual TOTP enrollment with Google Authenticator.
-  - Exact implementation head c894fc5a13fccbeea0ffec578bbcf89cd9e3b8c2 passed real-container emulation, Chromium identity replay, Authentik deployment, AI Platform, Freqtrade and workflow-security gates.
-  - The bounded report artifact 8719904975 contains only non-production status evidence and keeps real MFA, Synology, OIDC and restore claims forbidden.
-  - The branch was rebased by recreation onto current develop eae105601d2408f7f1b7c3cd9e42736592f3d59d after unrelated ASE-00 work advanced the base.
+  - Real Authentik server, worker and PostgreSQL containers passed health, loopback ingress, private database, privilege, bootstrap-material and restart-persistence probes on current develop.
+  - Chromium identity replay passed anonymous, expired, revoked, MFA-missing, stale-step-up and cross-tenant fail-closed policy checks on current develop.
+  - The bounded report artifact 8720948382 contains only non-production status evidence and keeps real MFA, Synology, OIDC and restore claims forbidden.
+  - Portal PI-06 Emulated Target Acceptance 30444633782 passed on exact implementation head 7c193b14d9899fcd9e1ecb98f86cb9397bca52d4.
+  - Portal Authentik Deployment 30444633729 passed on the exact implementation head.
+  - AI Platform CI 30444633719 passed on the exact implementation head.
+  - Freqtrade CI 30444633743 passed pre-commit, documentation, Python 3.11 through 3.14, coverage, distribution build and final CI gate on the exact implementation head.
+  - Workflow security analysis 30444633726 passed on the exact implementation head.
 derived:
-  - The non-secret and non-target portion of PI-06 acceptance is repeatable on the current repository base.
-  - Real target acceptance can be reduced to owner-operated TOTP, OIDC, Synology, recovery, backup and isolated-restore probes after post-rebase validation.
+  - The non-secret and non-target portion of PI-06 acceptance is closed through repeatable real-container emulation and browser policy evidence on current develop.
+  - Real target acceptance is reduced to owner-operated TOTP, OIDC, Synology, recovery, backup and isolated-restore probes.
 unknown:
-  - Post-rebase exact-head workflow result for PR 678.
   - Real Synology runtime availability, DNS/TLS route and portal OIDC client configuration.
   - Manual Google Authenticator enrollment, wrong-code rejection and fresh-login challenge result.
   - Encrypted backup and isolated restore result.
 conflicts: []
 first_failure:
   marker: resolved_pi06_test_format_and_typing
-  evidence: initial validation found Ruff formatting and mypy JSON typing only; exact formatter output and TypedDict definitions passed all pre-rebase gates
+  evidence: initial validation found Ruff formatting and mypy JSON typing only; exact formatter output and TypedDict definitions were applied before all final implementation gates passed
 rejected_hypotheses:
   - Emulation cannot be labeled real Synology or real MFA acceptance.
   - A successful TOTP challenge cannot authorize P11, P14 or live capital.
@@ -92,24 +96,21 @@ changed_paths:
   - docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md
   - docs/agents/tasks/FTAI-20260729-portal-pi06-emulated-target-acceptance.md
 validation:
-  - command: Pre-rebase Portal PI-06 Emulated Target Acceptance 30442035069
+  - command: Portal PI-06 Emulated Target Acceptance 30444633782
     result: PASS
     evidence: real-container emulation, bounded artifact upload and Chromium MFA policy replay completed successfully
-  - command: Pre-rebase Portal Authentik Deployment 30442035033
+  - command: Portal Authentik Deployment 30444633729
     result: PASS
     evidence: existing Authentik/Synology deployment validation completed successfully
-  - command: Pre-rebase AI Platform CI 30442035026
+  - command: AI Platform CI 30444633719
     result: PASS
     evidence: exact implementation head completed successfully
-  - command: Pre-rebase Freqtrade CI 30442035011
+  - command: Freqtrade CI 30444633743
     result: PASS
     evidence: pre-commit, documentation, Python matrix, coverage, distribution build and final gate completed successfully
-  - command: Pre-rebase GitHub Actions security analysis 30442035137
+  - command: GitHub Actions security analysis 30444633726
     result: PASS
     evidence: exact implementation head completed successfully
-  - command: Post-rebase exact-head validation
-    result: PENDING
-    evidence: branch recreated on current develop and awaiting PR workflows
 blockers: []
-next_action: Inspect PR 678 post-rebase exact-head workflows, fix every failure, then squash merge and leave only the manual Google Authenticator and real-target probes for owner execution.
+next_action: Owner performs the manual Google Authenticator enrollment, wrong-code rejection and fresh-login TOTP challenge from PI06_EMULATED_TARGET_ACCEPTANCE.md, records only secret-free pass/fail evidence, then continues with separately authorized real Synology, OIDC, backup and isolated-restore probes.
 ```

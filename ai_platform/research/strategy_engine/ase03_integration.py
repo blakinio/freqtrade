@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Literal, Protocol, Self
 
 from pydantic import Field, field_validator, model_validator
+from strategy_engine.domain.models import CanonicalModel, ShadowDecisionEvidence
 
 from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.common import CorrelationContext
@@ -15,7 +16,7 @@ from ai_platform.portal.contracts.execution import ExecutionAdapter, RuntimeHeal
 from ai_platform.portal.execution.errors import ExecutionAdapterError
 from ai_platform.portal.risk.schema import RiskEvaluationSnapshot, RiskPolicyLimits
 from ai_platform.research.strategy_engine.ase00_adapter import AcceptedSyntheticEvent
-from strategy_engine.domain.models import CanonicalModel, ShadowDecisionEvidence
+
 
 Clock = Callable[[], datetime]
 

@@ -33,7 +33,10 @@ from ai_platform.portal.control_plane.database import (
     create_schema,
 )
 from ai_platform.portal.credentials.material import CredentialMaterial, ResolvedCredentialLease
-from ai_platform.portal.credentials.schema import CredentialLeaseEvidence
+from ai_platform.portal.credentials.schema import (
+    CredentialLeaseEvidence,
+    CredentialLeaseRequest,
+)
 from ai_platform.portal.execution.private_read import (
     OrderReadResult,
     PrivateOrderRecord,
@@ -80,26 +83,20 @@ class _Clock:
 
 class _Broker:
     def __init__(self, *, mismatched_exchange: bool = False) -> None:
-        self.requests: list[object] = []
+        self.requests: list[CredentialLeaseRequest] = []
         self.last_lease: ResolvedCredentialLease | None = None
         self.mismatched_exchange = mismatched_exchange
 
-    def resolve(self, request: object) -> ResolvedCredentialLease:
+    def resolve(self, request: CredentialLeaseRequest) -> ResolvedCredentialLease:
         self.requests.append(request)
-        tenant_id = getattr(request, "tenant_id")
-        connection_id = getattr(request, "connection_id")
-        credential_ref = getattr(request, "credential_ref")
-        exchange_id = getattr(request, "exchange_id")
-        runtime_id = getattr(request, "runtime_id")
-        purpose = getattr(request, "purpose")
         evidence = CredentialLeaseEvidence(
             lease_id="credlease_0123456789abcdef0123456789abcdef",
-            tenant_id=tenant_id,
-            connection_id=connection_id,
-            credential_ref=credential_ref,
-            exchange_id="wrong-exchange" if self.mismatched_exchange else exchange_id,
-            runtime_id=runtime_id,
-            purpose=purpose,
+            tenant_id=request.tenant_id,
+            connection_id=request.connection_id,
+            credential_ref=request.credential_ref,
+            exchange_id=("wrong-exchange" if self.mismatched_exchange else request.exchange_id),
+            runtime_id=request.runtime_id,
+            purpose=request.purpose,
             vault_version=3,
             issued_at=NOW,
             expires_at=NOW + timedelta(minutes=5),
@@ -289,8 +286,7 @@ def test_acknowledgement_is_persisted_and_duplicate_does_not_resubmit(tmp_path: 
     assert first.acknowledgement.execution_proven is False
     assert first.reconciliation.state == ReconciliationState.PENDING
     assert resolver.calls == transport.verify_calls == transport.submit_calls == 1
-    request = broker.requests[0]
-    assert getattr(request, "exchange_id") == "okx"
+    assert broker.requests[0].exchange_id == "okx"
     assert broker.last_lease is not None and broker.last_lease.closed
 
     with factory() as session:

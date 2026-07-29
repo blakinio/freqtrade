@@ -4,7 +4,7 @@ import hashlib
 import ipaddress
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -30,8 +30,8 @@ from ai_platform.portal.execution_submission.schema import (
 @dataclass(frozen=True)
 class PrivateRuntimeTarget:
     runtime_id: str
-    endpoint: str
-    ca_certificate_path: Path
+    endpoint: str = field(repr=False)
+    ca_certificate_path: Path = field(repr=False)
 
     def __post_init__(self) -> None:
         if not self.runtime_id.strip():
@@ -146,10 +146,10 @@ class HttpxPrivateFreqtradeTransport:
                 ambiguous_on_transport=True,
             )
         )
+        _require_force_entry_acknowledgement(response, expected_pair=trade_intent.pair)
         digest = _digest(response)
         runtime_ref = _runtime_request_ref(response, digest)
         return RuntimeSubmissionResponse(
-            accepted=True,
             runtime_request_ref=runtime_ref,
             response_digest=digest,
         )
@@ -167,6 +167,12 @@ class HttpxPrivateFreqtradeTransport:
     ) -> dict[str, Any]:
         url = f"{target.endpoint}{path}"
         try:
+            username_text = username.decode("utf-8")
+            password_text = password.decode("utf-8")
+        except UnicodeError:
+            raise SubmissionTransportError("RUNTIME_AUTHENTICATION_ENCODING_INVALID") from None
+
+        try:
             with httpx.Client(
                 verify=str(target.ca_certificate_path),
                 timeout=self._timeout_seconds,
@@ -176,7 +182,7 @@ class HttpxPrivateFreqtradeTransport:
                 response = client.request(
                     method,
                     url,
-                    auth=(username.decode("utf-8"), password.decode("utf-8")),
+                    auth=(username_text, password_text),
                     headers={"Accept": "application/json", "Content-Type": "application/json"},
                     json=dict(payload) if payload is not None else None,
                 )
@@ -217,6 +223,22 @@ class HttpxPrivateFreqtradeTransport:
                 raise SubmissionTransportAmbiguousError(_digest(decoded)) from None
             raise SubmissionTransportError("RUNTIME_CONFIG_INVALID_SHAPE")
         return decoded
+
+
+def _require_force_entry_acknowledgement(
+    response: Mapping[str, Any],
+    *,
+    expected_pair: str,
+) -> None:
+    runtime_id_present = any(
+        isinstance(response.get(key), (str, int)) and str(response[key]).strip()
+        for key in ("trade_id", "order_id", "id")
+    )
+    if not runtime_id_present:
+        raise SubmissionRuntimeRejectedError()
+    observed_pair = response.get("pair")
+    if observed_pair is not None and observed_pair != expected_pair:
+        raise SubmissionTransportAmbiguousError(_digest(response))
 
 
 def _digest(value: object) -> str:

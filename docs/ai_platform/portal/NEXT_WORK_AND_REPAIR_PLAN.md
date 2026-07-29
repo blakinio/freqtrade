@@ -38,7 +38,7 @@ Snapshot date: `2026-07-29`.
 - PI-03 Canonical Inference and Drift Telemetry: `done`, PR #239 and closure PR #260.
 - PI-04 Centralized Runtime Observability: repository contracts `done`, PR #261; real backend connectivity remains deployment-owned.
 - PI-05 External Notification Delivery: `planned`; provider/channel, destination ownership and privacy policy are unresolved.
-- PI-06 Product Identity and Session Lifecycle: repository backend, BFF/browser integration and Authentik/Synology deployment package are complete; owner-authorized emulation-first target acceptance is active under `FTAI-20260729-portal-pi06-emulated-target-acceptance`; real Synology, OIDC, MFA, recovery and restore evidence remains owner-managed.
+- PI-06 Product Identity and Session Lifecycle: repository backend, BFF/browser integration, Authentik/Synology deployment package and emulation-first target acceptance are complete; emulated acceptance merged through PR #678 as `8b29bf87a94bcc9f9861e465666b74e23bb900e2`. Real Synology, OIDC, MFA, recovery and restore evidence remains owner-managed and blocked on intentional target resources.
 - PI-07 Runtime Credential Broker and Rotation: repository software and deployment contracts `done`, PR #666, merge `436b5350e54a33cbf070738a2328b142ffcd5174`; real Vault target acceptance remains owner-managed.
 - PI-08 Private Dry-Run Approved Execution Submission: `done`, PR #669, merge `530f61caf9d5d4644068a93baa0b7a09298f24c6`; closure PR #670, merge `bc5493435c3b895e65adcea9f84920b36da33b2e`.
 
@@ -90,7 +90,7 @@ This proves repository integration only. It is not real Authentik, Vault, Synolo
 The following are not ordinary repairs and must not be inferred from BM-09 completion:
 
 1. PI-05 may start only after an owner selects one provider/channel and destination/privacy policy.
-2. PI-06 emulation may run in isolated disposable containers. Real target acceptance still requires intentional Synology access, protected secrets, DNS/TLS routing, test users, MFA devices, offline recovery material and an isolated restore target.
+2. PI-06 emulation is complete. Real target acceptance still requires intentional Synology access, protected secrets, DNS/TLS routing, test users, MFA devices, offline recovery material and an isolated restore target.
 3. Manual Google Authenticator enrollment and fresh-login TOTP challenge are owner actions; QR codes, TOTP seeds, current codes and recovery codes must never enter repository evidence.
 4. Real Vault and private Freqtrade target acceptance remain owner-managed deployment evidence.
 5. P11 may resume only after explicit owner start and approved Cloudflare/protected-environment resources.
@@ -126,4 +126,4 @@ Stop and record a blocker instead of improvising when:
 
 ## 9. Current next action
 
-Complete `FTAI-20260729-portal-pi06-emulated-target-acceptance` through exact-head CI. Then request only the owner-operated Google Authenticator challenge and real Synology/OIDC/backup/restore probes that automation cannot prove. Keep P11 and P14 blocked.
+No additional autonomous portal implementation package is authorized. The owner performs the manual Google Authenticator enrollment, wrong-code rejection and fresh-login TOTP challenge, then continues only with separately authorized real Synology, OIDC, recovery, encrypted-backup and isolated-restore probes. Keep P11 and P14 blocked.

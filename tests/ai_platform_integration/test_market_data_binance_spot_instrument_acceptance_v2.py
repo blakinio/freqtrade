@@ -14,8 +14,7 @@ WORKFLOW_PATH = (
     / ".github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v2.yml"
 )
 PREFLIGHT_PATH = (
-    REPOSITORY_ROOT
-    / "tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py"
+    REPOSITORY_ROOT / "tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py"
 )
 TRIGGER_PATH = (
     "ai_platform/market_data/run-requests/"

@@ -58,7 +58,8 @@ import json
 import shutil
 
 usage = shutil.disk_usage({_CONTAINER_DATA_ROOT.as_posix()!r})
-print(json.dumps({{"total": usage.total, "used": usage.used, "free": usage.free}}, separators=(",", ":"), sort_keys=True))
+payload = {{"total": usage.total, "used": usage.used, "free": usage.free}}
+print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
 '''
     output = _run_container_python(container_name, source)
     if output is None:

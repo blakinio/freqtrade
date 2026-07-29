@@ -9,9 +9,6 @@ from decimal import Decimal, getcontext
 from typing import Any
 from uuid import UUID
 
-import pandas as pd
-from pydantic import JsonValue
-
 from ai_platform.portal.strategy_lab.schema import (
     Candle,
     EquityPoint,
@@ -23,6 +20,8 @@ from ai_platform.portal.strategy_lab.schema import (
     SignalExplanation,
     StrategyLabDefinition,
 )
+import pandas as pd
+from pydantic import JsonValue
 from strategy_engine.features.squeeze import squeeze_features
 from strategy_engine.features.supertrend import supertrend_features
 

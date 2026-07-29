@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations  # noqa: I001 - preserve the runtime import boundary
 
 from dataclasses import dataclass
 from decimal import Decimal

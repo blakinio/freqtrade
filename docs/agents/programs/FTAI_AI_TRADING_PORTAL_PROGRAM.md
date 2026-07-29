@@ -14,31 +14,39 @@ Build a secure, modern and extensible portal above the existing Freqtrade AI Pla
 
 ## Current program state
 
-Repository-backed implementation has progressed through P12 simulation-first acceptance, the remaining software-addressable portal product surfaces merged in PR #232, completed PI-01 through PI-04 repository-side integration packages, completed Bot Operations convergence in PR #320, completed the bounded PI-06 repository identity and deployment packages, and completed the owner-approved PI-07 HashiCorp Vault credential broker in PR #666.
+Repository-backed implementation has progressed through P12 simulation-first acceptance, completed software-addressable product surfaces, PI-01 through PI-04 repository integrations, bounded PI-06 identity/deployment packages, PI-07 Vault credential brokering, PI-08 private dry-run submission, BM-00 through BM-09 and BMW browser convergence.
 
-Canonical stage status is maintained in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`:
+The final repository-side bot-management closure completed in BM-09 PR #675, squash merge `d7ae949cb91d44e260ca7c32e193d69238fad120`. Exact implementation head `e0a90ccdcfb3dc0e1ac03acede92f0f8c9da70e3` passed AI Platform CI `30437195010`, Portal Web CI `30437194948`, Portal Universal E2E `30437195047`, Freqtrade CI `30437194987` and workflow security `30437194958`.
 
-- P0-P10 are complete for their declared bounded acceptance criteria;
-- P11 repository-side staging contracts, verifier, workflows and runbooks are complete, but real Cloudflare/protected GitHub External E2E remains blocked/deferred and production-like staging is not accepted;
-- P12 simulation-first autonomous diagnosis/repair acceptance is complete and is not a substitute for P11;
-- P13 measured-need assessment completed with NO-GO, so scale/service extraction is deferred until evidence demonstrates a need;
-- P14 remains separately blocked and this program does not authorize live capital.
+Canonical stage status remains:
 
-The remaining authoritative-source, private-runtime, identity, observability and provider integrations are specified in `docs/ai_platform/portal/POST_P12_INTEGRATION_BACKLOG.md` as PI-01 through PI-08. PI-01, PI-02, PI-03, PI-04 and repository-side PI-07 are complete. PI-06 remains active at its owner-managed target-acceptance boundary. PI-05 remains provider-gated. PI-08 is now the next authorized software package and remains dry-run-only; real PI-07 Synology target acceptance is separate.
+- P0-P10 complete for declared bounded acceptance;
+- P11 blocked until real owner-approved Cloudflare/protected GitHub staging and five-probe External E2E acceptance pass;
+- P12 complete in simulation-first mode and not a substitute for P11;
+- P13 deferred until measured bottleneck or unmet-SLO evidence exists;
+- P14 blocked and separately owner-approved; this program does not authorize live capital.
 
-Current task selection, repair priorities and the exact next authorized route are maintained in `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`. PI-08 private risk-approved dry-run submission is the next software package. Real PI-06 and PI-07 target acceptance require intentional owner-managed resources and remain separate from Cloudflare P11.
+Post-P12 status:
 
-Current execution is also intentionally incomplete for real trading: the deterministic risk-gated terminal exists, but the concrete `FreqtradeExecutionAdapter.submit_approved_intent` path remains fail-closed with `ORDER_SUBMISSION_NOT_IMPLEMENTED`. P10 provides deterministic simulated execution only.
+- PI-01, PI-02, PI-03 and PI-04 repository packages are complete;
+- PI-05 remains provider/channel and privacy-policy gated;
+- PI-06 repository backend, BFF/browser integration and Authentik/Synology deployment package are complete, while real target identity acceptance remains owner-managed;
+- PI-07 repository credential broker is complete, while real Vault target acceptance remains owner-managed;
+- PI-08 repository private dry-run submission is complete, PR #669, merge `530f61caf9d5d4644068a93baa0b7a09298f24c6`;
+- BM-07 private position/order command activation is complete, PR #672, merge `ef0550744104f4c82ef3f106181f14442f9b82af`;
+- BM-09 closes the repository-side bot-management sequence without changing P11 or P14.
+
+Repository or fixture evidence does not prove real Authentik, Vault, Synology, Freqtrade or Cloudflare target acceptance.
 
 ## Source of truth
 
 In order:
 
-1. current repository/Git/PR/CI state;
+1. current repository, PR and exact-head CI state;
 2. `AGENTS.md`;
-3. existing AI Platform lifecycle/evidence records;
-4. portal architecture documents under `docs/ai_platform/portal/`;
-5. active bounded task record and its context checkpoint.
+3. existing AI Platform lifecycle and evidence records;
+4. portal architecture/status documents;
+5. the active dated task and its context checkpoint.
 
 Chat history and private UI captures are not durable program state.
 
@@ -56,27 +64,26 @@ Chat history and private UI captures are not durable program state.
 - `docs/ai_platform/portal/NEXT_WORK_AND_REPAIR_PLAN.md`
 - `docs/ai_platform/portal/AGENT_EXECUTION_PLAN.md`
 
-Task-specific agents read additional portal documents only when relevant.
+Task-specific agents read additional documents only when relevant.
 
 ## Program invariants
 
 - Freqtrade is an internal execution engine, not a public portal backend.
-- Browser traffic never talks directly to Freqtrade or exchanges.
+- Browser traffic never talks directly to Freqtrade, exchanges or a secret store.
 - Portal execution reaches Freqtrade only through a controlled private adapter boundary.
-- AI predictions are not unrestricted execution authority.
-- Every execution intent is subject to deterministic risk gates before it may reach an execution submitter.
-- Exchange credentials are stored behind a secret boundary and never committed.
-- Withdrawal permission remains disabled.
-- Research workers cannot access production exchange credentials.
-- Models/configs/strategies/risk policies used for decisions are immutable and attributable.
-- Post-trade analysis may create insights/experiments/candidates, not immediate production mutation.
-- Autonomous repair creates regression tests, branches and PRs; it does not patch production.
-- Live capital requires a separate explicit reviewed work package.
+- AI predictions and deterministic risk approval are not unrestricted execution authority.
+- Every execution intent remains subject to deterministic risk and immutable attribution.
+- Exchange credentials remain opaque, tenant-scoped, withdrawal-disabled and uncommitted.
+- Research workers cannot access runtime credentials.
+- Models, configurations, strategies and risk policies used for decisions are immutable and attributable.
+- Post-trade analysis may create insights, experiments and candidates, not immediate production mutation.
+- Autonomous repair creates regression evidence, branches and PRs; it does not patch production.
+- Live capital requires a separate explicitly reviewed work package.
 - Repository or simulated P11 evidence cannot be represented as real Cloudflare production-like staging acceptance.
-- A planned PI package is not active and cannot be used as completion evidence until its separate task and acceptance gates pass.
-- Cloudflare Access supplements product authorization and never replaces portal-owned tenant membership, capability enforcement or local session revocation.
+- Cloudflare Access supplements product authorization and never replaces portal tenant membership, capabilities or local session revocation.
 - Browser-readable storage receives no IdP access, ID or refresh token.
-- Repository deployment validation cannot be represented as real Synology, Authentik, MFA, recovery or restore acceptance.
+- Repository deployment validation cannot be represented as real Synology, Authentik, MFA, recovery, Vault, private Freqtrade or restore acceptance.
+- Runtime acknowledgement is not authoritative execution proof; reconciliation remains required.
 
 ## Protected existing AI boundaries
 
@@ -85,11 +92,11 @@ This program cannot change:
 - frozen `entry_prediction_threshold = 0.006`;
 - frozen `exit_prediction_threshold = -0.009`;
 - protected final holdout v2 `20260801-20260930` or its authorization date;
-- completed Phase 6 candidates/policy/evidence;
+- completed Phase 6 candidates, policy and evidence;
 - authoritative Phase 6 `selected_model = null`;
 - historical PyTorch/RL evidence status.
 
-Any future work affecting those boundaries requires a separately declared research work package governed by the existing AI Platform lifecycle.
+Any future work affecting these boundaries requires a separate research package governed by the AI Platform lifecycle.
 
 ## Program architecture
 
@@ -102,104 +109,57 @@ Six planes:
 5. Data Plane
 6. Quality & Autonomous Validation Plane
 
-Cross-cutting:
+Cross-cutting controls are Security, Risk and Observability.
 
-- Security;
-- Risk;
-- Observability.
+## Repository completion evidence
 
-## Delivery sequence
+### Identity
 
-Canonical stage order, current statuses and acceptance boundaries are defined in `docs/ai_platform/portal/DELIVERY_ROADMAP.md`.
+PI-06 delivered the Authentik-compatible identity/session backend, same-origin BFF/browser session handling and a secret-free Synology deployment package. Opaque sessions, CSRF, membership-derived tenant/capability context, MFA, step-up, logout and revocation are repository-tested. Real users, devices, recovery and restore remain target evidence.
 
-The historical first implementation task after architecture merge was `FTAI-20260722-portal-p1-contracts-security`. That sequence has now progressed through completed P12 simulation-first acceptance; it is no longer the program's next software action.
+### Credential and private execution
 
-Post-P12 integration contracts remain in `POST_P12_INTEGRATION_BACKLOG.md`. PI-01 through PI-04 are complete. PI-06 has an accepted Authentik architecture, a merged repository backend, merged same-origin browser integration and a merged secret-free Synology deployment package; its remaining work is controlled owner-managed target provisioning and real identity acceptance. PI-05 requires a provider/channel decision and PI-07 must precede PI-08. No package authorizes live capital.
+PI-07 provides the single approved Vault-backed credential boundary. PI-08 binds approved intents to exact tenant, bot, configuration and runtime revisions, reserves idempotent attempts before private transport, independently verifies dry-run mode and treats ambiguous/accepted transport responses as unproven until reconciliation.
 
-The Bot Operations product completion package is complete. The continuation route in `NEXT_WORK_AND_REPAIR_PLAN.md` authorizes only an owner-managed PI-06 target acceptance task when the required resources are intentionally available. It does not authorize Cloudflare P11 acceptance, PI-07, PI-08 or P14.
+BM-07 maps bounded position/order commands to private dry-run runtime operations. It reserves pending-reconciliation evidence before I/O, prevents repeat mutation on exact replay and routes exposure-increasing DCA/grid/replacement through PI-08.
 
-## PI-06 repository backend evidence
+### Product and E2E
 
-Task `FTAI-20260726-portal-pi06-product-identity-lifecycle` delivered the bounded Python identity backend in PR #341, squash merge `41834d18f3a05b0dfa44dc5af9b97942e685d2a1`.
+BM-08 provides the authoritative tenant-scoped dashboard read model with explicit source states.
 
-The package includes:
+BM-09 provides:
 
-- Authentik-compatible OIDC discovery and Authorization Code plus PKCE;
-- signed JWKS, issuer, audience, expiry and nonce validation;
-- immutable external principal mapping by `iss` plus `sub`;
-- portal-owned memberships, roles, validity and membership versions;
-- opaque server-side sessions with keyed hashes only in storage;
-- secure host-only session cookies and CSRF enforcement;
-- membership-derived tenant and capability context;
-- MFA and five-minute step-up enforcement;
-- logout, logout-all, membership-change revocation and OIDC back-channel logout;
-- migrations, deterministic configuration and security regression tests.
+- one versioned matrix covering each required scenario family exactly once;
+- validation that all evidence references exist;
+- critical Chromium traversal across dashboard, fleet, bot detail, exchange, signal and grid surfaces;
+- browser request evidence excluding private Freqtrade mutation and credential paths;
+- replay evidence separating persisted intent from execution proof;
+- exact-head backend, browser, full CI and security acceptance.
 
-Exact final backend head `c258567cabd1c9ddf3d90c63f36319be99463978` passed AI Platform CI #1415, Freqtrade CI #1713 and GitHub Actions Security Analysis #1580.
-
-## PI-06 BFF and browser-session evidence
-
-Task `FTAI-20260726-portal-pi06-bff-browser-session-integration` delivered the same-origin Next.js boundary in PR #361, squash merge `4f76eecadcb8dda964a8d247327db9dc6ef1c931`.
-
-The package includes:
-
-- same-origin login, callback, session, logout and logout-all routes;
-- HTTPS-only authorization redirects and relative-only application return redirects;
-- forwarding of opaque backend session/CSRF cookies without exposing IdP tokens;
-- optimistic Proxy checks plus Route Handler defense in depth;
-- double-submit CSRF for existing browser mutations;
-- visible tenant/MFA session state and logout controls;
-- deterministic fixture states for anonymous, expired, revoked, MFA-missing, stale-step-up and cross-tenant denial;
-- 37 Chromium tests covering the identity lifecycle while preserving existing product E2E.
-
-Exact final implementation head `ec1970a9272bec241a1bab3c447ebd36f53afa58` passed Portal Web CI #287, Portal Universal E2E #292, AI Platform CI #1521, Freqtrade CI #1837 and GitHub Actions Security Analysis #1702.
-
-This remains repository and fixture browser evidence. No real Authentik instance, user, MFA device, recovery flow, secret, Synology deployment or Cloudflare resource has been provisioned or accepted by those tests.
-
-## PI-06 Authentik/Synology repository deployment evidence
-
-Task `FTAI-20260726-portal-pi06-authentik-synology-deployment` delivered the bounded, secret-free deployment package in PR #385, squash merge `cd15070301227842dc74b2cfa2a4795b6677a48b`.
-
-The package includes:
-
-- exact tag-plus-digest pins for Authentik 2026.5.5 and PostgreSQL 16.13-alpine3.23;
-- loopback-only Authentik host ingress, an internal database network and no published PostgreSQL port;
-- no Redis, Docker socket, host networking, privileged container or timezone mount;
-- fail-closed runtime configuration and Compose validation;
-- one-shot hashed-password bootstrap restricted to an empty database and removed from steady state;
-- health checks and deterministic service ordering;
-- direct-to-`age` encrypted database and volume backups with SHA-256 checksums;
-- checksum-verified destructive restore, recovery, upgrade and rollback runbooks;
-- dedicated deployment CI and nine focused invariant tests.
-
-Exact final implementation head `b4fba695402c4dce2d1a5a79661250d3920cb856` passed Portal Authentik Deployment CI #11, AI Platform CI #1679, Freqtrade CI #2027 and GitHub Actions Security Analysis #1890.
-
-This remains repository deployment evidence. No real Synology host, user, MFA device, protected secret, DNS/TLS route, backup retention target or isolated restore exercise was provisioned or accepted.
+This closes repository-side BM-00 through BM-09 and BMW delivery only.
 
 ## Parallelization policy
 
 Shared contract changes are serialized through a dedicated contract-change task. New work must inspect current `develop`, open PRs and active task ownership before editing shared paths.
 
-Every PI package requires its own dated task, branch, exact owned paths, authoritative source definition, fail-closed states and acceptance evidence. Adjacent PI packages must not be silently combined because their security and capital risks differ.
+Every new package requires a dated task, branch, exact owned paths, authoritative source definition, fail-closed states and acceptance evidence. Completed BM packages must not be silently reopened or extended.
 
-Product completion packages such as Bot Operations also require a separate dated task and exact web/BFF ownership. They must not silently implement PI-07, PI-08, P11 or P14.
-
-P13 scale/service extraction remains deferred unless measured bottleneck/SLO evidence justifies a separately declared work package.
+P13 scale or service extraction remains deferred without measured need.
 
 ## Quality policy
 
-Every implementation workstream adds tests at its layer. Full-platform acceptance includes, as applicable:
+Every implementation adds tests at its layer. Full-platform acceptance includes, as applicable:
 
-- unit/contract/integration;
+- unit, contract and integration tests;
 - security E2E;
 - Playwright browser E2E;
 - deterministic exchange simulator;
 - AI learning-loop E2E;
-- visual/responsive acceptance;
-- chaos/recovery scenarios;
-- bounded autonomous diagnosis/repair.
+- visual and responsive acceptance;
+- chaos and recovery scenarios;
+- bounded autonomous diagnosis and repair.
 
-Simulation/local/CI evidence must remain labeled as such. Real production-like staging acceptance requires the real protected external ingress path.
+Simulation, local and CI evidence must remain labeled as such. Real production-like staging acceptance requires the real protected external ingress path.
 
 ## Security posture
 
@@ -211,50 +171,39 @@ Internet -> Cloudflare -> Tunnel -> Portal
 
 Privileged surfaces add Zero Trust/Access policy. Freqtrade remains private.
 
-Staging E2E must traverse the real protected ingress path without a hidden security bypass and uses simulated capital by default.
-
-The current P11 blocker is external: owner-approved Cloudflare Tunnel/DNS/Access/WAF/rate-limit/origin-denial state plus protected GitHub staging variables/secrets must be provisioned or confirmed and the real External E2E workflow must pass. Repository-side P11 implementation alone is not acceptance.
+The current P11 blocker is external: owner-approved Cloudflare Tunnel, DNS, Access, WAF, rate-limit and direct-origin-denial state plus protected GitHub staging variables/secrets must be provisioned or confirmed and the real External E2E workflow must pass.
 
 ## Product surface
 
-Canonical navigation is defined in `docs/ai_platform/portal/UI_INFORMATION_ARCHITECTURE.md` and includes:
+Canonical navigation includes dashboard, performance, positions, terminal, bot management, AI intelligence, operations, exchanges, profile/security, notifications and administration.
 
-- Dashboard;
-- PNL & Performance;
-- Open Positions;
-- Trading Terminal;
-- Bots/Create Bot/Signal Wizard/Strategy Catalog/Grid Bots;
-- AI Intelligence/Trade Analysis/Insights/Model Health/Experiments/Learning History;
-- Operations/Logs/Risk/Runtime Health/Audit;
-- Exchange Connections/Profile/Security/Notifications/Admin.
+Protected browser paths use the same-origin PI-06 boundary with opaque cookies, CSRF and backend-authoritative tenant/capability enforcement. Bot management consumes canonical server models and never creates direct browser-to-Freqtrade authority.
 
-The bot list and detail routes expose bounded bot-scoped operational convergence, filtering, immutable-revision creation and desired-state lifecycle controls over existing canonical APIs. They preserve tenant attribution, desired/observed separation, explicit degraded evidence and the private execution boundary.
-
-Protected browser paths now use the same-origin PI-06 BFF boundary with opaque session cookies, CSRF, optimistic anonymous denial and backend-authoritative tenant/capability enforcement. Fixture identity remains explicit test evidence and must not be described as real Authentik acceptance.
-
-Third-party private captures are inspiration/evidence only and must not be copied into public product code with personal data or proprietary assets.
+Third-party private captures are inspiration or evidence only and must not be copied with personal data or proprietary assets.
 
 ## Completion definition
 
-The program reaches its first major completion milestone when a production-like staging deployment can:
+The first major production-like staging milestone requires a real protected path that can:
 
-1. authenticate a test user through the protected ingress path;
+1. authenticate a test user;
 2. create a tenant-scoped dry-run AI bot;
-3. provision an isolated Freqtrade runtime privately;
+3. provision an isolated private Freqtrade runtime;
 4. execute a deterministic simulated trade through risk gates;
 5. reconcile PNL and execution evidence;
-6. produce a post-trade analysis and AI insight;
+6. produce post-trade analysis and insight;
 7. create a bounded learning experiment/candidate without changing the active model;
-8. pass critical browser/security/AI E2E;
-9. generate an autonomous evidence-based repair PR for a seeded defect;
+8. pass critical browser, security and AI E2E;
+9. generate an evidence-based repair PR for a seeded defect;
 10. prove no public Freqtrade exposure and no live-capital authorization.
 
-Repository-side and simulation-first evidence already cover many of these software boundaries, but the milestone is **not complete** until real P11 protected external ingress acceptance passes.
+Repository-side software covers the bounded implementation and deterministic quality layer, but the milestone remains incomplete until real P11 protected external ingress acceptance passes.
 
 ## Next actions by authorization lane
 
-Next PI-06 action: when the owner intentionally supplies Synology access, protected runtime secrets, DNS/TLS routing, test users, MFA devices, an offline `age` recovery key and an isolated restore target, declare `FTAI-YYYYMMDD-portal-pi06-authentik-synology-target-acceptance`. Execute the merged runbook and prove real OIDC login, MFA enrollment/challenge, session cookies, logout, logout-all, membership revocation, generic recovery, encrypted backup and isolated restore. Record unavailability rather than simulating successful target connectivity.
+- PI-06 target acceptance: only when the owner supplies Synology access, protected secrets, DNS/TLS routing, test users, MFA devices, offline recovery material and an isolated restore target.
+- PI-05 delivery: only after the owner selects a provider/channel and destination/privacy policy.
+- P11 external staging: only when the owner intentionally starts the infrastructure phase and supplies approved Cloudflare/protected-environment resources.
+- P13: only from measured need.
+- P14: remain blocked until separate explicit capital authorization and all prerequisites.
 
-Next owner/external action: when the owner intentionally starts the real infrastructure phase, resume P11, provision or confirm the owner-approved Cloudflare staging resources and protected GitHub staging environment, then run `Portal Staging External E2E` until all five real ingress, Access and direct-denial probes pass.
-
-Do not start PI-05, PI-07, PI-08 or P14 without their explicit provider/security/capital decisions. Do not enable live capital as part of any continuation action.
+There is no remaining autonomous BM package after BM-09. Do not start another package by extending the completed sequence implicitly.

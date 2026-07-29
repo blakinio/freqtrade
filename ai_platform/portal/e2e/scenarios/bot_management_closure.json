@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "scenario_set": "bm09-bot-management-repository-closure",
+  "repository_acceptance_only": true,
+  "real_target_acceptance": false,
+  "live_capital_authorized": false,
+  "scenarios": [
+    {
+      "family": "bot_creation",
+      "layer": "browser",
+      "source_mode": "fixture",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/bots/create-bot.spec.ts"]
+    },
+    {
+      "family": "bot_revision_conflict",
+      "layer": "browser_bff",
+      "source_mode": "fixture",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/bots/operations.spec.ts"]
+    },
+    {
+      "family": "bot_lifecycle",
+      "layer": "browser_bff",
+      "source_mode": "fixture",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/bots/operations.spec.ts"]
+    },
+    {
+      "family": "signal_authentication_and_replay",
+      "layer": "browser_api",
+      "source_mode": "fail_closed_fixture",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/bots/feature-convergence.spec.ts", "tests/ai_platform/portal/signal_control"]
+    },
+    {
+      "family": "risk_approved_and_rejected_commands",
+      "layer": "browser_api",
+      "source_mode": "deterministic",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/terminal/risk-gate.spec.ts", "tests/ai_platform/portal/risk"]
+    },
+    {
+      "family": "private_dry_run_submission",
+      "layer": "private_service",
+      "source_mode": "deterministic_private_transport",
+      "test_refs": ["tests/ai_platform/portal/execution_submission"]
+    },
+    {
+      "family": "ambiguous_execution_reconciliation",
+      "layer": "private_service",
+      "source_mode": "deterministic_private_transport",
+      "test_refs": ["tests/ai_platform/portal/execution_submission", "tests/ai_platform/portal/operations"]
+    },
+    {
+      "family": "position_and_order_management",
+      "layer": "private_service",
+      "source_mode": "deterministic_private_transport",
+      "test_refs": ["tests/ai_platform/portal/bot_operations/test_bm07_command_activation.py", "tests/ai_platform/portal/bot_operations/test_bm07_activation_transport.py"]
+    },
+    {
+      "family": "grid_configuration_and_runtime",
+      "layer": "browser_private_service",
+      "source_mode": "fail_closed_fixture",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/bots/feature-convergence.spec.ts", "tests/ai_platform/portal/grid_control"]
+    },
+    {
+      "family": "cross_tenant_denial",
+      "layer": "api_private_service",
+      "source_mode": "deterministic",
+      "test_refs": ["tests/ai_platform/portal/bot_operations", "tests/ai_platform/portal/execution_submission"]
+    },
+    {
+      "family": "session_revocation_and_step_up",
+      "layer": "browser_bff",
+      "source_mode": "fixture",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/security/identity-session.spec.ts", "tests/ai_platform/portal/identity"]
+    },
+    {
+      "family": "source_unavailable_and_stale",
+      "layer": "browser_api",
+      "source_mode": "fail_closed_fixture",
+      "test_refs": ["ai_platform/portal/web/e2e/specs/bots/operations.spec.ts", "ai_platform/portal/web/e2e/specs/bots/feature-convergence.spec.ts"]
+    }
+  ]
+}

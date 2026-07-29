@@ -1,6 +1,9 @@
 name: AI Platform WickHunter Production Market Evidence
 
 "on":
+  push:
+    branches:
+      - agent/wickhunter-production-market-evidence-capture-v1
   pull_request:
     types: [opened]
     branches:
@@ -23,6 +26,26 @@ env:
   DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
 
 jobs:
+  ruff-import-diagnostic:
+    name: Show exact Ruff import fix
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact diagnostic commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Install repository Ruff version
+        shell: bash
+        run: python -m pip install --disable-pip-version-check ruff==0.15.21
+      - name: Print automatic import diff
+        shell: bash
+        run: >-
+          ruff check --select I001 --fix --diff
+          ai_platform/wickhunter/production_market_evidence.py
+
   initialize:
     name: Initialize WickHunter market evidence capture
     if: >-

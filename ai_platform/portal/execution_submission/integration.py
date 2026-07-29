@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from ai_platform.portal.contracts.bot_management.execution import AcknowledgementStatus
 from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.execution import OrderRecord, OrderState
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent
@@ -43,7 +44,7 @@ class PrivateDryRunApprovedIntentSubmitter:
         acknowledgement = receipt.acknowledgement
         if acknowledgement is None:
             raise UnsupportedExecutionOperationError("ORDER_SUBMISSION_PENDING_RECONCILIATION")
-        if not acknowledgement.status.value == "ACCEPTED":
+        if acknowledgement.status != AcknowledgementStatus.ACCEPTED:
             reason = (
                 acknowledgement.reason_codes[0].value
                 if acknowledgement.reason_codes

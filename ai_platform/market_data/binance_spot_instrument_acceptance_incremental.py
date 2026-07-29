@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import fcntl
-import json
 import os
 import time
 import urllib.parse
@@ -54,6 +53,7 @@ POLICY_PATH = Path(
 ACTIVE_POINTER_NAME = "active-binance-spot-instrument-acceptance-v3.json"
 INCREMENTAL_STATE_NAME = "incremental-state.json"
 LOCK_NAME = ".binance-spot-instrument-acceptance-v3.lock"
+ATTEMPT_MARKER_NAME = "attempt-started.json"
 STATE_VERSION = "binance-spot-instrument-acceptance-incremental-state-v1"
 POINTER_VERSION = "binance-spot-instrument-acceptance-active-pointer-v1"
 STATE_HASH_FIELD = "state_sha256"
@@ -206,8 +206,45 @@ def _collect_sample(
     opener: UrlOpener | None,
 ) -> dict[str, object]:
     raw_path, snapshot_path, report_path = _sample_paths(run_root, index)
-    if report_path.exists() or raw_path.exists() or snapshot_path.exists():
-        raise FileExistsError(f"sample {index} already exists")
+    marker_path = report_path.parent / ATTEMPT_MARKER_NAME
+    if report_path.exists():
+        report = _load_object(report_path)
+        if report.get("status") == "pass":
+            if not raw_path.is_file() or not snapshot_path.is_file():
+                raise ValueError("completed successful sample evidence is incomplete")
+        elif report.get("status") == "fail":
+            raw_path.unlink(missing_ok=True)
+            snapshot_path.unlink(missing_ok=True)
+        else:
+            raise ValueError("completed sample report has invalid status")
+        marker_path.unlink(missing_ok=True)
+        return report
+    if marker_path.exists():
+        raw_path.unlink(missing_ok=True)
+        snapshot_path.unlink(missing_ok=True)
+        report = _sample_failure_report(
+            index=index,
+            scheduled_offset_seconds=index * request_interval_seconds,
+            error=RuntimeError("previous sample attempt was interrupted"),
+            stage="interrupted",
+        )
+        _write_json_atomic(report_path, report)
+        marker_path.unlink()
+        return report
+    if raw_path.exists() or snapshot_path.exists():
+        raise ValueError("sample evidence exists without attempt marker or report")
+
+    _write_json_atomic(
+        marker_path,
+        {
+            "sample_index": index,
+            "attempt_count": 1,
+            "attempt_started_ns": time.time_ns(),
+            "source_acceptance": False,
+            "production_source_enabled": False,
+            "orders_submitted": 0,
+        },
+    )
     stage = "transport"
     smoke_policy = _smoke_policy(policy)
     try:
@@ -251,6 +288,7 @@ def _collect_sample(
         _write_atomic(raw_path, raw)
         _write_json_atomic(snapshot_path, snapshot.as_json_dict())
         _write_json_atomic(report_path, report)
+    marker_path.unlink()
     return report
 
 
@@ -357,7 +395,15 @@ def _load_active_run(
     if state.get("run_id") != run_id:
         raise ValueError("active pointer and state run_id differ")
     if pointer.get("state_sha256") != state.get(STATE_HASH_FIELD):
-        raise ValueError("active pointer state hash is stale")
+        pointer_seed: dict[str, object] = {
+            "pointer_version": POINTER_VERSION,
+            "request_id": state["request_id"],
+            "run_id": state["run_id"],
+            "run_root": str(run_root),
+            "state_sha256": state[STATE_HASH_FIELD],
+        }
+        pointer = _hashed(pointer_seed, hash_field=POINTER_HASH_FIELD)
+        _write_json_atomic(pointer_path, pointer)
     return run_root, pointer, state
 
 

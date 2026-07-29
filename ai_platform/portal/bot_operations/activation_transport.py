@@ -89,8 +89,7 @@ class HttpxPrivateRuntimeCommandTransport:
             f"/api/v1/trades/{trade_id}/open-order",
             None,
         )
-        result = response.get("result")
-        if result is not True:
+        if response.get("result") is not True:
             raise CommandActivationRejectedError()
         return self._acknowledgement("cancel", trade_id, response)
 
@@ -125,7 +124,9 @@ class HttpxPrivateRuntimeCommandTransport:
         try:
             auth = (username.decode("utf-8"), password.decode("utf-8"))
         except UnicodeError:
-            raise CommandActivationTransportError("RUNTIME_AUTHENTICATION_ENCODING_INVALID") from None
+            raise CommandActivationTransportError(
+                "RUNTIME_AUTHENTICATION_ENCODING_INVALID"
+            ) from None
         try:
             with httpx.Client(
                 verify=str(target.ca_certificate_path),

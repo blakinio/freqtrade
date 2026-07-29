@@ -1,0 +1,15 @@
+{
+  "accepted_state_root": "/output",
+  "created_at_utc": "2026-07-29T13:50:00Z",
+  "execution_enabled": false,
+  "live_capital_authorized": false,
+  "live_data_root": "/liquid20-data",
+  "model_execution_authorized": false,
+  "operation_id": "wickhunter-production-live-archive-20260729-v3",
+  "protected_holdout_start_utc": "2026-08-01T00:00:00Z",
+  "schema_version": "wickhunter-production-live-archive-conversion-request-v1",
+  "selection_policy": "latest-completed-nonempty-before-holdout",
+  "storage_root": "synology:///volume1/docker/freqtrade-liquidations/data/live/runs",
+  "trading_authorized": false,
+  "trading_credentials_present": false
+}

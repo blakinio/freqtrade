@@ -81,7 +81,8 @@ jobs:
           PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/ai_strategy_engine/src"
         run: |
           . ai_strategy_engine/.venv/bin/activate
-          pytest -q -o addopts='' tests/ai_platform/portal/strategy_lab
+          pytest -q -o addopts='' --confcutdir=tests/ai_platform/portal/strategy_lab \
+            tests/ai_platform/portal/strategy_lab
 
       - name: Run Ruff
         run: |

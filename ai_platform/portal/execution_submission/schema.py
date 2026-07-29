@@ -10,6 +10,7 @@ from ai_platform.portal.contracts.bot_management.execution import (
     AmbiguousExecutionResponse,
     ExecutionAcknowledgement,
     ExecutionAttempt,
+    ExecutionAttemptState,
     ExecutionBinding,
     ReconciliationRecord,
 )
@@ -20,6 +21,7 @@ from ai_platform.portal.contracts.common import (
     UtcDateTime,
 )
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
+from ai_platform.portal.contracts.execution import RuntimeHealthState
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent
 
 
@@ -28,6 +30,7 @@ class PrivateDryRunSubmission(ContractModel):
     intent: ApprovedExecutionIntent
     binding: ExecutionBinding
     runtime: AuthoritativeBotRuntimeState
+    runtime_health: RuntimeHealthState
     connection_id: NonEmptyStr
     credential_ref: CredentialReference
     exchange_id: NonEmptyStr
@@ -97,10 +100,18 @@ class PrivateSubmissionReceipt(ContractModel):
         if self.ambiguity is not None:
             if self.ambiguity.attempt_id != self.attempt.attempt_id:
                 raise ValueError("receipt ambiguity must reference the attempt")
+
+        if self.attempt.state == ExecutionAttemptState.ACKNOWLEDGED:
+            if self.acknowledgement is None or self.runtime_config is None:
+                raise ValueError("acknowledged receipt requires acknowledgement and dry-run evidence")
+        if self.attempt.state == ExecutionAttemptState.AMBIGUOUS and self.ambiguity is None:
+            raise ValueError("ambiguous receipt requires ambiguity evidence")
+        if self.attempt.state == ExecutionAttemptState.REJECTED and self.acknowledgement is None:
+            raise ValueError("rejected receipt requires acknowledgement evidence")
         return self
 
 
 class RuntimeSubmissionResponse(ContractModel):
-    accepted: bool
+    accepted: Literal[True] = True
     runtime_request_ref: NonEmptyStr
     response_digest: Sha256Hex

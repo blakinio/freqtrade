@@ -101,7 +101,9 @@ class PositionCommandActivationRequest(ContractModel):
             and item.position_revision == self.command.position_revision
         ]
         if len(matches) != 1:
-            raise ValueError("position command requires one exact runtime position evidence record")
+            raise ValueError(
+                "position command requires one exact runtime position evidence record"
+            )
         _validate_position_scope(self.runtime, tuple(matches))
         if self.command.action == PositionAction.PARTIAL_CLOSE:
             quantity = self.command.close_quantity
@@ -139,7 +141,9 @@ class OrderCommandActivationRequest(ContractModel):
             raise ValueError("order command requires one exact runtime order evidence record")
         if self.command.action == OrderAction.REPLACE_ORDER:
             if self.replacement_submission is None:
-                raise ValueError("replace-order requires risk-approved PI-08 replacement submission")
+                raise ValueError(
+                    "replace-order requires risk-approved PI-08 replacement submission"
+                )
             _validate_replacement(self, matches[0])
         elif self.replacement_submission is not None:
             raise ValueError("cancel-order must not declare replacement submission")
@@ -165,12 +169,13 @@ class CommandActivationResult(ContractModel):
         if self.activation_state == CommandActivationState.NOT_SUBMITTED:
             if self.execution_attempt_ref is not None or self.acknowledgement is not None:
                 raise ValueError("not-submitted result cannot have execution evidence")
-        else:
-            if self.execution_attempt_ref is None:
-                raise ValueError("activated result requires execution attempt reference")
-        if self.activation_state == CommandActivationState.ACKNOWLEDGED:
-            if self.acknowledgement is None:
-                raise ValueError("acknowledged result requires acknowledgement evidence")
+        elif self.execution_attempt_ref is None:
+            raise ValueError("activated result requires execution attempt reference")
+        if (
+            self.activation_state == CommandActivationState.ACKNOWLEDGED
+            and self.acknowledgement is None
+        ):
+            raise ValueError("acknowledged result requires acknowledgement evidence")
         return self
 
 
@@ -195,6 +200,8 @@ def _validate_position_scope(
             or position.runtime_id != runtime.runtime_id
         ):
             raise ValueError("position evidence scope mismatch")
+        if position.observed_at != runtime.observed_at:
+            raise ValueError("position evidence must match the authoritative runtime snapshot")
         identity = (position.position_id, position.position_revision)
         if identity in identities:
             raise ValueError("duplicate position evidence")
@@ -213,6 +220,8 @@ def _validate_order_scope(
             or order.runtime_id != runtime.runtime_id
         ):
             raise ValueError("order evidence scope mismatch")
+        if order.observed_at != runtime.observed_at:
+            raise ValueError("order evidence must match the authoritative runtime snapshot")
         identity = (order.order_id, order.order_revision)
         if identity in identities:
             raise ValueError("duplicate order evidence")

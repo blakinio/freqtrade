@@ -203,7 +203,10 @@ def test_existing_proof_script_preserves_security_and_session_boundaries() -> No
 def test_health_workflow_requires_combined_collector_and_portal_monitoring() -> None:
     repository_root = Path(__file__).resolve().parents[2]
     workflow = (
-        repository_root / ".github" / "workflows" / "liquidations-live-health.yml"
+        repository_root
+        / ".github"
+        / "workflows"
+        / "liquidations-live-operational-health.yml"
     ).read_text(encoding="utf-8")
 
     assert 'cron: "*/5 * * * *"' in workflow

@@ -64,17 +64,14 @@ EXPECTED_REQUEST: dict[str, object] = {
     "run_id": "binance-spot-instrument-shadow-acceptance-20260729-v3-r1",
     "policy_id": "binance-spot-instrument-shadow-acceptance-v1",
     "source_id": "binance-spot",
-    "request_url": (
-        "https://api.binance.com/api/v3/exchangeInfo?showPermissionSets=false"
-    ),
+    "request_url": ("https://api.binance.com/api/v3/exchangeInfo?showPermissionSets=false"),
     "duration_seconds": 86400,
     "sample_interval_seconds": 900,
     "host_id": "freqtrade-synology-staging",
     "host_class": "always_on_nonrestricted_linux_staging",
     "github_hosted_runner": False,
     "durable_storage_uri": (
-        "file:///var/lib/freqtrade-staging-state/"
-        "binance-spot-instrument-acceptance"
+        "file:///var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance"
     ),
     "baseline_artifact_id": 8686988992,
     "baseline_artifact_digest": (
@@ -249,12 +246,12 @@ def _collect_sample(
     smoke_policy = _smoke_policy(policy)
     try:
         if opener is None:
-            raw, status, content_type, final_url, sample_started, sample_ended = (
-                _fetch_once(smoke_policy)
+            raw, status, content_type, final_url, sample_started, sample_ended = _fetch_once(
+                smoke_policy
             )
         else:
-            raw, status, content_type, final_url, sample_started, sample_ended = (
-                _fetch_once(smoke_policy, opener=opener)
+            raw, status, content_type, final_url, sample_started, sample_ended = _fetch_once(
+                smoke_policy, opener=opener
             )
         stage = "decode"
         payload = _decode_object(raw)
@@ -331,9 +328,7 @@ def initialize_incremental_acceptance(
             now_ns,
             request.sample_interval_seconds,
         )
-        expected_samples = (
-            request.duration_seconds // request.sample_interval_seconds + 1
-        )
+        expected_samples = request.duration_seconds // request.sample_interval_seconds + 1
         state_seed: dict[str, object] = {
             "state_version": STATE_VERSION,
             "status": "active",
@@ -441,9 +436,7 @@ def _finalize(
     policy_mapping = _load_object(run_root / POLICY_NAME)
     reports = [
         _load_object(path)
-        for path in sorted(
-            (run_root / SAMPLES_DIR_NAME).glob("*/sample-report.json")
-        )
+        for path in sorted((run_root / SAMPLES_DIR_NAME).glob("*/sample-report.json"))
     ]
     expected_samples = int(state["expected_sample_count"])
     if len(reports) != expected_samples:
@@ -512,9 +505,7 @@ def collect_due_incremental_sample(
         _validate_exact_request(request_mapping)
         request = validate_request(request_mapping, policy=policy)
         packaged_policy = _load_object(run_root / POLICY_NAME)
-        if canonical_json_bytes(packaged_policy) != canonical_json_bytes(
-            _load_object(policy_path)
-        ):
+        if canonical_json_bytes(packaged_policy) != canonical_json_bytes(_load_object(policy_path)):
             raise ValueError("packaged policy differs from scheduler policy")
 
         index = int(state["next_sample_index"])
@@ -575,9 +566,7 @@ def collect_due_incremental_sample(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description=(
-            "Initialize or advance non-blocking Binance Spot instrument acceptance"
-        )
+        description=("Initialize or advance non-blocking Binance Spot instrument acceptance")
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     init_parser = subparsers.add_parser("init")

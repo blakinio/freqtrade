@@ -24,9 +24,7 @@ DECLARATION_PATH = REPO_ROOT / "ai_platform" / "validation" / "final-holdout-v2-
 def test_dataset_manifest_is_immutable_and_matches_canonical_holdout() -> None:
     raw = yaml.safe_load(MANIFEST_PATH.read_text(encoding="utf-8"))
     schema = json.loads(
-        (ENGINE_ROOT / "schemas" / "dataset-manifest.v1.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (ENGINE_ROOT / "schemas" / "dataset-manifest.v1.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(raw, schema)
     manifest = load_dataset_manifest(

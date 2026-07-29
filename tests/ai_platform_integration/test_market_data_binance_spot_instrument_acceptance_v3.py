@@ -305,7 +305,7 @@ def test_v3_workflow_releases_runner_between_samples() -> None:
     assert not BLOCKING_V2_WORKFLOW_PATH.exists()
     assert 'cron: "*/5 * * * *"' in workflow
     assert f'- "{TRIGGER_PATH}"' in workflow
-    assert f"expected=$'A\t{TRIGGER_PATH}'" in workflow
+    assert f"expected=$'A\\t{TRIGGER_PATH}'" in workflow
     assert workflow.count("timeout-minutes: 10") == 1
     assert workflow.count("timeout-minutes: 5") == 1
     assert "timeout-minutes: 1500" not in workflow

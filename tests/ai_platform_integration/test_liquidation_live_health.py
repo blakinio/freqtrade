@@ -178,6 +178,10 @@ def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     assert "statuses: write" in workflow
     assert "cancel-in-progress: true" in workflow
     assert "persist-credentials: false" in workflow
+    assert "Set up Python" in workflow
+    assert "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1" in workflow
+    assert 'python-version: "3.13"' in workflow
+    assert "steps.python_runtime.outcome" in workflow
     assert "LIQUID20_HEARTBEAT_STALE_SECONDS" in workflow
     assert "LIQUID20_SOURCE_STALE_SECONDS" in workflow
     assert "LIQUID20_DISK_USED_PERCENT_MAX" in workflow
@@ -189,5 +193,7 @@ def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     assert '"context": "liquidations-live-health"' in workflow
     assert "runner_watchdog:" in workflow
     assert "actions/runs/$GITHUB_RUN_ID/jobs" in workflow
+    assert "if ! jobs_json=$(curl" in workflow
+    assert "health_status=api_error" in workflow
     assert "LIQUIDATIONS_HEALTH_RUNNER_UNAVAILABLE" in workflow
     assert "did not start within 120 seconds" in workflow

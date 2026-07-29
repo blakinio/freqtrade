@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import ipaddress
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,6 +25,9 @@ from ai_platform.portal.execution_submission.schema import (
     RuntimeDryRunEvidence,
     RuntimeSubmissionResponse,
 )
+
+
+Clock = Callable[[], datetime]
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,8 @@ class HttpxPrivateFreqtradeTransport:
         *,
         timeout_seconds: float = 5.0,
         max_body_bytes: int = 1_048_576,
+        http_transport: httpx.BaseTransport | None = None,
+        clock: Clock | None = None,
     ) -> None:
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -94,6 +99,8 @@ class HttpxPrivateFreqtradeTransport:
             raise ValueError("max_body_bytes must be positive")
         self._timeout_seconds = timeout_seconds
         self._max_body_bytes = max_body_bytes
+        self._http_transport = http_transport
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     def verify_dry_run(
         self,
@@ -115,11 +122,10 @@ class HttpxPrivateFreqtradeTransport:
             raise SubmissionPolicyError("RUNTIME_NOT_DRY_RUN")
         if payload.get("force_entry_enable") is not True:
             raise SubmissionPolicyError("RUNTIME_FORCE_ENTRY_DISABLED")
-        digest = _digest(payload)
         return RuntimeDryRunEvidence(
             runtime_id=target.runtime_id,
-            verified_at=datetime.now(UTC),
-            config_digest=digest,
+            verified_at=self._clock(),
+            config_digest=_digest(payload),
         )
 
     def submit(
@@ -148,9 +154,8 @@ class HttpxPrivateFreqtradeTransport:
         )
         _require_force_entry_acknowledgement(response, expected_pair=trade_intent.pair)
         digest = _digest(response)
-        runtime_ref = _runtime_request_ref(response, digest)
         return RuntimeSubmissionResponse(
-            runtime_request_ref=runtime_ref,
+            runtime_request_ref=_runtime_request_ref(response, digest),
             response_digest=digest,
         )
 
@@ -178,6 +183,7 @@ class HttpxPrivateFreqtradeTransport:
                 timeout=self._timeout_seconds,
                 follow_redirects=False,
                 trust_env=False,
+                transport=self._http_transport,
             ) as client:
                 response = client.request(
                     method,

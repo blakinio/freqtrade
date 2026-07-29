@@ -52,6 +52,7 @@ class StrategyLabCatalog:
         resolved: dict[str, Any] = {}
         for name, spec in specs.items():
             value = overrides.get(name, spec.default)
+            numeric: int | float
             if spec.kind is ParameterKind.INTEGER:
                 if not isinstance(value, int) or isinstance(value, bool):
                     raise StrategyCatalogError(f"{name} must be an integer")

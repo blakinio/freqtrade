@@ -15,21 +15,15 @@ def test_container_observation_reads_pointer_and_disk_without_shell(
 ) -> None:
     calls: list[list[str]] = []
 
-    def run(
-        command: list[str],
-        *,
-        input: str,
-        check: bool,
-        capture_output: bool,
-        text: bool,
-        timeout: int,
-    ) -> subprocess.CompletedProcess[str]:
+    def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
         calls.append(command)
-        assert check is False
-        assert capture_output is True
-        assert text is True
-        assert timeout == 15
-        if "live-state-v1.json" in input:
+        assert kwargs["check"] is False
+        assert kwargs["capture_output"] is True
+        assert kwargs["text"] is True
+        assert kwargs["timeout"] == 15
+        source = kwargs["input"]
+        assert isinstance(source, str)
+        if "live-state-v1.json" in source:
             stdout = '{"contract":"liquidation-live-state-v1","state":{"run_state":"active"}}\n'
         else:
             stdout = '{"free":300,"total":1000,"used":700}\n'
@@ -64,7 +58,7 @@ def test_runtime_adapter_falls_back_to_container_and_tolerates_disabled_issues(
 
     def disabled_issues(*_args: Any, **_kwargs: Any) -> str:
         raise RuntimeError(
-            'GitHub API POST /repos/blakinio/freqtrade/issues failed: 410 '
+            "GitHub API POST /repos/blakinio/freqtrade/issues failed: 410 "
             '{"message":"Issues has been disabled in this repository."}'
         )
 

@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from ai_platform.market_data.contracts import InstrumentSnapshot, MarketType
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import SourceHealth
+
+if TYPE_CHECKING:
+    from ai_platform.market_data.contracts import InstrumentSnapshot, MarketType
 
 
 @dataclass(frozen=True, slots=True)

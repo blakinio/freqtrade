@@ -34,14 +34,14 @@ Deliver the research-only AI Strategy Engine foundation and one deterministic sy
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T09:38:00+02:00
+updated_at: 2026-07-29T10:11:00+02:00
 checkpoint_carrier: self
-validated_parent_head: c3f6e3a5ae4f78fc7cc8daf3efcdcdb98d3e9e7f
+validated_parent_head: 20134bbeecf2f294d23dc1365b613cf76b11e575
 branch: agent/ase-00-ai-strategy-engine-foundation
-base_head: 530f61caf9d5d4644068a93baa0b7a09298f24c6
+base_head: bc5493435c3b895e65adcea9f84920b36da33b2e
 pr: 584
 status: ready_for_review
-exact_head_resolution: Resolve checkpoint_carrier from the current PR 584 head; required GitHub checks attached to that commit are authoritative.
+exact_head_resolution: Resolve checkpoint_carrier from the current PR 584 head; required GitHub checks and the PR body attached to that commit are authoritative.
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -58,11 +58,10 @@ owned_paths:
   - pyproject.toml
   - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
 proven:
-  - PR 584 is open, unmerged and mergeable.
-  - Develop 530f61caf9d5d4644068a93baa0b7a09298f24c6 was synchronized normally through PR 671; no force-push or branch-protection bypass was used.
-  - The incoming PI-08 package is private dry-run only and changes Portal execution-submission paths, not ASE Strategy Engine runtime paths.
-  - The immediately preceding exact head e9a2a0f379a66b9b8f683c1297dd0f5c5e710b9d passed all required workflows, including Freqtrade CI run 30430720720 and Python 3.12 coverage job 90507285130.
-  - The synchronized parent c3f6e3a5ae4f78fc7cc8daf3efcdcdb98d3e9e7f passed AI Strategy Engine run 30432022192, AI Platform CI run 30432021188, zizmor run 30432020624 and both runtime smoke workflows before this final checkpoint commit superseded its queued Freqtrade run.
+  - PR 584 is open, draft, unmerged and mergeable after synchronizing current develop.
+  - Develop bc5493435c3b895e65adcea9f84920b36da33b2e was synchronized normally through PR 673 as merge commit 20134bbeecf2f294d23dc1365b613cf76b11e575; no force-push or branch-protection bypass was used.
+  - The incoming develop commit changed only the completed PI-08 task checkpoint and did not alter ASE runtime, tests, workflow or safety boundaries.
+  - Immediately preceding exact head 730b9618e9eaec15b33fed20e2afffe8f87adba9 passed all required workflows, including Freqtrade CI run 30432440626.
   - The earlier Freqtrade CI run 30399932018 failed only in Python 3.12 coverage job 90412240770; its log endpoint returned BlobNotFound and exposed no concrete test failure.
   - That failure was not reproduced on later exact heads, so no speculative code correction was made.
   - Canonical contracts, Feature Registry, Strategy DSL, Leakage Guard, research adapter and the deterministic twelve-case shadow vertical slice are present.
@@ -73,10 +72,11 @@ derived:
 unknown:
   - The exact internal cause of run 30399932018 because GitHub no longer exposes a usable job log.
   - Human review outcome and merge timing for PR 584.
-conflicts: []
+conflicts:
+  - The PR body still records historical head 18041af549cc0ad9f35deb2f5cd6489fcf7c1ec5 and develop anchor be47cdfd4692ea28281e0a1158cab6c98db38608; replace them with checkpoint_carrier evidence after exact-head checks finish without creating another repository commit.
 first_failure:
   marker: FREQTRADE_CI_PY312_COVERAGE_NON_REPRODUCIBLE
-  evidence: Run 30399932018 job 90412240770 ended failure with unavailable logs; later exact-head Python 3.12 coverage jobs 90503266663 and 90507285130 passed.
+  evidence: Run 30399932018 job 90412240770 ended failure with unavailable logs; later exact-head Python 3.12 coverage jobs passed, including Freqtrade CI run 30432440626 on head 730b9618e9eaec15b33fed20e2afffe8f87adba9.
 rejected_hypotheses:
   - Modify ASE code without a reproducible failing test.
   - Treat a previously green head as evidence for a different current head.
@@ -92,15 +92,15 @@ changed_paths:
   - .github/workflows/ai-strategy-engine.yml
   - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
 validation:
+  - command: Compare develop to synchronized parent
+    result: PASS
+    evidence: Develop bc5493435c3b895e65adcea9f84920b36da33b2e; synchronized parent 20134bbeecf2f294d23dc1365b613cf76b11e575; behind_by 0; ahead_by 264; PR mergeable.
   - command: Previous exact-head required workflow suite
     result: PASS
-    evidence: Head e9a2a0f379a66b9b8f683c1297dd0f5c5e710b9d passed AI Strategy Engine 30430720730, AI Platform CI 30430720686, Freqtrade CI 30430720720, zizmor 30430720728, Experimental Model Runtime Smoke 30430721195 and Residual PyTorch Runtime Smoke 30430720689.
-  - command: Current synchronized parent non-Freqtrade workflows
-    result: PASS
-    evidence: Head c3f6e3a5ae4f78fc7cc8daf3efcdcdb98d3e9e7f passed runs 30432022192, 30432021188, 30432020624, 30432020119 and 30432019969.
+    evidence: Head 730b9618e9eaec15b33fed20e2afffe8f87adba9 passed AI Strategy Engine 30432440735, AI Platform CI 30432440479, Freqtrade CI 30432440626, zizmor 30432440443, Experimental Model Runtime Smoke 30432440314 and Residual PyTorch Runtime Smoke 30432440179.
   - command: Final checkpoint-carrier workflow suite
     result: REQUIRED
-    evidence: All required GitHub checks attached to the current PR head must be green before merge; their exact run IDs are recorded in the PR body without creating another commit.
+    evidence: All required GitHub checks attached to the current PR head must be green before human review or merge; exact run IDs belong in the PR body without another repository commit.
 known_limitations:
   - ASE-00 remains research and shadow only.
   - The protected final holdout remains unavailable for iterative work.
@@ -108,6 +108,7 @@ known_limitations:
 missing_functions:
   - FTAI-20260729-ase-01-tradingview-strategy-lab has not started because its required base is develop after approved ASE-00 merge.
 blockers:
+  - Current checkpoint-carrier required checks must pass before PR 584 is ready for human review.
   - A human owner must review and approve PR 584 before merge under the repository process.
 next_action: Human-review and approve PR 584 after checkpoint-carrier checks are green; merge it normally into develop, then create FTAI-20260729-ase-01-tradingview-strategy-lab from that exact develop head.
 ```

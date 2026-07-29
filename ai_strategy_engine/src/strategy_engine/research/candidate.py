@@ -140,9 +140,7 @@ class CandidateGenerator:
                 "trigger" in definition.roles or "confirmation" in definition.roles
             ):
                 operator, value = condition
-                entry_conditions.append(
-                    {"feature": feature_id, "op": operator, "value": value}
-                )
+                entry_conditions.append({"feature": feature_id, "op": operator, "value": value})
 
         if not entry_conditions:
             raise CandidateGenerationError(

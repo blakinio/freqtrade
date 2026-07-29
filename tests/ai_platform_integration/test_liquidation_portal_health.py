@@ -208,7 +208,7 @@ def test_health_workflow_requires_combined_collector_and_portal_monitoring() -> 
 
     assert 'cron: "*/5 * * * *"' in workflow
     assert "Check Synology collector and portal" in workflow
-    assert "python -m ai_platform.scripts.liquidation_portal_health" in workflow
+    assert "python -m ai_platform.scripts.liquidation_operational_health" in workflow
     assert "LIQUID20_PORTAL_PROOF_SCRIPT" in workflow
     assert "prove-liquidations-live.sh" in workflow
     assert 'PORTAL_LIVE_PROOF_DELAY_SECONDS: "5"' in workflow

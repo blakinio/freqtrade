@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1
-status: running
-branch: run/binance-spot-instrument-shadow-acceptance-20260729-v2
+status: blocked
+branch: docs/binance-v2-cancelled-runner-architecture-checkpoint
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-29
@@ -20,8 +20,8 @@ required_reads:
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE.md
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2.md
 search_first:
-  - current status of PR 699 and workflow 30459738848
-  - current steps of job 90602377126
+  - current state of PR 699, workflow 30459738848 and job 90602377126
+  - non-blocking short-lived sampling workflow design
 optional_reads:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_EXECUTION.md
 ---
@@ -32,11 +32,11 @@ optional_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T16:14:00+02:00
+updated_at: 2026-07-29T17:20:00+02:00
 head: cda800b20ec4323be21a0a5b46a91e5e5fd2fdab
-branch: run/binance-spot-instrument-shadow-acceptance-20260729-v2
+branch: docs/binance-v2-cancelled-runner-architecture-checkpoint
 pr: "#699"
-status: running
+status: blocked
 context_routes:
   - Binance Spot public instrument-catalog acceptance
   - Synology self-hosted staging runner
@@ -44,43 +44,45 @@ context_routes:
 owned_paths:
   - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v2.yml
   - tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py
-  - ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 proven:
   - Original acceptance implementation remains merged as aeb858ebe5266742c257aa7b45b5cffd11c4b5ba with unchanged policy, transport, parser, thresholds, durable evidence and independent evaluator.
-  - Consumed v1 trigger workflow 30456309522 failed before network because its isolated runtime lacked jsonschema; no observation or package was created and PR 687 was closed without merge.
-  - Runtime v2 repair PR 690 merged as 224ee218b2e62b68c2888e27913a2c3d6c35dfc9 after exact-head AI Platform CI, full Freqtrade CI and zizmor success.
-  - Exact-merged-head proof workflow 30458935489 job 90599644500 completed success on freqtrade-synology-staging and PR 695 was closed without merge.
-  - The proof validated v2 runner, durable storage, pinned jsonschema 4.26.0, complete static preflight, accepted and rejected 97-slot packages, independent evaluation, tamper rejection, zero orders and production disabled.
-  - Terminal marker BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2_NO_NETWORK_PROOF_PASS was recorded after successful proof cleanup.
-  - PR 699 adds exactly ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json at head cda800b20ec4323be21a0a5b46a91e5e5fd2fdab.
-  - The canonical request freezes request_id binance-spot-instrument-shadow-acceptance-20260729-v2 and run_id binance-spot-instrument-shadow-acceptance-20260729-v2-r1 with the exact public URL, 86400 seconds, 900-second interval, approved host and durable URI, zero orders and production disabled.
-  - Opened-event workflow 30459738848 job 90602377126 started on exact runner freqtrade-synology-staging.
-  - Exact-one-file scope, staging identity, durable storage preparation, credential and proxy refusal, isolated Python, pinned dependency and no-network package preflight all completed success.
-  - The frozen 24-hour acceptance package step is in progress.
+  - Runtime v2 repair PR 690 merged as 224ee218b2e62b68c2888e27913a2c3d6c35dfc9 and exact-merged-head no-network proof workflow 30458935489 job 90599644500 completed success.
+  - PR 699 added exactly the canonical v2 request at head cda800b20ec4323be21a0a5b46a91e5e5fd2fdab and triggered workflow 30459738848 job 90602377126 on freqtrade-synology-staging.
+  - Exact-one-file scope, staging identity, durable storage, credential and proxy refusal, isolated Python, pinned jsonschema 4.26.0 and no-network package preflight completed success.
+  - The workflow then held the single self-hosted staging runner inside one 24-hour process instead of releasing it between 15-minute observations.
+  - Workflow 30459738848 was explicitly cancelled; job 90602377126 completed with conclusion cancelled while the 24-hour package step was active.
+  - Independent package verification and terminal outcome enforcement were skipped, so the run produced no accepted, rejected or inconclusive source-quality decision.
+  - Bounded artifact 8729171100 was uploaded at 4002 bytes with digest sha256:584f8051e87a1a44a6a3daf2efd77baf9ac8a54d8e992a5d3a58edfb39dc5acb.
+  - Isolated runtime cleanup and checkout cleanup completed success.
+  - PR 699 was closed without merge and its request, run and opened-event identities are consumed.
 derived:
-  - The single authorized real v2 acceptance attempt is active and must not be synchronized, reopened, rerun or automatically retried.
-  - PR 699 must remain unmerged and be closed only after workflow 30459738848 becomes terminal.
+  - Cancellation is a technical execution termination, not a source rejection and not production acceptance.
+  - The current one-job 24-hour workflow is unsuitable for a shared or single self-hosted runner because it monopolizes the runner between observations.
+  - No rerun, reopen, synchronization or reuse of PR 699, workflow 30459738848, request_id binance-spot-instrument-shadow-acceptance-20260729-v2 or run_id binance-spot-instrument-shadow-acceptance-20260729-v2-r1 is authorized.
 unknown:
-  - Terminal accepted, rejected or inconclusive outcome and evidence of workflow 30459738848.
+  - Binance Spot instrument-catalog acceptance outcome under a non-blocking complete 97-observation execution.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: Job 90602377126 is in progress in Run frozen 24-hour acceptance package after every pre-network gate completed success.
+  marker: BINANCE_ACCEPTANCE_RUNNER_MONOPOLIZATION
+  evidence: The workflow used one self-hosted job for the full 86400-second observation window; it was cancelled during the package step before independent evaluation.
 rejected_hypotheses:
-  - Modify or synchronize PR 699 while its opened-event workflow is active.
-  - Rerun, reopen or replace workflow 30459738848 before a terminal outcome exists.
-  - Treat an in-progress window as source acceptance or production authorization.
+  - Treat cancellation as accepted, rejected or inconclusive source evidence.
+  - Rerun, reopen, synchronize or reuse the consumed v2 trigger and identities.
+  - Enable source_acceptance, production_source_enabled, orders or live capital.
 changed_paths:
-  - ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 validation:
-  - command: GitHub compare develop...run/binance-spot-instrument-shadow-acceptance-20260729-v2
-    result: PASS
-    evidence: One commit and exactly one added canonical v2 request file; no implementation, workflow or documentation changed in PR 699.
   - command: GitHub workflow 30459738848 job 90602377126
-    result: RUNNING
-    evidence: Exact opened-event acceptance job passed every pre-network gate and entered the frozen 24-hour package on freqtrade-synology-staging.
-blockers: []
-next_action: When workflow 30459738848 becomes terminal, verify only job 90602377126, bounded artifact metadata and the durable terminal report; close PR 699 without merge, update this checkpoint with accepted, rejected or inconclusive evidence, and do not authorize production enablement.
+    result: CANCELLED
+    evidence: Preflight gates passed; the 24-hour package step was cancelled; independent verification and terminal enforcement were skipped; cleanup succeeded.
+  - command: GitHub artifact 8729171100 metadata
+    result: PASS
+    evidence: Bounded 4002-byte artifact exists with recorded SHA-256 digest and no terminal acceptance report claim.
+  - command: GitHub PR 699 terminal state
+    result: PASS
+    evidence: Closed without merge at exact consumed head cda800b20ec4323be21a0a5b46a91e5e5fd2fdab.
+blockers:
+  - The merged v2 workflow monopolizes freqtrade-synology-staging for the complete 24-hour window.
+next_action: Replace the continuous 24-hour self-hosted job with separately reviewed short-lived idempotent observation jobs that atomically persist one scheduled sample at a time, release the runner after each sample, finalize only after 97 valid slots, use new immutable request and run identities, and require exact-merged-head no-network proof before any real trigger.
 ```

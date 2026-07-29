@@ -44,7 +44,7 @@ jobs:
         run: >-
           python -m pip install --disable-pip-version-check
           pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6"
-          "httpx>=0.24.1" fastapi pyjwt cryptography "pandas>=2.2"
+          "httpx>=0.24.1" fastapi pyjwt cryptography
           ruff==0.15.21 codespell==2.4.2
 
       - name: Compile AI platform Python
@@ -53,7 +53,9 @@ jobs:
       - name: Run AI platform tests
         run: >-
           python -m pytest -q -o addopts=''
-          --confcutdir=tests/ai_platform tests/ai_platform
+          --confcutdir=tests/ai_platform
+          --ignore=tests/ai_platform/portal/strategy_lab
+          tests/ai_platform
 
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform

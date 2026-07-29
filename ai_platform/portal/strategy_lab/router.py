@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 
 from ai_platform.portal.control_plane.context import RequestContext
-from ai_platform.portal.strategy_lab.catalog import StrategyCatalogError, UnknownStrategyError
+from ai_platform.portal.strategy_lab.catalog import UnknownStrategyError
 from ai_platform.portal.strategy_lab.repository import CorruptExperimentResultError
 from ai_platform.portal.strategy_lab.schema import (
     EquityPoint,
@@ -25,7 +25,6 @@ from ai_platform.portal.strategy_lab.service import (
     StrategyLabNotFoundError,
     StrategyLabService,
 )
-from ai_platform.portal.strategy_lab.simulator import StrategySimulationError
 
 
 def build_router(
@@ -63,7 +62,7 @@ def build_router(
             raise _http_error(409, "STRATEGY_LAB_CONFLICT", exc) from exc
         except StrategyLabDataUnavailableError as exc:
             raise _http_error(503, "STRATEGY_LAB_DATA_UNAVAILABLE", exc) from exc
-        except (StrategyCatalogError, StrategySimulationError) as exc:
+        except ValueError as exc:
             raise _http_error(422, "STRATEGY_LAB_INVALID_REQUEST", exc) from exc
 
     @router.get("/experiments", response_model=list[ExperimentSummary])

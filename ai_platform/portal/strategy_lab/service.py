@@ -8,7 +8,7 @@ from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import ValidationError
@@ -32,7 +32,9 @@ from ai_platform.portal.strategy_lab.schema import (
     PaginatedTrades,
     StrategyLabDefinition,
 )
-from ai_platform.portal.strategy_lab.simulator import DeterministicStrategySimulator
+
+if TYPE_CHECKING:
+    from ai_platform.portal.strategy_lab.simulator import DeterministicStrategySimulator
 
 
 FINAL_HOLDOUT_START = datetime(2026, 8, 1, tzinfo=UTC)
@@ -132,8 +134,17 @@ class StrategyLabService:
         self._data_provider = data_provider or RepositoryJsonCandleDataProvider.from_environment()
         self._catalog = catalog or StrategyLabCatalog()
         self._repository = repository or StrategyLabRepository()
-        self._simulator = simulator or DeterministicStrategySimulator()
+        self._simulator = simulator
         self._clock = clock or (lambda: datetime.now(UTC))
+
+    def _get_simulator(self) -> DeterministicStrategySimulator:
+        if self._simulator is None:
+            from ai_platform.portal.strategy_lab.simulator import (
+                DeterministicStrategySimulator,
+            )
+
+            self._simulator = DeterministicStrategySimulator()
+        return self._simulator
 
     def list_strategies(self, context: RequestContext) -> tuple[StrategyLabDefinition, ...]:
         require_permission(context.permissions, Permission.MODEL_READ)
@@ -172,7 +183,7 @@ class StrategyLabService:
             NAMESPACE_URL,
             f"strategy-lab:{context.tenant_id}:{key}:{request_digest}",
         )
-        result = self._simulator.run(
+        result = self._get_simulator().run(
             experiment_id=experiment_id,
             tenant_id=context.tenant_id,
             request=request,

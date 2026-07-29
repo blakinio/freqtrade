@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1
-status: validating
-branch: fix/binance-spot-instrument-shadow-acceptance-runtime-v2
+status: ready
+branch: ci/prove-binance-spot-instrument-shadow-acceptance-runtime-v2
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-29
-related_pr: "#690"
+related_pr: "#695"
 owned_paths:
   - ai_platform/market_data/binance-spot-instrument-shadow-acceptance-policy-v1.json
   - ai_platform/market_data/binance_spot_instrument_acceptance.py
@@ -20,8 +20,8 @@ required_reads:
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE.md
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2.md
 search_first:
-  - current status of PR 690 and exact-head CI
-  - current changed-file scope and review threads for PR 690
+  - current existence of the canonical v2 request path
+  - current availability of freqtrade-synology-staging
 optional_reads:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_EXECUTION.md
 ---
@@ -32,11 +32,11 @@ optional_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T15:46:00+02:00
-head: 43205555c187af08a8d624191dbf44fce9543013
-branch: fix/binance-spot-instrument-shadow-acceptance-runtime-v2
-pr: "#690"
-status: validating
+updated_at: 2026-07-29T16:10:00+02:00
+head: 6687a6c77a26711eb2e364b41c14629a8dce1564
+branch: ci/prove-binance-spot-instrument-shadow-acceptance-runtime-v2
+pr: "#695"
+status: ready
 context_routes:
   - Binance Spot public instrument-catalog acceptance
   - Synology self-hosted staging runner
@@ -49,46 +49,41 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 proven:
   - Original acceptance implementation remains merged as aeb858ebe5266742c257aa7b45b5cffd11c4b5ba with unchanged policy, transport, parser, thresholds, durable evidence and independent evaluator.
-  - Replacement no-network proof workflow 30455561706 job 90588120948 completed success on exact runner freqtrade-synology-staging.
-  - Consumed v1 trigger workflow 30456309522 failed before network because its isolated runtime lacked jsonschema; no observation or acceptance package was created and PR 687 was closed without merge.
-  - PR 690 contains no request file and cannot trigger a Binance acceptance run.
-  - The v2 workflow watches only ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json on the opened event.
-  - The v2 workflow retains exact runner, protected environment, durable root, public URL, 24-hour 97-slot schedule, zero retries, independent evaluation, bounded artifact upload and production-disabled zero-order boundary.
-  - The v2 workflow installs and verifies jsonschema 4.26.0 before importing the acceptance package.
-  - A standard-library-only preflight binds the new request_id and run_id, validates runner and storage identity, performs atomic durable I/O and rejects an existing run directory.
-  - Focused tests cover exact-one-file routing, consumed-v1 exclusion, dependency ordering, bounded metadata upload, exact v2 identity, durable preflight and runner refusal.
-  - The new request identity is binance-spot-instrument-shadow-acceptance-20260729-v2 with run identity binance-spot-instrument-shadow-acceptance-20260729-v2-r1.
+  - Consumed v1 trigger workflow 30456309522 failed before network because its isolated runtime lacked jsonschema; no observation or package was created and PR 687 was closed without merge.
+  - Runtime v2 repair PR 690 merged as 224ee218b2e62b68c2888e27913a2c3d6c35dfc9 after exact-head AI Platform CI, full Freqtrade CI and zizmor success.
+  - Runtime v2 installs and verifies jsonschema 4.26.0 before package import and watches only ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json.
+  - Runtime v2 freezes request_id binance-spot-instrument-shadow-acceptance-20260729-v2 and run_id binance-spot-instrument-shadow-acceptance-20260729-v2-r1 while retaining the v1 policy and production-disabled zero-order boundary.
+  - Proof PR 695 changed exactly one workflow above exact merged repair 224ee218b2e62b68c2888e27913a2c3d6c35dfc9 and was closed without merge at head 6687a6c77a26711eb2e364b41c14629a8dce1564.
+  - Proof workflow 30458935489 job 90599644500 completed success on exact runner freqtrade-synology-staging.
+  - Proof validated the exact merged parent, approved runner, canonical durable root, credential and proxy refusal, pinned dependency and complete v2 static preflight.
+  - Proof executed complete accepted and rejected 97-slot packages with injected local openers and virtual clocks, independent evaluation, tamper rejection, zero orders and production disabled.
+  - Terminal marker BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2_NO_NETWORK_PROOF_PASS was recorded after successful cleanup.
+  - No canonical v2 request exists, no v2 Binance observation has executed and no durable v2 run directory was left by proof execution.
 derived:
-  - The repair changes only workflow runtime and trigger identity; it does not change source-quality acceptance semantics.
-  - A separate exact-merged-head no-network proof is still required before the v2 request may be created.
+  - The exact merged runtime v2 is ready for one separately reviewed canonical v2 24-hour trigger on the approved staging runner.
+  - The trigger must add exactly the frozen v2 request path and be closed without merge after its one opened-event execution.
 unknown:
-  - Terminal exact-head CI and review outcome of PR 690.
-  - Terminal outcome of the later no-network v2 proof.
-  - Outcome of any later real v2 24-hour acceptance window.
+  - Outcome of the real v2 24-hour Binance acceptance window.
 conflicts: []
 first_failure:
   marker: none
-  evidence: No current PR 690 terminal failure is recorded; the historical v1 missing-jsonschema failure is preserved above.
+  evidence: Workflow 30458935489 job 90599644500 and every proof step completed success with the frozen terminal marker.
 rejected_hypotheses:
-  - Modify or rerun the consumed v1 workflow and request identity.
-  - Add the v2 canonical request to the runtime-repair PR.
-  - Change the frozen policy, parser, thresholds or production-disabled boundary to repair an environment dependency.
-  - Create the v2 trigger before exact-merged-head no-network proof success.
+  - Reuse, reopen, synchronize or rerun the consumed v1 request or either proof PR.
+  - Add implementation, workflow or documentation changes to the v2 trigger PR.
+  - Treat proof success as source acceptance or production enablement.
 changed_paths:
-  - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v2.yml
-  - tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py
-  - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_v2.py
-  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2.md
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 validation:
-  - command: GitHub compare develop...fix/binance-spot-instrument-shadow-acceptance-runtime-v2
+  - command: GitHub workflow 30458935489 job 90599644500
     result: PASS
-    evidence: Four pre-checkpoint commits add only the v2 workflow, preflight guard, focused tests and runtime-v2 documentation; no request file exists.
-  - command: GitHub PR 690 metadata inspection
+    evidence: Every step completed success on freqtrade-synology-staging, including v2 preflight, full 97-slot proof and cleanup.
+  - command: terminal proof marker inspection
     result: PASS
-    evidence: Open against develop with no canonical request and no authorization for a Binance network run.
-blockers:
-  - PR 690 requires exact-head CI, security validation and review-thread closure before merge.
-  - Exact merged runtime v2 requires a separate no-network proof on freqtrade-synology-staging before any trigger.
-next_action: Complete exact-head CI and guarded merge of PR 690 without adding a request file; then create a separate exact-one-workflow no-network proof against the merged repair and close that proof PR without merge before considering the v2 24-hour trigger.
+    evidence: BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2_NO_NETWORK_PROOF_PASS recorded after durable cleanup.
+  - command: GitHub PR 695 terminal state
+    result: PASS
+    evidence: Closed without merge at exact head 6687a6c77a26711eb2e364b41c14629a8dce1564.
+blockers: []
+next_action: Create one PR that adds exactly ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json with the frozen public-only request, allow its opened-event 24-hour workflow to execute once on freqtrade-synology-staging, then close the trigger PR without merge and update this checkpoint from the terminal evidence without enabling production.
 ```

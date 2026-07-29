@@ -10,7 +10,11 @@ on:
       - ai_platform/scripts/liquidation_live_stream.py
       - ai_platform/scripts/liquidation_collector.py
       - ai_platform/scripts/liquidation_binance_collector.py
-      - deploy/synology/liquid20/**
+      - deploy/synology/liquid20/.env.example
+      - deploy/synology/liquid20/Dockerfile
+      - deploy/synology/liquid20/compose.yaml
+      - deploy/synology/liquid20/deploy-live.sh
+      - deploy/synology/liquid20/live-entrypoint.sh
   workflow_dispatch:
 
 permissions: {}

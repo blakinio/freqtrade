@@ -153,6 +153,22 @@ def test_synology_workflow_mutates_production_only_from_develop() -> None:
     assert "workflow_dispatch:" in workflow
 
 
+def test_synology_workflow_deploys_only_for_runtime_paths() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    runtime_paths = (
+        "deploy/synology/liquid20/.env.example",
+        "deploy/synology/liquid20/Dockerfile",
+        "deploy/synology/liquid20/compose.yaml",
+        "deploy/synology/liquid20/deploy-live.sh",
+        "deploy/synology/liquid20/live-entrypoint.sh",
+    )
+
+    assert "deploy/synology/liquid20/**" not in workflow
+    for path in runtime_paths:
+        assert f"- {path}" in workflow
+    assert "- deploy/synology/liquid20/LIVE_STREAM.md" not in workflow
+
+
 def test_deployment_uses_validated_full_public_universe_bound() -> None:
     script = (DEPLOYMENT_ROOT / "deploy-live.sh").read_text(encoding="utf-8")
     entrypoint = (DEPLOYMENT_ROOT / "live-entrypoint.sh").read_text(encoding="utf-8")

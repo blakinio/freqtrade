@@ -1,4 +1,3 @@
-# ruff: noqa: I001
 """Bot-operation persistence and private BM-07 activation API."""
 
 from ai_platform.portal.bot_operations.activation_errors import (

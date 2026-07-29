@@ -38,7 +38,7 @@ Snapshot date: `2026-07-29`.
 - PI-03 Canonical Inference and Drift Telemetry: `done`, PR #239 and closure PR #260.
 - PI-04 Centralized Runtime Observability: repository contracts `done`, PR #261; real backend connectivity remains deployment-owned.
 - PI-05 External Notification Delivery: `planned`; provider/channel, destination ownership and privacy policy are unresolved.
-- PI-06 Product Identity and Session Lifecycle: repository backend, BFF/browser integration and Authentik/Synology deployment package are complete; real target provisioning, MFA, recovery and restore acceptance remain owner-managed.
+- PI-06 Product Identity and Session Lifecycle: repository backend, BFF/browser integration and Authentik/Synology deployment package are complete; owner-authorized emulation-first target acceptance is active under `FTAI-20260729-portal-pi06-emulated-target-acceptance`; real Synology, OIDC, MFA, recovery and restore evidence remains owner-managed.
 - PI-07 Runtime Credential Broker and Rotation: repository software and deployment contracts `done`, PR #666, merge `436b5350e54a33cbf070738a2328b142ffcd5174`; real Vault target acceptance remains owner-managed.
 - PI-08 Private Dry-Run Approved Execution Submission: `done`, PR #669, merge `530f61caf9d5d4644068a93baa0b7a09298f24c6`; closure PR #670, merge `bc5493435c3b895e65adcea9f84920b36da33b2e`.
 
@@ -90,11 +90,12 @@ This proves repository integration only. It is not real Authentik, Vault, Synolo
 The following are not ordinary repairs and must not be inferred from BM-09 completion:
 
 1. PI-05 may start only after an owner selects one provider/channel and destination/privacy policy.
-2. PI-06 real target acceptance may start only with intentional Synology access, protected secrets, DNS/TLS routing, test users, MFA devices, offline recovery material and an isolated restore target.
-3. Real Vault and private Freqtrade target acceptance remain owner-managed deployment evidence.
-4. P11 may resume only after explicit owner start and approved Cloudflare/protected-environment resources.
-5. P13 remains measured-need-only.
-6. P14 remains separately owner-approved and blocked; software completion never authorizes capital.
+2. PI-06 emulation may run in isolated disposable containers. Real target acceptance still requires intentional Synology access, protected secrets, DNS/TLS routing, test users, MFA devices, offline recovery material and an isolated restore target.
+3. Manual Google Authenticator enrollment and fresh-login TOTP challenge are owner actions; QR codes, TOTP seeds, current codes and recovery codes must never enter repository evidence.
+4. Real Vault and private Freqtrade target acceptance remain owner-managed deployment evidence.
+5. P11 may resume only after explicit owner start and approved Cloudflare/protected-environment resources.
+6. P13 remains measured-need-only.
+7. P14 remains separately owner-approved and blocked; software completion never authorizes capital.
 
 Any new repository package must receive a dated task, explicit owned paths, acceptance criteria and exact-head validation. Do not reopen or silently extend BM-00 through BM-09.
 
@@ -120,9 +121,9 @@ Stop and record a blocker instead of improvising when:
 - a change would expose IdP, Freqtrade, exchange or observability credentials to the browser;
 - work would enable real capital or withdrawals;
 - work would weaken deterministic risk, audit, tenant isolation or safety tests;
-- fixture evidence would be mislabeled as real target acceptance;
+- fixture or emulated evidence would be mislabeled as real target acceptance;
 - scale or extraction is proposed without measured need.
 
 ## 9. Current next action
 
-Keep the repository-side BM sequence closed. Start no additional package until a separately governed owner decision supplies PI-05 provider policy, PI-06 target-acceptance resources or P11 staging prerequisites. Keep P14 blocked.
+Complete `FTAI-20260729-portal-pi06-emulated-target-acceptance` through exact-head CI. Then request only the owner-operated Google Authenticator challenge and real Synology/OIDC/backup/restore probes that automation cannot prove. Keep P11 and P14 blocked.

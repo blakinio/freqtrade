@@ -1,0 +1,16 @@
+name: portal-authentik-emulated
+
+networks:
+  identity_front:
+    name: ${PI06_EMULATED_RESOURCE_PREFIX:?set a unique emulation prefix}_front
+  identity_data:
+    name: ${PI06_EMULATED_RESOURCE_PREFIX:?set a unique emulation prefix}_data
+    internal: true
+
+volumes:
+  postgresql_data:
+    name: ${PI06_EMULATED_RESOURCE_PREFIX:?set a unique emulation prefix}_postgresql_data
+  authentik_media:
+    name: ${PI06_EMULATED_RESOURCE_PREFIX:?set a unique emulation prefix}_media
+  authentik_templates:
+    name: ${PI06_EMULATED_RESOURCE_PREFIX:?set a unique emulation prefix}_templates

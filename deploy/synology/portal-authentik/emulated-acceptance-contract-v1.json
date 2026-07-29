@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "package": "PI-06 emulated target acceptance",
+  "claim": "emulated_non_production_acceptance_only",
+  "automated_scenarios": [
+    {
+      "id": "runtime_health",
+      "evidence": "deploy/synology/portal-authentik/emulated_acceptance.sh"
+    },
+    {
+      "id": "network_and_secret_boundary",
+      "evidence": "deploy/synology/portal-authentik/emulated_acceptance.sh"
+    },
+    {
+      "id": "persistent_storage_restart",
+      "evidence": "deploy/synology/portal-authentik/emulated_acceptance.sh"
+    },
+    {
+      "id": "portal_mfa_fail_closed_policy",
+      "evidence": "ai_platform/portal/web/e2e/specs/security/identity-session.spec.ts"
+    }
+  ],
+  "manual_owner_scenarios": [
+    {
+      "id": "totp_enrollment_google_authenticator",
+      "required": true,
+      "secret_free_evidence": true
+    },
+    {
+      "id": "totp_challenge_after_new_login",
+      "required": true,
+      "secret_free_evidence": true
+    },
+    {
+      "id": "encrypted_backup_and_isolated_restore",
+      "required": true,
+      "secret_free_evidence": true
+    }
+  ],
+  "forbidden_claims": [
+    "real_synology_target_accepted",
+    "real_mfa_accepted",
+    "real_oidc_portal_callback_accepted",
+    "real_restore_accepted",
+    "p11_accepted",
+    "live_capital_authorized"
+  ]
+}

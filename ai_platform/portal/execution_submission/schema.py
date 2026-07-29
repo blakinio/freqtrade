@@ -103,10 +103,15 @@ class PrivateSubmissionReceipt(ContractModel):
 
         if self.attempt.state == ExecutionAttemptState.ACKNOWLEDGED:
             if self.acknowledgement is None or self.runtime_config is None:
-                raise ValueError("acknowledged receipt requires acknowledgement and dry-run evidence")
+                raise ValueError(
+                    "acknowledged receipt requires acknowledgement and dry-run evidence"
+                )
         if self.attempt.state == ExecutionAttemptState.AMBIGUOUS and self.ambiguity is None:
             raise ValueError("ambiguous receipt requires ambiguity evidence")
-        if self.attempt.state == ExecutionAttemptState.REJECTED and self.acknowledgement is None:
+        if (
+            self.attempt.state == ExecutionAttemptState.REJECTED
+            and self.acknowledgement is None
+        ):
             raise ValueError("rejected receipt requires acknowledgement evidence")
         return self
 

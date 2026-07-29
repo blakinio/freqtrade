@@ -4,6 +4,7 @@ import json
 import re
 from collections.abc import Mapping
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal, Self, cast
 
@@ -54,8 +55,8 @@ class ProtectedFinalHoldout(CanonicalModel):
         if _TIMERANGE_PATTERN.fullmatch(value) is None:
             raise ValueError("final holdout timerange must use YYYYMMDD-YYYYMMDD")
         start_raw, end_raw = value.split("-", maxsplit=1)
-        start = datetime.strptime(start_raw, "%Y%m%d")
-        end = datetime.strptime(end_raw, "%Y%m%d")
+        start = datetime.strptime(start_raw, "%Y%m%d").replace(tzinfo=UTC)
+        end = datetime.strptime(end_raw, "%Y%m%d").replace(tzinfo=UTC)
         if start > end:
             raise ValueError("final holdout timerange starts after it ends")
         return value
@@ -89,7 +90,7 @@ class DatasetManifest(CanonicalModel):
         if not self.timeframes or len(self.timeframes) != len(set(self.timeframes)):
             raise ValueError("timeframes must be non-empty and unique")
         windows = (self.training, self.tuning, self.validation)
-        for left, right in zip(windows, windows[1:]):
+        for left, right in pairwise(windows):
             if left.end >= right.start:
                 raise ValueError("dataset windows must be ordered and non-overlapping")
         holdout_start = datetime.strptime(

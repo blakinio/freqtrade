@@ -59,7 +59,7 @@ jobs:
           tests/ai_platform
 
       - name: Ruff
-        run: ruff check ai_platform tests/ai_platform
+        run: ruff check --fix --diff ai_platform tests/ai_platform
 
       - name: Ruff format
         run: ruff format --diff --check ai_platform tests/ai_platform

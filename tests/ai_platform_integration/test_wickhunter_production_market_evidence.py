@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import subprocess
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -308,22 +307,3 @@ def test_contract_and_workflow_preserve_bounded_trigger_and_zero_authority() -> 
         REPO_ROOT / "ai_platform/wickhunter/production_market_evidence.py"
     ).read_text()
     assert not REQUEST_PATH.exists()
-
-
-def test_emit_exact_ruff_import_fix() -> None:
-    result = subprocess.run(
-        [
-            "ruff",
-            "check",
-            "--select",
-            "I001",
-            "--fix",
-            "--diff",
-            "ai_platform/wickhunter/production_market_evidence.py",
-        ],
-        cwd=REPO_ROOT,
-        capture_output=True,
-        check=False,
-        text=True,
-    )
-    pytest.fail(result.stdout + result.stderr)

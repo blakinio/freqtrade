@@ -7,7 +7,7 @@ from pathlib import Path
 
 def test_conversion_runtime_import_does_not_require_unrelated_dependencies() -> None:
     repository_root = Path(__file__).resolve().parents[2]
-    probe = r'''
+    probe = r"""
 import builtins
 
 real_import = builtins.__import__
@@ -32,7 +32,7 @@ from ai_platform.wickhunter.dataset import load_accepted_import as direct_loader
 assert callable(convert_production_archive)
 assert callable(verify_operation)
 assert exported_loader is direct_loader
-'''
+"""
     completed = subprocess.run(
         [sys.executable, "-c", probe],
         cwd=repository_root,

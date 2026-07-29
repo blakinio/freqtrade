@@ -24,6 +24,7 @@ from ai_platform.research.liquidations.datasets.candle_artifact import (
     validate_complete_coverage,
 )
 
+
 TIMEFRAME_MS = 300_000
 MAX_RESPONSE_BYTES = 32 * 1024 * 1024
 ACTIVE_POINTER_NAME = "active-wickhunter-production-market-evidence-v1.json"

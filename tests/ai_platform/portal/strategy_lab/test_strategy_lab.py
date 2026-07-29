@@ -128,6 +128,10 @@ def test_catalog_contains_two_versioned_clean_room_strategies() -> None:
         ("tv_squeeze_momentum_v1", "1.0.0"),
         ("tv_supertrend_v1", "1.0.0"),
     ]
+    assert {item.features[0] for item in definitions} == {
+        "squeeze_ratio.v1",
+        "supertrend_direction.v1",
+    }
     assert all(item.provenance["parity_claim"] is False for item in definitions)
     assert all(item.risk_defaults["research_only"] is True for item in definitions)
 
@@ -151,7 +155,7 @@ def test_squeeze_strategy_parameters_and_replay_are_deterministic() -> None:
     definition = catalog.get("tv_squeeze_momentum_v1", "1.0.0")
     parameters = catalog.resolve_parameters(
         definition,
-        {"bb_length": 2, "kc_length": 100, "bb_mult": 0.5, "kc_mult": 5},
+        {"bb_length": 5, "kc_length": 100, "bb_mult": 0.5, "kc_mult": 4},
     )
     request = _request(
         candles,
@@ -193,19 +197,13 @@ def test_simulator_is_deterministic_and_has_no_lookahead() -> None:
         "finished_at": datetime(2026, 1, 2, 0, 0, 1, tzinfo=UTC),
     }
     first = simulator.run(**kwargs)
-    second = simulator.run(**kwargs)
-    assert first == second
+    assert first == simulator.run(**kwargs)
     assert first.trade_count == 1
     assert first.order_submission_performed is False
 
     prefix = candles[:25]
-    prefix_request = _request(prefix)
     prefix_result = simulator.run(
-        **{
-            **kwargs,
-            "request": prefix_request,
-            "candles": prefix,
-        }
+        **{**kwargs, "request": _request(prefix), "candles": prefix}
     )
     prefix_non_forced = tuple(
         signal.signal_id
@@ -280,9 +278,7 @@ def test_service_persists_idempotently_and_isolates_tenants() -> None:
             idempotency_key="request-1",
         )
     tenant_b = service.create_experiment(
-        _context("tenant-b"),
-        request,
-        idempotency_key="request-1",
+        _context("tenant-b"), request, idempotency_key="request-1"
     )
     assert tenant_b.experiment_id != first.experiment_id
     assert service.get_experiment(_context("tenant-b"), tenant_b.experiment_id).tenant_id == "tenant-b"
@@ -295,9 +291,7 @@ def test_read_and_create_permissions_are_enforced() -> None:
     service, _factory = _service(candles)
     with pytest.raises(PermissionError):
         service.create_experiment(
-            _context(train=False),
-            _request(candles),
-            idempotency_key="no-train",
+            _context(train=False), _request(candles), idempotency_key="no-train"
         )
     context = _context()
     result = service.create_experiment(context, _request(candles), idempotency_key="read")
@@ -354,13 +348,12 @@ def test_api_full_vertical_slice_and_comparison() -> None:
     )
     assert baseline.status_code == 201
     baseline_id = baseline.json()["experiment_id"]
-    variant_payload = {
-        **payload,
-        "parameter_overrides": {"atr_period": 4, "multiplier": 1.2},
-    }
     variant = client.post(
         "/v1/strategy-lab/experiments",
-        json=variant_payload,
+        json={
+            **payload,
+            "parameter_overrides": {"atr_period": 4, "multiplier": 1.2},
+        },
         headers={"Idempotency-Key": "api-variant"},
     )
     assert variant.status_code == 201
@@ -384,11 +377,7 @@ def test_control_plane_app_exposes_strategy_lab_router() -> None:
     service, factory = _service(candles)
     context = _context()
     client = TestClient(
-        create_app(
-            factory,
-            lambda: context,
-            strategy_lab_service=service,
-        )
+        create_app(factory, lambda: context, strategy_lab_service=service)
     )
 
     response = client.get("/v1/strategy-lab/strategies")

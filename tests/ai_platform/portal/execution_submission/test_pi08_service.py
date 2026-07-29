@@ -391,7 +391,7 @@ def _orders(
     tenant_id: str = "tenant-a",
 ) -> OrderReadResult:
     intent_id = str(submission.intent.execution_intent_id) if matching else "other-intent"
-    records = (
+    records: tuple[PrivateOrderRecord, ...] = (
         PrivateOrderRecord(
             source_order_id="order-1",
             source_trade_id="trade-77",

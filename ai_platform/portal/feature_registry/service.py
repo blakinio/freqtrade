@@ -8,6 +8,8 @@ from typing import Any, cast
 
 import jsonschema
 import yaml
+from strategy_engine.registry import FeatureDefinition, FeatureRegistry, RegistryError
+
 from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.feature_registry.schema import (
@@ -19,7 +21,6 @@ from ai_platform.portal.feature_registry.schema import (
     FeatureRegistrySnapshot,
 )
 from ai_platform.portal.security.authorization import require_permission
-from strategy_engine.registry import FeatureDefinition, FeatureRegistry, RegistryError
 
 
 MAX_DEPENDENCY_REQUESTS = 64

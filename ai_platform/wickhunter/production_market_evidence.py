@@ -73,15 +73,10 @@ EXPECTED_REQUEST: dict[str, object] = {
     "sample_interval_seconds": 300,
     "max_sample_lateness_seconds": 420,
     "protected_holdout_start_ms": 1785542400000,
-    "source_catalog_sha256": (
-        "4ead5a062bcd5516178cb954be2c5680610e78973d34688c2490173f23aee59c"
-    ),
-    "symbol_universe_sha256": (
-        "a75bd2734275b837a14db359ff8d380936e01eab93af436433682e47442582f4"
-    ),
+    "source_catalog_sha256": ("4ead5a062bcd5516178cb954be2c5680610e78973d34688c2490173f23aee59c"),
+    "symbol_universe_sha256": ("a75bd2734275b837a14db359ff8d380936e01eab93af436433682e47442582f4"),
     "durable_storage_uri": (
-        "file:///var/lib/freqtrade-staging-state/"
-        "wickhunter-production-market-evidence"
+        "file:///var/lib/freqtrade-staging-state/wickhunter-production-market-evidence"
     ),
     "public_only": True,
     "trading_credentials_present": False,
@@ -181,9 +176,7 @@ def _decimal(value: object, *, field: str, positive: bool = False) -> str:
     try:
         parsed = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError) as exc:
-        raise ProductionMarketEvidenceError(
-            f"{field} must be decimal-compatible"
-        ) from exc
+        raise ProductionMarketEvidenceError(f"{field} must be decimal-compatible") from exc
     if not parsed.is_finite() or (parsed <= 0 if positive else parsed < 0):
         raise ProductionMarketEvidenceError(f"{field} has an invalid value")
     rendered = format(parsed, "f").rstrip("0").rstrip(".")
@@ -209,9 +202,7 @@ def _load_json(path: Path, *, field: str) -> dict[str, Any]:
             field=field,
         )
     except (OSError, json.JSONDecodeError) as exc:
-        raise ProductionMarketEvidenceError(
-            f"unable to read {field}: {exc}"
-        ) from exc
+        raise ProductionMarketEvidenceError(f"unable to read {field}: {exc}") from exc
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
@@ -267,9 +258,7 @@ def _refuse_environment(environment: Mapping[str, str]) -> None:
     credentials = sorted(name for name in _CREDENTIAL_ENV if environment.get(name))
     proxies = sorted(name for name in _PROXY_ENV if environment.get(name))
     if credentials:
-        raise ProductionMarketEvidenceError(
-            f"credential environment is present: {credentials}"
-        )
+        raise ProductionMarketEvidenceError(f"credential environment is present: {credentials}")
     if proxies:
         raise ProductionMarketEvidenceError(f"proxy environment is present: {proxies}")
 
@@ -277,9 +266,7 @@ def _refuse_environment(environment: Mapping[str, str]) -> None:
 def load_capture_request(path: Path) -> dict[str, Any]:
     request = _load_json(path, field="capture request")
     if request != EXPECTED_REQUEST:
-        raise ProductionMarketEvidenceError(
-            "production market evidence request contract mismatch"
-        )
+        raise ProductionMarketEvidenceError("production market evidence request contract mismatch")
     pre_roll_start = _integer(
         request["pre_roll_start_ms"],
         field="pre_roll_start_ms",
@@ -351,9 +338,7 @@ def _write_state(
     _write_json(_state_path(run_root), state, replace=True)
     pointer = _self_hashed(
         {
-            "pointer_version": (
-                "wickhunter-production-market-evidence-active-pointer-v1"
-            ),
+            "pointer_version": ("wickhunter-production-market-evidence-active-pointer-v1"),
             "run_id": state["run_id"],
             "run_root": str(run_root),
             "state_sha256": state["state_sha256"],
@@ -397,14 +382,10 @@ def initialize_capture(
 ) -> dict[str, object]:
     _refuse_environment(environment if environment is not None else os.environ)
     if not re.fullmatch(r"[0-9a-f]{40}", collector_commit):
-        raise ProductionMarketEvidenceError(
-            "collector_commit must be a lowercase 40-character SHA"
-        )
+        raise ProductionMarketEvidenceError("collector_commit must be a lowercase 40-character SHA")
     request = load_capture_request(request_path)
     if _durable_path(request) != durable_root:
-        raise ProductionMarketEvidenceError(
-            "request durable root does not match runtime root"
-        )
+        raise ProductionMarketEvidenceError("request durable root does not match runtime root")
     with _exclusive_lock(durable_root):
         if _pointer_path(durable_root).exists():
             raise ProductionMarketEvidenceError("an active capture already exists")
@@ -453,14 +434,10 @@ def fetch_public_bytes(url: str, timeout_seconds: int = 30) -> bytes:
     try:
         with opener.open(request, timeout=timeout_seconds) as response:
             if response.status != 200 or response.geturl() != url:
-                raise ProductionMarketEvidenceError(
-                    "public market response status or URL drifted"
-                )
+                raise ProductionMarketEvidenceError("public market response status or URL drifted")
             content = response.read(MAX_RESPONSE_BYTES + 1)
     except HTTPError as exc:
-        raise ProductionMarketEvidenceError(
-            f"public endpoint returned HTTP {exc.code}"
-        ) from exc
+        raise ProductionMarketEvidenceError(f"public endpoint returned HTTP {exc.code}") from exc
     except (OSError, TimeoutError, URLError) as exc:
         raise ProductionMarketEvidenceError(f"public endpoint failed: {exc}") from exc
     if len(content) > MAX_RESPONSE_BYTES:
@@ -472,9 +449,7 @@ def _decode_json(raw: bytes, *, field: str) -> object:
     try:
         return json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ProductionMarketEvidenceError(
-            f"{field} is not valid UTF-8 JSON"
-        ) from exc
+        raise ProductionMarketEvidenceError(f"{field} is not valid UTF-8 JSON") from exc
 
 
 def _index_by_symbol(rows: object, *, field: str) -> dict[str, dict[str, Any]]:
@@ -483,9 +458,7 @@ def _index_by_symbol(rows: object, *, field: str) -> dict[str, dict[str, Any]]:
         row = _object(raw, field=f"{field}[{index}]")
         symbol = row.get("symbol")
         if not isinstance(symbol, str) or not symbol or symbol in result:
-            raise ProductionMarketEvidenceError(
-                f"invalid or duplicate symbol identity in {field}"
-            )
+            raise ProductionMarketEvidenceError(f"invalid or duplicate symbol identity in {field}")
         result[symbol] = row
     return result
 
@@ -501,22 +474,16 @@ def normalize_market_snapshot(
     bybit_root = _object(bybit_payload, field="Bybit response")
     bybit_result = _object(bybit_root.get("result"), field="Bybit result")
     if bybit_root.get("retCode") != 0 or bybit_result.get("category") != "linear":
-        raise ProductionMarketEvidenceError(
-            "Bybit ticker response identity mismatch"
-        )
+        raise ProductionMarketEvidenceError("Bybit ticker response identity mismatch")
     bybit = _index_by_symbol(bybit_result.get("list"), field="Bybit tickers")
     binance_24h = _index_by_symbol(binance_24h_payload, field="Binance 24h")
     binance_book = _index_by_symbol(binance_book_payload, field="Binance book")
     records: list[dict[str, object]] = []
     for symbol in EXPECTED_SYMBOLS:
         if symbol not in bybit:
-            raise ProductionMarketEvidenceError(
-                f"Bybit market snapshot is missing {symbol}"
-            )
+            raise ProductionMarketEvidenceError(f"Bybit market snapshot is missing {symbol}")
         if symbol not in binance_24h or symbol not in binance_book:
-            raise ProductionMarketEvidenceError(
-                f"Binance market snapshot is missing {symbol}"
-            )
+            raise ProductionMarketEvidenceError(f"Binance market snapshot is missing {symbol}")
         source_rows = (
             (
                 "bybit-linear",
@@ -598,9 +565,7 @@ def _file_identity(path: Path, *, run_root: Path) -> dict[str, object]:
     try:
         logical_name = path.relative_to(run_root).as_posix()
     except ValueError as exc:
-        raise ProductionMarketEvidenceError(
-            "evidence path escapes run root"
-        ) from exc
+        raise ProductionMarketEvidenceError("evidence path escapes run root") from exc
     return {
         "logical_name": logical_name,
         "sha256": _file_hash(path),
@@ -610,10 +575,13 @@ def _file_identity(path: Path, *, run_root: Path) -> dict[str, object]:
 
 def _sample_due_ms(request: Mapping[str, object], index: int) -> int:
     start = _integer(request["decision_start_ms"], field="decision_start_ms")
-    interval_ms = _integer(
-        request["sample_interval_seconds"],
-        field="sample_interval_seconds",
-    ) * 1000
+    interval_ms = (
+        _integer(
+            request["sample_interval_seconds"],
+            field="sample_interval_seconds",
+        )
+        * 1000
+    )
     return start + index * interval_ms
 
 
@@ -667,14 +635,15 @@ def _collect_sample(
     )
     stage = "lateness"
     try:
-        lateness_ms = _integer(
-            request["max_sample_lateness_seconds"],
-            field="max_sample_lateness_seconds",
-        ) * 1000
-        if now_ms > due_ms + lateness_ms:
-            raise ProductionMarketEvidenceError(
-                "sample exceeded the frozen lateness bound"
+        lateness_ms = (
+            _integer(
+                request["max_sample_lateness_seconds"],
+                field="max_sample_lateness_seconds",
             )
+            * 1000
+        )
+        if now_ms > due_ms + lateness_ms:
+            raise ProductionMarketEvidenceError("sample exceeded the frozen lateness bound")
         stage = "transport"
         fetched = (
             ("bybit-tickers.raw.json", BYBIT_TICKERS_URL),
@@ -832,9 +801,7 @@ def _capture_candles(
                     {
                         **record,
                         "available_at_ms": record["close_time_ms_exclusive"],
-                        "availability_semantics": (
-                            "completed_candle_close_exclusive"
-                        ),
+                        "availability_semantics": ("completed_candle_close_exclusive"),
                     }
                     for record in records
                 ]
@@ -847,9 +814,7 @@ def _capture_candles(
                     for record in normalized:
                         handle.write(_canonical_bytes(record) + b"\n")
                 published_raw = Path("candles") / raw_path.relative_to(partial_root)
-                published_normalized = (
-                    Path("candles") / normalized_path.relative_to(partial_root)
-                )
+                published_normalized = Path("candles") / normalized_path.relative_to(partial_root)
                 artifacts.append(
                     {
                         "source": source,
@@ -881,9 +846,7 @@ def _capture_candles(
 def _market_sample_evidence(run_root: Path) -> list[dict[str, object]]:
     evidence: list[dict[str, object]] = []
     for index in range(144):
-        report_path = (
-            run_root / "market-samples" / f"{index:04d}" / "sample-report.json"
-        )
+        report_path = run_root / "market-samples" / f"{index:04d}" / "sample-report.json"
         report = _load_json(report_path, field=f"sample {index} report")
         _verify_self_hash(
             report,
@@ -934,9 +897,7 @@ def _verify_file_identity(
     try:
         path.relative_to(run_root.resolve())
     except ValueError as exc:
-        raise ProductionMarketEvidenceError(
-            "manifest path escapes run root"
-        ) from exc
+        raise ProductionMarketEvidenceError("manifest path escapes run root") from exc
     if not path.is_file() or path.is_symlink():
         raise ProductionMarketEvidenceError(f"manifest file is missing: {path}")
     if _file_hash(path) != identity.get("sha256"):
@@ -962,27 +923,19 @@ def verify_capture_package(run_root: Path) -> dict[str, object]:
         raise ProductionMarketEvidenceError("market sample coverage is incomplete")
     if len(candles) != 40:
         raise ProductionMarketEvidenceError("candle artifact count is incomplete")
-    if any(
-        _object(item, field="candle").get("record_count") != 432
-        for item in candles
-    ):
+    if any(_object(item, field="candle").get("record_count") != 432 for item in candles):
         raise ProductionMarketEvidenceError("candle coverage is incomplete")
     identities = list(_manifest_identities(manifest))
     for identity in identities:
         _verify_file_identity(run_root, identity)
     expected_checksums = {
-        f"{identity['sha256']}  {identity['logical_name']}"
-        for identity in identities
+        f"{identity['sha256']}  {identity['logical_name']}" for identity in identities
     }
     expected_checksums.add(f"{_file_hash(manifest_path)}  {MANIFEST_NAME}")
     try:
-        actual_checksums = set(
-            (run_root / CHECKSUM_NAME).read_text(encoding="utf-8").splitlines()
-        )
+        actual_checksums = set((run_root / CHECKSUM_NAME).read_text(encoding="utf-8").splitlines())
     except OSError as exc:
-        raise ProductionMarketEvidenceError(
-            f"unable to read checksum index: {exc}"
-        ) from exc
+        raise ProductionMarketEvidenceError(f"unable to read checksum index: {exc}") from exc
     if actual_checksums != expected_checksums:
         raise ProductionMarketEvidenceError("checksum index mismatch")
     return {
@@ -1060,9 +1013,7 @@ def _finalize_capture(
         request = load_capture_request(run_root / REQUEST_NAME)
         market_samples = _market_sample_evidence(run_root)
         if any(sample["status"] != "pass" for sample in market_samples):
-            raise ProductionMarketEvidenceError(
-                "market-quality capture contains failed samples"
-            )
+            raise ProductionMarketEvidenceError("market-quality capture contains failed samples")
         candle_artifacts = _capture_candles(
             run_root=run_root,
             request=request,
@@ -1224,10 +1175,13 @@ def collect_due_sample(
         state_seed.pop("state_sha256", None)
         state_seed["next_sample_index"] = sample_index + 1
         if report["status"] != "pass":
-            state_seed["sample_failures"] = _integer(
-                state["sample_failures"],
-                field="sample_failures",
-            ) + 1
+            state_seed["sample_failures"] = (
+                _integer(
+                    state["sample_failures"],
+                    field="sample_failures",
+                )
+                + 1
+            )
         if sample_index + 1 == 144:
             state_seed["status"] = "ready_to_finalize"
         _write_state(durable_root, run_root, state_seed)

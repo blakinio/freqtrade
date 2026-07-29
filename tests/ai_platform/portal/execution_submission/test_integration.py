@@ -221,7 +221,7 @@ def test_accepted_acknowledgement_maps_to_submitted_order_without_proving_execut
     submission = _submission(intent)
     factory = _Factory(submission)
     service = _Service(_receipt(submission, accepted=True))
-    submitter = PrivateDryRunApprovedIntentSubmitter(service, factory)  # type: ignore[arg-type]
+    submitter = PrivateDryRunApprovedIntentSubmitter(service, factory)
 
     order = submitter.submit_approved_intent(intent, CONTEXT)
 
@@ -236,7 +236,7 @@ def test_ambiguous_receipt_cannot_be_reported_as_submitted_order() -> None:
     intent = _intent()
     submission = _submission(intent)
     submitter = PrivateDryRunApprovedIntentSubmitter(
-        _Service(_receipt(submission, accepted=False)),  # type: ignore[arg-type]
+        _Service(_receipt(submission, accepted=False)),
         _Factory(submission),
     )
 

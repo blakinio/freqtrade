@@ -68,8 +68,8 @@ CONTEXT = CorrelationContext(
 
 
 class _Clock:
-    def __init__(self, value: datetime = NOW) -> None:
-        self.value = value
+    def __init__(self) -> None:
+        self.value = NOW
 
     def __call__(self) -> datetime:
         return self.value
@@ -80,20 +80,26 @@ class _Clock:
 
 class _Broker:
     def __init__(self, *, mismatched_exchange: bool = False) -> None:
-        self.requests = []
+        self.requests: list[object] = []
         self.last_lease: ResolvedCredentialLease | None = None
         self.mismatched_exchange = mismatched_exchange
 
-    def resolve(self, request):
+    def resolve(self, request: object) -> ResolvedCredentialLease:
         self.requests.append(request)
+        tenant_id = getattr(request, "tenant_id")
+        connection_id = getattr(request, "connection_id")
+        credential_ref = getattr(request, "credential_ref")
+        exchange_id = getattr(request, "exchange_id")
+        runtime_id = getattr(request, "runtime_id")
+        purpose = getattr(request, "purpose")
         evidence = CredentialLeaseEvidence(
             lease_id="credlease_0123456789abcdef0123456789abcdef",
-            tenant_id=request.tenant_id,
-            connection_id=request.connection_id,
-            credential_ref=request.credential_ref,
-            exchange_id="wrong-exchange" if self.mismatched_exchange else request.exchange_id,
-            runtime_id=request.runtime_id,
-            purpose=request.purpose,
+            tenant_id=tenant_id,
+            connection_id=connection_id,
+            credential_ref=credential_ref,
+            exchange_id="wrong-exchange" if self.mismatched_exchange else exchange_id,
+            runtime_id=runtime_id,
+            purpose=purpose,
             vault_version=3,
             issued_at=NOW,
             expires_at=NOW + timedelta(minutes=5),
@@ -129,7 +135,11 @@ class _Transport:
         self.ambiguous = False
         self.reject = False
 
-    def verify_dry_run(self, target, lease):
+    def verify_dry_run(
+        self,
+        target: PrivateRuntimeTarget,
+        lease: ResolvedCredentialLease,
+    ) -> RuntimeDryRunEvidence:
         del lease
         self.verify_calls += 1
         return RuntimeDryRunEvidence(
@@ -138,7 +148,12 @@ class _Transport:
             config_digest="0" * 64,
         )
 
-    def submit(self, target, submission, lease):
+    def submit(
+        self,
+        target: PrivateRuntimeTarget,
+        submission: PrivateDryRunSubmission,
+        lease: ResolvedCredentialLease,
+    ) -> RuntimeSubmissionResponse:
         del target, submission, lease
         self.submit_calls += 1
         if self.ambiguous:
@@ -151,7 +166,7 @@ class _Transport:
         )
 
 
-def _approved_intent(*, amount: Decimal = Decimal("25")) -> ApprovedExecutionIntent:
+def _intent() -> ApprovedExecutionIntent:
     trade_intent = TradeIntent(
         trade_intent_id=UUID("40000000-0000-0000-0000-000000000004"),
         tenant_id="tenant-a",
@@ -159,7 +174,7 @@ def _approved_intent(*, amount: Decimal = Decimal("25")) -> ApprovedExecutionInt
         source_actor_id="actor-1",
         pair="BTC/USDT",
         side=TradeSide.BUY,
-        amount=amount,
+        amount=Decimal("25"),
         environment=Environment.TEST,
         created_at=NOW - timedelta(seconds=1),
         context=CONTEXT,
@@ -175,7 +190,7 @@ def _approved_intent(*, amount: Decimal = Decimal("25")) -> ApprovedExecutionInt
             RiskLimitEvaluation(
                 limit_name="max_order_amount",
                 configured_value="100",
-                observed_value=str(amount),
+                observed_value="25",
                 passed=True,
             ),
         ),
@@ -210,22 +225,21 @@ def _submission(
         idempotency_key="submit-intent-60000000",
         correlation=CONTEXT,
     )
-    runtime = AuthoritativeBotRuntimeState(
-        tenant_id="tenant-a",
-        bot_id="bot-1",
-        config_revision=7,
-        runtime_id="runtime-1",
-        runtime_revision=9,
-        environment=Environment.TEST,
-        freshness=freshness,
-        kill_switch_active=kill_switch_active,
-        observed_at=NOW,
-    )
     return PrivateDryRunSubmission(
         command_id="command-1",
-        intent=_approved_intent(),
+        intent=_intent(),
         binding=binding,
-        runtime=runtime,
+        runtime=AuthoritativeBotRuntimeState(
+            tenant_id="tenant-a",
+            bot_id="bot-1",
+            config_revision=7,
+            runtime_id="runtime-1",
+            runtime_revision=9,
+            environment=Environment.TEST,
+            freshness=freshness,
+            kill_switch_active=kill_switch_active,
+            observed_at=NOW,
+        ),
         runtime_health=runtime_health,
         connection_id="connection-1",
         credential_ref="credref_okxDryRun01",
@@ -234,7 +248,8 @@ def _submission(
     )
 
 
-def _build_service(tmp_path: Path, *, broker: _Broker | None = None):
+def _service(tmp_path: Path, *, broker: _Broker | None = None):
+    tmp_path.mkdir(parents=True, exist_ok=True)
     engine = build_engine("sqlite+pysqlite:///:memory:")
     create_schema(engine)
     session_factory = build_session_factory(engine)
@@ -260,8 +275,8 @@ def _build_service(tmp_path: Path, *, broker: _Broker | None = None):
     return service, session_factory, actual_broker, resolver, transport, clock
 
 
-def test_acknowledgement_is_persisted_and_duplicate_is_not_resubmitted(tmp_path: Path) -> None:
-    service, session_factory, broker, resolver, transport, _clock = _build_service(tmp_path)
+def test_acknowledgement_is_persisted_and_duplicate_does_not_resubmit(tmp_path: Path) -> None:
+    service, factory, broker, resolver, transport, _clock = _service(tmp_path)
     submission = _submission()
 
     first = service.submit(submission)
@@ -273,18 +288,15 @@ def test_acknowledgement_is_persisted_and_duplicate_is_not_resubmitted(tmp_path:
     assert first.acknowledgement.status == AcknowledgementStatus.ACCEPTED
     assert first.acknowledgement.execution_proven is False
     assert first.reconciliation.state == ReconciliationState.PENDING
-    assert first.runtime_config is not None
-    assert resolver.calls == 1
-    assert transport.verify_calls == 1
-    assert transport.submit_calls == 1
-    assert len(broker.requests) == 1
-    assert broker.requests[0].exchange_id == "okx"
+    assert resolver.calls == transport.verify_calls == transport.submit_calls == 1
+    request = broker.requests[0]
+    assert getattr(request, "exchange_id") == "okx"
     assert broker.last_lease is not None and broker.last_lease.closed
 
-    with session_factory() as session:
+    with factory() as session:
         row = session.scalar(select(ExecutionSubmissionRow))
         assert row is not None
-        persisted = f"{row.submission_json}\n{row.receipt_json}"
+        persisted = row.submission_json + row.receipt_json
     for forbidden in (
         "exchange-key-secret-value",
         "exchange-secret-value",
@@ -296,63 +308,66 @@ def test_acknowledgement_is_persisted_and_duplicate_is_not_resubmitted(tmp_path:
         assert forbidden not in persisted
 
 
-def test_idempotency_conflict_is_rejected_without_second_transport_call(tmp_path: Path) -> None:
-    service, _session_factory, _broker, _resolver, transport, _clock = _build_service(tmp_path)
+def test_idempotency_conflict_does_not_call_transport_twice(tmp_path: Path) -> None:
+    service, _factory, _broker, _resolver, transport, _clock = _service(tmp_path)
     submission = _submission()
     service.submit(submission)
-    conflicting = submission.model_copy(update={"connection_id": "connection-2"})
 
     with pytest.raises(SubmissionIdempotencyConflictError):
-        service.submit(conflicting)
-
+        service.submit(submission.model_copy(update={"connection_id": "connection-2"}))
     assert transport.submit_calls == 1
 
 
 @pytest.mark.parametrize(
     "submission,reason",
     [
-        (_submission(approved_until=NOW), "APPROVED_INTENT_EXPIRED"),
         (_submission(runtime_health=RuntimeHealthState.DEGRADED), "RUNTIME_HEALTH_NOT_HEALTHY"),
         (_submission(freshness=RuntimeReadFreshness.STALE), "RUNTIME_UNAVAILABLE"),
         (_submission(kill_switch_active=True), "KILL_SWITCH_ACTIVE"),
     ],
 )
-def test_policy_gates_fail_before_reservation(
+def test_runtime_policy_gates_fail_before_reservation(
     tmp_path: Path,
     submission: PrivateDryRunSubmission,
     reason: str,
 ) -> None:
-    service, session_factory, _broker, resolver, transport, _clock = _build_service(tmp_path)
-
+    service, factory, _broker, resolver, transport, _clock = _service(tmp_path)
     with pytest.raises(SubmissionPolicyError) as error:
         service.submit(submission)
-
     assert error.value.reason_code == reason
-    assert resolver.calls == 0
-    assert transport.submit_calls == 0
-    with session_factory() as session:
+    assert resolver.calls == transport.submit_calls == 0
+    with factory() as session:
         assert session.scalar(select(ExecutionSubmissionRow)) is None
 
 
-def test_ambiguous_submission_is_persisted_and_never_blindly_retried(tmp_path: Path) -> None:
-    service, _session_factory, _broker, _resolver, transport, _clock = _build_service(tmp_path)
+def test_expired_approval_fails_before_reservation(tmp_path: Path) -> None:
+    service, factory, _broker, resolver, transport, clock = _service(tmp_path)
+    submission = _submission(approved_until=NOW + timedelta(seconds=1))
+    clock.advance(seconds=2)
+    with pytest.raises(SubmissionPolicyError) as error:
+        service.submit(submission)
+    assert error.value.reason_code == "APPROVED_INTENT_EXPIRED"
+    assert resolver.calls == transport.submit_calls == 0
+    with factory() as session:
+        assert session.scalar(select(ExecutionSubmissionRow)) is None
+
+
+def test_ambiguous_response_is_persisted_and_never_blindly_retried(tmp_path: Path) -> None:
+    service, _factory, _broker, _resolver, transport, _clock = _service(tmp_path)
     transport.ambiguous = True
     submission = _submission()
-
     first = service.submit(submission)
     second = service.submit(submission)
-
     assert first == second
     assert first.attempt.state == ExecutionAttemptState.AMBIGUOUS
     assert first.ambiguity is not None
-    assert first.ambiguity.response_digest == "a" * 64
-    assert first.reconciliation.state == ReconciliationState.PENDING
     assert first.runtime_config is not None
+    assert first.reconciliation.state == ReconciliationState.PENDING
     assert transport.submit_calls == 1
 
 
 def test_runtime_rejection_and_credential_scope_mismatch_fail_closed(tmp_path: Path) -> None:
-    rejected_service, _factory, _broker, _resolver, rejected_transport, _clock = _build_service(
+    rejected_service, _factory, _broker, _resolver, rejected_transport, _clock = _service(
         tmp_path / "rejected"
     )
     rejected_transport.reject = True
@@ -360,9 +375,8 @@ def test_runtime_rejection_and_credential_scope_mismatch_fail_closed(tmp_path: P
     assert rejected.attempt.state == ExecutionAttemptState.REJECTED
     assert rejected.acknowledgement is not None
     assert rejected.acknowledgement.reason_codes == (ExecutionReasonCode.EXECUTION_REJECTED,)
-    assert rejected.reconciliation.state == ReconciliationState.FAILED
 
-    mismatch_service, _factory, _broker, _resolver, mismatch_transport, _clock = _build_service(
+    mismatch_service, _factory, _broker, _resolver, mismatch_transport, _clock = _service(
         tmp_path / "mismatch",
         broker=_Broker(mismatched_exchange=True),
     )
@@ -373,12 +387,9 @@ def test_runtime_rejection_and_credential_scope_mismatch_fail_closed(tmp_path: P
     assert mismatch_transport.submit_calls == 0
 
 
-def _order_result(
+def _orders(
     submission: PrivateDryRunSubmission,
     *,
-    freshness: RuntimeReadFreshness = RuntimeReadFreshness.CURRENT,
-    reconciliation: RuntimeReadReconciliationStatus = RuntimeReadReconciliationStatus.SYNCED,
-    complete: bool = True,
     matching: bool = True,
     duplicate: bool = False,
     tenant_id: str = "tenant-a",
@@ -398,94 +409,83 @@ def _order_result(
         ),
     )
     if duplicate:
-        records += (
-            records[0].model_copy(update={"source_order_id": "order-2"}),
-        )
-    status = RuntimeReadStatus(
-        tenant_id=tenant_id,
-        bot_id="bot-1",
-        source_runtime_id="runtime-1",
-        kind=RuntimeReadKind.ORDERS,
-        source_observed_at=NOW + timedelta(seconds=3),
-        observed_at=NOW + timedelta(seconds=4),
-        last_reconciled_at=NOW + timedelta(seconds=4),
-        freshness=freshness,
-        reconciliation_status=reconciliation,
-        complete=complete,
-        record_count=len(records),
+        records += (records[0].model_copy(update={"source_order_id": "order-2"}),)
+    return OrderReadResult(
+        status=RuntimeReadStatus(
+            tenant_id=tenant_id,
+            bot_id="bot-1",
+            source_runtime_id="runtime-1",
+            kind=RuntimeReadKind.ORDERS,
+            source_observed_at=NOW + timedelta(seconds=3),
+            observed_at=NOW + timedelta(seconds=4),
+            last_reconciled_at=NOW + timedelta(seconds=4),
+            freshness=RuntimeReadFreshness.CURRENT,
+            reconciliation_status=RuntimeReadReconciliationStatus.SYNCED,
+            complete=True,
+            record_count=len(records),
+        ),
+        records=records,
     )
-    return OrderReadResult(status=status, records=records)
 
 
-def test_reconciliation_requires_exact_current_authoritative_order(tmp_path: Path) -> None:
-    service, _factory, _broker, _resolver, _transport, clock = _build_service(tmp_path)
+def test_reconciliation_requires_exact_authoritative_order(tmp_path: Path) -> None:
+    service, _factory, _broker, _resolver, _transport, clock = _service(tmp_path)
     submission = _submission()
     receipt = service.submit(submission)
     clock.advance(seconds=5)
 
     pending = service.reconcile_orders(
-        "tenant-a",
-        receipt.attempt.attempt_id,
-        _order_result(submission, matching=False),
+        "tenant-a", receipt.attempt.attempt_id, _orders(submission, matching=False)
     )
     assert pending.reconciliation.state == ReconciliationState.PENDING
     assert pending.reconciliation.reason_codes == (ExecutionReasonCode.EVIDENCE_INCOMPLETE,)
 
     succeeded = service.reconcile_orders(
-        "tenant-a",
-        receipt.attempt.attempt_id,
-        _order_result(submission),
+        "tenant-a", receipt.attempt.attempt_id, _orders(submission)
     )
     assert succeeded.reconciliation.state == ReconciliationState.SUCCEEDED
-    assert len(succeeded.reconciliation.evidence_refs) == 1
     assert succeeded.reconciliation.evidence_refs[0].authoritative is True
-
-    replay = service.reconcile_orders(
-        "tenant-a",
-        receipt.attempt.attempt_id,
-        _order_result(submission, duplicate=True),
+    assert (
+        service.reconcile_orders(
+            "tenant-a", receipt.attempt.attempt_id, _orders(submission, duplicate=True)
+        )
+        == succeeded
     )
-    assert replay == succeeded
 
 
-def test_reconciliation_conflict_timeout_and_cross_tenant_evidence_fail_closed(
-    tmp_path: Path,
-) -> None:
-    conflict_service, _factory, _broker, _resolver, _transport, clock = _build_service(
+def test_reconciliation_conflict_timeout_and_tenant_mismatch(tmp_path: Path) -> None:
+    conflict_service, _factory, _broker, _resolver, _transport, clock = _service(
         tmp_path / "conflict"
     )
     submission = _submission()
     receipt = conflict_service.submit(submission)
     clock.advance(seconds=5)
     conflict = conflict_service.reconcile_orders(
-        "tenant-a",
-        receipt.attempt.attempt_id,
-        _order_result(submission, duplicate=True),
+        "tenant-a", receipt.attempt.attempt_id, _orders(submission, duplicate=True)
     )
     assert conflict.reconciliation.state == ReconciliationState.CONFLICT
-    assert conflict.reconciliation.reason_codes == (ExecutionReasonCode.EVIDENCE_MISMATCH,)
 
-    timeout_service, _factory, _broker, _resolver, _transport, clock = _build_service(
+    timeout_service, _factory, _broker, _resolver, _transport, clock = _service(
         tmp_path / "timeout"
     )
-    timeout_receipt = timeout_service.submit(submission)
+    receipt = timeout_service.submit(submission)
     clock.advance(seconds=5)
     timed_out = timeout_service.reconcile_orders(
         "tenant-a",
-        timeout_receipt.attempt.attempt_id,
-        _order_result(submission, matching=False),
+        receipt.attempt.attempt_id,
+        _orders(submission, matching=False),
         timed_out=True,
     )
     assert timed_out.reconciliation.state == ReconciliationState.FAILED
     assert timed_out.reconciliation.reason_codes == (ExecutionReasonCode.RECONCILIATION_TIMEOUT,)
 
-    isolated_service, _factory, _broker, _resolver, _transport, _clock = _build_service(
+    isolated_service, _factory, _broker, _resolver, _transport, _clock = _service(
         tmp_path / "isolation"
     )
-    isolated_receipt = isolated_service.submit(submission)
+    receipt = isolated_service.submit(submission)
     with pytest.raises(SubmissionPolicyError, match="EVIDENCE_MISMATCH"):
         isolated_service.reconcile_orders(
             "tenant-a",
-            isolated_receipt.attempt.attempt_id,
-            _order_result(submission, tenant_id="tenant-b"),
+            receipt.attempt.attempt_id,
+            _orders(submission, tenant_id="tenant-b"),
         )

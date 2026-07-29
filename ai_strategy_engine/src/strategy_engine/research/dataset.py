@@ -109,15 +109,11 @@ class DatasetManifest(CanonicalModel):
         payload.pop("manifest_hash", None)
         normalized = dict(payload)
         normalized["symbols"] = tuple(cast(list[str] | tuple[str, ...], payload["symbols"]))
-        normalized["timeframes"] = tuple(
-            cast(list[str] | tuple[str, ...], payload["timeframes"])
-        )
+        normalized["timeframes"] = tuple(cast(list[str] | tuple[str, ...], payload["timeframes"]))
         normalized["training"] = DatasetWindow.model_validate(payload["training"])
         normalized["tuning"] = DatasetWindow.model_validate(payload["tuning"])
         normalized["validation"] = DatasetWindow.model_validate(payload["validation"])
-        normalized["final_holdout"] = ProtectedFinalHoldout.model_validate(
-            payload["final_holdout"]
-        )
+        normalized["final_holdout"] = ProtectedFinalHoldout.model_validate(payload["final_holdout"])
         normalized["hashes"] = DatasetHashes.model_validate(payload["hashes"])
         provisional = cls.model_construct(**normalized, manifest_hash="0" * 64)
         digest = provisional.canonical_sha256(exclude={"manifest_hash"})

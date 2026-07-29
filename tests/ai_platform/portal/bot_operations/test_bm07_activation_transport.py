@@ -122,7 +122,9 @@ def test_retryable_or_malformed_runtime_response_is_ambiguous(tmp_path: Path) ->
         malformed.cancel_open_order(_target(tmp_path), lease, trade_id="77")
 
 
-def test_explicit_runtime_rejection_and_auth_failure_are_distinct(tmp_path: Path) -> None:
+def test_explicit_runtime_rejection_and_auth_failure_are_distinct(
+    tmp_path: Path,
+) -> None:
     rejected = HttpxPrivateRuntimeCommandTransport(
         http_transport=httpx.MockTransport(lambda request: httpx.Response(409, json={}))
     )

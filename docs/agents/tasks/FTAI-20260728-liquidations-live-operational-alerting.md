@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260728-liquidations-live-operational-alerting
-status: validating
+status: completed
 branch: develop
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-29
-related_pr: 717
+related_pr: 734
 required_reads:
   - docs/agents/tasks/FTAI-20260727-liquidations-live-stream-repair.md
   - docs/agents/tasks/FTAI-20260727-liquidations-live-portal-synology-proof.md
@@ -28,11 +28,11 @@ Provide autonomous fail-closed monitoring for both the completed Synology Liquid
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T16:32:00Z
-head: 182a54d175f63b08e7c481e82bb0b35d8e75771f
+updated_at: 2026-07-29T19:07:13Z
+head: d7fc27211e5e6391704d5db732fb7f72d267e6e6
 branch: develop
-pr: 717
-status: validating
+pr: 734
+status: completed
 context_routes:
   - docs/agents/tasks/FTAI-20260728-liquidations-live-operational-alerting.md
   - .github/workflows/liquidations-live-operational-health.yml
@@ -60,17 +60,22 @@ proven:
   - "PR #717 changed collector state and disk observation to a read-only Python process inside liquid20-live after validating the exact /volume1/docker/freqtrade-liquidations/data bind mount."
   - "PR #717 exact head 673165ada1be097b58dbef033edafc0ff4bd22c3 passed AI Platform CI 30469427788, Freqtrade CI 30469428405 including Python 3.11-3.14, coverage, distributions and CI Gate, plus zizmor 30469427983 with zero review threads."
   - "PR #717 merged with expected-head protection as 182a54d175f63b08e7c481e82bb0b35d8e75771f."
-  - "Trusted run 30470845965 completed all control-plane, watchdog and Synology health jobs successfully and published liquidations-live-health=success on 182a54d175f63b08e7c481e82bb0b35d8e75771f."
-  - "Run 30470845965 reported no alerts, active healthy collector state, healthy validated container observation, 23.076 percent disk use with 2.95 TB free, portal LIVE, production page 200, protected API 401 SESSION_MISSING, and healthy connected Binance/Bybit sources."
+  - "Trusted run 30470845965 completed all control-plane, watchdog and Synology health jobs successfully and published liquidations-live-health=success with no collector-or-portal alerts."
+  - "Repository Issues were enabled and the API channel was verified by creating and closing technical issue #728."
+  - "PR #734 exact head 3df671d7cc0a5d1567889d474e8a41027fbf4cba passed Freqtrade CI 30481850336 including Documentation build and CI Gate, plus zizmor 30481852814, then merged as d7fc27211e5e6391704d5db732fb7f72d267e6e6."
+  - "Run 30482051923 exercised the live fail-closed path while freqtrade-staging was occupied: the watchdog updated exact-title issue #729 with LIQUIDATIONS_HEALTH_RUNNER_UNAVAILABLE."
+  - "After the runner became available, the trusted health job in run 30482051923 completed successfully, posted the recovery comment as github-actions[bot], closed issue #729 and published liquidations-live-health=success."
+  - "The merge commit d7fc27211e5e6391704d5db732fb7f72d267e6e6 finished with both liquidations-live-synology=success and liquidations-live-health=success."
 derived:
-  - "The monitor now observes collector data without giving the runner a writable host-data mount, restarting production, mounting the Docker socket into a helper or modifying accepted evidence."
-  - "Healthy five-minute checks publish terminal commit status and retain no artifact; unhealthy checks remain fail-closed and retain bounded evidence."
-unknown:
-  - "Whether the workflow can create or update the exact-title GitHub alert issue during a real failure while repository Issues remain disabled."
+  - "The monitor observes collector data without giving the runner a writable host-data mount, mounting the Docker socket into a helper or modifying accepted evidence."
+  - "Healthy checks publish terminal success and retain no artifact; unhealthy or unavailable-runner checks publish failure, retain bounded evidence where available and reconcile one exact-title GitHub alert."
+  - "The complete alert lifecycle is now proven against the repository setting and workflow token: create/update on failure, recovery comment and automatic close on health."
+unknown: []
 conflicts: []
 first_failure:
   marker: GITHUB_ISSUES_DISABLED
-  evidence: "Run 30467670280 received GitHub Issues API HTTP 410 with 'Issues has been disabled in this repository'; the available connector cannot change that repository setting."
+  status: resolved
+  evidence: "Issues were enabled; issue #728 proved API availability and run 30482051923 proved workflow-token update and close permissions through issue #729."
 rejected_hypotheses:
   - "Store or fabricate a real production portal session."
   - "Enable fixture identity in the production portal or weaken SESSION_MISSING."
@@ -95,8 +100,20 @@ validation:
   - command: "Liquidations Live Health 30470845965"
     result: PASS
     evidence: "All jobs succeeded and liquidations-live-health published success with zero collector-or-portal alerts."
-blockers:
-  - marker: GITHUB_ISSUES_DISABLED
-    evidence: "The monitor is operational and healthy, but its deduplicated GitHub Issue alert channel cannot be exercised until Issues are enabled for blakinio/freqtrade."
-next_action: "Enable GitHub Issues for blakinio/freqtrade, then verify the next Liquidations Live Health failure can reconcile the exact-title alert issue without changing collector or portal production state to force a failure."
+  - command: "GitHub Issues API verification #728"
+    result: PASS
+    evidence: "The repository accepted creation and immediate closure of a technical verification issue after Issues were enabled."
+  - command: "PR #734 exact-head CI"
+    result: PASS
+    evidence: "Freqtrade CI 30481850336 and zizmor 30481852814 succeeded on 3df671d7cc0a5d1567889d474e8a41027fbf4cba."
+  - command: "Operational alert lifecycle run 30482051923"
+    result: PASS
+    evidence: "The watchdog updated issue #729 during runner unavailability; the later healthy job posted a recovery comment, closed the issue and published liquidations-live-health=success."
+  - command: "Merge commit d7fc27211e5e6391704d5db732fb7f72d267e6e6 statuses"
+    result: PASS
+    evidence: "liquidations-live-synology and liquidations-live-health both published success."
+blockers: []
+follow_up:
+  - "Consider narrowing the Liquidations Live Synology path filter so Markdown-only runbook changes under deploy/synology/liquid20 do not request a deployment."
+next_action: null
 ```

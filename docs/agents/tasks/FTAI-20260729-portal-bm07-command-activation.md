@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260729-portal-bm07-command-activation
-status: implementing
+status: ready
 branch: feat/portal-bm07-command-activation
 base_branch: develop
 created: 2026-07-29
 updated: 2026-07-29
-related_pr: null
+related_pr: 672
 depends_on:
   - FTAI-20260727-portal-bm03-bot-command-persistence
   - FTAI-20260728-portal-pi07-vault-credential-broker
@@ -41,13 +41,12 @@ Activate authorized position, order, DCA and grid commands against private Freqt
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T09:42:00+02:00
-validated_code_head: null
-merged_commit: null
+updated_at: 2026-07-29T10:47:00+02:00
+head: 0663046ef773e802c6a78fe71ee21a169089c609
+merged_commit: ef0550744104f4c82ef3f106181f14442f9b82af
 branch: feat/portal-bm07-command-activation
-pr: null
-status: implementing
-base_head: 530f61caf9d5d4644068a93baa0b7a09298f24c6
+pr: 672
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -55,18 +54,30 @@ context_routes:
   - docs/ai_platform/portal/BOT_MANAGEMENT_PRODUCT_ARCHITECTURE.md
   - docs/ai_platform/portal/PI08_PRIVATE_DRY_RUN_SUBMISSION.md
   - docs/ai_platform/portal/BM07_COMMAND_ACTIVATION.md
+owned_paths:
+  - ai_platform/portal/bot_operations/activation_*.py
+  - ai_platform/portal/bot_operations/__init__.py
+  - tests/ai_platform/portal/bot_operations/test_bm07_*.py
+  - docs/ai_platform/portal/BM07_COMMAND_ACTIVATION.md
+  - docs/agents/tasks/FTAI-20260729-portal-bm07-command-activation.md
 proven:
-  - PI-08 repository implementation is merged and all exact-head CI gates passed.
-  - BM-03 supports durable accepted and pending-reconciliation command history with exact replay.
-  - Freqtrade exposes bounded private force-exit and open-order cancellation operations.
-  - BM-07 reserves a deterministic command attempt before private I/O and replays pending state without repeating I/O.
+  - Exact-head AI Platform CI 30435644106 passed.
+  - Exact-head Freqtrade CI 30435640985 passed, including pre-commit, documentation and Python 3.11 through 3.14.
+  - Exact-head workflow security run 30435637949 passed.
+  - PR 672 squash merged as ef0550744104f4c82ef3f106181f14442f9b82af.
+  - BM-07 reserves command evidence before private I/O and exact replay does not repeat mutation.
   - Exposure-increasing DCA, grid and replacement paths delegate to PI-08.
 derived:
-  - Repository-side BM-07 can complete without weakening default fail-closed behavior or authorizing target deployment.
+  - BM-09 may now use the merged BM-07 contract as its final command-activation dependency.
 unknown:
-  - Real Synology/Vault/Freqtrade target acceptance remains owner-managed deployment evidence.
+  - Real Synology, Vault and Freqtrade target acceptance remains owner-managed deployment evidence.
 conflicts: []
-first_failure: null
+first_failure:
+  marker: resolved_ruff_format
+  evidence: exact Ruff 0.15.21 output was applied before final exact-head CI passed
+rejected_hypotheses:
+  - Do not treat runtime acknowledgement as authoritative execution proof.
+  - Do not expose private Freqtrade command routes to browser clients.
 changed_paths:
   - ai_platform/portal/bot_operations/activation_errors.py
   - ai_platform/portal/bot_operations/activation_schema.py
@@ -78,14 +89,15 @@ changed_paths:
   - docs/ai_platform/portal/BM07_COMMAND_ACTIVATION.md
   - docs/agents/tasks/FTAI-20260729-portal-bm07-command-activation.md
 validation:
-  - command: focused BM-07 tests
-    result: PENDING
-  - command: AI Platform CI
-    result: PENDING
-  - command: Freqtrade CI
-    result: PENDING
-  - command: GitHub Actions security analysis
-    result: PENDING
+  - command: AI Platform CI 30435644106
+    result: PASS
+    evidence: exact head 0663046ef773e802c6a78fe71ee21a169089c609 completed successfully
+  - command: Freqtrade CI 30435640985
+    result: PASS
+    evidence: exact head completed successfully across required jobs
+  - command: GitHub Actions security analysis 30435637949
+    result: PASS
+    evidence: exact head completed successfully
 blockers: []
-next_action: Open the BM-07 pull request, inspect exact-head CI, fix all deterministic failures, then squash merge before starting BM-09.
+next_action: Use merged commit ef0550744104f4c82ef3f106181f14442f9b82af as the BM-09 dependency and preserve P11 and P14 as separate owner-governed gates.
 ```

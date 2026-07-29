@@ -1,0 +1,33 @@
+{
+  "available_at": "2026-07-28T01:05:00.025Z",
+  "code_version": "9e8f30c4dfcc58f6434541194783a5dc9586ef82b9282ec10d67908419e784cb",
+  "configuration_hash": "f7e9d09a483ba07e1b9ee7eb9c15c3f048cab0a0f31463a13d2addfea1cc863f",
+  "data_version": "470a87af39cdac5369de47bc80ab92febdd2bac5e180444d1a16c0bb8e0bdc6e",
+  "detected_at": "2026-07-28T01:05:00Z",
+  "event_time": "2026-07-28T01:00:00Z",
+  "feature_id": "squeeze_ratio.v1",
+  "feature_version": "1",
+  "idempotency_key": "c49291325f63d2ff28d29b98136433ae5d2f90158d3f558ca9893413910747b5",
+  "is_confirmed": true,
+  "parameters": {
+    "bb_length": 20,
+    "bb_mult": 2.0
+  },
+  "provenance": {
+    "details": {
+      "future_shift": 0,
+      "lineage_complete": true
+    },
+    "lineage": [],
+    "producer": "ase00-example",
+    "source_event_id": "example:market-bar"
+  },
+  "schema_version": "1.0.0",
+  "source": "ase00-clean-room-squeeze",
+  "symbol": "BTC/USDT:USDT",
+  "timeframe": "5m",
+  "value": {
+    "squeeze_release": true,
+    "value": 0.83
+  }
+}

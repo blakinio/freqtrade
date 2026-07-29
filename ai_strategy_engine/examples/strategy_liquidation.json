@@ -1,0 +1,142 @@
+{
+  "entry_long": {
+    "all": [
+      {
+        "feature": "long_liquidation_z",
+        "op": "gte",
+        "parameter": "liq_threshold"
+      },
+      {
+        "feature": "oi_change_z",
+        "op": "lte",
+        "parameter": "oi_drop_threshold"
+      },
+      {
+        "feature": "lower_wick_ratio",
+        "op": "gte",
+        "parameter": "wick_threshold"
+      },
+      {
+        "feature": "distance_to_support_atr",
+        "op": "lte",
+        "parameter": "support_distance"
+      }
+    ]
+  },
+  "entry_short": {
+    "all": [
+      {
+        "feature": "short_liquidation_z",
+        "op": "gte",
+        "parameter": "liq_threshold"
+      },
+      {
+        "feature": "oi_change_z",
+        "op": "lte",
+        "parameter": "oi_drop_threshold"
+      },
+      {
+        "feature": "upper_wick_ratio",
+        "op": "gte",
+        "parameter": "wick_threshold"
+      },
+      {
+        "feature": "distance_to_resistance_atr",
+        "op": "lte",
+        "parameter": "resistance_distance"
+      }
+    ]
+  },
+  "execution": {
+    "fee_model": "exchange_v1",
+    "funding_model": "perpetual_v1",
+    "order_type": "market",
+    "signal_delay_ms": 500,
+    "slippage_model": "liquidation_event_empirical_v1",
+    "use_closed_bars_only": true
+  },
+  "exit": {
+    "any": [
+      {
+        "risk": "time_stop"
+      },
+      {
+        "risk": "atr_stop"
+      },
+      {
+        "event": "opposite_liquidation_impulse"
+      }
+    ]
+  },
+  "features": [
+    {
+      "confirmation": "closed_bar",
+      "id": "liquidation_notional_z.v1",
+      "params": {
+        "cluster_seconds": 60,
+        "window": 288
+      },
+      "timeframe": "1m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "confirmed_pivot.v1",
+      "params": {
+        "left_bars": 15,
+        "right_bars": 15
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "candle_geometry.v1",
+      "params": {},
+      "timeframe": "1m"
+    }
+  ],
+  "provenance": {
+    "details": {
+      "created_by": "human",
+      "future_shift": 0,
+      "generator_version": "starter-pack",
+      "lineage_complete": true,
+      "parent_experiments": [],
+      "research_only": true
+    },
+    "lineage": [],
+    "producer": "ase00-research-spec",
+    "source_event_id": "example:strategy_liquidation"
+  },
+  "regime": {
+    "all": []
+  },
+  "risk": {
+    "initial_stop": {
+      "multiple": 1.5,
+      "type": "atr"
+    },
+    "max_exposure": 0.15,
+    "max_leverage": 2,
+    "max_open_positions": 1,
+    "position_size": {
+      "type": "risk_fraction",
+      "value": 0.003
+    },
+    "trailing_stop": {
+      "multiple": 1.0,
+      "type": "atr"
+    }
+  },
+  "schema_version": "1.0.0",
+  "strategy_id": "liquidation-reversal-v1",
+  "universe": {
+    "symbols": [
+      "BTC/USDT:USDT"
+    ],
+    "timeframes": [
+      "1m",
+      "5m"
+    ]
+  },
+  "version": "1.0.0"
+}

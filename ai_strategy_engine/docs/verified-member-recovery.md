@@ -1,0 +1,79 @@
+# ASE-00 verified-member recovery
+
+- damaged archive SHA-256: `e8a8f6f6aeba3c2bb9eb95e96355bb478e2a70cd9f1ebb4aa62a3d511cb601db`
+- required archive SHA-256 remains: `73a0d99cab94ba116818a6aef9d818a710fb048a4c0b77f89b9819dd9ac7332f`
+- recovery rule: write only members whose uncompressed size and CRC match the ZIP central directory
+- `examples/signal_event.json`: corrected `OtRDROP_CONFIRMED` to `OI_DROP_CONFIRMED`; exact expected size and CRC proven
+- `tests/unit/test_squeeze.py`: restored from the already committed reference test; exact expected size and CRC proven
+- `src/strategy_engine/features/momentum.py`: not written; exact bytes still unresolved
+
+## Recovered members
+- `.gitignore`
+- `AGENT_MASTER_PROMPT.md`
+- `ARCHITECTURE.md`
+- `Makefile`
+- `README.md`
+- `TASKS.md`
+- `configs/feature_registry.v1.yaml`
+- `configs/miyagi_parameter_map.v1.yaml`
+- `configs/search_spaces.v1.yaml`
+- `docs/AI_ADAPTATION_POLICY.md`
+- `docs/DECISIONS.md`
+- `docs/FEATURE_REGISTRY_V1.md`
+- `docs/IMPLEMENTATION_CHECKPOINT.md`
+- `docs/LICENSE_BOUNDARIES.md`
+- `docs/MIYAGI_PARAMETER_MAP.md`
+- `docs/STRATEGY_DSL.md`
+- `docs/TECHNICAL_AUDIT.md`
+- `docs/TIMESTAMP_SEMANTICS.md`
+- `docs/VALIDATION_AND_ACCEPTANCE.md`
+- `examples/signal_event.json`
+- `examples/strategy_bonsai_research.json`
+- `examples/strategy_classic.json`
+- `examples/strategy_liquidation.json`
+- `examples/strategy_miyagi_ensemble_research.json`
+- `pyproject.toml`
+- `schemas/feature-record.v1.schema.json`
+- `schemas/signal-event.v1.schema.json`
+- `schemas/strategy-definition.v1.schema.json`
+- `sources/README.md`
+- `src/strategy_engine/__init__.py`
+- `src/strategy_engine/api/__init__.py`
+- `src/strategy_engine/api/contracts.py`
+- `src/strategy_engine/domain/__init__.py`
+- `src/strategy_engine/domain/models.py`
+- `src/strategy_engine/dsl/__init__.py`
+- `src/strategy_engine/dsl/validator.py`
+- `src/strategy_engine/features/__init__.py`
+- `src/strategy_engine/features/base.py`
+- `src/strategy_engine/features/candles.py`
+- `src/strategy_engine/features/common.py`
+- `src/strategy_engine/features/macd.py`
+- `src/strategy_engine/features/market_structure.py`
+- `src/strategy_engine/features/pivots.py`
+- `src/strategy_engine/features/range_filter.py`
+- `src/strategy_engine/features/squeeze.py`
+- `src/strategy_engine/features/supertrend.py`
+- `src/strategy_engine/features/trend.py`
+- `src/strategy_engine/features/volume.py`
+- `src/strategy_engine/policies/__init__.py`
+- `src/strategy_engine/policies/signals.py`
+- `src/strategy_engine/risk/__init__.py`
+- `src/strategy_engine/risk/position_management.py`
+- `src/strategy_engine/validation/__init__.py`
+- `src/strategy_engine/validation/leakage.py`
+- `tests/e2e/test_examples_validate.py`
+- `tests/e2e/test_pipeline_contract.py`
+- `tests/unit/test_macd.py`
+- `tests/unit/test_models.py`
+- `tests/unit/test_momentum.py`
+- `tests/unit/test_pivots.py`
+- `tests/unit/test_position_management.py`
+- `tests/unit/test_range_filter.py`
+- `tests/unit/test_signal_policies.py`
+- `tests/unit/test_squeeze.py`
+- `tests/unit/test_trend.py`
+- `tests/unit/test_volume.py`
+
+## Intentionally unresolved members
+- `src/strategy_engine/features/momentum.py`

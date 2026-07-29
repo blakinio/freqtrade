@@ -1,0 +1,125 @@
+{
+  "entry_long": {
+    "all": [
+      {
+        "direction": "up",
+        "event": "squeeze_release"
+      },
+      {
+        "feature": "macd_hist_slope",
+        "op": "gt",
+        "value": 0
+      }
+    ]
+  },
+  "entry_short": {
+    "all": []
+  },
+  "execution": {
+    "fee_model": "exchange_v1",
+    "funding_model": "perpetual_v1",
+    "order_type": "market",
+    "signal_delay_ms": 250,
+    "slippage_model": "empirical_v1",
+    "use_closed_bars_only": true
+  },
+  "exit": {
+    "any": [
+      {
+        "direction": "down",
+        "event": "supertrend_flip"
+      },
+      {
+        "risk": "atr_trailing_stop"
+      }
+    ]
+  },
+  "features": [
+    {
+      "confirmation": "closed_bar",
+      "id": "squeeze_ratio.v1",
+      "params": {
+        "bb_length": 20,
+        "bb_mult": 2.0,
+        "compatibility_mode": "corrected",
+        "kc_length": 20,
+        "kc_mult": 1.5,
+        "use_true_range": true
+      },
+      "timeframe": "5m"
+    },
+    {
+      "confirmation": "confirmed_htf",
+      "id": "supertrend_direction.v1",
+      "params": {
+        "atr_period": 10,
+        "atr_type": "rma",
+        "multiplier": 3.0,
+        "source": "hl2"
+      },
+      "timeframe": "1h"
+    },
+    {
+      "confirmation": "closed_bar",
+      "id": "macd.v1",
+      "params": {
+        "confirmation": "closed_bar",
+        "fast": 12,
+        "signal": 9,
+        "signal_ma_type": "ema",
+        "slow": 26
+      },
+      "timeframe": "5m"
+    }
+  ],
+  "provenance": {
+    "details": {
+      "created_by": "human",
+      "future_shift": 0,
+      "generator_version": "starter-pack",
+      "lineage_complete": true,
+      "parent_experiments": [],
+      "research_only": true
+    },
+    "lineage": [],
+    "producer": "ase00-research-spec",
+    "source_event_id": "example:strategy_classic"
+  },
+  "regime": {
+    "all": [
+      {
+        "feature": "supertrend_direction.v1",
+        "op": "eq",
+        "value": 1
+      }
+    ]
+  },
+  "risk": {
+    "initial_stop": {
+      "multiple": 2.0,
+      "type": "atr"
+    },
+    "max_exposure": 0.25,
+    "max_leverage": 2,
+    "max_open_positions": 2,
+    "position_size": {
+      "type": "risk_fraction",
+      "value": 0.005
+    },
+    "trailing_stop": {
+      "type": "supertrend"
+    }
+  },
+  "schema_version": "1.0.0",
+  "strategy_id": "trend-squeeze-v1",
+  "universe": {
+    "symbols": [
+      "BTC/USDT:USDT"
+    ],
+    "timeframes": [
+      "5m",
+      "1h"
+    ]
+  },
+  "version": "1.0.0"
+}

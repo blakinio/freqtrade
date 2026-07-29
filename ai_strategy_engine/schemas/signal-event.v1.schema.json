@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "Action": {
+      "enum": [
+        "enter",
+        "exit",
+        "reduce",
+        "hold"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "Provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
+        "lineage": {
+          "default": [],
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Lineage",
+          "type": "array"
+        },
+        "producer": {
+          "minLength": 1,
+          "title": "Producer",
+          "type": "string"
+        },
+        "source_event_id": {
+          "minLength": 1,
+          "title": "Source Event Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer",
+        "source_event_id"
+      ],
+      "title": "Provenance",
+      "type": "object"
+    },
+    "Side": {
+      "enum": [
+        "long",
+        "short",
+        "flat"
+      ],
+      "title": "Side",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/Action"
+    },
+    "available_at": {
+      "format": "date-time",
+      "title": "Available At",
+      "type": "string"
+    },
+    "code_version": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Code Version",
+      "type": "string"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "configuration_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Configuration Hash",
+      "type": "string"
+    },
+    "data_version": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Data Version",
+      "type": "string"
+    },
+    "detected_at": {
+      "format": "date-time",
+      "title": "Detected At",
+      "type": "string"
+    },
+    "event_time": {
+      "format": "date-time",
+      "title": "Event Time",
+      "type": "string"
+    },
+    "execution_policy": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Execution Policy",
+      "type": "object"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "feature_snapshot": {
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      },
+      "title": "Feature Snapshot",
+      "type": "object"
+    },
+    "idempotency_key": {
+      "minLength": 1,
+      "title": "Idempotency Key",
+      "type": "string"
+    },
+    "is_confirmed": {
+      "title": "Is Confirmed",
+      "type": "boolean"
+    },
+    "provenance": {
+      "$ref": "#/$defs/Provenance"
+    },
+    "reason_codes": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Reason Codes",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "side": {
+      "$ref": "#/$defs/Side"
+    },
+    "signal_id": {
+      "minLength": 1,
+      "title": "Signal Id",
+      "type": "string"
+    },
+    "signal_version": {
+      "minLength": 1,
+      "title": "Signal Version",
+      "type": "string"
+    },
+    "source": {
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "strategy_version": {
+      "minLength": 1,
+      "title": "Strategy Version",
+      "type": "string"
+    },
+    "symbol": {
+      "minLength": 1,
+      "title": "Symbol",
+      "type": "string"
+    },
+    "timeframe": {
+      "minLength": 1,
+      "title": "Timeframe",
+      "type": "string"
+    }
+  },
+  "required": [
+    "signal_id",
+    "signal_version",
+    "strategy_id",
+    "strategy_version",
+    "symbol",
+    "timeframe",
+    "side",
+    "action",
+    "event_time",
+    "detected_at",
+    "available_at",
+    "source",
+    "is_confirmed",
+    "idempotency_key",
+    "code_version",
+    "data_version",
+    "configuration_hash",
+    "reason_codes",
+    "feature_snapshot",
+    "provenance",
+    "execution_policy"
+  ],
+  "title": "SignalEvent",
+  "type": "object"
+}

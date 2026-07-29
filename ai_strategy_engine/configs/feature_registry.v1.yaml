@@ -1,0 +1,584 @@
+registry_version: 1.0.0
+features:
+- id: atr.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - regime
+  - risk
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  parameters:
+    period:
+      type: integer
+      minimum: 2
+      maximum: 200
+      default: 14
+    ma_type:
+      type: string
+      enum:
+      - rma
+      - sma
+      default: rma
+  warmup: period + 1
+  timestamp_policy: closed_bar
+  normalization: atr / close or dependent_feature / atr
+  license_origin: independent_generic_formula
+- id: squeeze_ratio.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - regime
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  parameters:
+    bb_length:
+      type: integer
+      minimum: 5
+      maximum: 100
+      default: 20
+    bb_mult:
+      type: number
+      minimum: 0.5
+      maximum: 4.0
+      default: 2.0
+    kc_length:
+      type: integer
+      minimum: 5
+      maximum: 100
+      default: 20
+    kc_mult:
+      type: number
+      minimum: 0.5
+      maximum: 4.0
+      default: 1.5
+    use_true_range:
+      type: boolean
+      default: true
+    compatibility_mode:
+      type: string
+      enum:
+      - corrected
+      - legacy_bug_compatible
+      default: corrected
+  warmup: max(bb_length, kc_length) + 2
+  timestamp_policy: closed_bar
+  normalization: bb_width / kc_width
+  license_origin: independent_reimplementation
+- id: supertrend_direction.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - regime
+  - exit
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  - open
+  parameters:
+    atr_period:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 10
+    multiplier:
+      type: number
+      minimum: 0.5
+      maximum: 10.0
+      default: 3.0
+    atr_type:
+      type: string
+      enum:
+      - rma
+      - sma
+      default: rma
+    source:
+      type: string
+      enum:
+      - close
+      - hl2
+      - ohlc4
+      default: hl2
+  warmup: atr_period + 2
+  timestamp_policy: closed_bar
+  normalization: direction in {-1,1}; distance / atr
+  license_origin: independent_generic_formula
+- id: macd.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - trigger
+  - confirmation
+  - ml_feature
+  inputs:
+  - close
+  parameters:
+    fast:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 12
+    slow:
+      type: integer
+      minimum: 3
+      maximum: 200
+      default: 26
+    signal:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 9
+    signal_ma_type:
+      type: string
+      enum:
+      - ema
+      - sma
+      default: ema
+    confirmation:
+      type: string
+      enum:
+      - closed_bar
+      - confirmed_htf
+      default: closed_bar
+  constraints:
+  - fast < slow
+  warmup: slow + signal + 2
+  timestamp_policy: closed_bar_or_confirmed_htf
+  normalization: macd / atr or macd / close
+  license_origin: independent_generic_formula
+- id: confirmed_pivot.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - trigger
+  - confirmation
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  parameters:
+    left_bars:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 15
+    right_bars:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 15
+  warmup: left_bars + right_bars + 1
+  timestamp_policy: event_time_at_pivot_detected_after_right_bars
+  normalization: distance_to_level / atr
+  license_origin: independent_generic_formula
+- id: candle_geometry.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - confirmation
+  - ml_feature
+  inputs:
+  - open
+  - high
+  - low
+  - close
+  parameters: {}
+  warmup: '1'
+  timestamp_policy: closed_bar
+  normalization: ratios in [0,1]
+  license_origin: independent_generic_formula
+- id: bos_choch.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - regime
+  - trigger
+  - ml_feature
+  inputs:
+  - confirmed_pivot.v1
+  - close
+  parameters:
+    structure_window:
+      type: integer
+      minimum: 3
+      maximum: 200
+      default: 20
+    break_buffer_atr:
+      type: number
+      minimum: 0.0
+      maximum: 2.0
+      default: 0.0
+  warmup: depends_on_confirmed_pivot
+  timestamp_policy: closed_bar_after_confirmed_pivot
+  normalization: event enum and distance / atr
+  license_origin: clean_room_research_required
+- id: liquidation_notional_z.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - trigger
+  - ml_feature
+  inputs:
+  - liquidation_events
+  parameters:
+    window:
+      type: integer
+      minimum: 20
+      maximum: 5000
+      default: 288
+    cluster_seconds:
+      type: integer
+      minimum: 1
+      maximum: 3600
+      default: 60
+  warmup: window
+  timestamp_policy: exchange_event_then_received_at
+  normalization: robust z-score
+  license_origin: internal_data_feature
+- id: rsi.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - confirmation
+  - ml_feature
+  inputs:
+  - close
+  parameters:
+    period:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 14
+    ma_type:
+      type: string
+      enum:
+      - rma
+      - sma
+      default: rma
+  warmup: period + 1
+  timestamp_policy: closed_bar
+  normalization: value / 100
+  license_origin: independent_generic_formula
+- id: stoch_rsi.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - confirmation
+  - ml_feature
+  inputs:
+  - close
+  parameters:
+    rsi_period:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 14
+    stochastic_period:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 14
+    k_smoothing:
+      type: integer
+      minimum: 1
+      maximum: 20
+      default: 3
+    d_smoothing:
+      type: integer
+      minimum: 1
+      maximum: 20
+      default: 3
+  warmup: rsi_period + stochastic_period + k_smoothing + d_smoothing
+  timestamp_policy: closed_bar
+  normalization: value / 100
+  license_origin: independent_generic_formula
+- id: vwap.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - regime
+  - confirmation
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  - volume
+  parameters:
+    mode:
+      type: string
+      enum:
+      - session
+      - cumulative
+      - rolling
+      default: session
+    rolling_window:
+      type:
+      - integer
+      - 'null'
+      minimum: 2
+      maximum: 5000
+      default: null
+  warmup: 1 or rolling_window
+  timestamp_policy: closed_bar_with_explicit_anchor
+  normalization: distance_to_vwap / atr or vwap
+  license_origin: independent_generic_formula
+- id: adx.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - regime
+  - confirmation
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  parameters:
+    period:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 14
+  warmup: 2 * period + 1
+  timestamp_policy: closed_bar
+  normalization: value / 100
+  license_origin: independent_generic_formula
+- id: mfi.v1
+  status: experimental
+  approved_for_ai: false
+  roles:
+  - confirmation
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  - volume
+  parameters:
+    period:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 14
+  warmup: period + 1
+  timestamp_policy: closed_bar
+  normalization: value / 100
+  license_origin: independent_generic_formula
+- id: roc.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - trigger
+  - confirmation
+  - ml_feature
+  inputs:
+  - close
+  parameters:
+    period:
+      type: integer
+      minimum: 1
+      maximum: 200
+      default: 12
+  warmup: period + 1
+  timestamp_policy: closed_bar
+  normalization: percent or rolling robust z-score
+  license_origin: independent_generic_formula
+- id: wavetrend.v1
+  status: research
+  approved_for_ai: false
+  roles:
+  - confirmation
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  parameters:
+    channel_length:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 10
+    average_length:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 21
+    signal_length:
+      type: integer
+      minimum: 1
+      maximum: 20
+      default: 4
+  warmup: channel_length + average_length + signal_length
+  timestamp_policy: closed_bar
+  normalization: rolling robust z-score
+  license_origin: independent_research_formula_no_miyagi_parity
+- id: psar.v1
+  status: research
+  approved_for_ai: false
+  roles:
+  - regime
+  - exit
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  parameters:
+    step:
+      type: number
+      minimum: 0.001
+      maximum: 0.2
+      default: 0.02
+    max_step:
+      type: number
+      minimum: 0.01
+      maximum: 1.0
+      default: 0.2
+  constraints:
+  - step <= max_step
+  warmup: stateful_from_first_bar; require burn-in
+  timestamp_policy: closed_bar
+  normalization: distance / atr
+  license_origin: independent_generic_formula
+- id: atr_range_filter.v1
+  status: research
+  approved_for_ai: false
+  roles:
+  - regime
+  - trigger
+  - ml_feature
+  inputs:
+  - high
+  - low
+  - close
+  parameters:
+    atr_period:
+      type: integer
+      minimum: 2
+      maximum: 100
+      default: 14
+    multiplier:
+      type: number
+      minimum: 0.2
+      maximum: 10.0
+      default: 2.0
+    source:
+      type: string
+      enum:
+      - close
+      - hl2
+      - ohlc4
+      default: close
+  warmup: atr_period + state burn-in
+  timestamp_policy: closed_bar
+  normalization: distance / atr threshold
+  license_origin: independent_research_no_bonsai_parity
+- id: fib_ma_ensemble.v1
+  status: research
+  approved_for_ai: false
+  roles:
+  - regime
+  - confirmation
+  - ml_feature
+  inputs:
+  - close
+  parameters:
+    periods:
+      type: array
+      items:
+        type: integer
+        minimum: 1
+      default:
+      - 5
+      - 8
+      - 13
+      - 21
+      - 34
+      - 55
+    ma_type:
+      type: string
+      enum:
+      - ema
+      - sma
+      default: ema
+    aggregation:
+      type: string
+      enum:
+      - mean
+      - median
+      default: mean
+  warmup: max(periods)
+  timestamp_policy: closed_bar
+  normalization: distance / ensemble or atr
+  license_origin: independent_research_no_bonsai_parity
+- id: volume_ema_osc.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - confirmation
+  - ml_feature
+  inputs:
+  - volume
+  parameters:
+    fast:
+      type: integer
+      minimum: 1
+      maximum: 50
+      default: 5
+    slow:
+      type: integer
+      minimum: 2
+      maximum: 200
+      default: 10
+  constraints:
+  - fast < slow
+  warmup: slow + 1
+  timestamp_policy: closed_bar
+  normalization: percent; clip or robust scale
+  license_origin: independent_generic_formula
+- id: volume_robust_z.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - confirmation
+  - ml_feature
+  inputs:
+  - volume
+  parameters:
+    window:
+      type: integer
+      minimum: 20
+      maximum: 5000
+      default: 100
+  warmup: 2 * window
+  timestamp_policy: closed_bar
+  normalization: median absolute deviation z-score
+  license_origin: independent_generic_formula
+- id: no_repeat_signals_policy.v1
+  status: validated
+  approved_for_ai: true
+  roles:
+  - signal_policy
+  inputs:
+  - raw_direction_signal
+  parameters:
+    cooldown_bars:
+      type: integer
+      minimum: 0
+      maximum: 1000
+      default: 0
+  warmup: none
+  timestamp_policy: same_as_confirmed_input_signal
+  normalization: event {-1,0,1}
+  license_origin: independent_policy

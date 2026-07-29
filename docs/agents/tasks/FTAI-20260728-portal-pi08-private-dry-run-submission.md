@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-portal-pi08-private-dry-run-submission
-status: validating
+status: completed
 branch: feat/portal-pi08-private-dry-run-submission
 base_branch: develop
 created: 2026-07-28
@@ -24,7 +24,7 @@ owned_paths:
 
 Submit only exact, unexpired, risk-approved intents to the exact private Freqtrade dry-run runtime through PI-07 credentials, while preserving idempotency and treating every accepted transport response as unproven until authoritative reconciliation.
 
-## Acceptance criteria
+## Acceptance delivered
 
 1. Submission binds the approved intent to exact tenant, bot, config revision, runtime, runtime revision, correlation and idempotency identity.
 2. Runtime state must be current, healthy, kill switch inactive and environment non-production.
@@ -37,9 +37,9 @@ Submit only exact, unexpired, risk-approved intents to the exact private Freqtra
 9. Success requires exact current/synced authoritative runtime order evidence; absent, partial, stale or mismatched evidence remains pending or fails closed.
 10. No browser receives private endpoints, credentials or direct Freqtrade access; no live-capital path is added.
 
-## Non-goals
+## Non-goals preserved
 
-- no BM-07 position/order command activation;
+- no BM-07 position/order command activation in the PI-08 package;
 - no browser API route or direct Freqtrade access;
 - no production/live execution, withdrawals or P14 authority;
 - no claim that deterministic CI proves real Synology/Vault/Freqtrade target acceptance.
@@ -48,12 +48,12 @@ Submit only exact, unexpired, risk-approved intents to the exact private Freqtra
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T08:39:00+02:00
-validated_code_head: null
-merged_commit: null
+updated_at: 2026-07-29T09:22:00+02:00
+validated_code_head: 1aeb3478586afb03a458a579517ddf46f46a76a9
+merged_commit: 530f61caf9d5d4644068a93baa0b7a09298f24c6
 branch: feat/portal-pi08-private-dry-run-submission
 pr: 669
-status: validating
+status: completed
 base_head: 8a9a1fc0ebc8e71ff85a21bae47e7e0e8146c03b
 context_routes:
   - AGENTS.md
@@ -62,15 +62,15 @@ context_routes:
   - docs/ai_platform/portal/BOT_MANAGEMENT_AGENT_PLAN.md
   - docs/ai_platform/portal/PI08_PRIVATE_DRY_RUN_SUBMISSION.md
 proven:
-  - PI-07 repository acceptance is complete and supplies bounded tenant-scoped credential leases.
-  - PI-08 reserves a tenant-scoped attempt before network I/O and enforces uniqueness for idempotency, command and approved intent.
-  - Private transport requires HTTPS, private addressing, explicit CA verification, no redirects and no proxy environment.
-  - Runtime dry-run configuration is independently checked before force-entry submission.
-  - Acknowledgement remains execution_proven=false and authoritative reconciliation is a separate terminal gate.
-  - Exact replay cannot invoke the transport twice; ambiguity is persisted without blind retry.
+  - PI-08 implementation PR 669 squash-merged as 530f61caf9d5d4644068a93baa0b7a09298f24c6.
+  - Exact head 1aeb3478586afb03a458a579517ddf46f46a76a9 passed AI Platform CI 30430203047.
+  - Exact head passed Freqtrade CI 30430203036 including pre-commit, documentation, Python 3.11 through 3.14, full 3.12 coverage, distribution build and final CI gate.
+  - Exact head passed GitHub Actions security analysis 30430203022.
+  - There were no review submissions or unresolved review threads.
+  - Submission is private, dry-run-only, idempotent, ambiguity-aware and reconciled only from authoritative PI-01 evidence.
 derived:
-  - The additive adapter can activate PI-08 through trusted server composition while the default Freqtrade adapter remains fail-closed.
-  - BM-07 remains blocked until this exact implementation head passes required CI and is merged.
+  - BM-07 position/order command activation is now dependency-unblocked at the repository-software layer.
+  - Real Synology/Vault/Freqtrade target acceptance remains a separate owner-managed evidence package.
 unknown:
   - Real target endpoint, TLS material, Vault initialization and runtime credentials remain owner-managed deployment inputs.
 conflicts: []
@@ -82,12 +82,12 @@ changed_paths:
   - docs/ai_platform/portal/PI08_PRIVATE_DRY_RUN_SUBMISSION.md
   - docs/agents/tasks/FTAI-20260728-portal-pi08-private-dry-run-submission.md
 validation:
-  - command: AI Platform CI on PR 669
-    result: PENDING
-  - command: Freqtrade CI on PR 669
-    result: PENDING
-  - command: GitHub Actions security analysis on PR 669
-    result: PENDING
+  - command: AI Platform CI 30430203047
+    result: PASS
+  - command: Freqtrade CI 30430203036
+    result: PASS
+  - command: GitHub Actions security analysis 30430203022
+    result: PASS
 blockers: []
-next_action: Inspect exact-head PR 669 CI and review findings, fix every failure, then mark ready and squash merge PI-08 before starting BM-07.
+next_action: Start BM-07 position/order command activation from current develop using the merged PI-08 contracts and preserve the same dry-run, credential, idempotency, ambiguity and reconciliation boundaries.
 ```

@@ -58,8 +58,21 @@ jobs:
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform
 
-      - name: Ruff format diff
-        run: ruff format --diff ai_platform tests/ai_platform || true
+      - name: Format BM-07 files
+        run: >-
+          ruff format
+          ai_platform/portal/bot_operations/activation_schema.py
+          tests/ai_platform/portal/bot_operations/test_bm07_activation_transport.py
+
+      - name: Upload formatted BM-07 files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: bm07-ruff-formatted
+          path: |
+            ai_platform/portal/bot_operations/activation_schema.py
+            tests/ai_platform/portal/bot_operations/test_bm07_activation_transport.py
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform

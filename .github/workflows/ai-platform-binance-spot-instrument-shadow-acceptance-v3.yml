@@ -8,7 +8,7 @@ name: AI Platform Binance Spot Instrument Shadow Acceptance V3
     paths:
       - "ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v3.json"
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
@@ -125,7 +125,7 @@ jobs:
     if: github.event_name == 'schedule'
     runs-on: [freqtrade-staging]
     environment: synology-staging
-    timeout-minutes: 10
+    timeout-minutes: 5
 
     steps:
       - name: Checkout exact scheduled commit
@@ -168,7 +168,61 @@ jobs:
             fi
           done
 
+      - name: Check whether a sample is due
+        id: due
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          from pathlib import Path
+
+          durable_root = Path(os.environ["DURABLE_ROOT"])
+          pointer_path = durable_root / "active-binance-spot-instrument-acceptance-v3.json"
+          should_run = True
+          status = "invalid"
+          due_ns = 0
+          if not pointer_path.exists():
+              should_run = False
+              status = "idle"
+          else:
+              try:
+                  pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+                  run_root = Path(str(pointer["run_root"]))
+                  if run_root.parent != durable_root:
+                      raise ValueError("active run root is outside durable root")
+                  state = json.loads(
+                      (run_root / "incremental-state.json").read_text(encoding="utf-8")
+                  )
+                  state_status = state.get("status")
+                  if state_status == "completed":
+                      status = "completed"
+                  elif state_status == "active":
+                      interval_ns = int(state["sample_interval_seconds"]) * 1_000_000_000
+                      index = int(state["next_sample_index"])
+                      due_ns = int(state["window_started_ns"]) + index * interval_ns
+                      last_completed = state.get("last_sample_completed_ns")
+                      if last_completed is not None:
+                          due_ns = max(due_ns, int(last_completed) + interval_ns)
+                      should_run = time.time_ns() >= due_ns
+                      status = "due" if should_run else "not_due"
+                  else:
+                      raise ValueError("incremental state status is invalid")
+              except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                  print(f"Due check will fail closed through the sampler: {exc}")
+                  should_run = True
+                  status = "invalid"
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"should_run={'true' if should_run else 'false'}\n")
+              output.write(f"status={status}\n")
+              output.write(f"due_ns={due_ns}\n")
+          print(f"Binance acceptance v3 due status: {status}")
+          PY
+
       - name: Install isolated uv and Python
+        if: steps.due.outputs.should_run == 'true'
         uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
         with:
           activate-environment: true
@@ -176,10 +230,12 @@ jobs:
           enable-cache: false
 
       - name: Install pinned acceptance dependency
+        if: steps.due.outputs.should_run == 'true'
         shell: bash
         run: uv pip install --python "$VIRTUAL_ENV/bin/python" "jsonschema==4.26.0"
 
       - name: Collect at most one due sample
+        if: steps.due.outputs.should_run == 'true'
         id: sample
         shell: bash
         run: |
@@ -208,7 +264,7 @@ jobs:
           retention-days: 30
 
       - name: Remove isolated acceptance runtime
-        if: always()
+        if: ${{ always() && steps.due.outputs.should_run == 'true' }}
         shell: bash
         run: rm -rf .venv
 

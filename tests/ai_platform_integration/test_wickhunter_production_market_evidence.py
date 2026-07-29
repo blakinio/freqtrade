@@ -15,9 +15,9 @@ from ai_platform.wickhunter.production_market_evidence import (
     EXPECTED_REQUEST,
     EXPECTED_SYMBOLS,
     MANIFEST_NAME,
-    ProductionMarketEvidenceError,
     STATE_NAME,
     TIMEFRAME_MS,
+    ProductionMarketEvidenceError,
     collect_due_sample,
     initialize_capture,
     load_capture_request,
@@ -25,15 +25,15 @@ from ai_platform.wickhunter.production_market_evidence import (
     verify_capture_package,
 )
 
+
 CODE_SHA = "1" * 40
 REPO_ROOT = Path(__file__).resolve().parents[2]
-WORKFLOW_PATH = REPO_ROOT / ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml"
-CONTRACT_PATH = (
-    REPO_ROOT / "ai_platform/wickhunter/production-market-evidence-contract-v1.json"
+WORKFLOW_PATH = (
+    REPO_ROOT / ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml"
 )
+CONTRACT_PATH = REPO_ROOT / "ai_platform/wickhunter/production-market-evidence-contract-v1.json"
 REQUEST_PATH = (
-    REPO_ROOT
-    / "ai_platform/wickhunter/run-requests/"
+    REPO_ROOT / "ai_platform/wickhunter/run-requests/"
     "wickhunter-production-market-evidence-20260730-v1.json"
 )
 
@@ -80,8 +80,7 @@ def _binance_24h() -> list[dict[str, str]]:
 
 def _binance_book() -> list[dict[str, str]]:
     return [
-        {"symbol": symbol, "bidPrice": "99.9", "askPrice": "100.1"}
-        for symbol in EXPECTED_SYMBOLS
+        {"symbol": symbol, "bidPrice": "99.9", "askPrice": "100.1"} for symbol in EXPECTED_SYMBOLS
     ]
 
 
@@ -287,9 +286,10 @@ def test_contract_and_workflow_preserve_bounded_trigger_and_zero_authority() -> 
     assert contract["classification"] == "prospective_public_market_evidence_only"
     assert contract["time_geometry"]["expected_market_samples"] == 144
     assert contract["time_geometry"]["expected_candles_per_source_symbol"] == 432
-    assert contract["time_geometry"]["decision_end_ms"] < contract["time_geometry"][
-        "protected_holdout_start_ms"
-    ]
+    assert (
+        contract["time_geometry"]["decision_end_ms"]
+        < contract["time_geometry"]["protected_holdout_start_ms"]
+    )
     assert contract["policies"]["source_separated"] is True
     assert contract["policies"]["execution_enabled"] is False
     assert contract["policies"]["orders_submitted"] == 0
@@ -303,7 +303,8 @@ def test_contract_and_workflow_preserve_bounded_trigger_and_zero_authority() -> 
     assert workflow["jobs"]["sample"]["timeout-minutes"] == 20
     assert "Validate exact-one-file trigger scope" in workflow_text
     assert "HTTP_PROXY HTTPS_PROXY ALL_PROXY" in workflow_text
-    assert "orders_submitted" in (
-        REPO_ROOT / "ai_platform/wickhunter/production_market_evidence.py"
-    ).read_text()
+    assert (
+        "orders_submitted"
+        in (REPO_ROOT / "ai_platform/wickhunter/production_market_evidence.py").read_text()
+    )
     assert not REQUEST_PATH.exists()

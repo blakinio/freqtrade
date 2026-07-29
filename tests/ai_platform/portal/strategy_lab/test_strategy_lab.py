@@ -73,10 +73,10 @@ def _candles() -> tuple[Candle, ...]:
                 pair="BTC/USDT",
                 timeframe="15m",
                 open=previous,
-                high=max(previous, close) + Decimal("1"),
-                low=min(previous, close) - Decimal("1"),
+                high=max(previous, close) + Decimal(1),
+                low=min(previous, close) - Decimal(1),
                 close=close,
-                volume=Decimal("10"),
+                volume=Decimal(10),
                 data_version=hashlib.sha256(f"candle-{index}".encode()).hexdigest(),
             )
         )
@@ -94,9 +94,9 @@ def _request(candles: tuple[Candle, ...], **overrides: object) -> ExperimentCrea
             start_at=candles[0].timestamp,
             end_at=candles[-1].timestamp,
         ),
-        "starting_balance": Decimal("10000"),
+        "starting_balance": Decimal(10000),
         "fee_rate": Decimal("0.001"),
-        "slippage_rate": Decimal("0"),
+        "slippage_rate": Decimal(0),
         "parameter_overrides": {"atr_period": 3, "multiplier": 1.5},
     }
     payload.update(overrides)
@@ -274,14 +274,17 @@ def test_service_persists_idempotently_and_isolates_tenants() -> None:
     with pytest.raises(StrategyLabConflictError):
         service.create_experiment(
             _context(),
-            request.model_copy(update={"starting_balance": Decimal("9000")}),
+            request.model_copy(update={"starting_balance": Decimal(9000)}),
             idempotency_key="request-1",
         )
     tenant_b = service.create_experiment(
         _context("tenant-b"), request, idempotency_key="request-1"
     )
     assert tenant_b.experiment_id != first.experiment_id
-    assert service.get_experiment(_context("tenant-b"), tenant_b.experiment_id).tenant_id == "tenant-b"
+    assert (
+        service.get_experiment(_context("tenant-b"), tenant_b.experiment_id).tenant_id
+        == "tenant-b"
+    )
     with pytest.raises(StrategyLabNotFoundError):
         service.get_experiment(_context("tenant-b"), first.experiment_id)
 

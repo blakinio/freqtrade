@@ -27,7 +27,7 @@ from ai_platform.portal.strategy_lab.service import (
 )
 
 
-def build_router(
+def build_router(  # noqa: C901 - route registration is intentionally centralized
     service: StrategyLabService,
     context_dependency: Callable[..., RequestContext],
 ) -> APIRouter:

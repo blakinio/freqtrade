@@ -33,6 +33,7 @@ from ai_platform.portal.strategy_lab.schema import (
     StrategyLabDefinition,
 )
 
+
 if TYPE_CHECKING:
     from ai_platform.portal.strategy_lab.simulator import DeterministicStrategySimulator
 

@@ -12,9 +12,6 @@ from uuid import UUID
 import pandas as pd
 from pydantic import JsonValue
 
-from strategy_engine.features.squeeze import squeeze_features
-from strategy_engine.features.supertrend import supertrend_features
-
 from ai_platform.portal.strategy_lab.schema import (
     Candle,
     EquityPoint,
@@ -26,6 +23,8 @@ from ai_platform.portal.strategy_lab.schema import (
     SignalExplanation,
     StrategyLabDefinition,
 )
+from strategy_engine.features.squeeze import squeeze_features
+from strategy_engine.features.supertrend import supertrend_features
 
 
 getcontext().prec = 28
@@ -117,10 +116,10 @@ class DeterministicStrategySimulator:
             if position is not None:
                 holding_bars += 1
             equity = cash + (
-                position.quantity * candle.close if position is not None else Decimal("0")
+                position.quantity * candle.close if position is not None else Decimal(0)
             )
             peak_equity = max(peak_equity, equity)
-            drawdown = Decimal("0") if peak_equity == 0 else (peak_equity - equity) / peak_equity
+            drawdown = Decimal(0) if peak_equity == 0 else (peak_equity - equity) / peak_equity
             equity_points.append(
                 EquityPoint(timestamp=candle.timestamp, equity=equity, drawdown_pct=drawdown)
             )
@@ -153,7 +152,7 @@ class DeterministicStrategySimulator:
             trade, cash = self._exit_at_close(last, position, request.fee_rate, forced_signal)
             trades.append(trade)
             final_drawdown = (
-                Decimal("0") if peak_equity == 0 else (peak_equity - cash) / peak_equity
+                Decimal(0) if peak_equity == 0 else (peak_equity - cash) / peak_equity
             )
             equity_points[-1] = EquityPoint(
                 timestamp=last.timestamp,
@@ -166,13 +165,16 @@ class DeterministicStrategySimulator:
         profit_abs = cash - request.starting_balance
         profit_pct = profit_abs / request.starting_balance
         average_trade = (
-            sum((trade.profit_pct for trade in trades), Decimal("0")) / len(trades)
+            sum((trade.profit_pct for trade in trades), Decimal(0)) / len(trades)
             if trades
-            else Decimal("0")
+            else Decimal(0)
         )
-        win_rate = Decimal(wins) / len(trades) if trades else Decimal("0")
+        win_rate = Decimal(wins) / len(trades) if trades else Decimal(0)
         exposure = Decimal(holding_bars) / len(ordered)
-        max_drawdown = max((point.drawdown_pct for point in equity_points), default=Decimal("0"))
+        max_drawdown = max(
+            (point.drawdown_pct for point in equity_points),
+            default=Decimal(0),
+        )
 
         payload = {
             "experiment_id": experiment_id,
@@ -244,7 +246,7 @@ class DeterministicStrategySimulator:
         period_candidates = [
             value
             for name, value in parameters.items()
-            if name.endswith("length") or name.endswith("period")
+            if name.endswith(("length", "period"))
             if isinstance(value, int)
         ]
         return max((definition.warm_up, *(value + 2 for value in period_candidates)))
@@ -324,8 +326,8 @@ class DeterministicStrategySimulator:
         slippage_rate: Decimal,
         signal: SignalExplanation,
     ) -> tuple[OpenPosition, Decimal]:
-        entry_price = candle.open * (Decimal("1") + slippage_rate)
-        quantity = cash / (entry_price * (Decimal("1") + fee_rate))
+        entry_price = candle.open * (Decimal(1) + slippage_rate)
+        quantity = cash / (entry_price * (Decimal(1) + fee_rate))
         notional = quantity * entry_price
         fee = notional * fee_rate
         total_cost = notional + fee
@@ -349,7 +351,7 @@ class DeterministicStrategySimulator:
         slippage_rate: Decimal,
         signal: SignalExplanation,
     ) -> tuple[ExperimentTrade, Decimal]:
-        exit_price = candle.open * (Decimal("1") - slippage_rate)
+        exit_price = candle.open * (Decimal(1) - slippage_rate)
         return _close_position(candle.timestamp, exit_price, position, fee_rate, signal)
 
     @staticmethod

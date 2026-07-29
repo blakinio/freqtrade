@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -13,9 +12,9 @@ from pydantic import Field, JsonValue, model_validator
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, Sha256Hex, UtcDateTime
 
 
-BoundedDecimal = Annotated[Decimal, Field(ge=Decimal("0"))]
-RateDecimal = Annotated[Decimal, Field(ge=Decimal("0"), le=Decimal("0.05"))]
-PositiveDecimal = Annotated[Decimal, Field(gt=Decimal("0"))]
+BoundedDecimal = Annotated[Decimal, Field(ge=Decimal(0))]
+RateDecimal = Annotated[Decimal, Field(ge=Decimal(0), le=Decimal("0.05"))]
+PositiveDecimal = Annotated[Decimal, Field(gt=Decimal(0))]
 
 
 class StrategySourceType(StrEnum):
@@ -90,7 +89,7 @@ class Candle(ContractModel):
     high: PositiveDecimal
     low: PositiveDecimal
     close: PositiveDecimal
-    volume: BoundedDecimal = Decimal("0")
+    volume: BoundedDecimal = Decimal(0)
     is_closed: bool = True
     is_confirmed: bool = True
     data_version: Sha256Hex
@@ -122,9 +121,9 @@ class ExperimentCreateRequest(ContractModel):
     pair: NonEmptyStr
     timeframe: NonEmptyStr
     timerange: ExperimentTimerange
-    starting_balance: PositiveDecimal = Decimal("10000")
+    starting_balance: PositiveDecimal = Decimal(10000)
     fee_rate: RateDecimal = Decimal("0.001")
-    slippage_rate: RateDecimal = Decimal("0")
+    slippage_rate: RateDecimal = Decimal(0)
     parameter_overrides: dict[str, JsonValue] = Field(default_factory=dict)
     execution_mode: Literal["backtest"] = "backtest"
 
@@ -185,12 +184,12 @@ class ExperimentResult(ContractModel):
     trade_count: int = Field(ge=0)
     wins: int = Field(ge=0)
     losses: int = Field(ge=0)
-    win_rate: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))
+    win_rate: Decimal = Field(ge=Decimal(0), le=Decimal(1))
     profit_abs: Decimal
     profit_pct: Decimal
     max_drawdown: BoundedDecimal
     average_trade: Decimal
-    exposure: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))
+    exposure: Decimal = Field(ge=Decimal(0), le=Decimal(1))
     equity_curve: tuple[EquityPoint, ...]
     trades: tuple[ExperimentTrade, ...]
     signal_explanations: tuple[SignalExplanation, ...]
@@ -225,12 +224,12 @@ class ExperimentDetail(ContractModel):
     trade_count: int = Field(ge=0)
     wins: int = Field(ge=0)
     losses: int = Field(ge=0)
-    win_rate: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))
+    win_rate: Decimal = Field(ge=Decimal(0), le=Decimal(1))
     profit_abs: Decimal
     profit_pct: Decimal
     max_drawdown: BoundedDecimal
     average_trade: Decimal
-    exposure: Decimal = Field(ge=Decimal("0"), le=Decimal("1"))
+    exposure: Decimal = Field(ge=Decimal(0), le=Decimal(1))
     result_hash: Sha256Hex
     research_only: Literal[True] = True
     order_submission_performed: Literal[False] = False

@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260729-ase-01-tradingview-strategy-lab
-status: planning
+status: active
 branch: agent/ase-01-tradingview-strategy-lab
 base_branch: develop
 created: 2026-07-29
@@ -9,72 +9,96 @@ required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - ai_strategy_engine/ARCHITECTURE.md
-  - ai_strategy_engine/TASKS.md
   - ai_strategy_engine/docs/IMPLEMENTATION_CHECKPOINT.md
-search_first:
-  - ai_strategy_engine/configs/feature_registry.v1.yaml
-  - ai_strategy_engine/src/strategy_engine/registry.py
-  - ai_strategy_engine/examples/strategy_classic.json
-  - ai_strategy_engine/examples/strategy_miyagi_ensemble_research.json
-  - ai_platform/research/strategy_engine/ase00_adapter.py
-optional_reads:
   - docs/ai_platform/ROADMAP.md
+search_first:
+  - ai_strategy_engine/src/strategy_engine/features/supertrend.py
+  - ai_strategy_engine/src/strategy_engine/features/squeeze.py
+  - ai_platform/portal/learning/
+  - ai_platform/portal/web/app/ai/experiments/
 owned_paths:
+  - ai_strategy_engine/strategies/
+  - ai_platform/portal/strategy_lab/
+  - ai_platform/research/strategy_lab/
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/api_core.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/web/app/ai/experiments/
+  - ai_platform/portal/web/lib/strategy-lab-*.ts
+  - ai_platform/portal/web/e2e/strategy-lab.spec.ts
+  - tests/ai_platform/portal/strategy_lab/
+  - tests/ai_platform_integration/test_ase01_strategy_lab_e2e.py
+  - docs/ai_platform/ASE_01_TRADINGVIEW_STRATEGY_LAB.md
   - docs/agents/tasks/FTAI-20260729-ase-01-tradingview-strategy-lab.md
 ---
 
-# ASE-01 TradingView strategy lab
+# ASE-01 TradingView Strategy Lab
 
 ## Goal
 
-Resolve the authoritative bounded ASE-01 scope from repository evidence before implementation, preserving the research-only, point-in-time, fail-closed and no-direct-execution boundaries established by ASE-00.
+Deliver the first complete research-only TradingView-inspired strategy laboratory from canonical Strategy DSL through deterministic backtest, durable tenant-scoped experiment storage, API and Bot Management UI.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T12:26:00+02:00
+updated_at: 2026-07-29T11:38:00+02:00
 checkpoint_carrier: self
+validated_parent_head: eae105601d2408f7f1b7c3cd9e42736592f3d59d
 branch: agent/ase-01-tradingview-strategy-lab
 base_head: eae105601d2408f7f1b7c3cd9e42736592f3d59d
 pr: null
-status: planning
+status: active
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - ai_strategy_engine/ARCHITECTURE.md
-  - ai_strategy_engine/TASKS.md
-  - ai_strategy_engine/docs/IMPLEMENTATION_CHECKPOINT.md
+  - docs/ai_platform/ASE_01_TRADINGVIEW_STRATEGY_LAB.md
+owned_paths:
+  - ai_strategy_engine/strategies/
+  - ai_platform/portal/strategy_lab/
+  - ai_platform/research/strategy_lab/
+  - ai_platform/portal/control_plane/api.py
+  - ai_platform/portal/control_plane/api_core.py
+  - ai_platform/portal/control_plane/database.py
+  - ai_platform/portal/web/app/ai/experiments/
+  - ai_platform/portal/web/lib/strategy-lab-contracts.ts
+  - ai_platform/portal/web/lib/strategy-lab-fixtures.ts
+  - ai_platform/portal/web/lib/strategy-lab-api.ts
+  - ai_platform/portal/web/e2e/strategy-lab.spec.ts
+  - tests/ai_platform/portal/strategy_lab/
+  - tests/ai_platform_integration/test_ase01_strategy_lab_e2e.py
+  - docs/ai_platform/ASE_01_TRADINGVIEW_STRATEGY_LAB.md
+  - docs/agents/tasks/FTAI-20260729-ase-01-tradingview-strategy-lab.md
 proven:
-  - ASE-00 PR 584 merged normally into develop as eae105601d2408f7f1b7c3cd9e42736592f3d59d after all required exact-head workflows passed.
-  - Branch agent/ase-01-tradingview-strategy-lab exists and is identical to develop at eae105601d2408f7f1b7c3cd9e42736592f3d59d before this checkpoint commit.
-  - The predecessor ASE-00 task record names FTAI-20260729-ase-01-tradingview-strategy-lab as the next package.
-  - ai_strategy_engine/TASKS.md names ASE-01 as Feature Registry service with loader, schema, dependency resolver, listing API, parity fixtures, append-only replay tests and a read-only portal model.
-  - No existing task record or implementation for FTAI-20260729-ase-01-tradingview-strategy-lab was present before this checkpoint.
-  - ASE-00 already delivered canonical registry configuration, a registry implementation, Strategy DSL, examples, Leakage Guard and a research-only shadow adapter.
+  - ASE-00 provides canonical Strategy DSL, validators and independent Supertrend and Squeeze feature implementations.
+  - Portal already owns tenant identity, authorization, SQLAlchemy persistence and the /ai/experiments product surface.
+  - The new package extends those components instead of creating a competing backtester, experiment database or browser-to-Freqtrade path.
 derived:
-  - Implementing either a TradingView laboratory or a Feature Registry service without reconciling the conflicting package definitions would risk duplicate or mis-scoped work.
-  - The first ASE-01 work must be repository inventory and gap analysis, not product or execution code.
+  - A synchronous bounded deterministic simulator is sufficient for the first usable vertical slice and can later be replaced by an asynchronous worker behind the same API contracts.
 unknown:
-  - Whether the authoritative ASE-01 deliverable is the TradingView strategy laboratory named by the predecessor checkpoint, the Feature Registry service named by ai_strategy_engine/TASKS.md, or a bounded package combining only non-overlapping parts.
-  - Final owned paths, API boundaries, acceptance criteria and PR decomposition.
-conflicts:
-  - The predecessor task-specific checkpoint names ASE-01 TradingView strategy lab, while the canonical AI Strategy Engine backlog names ASE-01 Feature Registry service.
+  - Final exact-head workflow run identifiers until implementation validation completes.
+conflicts: []
 first_failure: null
 rejected_hypotheses:
-  - Start UI, backtest API, execution integration or arbitrary TradingView parity work before scope reconciliation.
-  - Duplicate the registry, Portal, Risk Core, liquidation ingestion or execution gateway delivered elsewhere.
-  - Introduce Browser-to-Freqtrade access, live orders or proprietary indicator parity claims.
-changed_paths:
-  - docs/agents/tasks/FTAI-20260729-ase-01-tradingview-strategy-lab.md
+  - Copy proprietary Pine Script.
+  - Use eval or exec.
+  - Add live order or credential authority.
+  - Use protected final holdout v2.
+  - Add Optuna before deterministic laboratory acceptance.
+changed_paths: []
 validation:
-  - command: Compare develop to ASE-01 branch before checkpoint creation
+  - command: local focused Strategy Lab tests (12 cases)
     result: PASS
-    evidence: develop and agent/ase-01-tradingview-strategy-lab were identical at eae105601d2408f7f1b7c3cd9e42736592f3d59d.
+    evidence: Catalog, parameter bounds, deterministic replay, no-lookahead, closed/confirmed-bar rejection, missing data, live-mode rejection, idempotency, tenant isolation, corrupt-result rejection and API vertical slice pass in the prepared implementation.
 known_limitations:
-  - No ASE-01 implementation is authorized by this planning checkpoint.
-  - ASE remains research/shadow-only and the protected final holdout remains unavailable for iterative work.
-blockers:
-  - Authoritative ASE-01 scope conflict must be resolved from repository evidence before implementation.
-next_action: Perform a focused repository inventory and gap analysis that reconciles the predecessor TradingView strategy-lab package with ai_strategy_engine/TASKS.md ASE-01 Feature Registry service; then update this checkpoint with one bounded goal, owned paths, acceptance criteria and implementation next action before changing product code.
+  - Synthetic BTC/USDT 15m fixture is the only default dataset.
+  - Long-only single-position simulator; no portfolio or intrabar execution model.
+  - Synchronous bounded execution.
+missing_functions:
+  - tv_macd_mtf_v1 and tv_support_resistance_breakout_v1.
+  - Optuna ParameterOptimizer execution.
+  - Real historical-data provider integration.
+blockers: []
+next_action: Commit the prepared Strategy Lab vertical slice, open a draft PR to develop, run exact-head validation and repair only confirmed failures.
 ```

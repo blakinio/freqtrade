@@ -146,13 +146,23 @@
 
 ### ASE-00 — inventory, contracts and synthetic vertical slice
 
-- [ ] zinwentaryzuj istniejące moduły i ownership paths;
-- [ ] nie duplikuj WH-00/WH-01, portalu ani liquidation contracts;
-- [ ] dopasuj `FeatureRecord`, `SignalEvent` i Strategy DSL do istniejących kontraktów;
-- [ ] uruchom syntetyczny shadow-only flow data → feature → DSL → leakage guard → fail-closed risk → evidence;
-- [ ] dodaj checkpoint, testy i osobny PR.
+- [x] zinwentaryzuj istniejące moduły i ownership paths;
+- [x] nie duplikuj WH-00/WH-01, portalu ani liquidation contracts;
+- [x] dopasuj `FeatureRecord`, `SignalEvent` i Strategy DSL do istniejących kontraktów;
+- [x] uruchom syntetyczny shadow-only flow data → feature → DSL → leakage guard → fail-closed risk → evidence;
+- [x] dodaj checkpoint, testy i osobny PR.
 
-### ASE-01 — Feature Registry service
+### ASE-01 — TradingView Strategy Lab
+
+- [ ] dodaj wersjonowane clean-room DSL dla Supertrend i Squeeze Momentum;
+- [ ] uruchom deterministyczny closed-bar / next-bar-open backtest bez lookahead;
+- [ ] zapisz tenant-scoped wynik eksperymentu z hashami, transakcjami i wyjaśnieniami;
+- [ ] wystaw bezpieczne Experiment API oraz widok `Testy / Laboratorium`;
+- [ ] dodaj porównanie wariantów, testy negatywne, E2E i trwały checkpoint.
+
+### ASE-FR-01 — Feature Registry service
+
+Nazwa została wydzielona z wcześniejszego ogólnego wpisu `ASE-01`, aby nie kolidowała z jednoznacznie zleconym pakietem TradingView Strategy Lab.
 
 - [ ] loader, schema, dependency resolver i API listing;
 - [ ] parity fixtures i append-only replay tests;

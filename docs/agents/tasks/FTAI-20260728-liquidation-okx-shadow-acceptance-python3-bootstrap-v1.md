@@ -19,7 +19,7 @@ checkpoint_version: 1
 updated_at: 2026-07-29T17:30:00+02:00
 head: 2a6accbf6b6c21233d897c4ab419debd0aec72a6
 branch: docs/okx-shadow-acceptance-terminal-pass-20260729
-pr: pending
+pr: 709
 status: ready
 context_routes:
   - .github/workflows/ai-platform-okx-liquidation-shadow-acceptance.yml

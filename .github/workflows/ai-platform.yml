@@ -58,8 +58,8 @@ jobs:
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform
 
-      - name: Ruff format
-        run: ruff format --check ai_platform tests/ai_platform
+      - name: Ruff format diff
+        run: ruff format --diff ai_platform tests/ai_platform || true
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform

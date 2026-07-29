@@ -115,7 +115,9 @@ class PositionCommandActivationRequest(ContractModel):
         if self.command.action == PositionAction.PARTIAL_CLOSE:
             quantity = self.command.close_quantity
             if quantity is not None and quantity >= matches[0].amount:
-                raise ValueError("partial close quantity must be below current position amount")
+                raise ValueError(
+                    "partial close quantity must be below current position amount"
+                )
         return self
 
 
@@ -145,7 +147,9 @@ class OrderCommandActivationRequest(ContractModel):
             and item.order_revision == self.command.order_revision
         ]
         if len(matches) != 1:
-            raise ValueError("order command requires one exact runtime order evidence record")
+            raise ValueError(
+                "order command requires one exact runtime order evidence record"
+            )
         if self.command.action == OrderAction.REPLACE_ORDER:
             if self.replacement_submission is None:
                 raise ValueError(
@@ -208,7 +212,9 @@ def _validate_position_scope(
         ):
             raise ValueError("position evidence scope mismatch")
         if position.observed_at != runtime.observed_at:
-            raise ValueError("position evidence must match the authoritative runtime snapshot")
+            raise ValueError(
+                "position evidence must match the authoritative runtime snapshot"
+            )
         identity = (position.position_id, position.position_revision)
         if identity in identities:
             raise ValueError("duplicate position evidence")
@@ -259,4 +265,6 @@ def _validate_replacement(
         if intent.amount != command.replacement_quantity:
             raise ValueError("replacement intent amount must match replacement quantity")
     if command.replacement_price is not None:
-        raise ValueError("price-changing replace is unsupported without native runtime replace")
+        raise ValueError(
+            "price-changing replace is unsupported without native runtime replace"
+        )

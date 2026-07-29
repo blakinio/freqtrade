@@ -5,10 +5,10 @@ import fcntl
 import os
 import time
 import urllib.parse
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import IO, Iterator, Protocol
+from typing import IO, Protocol
 
 from ai_platform.market_data.binance_spot_instrument_acceptance import (
     POLICY_NAME,

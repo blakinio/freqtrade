@@ -164,9 +164,9 @@
 
 Nazwa została wydzielona z wcześniejszego ogólnego wpisu `ASE-01`, aby nie kolidowała z jednoznacznie zleconym pakietem TradingView Strategy Lab.
 
-- [ ] loader, schema, dependency resolver i API listing;
-- [ ] parity fixtures i append-only replay tests;
-- [ ] portal read model bez execution write path.
+- [x] loader, schema, dependency resolver i API listing;
+- [x] parity fixtures i append-only replay tests;
+- [x] portal read model bez execution write path.
 
 ### ASE-02 — constrained research and optimization
 

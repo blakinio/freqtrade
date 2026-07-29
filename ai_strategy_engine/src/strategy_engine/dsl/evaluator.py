@@ -9,7 +9,7 @@ from pydantic import JsonValue
 
 from strategy_engine.domain.models import Action, Side, StrategyDefinition
 
-SnapshotValue: TypeAlias = JsonValue | Mapping[str, JsonValue]
+SnapshotValue: TypeAlias = JsonValue | Mapping[str, JsonValue]  # noqa: UP040
 
 
 class DslEvaluationError(ValueError):

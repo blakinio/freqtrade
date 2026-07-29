@@ -41,6 +41,7 @@ from ai_platform.research.strategy_engine.ase03_integration import (
     Ase03Status,
 )
 
+
 NOW = datetime(2026, 7, 29, 20, 0, tzinfo=UTC)
 DATA_HASH = "1" * 64
 CONFIG_HASH = "2" * 64

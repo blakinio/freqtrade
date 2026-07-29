@@ -17,6 +17,7 @@ from ai_platform.market_data.binance_spot_instrument_acceptance import (
     BinanceSpotInstrumentAcceptancePolicy,
     _decode_object,
     _fetch_once,
+    _integer,
     _load_object,
     _sample_failure_report,
     _sample_paths,
@@ -438,11 +439,23 @@ def _finalize(
         _load_object(path)
         for path in sorted((run_root / SAMPLES_DIR_NAME).glob("*/sample-report.json"))
     ]
-    expected_samples = int(state["expected_sample_count"])
+    expected_samples = _integer(
+        state.get("expected_sample_count"),
+        field="incremental_state.expected_sample_count",
+        minimum=1,
+    )
     if len(reports) != expected_samples:
         raise ValueError("cannot finalize an incomplete incremental sample set")
-    started_ns = int(state["window_started_ns"])
-    ended_ns = int(state["ended_ns"])
+    started_ns = _integer(
+        state.get("window_started_ns"),
+        field="incremental_state.window_started_ns",
+        minimum=0,
+    )
+    ended_ns = _integer(
+        state.get("ended_ns"),
+        field="incremental_state.ended_ns",
+        minimum=0,
+    )
     summary = _summarize(
         request=request,
         started_ns=started_ns,
@@ -508,15 +521,38 @@ def collect_due_incremental_sample(
         if canonical_json_bytes(packaged_policy) != canonical_json_bytes(_load_object(policy_path)):
             raise ValueError("packaged policy differs from scheduler policy")
 
-        index = int(state["next_sample_index"])
-        expected_samples = int(state["expected_sample_count"])
+        index = _integer(
+            state.get("next_sample_index"),
+            field="incremental_state.next_sample_index",
+            minimum=0,
+        )
+        expected_samples = _integer(
+            state.get("expected_sample_count"),
+            field="incremental_state.expected_sample_count",
+            minimum=1,
+        )
         if index >= expected_samples:
             raise ValueError("incremental sample index exceeds expected count")
         interval_ns = request.sample_interval_seconds * 1_000_000_000
-        due_ns = int(state["window_started_ns"]) + index * interval_ns
+        due_ns = (
+            _integer(
+                state.get("window_started_ns"),
+                field="incremental_state.window_started_ns",
+                minimum=0,
+            )
+            + index * interval_ns
+        )
         last_completed = state.get("last_sample_completed_ns")
         if last_completed is not None:
-            due_ns = max(due_ns, int(last_completed) + interval_ns)
+            due_ns = max(
+                due_ns,
+                _integer(
+                    last_completed,
+                    field="incremental_state.last_sample_completed_ns",
+                    minimum=0,
+                )
+                + interval_ns,
+            )
         now_ns = wall_clock_ns()
         if now_ns < due_ns:
             return {

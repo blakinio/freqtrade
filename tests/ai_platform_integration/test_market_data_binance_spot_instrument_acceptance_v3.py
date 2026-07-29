@@ -303,13 +303,16 @@ def test_v3_workflow_releases_runner_between_samples() -> None:
     workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert not BLOCKING_V2_WORKFLOW_PATH.exists()
-    assert 'cron: "*/15 * * * *"' in workflow
+    assert 'cron: "*/5 * * * *"' in workflow
     assert f'- "{TRIGGER_PATH}"' in workflow
     assert f"expected=$'A\t{TRIGGER_PATH}'" in workflow
-    assert workflow.count("timeout-minutes: 10") == 2
+    assert workflow.count("timeout-minutes: 10") == 1
+    assert workflow.count("timeout-minutes: 5") == 1
     assert "timeout-minutes: 1500" not in workflow
     assert "Run frozen 24-hour acceptance package" not in workflow
+    assert "Check whether a sample is due" in workflow
     assert "Collect at most one due sample" in workflow
+    assert "steps.due.outputs.should_run == 'true'" in workflow
     assert "cancel-in-progress: false" in workflow
     assert "runs-on: [freqtrade-staging]" in workflow
     assert "pull_request_target" not in workflow

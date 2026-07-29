@@ -82,16 +82,16 @@ EXPECTED_REQUEST: dict[str, object] = {
         "file:///var/lib/freqtrade-staging-state/"
         "wickhunter-production-market-evidence"
     ),
-    "public_only": true,
-    "trading_credentials_present": false,
-    "proxy_routing_present": false,
-    "execution_enabled": false,
-    "replay_authorized": false,
-    "model_training_authorized": false,
-    "strategy_research_authorized": false,
-    "performance_research_authorized": false,
+    "public_only": True,
+    "trading_credentials_present": False,
+    "proxy_routing_present": False,
+    "execution_enabled": False,
+    "replay_authorized": False,
+    "model_training_authorized": False,
+    "strategy_research_authorized": False,
+    "performance_research_authorized": False,
     "orders_submitted": 0,
-    "production_source_enabled": false,
+    "production_source_enabled": False,
 }
 
 BYBIT_TICKERS_URL = "https://api.bybit.com/v5/market/tickers?category=linear"
@@ -176,7 +176,7 @@ def _integer(value: object, *, field: str) -> int:
         raise ProductionMarketEvidenceError(f"{field} must be an integer") from exc
 
 
-def _decimal(value: object, *, field: str, positive: bool = false) -> str:
+def _decimal(value: object, *, field: str, positive: bool = False) -> str:
     try:
         parsed = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError) as exc:
@@ -214,7 +214,7 @@ def _load_json(path: Path, *, field: str) -> dict[str, Any]:
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=true, exist_ok=true)
+    path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     with temporary.open("xb") as handle:
         handle.write(content)
@@ -223,19 +223,19 @@ def _atomic_write(path: Path, content: bytes) -> None:
     temporary.replace(path)
 
 
-def _write_bytes(path: Path, content: bytes, *, replace: bool = false) -> None:
+def _write_bytes(path: Path, content: bytes, *, replace: bool = False) -> None:
     if replace:
         _atomic_write(path, content)
         return
-    path.parent.mkdir(parents=true, exist_ok=true)
+    path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists():
         raise ProductionMarketEvidenceError(f"path already exists: {path}")
     with path.open("xb") as handle:
         handle.write(content)
 
 
-def _write_json(path: Path, value: object, *, replace: bool = false) -> None:
-    content = json.dumps(value, indent=2, sort_keys=true).encode("utf-8") + b"\n"
+def _write_json(path: Path, value: object, *, replace: bool = False) -> None:
+    content = json.dumps(value, indent=2, sort_keys=True).encode("utf-8") + b"\n"
     _write_bytes(path, content, replace=replace)
 
 
@@ -323,7 +323,7 @@ def _durable_path(request: Mapping[str, object]) -> Path:
 
 @contextmanager
 def _exclusive_lock(root: Path) -> Iterator[BinaryIO]:
-    root.mkdir(parents=true, exist_ok=true)
+    root.mkdir(parents=True, exist_ok=True)
     handle = (root / LOCK_NAME).open("a+b")
     try:
         fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
@@ -347,7 +347,7 @@ def _write_state(
     seed: Mapping[str, object],
 ) -> dict[str, object]:
     state = _self_hashed(seed, hash_field="state_sha256")
-    _write_json(_state_path(run_root), state, replace=true)
+    _write_json(_state_path(run_root), state, replace=True)
     pointer = _self_hashed(
         {
             "pointer_version": (
@@ -359,7 +359,7 @@ def _write_state(
         },
         hash_field="pointer_sha256",
     )
-    _write_json(_pointer_path(durable_root), pointer, replace=true)
+    _write_json(_pointer_path(durable_root), pointer, replace=True)
     return state
 
 
@@ -410,7 +410,7 @@ def initialize_capture(
         run_root = durable_root / str(request["run_id"])
         if run_root.exists():
             raise ProductionMarketEvidenceError(f"run root already exists: {run_root}")
-        (run_root / "market-samples").mkdir(parents=true)
+        (run_root / "market-samples").mkdir(parents=True)
         _write_json(run_root / REQUEST_NAME, request)
         _write_state(
             durable_root,
@@ -445,7 +445,7 @@ def _validate_public_url(url: str) -> None:
 def fetch_public_bytes(url: str, timeout_seconds: int = 30) -> bytes:
     _validate_public_url(url)
     opener = build_opener(ProxyHandler({}), _NoRedirect())
-    request = Request(
+    request = Request(  # noqa: S310
         url,
         headers={"User-Agent": "freqtrade-wickhunter-market-evidence/1"},
     )
@@ -540,12 +540,12 @@ def normalize_market_snapshot(
             bid = _decimal(
                 book.get(bid_key),
                 field=f"{source}.{symbol}.bid",
-                positive=true,
+                positive=True,
             )
             ask = _decimal(
                 book.get(ask_key),
                 field=f"{source}.{symbol}.ask",
-                positive=true,
+                positive=True,
             )
             records.append(
                 {
@@ -559,7 +559,7 @@ def normalize_market_snapshot(
                     "last_price": _decimal(
                         ticker.get("lastPrice"),
                         field=f"{source}.{symbol}.last_price",
-                        positive=true,
+                        positive=True,
                     ),
                     "bid_price": bid,
                     "ask_price": ask,
@@ -572,7 +572,7 @@ def normalize_market_snapshot(
                         ticker.get(volume_key),
                         field=f"{source}.{symbol}.quote_volume_24h_usd",
                     ),
-                    "market_available": true,
+                    "market_available": True,
                 }
             )
     records.sort(key=lambda row: (str(row["source"]), str(row["symbol"])))
@@ -581,12 +581,12 @@ def normalize_market_snapshot(
         "snapshot_type": "WickHunterSourceSeparatedMarketQualitySnapshot",
         "scheduled_at_ms": scheduled_at_ms,
         "available_at_ms": available_at_ms,
-        "source_separated": true,
-        "cross_exchange_deduplication": false,
+        "source_separated": True,
+        "cross_exchange_deduplication": False,
         "records": records,
-        "execution_enabled": false,
-        "replay_authorized": false,
-        "model_training_authorized": false,
+        "execution_enabled": False,
+        "replay_authorized": False,
+        "model_training_authorized": False,
         "orders_submitted": 0,
     }
     snapshot["snapshot_sha256"] = _canonical_hash(snapshot)
@@ -636,7 +636,7 @@ def _collect_sample(
             field="sample report",
         )
         return report
-    sample_root.mkdir(parents=true, exist_ok=true)
+    sample_root.mkdir(parents=True, exist_ok=True)
     if attempt_path.exists():
         report = _self_hashed(
             {
@@ -872,7 +872,7 @@ def _capture_candles(
                 )
         partial_root.replace(final_root)
     except Exception:
-        shutil.rmtree(partial_root, ignore_errors=true)
+        shutil.rmtree(partial_root, ignore_errors=True)
         raise
     return artifacts
 
@@ -1010,20 +1010,20 @@ def _terminal_rejection(
             "outcome": "rejected",
             "run_id": state["run_id"],
             "error": f"{type(error).__name__}: {error}",
-            "execution_enabled": false,
-            "replay_authorized": false,
-            "model_training_authorized": false,
+            "execution_enabled": False,
+            "replay_authorized": False,
+            "model_training_authorized": False,
             "orders_submitted": 0,
         },
-        replace=true,
+        replace=True,
     )
     state_seed = dict(state)
     state_seed.pop("state_sha256", None)
     state_seed.update({"status": "failed", "outcome": "rejected"})
     _write_state(durable_root, run_root, state_seed)
-    _pointer_path(durable_root).unlink(missing_ok=true)
-    (run_root / FINALIZING_NAME).unlink(missing_ok=true)
-    shutil.rmtree(run_root / ".candles.partial", ignore_errors=true)
+    _pointer_path(durable_root).unlink(missing_ok=True)
+    (run_root / FINALIZING_NAME).unlink(missing_ok=True)
+    shutil.rmtree(run_root / ".candles.partial", ignore_errors=True)
     return {
         "status": "finalized",
         "outcome": "rejected",
@@ -1088,8 +1088,8 @@ def _finalize_capture(
             "protected_holdout_start_ms": request["protected_holdout_start_ms"],
             "expected_market_samples": 144,
             "expected_candles_per_file": 432,
-            "source_separated": true,
-            "cross_exchange_deduplication": false,
+            "source_separated": True,
+            "cross_exchange_deduplication": False,
             "market_samples": market_samples,
             "candle_artifacts": candle_artifacts,
             "availability_semantics": {
@@ -1097,16 +1097,16 @@ def _finalize_capture(
                 "completed_candle": "close_time_ms_exclusive",
             },
             "data_use": {
-                "performance_research_authorized": false,
-                "replay_authorized": false,
-                "model_training_authorized": false,
-                "strategy_research_authorized": false,
+                "performance_research_authorized": False,
+                "replay_authorized": False,
+                "model_training_authorized": False,
+                "strategy_research_authorized": False,
             },
             "execution_safety": {
-                "trading_credentials_present": false,
-                "proxy_routing_present": false,
-                "execution_enabled": false,
-                "production_source_enabled": false,
+                "trading_credentials_present": False,
+                "proxy_routing_present": False,
+                "execution_enabled": False,
+                "production_source_enabled": False,
                 "orders_submitted": 0,
             },
         }
@@ -1135,9 +1135,9 @@ def _finalize_capture(
                 "run_id": request["run_id"],
                 "manifest_sha256": manifest["manifest_sha256"],
                 "verification": verification,
-                "execution_enabled": false,
-                "replay_authorized": false,
-                "model_training_authorized": false,
+                "execution_enabled": False,
+                "replay_authorized": False,
+                "model_training_authorized": False,
                 "orders_submitted": 0,
             },
         )
@@ -1265,15 +1265,15 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Capture WickHunter prospective production market evidence"
     )
-    commands = parser.add_subparsers(dest="command", required=true)
+    commands = parser.add_subparsers(dest="command", required=True)
     initialize = commands.add_parser("init")
-    initialize.add_argument("--request", type=Path, required=true)
-    initialize.add_argument("--durable-root", type=Path, required=true)
-    initialize.add_argument("--collector-commit", required=true)
+    initialize.add_argument("--request", type=Path, required=True)
+    initialize.add_argument("--durable-root", type=Path, required=True)
+    initialize.add_argument("--collector-commit", required=True)
     sample = commands.add_parser("sample")
-    sample.add_argument("--durable-root", type=Path, required=true)
+    sample.add_argument("--durable-root", type=Path, required=True)
     verify = commands.add_parser("verify")
-    verify.add_argument("--run-root", type=Path, required=true)
+    verify.add_argument("--run-root", type=Path, required=True)
     return parser.parse_args(list(argv))
 
 
@@ -1291,7 +1291,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             result = verify_capture_package(args.run_root.resolve())
         _write_github_outputs(result)
-        print(json.dumps(result, indent=2, sort_keys=true))
+        print(json.dumps(result, indent=2, sort_keys=True))
         return 2 if result.get("outcome") == "rejected" else 0
     except ProductionMarketEvidenceError as exc:
         print(f"WickHunter production market evidence failed: {exc}", file=sys.stderr)

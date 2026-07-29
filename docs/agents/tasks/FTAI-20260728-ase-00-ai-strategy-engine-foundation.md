@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-ase-00-ai-strategy-engine-foundation
-status: ready_for_review
+status: ready_for_merge
 branch: agent/ase-00-ai-strategy-engine-foundation
 base_branch: develop
 created: 2026-07-28
@@ -34,13 +34,13 @@ Deliver the research-only AI Strategy Engine foundation and one deterministic sy
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T10:45:00+02:00
+updated_at: 2026-07-29T11:36:00+02:00
 checkpoint_carrier: self
-validated_parent_head: ecd53f0a6b13806cfb0d91a3999008febfe106bf
+validated_parent_head: c01924ca7d027020adc0f196e2f6ae32d2ba3b76
 branch: agent/ase-00-ai-strategy-engine-foundation
-base_head: ef0550744104f4c82ef3f106181f14442f9b82af
+base_head: 7f4f99506e3b240b250808ac930b200054b23eb0
 pr: 584
-status: ready_for_review
+status: ready_for_merge
 exact_head_resolution: Resolve checkpoint_carrier from the current PR 584 head; required GitHub checks and the PR body attached to that commit are authoritative.
 context_routes:
   - AGENTS.md
@@ -58,29 +58,29 @@ owned_paths:
   - pyproject.toml
   - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
 proven:
-  - PR 584 is open, draft and unmerged.
-  - Develop ef0550744104f4c82ef3f106181f14442f9b82af was synchronized normally through PR 674 as merge commit ecd53f0a6b13806cfb0d91a3999008febfe106bf; no force-push or branch-protection bypass was used.
-  - The incoming BM-07 package changed Portal command-activation paths and did not modify ai_strategy_engine, the ASE research adapter, ASE integration tests or the ASE workflow.
-  - Exact head eaf1284ab929456d31c0b6ca4854cf5e274fb68c passed all required workflows, including Freqtrade CI run 30434608732 and Python 3.12 coverage job 90520302620.
+  - PR 584 is open, ready for review and unmerged.
+  - Develop 7f4f99506e3b240b250808ac930b200054b23eb0 was synchronized normally through PR 677 as merge commit c01924ca7d027020adc0f196e2f6ae32d2ba3b76; no force-push or branch-protection bypass was used.
+  - The incoming BM-09 closure changed Portal E2E, workflow and documentation paths only; it did not modify ai_strategy_engine, the ASE research adapter, ASE integration tests or the ASE workflow.
+  - Exact head b09fd4720b095c319b708c8f2dec882ec1e197c4 passed all required workflows, including Freqtrade CI run 30436797976 and Python 3.12 coverage job 90527141714.
   - The earlier Freqtrade CI run 30399932018 failed only in Python 3.12 coverage job 90412240770; its log endpoint returned BlobNotFound and exposed no concrete test failure.
-  - The historical Python 3.12 failure has repeatedly not reproduced, so no speculative code correction was made.
+  - The historical Python 3.12 failure repeatedly did not reproduce, so no speculative code correction was made.
   - Canonical contracts, Feature Registry, Strategy DSL, Leakage Guard, research adapter and the deterministic twelve-case shadow vertical slice are present.
   - No live-order path, Browser-to-Freqtrade path, exchange credential path or nondeterministic Risk Core bypass is introduced by ASE-00.
+  - Owner authorization for autonomous completion and a normal merge after green exact-head checks is recorded on PR 584.
 derived:
   - The earlier Python 3.12 result was interrupted or otherwise non-reproducible rather than a demonstrated ASE-00 regression.
-  - ASE-00 is implementation-complete and may be merged only after required human approval and green checks on checkpoint_carrier.
+  - ASE-00 is implementation-complete and ready for normal merge when checkpoint_carrier checks are green.
 unknown:
   - The exact internal cause of run 30399932018 because GitHub no longer exposes a usable job log.
-  - Human review outcome and merge timing for PR 584.
-conflicts:
-  - The PR body records historical validation data; replace it with checkpoint_carrier evidence after exact-head checks finish without creating another repository commit.
+  - The final merge commit SHA until PR 584 is merged.
+conflicts: []
 first_failure:
   marker: FREQTRADE_CI_PY312_COVERAGE_NON_REPRODUCIBLE
-  evidence: Run 30399932018 job 90412240770 ended failure with unavailable logs; exact-head run 30434608732 job 90520302620 completed Tests with coverage successfully.
+  evidence: Run 30399932018 job 90412240770 ended failure with unavailable logs; exact-head run 30436797976 job 90527141714 completed Tests with coverage successfully.
 rejected_hypotheses:
   - Modify ASE code without a reproducible failing test.
   - Treat a previously green head as evidence for a different current head.
-  - Bypass required checks or owner approval.
+  - Bypass required checks or branch protections.
   - Expose Browser directly to private Freqtrade.
   - Enable live execution as part of ASE-00.
 changed_paths:
@@ -94,21 +94,20 @@ changed_paths:
 validation:
   - command: Previous exact-head required workflow suite
     result: PASS
-    evidence: Head eaf1284ab929456d31c0b6ca4854cf5e274fb68c passed AI Strategy Engine 30434608634, AI Platform CI 30434608635, Freqtrade CI 30434608732, zizmor 30434608681, Experimental Model Runtime Smoke 30434608692 and Residual PyTorch Runtime Smoke 30434608649; Python 3.12 coverage job 90520302620 passed.
+    evidence: Head b09fd4720b095c319b708c8f2dec882ec1e197c4 passed AI Strategy Engine 30436797929, AI Platform CI 30436797970, Freqtrade CI 30436797976, zizmor 30436797926, Experimental Model Runtime Smoke 30436798009 and Residual PyTorch Runtime Smoke 30436797912; Python 3.12 coverage job 90527141714 passed.
   - command: Compare develop to synchronized parent
     result: PASS
-    evidence: Develop ef0550744104f4c82ef3f106181f14442f9b82af was merged normally into synchronized parent ecd53f0a6b13806cfb0d91a3999008febfe106bf through PR 674.
+    evidence: Develop 7f4f99506e3b240b250808ac930b200054b23eb0 was merged normally into synchronized parent c01924ca7d027020adc0f196e2f6ae32d2ba3b76 through PR 677; behind_by 0 before checkpoint update.
   - command: Final checkpoint-carrier workflow suite
     result: REQUIRED
-    evidence: All required GitHub checks attached to the current PR head must be green before human review or merge; exact run IDs belong in the PR body without another repository commit.
+    evidence: All required GitHub checks attached to the current PR head must be green before normal merge; exact run IDs belong in the PR body without another repository commit.
 known_limitations:
   - ASE-00 remains research and shadow only.
   - The protected final holdout remains unavailable for iterative work.
   - No TradingView strategy laboratory, experiment backtest API or laboratory UI is delivered by ASE-00.
 missing_functions:
-  - FTAI-20260729-ase-01-tradingview-strategy-lab has not started because its required base is develop after approved ASE-00 merge.
+  - FTAI-20260729-ase-01-tradingview-strategy-lab starts only from the exact develop head produced by the approved ASE-00 merge.
 blockers:
-  - Current checkpoint-carrier required checks must pass before PR 584 is ready for human review.
-  - A human owner must review and approve PR 584 before merge under the repository process.
-next_action: Human-review and approve PR 584 after checkpoint-carrier checks are green; merge it normally into develop, then create FTAI-20260729-ase-01-tradingview-strategy-lab from that exact develop head.
+  - Current checkpoint-carrier required checks must pass before PR 584 is merged.
+next_action: After checkpoint-carrier checks pass, merge PR 584 normally into develop; from the resulting exact develop head create branch agent/ase-01-tradingview-strategy-lab and task checkpoint docs/agents/tasks/FTAI-20260729-ase-01-tradingview-strategy-lab.md.
 ```

@@ -228,6 +228,49 @@ def test_incremental_acceptance_finalizes_after_97_spaced_invocations(
     assert evaluate_package(run_root=run_root, policy_path=policy_path)["outcome"] == "accepted"
 
 
+def test_interrupted_attempt_becomes_failure_without_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    durable_root = tmp_path / "durable"
+    policy_path = _policy_path(tmp_path)
+    request_path = _request_path(tmp_path, durable_root, monkeypatch)
+    clock = Clock()
+    opener = FakeOpener()
+
+    initialized = incremental.initialize_incremental_acceptance(
+        request_path=request_path,
+        policy_path=policy_path,
+        durable_root=durable_root,
+        collector_commit=COMMIT,
+        environment={},
+        wall_clock_ns=clock.now,
+    )
+    run_root = Path(str(initialized["run_root"]))
+    sample_root = run_root / "samples/0000"
+    sample_root.mkdir()
+    marker = sample_root / incremental.ATTEMPT_MARKER_NAME
+    marker.write_text("{}\n", encoding="utf-8")
+    (sample_root / "raw-response.json").write_text("partial", encoding="utf-8")
+
+    recovered = incremental.collect_due_incremental_sample(
+        policy_path=policy_path,
+        durable_root=durable_root,
+        environment={},
+        opener=opener,
+        wall_clock_ns=clock.now,
+    )
+    report = json.loads((sample_root / "sample-report.json").read_text(encoding="utf-8"))
+
+    assert recovered["status"] == "sampled"
+    assert report["status"] == "fail"
+    assert report["failure_stage"] == "interrupted"
+    assert report["attempt_count"] == 1
+    assert opener.calls == 0
+    assert not marker.exists()
+    assert not (sample_root / "raw-response.json").exists()
+
+
 def test_incremental_initialization_refuses_parallel_active_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

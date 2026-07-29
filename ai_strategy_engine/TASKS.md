@@ -48,7 +48,7 @@
 - [ ] pivot guard
 - [ ] future-shift guard
 - [ ] target leakage guard
-- [ ] OOS freeze guard
+- [x] OOS freeze guard
 
 ### P0.5 Deterministic Simulator core
 
@@ -71,19 +71,19 @@
 
 ### P1.2 Experiment Store
 
-- [ ] data/code/config hashes
-- [ ] trial lineage
-- [ ] metrics
+- [x] data/code/config hashes
+- [x] trial lineage
+- [x] metrics
 - [ ] artifact storage
 - [ ] comparison API
 
 ### P1.3 Optuna service
 
-- [ ] constrained search spaces
-- [ ] forbidden combinations
-- [ ] pruning
-- [ ] robustness score
-- [ ] stability analysis
+- [x] constrained search spaces
+- [x] forbidden combinations
+- [x] pruning
+- [x] robustness score
+- [x] stability analysis
 
 ### P1.4 Liquidation data layer
 
@@ -107,10 +107,10 @@
 
 ### P2.1 AI Candidate Generator
 
-- [ ] schema-constrained output
-- [ ] registry-only features
-- [ ] mandatory falsification test
-- [ ] complexity limits
+- [x] schema-constrained output
+- [x] registry-only features
+- [x] mandatory falsification test
+- [x] complexity limits
 
 ### P2.2 Regime Router
 
@@ -170,9 +170,9 @@ Nazwa została wydzielona z wcześniejszego ogólnego wpisu `ASE-01`, aby nie ko
 
 ### ASE-02 — constrained research and optimization
 
-- [ ] immutable dataset manifest i locked final holdout;
-- [ ] Optuna constraints, trial lineage i robustness score;
-- [ ] AI candidate generator restricted to registry and DSL.
+- [x] immutable dataset manifest i locked final holdout;
+- [x] Optuna constraints, trial lineage i robustness score;
+- [x] AI candidate generator restricted to registry and DSL.
 
 ### ASE-03 — paper/shadow integration
 

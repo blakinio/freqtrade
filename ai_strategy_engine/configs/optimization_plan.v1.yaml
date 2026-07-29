@@ -1,0 +1,20 @@
+schema_version: 1.0.0
+study_id: ase02-roc-constrained-v1
+seed: 7
+n_trials: 8
+startup_trials: 2
+feature_search_spaces:
+  roc.v1:
+    space: roc
+    parameters:
+    - period
+forbidden_combinations:
+- reason: ROC period 1 is too reactive for the declared 5m research geometry.
+  values:
+    roc.v1.period: 1
+minimum_trades: 30
+maximum_drawdown: 0.2
+max_conditions: 4
+direction: maximize
+execution_authority: false
+final_holdout_used: false

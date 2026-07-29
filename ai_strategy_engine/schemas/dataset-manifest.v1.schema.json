@@ -1,0 +1,165 @@
+{
+  "$defs": {
+    "DatasetHashes": {
+      "additionalProperties": false,
+      "properties": {
+        "code_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Code Sha256",
+          "type": "string"
+        },
+        "config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Sha256",
+          "type": "string"
+        },
+        "data_selection_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Data Selection Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "data_selection_sha256",
+        "code_sha256",
+        "config_sha256"
+      ],
+      "title": "DatasetHashes",
+      "type": "object"
+    },
+    "DatasetWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "DatasetWindow",
+      "type": "object"
+    },
+    "ProtectedFinalHoldout": {
+      "additionalProperties": false,
+      "properties": {
+        "locked": {
+          "const": true,
+          "default": true,
+          "title": "Locked",
+          "type": "boolean"
+        },
+        "retuning_allowed": {
+          "const": false,
+          "default": false,
+          "title": "Retuning Allowed",
+          "type": "boolean"
+        },
+        "timerange": {
+          "title": "Timerange",
+          "type": "string"
+        },
+        "used": {
+          "const": false,
+          "default": false,
+          "title": "Used",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "timerange"
+      ],
+      "title": "ProtectedFinalHoldout",
+      "type": "object"
+    }
+  },
+  "$id": "https://inwestycja.local/schemas/dataset-manifest.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "dataset_id": {
+      "minLength": 1,
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "dataset_version": {
+      "minLength": 1,
+      "title": "Dataset Version",
+      "type": "string"
+    },
+    "final_holdout": {
+      "$ref": "#/$defs/ProtectedFinalHoldout"
+    },
+    "hashes": {
+      "$ref": "#/$defs/DatasetHashes"
+    },
+    "immutable": {
+      "const": true,
+      "default": true,
+      "title": "Immutable",
+      "type": "boolean"
+    },
+    "manifest_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Hash",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "symbols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Symbols",
+      "type": "array"
+    },
+    "timeframes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Timeframes",
+      "type": "array"
+    },
+    "training": {
+      "$ref": "#/$defs/DatasetWindow"
+    },
+    "tuning": {
+      "$ref": "#/$defs/DatasetWindow"
+    },
+    "validation": {
+      "$ref": "#/$defs/DatasetWindow"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "dataset_version",
+    "source",
+    "symbols",
+    "timeframes",
+    "training",
+    "tuning",
+    "validation",
+    "final_holdout",
+    "hashes",
+    "manifest_hash"
+  ],
+  "title": "DatasetManifest",
+  "type": "object"
+}

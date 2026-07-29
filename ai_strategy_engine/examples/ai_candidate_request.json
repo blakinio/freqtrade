@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0.0",
+  "request_id": "ase02-request-roc-atr-v1",
+  "strategy_id": "ase02-ai-roc-atr-v1",
+  "version": "1.0.0",
+  "model_identifier": "schema-constrained-generator-v1",
+  "symbols": [
+    "BTC/USDT:USDT"
+  ],
+  "timeframes": [
+    "5m"
+  ],
+  "features": [
+    {
+      "feature_id": "roc.v1",
+      "timeframe": "5m",
+      "parameter_overrides": {
+        "period": 12
+      }
+    },
+    {
+      "feature_id": "atr.v1",
+      "timeframe": "5m",
+      "parameter_overrides": {
+        "period": 14,
+        "ma_type": "rma"
+      }
+    }
+  ],
+  "falsification_test": {
+    "hypothesis": "A positive closed-bar ROC trigger with ATR risk context is stable out of sample.",
+    "reject_if": "Any bias check fails, fewer than 30 trades are observed, or drawdown exceeds 20%.",
+    "minimum_trades": 30,
+    "maximum_drawdown": 0.2
+  },
+  "max_features": 4,
+  "max_conditions": 4
+}

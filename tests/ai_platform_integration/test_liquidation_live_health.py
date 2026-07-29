@@ -164,12 +164,16 @@ def test_github_alert_is_deduplicated_and_closed_after_recovery() -> None:
 
 def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     repository_root = Path(__file__).resolve().parents[2]
+    workflows_root = repository_root / ".github" / "workflows"
     workflow = (
-        repository_root / ".github" / "workflows" / "liquidations-live-health.yml"
+        workflows_root / "liquidations-live-operational-health.yml"
     ).read_text(encoding="utf-8")
 
+    assert not (workflows_root / "liquidations-live-health.yml").exists()
     assert 'cron: "*/5 * * * *"' in workflow
     assert "runs-on: freqtrade-staging" in workflow
+    assert "runs-on: ubuntu-latest" in workflow
+    assert "actions: read" in workflow
     assert "issues: write" in workflow
     assert "statuses: write" in workflow
     assert "cancel-in-progress: true" in workflow
@@ -183,3 +187,7 @@ def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     assert "Publish pending health status" in workflow
     assert "Publish final health status" in workflow
     assert '"context": "liquidations-live-health"' in workflow
+    assert "runner_watchdog:" in workflow
+    assert "actions/runs/$GITHUB_RUN_ID/jobs" in workflow
+    assert "LIQUIDATIONS_HEALTH_RUNNER_UNAVAILABLE" in workflow
+    assert "did not start within 120 seconds" in workflow

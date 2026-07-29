@@ -19,6 +19,7 @@ from ai_platform.portal.contracts.bot_management.execution import (
     ReconciliationRecord,
     ReconciliationState,
 )
+from ai_platform.portal.contracts.execution import RuntimeHealthState
 from ai_platform.portal.credentials.errors import CredentialBrokerError
 from ai_platform.portal.credentials.material import ResolvedCredentialLease
 from ai_platform.portal.credentials.schema import CredentialLeaseRequest, CredentialPurpose
@@ -36,6 +37,7 @@ from ai_platform.portal.execution_submission.errors import (
 from ai_platform.portal.execution_submission.schema import (
     PrivateDryRunSubmission,
     PrivateSubmissionReceipt,
+    RuntimeDryRunEvidence,
 )
 from ai_platform.portal.execution_submission.store import ExecutionSubmissionStore
 from ai_platform.portal.execution_submission.transport import (
@@ -79,20 +81,28 @@ class PrivateDryRunSubmissionService:
         if not created:
             return stored.receipt
 
-        target = self._target_resolver.resolve(submission.binding.runtime_id)
+        try:
+            target = self._target_resolver.resolve(submission.binding.runtime_id)
+        except ExecutionSubmissionError:
+            return self._reject(
+                submission,
+                initial,
+                ExecutionReasonCode.RUNTIME_UNAVAILABLE,
+                self._clock(),
+            )
         if target.runtime_id != submission.binding.runtime_id:
             return self._reject(
                 submission,
                 initial,
                 ExecutionReasonCode.RUNTIME_REVISION_MISMATCH,
-                now,
+                self._clock(),
             )
 
         credential_request = CredentialLeaseRequest(
             tenant_id=submission.binding.tenant_id,
             connection_id=submission.connection_id,
             credential_ref=submission.credential_ref,
-            exchange_id=_exchange_id(submission.intent.trade_intent.pair),
+            exchange_id=submission.exchange_id,
             runtime_id=submission.binding.runtime_id,
             environment=submission.binding.environment,
             execution_mode=submission.binding.execution_mode,
@@ -100,12 +110,22 @@ class PrivateDryRunSubmissionService:
             requested_at=now,
             correlation=submission.binding.correlation,
         )
+        runtime_config: RuntimeDryRunEvidence | None = None
         try:
             with self._broker.resolve(credential_request) as lease:
+                self._require_lease(submission, lease, self._clock())
                 runtime_config = self._transport.verify_dry_run(target, lease)
+                if runtime_config.runtime_id != submission.binding.runtime_id:
+                    raise SubmissionPolicyError("RUNTIME_CONFIG_SCOPE_MISMATCH")
                 response = self._transport.submit(target, submission, lease)
         except SubmissionTransportAmbiguousError as exc:
-            return self._ambiguous(submission, initial, exc, self._clock())
+            return self._ambiguous(
+                submission,
+                initial,
+                exc,
+                self._clock(),
+                runtime_config=runtime_config,
+            )
         except SubmissionRuntimeRejectedError:
             return self._reject(
                 submission,
@@ -150,6 +170,9 @@ class PrivateDryRunSubmissionService:
             receipt,
         ).receipt
 
+    def get_receipt(self, tenant_id: str, attempt_id: str) -> PrivateSubmissionReceipt:
+        return self._store.get_by_attempt(tenant_id, attempt_id).receipt
+
     def reconcile_orders(
         self,
         tenant_id: str,
@@ -164,10 +187,14 @@ class PrivateDryRunSubmissionService:
         now = self._clock()
         self._require_read_binding(submission.binding, orders)
 
+        if receipt.reconciliation.state != ReconciliationState.PENDING:
+            return receipt
+
         exact_orders = tuple(
             order
             for order in orders.records
             if order.execution_intent_id == str(submission.intent.execution_intent_id)
+            and order.source_updated_at >= receipt.attempt.started_at
         )
         current_complete = (
             orders.status.freshness == RuntimeReadFreshness.CURRENT
@@ -231,10 +258,32 @@ class PrivateDryRunSubmissionService:
     ) -> None:
         if submission.approved_until <= now:
             raise SubmissionPolicyError("APPROVED_INTENT_EXPIRED")
+        if submission.runtime.observed_at > now:
+            raise SubmissionPolicyError("RUNTIME_EVIDENCE_FROM_FUTURE")
         if submission.runtime.freshness != RuntimeReadFreshness.CURRENT:
             raise SubmissionPolicyError("RUNTIME_UNAVAILABLE")
+        if submission.runtime_health != RuntimeHealthState.HEALTHY:
+            raise SubmissionPolicyError("RUNTIME_HEALTH_NOT_HEALTHY")
         if submission.runtime.kill_switch_active:
             raise SubmissionPolicyError("KILL_SWITCH_ACTIVE")
+
+    @staticmethod
+    def _require_lease(
+        submission: PrivateDryRunSubmission,
+        lease: ResolvedCredentialLease,
+        now: datetime,
+    ) -> None:
+        evidence = lease.evidence
+        if (
+            evidence.tenant_id != submission.binding.tenant_id
+            or evidence.connection_id != submission.connection_id
+            or evidence.credential_ref != submission.credential_ref
+            or evidence.exchange_id != submission.exchange_id
+            or evidence.runtime_id != submission.binding.runtime_id
+        ):
+            raise SubmissionPolicyError("CREDENTIAL_LEASE_SCOPE_MISMATCH")
+        if evidence.expires_at <= now:
+            raise SubmissionPolicyError("CREDENTIAL_LEASE_EXPIRED")
 
     @staticmethod
     def _require_read_binding(
@@ -325,6 +374,8 @@ class PrivateDryRunSubmissionService:
         receipt: PrivateSubmissionReceipt,
         error: SubmissionTransportAmbiguousError,
         now: datetime,
+        *,
+        runtime_config: RuntimeDryRunEvidence | None,
     ) -> PrivateSubmissionReceipt:
         ambiguity = AmbiguousExecutionResponse(
             ambiguity_id=f"ambiguity_{receipt.attempt.attempt_id}",
@@ -344,6 +395,7 @@ class PrivateDryRunSubmissionService:
             update={
                 "attempt": attempt,
                 "ambiguity": ambiguity,
+                "runtime_config": runtime_config,
                 "reconciliation": receipt.reconciliation.model_copy(
                     update={
                         "reason_codes": (ExecutionReasonCode.TRANSPORT_AMBIGUOUS,),
@@ -387,8 +439,3 @@ def _attempt_id(submission: PrivateDryRunSubmission) -> str:
         )
     )
     return f"exec_{hashlib.sha256(identity.encode()).hexdigest()[:32]}"
-
-
-def _exchange_id(pair: str) -> str:
-    del pair
-    return "freqtrade-runtime"

@@ -154,11 +154,11 @@
 
 ### ASE-01 — TradingView Strategy Lab
 
-- [ ] dodaj wersjonowane clean-room DSL dla Supertrend i Squeeze Momentum;
-- [ ] uruchom deterministyczny closed-bar / next-bar-open backtest bez lookahead;
-- [ ] zapisz tenant-scoped wynik eksperymentu z hashami, transakcjami i wyjaśnieniami;
-- [ ] wystaw bezpieczne Experiment API oraz widok `Testy / Laboratorium`;
-- [ ] dodaj porównanie wariantów, testy negatywne, E2E i trwały checkpoint.
+- [x] dodaj wersjonowane clean-room DSL dla Supertrend i Squeeze Momentum;
+- [x] uruchom deterministyczny closed-bar / next-bar-open backtest bez lookahead;
+- [x] zapisz tenant-scoped wynik eksperymentu z hashami, transakcjami i wyjaśnieniami;
+- [x] wystaw bezpieczne Experiment API oraz widok `Testy / Laboratorium`;
+- [x] dodaj porównanie wariantów, testy negatywne, E2E i trwały checkpoint.
 
 ### ASE-FR-01 — Feature Registry service
 

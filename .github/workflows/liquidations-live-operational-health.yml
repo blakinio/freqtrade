@@ -93,7 +93,7 @@ jobs:
           LIQUID20_PORTAL_PROOF_SCRIPT: deploy/synology/portal/prove-liquidations-live.sh
           LIQUID20_REQUIRE_PORTAL_HEALTH: "true"
           LIQUID20_SOURCE_STALE_SECONDS: "60"
-          PORTAL_LIVE_PROOF_DELAY_SECONDS: "5"
+          PORTAL_LIVE_PROOF_DELAY_SECONDS: "12"
         run: |
           set +e
           python -m ai_platform.scripts.liquidation_operational_health

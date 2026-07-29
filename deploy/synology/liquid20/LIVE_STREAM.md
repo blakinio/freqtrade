@@ -66,7 +66,7 @@ A real liquidation is not required during a short validation window. When none i
 
 ## Automated operational health
 
-`.github/workflows/liquidations-live-health.yml` runs on the Synology runner every five minutes, after monitor changes reach `develop`, and on manual dispatch.
+`.github/workflows/liquidations-live-operational-health.yml` runs on the Synology runner every five minutes, after monitor changes reach `develop`, and on manual dispatch.
 
 The collector checks cover:
 
@@ -92,6 +92,8 @@ The same run also checks the portal read path without production credentials:
 No cookie, token, authorization header or session payload is written to the combined report, workflow summary, issue or artifact.
 
 An unhealthy check creates or updates one deduplicated GitHub issue named `[liquidations-live] operational health alert`, publishes the `liquidations-live-health` commit status as failure, fails the workflow and uploads the bounded collector/portal JSON reports for 14 days. Healthy checks publish success and do not upload artifacts. After full recovery, the monitor posts a recovery comment and closes the alert issue automatically.
+
+Repository Issues must remain enabled for alert delivery. The Issues API channel was verified on 2026-07-29 by creating and immediately closing technical verification issue #728.
 
 The combined check can be run manually on the Synology runner:
 

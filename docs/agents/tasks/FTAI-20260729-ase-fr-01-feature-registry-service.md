@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260729-ase-fr-01-feature-registry-service
-status: validating
+status: complete
 branch: agent/ase-fr-01-feature-registry-service
 base_branch: develop
 created: 2026-07-29
@@ -44,14 +44,11 @@ append-only replay evidence and Portal API listing.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T17:26:00+02:00
-checkpoint_carrier: self
-validated_parent_head: 8257633e45d04e2e8fa97c74b47642863992732f
-branch: agent/ase-fr-01-feature-registry-service
-base_head: c5ab22aac7e6ca9f2bfd94368c20da7e3a8ca76e
+updated_at: 2026-07-29T20:55:00+02:00
+head: 89905f37747acd4389f34a78608a8aa1690c2e57
+branch: develop
 pr: 705
-status: validating
-exact_head_resolution: Resolve checkpoint_carrier from the current PR 705 head; required GitHub checks and the PR body attached to that commit are authoritative.
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -73,26 +70,22 @@ owned_paths:
   - .github/workflows/ai-strategy-engine.yml
   - .github/workflows/ai-platform.yml
 proven:
-  - ASE-01 merged normally into develop as c5ab22aac7e6ca9f2bfd94368c20da7e3a8ca76e after every required exact-head workflow succeeded.
-  - PR 705 is open, ready for review, mergeable and synchronized with develop at behind_by 0.
-  - The existing FeatureRegistry loader validates parameters, constraints, dependencies and cycles; ASE-FR-01 reuses it rather than introducing a second registry implementation.
-  - A public Draft 2020-12 schema, deterministic manifest/definition/snapshot/replay hashes, a 21-feature append-only prefix and semantic parity fixtures are present.
-  - Read models expose snapshot, list, detail, dependency resolution and replay through GET-only model.read Portal routes.
-  - The service rejects execution authority and introduces no mutation endpoint, execution write path, order submission, protected-holdout access, private credentials, eval or exec.
-  - Package and Portal tests passed before Ruff on the first implementation validation run.
+  - PR 705 merged normally into develop as 89905f37747acd4389f34a78608a8aa1690c2e57.
+  - Final validated implementation head was 474048754f016afda842aea0e805f8faa2e1cda9.
+  - AI Strategy Engine 30471615712, AI Platform CI 30471615203, Freqtrade CI 30471622983 and Security Analysis 30471619274 passed on the final head.
+  - The service reuses the canonical FeatureRegistry loader and exposes deterministic read-only model.read routes.
+  - Registry mutation, execution authority, order submission, protected-holdout access, private credentials, eval and exec remain absent.
 derived:
-  - The Feature Registry contract is a safe dependency gate for later constrained optimization and schema-bound AI candidate generation.
-unknown:
-  - Final conclusions of required workflows attached to the checkpoint carrier head.
+  - ASE-FR-01 is complete and provides the approved registry dependency gate required by constrained research and candidate generation.
+unknown: []
 conflicts: []
 first_failure:
   marker: FEATURE_REGISTRY_RUFF_FORMATTING
-  evidence: AI Strategy Engine run 30465460734 passed package and Portal research tests, then failed Ruff on two import-order findings and one 101-character line.
+  evidence: The initial import-order and line-length failure was repaired before the final exact-head workflow set passed.
 rejected_hypotheses:
   - Modify registry semantics to fix formatting-only failures.
   - Create a second registry store or loader.
-  - Add registry mutation or execution write paths.
-  - Add Optuna, AI candidate generation, deployment or live trading in this package.
+  - Add mutation, execution, Optuna, candidate generation, deployment or live trading to ASE-FR-01.
 changed_paths:
   - ai_strategy_engine/schemas/feature-registry.v1.schema.json
   - ai_strategy_engine/fixtures/feature_registry_parity.v1.json
@@ -106,20 +99,15 @@ changed_paths:
   - .github/workflows/ai-strategy-engine.yml
   - .github/workflows/ai-platform.yml
 validation:
-  - command: First implementation AI Strategy Engine run 30465460734
-    result: FAIL
-    evidence: Package and Portal research tests passed; Ruff reported only import organization and one line-length violation.
-  - command: Evidenced formatting repair
+  - command: Final exact-head workflow set on 474048754f016afda842aea0e805f8faa2e1cda9
     result: PASS
-    evidence: Service imports and long line fixed in 5fae5899798031c57e7dbd54f33803fd9cf22ea9; contract-test imports fixed in 8257633e45d04e2e8fa97c74b47642863992732f.
-  - command: Final checkpoint-carrier workflow suite
-    result: REQUIRED
-    evidence: AI Strategy Engine, AI Platform CI, Freqtrade CI and GitHub Actions Security Analysis must all succeed on the current PR head before normal merge.
-known_limitations:
-  - Read-only registry service; no mutation, optimization, generation, deployment or execution authority.
-  - Parity fixtures cover the canonical append-only prefix and selected semantics, not proprietary implementation parity.
-missing_functions:
-  - ASE-02 immutable dataset manifest, constrained Optuna, trial lineage, robustness score and registry-restricted AI candidate generation.
+    evidence: Required AI Strategy Engine, AI Platform, Freqtrade and workflow-security runs completed successfully.
+  - command: Normal merge of PR 705
+    result: PASS
+    evidence: GitHub recorded merge commit 89905f37747acd4389f34a78608a8aa1690c2e57 without force push or check bypass.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260729-ase-fr-01-feature-registry-service.md --require-checkpoint
+    result: PASS
+    evidence: Compact checkpoint v1 validates against docs/agents/GOVERNANCE_CONTRACT.json.
 blockers: []
-next_action: Verify every required workflow on the current PR 705 head, update the PR body with exact-head evidence, confirm develop remains unchanged and merge normally without bypassing checks.
+next_action: Create FTAI-20260729-ase-02-constrained-research-optimization from current develop and begin its bounded preflight without modifying the merged ASE-FR-01 implementation.
 ```

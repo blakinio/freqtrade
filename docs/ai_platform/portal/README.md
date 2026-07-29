@@ -86,6 +86,8 @@ PI-01, PI-02, PI-03 and PI-04 are complete for their declared repository-side ac
 
 The bot-management product architecture and agent plan describe the future bounded BM-00 through BM-09 packages required for fuller dry-run bot creation and management. Those documents do not mark the packages active, do not replace PI-07/PI-08 entry gates and do not authorize live capital.
 
+PI-06 repository identity, BFF/browser integration, Authentik/Synology deployment and emulation-first target acceptance are complete through PR #678, merge `8b29bf87a94bcc9f9861e465666b74e23bb900e2`. Real Synology, OIDC, MFA, recovery, backup and restore evidence remains owner-managed and no additional autonomous repository implementation is authorized by that task.
+
 The read-only Liquid20 portal path is separately integrated through the server-side read-model, same-origin BFF, responsive Likwidacje page and Synology read-only evidence mount. It remains market-data and research preview only. Use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` before extending it into a strategy, model, or execution package.
 
 ## Documentation map

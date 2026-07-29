@@ -151,6 +151,8 @@ class _SourceArchive:
     events_size_bytes: int
     parsed_events: tuple[tuple[int, LiquidationEvent], ...]
     summary: dict[str, Any]
+    summary_run_state: str
+    legacy_restart_state_accepted: bool
 
 
 def _validate_run_state(run_root: Path) -> tuple[dict[str, Any], str, str]:
@@ -185,10 +187,28 @@ def _validate_run_state(run_root: Path) -> tuple[dict[str, Any], str, str]:
     return state, collector_commit, completion_reason
 
 
+def _source_summary_state(
+    *,
+    summary: dict[str, Any],
+    run_id: str,
+    completion_reason: str,
+    source: str,
+) -> tuple[str, bool]:
+    if summary.get("run_id") != run_id:
+        raise ValueError(f"source summary run state mismatch: {source}")
+    summary_run_state = summary.get("run_state")
+    if summary_run_state == "completed":
+        return summary_run_state, False
+    if completion_reason == "collector-restart" and summary_run_state == "active":
+        return summary_run_state, True
+    raise ValueError(f"source summary run state mismatch: {source}")
+
+
 def _load_source_archive(  # noqa: C901
     *,
     run_root: Path,
     run_id: str,
+    completion_reason: str,
     run_state_sources: dict[str, Any],
     spec: _SourceSpec,
 ) -> _SourceArchive:
@@ -205,8 +225,12 @@ def _load_source_archive(  # noqa: C901
         raise ValueError(f"source summary identity mismatch: {spec.source}")
     if summary.get("schema_version") != 1:
         raise ValueError(f"unsupported source summary schema: {spec.source}")
-    if summary.get("run_id") != run_id or summary.get("run_state") != "completed":
-        raise ValueError(f"source summary run state mismatch: {spec.source}")
+    summary_run_state, legacy_restart_state_accepted = _source_summary_state(
+        summary=summary,
+        run_id=run_id,
+        completion_reason=completion_reason,
+        source=spec.source,
+    )
     if summary.get("trading_credentials_present") is not False:
         raise ValueError(f"source summary contains trading credentials: {spec.source}")
     if summary.get("execution_enabled") is not False:
@@ -263,6 +287,8 @@ def _load_source_archive(  # noqa: C901
         events_size_bytes=events_size_bytes,
         parsed_events=tuple(parsed_events),
         summary=summary,
+        summary_run_state=summary_run_state,
+        legacy_restart_state_accepted=legacy_restart_state_accepted,
     )
 
 
@@ -340,6 +366,7 @@ def accept_closed_live_run(  # noqa: C901
         _load_source_archive(
             run_root=run_root,
             run_id=run_id,
+            completion_reason=completion_reason,
             run_state_sources=state_sources,
             spec=spec,
         )
@@ -495,6 +522,10 @@ def accept_closed_live_run(  # noqa: C901
                             "events_sha256": source.events_sha256,
                             "summary_path": source.spec.summary_filename,
                             "summary_sha256": source.summary_sha256,
+                            "summary_run_state": source.summary_run_state,
+                            "legacy_restart_state_accepted": (
+                                source.legacy_restart_state_accepted
+                            ),
                             "events_written": len(source.parsed_events),
                         }
                         for source in sources

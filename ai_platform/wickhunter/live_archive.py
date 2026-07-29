@@ -153,6 +153,8 @@ class _SourceArchive:
     summary: dict[str, Any]
     summary_run_state: str
     legacy_restart_state_accepted: bool
+    declared_events_written: int
+    legacy_restart_count_reconciled: bool
 
 
 def _validate_run_state(run_root: Path) -> tuple[dict[str, Any], str, str]:
@@ -202,6 +204,55 @@ def _source_summary_state(
     if completion_reason == "collector-restart" and summary_run_state == "active":
         return summary_run_state, True
     raise ValueError(f"source summary run state mismatch: {source}")
+
+
+def _validate_restart_event_count(
+    *,
+    parsed_events: list[tuple[int, LiquidationEvent]],
+    stats: dict[str, Any],
+    legacy_restart_state_accepted: bool,
+    source: str,
+) -> tuple[int, bool]:
+    declared_events = _integer(stats.get("events_written"), field=f"{source}.events_written")
+    actual_events = len(parsed_events)
+    if declared_events == actual_events:
+        return declared_events, False
+    if not legacy_restart_state_accepted or actual_events < declared_events:
+        raise ValueError(
+            f"source event count does not match final run state: {source} "
+            f"(declared={declared_events}, actual={actual_events})"
+        )
+
+    last_event_at_ms = stats.get("last_event_at_ms")
+    last_received_at_ms = stats.get("last_event_received_at_ms")
+    if declared_events == 0:
+        if last_event_at_ms is not None or last_received_at_ms is not None:
+            raise ValueError(f"source zero-count checkpoint is inconsistent: {source}")
+        previous_received_at_ms: int | None = None
+    else:
+        checkpoint = parsed_events[declared_events - 1][1]
+        declared_event_at_ms = _integer(
+            last_event_at_ms,
+            field=f"{source}.last_event_at_ms",
+            minimum=1,
+        )
+        declared_received_at_ms = _integer(
+            last_received_at_ms,
+            field=f"{source}.last_event_received_at_ms",
+            minimum=1,
+        )
+        if (
+            checkpoint.occurred_at_ms != declared_event_at_ms
+            or checkpoint.received_at_ms != declared_received_at_ms
+        ):
+            raise ValueError(f"source restart checkpoint does not match event prefix: {source}")
+        previous_received_at_ms = checkpoint.received_at_ms
+
+    for _, event in parsed_events[declared_events:]:
+        if previous_received_at_ms is not None and event.received_at_ms < previous_received_at_ms:
+            raise ValueError(f"source restart tail reception order regressed: {source}")
+        previous_received_at_ms = event.received_at_ms
+    return declared_events, True
 
 
 def _load_source_archive(  # noqa: C901
@@ -269,9 +320,12 @@ def _load_source_archive(  # noqa: C901
                 )
             parsed_events.append((line_number, event))
 
-    expected_events = _integer(stats.get("events_written"), field=f"{spec.source}.events_written")
-    if expected_events != len(parsed_events):
-        raise ValueError(f"source event count does not match final run state: {spec.source}")
+    declared_events_written, legacy_restart_count_reconciled = _validate_restart_event_count(
+        parsed_events=parsed_events,
+        stats=stats,
+        legacy_restart_state_accepted=legacy_restart_state_accepted,
+        source=spec.source,
+    )
     if (
         events_path.stat().st_size != events_size_bytes
         or sha256_file(events_path) != events_sha256
@@ -289,6 +343,8 @@ def _load_source_archive(  # noqa: C901
         summary=summary,
         summary_run_state=summary_run_state,
         legacy_restart_state_accepted=legacy_restart_state_accepted,
+        declared_events_written=declared_events_written,
+        legacy_restart_count_reconciled=legacy_restart_count_reconciled,
     )
 
 
@@ -523,8 +579,15 @@ def accept_closed_live_run(  # noqa: C901
                             "summary_path": source.spec.summary_filename,
                             "summary_sha256": source.summary_sha256,
                             "summary_run_state": source.summary_run_state,
-                            "legacy_restart_state_accepted": (source.legacy_restart_state_accepted),
+                            "legacy_restart_state_accepted": source.legacy_restart_state_accepted,
+                            "declared_events_written": source.declared_events_written,
                             "events_written": len(source.parsed_events),
+                            "reconciled_event_count_delta": (
+                                len(source.parsed_events) - source.declared_events_written
+                            ),
+                            "legacy_restart_count_reconciled": (
+                                source.legacy_restart_count_reconciled
+                            ),
                         }
                         for source in sources
                     ],

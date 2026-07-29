@@ -1,3 +1,7 @@
+from ai_platform.portal.execution_submission.adapter import (
+    ApprovedIntentSubmitter,
+    PrivateSubmissionExecutionAdapter,
+)
 from ai_platform.portal.execution_submission.errors import (
     ExecutionSubmissionError,
     SubmissionIdempotencyConflictError,
@@ -27,6 +31,7 @@ from ai_platform.portal.execution_submission.transport import (
 )
 
 __all__ = [
+    "ApprovedIntentSubmitter",
     "ExecutionSubmissionError",
     "ExecutionSubmissionStore",
     "HttpxPrivateFreqtradeTransport",
@@ -34,6 +39,7 @@ __all__ = [
     "PrivateDryRunSubmission",
     "PrivateDryRunSubmissionService",
     "PrivateRuntimeTarget",
+    "PrivateSubmissionExecutionAdapter",
     "PrivateSubmissionFactory",
     "PrivateSubmissionReceipt",
     "PrivateSubmissionTransport",

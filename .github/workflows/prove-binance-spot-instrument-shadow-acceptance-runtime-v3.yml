@@ -1,0 +1,382 @@
+name: Prove Binance Spot Instrument Shadow Acceptance Runtime V3
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/prove-binance-spot-instrument-shadow-acceptance-runtime-v3.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 15
+    env:
+      MERGED_SHA: 3d3c5d2c5806e2d23c86d2fc53cb01322d85a147
+      PROOF_PATH: .github/workflows/prove-binance-spot-instrument-shadow-acceptance-runtime-v3.yml
+      V3_WORKFLOW_PATH: .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v3.yml
+      STATE_DIR: /var/lib/freqtrade-staging-state
+      CANONICAL_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+      ACTIVE_POINTER: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance/active-binance-spot-instrument-acceptance-v3.json
+
+    steps:
+      - name: Checkout exact proof head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-workflow proof scope and merged parent
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$(git rev-parse HEAD^)" == "$MERGED_SHA" ]]
+          expected=$'A\t.github/workflows/prove-binance-spot-instrument-shadow-acceptance-runtime-v3.yml'
+          actual="$(git diff --name-status "$MERGED_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+          git checkout --detach "$MERGED_SHA"
+          [[ "$(git rev-parse HEAD)" == "$MERGED_SHA" ]]
+          [[ ! -e ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v3.json ]]
+
+      - name: Validate exact approved runner and clean durable boundary
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$CANONICAL_ROOT"
+          [[ -d "$CANONICAL_ROOT" && -w "$CANONICAL_ROOT" ]]
+          [[ ! -e "$ACTIVE_POINTER" ]]
+
+      - name: Refuse any credential or proxy environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install isolated proof runtime
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Install exact proof dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --python "$VIRTUAL_ENV/bin/python" "jsonschema==4.26.0"
+          python - <<'PY'
+          from importlib.metadata import version
+
+          assert version("jsonschema") == "4.26.0"
+          print("BINANCE_ACCEPTANCE_V3_JSONSCHEMA_4_26_0_READY")
+          PY
+
+      - name: Prove incremental runtime without network
+        shell: bash
+        env:
+          PROOF_ROOT: ${{ env.CANONICAL_ROOT }}/.v3-no-network-proof-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          [[ ! -e "$PROOF_ROOT" ]]
+          mkdir -p "$PROOF_ROOT"
+          PYTHONPATH=. python - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          from pathlib import Path
+          from typing import Self
+
+          from ai_platform.market_data import binance_spot_instrument_acceptance_incremental as incremental
+          from ai_platform.market_data.binance_spot_instrument_acceptance import (
+              POLICY_PATH,
+              BinanceSpotInstrumentAcceptancePolicy,
+              evaluate_package,
+          )
+          from ai_platform.market_data.binance_spot_instrument_smoke import (
+              BINANCE_SPOT_REDUCED_PAYLOAD_URL,
+          )
+          from ai_platform.market_data.common import canonical_json_bytes
+
+          COMMIT = os.environ["MERGED_SHA"]
+          ROOT = Path(os.environ["PROOF_ROOT"]).resolve()
+          REPOSITORY_ROOT = Path.cwd()
+          INTERVAL_NS = 900 * 1_000_000_000
+
+          merged_policy_path = REPOSITORY_ROOT / POLICY_PATH
+          merged_policy = BinanceSpotInstrumentAcceptancePolicy.load(merged_policy_path)
+          assert merged_policy.minimum_duration_seconds == 86400
+          assert merged_policy.sample_interval_seconds == 900
+          assert merged_policy.thresholds.minimum_attempted_samples == 97
+          assert merged_policy.thresholds.minimum_successful_samples == 95
+          assert merged_policy.retries_per_sample == 0
+          assert merged_policy.request_url == BINANCE_SPOT_REDUCED_PAYLOAD_URL
+          assert merged_policy.github_hosted_runner_allowed is False
+
+          workflow = Path(os.environ["V3_WORKFLOW_PATH"]).read_text(encoding="utf-8")
+          assert 'cron: "*/5 * * * *"' in workflow
+          assert workflow.count("timeout-minutes: 10") == 1
+          assert workflow.count("timeout-minutes: 5") == 1
+          assert "timeout-minutes: 1500" not in workflow
+          assert "Run frozen 24-hour acceptance package" not in workflow
+          assert "Collect at most one due sample" in workflow
+          assert "sleep " not in workflow
+          assert "workflow_dispatch" not in workflow
+
+          def payload(sequence: int) -> dict[str, object]:
+              return {
+                  "timezone": "UTC",
+                  "serverTime": sequence,
+                  "symbols": [
+                      {
+                          "symbol": "BTCUSDT",
+                          "status": "TRADING",
+                          "baseAsset": "BTC",
+                          "quoteAsset": "USDT",
+                          "filters": [
+                              {"filterType": "PRICE_FILTER", "tickSize": "0.1"},
+                              {"filterType": "LOT_SIZE", "stepSize": "0.00001"},
+                          ],
+                      },
+                      {
+                          "symbol": "ETHUSDT",
+                          "status": "TRADING",
+                          "baseAsset": "ETH",
+                          "quoteAsset": "USDT",
+                          "filters": [
+                              {"filterType": "PRICE_FILTER", "tickSize": "0.01"},
+                              {"filterType": "LOT_SIZE", "stepSize": "0.0001"},
+                          ],
+                      },
+                  ],
+              }
+
+          class FakeResponse:
+              status = 200
+
+              def __init__(self, body: bytes) -> None:
+                  self.body = body
+                  self.headers = {
+                      "Content-Type": "application/json;charset=UTF-8",
+                      "Content-Length": str(len(body)),
+                  }
+
+              def geturl(self) -> str:
+                  return BINANCE_SPOT_REDUCED_PAYLOAD_URL
+
+              def read(self, amount: int = -1) -> bytes:
+                  return self.body if amount < 0 else self.body[:amount]
+
+              def __enter__(self) -> Self:
+                  return self
+
+              def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:
+                  return None
+
+          class FakeOpener:
+              def __init__(self) -> None:
+                  self.calls = 0
+
+              def __call__(self, request: object, *, timeout: float, context: object) -> FakeResponse:
+                  del request, context
+                  assert timeout == 20.0
+                  self.calls += 1
+                  return FakeResponse(canonical_json_bytes(payload(self.calls)))
+
+          class Clock:
+              def __init__(self) -> None:
+                  self.value = 1_800_000_000 * 1_000_000_000
+                  self.value -= self.value % INTERVAL_NS
+
+              def now(self) -> int:
+                  return self.value
+
+              def advance(self) -> None:
+                  self.value += INTERVAL_NS
+
+          policy_mapping = json.loads(merged_policy_path.read_text(encoding="utf-8"))
+          policy_mapping["thresholds"].update(
+              {
+                  "minimum_successful_samples": 97,
+                  "minimum_availability_ratio": 1.0,
+                  "maximum_consecutive_failures": 0,
+                  "maximum_transport_failures": 0,
+                  "maximum_parse_failures": 0,
+                  "minimum_instrument_count": 2,
+                  "maximum_instrument_count": 10,
+                  "minimum_active_instrument_count": 2,
+                  "maximum_consecutive_catalog_count_change_ratio": 0.01,
+              }
+          )
+          policy_path = ROOT / "proof-policy.json"
+          policy_path.write_bytes(canonical_json_bytes(policy_mapping) + b"\n")
+
+          accepted_root = ROOT / "accepted-durable"
+          request = dict(incremental.EXPECTED_REQUEST)
+          request["durable_storage_uri"] = f"file://{accepted_root}"
+          incremental.EXPECTED_REQUEST = request
+          request_path = ROOT / "accepted-request.json"
+          request_path.write_bytes(canonical_json_bytes(request) + b"\n")
+          clock = Clock()
+          opener = FakeOpener()
+          initialized = incremental.initialize_incremental_acceptance(
+              request_path=request_path,
+              policy_path=policy_path,
+              durable_root=accepted_root,
+              collector_commit=COMMIT,
+              environment={},
+              wall_clock_ns=clock.now,
+          )
+          run_root = Path(str(initialized["run_root"]))
+          assert initialized["status"] == "initialized"
+
+          result: dict[str, object] = {}
+          for index in range(97):
+              result = incremental.collect_due_incremental_sample(
+                  policy_path=policy_path,
+                  durable_root=accepted_root,
+                  environment={},
+                  opener=opener,
+                  wall_clock_ns=clock.now,
+              )
+              if index == 0:
+                  early = incremental.collect_due_incremental_sample(
+                      policy_path=policy_path,
+                      durable_root=accepted_root,
+                      environment={},
+                      opener=opener,
+                      wall_clock_ns=clock.now,
+                  )
+                  assert early["status"] == "not_due"
+                  assert opener.calls == 1
+              if index < 96:
+                  assert result["status"] == "sampled"
+                  assert result["sample_index"] == index
+                  clock.advance()
+
+          assert result["status"] == "finalized"
+          assert result["outcome"] == "accepted"
+          assert opener.calls == 97
+          assert not (accepted_root / incremental.ACTIVE_POINTER_NAME).exists()
+          assert len(list((run_root / "samples").glob("*/sample-report.json"))) == 97
+          report = evaluate_package(run_root=run_root, policy_path=policy_path)
+          assert report["outcome"] == "accepted"
+          assert report["source_acceptance"] is False
+          assert report["production_source_enabled"] is False
+          assert report["orders_submitted"] == 0
+
+          tampered = run_root / "samples/0000/raw-response.json"
+          tampered.write_bytes(tampered.read_bytes() + b" ")
+          try:
+              evaluate_package(run_root=run_root, policy_path=policy_path)
+          except ValueError as exc:
+              assert "mismatch" in str(exc)
+          else:
+              raise AssertionError("tampered evidence must fail closed")
+
+          interrupted_root = ROOT / "interrupted-durable"
+          interrupted_request = dict(request)
+          interrupted_request["durable_storage_uri"] = f"file://{interrupted_root}"
+          incremental.EXPECTED_REQUEST = interrupted_request
+          interrupted_request_path = ROOT / "interrupted-request.json"
+          interrupted_request_path.write_bytes(canonical_json_bytes(interrupted_request) + b"\n")
+          interrupted_clock = Clock()
+          interrupted_opener = FakeOpener()
+          interrupted = incremental.initialize_incremental_acceptance(
+              request_path=interrupted_request_path,
+              policy_path=policy_path,
+              durable_root=interrupted_root,
+              collector_commit=COMMIT,
+              environment={},
+              wall_clock_ns=interrupted_clock.now,
+          )
+          interrupted_run_root = Path(str(interrupted["run_root"]))
+          sample_root = interrupted_run_root / "samples/0000"
+          sample_root.mkdir()
+          marker = sample_root / incremental.ATTEMPT_MARKER_NAME
+          marker.write_text("{}\n", encoding="utf-8")
+          (sample_root / "raw-response.json").write_text("partial", encoding="utf-8")
+          recovered = incremental.collect_due_incremental_sample(
+              policy_path=policy_path,
+              durable_root=interrupted_root,
+              environment={},
+              opener=interrupted_opener,
+              wall_clock_ns=interrupted_clock.now,
+          )
+          interrupted_report = json.loads(
+              (sample_root / "sample-report.json").read_text(encoding="utf-8")
+          )
+          assert recovered["status"] == "sampled"
+          assert interrupted_report["status"] == "fail"
+          assert interrupted_report["failure_stage"] == "interrupted"
+          assert interrupted_report["attempt_count"] == 1
+          assert interrupted_opener.calls == 0
+          assert not marker.exists()
+          assert not (sample_root / "raw-response.json").exists()
+
+          try:
+              incremental.initialize_incremental_acceptance(
+                  request_path=interrupted_request_path,
+                  policy_path=policy_path,
+                  durable_root=interrupted_root,
+                  collector_commit=COMMIT,
+                  environment={},
+                  wall_clock_ns=interrupted_clock.now,
+              )
+          except FileExistsError as exc:
+              assert "active Binance acceptance v3" in str(exc)
+          else:
+              raise AssertionError("parallel active initialization must fail closed")
+
+          print("BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V3_NO_NETWORK_PROOF_PASS")
+          PY
+
+      - name: Confirm proof left no durable package
+        if: always()
+        shell: bash
+        env:
+          PROOF_ROOT: ${{ env.CANONICAL_ROOT }}/.v3-no-network-proof-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          rm -rf "$PROOF_ROOT"
+          rm -rf .venv
+          [[ ! -e "$PROOF_ROOT" ]]
+          [[ ! -e "$ACTIVE_POINTER" ]]
+          find "$CANONICAL_ROOT" -maxdepth 1 -type d -name '.v3-no-network-proof-*' \
+            -print -quit | grep -q . && exit 1 || true
+          echo "BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V3_NO_NETWORK_PROOF_CLEANUP_PASS"

@@ -1,0 +1,29 @@
+schema_version: 1.0.0
+dataset_id: ase02-btc-usdt-research-v1
+dataset_version: '2026-07-29'
+immutable: true
+source: freqtrade-public-ohlcv
+symbols:
+- BTC/USDT:USDT
+timeframes:
+- 5m
+- 1h
+training:
+  start: '2025-01-01T00:00:00Z'
+  end: '2025-06-30T23:59:59Z'
+tuning:
+  start: '2025-07-01T00:00:00Z'
+  end: '2025-12-31T23:59:59Z'
+validation:
+  start: '2026-01-01T00:00:00Z'
+  end: '2026-06-30T23:59:59Z'
+final_holdout:
+  timerange: 20260801-20260930
+  locked: true
+  used: false
+  retuning_allowed: false
+hashes:
+  data_selection_sha256: cb17f276e51c9907012010dc33a94b4c24789e900a16cdf4df1bf227d5575708
+  code_sha256: 88638f2e226da45404eadefb600a22653032eb106f7b36612a229afe3e40c011
+  config_sha256: 6572f2606b4a73c8e1cf7e9785d2cdc2633997e8dd4f4256155a66d2904cfbdf
+manifest_hash: 07308ea59d9d3de9593b13b3129aa56a617c223df48aa40577c550a7f536968f

@@ -1,0 +1,166 @@
+{
+  "contract_version": "v1",
+  "strategy_id": "tv_supertrend_v1",
+  "strategy_version": "1.0.0",
+  "display_name": "TradingView-inspired Supertrend v1",
+  "source_type": "tradingview_inspired_clean_room",
+  "provenance": {
+    "implementation": "Independent clean-room ATR Supertrend implementation",
+    "inspiration": "Publicly documented Supertrend concept commonly available in charting tools",
+    "parity_claim": false,
+    "license_boundary": "No proprietary Pine Script copied"
+  },
+  "features": [
+    "supertrend_direction.v1"
+  ],
+  "entry_rules": [
+    "Evaluate only confirmed closed bars",
+    "Enter long after a confirmed Supertrend direction flip to positive",
+    "Execute at the next bar open"
+  ],
+  "exit_rules": [
+    "Exit long after a confirmed Supertrend direction flip to negative",
+    "Execute at the next bar open"
+  ],
+  "parameters": [
+    {
+      "contract_version": "v1",
+      "name": "atr_period",
+      "kind": "integer",
+      "default": 10,
+      "minimum": "2",
+      "maximum": "100",
+      "choices": []
+    },
+    {
+      "contract_version": "v1",
+      "name": "multiplier",
+      "kind": "number",
+      "default": 3.0,
+      "minimum": "0.5",
+      "maximum": "10",
+      "choices": []
+    },
+    {
+      "contract_version": "v1",
+      "name": "atr_type",
+      "kind": "enum",
+      "default": "rma",
+      "minimum": null,
+      "maximum": null,
+      "choices": [
+        "rma",
+        "sma"
+      ]
+    },
+    {
+      "contract_version": "v1",
+      "name": "source",
+      "kind": "enum",
+      "default": "hl2",
+      "minimum": null,
+      "maximum": null,
+      "choices": [
+        "hl2",
+        "close",
+        "ohlc4"
+      ]
+    }
+  ],
+  "timeframe_semantics": "Single requested base timeframe; signal is available only after bar close and executes at next bar open.",
+  "warm_up": 12,
+  "confirmation_policy": "closed_bar",
+  "risk_defaults": {
+    "position_mode": "single_long",
+    "allocation": "full_available_balance",
+    "research_only": true
+  },
+  "supported_directions": [
+    "long"
+  ],
+  "dsl": {
+    "schema_version": "1.0.0",
+    "strategy_id": "tv_supertrend_v1",
+    "version": "1.0.0",
+    "universe": {
+      "symbols": [
+        "*"
+      ],
+      "timeframes": [
+        "base"
+      ]
+    },
+    "features": [
+      {
+        "id": "supertrend_direction.v1",
+        "params": {
+          "atr_period": 10,
+          "multiplier": 3.0,
+          "atr_type": "rma",
+          "source": "hl2"
+        },
+        "timeframe": "base",
+        "confirmation": "closed_bar"
+      }
+    ],
+    "regime": null,
+    "entry_long": {
+      "all": [
+        {
+          "feature": "supertrend_direction.v1",
+          "parameter": "supertrend_flip",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "feature": "supertrend_direction.v1",
+          "parameter": "supertrend_direction",
+          "op": "eq",
+          "value": 1
+        }
+      ]
+    },
+    "entry_short": null,
+    "exit": {
+      "all": [
+        {
+          "feature": "supertrend_direction.v1",
+          "parameter": "supertrend_flip",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "feature": "supertrend_direction.v1",
+          "parameter": "supertrend_direction",
+          "op": "eq",
+          "value": -1
+        }
+      ]
+    },
+    "risk": {
+      "max_leverage": 1,
+      "max_exposure": 1.0,
+      "position_size": {
+        "type": "research_full_balance"
+      },
+      "research_only": true
+    },
+    "execution": {
+      "use_closed_bars_only": true,
+      "decision": "bar_close",
+      "fill": "next_bar_open",
+      "fee_model": "explicit_request",
+      "slippage_model": "explicit_request",
+      "live": false
+    },
+    "provenance": {
+      "producer": "ase-01-clean-room",
+      "source_event_id": "tv-supertrend-public-concept",
+      "lineage": [],
+      "details": {
+        "parity_claim": false,
+        "research_only": true
+      }
+    }
+  }
+}

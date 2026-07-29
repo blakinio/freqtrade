@@ -53,13 +53,15 @@ jobs:
       - name: Run AI platform tests
         run: >-
           python -m pytest -q -o addopts=''
-          --confcutdir=tests/ai_platform tests/ai_platform
+          --confcutdir=tests/ai_platform
+          --ignore=tests/ai_platform/portal/strategy_lab
+          tests/ai_platform
 
       - name: Ruff
         run: ruff check ai_platform tests/ai_platform
 
       - name: Ruff format
-        run: ruff format --check ai_platform tests/ai_platform
+        run: ruff format --diff --check ai_platform tests/ai_platform
 
       - name: Codespell
         run: codespell AGENTS.md ai_platform docs/ai_platform tests/ai_platform

@@ -62,9 +62,7 @@ class CandleDataProvider(Protocol):
 
 class UnavailableCandleDataProvider:
     def load(self, request: ExperimentCreateRequest) -> tuple[Candle, ...]:
-        raise StrategyLabDataUnavailableError(
-            "strategy lab candle data provider is not configured"
-        )
+        raise StrategyLabDataUnavailableError("strategy lab candle data provider is not configured")
 
 
 class InMemoryCandleDataProvider:
@@ -204,9 +202,7 @@ class StrategyLabService:
                 )
         except IntegrityError:
             with self._session_factory() as session:
-                concurrent = self._repository.get_by_idempotency(
-                    session, context.tenant_id, key
-                )
+                concurrent = self._repository.get_by_idempotency(session, context.tenant_id, key)
             if concurrent is None:
                 raise
             concurrent_result, concurrent_digest = concurrent

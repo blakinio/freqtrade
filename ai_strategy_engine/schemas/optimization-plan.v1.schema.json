@@ -1,0 +1,147 @@
+{
+  "$defs": {
+    "FeatureSearchBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "parameters": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Parameters",
+          "type": "array"
+        },
+        "space": {
+          "minLength": 1,
+          "title": "Space",
+          "type": "string"
+        }
+      },
+      "required": [
+        "space",
+        "parameters"
+      ],
+      "title": "FeatureSearchBinding",
+      "type": "object"
+    },
+    "ForbiddenCombination": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "values": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Values",
+          "type": "object"
+        }
+      },
+      "required": [
+        "reason",
+        "values"
+      ],
+      "title": "ForbiddenCombination",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "$id": "https://inwestycja.local/schemas/optimization-plan.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "direction": {
+      "const": "maximize",
+      "default": "maximize",
+      "title": "Direction",
+      "type": "string"
+    },
+    "execution_authority": {
+      "const": false,
+      "default": false,
+      "title": "Execution Authority",
+      "type": "boolean"
+    },
+    "feature_search_spaces": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FeatureSearchBinding"
+      },
+      "title": "Feature Search Spaces",
+      "type": "object"
+    },
+    "final_holdout_used": {
+      "const": false,
+      "default": false,
+      "title": "Final Holdout Used",
+      "type": "boolean"
+    },
+    "forbidden_combinations": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ForbiddenCombination"
+      },
+      "title": "Forbidden Combinations",
+      "type": "array"
+    },
+    "max_conditions": {
+      "default": 8,
+      "maximum": 8,
+      "minimum": 1,
+      "title": "Max Conditions",
+      "type": "integer"
+    },
+    "maximum_drawdown": {
+      "default": 0.25,
+      "exclusiveMinimum": 0.0,
+      "maximum": 1.0,
+      "title": "Maximum Drawdown",
+      "type": "number"
+    },
+    "minimum_trades": {
+      "default": 20,
+      "minimum": 1,
+      "title": "Minimum Trades",
+      "type": "integer"
+    },
+    "n_trials": {
+      "maximum": 128,
+      "minimum": 1,
+      "title": "N Trials",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seed": {
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "startup_trials": {
+      "default": 5,
+      "maximum": 32,
+      "minimum": 1,
+      "title": "Startup Trials",
+      "type": "integer"
+    },
+    "study_id": {
+      "minLength": 1,
+      "title": "Study Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "study_id",
+    "seed",
+    "n_trials",
+    "feature_search_spaces"
+  ],
+  "title": "OptimizationPlan",
+  "type": "object"
+}

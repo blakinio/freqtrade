@@ -1,9 +1,6 @@
 name: AI Platform WickHunter Production Market Evidence
 
 "on":
-  push:
-    branches:
-      - agent/wickhunter-production-market-evidence-capture-v1
   pull_request:
     types: [opened]
     branches:
@@ -26,26 +23,6 @@ env:
   DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
 
 jobs:
-  ruff-import-diagnostic:
-    name: Show exact Ruff import fix
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Checkout exact diagnostic commit
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Install repository Ruff version
-        shell: bash
-        run: python -m pip install --disable-pip-version-check ruff==0.15.21
-      - name: Print automatic import diff
-        shell: bash
-        run: >-
-          ruff check --select I001 --fix --diff
-          ai_platform/wickhunter/production_market_evidence.py
-
   initialize:
     name: Initialize WickHunter market evidence capture
     if: >-
@@ -173,57 +150,7 @@ jobs:
             fi
           done
 
-      - name: Check whether capture work is due
-        id: due
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          import os
-          import time
-          from pathlib import Path
-
-          durable_root = Path(os.environ["DURABLE_ROOT"])
-          pointer_path = durable_root / "active-wickhunter-production-market-evidence-v1.json"
-          should_run = True
-          status = "invalid"
-          due_ms = 0
-          if not pointer_path.exists():
-              should_run = False
-              status = "idle"
-          else:
-              try:
-                  pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
-                  run_root = Path(str(pointer["run_root"]))
-                  if run_root.parent != durable_root:
-                      raise ValueError("active run root is outside durable root")
-                  request = json.loads((run_root / "run-request.json").read_text(encoding="utf-8"))
-                  state = json.loads((run_root / "incremental-state.json").read_text(encoding="utf-8"))
-                  state_status = state.get("status")
-                  if state_status == "ready_to_finalize":
-                      status = "ready_to_finalize"
-                  elif state_status == "active":
-                      index = int(state["next_sample_index"])
-                      interval_ms = int(request["sample_interval_seconds"]) * 1000
-                      due_ms = int(request["decision_start_ms"]) + index * interval_ms
-                      should_run = int(time.time_ns() // 1_000_000) >= due_ms
-                      status = "due" if should_run else "not_due"
-                  else:
-                      raise ValueError("incremental state status is invalid")
-              except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-                  print(f"Due check will fail closed through the sampler: {exc}")
-                  should_run = True
-                  status = "invalid"
-          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
-              output.write(f"should_run={'true' if should_run else 'false'}\n")
-              output.write(f"status={status}\n")
-              output.write(f"due_ms={due_ms}\n")
-          print(f"WickHunter production market evidence due status: {status}")
-          PY
-
-      - name: Collect at most one due sample or finalize
-        if: steps.due.outputs.should_run == 'true'
+      - name: Validate state and collect at most one due sample or finalize
         id: sample
         shell: bash
         run: |

@@ -145,6 +145,7 @@ complete Chromium browser regression
 
 ```text
 deterministic backend simulator scenario
+BM-09 repository scenario-matrix validation
 @critical Chromium browser journey
 ```
 
@@ -171,6 +172,29 @@ read-only critical flow repeated 25 times with one worker
 ```
 
 The manual soak boundary avoids silently increasing scheduled runtime and artifact usage before measured need is reviewed.
+
+## BM-09 repository closure
+
+BM-09 closes the repository-side bot-management scenario family through two coordinated artifacts:
+
+```text
+ai_platform/portal/e2e/scenarios/bot_management_closure.json
+ai_platform/portal/web/e2e/specs/bots/full-product-closure.spec.ts
+```
+
+The versioned matrix maps each required family exactly once to existing narrow repository evidence. Validation fails when a family is missing, duplicated or references a path that does not exist.
+
+The critical browser closure traverses:
+
+```text
+dashboard -> bot fleet -> bot detail -> exchange connections -> signals -> grid
+```
+
+It asserts explicit dry-run and unavailable-source semantics, records browser requests and rejects direct private Freqtrade mutation routes, Vault references and credential references. Lifecycle replay separately proves that accepted persisted command intent is not execution submission or execution proof.
+
+`Portal Universal E2E` runs both the deterministic backend closure and the critical Chromium journey. Exact BM-09 head `e0a90ccdcfb3dc0e1ac03acede92f0f8c9da70e3` passed that gate in run `30437195047`, together with Portal Web CI `30437194948`, AI Platform CI `30437195010`, Freqtrade CI `30437194987` and workflow security `30437194958`.
+
+This is repository acceptance only. Real Authentik, Vault, Synology, private Freqtrade and Cloudflare acceptance remain separate owner-managed evidence. P14 remains blocked.
 
 ## Adding a scenario
 

@@ -30,7 +30,7 @@ def _run_container_python(container_name: str, source: str) -> str | None:
 
 
 def read_live_pointer_from_container(container_name: str) -> dict[str, Any] | None:
-    source = f'''
+    source = f"""
 import json
 from pathlib import Path
 
@@ -41,7 +41,7 @@ payload = json.loads(pointer.read_text(encoding="utf-8"))
 if not isinstance(payload, dict):
     raise SystemExit(3)
 print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
-'''
+"""
     output = _run_container_python(container_name, source)
     if output is None:
         return None
@@ -53,14 +53,14 @@ print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
 
 
 def disk_snapshot_from_container(container_name: str) -> dict[str, int]:
-    source = f'''
+    source = f"""
 import json
 import shutil
 
 usage = shutil.disk_usage({_CONTAINER_DATA_ROOT.as_posix()!r})
 payload = {{"total": usage.total, "used": usage.used, "free": usage.free}}
 print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
-'''
+"""
     output = _run_container_python(container_name, source)
     if output is None:
         return {"total": 0, "used": 0, "free": 0}

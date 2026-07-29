@@ -1,46 +1,42 @@
 import { cookies } from "next/headers";
 
-import { StatusPill } from "@/components/status-pill";
-import { listLearningHistory } from "@/lib/portal-api";
+import {
+  compareStrategyLabExperiments,
+  getStrategyLabBundle,
+  listStrategyLabExperiments,
+  listStrategyLabStrategies,
+} from "@/lib/strategy-lab-api";
+import type { ExperimentComparison } from "@/lib/strategy-lab-contracts";
+
+import { StrategyLabClient } from "./strategy-lab-client";
 
 export default async function ExperimentsPage() {
   const cookieHeader = (await cookies()).toString();
-  const history = await listLearningHistory(cookieHeader);
-  const experiments = history.flatMap((entry) => entry.experiments);
-
+  const [strategies, experiments] = await Promise.all([
+    listStrategyLabStrategies(cookieHeader),
+    listStrategyLabExperiments(cookieHeader),
+  ]);
+  const initialBundle = experiments[0]
+    ? await getStrategyLabBundle(experiments[0].experiment_id, cookieHeader)
+    : null;
+  let initialComparison: ExperimentComparison | null = null;
+  if (experiments[0] && experiments[1]) {
+    try {
+      initialComparison = await compareStrategyLabExperiments(
+        experiments[0].experiment_id,
+        experiments[1].experiment_id,
+        cookieHeader,
+      );
+    } catch {
+      // Different strategies or timeranges are valid history but not comparable variants.
+    }
+  }
   return (
-    <section className="page-stack">
-      <div className="page-heading">
-        <div><span className="eyebrow">AI Intelligence</span><h1>Experiments</h1></div>
-        <span className="freshness">Bounded research history</span>
-      </div>
-      <div className="status-banner status-info">
-        <strong>Candidate creation is not promotion</strong>
-        <span>Experiments and candidates are research provenance. Active model assignment changes only through the separately authorized model-control workflow.</span>
-      </div>
-      <article className="panel">
-        {experiments.length === 0 ? (
-          <div className="empty-state"><strong>No experiments recorded</strong><span>Validated insights may create bounded hypotheses and experiments without changing the active model.</span></div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Experiment</th><th>Hypothesis</th><th>Window</th><th>Autonomy</th><th>Outcome</th><th>Result</th></tr></thead>
-              <tbody>
-                {experiments.map((experiment) => (
-                  <tr key={experiment.experiment_id}>
-                    <td><strong>{experiment.experiment_id}</strong><span>{new Date(experiment.created_at).toLocaleString()}</span></td>
-                    <td>{experiment.hypothesis_id}</td>
-                    <td><strong>{new Date(experiment.evidence_window.start_at).toLocaleDateString()}</strong><span>to {new Date(experiment.evidence_window.end_at).toLocaleDateString()}</span></td>
-                    <td><StatusPill value={experiment.autonomy_level} /></td>
-                    <td><StatusPill value={experiment.outcome} /></td>
-                    <td>{experiment.result_summary}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </article>
-    </section>
+    <StrategyLabClient
+      strategies={strategies}
+      initialExperiments={experiments}
+      initialBundle={initialBundle}
+      initialComparison={initialComparison}
+    />
   );
 }

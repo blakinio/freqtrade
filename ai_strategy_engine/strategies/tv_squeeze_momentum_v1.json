@@ -1,0 +1,50 @@
+{
+  "contract_version": "v1",
+  "strategy_id": "tv_squeeze_momentum_v1",
+  "strategy_version": "1.0.0",
+  "display_name": "TradingView-inspired Squeeze Momentum v1",
+  "source_type": "tradingview_inspired_clean_room",
+  "provenance": {
+    "implementation": "Independent clean-room Bollinger/Keltner squeeze and linear-regression momentum implementation",
+    "inspiration": "Publicly documented volatility-squeeze and momentum concepts",
+    "parity_claim": false,
+    "license_boundary": "No proprietary Pine Script copied"
+  },
+  "features": ["squeeze.v1"],
+  "entry_rules": [
+    "Evaluate only confirmed closed bars",
+    "Enter long on squeeze release with positive momentum and positive momentum slope",
+    "Execute at the next bar open"
+  ],
+  "exit_rules": [
+    "Exit long when momentum becomes negative or momentum slope becomes negative",
+    "Execute at the next bar open"
+  ],
+  "parameters": [
+    {"contract_version":"v1","name":"bb_length","kind":"integer","default":20,"minimum":"2","maximum":"100","choices":[]},
+    {"contract_version":"v1","name":"bb_mult","kind":"number","default":2.0,"minimum":"0.5","maximum":"5","choices":[]},
+    {"contract_version":"v1","name":"kc_length","kind":"integer","default":20,"minimum":"2","maximum":"100","choices":[]},
+    {"contract_version":"v1","name":"kc_mult","kind":"number","default":1.5,"minimum":"0.5","maximum":"5","choices":[]},
+    {"contract_version":"v1","name":"use_true_range","kind":"boolean","default":true,"minimum":null,"maximum":null,"choices":[]},
+    {"contract_version":"v1","name":"compatibility_mode","kind":"enum","default":"corrected","minimum":null,"maximum":null,"choices":["corrected"]}
+  ],
+  "timeframe_semantics": "Single requested base timeframe; no higher-timeframe interpolation; signal is available only after bar close and executes at next bar open.",
+  "warm_up": 22,
+  "confirmation_policy": "closed_bar",
+  "risk_defaults": {"position_mode":"single_long","allocation":"full_available_balance","research_only":true},
+  "supported_directions": ["long"],
+  "dsl": {
+    "schema_version":"1.0.0",
+    "strategy_id":"tv_squeeze_momentum_v1",
+    "version":"1.0.0",
+    "universe":{"symbols":["*"],"timeframes":["base"]},
+    "features":[{"id":"squeeze.v1","params":{"bb_length":20,"bb_mult":2.0,"kc_length":20,"kc_mult":1.5,"use_true_range":true,"compatibility_mode":"corrected"},"timeframe":"base","confirmation":"closed_bar"}],
+    "regime":null,
+    "entry_long":{"all":[{"feature":"squeeze.v1","parameter":"squeeze_release","op":"eq","value":true},{"feature":"squeeze.v1","parameter":"linreg_momentum","op":"gt","value":0},{"feature":"squeeze.v1","parameter":"momentum_slope","op":"gt","value":0}]},
+    "entry_short":null,
+    "exit":{"any":[{"feature":"squeeze.v1","parameter":"linreg_momentum","op":"lt","value":0},{"feature":"squeeze.v1","parameter":"momentum_slope","op":"lt","value":0}]},
+    "risk":{"position_mode":"single_long","research_only":true},
+    "execution":{"decision":"bar_close","fill":"next_bar_open","live":false},
+    "provenance":{"producer":"ase-01-clean-room","source_event_id":"tv-squeeze-public-concept","lineage":[],"details":{"parity_claim":false}}
+  }
+}

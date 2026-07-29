@@ -8,9 +8,6 @@ from typing import Any, cast
 
 import jsonschema
 import yaml
-
-from strategy_engine.registry import FeatureDefinition, FeatureRegistry, RegistryError
-
 from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.feature_registry.schema import (
@@ -22,6 +19,7 @@ from ai_platform.portal.feature_registry.schema import (
     FeatureRegistrySnapshot,
 )
 from ai_platform.portal.security.authorization import require_permission
+from strategy_engine.registry import FeatureDefinition, FeatureRegistry, RegistryError
 
 
 MAX_DEPENDENCY_REQUESTS = 64
@@ -169,7 +167,9 @@ class FeatureRegistryService:
                 "feature registry manifest failed schema or semantic validation"
             ) from exc
         if not isinstance(manifest_raw, Mapping):
-            raise FeatureRegistryUnavailableError("feature registry manifest root must be a mapping")
+            raise FeatureRegistryUnavailableError(
+                "feature registry manifest root must be a mapping"
+            )
         feature_entries = manifest_raw.get("features")
         if not isinstance(feature_entries, list):
             raise FeatureRegistryUnavailableError("feature registry features must be a list")

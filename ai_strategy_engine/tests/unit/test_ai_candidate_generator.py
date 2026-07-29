@@ -41,9 +41,7 @@ def test_ai_candidate_is_registry_only_and_valid_strategy_dsl() -> None:
     )
     candidate = _generator().generate(CandidateRequest.model_validate(request_payload))
     schema = json.loads(
-        (ENGINE_ROOT / "schemas" / "strategy-definition.v1.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (ENGINE_ROOT / "schemas" / "strategy-definition.v1.schema.json").read_text(encoding="utf-8")
     )
 
     jsonschema.validate(candidate.model_dump(mode="json"), schema)

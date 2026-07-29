@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "FalsificationTest": {
+      "additionalProperties": false,
+      "properties": {
+        "hypothesis": {
+          "minLength": 1,
+          "title": "Hypothesis",
+          "type": "string"
+        },
+        "maximum_drawdown": {
+          "exclusiveMinimum": 0.0,
+          "maximum": 1.0,
+          "title": "Maximum Drawdown",
+          "type": "number"
+        },
+        "minimum_trades": {
+          "minimum": 1,
+          "title": "Minimum Trades",
+          "type": "integer"
+        },
+        "reject_if": {
+          "minLength": 1,
+          "title": "Reject If",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hypothesis",
+        "reject_if",
+        "minimum_trades",
+        "maximum_drawdown"
+      ],
+      "title": "FalsificationTest",
+      "type": "object"
+    },
+    "FeatureSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "minLength": 1,
+          "title": "Feature Id",
+          "type": "string"
+        },
+        "parameter_overrides": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameter Overrides",
+          "type": "object"
+        },
+        "timeframe": {
+          "minLength": 1,
+          "title": "Timeframe",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "timeframe"
+      ],
+      "title": "FeatureSelection",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "$id": "https://inwestycja.local/schemas/ai-candidate-request.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "falsification_test": {
+      "$ref": "#/$defs/FalsificationTest"
+    },
+    "features": {
+      "items": {
+        "$ref": "#/$defs/FeatureSelection"
+      },
+      "title": "Features",
+      "type": "array"
+    },
+    "max_conditions": {
+      "default": 8,
+      "maximum": 8,
+      "minimum": 1,
+      "title": "Max Conditions",
+      "type": "integer"
+    },
+    "max_features": {
+      "default": 6,
+      "maximum": 6,
+      "minimum": 1,
+      "title": "Max Features",
+      "type": "integer"
+    },
+    "model_identifier": {
+      "minLength": 1,
+      "title": "Model Identifier",
+      "type": "string"
+    },
+    "request_id": {
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "strategy_id": {
+      "minLength": 1,
+      "title": "Strategy Id",
+      "type": "string"
+    },
+    "symbols": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Symbols",
+      "type": "array"
+    },
+    "timeframes": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Timeframes",
+      "type": "array"
+    },
+    "version": {
+      "minLength": 1,
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "request_id",
+    "strategy_id",
+    "version",
+    "model_identifier",
+    "symbols",
+    "timeframes",
+    "features",
+    "falsification_test"
+  ],
+  "title": "CandidateRequest",
+  "type": "object"
+}

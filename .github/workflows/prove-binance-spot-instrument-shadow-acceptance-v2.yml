@@ -1,0 +1,140 @@
+name: Prove Binance Spot Instrument Shadow Acceptance V2
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/prove-binance-spot-instrument-shadow-acceptance-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: freqtrade-staging
+    environment: synology-staging
+    timeout-minutes: 20
+    env:
+      MERGED_SHA: aeb858ebe5266742c257aa7b45b5cffd11c4b5ba
+      PROOF_V1_SHA: 4c380b8ca7b7aa64a42b378664fa34e6f329052a
+      PROOF_V1_BLOB_SHA: 57dce6593e2043ed9899e875e6fe6b37375fff76
+      PROOF_V1_PATH: .github/workflows/prove-binance-spot-instrument-shadow-acceptance-v1.yml
+      STATE_DIR: /var/lib/freqtrade-staging-state
+      CANONICAL_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+
+    steps:
+      - name: Validate exact approved runner and durable root
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$CANONICAL_ROOT"
+          [[ -d "$CANONICAL_ROOT" && -w "$CANONICAL_ROOT" ]]
+          probe="$(mktemp -d "$CANONICAL_ROOT/.no-network-proof-v2-XXXXXX")"
+          trap 'rm -rf "$probe"' EXIT
+          printf 'binance-spot-acceptance-proof-v2\n' > "$probe/source.tmp"
+          sync "$probe/source.tmp"
+          mv "$probe/source.tmp" "$probe/source.sealed"
+          [[ "$(cat "$probe/source.sealed")" == "binance-spot-acceptance-proof-v2" ]]
+
+      - name: Checkout exact failed proof revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          ref: ${{ env.PROOF_V1_SHA }}
+
+      - name: Validate exact implementation and proof source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$PROOF_V1_SHA" ]]
+          [[ "$(git rev-parse HEAD^)" == "$MERGED_SHA" ]]
+          expected=$'A\t.github/workflows/prove-binance-spot-instrument-shadow-acceptance-v1.yml'
+          actual="$(git diff --name-status "$MERGED_SHA" "$PROOF_V1_SHA")"
+          [[ "$actual" == "$expected" ]]
+          [[ "$(git hash-object "$PROOF_V1_PATH")" == "$PROOF_V1_BLOB_SHA" ]]
+
+      - name: Refuse any credential or proxy environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install isolated uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Install exact proof dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --python "$VIRTUAL_ENV/bin/python" "jsonschema==4.26.0"
+          python - <<'PY'
+          from importlib.metadata import version
+
+          assert version("jsonschema") == "4.26.0"
+          print("BINANCE_PROOF_JSONSCHEMA_4_26_0_READY")
+          PY
+
+      - name: Execute exact V1 proof script
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          source_path = Path(os.environ["PROOF_V1_PATH"])
+          source = source_path.read_text(encoding="utf-8")
+          start_marker = "          PYTHONPATH=. python3 - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          lines = source[start:end].splitlines()
+          if not lines or any(line and not line.startswith("          ") for line in lines):
+              raise SystemExit("BINANCE_PROOF_V1_SCRIPT_INDENTATION_MISMATCH")
+          script = "\n".join(line[10:] if line else "" for line in lines) + "\n"
+          target = Path(os.environ["RUNNER_TEMP"]) / "binance-spot-proof-v1.py"
+          target.write_text(script, encoding="utf-8")
+          print(target)
+          PY
+          PYTHONPATH=. python "$RUNNER_TEMP/binance-spot-proof-v1.py"
+
+      - name: Confirm proof left no durable package
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "$CANONICAL_ROOT" -maxdepth 1 -type d \
+            \( -name '.no-network-proof-*' -o -name '.no-network-proof-v2-*' \) \
+            -print -quit | grep -q . && exit 1 || true
+          rm -f "$RUNNER_TEMP/binance-spot-proof-v1.py"
+          rm -rf .venv

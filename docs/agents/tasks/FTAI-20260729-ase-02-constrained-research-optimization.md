@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260729-ase-02-constrained-research-optimization
-status: implementing
+status: validating
 branch: agent/ase-02-constrained-research-optimization
 base_branch: develop
 created: 2026-07-29
@@ -47,12 +47,13 @@ AI candidate generator that can emit only the existing Strategy DSL from canonic
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T20:55:00+02:00
+updated_at: 2026-07-29T21:14:00+02:00
 checkpoint_carrier: self
 branch: agent/ase-02-constrained-research-optimization
-base_head: 3d3c5d2c5806e2d23c86d2fc53cb01322d85a147
-pr: null
-status: implementing
+base_head: c4a4a1f22dfea1f0193f886686f6db8cb145e7a7
+pr: 741
+status: validating
+exact_head_resolution: Resolve checkpoint_carrier from the current PR 741 head; required GitHub checks and the PR body attached to that commit are authoritative.
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -66,10 +67,11 @@ proven:
   - AI candidate generation accepts only validated and approved registry features, emits existing DSL and forces execution_authority and order_submission false.
   - Optuna studies use seeded TPE sampling, explicit search bindings, forbidden combinations, feasibility constraints, median pruning, canonical lineage hashes and stability-aware robustness scoring.
   - Local package validation passed 11 unit and integration tests; no final holdout data, exchange credentials or execution path was used.
+  - Synchronization PR 742 merged current develop normally into the ASE-02 branch without force-push or branch-protection bypass.
 derived:
   - ASE-02 supplies the bounded research evidence required before a separately reviewed ASE-03 paper/shadow integration package.
 unknown:
-  - Required exact-head GitHub workflow conclusions after PR creation and synchronization with current develop.
+  - Required exact-head GitHub workflow conclusions on the current PR 741 head.
 conflicts: []
 first_failure: null
 rejected_hypotheses:
@@ -91,13 +93,20 @@ changed_paths:
   - ai_strategy_engine/docs/ASE_02_CONSTRAINED_RESEARCH.md
   - docs/ai_platform/ASE_02_CONSTRAINED_RESEARCH.md
   - ai_strategy_engine/pyproject.toml
+  - ai_strategy_engine/TASKS.md
 validation:
   - command: PYTHONPATH=. pytest -q tests/unit tests/integration
     result: PASS
     evidence: 11 tests passed; only Optuna constraints_func experimental-interface warnings were emitted.
+  - command: Normal develop synchronization through PR 742
+    result: PASS
+    evidence: Branch was synchronized at behind_by 0 using merge commit 7e1678cbb158cc011fc038f0eb814f05c5a19da2.
+  - command: Final exact-head workflow suite
+    result: REQUIRED
+    evidence: AI Strategy Engine, AI Platform CI, Freqtrade CI and GitHub Actions Security Analysis must succeed on the current PR head before normal merge.
 known_limitations:
   - Research-only package; no market-data execution, deployment, promotion, order submission or capital authority.
   - Robustness scoring consumes evaluator metrics supplied by existing validation systems; it does not replace walk-forward or bias analysis.
 blockers: []
-next_action: Update the backlog, open the ASE-02 PR, synchronize it with current develop through a normal merge, then validate every required exact-head workflow and fix only evidenced failures.
+next_action: Inspect the exact-head workflow suite for PR 741, fix only evidenced failures, resynchronize if develop moves, then update the PR body and merge normally after all required checks are green.
 ```

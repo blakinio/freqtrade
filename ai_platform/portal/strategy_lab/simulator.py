@@ -151,9 +151,7 @@ class DeterministicStrategySimulator:
             signals.append(forced_signal)
             trade, cash = self._exit_at_close(last, position, request.fee_rate, forced_signal)
             trades.append(trade)
-            final_drawdown = (
-                Decimal(0) if peak_equity == 0 else (peak_equity - cash) / peak_equity
-            )
+            final_drawdown = Decimal(0) if peak_equity == 0 else (peak_equity - cash) / peak_equity
             equity_points[-1] = EquityPoint(
                 timestamp=last.timestamp,
                 equity=cash,

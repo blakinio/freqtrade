@@ -1,12 +1,11 @@
 name: Liquidations Live Health
-# Operational trigger: verify trusted runner execution after PR #594 merge.
 
-on:
+"on":
   push:
     branches:
       - develop
     paths:
-      - .github/workflows/liquidations-live-health.yml
+      - .github/workflows/liquidations-live-operational-health.yml
       - ai_platform/scripts/liquidation_live_health.py
       - ai_platform/scripts/liquidation_portal_health.py
       - deploy/synology/liquid20/LIVE_STREAM.md

@@ -16,9 +16,16 @@ from ai_platform.portal.contracts.bot_management.commands import (
     PositionAction,
     PositionCommand,
 )
-from ai_platform.portal.contracts.bot_management.exchange_connections import CredentialReference
+from ai_platform.portal.contracts.bot_management.exchange_connections import (
+    CredentialReference,
+)
 from ai_platform.portal.contracts.bot_management.policies import PositiveDecimal
-from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, Sha256Hex, UtcDateTime
+from ai_platform.portal.contracts.common import (
+    ContractModel,
+    NonEmptyStr,
+    Sha256Hex,
+    UtcDateTime,
+)
 from ai_platform.portal.contracts.execution import RuntimeHealthState
 from ai_platform.portal.contracts.risk import TradeSide
 from ai_platform.portal.execution_submission.schema import PrivateDryRunSubmission

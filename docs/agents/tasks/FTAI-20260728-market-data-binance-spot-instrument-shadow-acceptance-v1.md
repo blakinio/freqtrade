@@ -1,29 +1,29 @@
 ---
 task_id: FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1
-status: running
-branch: run/binance-spot-instrument-shadow-acceptance-20260729-v2
+status: validating
+branch: fix/binance-spot-instrument-acceptance-nonblocking-v3
 base_branch: develop
 created: 2026-07-28
 updated: 2026-07-29
-related_pr: "#699"
+related_pr: pending
 owned_paths:
   - ai_platform/market_data/binance-spot-instrument-shadow-acceptance-policy-v1.json
   - ai_platform/market_data/binance_spot_instrument_acceptance.py
-  - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v2.yml
-  - tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py
-  - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_v2.py
-  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2.md
+  - ai_platform/market_data/binance_spot_instrument_acceptance_incremental.py
+  - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v3.yml
+  - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_v3.py
+  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V3.md
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE.md
-  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2.md
+  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V3.md
 search_first:
-  - current status of PR 699 and workflow 30459738848
-  - current steps of job 90602377126
+  - current CI state of the non-blocking v3 repair PR
+  - absence of the blocking v2 workflow on the repair branch
 optional_reads:
-  - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_EXECUTION.md
+  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2.md
 ---
 
 # Binance Spot instrument shadow acceptance v1
@@ -32,55 +32,62 @@ optional_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T16:14:00+02:00
-head: cda800b20ec4323be21a0a5b46a91e5e5fd2fdab
-branch: run/binance-spot-instrument-shadow-acceptance-20260729-v2
-pr: "#699"
-status: running
+updated_at: 2026-07-29T17:30:00+02:00
+head: 5124a7b260535bdd12e955212c6f26c00855a54e
+branch: fix/binance-spot-instrument-acceptance-nonblocking-v3
+pr: pending
+status: validating
 context_routes:
   - Binance Spot public instrument-catalog acceptance
-  - Synology self-hosted staging runner
+  - non-blocking Synology self-hosted sampling
   - credential-free deterministic evidence
 owned_paths:
-  - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v2.yml
-  - tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py
-  - ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json
+  - ai_platform/market_data/binance_spot_instrument_acceptance_incremental.py
+  - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v3.yml
+  - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_v3.py
+  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V3.md
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 proven:
-  - Original acceptance implementation remains merged as aeb858ebe5266742c257aa7b45b5cffd11c4b5ba with unchanged policy, transport, parser, thresholds, durable evidence and independent evaluator.
-  - Consumed v1 trigger workflow 30456309522 failed before network because its isolated runtime lacked jsonschema; no observation or package was created and PR 687 was closed without merge.
-  - Runtime v2 repair PR 690 merged as 224ee218b2e62b68c2888e27913a2c3d6c35dfc9 after exact-head AI Platform CI, full Freqtrade CI and zizmor success.
-  - Exact-merged-head proof workflow 30458935489 job 90599644500 completed success on freqtrade-synology-staging and PR 695 was closed without merge.
-  - The proof validated v2 runner, durable storage, pinned jsonschema 4.26.0, complete static preflight, accepted and rejected 97-slot packages, independent evaluation, tamper rejection, zero orders and production disabled.
-  - Terminal marker BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2_NO_NETWORK_PROOF_PASS was recorded after successful proof cleanup.
-  - PR 699 adds exactly ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json at head cda800b20ec4323be21a0a5b46a91e5e5fd2fdab.
-  - The canonical request freezes request_id binance-spot-instrument-shadow-acceptance-20260729-v2 and run_id binance-spot-instrument-shadow-acceptance-20260729-v2-r1 with the exact public URL, 86400 seconds, 900-second interval, approved host and durable URI, zero orders and production disabled.
-  - Opened-event workflow 30459738848 job 90602377126 started on exact runner freqtrade-synology-staging.
-  - Exact-one-file scope, staging identity, durable storage preparation, credential and proxy refusal, isolated Python, pinned dependency and no-network package preflight all completed success.
-  - The frozen 24-hour acceptance package step is in progress.
+  - Original acceptance implementation remains merged as aeb858ebe5266742c257aa7b45b5cffd11c4b5ba with the frozen policy, public URL, 97 observations, one attempt, zero retries, durable evidence and independent evaluator.
+  - Runtime v2 workflow 30459738848 job 90602377126 passed every pre-network gate and collected five successful public observations before manual cancellation.
+  - The cancelled v2 metadata artifact is 8729171100 with digest sha256:584f8051e87a1a44a6a3daf2efd77baf9ac8a54d8e992a5d3a58edfb39dc5acb.
+  - V2 produced no terminal accepted, rejected or inconclusive outcome; PR 699 was closed without merge and must not be reopened or rerun.
+  - The repair branch removes the 1500-minute v2 workflow and replaces it with a v3 initializer and scheduled sampler, each limited to ten minutes.
+  - V3 persists self-hashed active state on Synology, uses one global workflow concurrency group and a Linux file lock, and collects at most one due observation per invocation.
+  - V3 enforces at least 900 seconds between completed observations and independently evaluates only after all 97 reports exist.
+  - The repair branch contains no canonical v3 request and performs no Binance network execution.
 derived:
-  - The single authorized real v2 acceptance attempt is active and must not be synchronized, reopened, rerun or automatically retried.
-  - PR 699 must remain unmerged and be closed only after workflow 30459738848 becomes terminal.
+  - The self-hosted runner will be released after every initializer or sampler job rather than reserved for the 24-hour window.
+  - A separately reviewed v3 trigger may be created only after exact-head CI, security validation, guarded merge and exact-merged-head no-network proof.
 unknown:
-  - Terminal accepted, rejected or inconclusive outcome and evidence of workflow 30459738848.
+  - Exact-head CI and review outcome of the v3 repair branch.
+  - Terminal outcome of a later real non-blocking v3 acceptance window.
 conflicts: []
 first_failure:
   marker: none
-  evidence: Job 90602377126 is in progress in Run frozen 24-hour acceptance package after every pre-network gate completed success.
+  evidence: The non-blocking v3 repair is implemented but has not yet completed exact-head CI.
 rejected_hypotheses:
-  - Modify or synchronize PR 699 while its opened-event workflow is active.
-  - Rerun, reopen or replace workflow 30459738848 before a terminal outcome exists.
-  - Treat an in-progress window as source acceptance or production authorization.
+  - Rerun, reopen or synchronize the consumed v2 trigger or workflow.
+  - Restore a sleep loop or any job timeout capable of reserving the runner for the full acceptance window.
+  - Treat the five successful partial v2 observations as a terminal acceptance decision.
 changed_paths:
-  - ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json
+  - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v2.yml
+  - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v3.yml
+  - ai_platform/market_data/binance_spot_instrument_acceptance_incremental.py
+  - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_v2.py
+  - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_v3.py
+  - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V3.md
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 validation:
-  - command: GitHub compare develop...run/binance-spot-instrument-shadow-acceptance-20260729-v2
+  - command: GitHub workflow 30459738848 job 90602377126 terminal inspection
+    result: CANCELLED
+    evidence: Run step cancelled; metadata upload and cleanup succeeded; independent evaluator and terminal enforcement were skipped.
+  - command: cancelled v2 artifact 8729171100 inspection
     result: PASS
-    evidence: One commit and exactly one added canonical v2 request file; no implementation, workflow or documentation changed in PR 699.
-  - command: GitHub workflow 30459738848 job 90602377126
-    result: RUNNING
-    evidence: Exact opened-event acceptance job passed every pre-network gate and entered the frozen 24-hour package on freqtrade-synology-staging.
+    evidence: Exactly five successful sample reports at 900-second offsets were present; no terminal report was present.
+  - command: GitHub compare develop...fix/binance-spot-instrument-acceptance-nonblocking-v3
+    result: PASS
+    evidence: Blocking v2 workflow removed; v3 workflow, incremental runtime, tests and documentation added; no trigger request included.
 blockers: []
-next_action: When workflow 30459738848 becomes terminal, verify only job 90602377126, bounded artifact metadata and the durable terminal report; close PR 699 without merge, update this checkpoint with accepted, rejected or inconclusive evidence, and do not authorize production enablement.
+next_action: Open the focused v3 repair PR, complete exact-head CI and review-thread validation, fix any failures, then merge only after the blocking v2 workflow is proven absent and the non-blocking incremental tests pass.
 ```

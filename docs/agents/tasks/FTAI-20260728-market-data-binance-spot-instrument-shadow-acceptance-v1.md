@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1
-status: running
+status: blocked
 branch: run/binance-spot-instrument-shadow-acceptance-20260728-v1
 base_branch: develop
 created: 2026-07-28
@@ -19,7 +19,7 @@ required_reads:
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE.md
 search_first:
   - current status of PR 687 and workflow 30456309522
-  - current steps of job 90590650458
+  - current production workflow dependency setup and canonical trigger identity
 optional_reads:
   - docs/ai_platform/LIQUIDATION_OKX_SHADOW_ACCEPTANCE_EXECUTION.md
 ---
@@ -30,11 +30,11 @@ optional_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T15:31:00+02:00
+updated_at: 2026-07-29T15:34:00+02:00
 head: 918f708bf0de300ffcd3c22fd207dad263e8c981
 branch: run/binance-spot-instrument-shadow-acceptance-20260728-v1
 pr: "#687"
-status: running
+status: blocked
 context_routes:
   - Binance Spot public instrument-catalog acceptance
   - Synology self-hosted staging runner
@@ -43,45 +43,46 @@ owned_paths:
   - ai_platform/market_data/binance-spot-instrument-shadow-acceptance-policy-v1.json
   - ai_platform/market_data/binance_spot_instrument_acceptance.py
   - .github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance.yml
-  - ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260728-v1.json
   - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance.py
   - docs/ai_platform/market_data/BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE.md
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 proven:
   - Implementation PR 633 merged as aeb858ebe5266742c257aa7b45b5cffd11c4b5ba after exact-head AI Platform CI, full Freqtrade CI and zizmor success.
   - The merged package defines 97 observations over 24 hours at 15-minute intervals using the exact reduced-payload Binance Spot URL.
-  - Each observation permits one public request attempt, zero retries, no credentials, no proxy, no redirects and a 16 MiB response limit.
-  - Successful samples persist raw and normalized evidence; failures persist bounded metadata without partial raw payloads.
-  - The independent evaluator returns accepted, rejected or inconclusive while source_acceptance and production_source_enabled remain false.
-  - Replacement proof workflow 30455561706 job 90588120948 completed success on exact runner freqtrade-synology-staging and PR 684 was closed without merge.
-  - The proof executed the exact original accepted and rejected 97-slot packages, independent evaluation, tamper rejection, credential and proxy refusal, and durable cleanup.
-  - Terminal marker BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V1_NO_NETWORK_PROOF_PASS was recorded.
-  - PR 687 adds exactly ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260728-v1.json at head 918f708bf0de300ffcd3c22fd207dad263e8c981.
-  - The canonical request keeps the exact public URL, 86400 seconds, 900-second interval, approved host and durable URI, reviewed smoke evidence, zero orders and production disabled.
-  - Opened-event workflow 30456309522 job 90590650458 started on freqtrade-synology-staging.
+  - Replacement no-network proof workflow 30455561706 job 90588120948 completed success on exact runner freqtrade-synology-staging and PR 684 was closed without merge.
+  - The proof executed accepted and rejected 97-slot packages, independent evaluation, tamper rejection, credential and proxy refusal, and durable cleanup.
+  - PR 687 added exactly the canonical v1 request at head 918f708bf0de300ffcd3c22fd207dad263e8c981.
+  - Workflow 30456309522 job 90590650458 validated exact-one-file scope, staging identity, durable storage, and credential and proxy refusal.
+  - The workflow failed in Validate frozen package without network before the first Binance request because jsonschema was absent from the isolated runtime.
+  - The 24-hour runner, independent evaluator and artifact upload steps were skipped; no Binance acceptance observation executed and no acceptance package was produced.
+  - Cleanup completed successfully and PR 687 was closed without merge.
+  - The used v1 request and run identities must not be reused, reopened, synchronized or rerun.
 derived:
-  - The single authorized real Binance acceptance attempt is now active and must not be synchronized, reopened, rerun or automatically retried.
-  - PR 687 must remain unmerged and be closed only after the workflow becomes terminal.
+  - The terminal result is a workflow preflight failure, not accepted, rejected or inconclusive source-quality evidence.
+  - A new acceptance attempt requires a separately reviewed workflow repair and a new canonical request identity and path.
 unknown:
-  - Terminal outcome and evidence of workflow 30456309522.
+  - Outcome of any later repaired Binance 24-hour acceptance window.
 conflicts: []
 first_failure:
-  marker: none
-  evidence: Job 90590650458 entered in_progress on the exact approved runner; no terminal failure is recorded.
+  marker: "ModuleNotFoundError: No module named 'jsonschema'"
+  evidence: Workflow 30456309522 job 90590650458 failed during ai_platform.market_data package import in the no-network preflight; network execution was skipped.
 rejected_hypotheses:
-  - Modify the request PR while the opened-event workflow is active.
-  - Rerun or replace the workflow before a terminal outcome exists.
-  - Treat an in-progress window as accepted source evidence.
+  - Reopen, synchronize or rerun PR 687 or workflow 30456309522.
+  - Reuse request_id binance-spot-instrument-shadow-acceptance-20260728-v1 or run_id binance-spot-instrument-shadow-acceptance-20260728-r1.
+  - Create another trigger before repairing and proving the production workflow runtime.
+  - Interpret the preflight failure as a source rejection or production decision.
 changed_paths:
   - ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260728-v1.json
   - docs/agents/tasks/FTAI-20260728-market-data-binance-spot-instrument-shadow-acceptance-v1.md
 validation:
-  - command: GitHub compare develop...run/binance-spot-instrument-shadow-acceptance-20260728-v1
-    result: PASS
-    evidence: One commit and exactly one added canonical request file; no implementation, workflow or documentation changed in PR 687.
   - command: GitHub workflow 30456309522 job 90590650458
-    result: RUNNING
-    evidence: Exact opened-event acceptance job started on freqtrade-synology-staging.
-blockers: []
-next_action: When workflow 30456309522 becomes terminal, verify only job 90590650458, bounded artifact metadata and the durable terminal report; close PR 687 without merge, update this checkpoint with accepted, rejected or inconclusive evidence, and do not authorize production enablement.
+    result: FAIL_PRE_NETWORK
+    evidence: Scope, runner, durable-storage and credential gates passed; no-network import failed and all network/evidence steps were skipped.
+  - command: GitHub PR 687 terminal state
+    result: PASS
+    evidence: Closed without merge at exact head 918f708bf0de300ffcd3c22fd207dad263e8c981.
+blockers:
+  - Production acceptance workflow does not install its required jsonschema dependency before package import.
+  - The v1 request identity and opened-event attempt are consumed.
+next_action: Prepare and merge a separately reviewed production-workflow repair that installs pinned jsonschema in the isolated runtime and introduces a new v2 canonical request identity and path; prove the exact merged repair without network on freqtrade-synology-staging before creating any new 24-hour trigger.
 ```

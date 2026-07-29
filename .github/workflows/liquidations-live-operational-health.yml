@@ -72,6 +72,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
       - name: Check combined health and reconcile alert
         id: health
         continue-on-error: true
@@ -284,12 +289,19 @@ jobs:
           The trusted Synology health job did not start within 120 seconds. Collector and portal state remain unverified.
           EOF
           )
-          issues_json=$(curl --fail --silent --show-error \
+          issues_response="$RUNNER_TEMP/liquidations-live-open-issues.json"
+          issues_http_code=$(curl --silent --show-error \
+            --output "$issues_response" \
+            --write-out "%{http_code}" \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100")
-          issue_number=$(ISSUES_JSON="$issues_json" python - <<'PY'
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100") \
+            || issues_http_code=000
+
+          if [[ "$issues_http_code" == "200" ]]; then
+            issues_json=$(cat "$issues_response")
+            issue_number=$(ISSUES_JSON="$issues_json" python - <<'PY'
           import json
           import os
 
@@ -305,8 +317,8 @@ jobs:
           )
           print(number)
           PY
-          )
-          issue_payload=$(ALERT_BODY="$alert_body" python - <<'PY'
+            )
+            issue_payload=$(ALERT_BODY="$alert_body" python - <<'PY'
           import json
           import os
 
@@ -315,23 +327,28 @@ jobs:
               "body": os.environ["ALERT_BODY"],
           }))
           PY
-          )
-          if [[ -n "$issue_number" ]]; then
-            curl --fail --silent --show-error \
-              --request PATCH \
-              --header "Authorization: Bearer $GH_TOKEN" \
-              --header "Accept: application/vnd.github+json" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/$issue_number" \
-              --data "$issue_payload" >/dev/null
-          else
-            curl --fail --silent --show-error \
+            )
+            if [[ -n "$issue_number" ]]; then
+              if ! curl --fail --silent --show-error \
+                --request PATCH \
+                --header "Authorization: Bearer $GH_TOKEN" \
+                --header "Accept: application/vnd.github+json" \
+                --header "X-GitHub-Api-Version: 2022-11-28" \
+                "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues/$issue_number" \
+                --data "$issue_payload" >/dev/null; then
+                echo "::warning::Unable to update Liquidations health alert issue; commit status remains authoritative."
+              fi
+            elif ! curl --fail --silent --show-error \
               --request POST \
               --header "Authorization: Bearer $GH_TOKEN" \
               --header "Accept: application/vnd.github+json" \
               --header "X-GitHub-Api-Version: 2022-11-28" \
               "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/issues" \
-              --data "$issue_payload" >/dev/null
+              --data "$issue_payload" >/dev/null; then
+              echo "::warning::Unable to create Liquidations health alert issue; commit status remains authoritative."
+            fi
+          else
+            echo "::warning::GitHub Issues API returned HTTP $issues_http_code; commit status remains authoritative."
           fi
 
           echo "$description" >&2

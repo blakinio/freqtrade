@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from statistics import mean, pstdev
 from typing import Any, Literal, Protocol, Self, cast
 

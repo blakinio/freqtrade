@@ -1,0 +1,143 @@
+{
+  "registry_version": "1.0.0",
+  "append_only_prefix": [
+    "atr.v1",
+    "squeeze_ratio.v1",
+    "supertrend_direction.v1",
+    "macd.v1",
+    "confirmed_pivot.v1",
+    "candle_geometry.v1",
+    "bos_choch.v1",
+    "liquidation_notional_z.v1",
+    "rsi.v1",
+    "stoch_rsi.v1",
+    "vwap.v1",
+    "adx.v1",
+    "mfi.v1",
+    "roc.v1",
+    "wavetrend.v1",
+    "psar.v1",
+    "atr_range_filter.v1",
+    "fib_ma_ensemble.v1",
+    "volume_ema_osc.v1",
+    "volume_robust_z.v1",
+    "no_repeat_signals_policy.v1"
+  ],
+  "dependency_replays": [
+    {
+      "requested": [
+        "bos_choch.v1",
+        "supertrend_direction.v1"
+      ],
+      "resolved": [
+        "confirmed_pivot.v1",
+        "bos_choch.v1",
+        "supertrend_direction.v1"
+      ]
+    }
+  ],
+  "semantic_parity": {
+    "atr.v1": {
+      "status": "validated",
+      "approved_for_ai": true,
+      "research_only": false,
+      "roles": [
+        "regime",
+        "risk",
+        "ml_feature"
+      ],
+      "dependencies": [],
+      "required_sources": [
+        "high",
+        "low",
+        "close"
+      ],
+      "warmup": "period + 1",
+      "timestamp_policy": "closed_bar",
+      "normalization_policy": "atr / close or dependent_feature / atr",
+      "license_origin": "independent_generic_formula",
+      "parameter_defaults": {
+        "period": 14,
+        "ma_type": "rma"
+      }
+    },
+    "squeeze_ratio.v1": {
+      "status": "experimental",
+      "approved_for_ai": false,
+      "research_only": true,
+      "roles": [
+        "regime",
+        "ml_feature"
+      ],
+      "dependencies": [],
+      "required_sources": [
+        "high",
+        "low",
+        "close"
+      ],
+      "warmup": "max(bb_length, kc_length) + 2",
+      "timestamp_policy": "closed_bar",
+      "normalization_policy": "bb_width / kc_width",
+      "license_origin": "independent_reimplementation",
+      "parameter_defaults": {
+        "bb_length": 20,
+        "bb_mult": 2.0,
+        "kc_length": 20,
+        "kc_mult": 1.5,
+        "use_true_range": true,
+        "compatibility_mode": "corrected"
+      }
+    },
+    "supertrend_direction.v1": {
+      "status": "experimental",
+      "approved_for_ai": false,
+      "research_only": true,
+      "roles": [
+        "regime",
+        "exit",
+        "ml_feature"
+      ],
+      "dependencies": [],
+      "required_sources": [
+        "high",
+        "low",
+        "close",
+        "open"
+      ],
+      "warmup": "atr_period + 2",
+      "timestamp_policy": "closed_bar",
+      "normalization_policy": "direction in {-1,1}; distance / atr",
+      "license_origin": "independent_generic_formula",
+      "parameter_defaults": {
+        "atr_period": 10,
+        "multiplier": 3.0,
+        "atr_type": "rma",
+        "source": "hl2"
+      }
+    },
+    "bos_choch.v1": {
+      "status": "experimental",
+      "approved_for_ai": false,
+      "research_only": true,
+      "roles": [
+        "regime",
+        "trigger",
+        "ml_feature"
+      ],
+      "dependencies": [
+        "confirmed_pivot.v1"
+      ],
+      "required_sources": [
+        "close"
+      ],
+      "warmup": "depends_on_confirmed_pivot",
+      "timestamp_policy": "closed_bar_after_confirmed_pivot",
+      "normalization_policy": "event enum and distance / atr",
+      "license_origin": "clean_room_research_required",
+      "parameter_defaults": {
+        "structure_window": 20,
+        "break_buffer_atr": 0.0
+      }
+    }
+  }
+}

@@ -46,12 +46,12 @@ Every package inherits these invariants:
 | 5 | `PI-02` Authoritative Valuation and Unrealized PNL | `done` | attributable valuation with freshness and reconciliation | PI-01 and authoritative mark source |
 | 6 | `PI-05` External Notification Delivery | `planned` | auditable external delivery without secret leakage | in-app notifications; PI-06 where identity/contact data is required |
 | 7 | `PI-07` Runtime Credential Broker and Rotation | `done` | Vault-backed tenant-scoped credential resolution, revocation and rotation | P1 secret references, P3 isolation, owner-approved Vault policy |
-| 8 | `PI-08` Private Dry-Run Approved Execution Submission | `planned` | risk-approved intents submitted privately to dry-run runtimes | PI-01, PI-07, P7 and audit |
+| 8 | `PI-08` Private Dry-Run Approved Execution Submission | `done` | risk-approved intents submitted privately to dry-run runtimes | PI-01, PI-07, P7 and audit |
 | External gate | P11 Real Cloudflare Production-Like Staging | `blocked` | real protected ingress and five-probe acceptance | owner-approved Cloudflare and protected GitHub environment |
 | Conditional | P13 Scale and Service Extraction | `deferred` | smallest measured response to a proven bottleneck | durable measurement bundle |
 | Capital gate | P14 Live-Small Readiness | `blocked` | separately approved minimal-capital readiness | P11 and explicit owner approval |
 
-PI-01 through PI-04 and PI-02 are complete. PI-06 remains active: the architecture decision, repository backend, same-origin BFF/browser-session integration and secret-free Authentik/Synology repository deployment package are complete; real owner-managed target provisioning, MFA enrollment, recovery, backup/restore and target-environment acceptance remain.
+PI-01 through PI-04, PI-02, PI-07 and PI-08 are complete for declared repository acceptance. PI-06 remains active: the architecture decision, repository backend, same-origin BFF/browser-session integration and secret-free Authentik/Synology repository deployment package are complete; real owner-managed target provisioning, MFA enrollment, recovery, backup/restore and target-environment acceptance remain.
 
 ## 5. Dependency graph
 
@@ -174,7 +174,7 @@ Acceptance:
 4. Destinations and secrets remain tenant/actor scoped and hidden.
 5. Delivery failure cannot affect trading execution.
 
-Recommended task: `FTAI-YYYYMMDD-portal-pi05-external-notification-delivery`.
+Recommended task: `FTAI-YYYYMMDD-portal-pi05-external-notification-delivery`, only after the owner selects the provider/channel and destination/privacy policy.
 
 ### PI-06 — Product Identity, MFA, Session and Membership Lifecycle
 
@@ -277,15 +277,25 @@ Acceptance:
 4. Research/training cannot access runtime credentials.
 5. Rotation does not silently change bot/config identity.
 
-Completed task: `FTAI-20260728-portal-pi07-vault-credential-broker`. Next software package: `FTAI-YYYYMMDD-portal-pi08-private-dry-run-submission`.
+Completed task: `FTAI-20260728-portal-pi07-vault-credential-broker`. PI-08 consumed this single approved credential boundary; no alternate secret-resolution path is authorized.
 
 ### PI-08 — Private Dry-Run Approved Execution Submission
 
-Status: `planned`.
+Status: `done` for repository-side software, PR #669, squash merge `530f61caf9d5d4644068a93baa0b7a09298f24c6`; closure PR #670, merge `bc5493435c3b895e65adcea9f84920b36da33b2e`.
 
-Entry gates: PI-01 complete, PI-07 complete where credentials are required, P7 risk/kill switches authoritative, command authentication/idempotency approved, and dry-run independently enforced.
+Delivered controls:
 
-Acceptance:
+- exact tenant, bot, configuration, runtime revision, correlation and idempotency binding;
+- current healthy runtime and inactive kill-switch gates;
+- credential resolution only through PI-07 bounded leases;
+- private HTTPS transport with explicit CA verification, no redirects and no proxy-environment routing;
+- independent runtime `dry_run=true` verification;
+- durable reservation before network I/O and exact duplicate replay;
+- acknowledgement separated from execution proof;
+- ambiguous responses persisted without blind retry;
+- authoritative PI-01 reconciliation before terminal execution claims.
+
+Acceptance delivered:
 
 1. Only valid unexpired approved intents for the exact tenant/bot/config/runtime are submitted.
 2. Duplicate delivery cannot create unproven duplicate exposure.
@@ -294,7 +304,9 @@ Acceptance:
 5. The implementation cannot select live capital or production credentials.
 6. Browsers cannot address Freqtrade directly.
 
-Recommended task: `FTAI-YYYYMMDD-portal-pi08-private-dry-run-submission`.
+Task: `FTAI-20260728-portal-pi08-private-dry-run-submission`. Real Vault, TLS and private Freqtrade target acceptance remains owner-managed deployment evidence.
+
+BM-07 consumed the frozen PI-08 contract in PR #672, merge `ef0550744104f4c82ef3f106181f14442f9b82af`. BM-09 repository closure completed in PR #675, merge `d7ae949cb91d44e260ca7c32e193d69238fad120`.
 
 ## 7. Existing governed stages
 
@@ -320,19 +332,17 @@ Status: `blocked` and outside this backlog's autonomous authority. It requires e
 
 PI-01, PI-02, PI-03 and PI-04 are complete. PI-06 decision, repository backend, BFF/browser integration and Authentik/Synology repository deployment are complete subpackages.
 
-Next:
+Next only with owner-managed resources:
 
-- collect real owner-managed identity acceptance only when the required Synology resources, protected secrets, users, MFA devices, recovery key and isolated restore target are available.
-
-Exit condition: protected browser paths derive identity, tenant and capabilities from the real product session; missing target resources remain explicit; no execution submission is added.
+- collect real identity acceptance when required Synology resources, protected secrets, users, MFA devices, recovery key and isolated restore target are available.
 
 ### Wave PI-B — Product completeness from authoritative sources
 
-Declare PI-05 only after provider, channel, privacy and destination ownership decisions.
+Declare PI-05 only after provider, channel, privacy and destination-ownership decisions.
 
 ### Wave PI-C — High-risk private execution enablement
 
-PI-07 repository acceptance is complete. Declare PI-08 next; keep submission private, risk-gated, audited, reconciled and dry-run-only. No live-capital path exists.
+PI-07 and PI-08 repository acceptance are complete. BM-07 and BM-09 consumed those contracts and are complete. Preserve the private, risk-gated, audited, reconciled and dry-run-only boundary; do not extend it implicitly.
 
 ### Wave PI-D — Real external staging
 
@@ -360,13 +370,13 @@ Do not broaden a package merely because adjacent code is convenient.
 
 ## 10. Priority decision
 
-The next dependency-ordered identity action is **PI-06 owner-managed Authentik/Synology target acceptance**. Repository backend, BFF/browser integration and deployment packaging are complete; real identity acceptance remains unproven and cannot start without intentional owner-managed resources.
+There is no remaining autonomous BM package after BM-09. The next dependency-ordered identity action is PI-06 owner-managed Authentik/Synology target acceptance, only when intentional target resources are available.
 
-PI-05 requires a channel/provider decision. PI-07 requires a secret-store/KMS decision before PI-08. P11 remains owner-started external infrastructure work.
+PI-05 requires a provider/channel and destination/privacy decision. P11 remains owner-started external infrastructure work. P14 remains blocked and separately owner-approved.
 
 ## 11. Completion definition
 
-The post-P12 backlog is complete only when:
+The post-P12 integration backlog is complete only when:
 
 - PI-01 through PI-08 are done or explicitly retired;
 - P11 real external acceptance is done;
@@ -375,3 +385,5 @@ The post-P12 backlog is complete only when:
 - private dry-run execution is risk-gated, secret-safe, attributable and reconciled;
 - P13 remains evidence-triggered;
 - P14 remains separately owner-approved and is never inferred from software completion.
+
+Repository-side PI-08 and BM-09 completion satisfies the private-software portion of this definition only. It does not satisfy real identity, Vault/Freqtrade target, Cloudflare P11 or live-capital acceptance.

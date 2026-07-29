@@ -6,8 +6,8 @@ from typing import Any, Literal, Self, cast
 from pydantic import Field, JsonValue, model_validator
 
 from strategy_engine.domain.models import CanonicalModel, StrategyDefinition
+from strategy_engine.dsl.validator import StrategyValidationError, StrategyValidator
 from strategy_engine.registry import FeatureRegistry, RegistryError, SearchSpaceRegistry
-from strategy_engine.validation import StrategyValidationError, StrategyValidator
 
 _FEATURE_SEARCH_SPACES = {
     "squeeze_ratio.v1": "squeeze",

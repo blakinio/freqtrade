@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260729-ase-03-paper-shadow-integration
-status: validating
-branch: agent/ase-03-paper-shadow-integration
+status: complete
+branch: develop
 base_branch: develop
 created: 2026-07-29
 updated: 2026-07-29
@@ -39,13 +39,14 @@ order submission or live-capital authority.
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T23:24:00+02:00
+updated_at: 2026-07-29T23:48:00+02:00
 checkpoint_carrier: self
-branch: agent/ase-03-paper-shadow-integration
-base_head: ff1fe4944149aad9bb8643be69052f935829ed94
-implementation_head: f3db100887a75ec46f210739dbd3553acc2127e3
+branch: develop
+base_head: e9b884a842ad972b48a7eace1f8449b6ddc9190b
+implementation_head: f5118e3e2d35537552c9552a9818bf2f179475a8
+merge_commit: 0bb0a863c6fef60a7a2b2d8ee50a9e9b9d4fc269
 pr: 748
-status: validating
+status: complete
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -60,32 +61,28 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260729-ase-03-paper-shadow-integration.md
   - ai_strategy_engine/TASKS.md
 proven:
-  - The merged ASE-00 shadow engine already uses the canonical Portal Risk Core and produces no-order evidence.
-  - The merged P3 FreqtradeExecutionAdapter accepts only DRY_RUN, forces private safe configuration and leaves submit_approved_intent fail-closed.
-  - ASE-03 compares simulator and shadow identity, data/config/code hashes, feature records, signal, risk outcome and no-order boundary before admission.
-  - Simulator, shadow and parity evidence are persisted immutably with canonical hashes; audit records are append-only and reject idempotency conflicts.
+  - ASE-03 compares simulator and shadow identity, input hashes, feature records, signal, risk outcome and no-order boundary before admission.
+  - Simulator, shadow and parity evidence are immutable and canonically hashed; audit records are append-only and reject idempotency conflicts.
   - Shadow admission never calls the execution adapter.
   - Paper admission is restricted to TEST or STAGING DRY_RUN bots and calls only provision, start and health operations.
   - Paper rollback stops the private dry-run runtime and verifies observed state; shadow rollback records an audited no-runtime operation.
-  - submit_approved_intent, PI-08 order transport, production, live mode, exchange credentials and browser-to-Freqtrade access remain absent.
-  - Implementation head c15bfae799bdfa246d76c277ba2aa2c26a03f832 passed AI Platform CI 30487876423 and AI Strategy Engine 30487876429, including tests, Ruff, mypy, compile, deterministic E2E, schema checks and architecture-boundary scan.
-  - Workflow-security run 30487876697 passed on the implementation head.
-  - Final checkpoint/backlog head 68e2f2c25329ea5843de39a733f8e87b48666493 was behind develop by zero commits and had zero unresolved review threads.
-  - AI Platform CI 30488203854, AI Strategy Engine 30488203895 and workflow-security 30488203814 passed on 68e2f2c25329ea5843de39a733f8e87b48666493.
-  - Freqtrade CI 30488204274 failed only because Python 3.11 could not parse the PEP 695 type-alias statement imported by the new ASE-03 integration test; 5787 tests passed before collection terminated.
-  - Head f3db100887a75ec46f210739dbd3553acc2127e3 replaces only that alias statement with Python 3.11-compatible equivalent syntax and does not change DSL evaluation semantics.
-  - The dependency backlog marks all four bounded ASE-03 acceptance bullets complete.
+  - submit_approved_intent, PI-08 order transport, production, live mode, exchange credentials, protected-holdout access and browser-to-Freqtrade access remain absent.
+  - The final Python 3.11 compatibility form uses typing.TypeAlias with a local UP040 suppression and does not change DSL evaluation semantics.
+  - Exact implementation head f5118e3e2d35537552c9552a9818bf2f179475a8 passed AI Strategy Engine 30492388062, AI Platform CI 30492388098, Freqtrade CI 30492388079 and workflow-security 30492388075.
+  - Freqtrade CI passed Python 3.11 through 3.14, pre-commit, coverage, distribution build and the final CI gate.
+  - PR 748 had zero unresolved review threads and was merged normally with expected-head protection as merge commit 0bb0a863c6fef60a7a2b2d8ee50a9e9b9d4fc269.
+  - The merge combined validated head f5118e3e2d35537552c9552a9818bf2f179475a8 with the current develop base e9b884a842ad972b48a7eace1f8449b6ddc9190b without force push or check bypass.
+  - The dependency-ordered backlog marks every ASE-00, ASE-01, ASE-FR-01, ASE-02 and ASE-03 acceptance item complete.
 derived:
-  - The package is a thin admission and rollback layer over existing simulator/shadow evidence, Risk Core and private dry-run lifecycle contracts rather than a second execution gateway.
+  - ASE-03 is a bounded paper/shadow admission and rollback layer over existing simulator, Risk Core and private dry-run lifecycle contracts, not a second execution gateway.
   - Successful paper admission proves only private DRY_RUN lifecycle readiness; it is not order submission, production deployment, strategy promotion or live-capital authority.
-  - The Python 3.11 repair is a narrow compatibility dependency required for full repository CI, not a scope expansion of ASE-03.
+  - No ASE-04 package is currently defined in the authoritative backlog; the next bounded package must therefore begin with preflight against the highest-priority unfinished P0 work rather than inventing scope.
 unknown:
-  - Exact-head workflow conclusions on f3db100887a75ec46f210739dbd3553acc2127e3.
-  - Whether current develop advances before final merge and requires another normal synchronization.
+  - Which P0.1 domain-contract checklist items are genuinely absent versus implemented but not reflected in ai_strategy_engine/TASKS.md; this requires a bounded repository preflight.
 conflicts: []
 first_failure:
   marker: ASE03_VALIDATION_REPAIRS
-  evidence: Initial validation required mechanical Ruff import/layout repairs; final Freqtrade CI then exposed a Python 3.11 SyntaxError at the imported PEP 695 SnapshotValue alias. The alias was converted to equivalent assignment syntax without changing DSL or admission behavior.
+  evidence: Initial validation required mechanical Ruff repairs; full Freqtrade CI then exposed Python 3.11-incompatible PEP 695 syntax, followed by mypy TypeAlias and Ruff UP040 compatibility constraints. The final declaration is Python 3.11 compatible, type-checks, passes Ruff and preserves evaluator behavior.
 rejected_hypotheses:
   - Implement a second execution gateway, simulator or Risk Core.
   - Call submit_approved_intent or add private order transport.
@@ -100,27 +97,24 @@ changed_paths:
   - docs/agents/tasks/FTAI-20260729-ase-03-paper-shadow-integration.md
   - ai_strategy_engine/TASKS.md
 validation:
-  - command: AI Platform CI 30487876423 on c15bfae799bdfa246d76c277ba2aa2c26a03f832
+  - command: AI Strategy Engine 30492388062 on f5118e3e2d35537552c9552a9818bf2f179475a8
     result: PASS
-    evidence: AI Platform tests, compile, Ruff, format, codespell and JSON validations succeeded.
-  - command: AI Strategy Engine 30487876429 on c15bfae799bdfa246d76c277ba2aa2c26a03f832
+    evidence: Package and Portal tests, Ruff, mypy, compile, deterministic E2E, schema checks and prohibited-boundary scan succeeded.
+  - command: AI Platform CI 30492388098 on f5118e3e2d35537552c9552a9818bf2f179475a8
     result: PASS
-    evidence: Package and Portal tests, Ruff, mypy, compile, deterministic E2E, schema/materialization checks and prohibited-boundary scan succeeded.
-  - command: GitHub Actions Security Analysis 30487876697 on c15bfae799bdfa246d76c277ba2aa2c26a03f832
+    evidence: AI Platform tests, compile, Ruff, formatting, codespell and JSON validations succeeded.
+  - command: Freqtrade CI 30492388079 on f5118e3e2d35537552c9552a9818bf2f179475a8
+    result: PASS
+    evidence: Python 3.11-3.14 matrix, pre-commit, coverage, documentation, distribution build and CI gate succeeded.
+  - command: GitHub Actions Security Analysis 30492388075 on f5118e3e2d35537552c9552a9818bf2f179475a8
     result: PASS
     evidence: Workflow-security analysis succeeded.
-  - command: AI Platform CI 30488203854, AI Strategy Engine 30488203895 and Security Analysis 30488203814 on 68e2f2c25329ea5843de39a733f8e87b48666493
+  - command: Normal merge of PR 748 with expected head f5118e3e2d35537552c9552a9818bf2f179475a8
     result: PASS
-    evidence: Final checkpoint/backlog head passed all dedicated platform, strategy-engine and workflow-security validation.
-  - command: Freqtrade CI 30488204274 on 68e2f2c25329ea5843de39a733f8e87b48666493
-    result: FAIL
-    evidence: Python 3.11 collection reached the imported DSL evaluator and failed on PEP 695 alias syntax; Python 3.12, 3.13 and 3.14 jobs passed, with 5787 Python 3.11 tests passing before the collection error.
-  - command: Python 3.11 compatibility repair f3db100887a75ec46f210739dbd3553acc2127e3
-    result: APPLIED
-    evidence: SnapshotValue now uses semantically equivalent assignment syntax supported by Python 3.11; exact-head GitHub workflows are authoritative for final validation.
+    evidence: GitHub recorded merge commit 0bb0a863c6fef60a7a2b2d8ee50a9e9b9d4fc269 without force push or check bypass.
 known_limitations:
   - Paper means private Freqtrade DRY_RUN lifecycle only; no signal/order submission transport is added.
   - Audit storage is local append-only filesystem evidence for this bounded package, not a production event-store migration.
 blockers: []
-next_action: Inspect all exact-head workflows on f3db100887a75ec46f210739dbd3553acc2127e3, fix only evidenced failures, synchronize normally if develop moves, confirm zero unresolved review threads, merge PR 748 with expected-head protection after required checks pass, then record the terminal merge checkpoint without enabling live capital.
+next_action: Create FTAI-20260729-ase-p0-domain-contracts-preflight from current develop and reconcile the P0.1 domain-contract backlog against existing canonical contracts before defining any implementation slice, without enabling execution or live-capital authority.
 ```

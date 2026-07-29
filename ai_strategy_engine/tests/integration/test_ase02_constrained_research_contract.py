@@ -46,9 +46,7 @@ def test_locked_dataset_to_constrained_candidate_lineage() -> None:
     )
     plan = OptimizationPlan.model_validate(
         yaml.safe_load(
-            (ENGINE_ROOT / "configs" / "optimization_plan.v1.yaml").read_text(
-                encoding="utf-8"
-            )
+            (ENGINE_ROOT / "configs" / "optimization_plan.v1.yaml").read_text(encoding="utf-8")
         )
     )
     registry = FeatureRegistry.load(ENGINE_ROOT / "configs" / "feature_registry.v1.yaml")
@@ -71,6 +69,9 @@ def test_locked_dataset_to_constrained_candidate_lineage() -> None:
         trial.metrics is None or trial.metrics.final_holdout_used is False
         for trial in result.trials
     )
-    assert json.loads(result.best_candidate.model_dump_json())["provenance"]["details"][
-        "final_holdout_used"
-    ] is False
+    assert (
+        json.loads(result.best_candidate.model_dump_json())["provenance"]["details"][
+            "final_holdout_used"
+        ]
+        is False
+    )

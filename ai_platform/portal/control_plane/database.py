@@ -34,6 +34,7 @@ def create_schema(engine: Engine) -> None:
     # to use the versioned migrations owned by each module.
     from ai_platform.portal.bot_operations import models as bot_operation_models  # noqa: F401
     from ai_platform.portal.control_plane import models as control_plane_models  # noqa: F401
+    from ai_platform.portal.execution_submission import models as execution_submission_models  # noqa: F401
     from ai_platform.portal.identity import models as identity_models  # noqa: F401
     from ai_platform.portal.intelligence import models as intelligence_models  # noqa: F401
     from ai_platform.portal.learning import models as learning_models  # noqa: F401

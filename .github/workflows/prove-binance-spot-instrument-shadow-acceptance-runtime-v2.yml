@@ -1,0 +1,196 @@
+name: Prove Binance Spot Instrument Shadow Acceptance Runtime V2
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/prove-binance-spot-instrument-shadow-acceptance-runtime-v2.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  prove:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 20
+    env:
+      MERGED_SHA: 224ee218b2e62b68c2888e27913a2c3d6c35dfc9
+      PROOF_V1_SHA: 4c380b8ca7b7aa64a42b378664fa34e6f329052a
+      PROOF_V1_BLOB_SHA: 57dce6593e2043ed9899e875e6fe6b37375fff76
+      PROOF_V1_PATH: .github/workflows/prove-binance-spot-instrument-shadow-acceptance-v1.yml
+      PROOF_PATH: .github/workflows/prove-binance-spot-instrument-shadow-acceptance-runtime-v2.yml
+      REQUEST_PATH: ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json
+      STATE_DIR: /var/lib/freqtrade-staging-state
+      DURABLE_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+      DURABLE_URI: file:///var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+      RUN_ID: binance-spot-instrument-shadow-acceptance-20260729-v2-r1
+
+    steps:
+      - name: Checkout exact proof head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-workflow proof scope and merged parent
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$(git rev-parse HEAD^)" == "$MERGED_SHA" ]]
+          expected=$'A\t.github/workflows/prove-binance-spot-instrument-shadow-acceptance-runtime-v2.yml'
+          actual="$(git diff --name-status "$MERGED_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          git checkout --detach "$MERGED_SHA"
+          [[ "$(git rev-parse HEAD)" == "$MERGED_SHA" ]]
+          [[ ! -e "$REQUEST_PATH" ]]
+
+      - name: Validate exact approved runner and durable root
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$DURABLE_ROOT"
+          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+          [[ ! -e "$DURABLE_ROOT/$RUN_ID" ]]
+
+      - name: Refuse any credential or proxy environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Install isolated uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.12"
+          enable-cache: false
+
+      - name: Install exact proof dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install --python "$VIRTUAL_ENV/bin/python" "jsonschema==4.26.0"
+          python - <<'PY'
+          from importlib.metadata import version
+
+          assert version("jsonschema") == "4.26.0"
+          print("BINANCE_ACCEPTANCE_V2_JSONSCHEMA_4_26_0_READY")
+          PY
+
+      - name: Prove v2 static preflight without network
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+          RUNNER_TEMP_VALUE: ${{ runner.temp }}
+          GITHUB_WORKSPACE_VALUE: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$REQUEST_PATH")"
+          trap 'rm -f "$REQUEST_PATH"' EXIT
+          python - <<'PY'
+          import json
+          import runpy
+          from pathlib import Path
+
+          namespace = runpy.run_path(
+              "tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py"
+          )
+          Path("ai_platform/market_data/run-requests/binance-spot-instrument-shadow-acceptance-20260729-v2.json").write_text(
+              json.dumps(namespace["EXPECTED_REQUEST"], indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          umask 027
+          python tools/market_data/binance_spot_instrument_acceptance_v2_preflight.py
+          [[ ! -e "$DURABLE_ROOT/$RUN_ID" ]]
+          rm -f "$REQUEST_PATH"
+          rmdir "$(dirname "$REQUEST_PATH")" 2>/dev/null || true
+          git diff --exit-code
+
+      - name: Materialize exact full 97-slot proof script
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=2 origin ci/prove-binance-spot-instrument-shadow-acceptance-v1
+          [[ "$(git rev-parse FETCH_HEAD)" == "$PROOF_V1_SHA" ]]
+          [[ "$(git rev-parse "$PROOF_V1_SHA:$PROOF_V1_PATH")" == "$PROOF_V1_BLOB_SHA" ]]
+          git show "$PROOF_V1_SHA:$PROOF_V1_PATH" > "$RUNNER_TEMP/binance-proof-v1.yml"
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          source = (Path(os.environ["RUNNER_TEMP"]) / "binance-proof-v1.yml").read_text(
+              encoding="utf-8"
+          )
+          start_marker = "          PYTHONPATH=. python3 - <<'PY'\n"
+          end_marker = "\n          PY\n"
+          start = source.index(start_marker) + len(start_marker)
+          end = source.index(end_marker, start)
+          lines = source[start:end].splitlines()
+          if not lines or any(line and not line.startswith("          ") for line in lines):
+              raise SystemExit("BINANCE_PROOF_V1_SCRIPT_INDENTATION_MISMATCH")
+          script = "\n".join(line[10:] if line else "" for line in lines) + "\n"
+          old_commit = 'COMMIT = "aeb858ebe5266742c257aa7b45b5cffd11c4b5ba"'
+          new_commit = f'COMMIT = "{os.environ["MERGED_SHA"]}"'
+          if script.count(old_commit) != 1:
+              raise SystemExit("BINANCE_PROOF_V1_COMMIT_MARKER_MISMATCH")
+          script = script.replace(old_commit, new_commit)
+          target = Path(os.environ["RUNNER_TEMP"]) / "binance-proof-runtime-v2.py"
+          target.write_text(script, encoding="utf-8")
+          print(target)
+          PY
+
+      - name: Execute full accepted and rejected packages without network
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python "$RUNNER_TEMP/binance-proof-runtime-v2.py"
+
+      - name: Confirm proof left no durable package
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ ! -e "$DURABLE_ROOT/$RUN_ID" ]]
+          find "$DURABLE_ROOT" -maxdepth 1 -type d -name '.acceptance-v2-preflight-*' \
+            -print -quit | grep -q . && exit 1 || true
+          rm -f "$REQUEST_PATH"
+          rm -f "$RUNNER_TEMP/binance-proof-v1.yml"
+          rm -f "$RUNNER_TEMP/binance-proof-runtime-v2.py"
+          rm -rf .venv
+          echo "BINANCE_SPOT_INSTRUMENT_SHADOW_ACCEPTANCE_V2_NO_NETWORK_PROOF_PASS"

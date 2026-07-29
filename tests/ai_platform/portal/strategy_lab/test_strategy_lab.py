@@ -202,9 +202,7 @@ def test_simulator_is_deterministic_and_has_no_lookahead() -> None:
     assert first.order_submission_performed is False
 
     prefix = candles[:25]
-    prefix_result = simulator.run(
-        **{**kwargs, "request": _request(prefix), "candles": prefix}
-    )
+    prefix_result = simulator.run(**{**kwargs, "request": _request(prefix), "candles": prefix})
     prefix_non_forced = tuple(
         signal.signal_id
         for signal in prefix_result.signal_explanations
@@ -255,9 +253,7 @@ def test_missing_data_and_live_execution_attempt_are_rejected() -> None:
             finished_at=datetime(2026, 1, 2, tzinfo=UTC),
         )
     with pytest.raises(ValidationError):
-        ExperimentCreateRequest.model_validate(
-            {**request.model_dump(), "execution_mode": "live"}
-        )
+        ExperimentCreateRequest.model_validate({**request.model_dump(), "execution_mode": "live"})
 
 
 def test_service_persists_idempotently_and_isolates_tenants() -> None:
@@ -277,13 +273,10 @@ def test_service_persists_idempotently_and_isolates_tenants() -> None:
             request.model_copy(update={"starting_balance": Decimal(9000)}),
             idempotency_key="request-1",
         )
-    tenant_b = service.create_experiment(
-        _context("tenant-b"), request, idempotency_key="request-1"
-    )
+    tenant_b = service.create_experiment(_context("tenant-b"), request, idempotency_key="request-1")
     assert tenant_b.experiment_id != first.experiment_id
     assert (
-        service.get_experiment(_context("tenant-b"), tenant_b.experiment_id).tenant_id
-        == "tenant-b"
+        service.get_experiment(_context("tenant-b"), tenant_b.experiment_id).tenant_id == "tenant-b"
     )
     with pytest.raises(StrategyLabNotFoundError):
         service.get_experiment(_context("tenant-b"), first.experiment_id)
@@ -379,9 +372,7 @@ def test_control_plane_app_exposes_strategy_lab_router() -> None:
     candles = _candles()
     service, factory = _service(candles)
     context = _context()
-    client = TestClient(
-        create_app(factory, lambda: context, strategy_lab_service=service)
-    )
+    client = TestClient(create_app(factory, lambda: context, strategy_lab_service=service))
 
     response = client.get("/v1/strategy-lab/strategies")
 

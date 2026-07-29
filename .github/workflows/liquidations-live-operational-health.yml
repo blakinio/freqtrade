@@ -7,6 +7,7 @@ name: Liquidations Live Health
     paths:
       - .github/workflows/liquidations-live-operational-health.yml
       - ai_platform/scripts/liquidation_live_health.py
+      - ai_platform/scripts/liquidation_operational_health.py
       - ai_platform/scripts/liquidation_portal_health.py
       - deploy/synology/liquid20/LIVE_STREAM.md
       - deploy/synology/portal/prove-liquidations-live.sh
@@ -95,7 +96,7 @@ jobs:
           PORTAL_LIVE_PROOF_DELAY_SECONDS: "5"
         run: |
           set +e
-          python -m ai_platform.scripts.liquidation_portal_health
+          python -m ai_platform.scripts.liquidation_operational_health
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"

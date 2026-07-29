@@ -165,9 +165,9 @@ def test_github_alert_is_deduplicated_and_closed_after_recovery() -> None:
 def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     repository_root = Path(__file__).resolve().parents[2]
     workflows_root = repository_root / ".github" / "workflows"
-    workflow = (
-        workflows_root / "liquidations-live-operational-health.yml"
-    ).read_text(encoding="utf-8")
+    workflow = (workflows_root / "liquidations-live-operational-health.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert not (workflows_root / "liquidations-live-health.yml").exists()
     assert 'cron: "*/5 * * * *"' in workflow

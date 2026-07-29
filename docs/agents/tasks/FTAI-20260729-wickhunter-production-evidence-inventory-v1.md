@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260729-wickhunter-production-evidence-inventory-v1
 status: blocked
-branch: docs/wickhunter-production-evidence-inventory-20260729
+branch: develop
 base_branch: develop
 created: 2026-07-29
 updated: 2026-07-29
@@ -31,9 +31,9 @@ Inventory immutable production evidence that could supply WH-01 market context a
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-29T21:01:00+02:00
-head: 566a178c8d84be5aa9b0eb168af0d66582ec4870
-branch: docs/wickhunter-production-evidence-inventory-20260729
+updated_at: 2026-07-29T21:05:00+02:00
+head: d2619523c349afa040092d7c8a403476f5c120ff
+branch: develop
 pr: 737
 status: blocked
 context_routes:
@@ -48,14 +48,13 @@ owned_paths:
   - docs/ai_platform/WICKHUNTER_PRODUCTION_EVIDENCE_INVENTORY.md
   - docs/agents/tasks/FTAI-20260729-wickhunter-production-evidence-inventory-v1.md
 proven:
-  - Current develop was 6f3f46e6f75d1c9ef252ba0e2d04782023529eeb when this replacement branch was created after develop advanced during the session.
+  - PR 737 was squash-merged as d2619523c349afa040092d7c8a403476f5c120ff after exact-head AI Platform CI, Freqtrade CI and zizmor passed.
   - The accepted import at wickhunter-production-live-archive-20260729-v4 contains 29253 accepted records and covers [1785283200052, 1785328080435).
   - Liquid20 production live archives contain liquidation events and source state but no immutable WH-01 completed-candle market-context or historical universe-quality package.
   - The published source-separated 5m candle diagnostic covers 2026-07-24 through 2026-07-26 only, is diagnostic-only and has no proven durable Synology raw archive.
   - Binance Spot instrument acceptance v2 was cancelled after five observations without a terminal outcome; its market type is incompatible with Binance USD-M and Bybit Linear accepted events.
-  - No reviewed path was found that supplies exact as-of derivative instrument identity, spread, volume, completed-candle availability, history depth, source health and risk evidence for every intended decision timestamp.
+  - No reviewed path supplies exact as-of derivative instrument identity, spread, volume, completed-candle availability, history depth, source health and risk evidence for every intended decision timestamp.
   - The merged materialization request requires exact market-context and universe-history hashes plus prospectively frozen split geometry.
-  - PR 737 contains exactly the inventory document and this checkpoint.
 derived:
   - A current catalog or live subscription universe cannot be backdated to the accepted interval.
   - The accepted interval cannot provide its own complete quote_volume_24h_usd context and requires pre-roll evidence.
@@ -82,18 +81,18 @@ validation:
   - command: Authority and temporal compatibility review
     result: PASS
     evidence: No current-state backfill, synthetic fixture, cross-market substitution, replay, model or trading authority was introduced.
-  - command: PR 737 changed-path audit
+  - command: AI Platform CI 30482606546
     result: PASS
-    evidence: The branch is based on current develop and changes exactly two declared documentation paths.
-  - command: AI Platform CI 30482401801
+    evidence: Exact PR head ad3deb4a45b5b8d21891e238f78fb752a483a5ea passed the AI platform test and lint workflow.
+  - command: Freqtrade CI 30482606564
     result: PASS
-    evidence: Exact PR head 566a178c8d84be5aa9b0eb168af0d66582ec4870 passed the AI platform test and lint workflow.
-  - command: Freqtrade CI 30482401867
+    evidence: Exact PR head ad3deb4a45b5b8d21891e238f78fb752a483a5ea passed pre-commit, documentation and changed-scope validation.
+  - command: GitHub Actions security analysis 30482606410
     result: PASS
-    evidence: Exact PR head 566a178c8d84be5aa9b0eb168af0d66582ec4870 passed pre-commit, changed-scope classification and documentation validation.
-  - command: GitHub Actions security analysis 30482401814
+    evidence: Zizmor passed on exact PR head ad3deb4a45b5b8d21891e238f78fb752a483a5ea.
+  - command: PR 737 merge
     result: PASS
-    evidence: Zizmor passed on exact PR head 566a178c8d84be5aa9b0eb168af0d66582ec4870.
+    evidence: Squash-merged the exact accepted inventory package as d2619523c349afa040092d7c8a403476f5c120ff.
 blockers:
   - Missing immutable source-separated Binance USD-M and Bybit Linear candle and market-quality evidence covering the decision interval and required pre-roll.
   - Missing immutable as-of derivative instrument and universe-quality history.

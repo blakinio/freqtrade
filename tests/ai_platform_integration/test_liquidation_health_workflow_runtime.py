@@ -16,10 +16,7 @@ def test_health_runner_provisions_python_before_monitoring() -> None:
     health_position = workflow.index("- name: Check combined health and reconcile alert")
 
     assert setup_position < health_position
-    assert (
-        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0"
-        in workflow
-    )
+    assert "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0" in workflow
     assert 'python-version: "3.13"' in workflow
 
 

@@ -15,7 +15,10 @@ from ai_platform.portal.bot_operations.activation_errors import (
 from ai_platform.portal.bot_operations.activation_transport import (
     HttpxPrivateRuntimeCommandTransport,
 )
-from ai_platform.portal.credentials.material import CredentialMaterial, ResolvedCredentialLease
+from ai_platform.portal.credentials.material import (
+    CredentialMaterial,
+    ResolvedCredentialLease,
+)
 from ai_platform.portal.credentials.schema import (
     CredentialLeaseEvidence,
     CredentialPurpose,
@@ -103,7 +106,10 @@ def test_retryable_or_malformed_runtime_response_is_ambiguous(tmp_path: Path) ->
             lambda request: httpx.Response(503, content=b"temporary")
         )
     )
-    with _lease() as lease, pytest.raises(CommandActivationAmbiguousError) as error:
+    with (
+        _lease() as lease,
+        pytest.raises(CommandActivationAmbiguousError) as error,
+    ):
         server_error.force_exit(_target(tmp_path), lease, trade_id="77")
     assert error.value.response_digest is not None
 
@@ -126,7 +132,10 @@ def test_explicit_runtime_rejection_and_auth_failure_are_distinct(tmp_path: Path
     denied = HttpxPrivateRuntimeCommandTransport(
         http_transport=httpx.MockTransport(lambda request: httpx.Response(403, json={}))
     )
-    with _lease() as lease, pytest.raises(CommandActivationTransportError) as error:
+    with (
+        _lease() as lease,
+        pytest.raises(CommandActivationTransportError) as error,
+    ):
         denied.cancel_open_order(_target(tmp_path), lease, trade_id="77")
     assert error.value.reason_code == "RUNTIME_AUTHENTICATION_FAILED"
 

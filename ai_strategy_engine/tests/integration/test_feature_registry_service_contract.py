@@ -16,9 +16,7 @@ def _fixture() -> dict[str, Any]:
     return cast(
         dict[str, Any],
         json.loads(
-            (ROOT / "fixtures" / "feature_registry_parity.v1.json").read_text(
-                encoding="utf-8"
-            )
+            (ROOT / "fixtures" / "feature_registry_parity.v1.json").read_text(encoding="utf-8")
         ),
     )
 
@@ -28,9 +26,7 @@ def test_feature_registry_manifest_validates_against_published_schema() -> None:
         (ROOT / "configs" / "feature_registry.v1.yaml").read_text(encoding="utf-8")
     )
     schema = json.loads(
-        (ROOT / "schemas" / "feature-registry.v1.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "feature-registry.v1.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.Draft202012Validator.check_schema(schema)
     jsonschema.validate(manifest, schema)

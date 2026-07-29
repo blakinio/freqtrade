@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any, Literal, Protocol, Self
 
 from pydantic import Field, field_validator, model_validator
-from strategy_engine.domain.models import CanonicalModel, ShadowDecisionEvidence, canonical_sha256
+from strategy_engine.domain.models import CanonicalModel, ShadowDecisionEvidence
 
 from ai_platform.portal.contracts.bots import BotInstance, BotObservedState
 from ai_platform.portal.contracts.common import CorrelationContext
@@ -16,6 +16,8 @@ from ai_platform.portal.contracts.execution import ExecutionAdapter, RuntimeHeal
 from ai_platform.portal.execution.errors import ExecutionAdapterError
 from ai_platform.portal.risk.schema import RiskEvaluationSnapshot, RiskPolicyLimits
 from ai_platform.research.strategy_engine.ase00_adapter import AcceptedSyntheticEvent
+
+Clock = Callable[[], datetime]
 
 
 class Ase03Mode(StrEnum):
@@ -97,7 +99,10 @@ class Ase03AuditRecord(CanonicalModel):
     runtime_id: str | None = None
     runtime_observed_state: str | None = None
     runtime_health: str | None = None
-    source_admission_hash: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    source_admission_hash: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     evidence_refs: dict[str, str]
     reason_codes: tuple[str, ...]
     execution_submission_performed: Literal[False] = False
@@ -132,7 +137,7 @@ class Ase03AuditRecord(CanonicalModel):
 
 
 class Ase03AuditStore:
-    """Append-only evidence and admission/rollback records for one bounded ASE-03 package."""
+    """Append-only evidence and admission/rollback records."""
 
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -140,31 +145,24 @@ class Ase03AuditStore:
         self.audit_path = root / "audit.jsonl"
 
     def find(self, idempotency_key: str) -> Ase03AuditRecord | None:
-        if not self.audit_path.exists():
-            return None
-        for line in self.audit_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            record = Ase03AuditRecord.model_validate_json(line)
+        for record in self.records():
             if record.idempotency_key == idempotency_key:
                 return record
         return None
 
     def persist_evidence(self, channel: str, evidence: ShadowDecisionEvidence) -> str:
         if channel not in {"simulator", "shadow"}:
-            raise Ase03IntegrationError("EVIDENCE_CHANNEL_INVALID", f"unsupported channel: {channel}")
-        self.evidence_root.mkdir(parents=True, exist_ok=True)
+            raise Ase03IntegrationError(
+                "EVIDENCE_CHANNEL_INVALID",
+                f"unsupported channel: {channel}",
+            )
         relative = Path("evidence") / f"{channel}-{evidence.evidence_hash}.json"
-        path = self.root / relative
-        encoded = evidence.canonical_json() + "\n"
-        if path.exists():
-            if path.read_text(encoding="utf-8") != encoded:
-                raise Ase03IntegrationError(
-                    "EVIDENCE_CONFLICT",
-                    f"evidence hash maps to conflicting payload: {evidence.evidence_hash}",
-                )
-            return relative.as_posix()
-        path.write_text(encoded, encoding="utf-8")
+        self._persist(relative, evidence.canonical_json() + "\n", "EVIDENCE_CONFLICT")
+        return relative.as_posix()
+
+    def persist_parity(self, report: SimulatorParityReport) -> str:
+        relative = Path("evidence") / f"parity-{report.report_hash}.json"
+        self._persist(relative, report.canonical_json() + "\n", "PARITY_EVIDENCE_CONFLICT")
         return relative.as_posix()
 
     def append(self, record: Ase03AuditRecord) -> Ase03AuditRecord:
@@ -190,47 +188,57 @@ class Ase03AuditStore:
             if line.strip()
         )
 
+    def _persist(self, relative: Path, encoded: str, reason_code: str) -> None:
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.exists():
+            if path.read_text(encoding="utf-8") != encoded:
+                raise Ase03IntegrationError(
+                    reason_code,
+                    f"immutable evidence path contains conflicting payload: {relative}",
+                )
+            return
+        path.write_text(encoded, encoding="utf-8")
+
 
 def compare_simulator_shadow(
     simulator: ShadowDecisionEvidence,
     shadow: ShadowDecisionEvidence,
 ) -> SimulatorParityReport:
     mismatch_codes: list[str] = []
-    identity_left = (
+    simulator_identity = (
         simulator.decision_time,
         simulator.symbol,
         simulator.timeframe,
         simulator.strategy_id,
         simulator.strategy_version,
     )
-    identity_right = (
+    shadow_identity = (
         shadow.decision_time,
         shadow.symbol,
         shadow.timeframe,
         shadow.strategy_id,
         shadow.strategy_version,
     )
-    if identity_left != identity_right:
+    if simulator_identity != shadow_identity:
         mismatch_codes.append("PARITY_IDENTITY_MISMATCH")
-    if (
-        simulator.data_hash,
-        simulator.config_hash,
-        simulator.code_hash,
-    ) != (shadow.data_hash, shadow.config_hash, shadow.code_hash):
+    if (simulator.data_hash, simulator.config_hash, simulator.code_hash) != (
+        shadow.data_hash,
+        shadow.config_hash,
+        shadow.code_hash,
+    ):
         mismatch_codes.append("PARITY_INPUT_HASH_MISMATCH")
     if tuple(record.canonical_sha256() for record in simulator.feature_records) != tuple(
         record.canonical_sha256() for record in shadow.feature_records
     ):
         mismatch_codes.append("PARITY_FEATURE_MISMATCH")
-    simulator_signal_hash = (
-        None if simulator.signal is None else simulator.signal.canonical_sha256()
-    )
-    shadow_signal_hash = None if shadow.signal is None else shadow.signal.canonical_sha256()
-    if simulator_signal_hash != shadow_signal_hash:
+    simulator_signal = None if simulator.signal is None else simulator.signal.canonical_sha256()
+    shadow_signal = None if shadow.signal is None else shadow.signal.canonical_sha256()
+    if simulator_signal != shadow_signal:
         mismatch_codes.append("PARITY_SIGNAL_MISMATCH")
     if simulator.risk_outcome != shadow.risk_outcome:
         mismatch_codes.append("PARITY_RISK_MISMATCH")
-    if simulator.no_order_submitted is not True or shadow.no_order_submitted is not True:
+    if not simulator.no_order_submitted or not shadow.no_order_submitted:
         mismatch_codes.append("PARITY_ORDER_BOUNDARY_BROKEN")
     return SimulatorParityReport.create(
         simulator_evidence_hash=simulator.evidence_hash,
@@ -248,7 +256,7 @@ class Ase03PaperShadowController:
         shadow_engine: ShadowRunEngine,
         execution_adapter: ExecutionAdapter,
         audit_store: Ase03AuditStore,
-        clock: callable | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self.simulator_engine = simulator_engine
         self.shadow_engine = shadow_engine
@@ -278,30 +286,40 @@ class Ase03PaperShadowController:
             if existing.record_type != "admission":
                 raise Ase03IntegrationError(
                     "AUDIT_IDEMPOTENCY_CONFLICT",
-                    "admission idempotency key was already used by another record type",
+                    "admission key is already used by another record type",
                 )
             return existing
 
-        run_arguments = {
-            "events": events,
-            "strategy_document": strategy_document,
-            "decision_time": decision_time,
-            "risk_limits": risk_limits,
-            "risk_snapshot": risk_snapshot,
-            "generated_by_ai": generated_by_ai,
-            "final_holdout_reused": final_holdout_reused,
-        }
-        simulator = self.simulator_engine.run(**run_arguments)
-        shadow = self.shadow_engine.run(**run_arguments)
+        simulator = self._run_engine(
+            self.simulator_engine,
+            events=events,
+            strategy_document=strategy_document,
+            decision_time=decision_time,
+            risk_limits=risk_limits,
+            risk_snapshot=risk_snapshot,
+            generated_by_ai=generated_by_ai,
+            final_holdout_reused=final_holdout_reused,
+        )
+        shadow = self._run_engine(
+            self.shadow_engine,
+            events=events,
+            strategy_document=strategy_document,
+            decision_time=decision_time,
+            risk_limits=risk_limits,
+            risk_snapshot=risk_snapshot,
+            generated_by_ai=generated_by_ai,
+            final_holdout_reused=final_holdout_reused,
+        )
         parity = compare_simulator_shadow(simulator, shadow)
         evidence_refs = {
             "simulator": self.audit_store.persist_evidence("simulator", simulator),
             "shadow": self.audit_store.persist_evidence("shadow", shadow),
+            "parity": self.audit_store.persist_parity(parity),
         }
         reason_codes = list(parity.mismatch_codes)
         status = Ase03Status.REJECTED
         runtime_id: str | None = None
-        runtime_observed_state: str | None = None
+        runtime_state: str | None = None
         runtime_health: str | None = None
 
         if not parity.passed:
@@ -315,7 +333,7 @@ class Ase03PaperShadowController:
             (
                 status,
                 runtime_id,
-                runtime_observed_state,
+                runtime_state,
                 runtime_health,
                 paper_reasons,
             ) = self._admit_paper(
@@ -341,7 +359,7 @@ class Ase03PaperShadowController:
             parity_report_hash=parity.report_hash,
             risk_outcome=shadow.risk_outcome,
             runtime_id=runtime_id,
-            runtime_observed_state=runtime_observed_state,
+            runtime_observed_state=runtime_state,
             runtime_health=runtime_health,
             source_admission_hash=None,
             evidence_refs=evidence_refs,
@@ -361,17 +379,17 @@ class Ase03PaperShadowController:
             if existing.record_type != "rollback":
                 raise Ase03IntegrationError(
                     "AUDIT_IDEMPOTENCY_CONFLICT",
-                    "rollback idempotency key was already used by another record type",
+                    "rollback key is already used by another record type",
                 )
             return existing
         if admission.record_type != "admission" or admission.status is not Ase03Status.ADMITTED:
             raise Ase03IntegrationError(
                 "ROLLBACK_SOURCE_INVALID",
-                "rollback requires an admitted ASE-03 admission record",
+                "rollback requires an admitted ASE-03 record",
             )
 
         status = Ase03Status.ROLLED_BACK
-        runtime_observed_state = admission.runtime_observed_state
+        runtime_state = admission.runtime_observed_state
         runtime_health = admission.runtime_health
         reason_codes: list[str] = []
         if admission.mode is Ase03Mode.SHADOW:
@@ -383,12 +401,12 @@ class Ase03PaperShadowController:
                     admission.bot_id,
                     context,
                 )
-                runtime_observed_state = stopped.observed_state.value
-                if stopped.observed_state is not BotObservedState.STOPPED:
+                runtime_state = stopped.observed_state.value
+                if stopped.observed_state is BotObservedState.STOPPED:
+                    reason_codes.append("PAPER_RUNTIME_STOPPED")
+                else:
                     status = Ase03Status.ROLLBACK_FAILED
                     reason_codes.append("PAPER_RUNTIME_STOP_NOT_CONFIRMED")
-                else:
-                    reason_codes.append("PAPER_RUNTIME_STOPPED")
                 health = self.execution_adapter.get_health(
                     admission.tenant_id,
                     admission.bot_id,
@@ -414,13 +432,35 @@ class Ase03PaperShadowController:
             parity_report_hash=admission.parity_report_hash,
             risk_outcome=admission.risk_outcome,
             runtime_id=admission.runtime_id,
-            runtime_observed_state=runtime_observed_state,
+            runtime_observed_state=runtime_state,
             runtime_health=runtime_health,
             source_admission_hash=admission.record_hash,
             evidence_refs=admission.evidence_refs,
             reason_codes=tuple(reason_codes),
         )
         return self.audit_store.append(record)
+
+    @staticmethod
+    def _run_engine(
+        engine: ShadowRunEngine,
+        *,
+        events: Sequence[AcceptedSyntheticEvent],
+        strategy_document: Mapping[str, object],
+        decision_time: datetime,
+        risk_limits: RiskPolicyLimits,
+        risk_snapshot: RiskEvaluationSnapshot,
+        generated_by_ai: bool,
+        final_holdout_reused: bool,
+    ) -> ShadowDecisionEvidence:
+        return engine.run(
+            events=events,
+            strategy_document=strategy_document,
+            decision_time=decision_time,
+            risk_limits=risk_limits,
+            risk_snapshot=risk_snapshot,
+            generated_by_ai=generated_by_ai,
+            final_holdout_reused=final_holdout_reused,
+        )
 
     def _admit_paper(
         self,
@@ -440,51 +480,59 @@ class Ase03PaperShadowController:
             return Ase03Status.REJECTED, None, None, None, ("PAPER_ENVIRONMENT_FORBIDDEN",)
 
         runtime_id: str | None = None
-        observed_state: str | None = None
-        health_state: str | None = None
+        runtime_state: str | None = None
+        runtime_health: str | None = None
         try:
             provisioned = self.execution_adapter.provision_bot(bot, context)
             runtime_id = provisioned.runtime_id
-            observed_state = provisioned.observed_state.value
+            runtime_state = provisioned.observed_state.value
             if provisioned.observed_state is BotObservedState.ERROR:
                 return (
                     Ase03Status.REJECTED,
                     runtime_id,
-                    observed_state,
-                    health_state,
+                    runtime_state,
+                    runtime_health,
                     ("PAPER_PROVISION_FAILED",),
                 )
             started = self.execution_adapter.start_bot(bot, context)
-            observed_state = started.observed_state.value
+            runtime_state = started.observed_state.value
             health = self.execution_adapter.get_health(tenant_id, bot_id, context)
-            health_state = health.health.value
+            runtime_health = health.health.value
             if (
                 started.observed_state is not BotObservedState.RUNNING
                 or health.health is not RuntimeHealthState.HEALTHY
             ):
-                try:
-                    self.execution_adapter.stop_bot(tenant_id, bot_id, context)
-                except ExecutionAdapterError:
-                    pass
+                self._stop_best_effort(tenant_id, bot_id, context)
                 return (
                     Ase03Status.REJECTED,
                     runtime_id,
-                    observed_state,
-                    health_state,
+                    runtime_state,
+                    runtime_health,
                     ("PAPER_RUNTIME_UNHEALTHY",),
                 )
         except ExecutionAdapterError as exc:
             return (
                 Ase03Status.REJECTED,
                 runtime_id,
-                observed_state,
-                health_state,
+                runtime_state,
+                runtime_health,
                 (exc.reason_code,),
             )
         return (
             Ase03Status.ADMITTED,
             runtime_id,
-            observed_state,
-            health_state,
+            runtime_state,
+            runtime_health,
             ("PAPER_DRY_RUN_ADMITTED", "ORDER_SUBMISSION_NOT_INVOKED"),
         )
+
+    def _stop_best_effort(
+        self,
+        tenant_id: str,
+        bot_id: str,
+        context: CorrelationContext,
+    ) -> None:
+        try:
+            self.execution_adapter.stop_bot(tenant_id, bot_id, context)
+        except ExecutionAdapterError:
+            return

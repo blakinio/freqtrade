@@ -6,6 +6,7 @@ from typing import Any, cast
 
 import jsonschema
 import yaml
+
 from strategy_engine.registry import FeatureRegistry
 
 

@@ -523,9 +523,7 @@ def accept_closed_live_run(  # noqa: C901
                             "summary_path": source.spec.summary_filename,
                             "summary_sha256": source.summary_sha256,
                             "summary_run_state": source.summary_run_state,
-                            "legacy_restart_state_accepted": (
-                                source.legacy_restart_state_accepted
-                            ),
+                            "legacy_restart_state_accepted": (source.legacy_restart_state_accepted),
                             "events_written": len(source.parsed_events),
                         }
                         for source in sources

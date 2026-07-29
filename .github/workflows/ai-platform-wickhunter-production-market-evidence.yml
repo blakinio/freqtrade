@@ -1,0 +1,238 @@
+name: AI Platform WickHunter Production Market Evidence
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json"
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-production-market-evidence-v1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json
+  STATE_DIR: /var/lib/freqtrade-staging-state
+  DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
+
+jobs:
+  initialize:
+    name: Initialize WickHunter market evidence capture
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "WickHunter market evidence trigger must add exactly the canonical request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate approved runner and durable storage
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$DURABLE_ROOT"
+          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Validate frozen request and initialize durable capture
+        id: initialize
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence \
+            init \
+            --request "$REQUEST_PATH" \
+            --durable-root "$DURABLE_ROOT" \
+            --collector-commit "$HEAD_SHA"
+
+  sample:
+    name: Collect one due WickHunter market evidence sample
+    if: github.event_name == 'schedule'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact scheduled develop commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+
+      - name: Validate approved runner and durable storage
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$DURABLE_ROOT"
+          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Check whether capture work is due
+        id: due
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import time
+          from pathlib import Path
+
+          durable_root = Path(os.environ["DURABLE_ROOT"])
+          pointer_path = durable_root / "active-wickhunter-production-market-evidence-v1.json"
+          should_run = True
+          status = "invalid"
+          due_ms = 0
+          if not pointer_path.exists():
+              should_run = False
+              status = "idle"
+          else:
+              try:
+                  pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+                  run_root = Path(str(pointer["run_root"]))
+                  if run_root.parent != durable_root:
+                      raise ValueError("active run root is outside durable root")
+                  request = json.loads((run_root / "run-request.json").read_text(encoding="utf-8"))
+                  state = json.loads((run_root / "incremental-state.json").read_text(encoding="utf-8"))
+                  state_status = state.get("status")
+                  if state_status == "ready_to_finalize":
+                      status = "ready_to_finalize"
+                  elif state_status == "active":
+                      index = int(state["next_sample_index"])
+                      interval_ms = int(request["sample_interval_seconds"]) * 1000
+                      due_ms = int(request["decision_start_ms"]) + index * interval_ms
+                      should_run = int(time.time_ns() // 1_000_000) >= due_ms
+                      status = "due" if should_run else "not_due"
+                  else:
+                      raise ValueError("incremental state status is invalid")
+              except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                  print(f"Due check will fail closed through the sampler: {exc}")
+                  should_run = True
+                  status = "invalid"
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"should_run={'true' if should_run else 'false'}\n")
+              output.write(f"status={status}\n")
+              output.write(f"due_ms={due_ms}\n")
+          print(f"WickHunter production market evidence due status: {status}")
+          PY
+
+      - name: Collect at most one due sample or finalize
+        if: steps.due.outputs.should_run == 'true'
+        id: sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence \
+            sample \
+            --durable-root "$DURABLE_ROOT"
+
+      - name: Upload bounded terminal metadata evidence
+        if: ${{ always() && steps.sample.outputs.status == 'finalized' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-production-market-evidence-${{ steps.sample.outputs.run_id }}
+          path: |
+            ${{ steps.sample.outputs.run_root }}/run-request.json
+            ${{ steps.sample.outputs.run_root }}/incremental-state.json
+            ${{ steps.sample.outputs.run_root }}/market-samples/*/sample-report.json
+            ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-manifest.json
+            ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-report.json
+            ${{ steps.sample.outputs.run_root }}/artifact-sha256.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Enforce terminal capture outcome
+        if: ${{ always() && steps.sample.outputs.status == 'finalized' }}
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.sample.outputs.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$OUTCOME" != "accepted" ]]; then
+            echo "WickHunter production market evidence was not accepted" >&2
+            exit 1
+          fi
+          echo "WickHunter production market evidence accepted; all downstream authority remains false"

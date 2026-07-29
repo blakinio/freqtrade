@@ -4,7 +4,7 @@ status: validating
 branch: agent/ase-00-ai-strategy-engine-foundation
 base_branch: develop
 created: 2026-07-28
-updated: 2026-07-28
+updated: 2026-07-29
 required_reads:
   - ai_strategy_engine/docs/IMPLEMENTATION_CHECKPOINT.md
 search_first:
@@ -34,8 +34,8 @@ Deliver the research-only AI Strategy Engine foundation and one deterministic sy
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-28T23:17:00+02:00
-head: 5f80351b862638e6e0e9f6f064054db902068dc8
+updated_at: 2026-07-29T08:46:00+02:00
+head: a3640503cd8c46ee5093488fc933237a6a4afe19
 branch: agent/ase-00-ai-strategy-engine-foundation
 pr: 584
 status: validating
@@ -54,58 +54,67 @@ owned_paths:
   - pyproject.toml
   - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
 proven:
-  - PR 584 is open, draft, unmerged and mergeable at the post-refresh check.
-  - Develop 436b5350e54a33cbf070738a2328b142ffcd5174 was merged normally without force-push into branch commit 5f80351b862638e6e0e9f6f064054db902068dc8.
-  - The latest develop movement contains Portal Vault credential-broker and Synology deployment paths outside ASE, its adapter and integration tests.
-  - The one-shot merge workflow removed itself and is absent from the PR diff.
-  - Exact-head validation succeeded on the preceding review-ready head 18041af549cc0ad9f35deb2f5cd6489fcf7c1ec5.
-  - All PR review threads are resolved and outdated; no human approval or change request is present.
-  - The repository adapter, deterministic 12-case vertical slice and permanent read-only workflow are present.
-  - The standalone ASE package requires Python 3.12+ while root Freqtrade Python 3.11 collection remains valid.
-  - No live-order path, browser-to-Freqtrade path or nondeterministic Risk Core bypass was introduced.
+  - PR 584 is open, draft, unmerged and mergeable at head a3640503cd8c46ee5093488fc933237a6a4afe19.
+  - The branch is current with develop 8a9a1fc0ebc8e71ff85a21bae47e7e0e8146c03b with behind_by 0 and ahead_by 259.
+  - AI Strategy Engine run 30399931956, AI Platform CI run 30399931877, zizmor run 30399931944 and both runtime smoke runs passed on the current head.
+  - Freqtrade CI run 30399932018 failed only in Core tests Python 3.12; pre-commit, documentation, online/live, Python 3.13, Python 3.14 and compatibility jobs passed.
+  - Job 90412240770 is recorded completed/failure while Tests with coverage remains in_progress and later steps remain pending; its log endpoint returns BlobNotFound.
+  - Previously validated head 18041af549cc0ad9f35deb2f5cd6489fcf7c1ec5 passed all required workflows including Freqtrade CI run 30398395603.
+  - Canonical contracts, Feature Registry, Strategy DSL, Leakage Guard, research adapter and the deterministic 12-case shadow vertical slice are present.
+  - No live-order path, Browser-to-Freqtrade path or nondeterministic Risk Core bypass is introduced.
 derived:
-  - The latest develop commit does not alter the delivered ASE behavior but exact-head checks must rerun before restoring ready-for-review state.
-  - Further Strategy Engine functionality belongs in a separate bounded work package using the canonical contracts delivered here.
+  - The current Freqtrade failure is more consistent with an interrupted or inconsistent Python 3.12 coverage job than a proven code regression.
+  - PR 584 cannot return to ready-for-review state until exact-current-head Freqtrade CI passes.
 unknown:
+  - The exact Python 3.12 coverage failure cause because the completed job exposes no usable logs.
   - Human review outcome and final merge timing for PR 584.
-conflicts: []
+conflicts:
+  - The PR body records complete validation on head 18041af549cc0ad9f35deb2f5cd6489fcf7c1ec5, but the current head is a3640503cd8c46ee5093488fc933237a6a4afe19 and its Freqtrade CI is red.
 first_failure:
-  marker: ROOT_PYTEST_IMPORT_AND_PYTHON_BOUNDARY
-  evidence: Root CI originally failed because local ASE modules were not on pytest pythonpath and Python 3.11 collected a Python 3.12-only test surface; both boundaries were corrected and exact-head CI passed.
+  marker: FREQTRADE_CI_PY312_COVERAGE_INCOMPLETE
+  evidence: Run 30399932018 job 90412240770 ended failure while Tests with coverage remains in_progress and later steps pending; log retrieval returns BlobNotFound.
 rejected_hypotheses:
-  - Leave the PR ready for review while it is behind develop.
-  - Downgrade the standalone ASE package from its declared Python 3.12+ boundary.
+  - Treat the green workflow set on head 18041af549cc0ad9f35deb2f5cd6489fcf7c1ec5 as exact-head evidence for a3640503cd8c46ee5093488fc933237a6a4afe19.
+  - Mark PR 584 ready while current-head Freqtrade CI is red.
   - Expose Browser directly to private Freqtrade.
   - Enable live execution as part of ASE-00.
 changed_paths:
   - ai_strategy_engine/
   - ai_platform/research/strategy_engine/ase00_adapter.py
-  - ai_platform/research/strategy_engine/__init__.py
-  - ai_platform/research/__init__.py
   - tests/ai_platform_integration/test_ase00_vertical_slice.py
   - tests/ai_platform_integration/conftest.py
   - pyproject.toml
   - .github/workflows/ai-strategy-engine.yml
   - docs/agents/tasks/FTAI-20260728-ase-00-ai-strategy-engine-foundation.md
 validation:
-  - command: AI Strategy Engine exact-head run
-    result: NOT_RUN
-    evidence: Triggered by this user-authored post-refresh checkpoint commit.
-  - command: AI Platform CI exact-head run
-    result: NOT_RUN
-    evidence: Triggered by this user-authored post-refresh checkpoint commit.
-  - command: Freqtrade CI exact-head run
-    result: NOT_RUN
-    evidence: Triggered by this user-authored post-refresh checkpoint commit.
-  - command: GitHub Actions Security Analysis exact-head run
-    result: NOT_RUN
-    evidence: Triggered by this user-authored post-refresh checkpoint commit.
-  - command: Experimental Model Runtime Smoke exact-head run
-    result: NOT_RUN
-    evidence: Triggered by this user-authored post-refresh checkpoint commit.
-  - command: Residual PyTorch Runtime Smoke exact-head run
-    result: NOT_RUN
-    evidence: Triggered by this user-authored post-refresh checkpoint commit.
-blockers: []
-next_action: Wait for all exact-head workflows on the post-refresh checkpoint commit; if they pass and the branch remains current and mergeable, record final evidence and mark PR 584 ready for human review.
+  - command: Compare develop to task branch
+    result: PASS
+    evidence: develop 8a9a1fc0ebc8e71ff85a21bae47e7e0e8146c03b; behind_by 0; ahead_by 259.
+  - command: PR 584 live state
+    result: PASS
+    evidence: Open, draft, unmerged, mergeable; current head a3640503cd8c46ee5093488fc933237a6a4afe19.
+  - command: AI Strategy Engine current-head workflow
+    result: PASS
+    evidence: Run 30399931956 completed successfully.
+  - command: AI Platform CI current-head workflow
+    result: PASS
+    evidence: Run 30399931877 completed successfully.
+  - command: GitHub Actions Security Analysis current-head workflow
+    result: PASS
+    evidence: Run 30399931944 completed successfully.
+  - command: Experimental Model Runtime Smoke current-head workflow
+    result: PASS
+    evidence: Run 30399931940 completed successfully.
+  - command: Residual PyTorch Runtime Smoke current-head workflow
+    result: PASS
+    evidence: Run 30399931822 completed successfully.
+  - command: Freqtrade CI current-head workflow
+    result: FAIL
+    evidence: Run 30399932018 failed in Python 3.12 coverage job 90412240770 with incomplete step state and unavailable logs.
+  - command: Previous exact-head required workflow suite
+    result: PASS
+    evidence: Head 18041af549cc0ad9f35deb2f5cd6489fcf7c1ec5 passed runs 30398395610, 30398395477, 30398395603, 30398395537, 30398395429 and 30398395436.
+blockers:
+  - Current-head Freqtrade CI must pass before PR 584 is ready for human review.
+next_action: Re-run failed jobs for Freqtrade CI run 30399932018 on head a3640503cd8c46ee5093488fc933237a6a4afe19 and inspect only the Python 3.12 coverage job result.
 ```

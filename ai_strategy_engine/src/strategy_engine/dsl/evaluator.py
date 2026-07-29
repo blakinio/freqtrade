@@ -8,7 +8,7 @@ from pydantic import JsonValue
 
 from strategy_engine.domain.models import Action, Side, StrategyDefinition
 
-type SnapshotValue = JsonValue | Mapping[str, JsonValue]
+SnapshotValue = JsonValue | Mapping[str, JsonValue]
 
 
 class DslEvaluationError(ValueError):

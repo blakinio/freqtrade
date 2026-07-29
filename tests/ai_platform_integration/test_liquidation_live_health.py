@@ -182,6 +182,7 @@ def test_health_workflow_is_scheduled_deduplicated_and_alert_capable() -> None:
     assert "LIQUID20_SOURCE_STALE_SECONDS" in workflow
     assert "LIQUID20_DISK_USED_PERCENT_MAX" in workflow
     assert "LIQUID20_DISK_FREE_BYTES_MIN" in workflow
+    assert 'PORTAL_LIVE_PROOF_DELAY_SECONDS: "12"' in workflow
     assert "steps.health.outcome != 'success'" in workflow
     assert "retention-days: 14" in workflow
     assert "Publish pending health status" in workflow

@@ -32,9 +32,7 @@ def _load_plan() -> OptimizationPlan:
         (ENGINE_ROOT / "configs" / "optimization_plan.v1.yaml").read_text(encoding="utf-8")
     )
     schema = json.loads(
-        (ENGINE_ROOT / "schemas" / "optimization-plan.v1.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (ENGINE_ROOT / "schemas" / "optimization-plan.v1.schema.json").read_text(encoding="utf-8")
     )
     jsonschema.validate(raw, schema)
     return OptimizationPlan.model_validate(raw)

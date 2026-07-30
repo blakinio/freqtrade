@@ -36,7 +36,7 @@ Build the complete research-only Signal Wizard against the frozen typed DSL and 
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-30T17:35:00+02:00
-head: 3e0fe8e9310584aae3cd59750cbe013f54aaf698
+head: acfd66f6fb6f8db03eb4425e8c1a5c8ae4e83ff0
 branch: agent/closure-ui-signal-wizard
 pr: null
 status: ready
@@ -57,7 +57,7 @@ owned_paths:
 proven:
   - Shared contracts PR 781 merged as 6e489f7e10199120424cbcd01b3e125711630243.
   - Contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6 provides the canonical typed AST and versioned Signal Wizard preview and submit contracts.
-  - Open PRs 780, 762 and 758 do not touch any Signal Wizard owned path.
+  - Open PRs 801, 780 and 758 do not touch any Signal Wizard owned path.
 derived:
   - The contract dependency is satisfied and no active duplicate or ownership conflict exists.
 unknown:
@@ -75,7 +75,7 @@ changed_paths:
 validation:
   - command: Open PR changed-path comparison against Signal Wizard ownership
     result: PASS
-    evidence: PR 780, PR 762 and PR 758 have no overlap with the eight declared paths.
+    evidence: PR 801, PR 780 and PR 758 have no overlap with the eight declared paths.
   - command: Contract dependency verification
     result: PASS
     evidence: PR 781 and terminal checkpoint PR 790 are merged on develop.

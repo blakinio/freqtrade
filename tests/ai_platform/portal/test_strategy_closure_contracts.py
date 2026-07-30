@@ -29,6 +29,7 @@ from ai_platform.portal.product.schema import (
     StrategyRuntimeStatus,
 )
 
+
 NOW = datetime(2026, 7, 30, 10, 0, tzinfo=UTC)
 HASH = "a" * 64
 

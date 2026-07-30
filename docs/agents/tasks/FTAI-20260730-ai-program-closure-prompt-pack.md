@@ -54,8 +54,8 @@ Provide one self-contained coordinator prompt and separate copy/paste worker pro
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T09:45:00+02:00
-head: 563afa453479b50bea996a9548edf8df0fa2be36
+updated_at: 2026-07-30T09:49:00+02:00
+head: 3516a7b29a80495500d8c5e112904de5e95ba14a
 branch: agent/ai-program-closure-orchestration
 pr: 759
 status: validating
@@ -76,6 +76,7 @@ proven:
   - The prompt pack provides a coordinator prompt, common worker rules and separate domain prompts matching every launch candidate.
   - Initial exact-head CI exposed one codespell false positive and a pre-existing zizmor finding in the newly merged Synology autostart workflow.
   - The workflow_run upstream is restricted to trusted develop/manual events; the repair job has no checkout and no token permissions.
+  - PR 759 is mergeable, has zero unresolved review threads and is synchronized with develop after the narrow repairs.
 derived:
   - The owner can manually launch multiple chats after Gate 0 without passing chat history between agents.
   - A worker launched too early will fail closed because it must verify REAL_GAP, READY status, child task existence and exact ownership before editing.
@@ -107,9 +108,9 @@ validation:
   - command: Freqtrade CI 30523582634 on b47658f3793702fc4f08df7e3d86cb6f6040136c
     result: FAIL
     evidence: Documentation build passed; pre-commit failed only on codespell for Polish Te and zizmor dangerous-triggers for the trusted Synology workflow_run trigger.
-  - command: Narrow CI repair head 563afa453479b50bea996a9548edf8df0fa2be36
+  - command: Narrow CI repair through 3516a7b29a80495500d8c5e112904de5e95ba14a
     result: NOT_RUN
-    evidence: The Polish wording was changed and the trusted workflow_run now carries an inline, reasoned dangerous-triggers suppression without changing runtime behavior.
+    evidence: The Polish wording was changed, the trusted workflow_run has a reasoned inline suppression, and coordinator dispatch output was made explicit without changing runtime behavior.
 blockers: []
 next_action: Inspect exact-head CI and review state after the narrow repairs, fix only evidenced failures, synchronize normally if develop advances, then merge PR 759 without bypassing checks.
 ```

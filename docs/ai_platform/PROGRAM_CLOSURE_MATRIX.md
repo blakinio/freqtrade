@@ -4,14 +4,15 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- current evidence anchor: `develop@3e0fe8e9310584aae3cd59750cbe013f54aaf698`;
+- current evidence anchor: `develop@acfd66f6fb6f8db03eb4425e8c1a5c8ae4e83ff0`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
   - Time/Leakage PR #777 -> `979744f1143246bd42e42fc2213c7e79fc68ea57`;
   - Simulator PR #787 -> `34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9`;
   - Liquid20/OKX source PR #761 -> `141e59a3c7da441432b3990a54903e5fcfc935c8`;
-- active repository PRs: Feature Engine #780, Liquidations monitoring #762 and external read-only preflight #758;
+- merged adjacent monitoring: PR #762 -> `e73de2c7a080c79486141cdafa4d2bb41afdd80e`;
+- active repository PRs: operational request #801, Feature Engine #780 and external read-only preflight #758;
 - coordinator repair branch: `agent/program-closure-coordinator-repair`;
 - coordinator repair task: `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;

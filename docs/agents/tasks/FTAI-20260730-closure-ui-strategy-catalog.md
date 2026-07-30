@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260730-closure-ui-strategy-catalog
-status: in_progress
-branch: agent/closure-ui-strategy-catalog
+status: completed
+branch: agent/closure-ui-strategy-catalog-terminal
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
@@ -32,14 +32,13 @@ required_reads:
 
 Replace the static summary table with the tenant-scoped, research-only catalog lifecycle defined by the frozen contracts.
 
-## Delivered scope
+## Terminal result
 
-- same-origin tenant-scoped catalog and detail BFF routes;
-- immutable version history, provenance and approval reason codes;
-- paper, dry-run and shadow deployment evidence with explicit no-live-capital authority;
-- CSRF, session and MFA-gated rollback intent with source, target, audit reference and result evidence;
-- loading, empty, stale, denied, failure, conflict and success states;
-- responsive browser coverage for the critical lifecycle and authorization boundaries.
+- PR #819 merged normally into `develop` as `d8ae3f5775500dda8259f415a84f77b59ab1b8ac`.
+- The Portal now exposes tenant-scoped immutable strategy history, approval evidence, paper/dry-run/shadow deployment state and provenance.
+- Rollback remains same-origin, session/CSRF/MFA guarded and records source, target, reason, result and audit evidence.
+- Empty, stale, denied, unavailable, conflict and success states fail closed without granting execution or live-capital authority.
+- Browser, platform, repository and security gates passed on the exact final implementation head.
 
 ## Non-negotiable boundaries
 
@@ -53,11 +52,11 @@ Replace the static summary table with the tenant-scoped, research-only catalog l
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T21:52:00+02:00
-head: 1f130f01b8f7d1d853aa6e92ecb59076705c914b
-branch: agent/closure-ui-strategy-catalog
+updated_at: 2026-07-30T21:57:00+02:00
+head: d8ae3f5775500dda8259f415a84f77b59ab1b8ac
+branch: agent/closure-ui-strategy-catalog-terminal
 pr: 819
-status: validating
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -75,23 +74,23 @@ owned_paths:
   - ai_platform/portal/web/e2e/strategy-catalog-closure.spec.ts
 proven:
   - Shared contracts PR 781 merged as 6e489f7e10199120424cbcd01b3e125711630243 and freeze 549ba3afddba39ce455fce5eebbd4d67bea813a6 defines canonical history, approval, deployment, rollback and provenance contracts.
-  - develop 9bb8edad795e122a2e513b354cd4aafa16d5917b was the branch base and open PRs 816 and 758 had no owned-path overlap.
-  - Browser reads require the portal session; rollback additionally requires CSRF and mutation-capable identity state.
-  - Fixture and API modes remain separated, and fixture provenance explicitly labels repository fixture evidence.
-  - PR 819 exact head aa5d92d7f6a9fef5c7246d24223e3e0791dfcf31 passed typecheck, AI Platform CI and GitHub Actions Security Analysis before the focused lint repair.
-  - Commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b removes synchronous state-setting call chains from both initial effects while preserving event-driven refresh, selection and retry behavior.
+  - Implementation PR 819 merged into develop as d8ae3f5775500dda8259f415a84f77b59ab1b8ac from exact final head 71263840f5c54bffe97018e9ffcecb14c3e05fef.
+  - PR 819 changed exactly the nine declared owned paths and had zero review threads.
+  - Browser reads require a Portal session and rollback additionally requires CSRF plus mutation-capable identity state.
+  - Fixture and API modes remain separated and fixture provenance labels repository evidence explicitly.
+  - Portal Web CI run 30576803202 passed typecheck, lint, production build and Chromium regression.
+  - Portal Universal E2E run 30576803188, AI Platform CI run 30576803145, Freqtrade CI run 30576803133 and security run 30576803351 passed.
+  - No direct browser-to-Freqtrade, exchange, Vault, live-credential or live-capital path was introduced.
 derived:
-  - The owned routes consume the frozen contracts without changing shared schemas or generated-client inputs.
-  - The lint repair is route-local and requires no backend, shell, navigation, CI workflow or live-capital ownership transfer.
-unknown:
-  - Exact conclusions of the new workflow runs for the repaired PR head.
-  - Exact merge commit until all required checks and review gates pass.
+  - The Strategy Catalog frontend workstream has no remaining implementation, validation, review or merge action.
+  - The closure coordinator can consume merge d8ae3f5775500dda8259f415a84f77b59ab1b8ac and update the program closure matrix.
+unknown: []
 conflicts: []
 first_failure:
   marker: PORTAL_WEB_ESLINT_REACT_HOOKS_SET_STATE_IN_EFFECT
-  evidence: Portal Web CI run 30576340147 passed typecheck then failed lint because loadCatalog and loadDetail synchronously set state when called from useEffect; commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b refactored initialization to await external requests before state updates.
+  evidence: Portal Web CI run 30576340147 passed typecheck then failed lint because effect-invoked loaders synchronously set state; commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b refactored initialization without suppressing the rule and final run 30576803202 passed.
 rejected_hypotheses:
-  - Disable the lint rule or suppress the findings.
+  - Disable or suppress the React hooks lint rule.
   - Add approval or deployment authority to the browser.
   - Send browser requests directly to Freqtrade, an exchange or Vault.
   - Redefine frozen v2 lifecycle contracts in shared files.
@@ -109,22 +108,28 @@ changed_paths:
 validation:
   - command: develop and open-PR ownership preflight
     result: PASS
-    evidence: develop base 9bb8edad795e122a2e513b354cd4aafa16d5917b; PR 816 changes only a WickHunter request and PR 758 changes external preflight paths.
-  - command: compare develop...agent/closure-ui-strategy-catalog
-    result: PASS
-    evidence: Implementation diff remains inside all nine declared owned paths including this task record.
+    evidence: develop base 9bb8edad795e122a2e513b354cd4aafa16d5917b and open PRs 816 and 758 had no owned-path overlap.
   - command: Portal Web CI run 30576340147
     result: FAIL
-    evidence: Typecheck passed; lint reported two react-hooks/set-state-in-effect findings in strategy-catalog-client.tsx; commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b removes the synchronous effect call chains without suppression.
-  - command: AI Platform CI run 30576340125
+    evidence: Typecheck passed and lint exposed two react-hooks/set-state-in-effect findings before the focused repair.
+  - command: Portal Web CI run 30576803202
     result: PASS
-    evidence: Exact pre-repair implementation head passed the AI Platform package gates.
-  - command: GitHub Actions Security Analysis run 30576340175
+    evidence: Exact final head passed typecheck, lint, production build and Chromium regression.
+  - command: Portal Universal E2E run 30576803188
     result: PASS
-    evidence: Exact pre-repair implementation head passed zizmor analysis.
-  - command: PR 819 required CI after lint repair
-    result: NOT_RUN
-    evidence: New exact-head workflow runs are queued or executing and have no terminal conclusion yet.
+    evidence: Critical Chromium journey and deterministic backend scenario passed.
+  - command: AI Platform CI run 30576803145
+    result: PASS
+    evidence: Exact final head passed AI Platform tests and lint gates.
+  - command: Freqtrade CI run 30576803133
+    result: PASS
+    evidence: Exact final head passed scope classification, pre-commit, documentation and terminal CI gate.
+  - command: GitHub Actions Security Analysis run 30576803351
+    result: PASS
+    evidence: Exact final head passed zizmor security analysis.
+  - command: PR 819 merge and review audit
+    result: PASS
+    evidence: Squash merge d8ae3f5775500dda8259f415a84f77b59ab1b8ac, exactly nine owned paths and zero review threads.
 blockers: []
-next_action: Inspect PR 819 workflow runs for the exact repaired head and fix the first remaining failing required check inside owned paths.
+next_action: Closure coordinator consumes merge d8ae3f5775500dda8259f415a84f77b59ab1b8ac and records Strategy Catalog complete in PROGRAM_CLOSURE_MATRIX.md.
 ```

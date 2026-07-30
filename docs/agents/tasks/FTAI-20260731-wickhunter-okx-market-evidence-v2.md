@@ -5,21 +5,26 @@ branch: agent/wickhunter-okx-market-evidence-v2
 base_branch: develop
 created: 2026-07-31
 updated: 2026-07-31
-related_pr: null
+related_pr: 836
 depends_on:
   - FTAI-20260731-wickhunter-market-evidence-recovery-v1
   - merged production Market Evidence v1 implementation
   - merged public OKX Liquid20 source implementation
 owned_paths:
+  - .github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml
   - ai_platform/wickhunter/production-market-evidence-contract-v2.json
   - ai_platform/wickhunter/production_market_evidence_v2.py
   - ai_platform/wickhunter/production_market_evidence_service_v2.py
+  - ai_platform/wickhunter/production_market_evidence_daemon_v2.py
   - ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json
+  - ai_platform/portal/web/lib/market-evidence/contracts.ts
   - ai_platform/portal/web/lib/market-evidence/reader-v2.ts
   - ai_platform/portal/web/lib/market-evidence/index.ts
+  - deploy/synology/wickhunter-market-evidence-v2/Dockerfile
+  - deploy/synology/wickhunter-market-evidence-v2/compose.yaml
+  - deploy/synology/wickhunter-market-evidence-v2/healthcheck.py
   - tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py
   - tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
-  - ai_platform/portal/web/e2e/specs/market-evidence-okx-v2.spec.ts
   - docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
 required_reads:
   - AGENTS.md
@@ -33,82 +38,97 @@ required_reads:
 
 ## Goal
 
-Add a versioned, backward-compatible three-source Market Evidence contract for `bybit-linear`, `binance-usdm` and `okx-swap` without mutating the immutable v1 request currently running in PR #816.
+Add a backward-compatible three-source Market Evidence path for `bybit-linear`, `binance-usdm` and `okx-swap` without changing or reusing the immutable v1 request in PR #816.
 
-## Scope
+## Implemented scope
 
-- public credential-free OKX SWAP tickers, completed 5m candles and instrument metadata;
-- exact `BASE-USDT-SWAP` to `BASEUSDT` mapping;
-- source-separated deterministic normalization and dynamic verified record counts;
-- completed-candle and response-receipt availability semantics;
-- fail-closed credential, proxy, redirect, private endpoint, malformed mapping, stale, gap, tamper, traversal, symlink and overwrite behavior;
-- a v2 publication adapter that can produce immutable rows for all three sources;
-- Portal read-model support that derives OKX availability and eligibility from verified package rows rather than source-name exclusions;
-- focused backend and Portal tests;
-- no operational request in this mergeable package.
+- versioned v2 request and evidence contract;
+- public-only OKX SWAP instrument, ticker and completed 5m candle normalization;
+- explicit completed-candle, response-receipt and availability semantics;
+- deterministic exact coverage, pagination, stale/conflict and gap refusal;
+- credential, proxy, redirect, private endpoint, overwrite, traversal and symlink refusal;
+- persistent no-overwrite OKX supplement lifecycle;
+- verified immutable merge with the accepted two-source v1 package;
+- source-package binding digest and full artifact checksums;
+- Portal OKX status and instruments derived only from accepted v2 rows;
+- hardened Synology daemon, image, Compose service and exact-one-file deployment trigger;
+- backend normalization, persistence, merge and tamper tests.
 
-## Non-goals
+## Safety boundary
 
-- no mutation or reuse of `wickhunter-production-market-evidence-20260730-v1`;
-- no production capture trigger;
-- no archive binding or WH-01 materialization;
-- no credentials, orders, replay, training, performance research, execution or live capital.
+The v2 package intentionally remains `WH-01 BLOCKED` with `LIQUIDATION_ARCHIVE_NOT_BOUND`. Archive binding and dataset materialization belong to a separate focused package. No credentials, private/account/order endpoints, proxy routing, replay, training, performance research, execution, orders or live capital are authorized.
 
 ## Acceptance
 
-- v1 behavior remains importable and unchanged;
-- v2 rejects unsafe environments and uncompleted OKX candles;
-- exact three-source geometry is validated dynamically;
-- OKX source and instrument rows are emitted only from verified public payloads;
-- Portal remains red for absent evidence and becomes eligible only for a verified v2 package;
-- focused exact-head CI passes with zero unresolved review threads.
+- v1 request, package and PR #816 remain unchanged;
+- exact-head repository CI passes;
+- PR review threads are resolved;
+- the mergeable implementation is merged normally;
+- a separate exact-one-file request-only PR starts the prospective OKX capture before the frozen decision interval;
+- request-only PR is never merged.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T00:45:00+02:00
-head: e19327315cd40d11bcaaa48b11dc53afa80d78e8
+updated_at: 2026-07-31T01:09:00+02:00
+head: 3d153565c9ab2cf502559ad7fec2aeaae391a09d
 branch: agent/wickhunter-okx-market-evidence-v2
 status: in_progress
+related_pr: 836
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260731-wickhunter-market-evidence-recovery-v1.md
   - docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
-owned_paths:
-  - ai_platform/wickhunter/production-market-evidence-contract-v2.json
-  - ai_platform/wickhunter/production_market_evidence_v2.py
-  - ai_platform/wickhunter/production_market_evidence_service_v2.py
-  - ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json
-  - ai_platform/portal/web/lib/market-evidence/reader-v2.ts
-  - ai_platform/portal/web/lib/market-evidence/index.ts
-  - tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py
-  - tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
-  - ai_platform/portal/web/e2e/specs/market-evidence-okx-v2.spec.ts
-  - docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
 proven:
-  - The immutable v1 request and implementation cover only Bybit and Binance.
-  - The public OKX Liquid20 collector already validates live USDT linear SWAP instrument contracts.
-  - Official OKX public market responses identify completed candles with confirm equal to 1 and expose public tickers and instruments.
+  - PR 816 and all v1 identities remain unchanged and two-source only.
+  - Public OKX normalization requires live USDT-linear SWAP contracts and confirm equal to 1 candles.
+  - A verified OKX supplement can be merged with a separately verified v1 package without mutating either input.
+  - Portal OKX eligibility is derived from accepted v2 package rows and remains unavailable when those rows do not exist.
+  - The combined package retains LIQUIDATION_ARCHIVE_NOT_BOUND until a separate binding is verified.
+  - Synology deployment is exact-one-file, public-only, credential-free and persistent-container based.
 derived:
-  - A separate v2 module avoids changing the semantics of the active v1 run.
+  - The existing Bybit and Binance capture can remain the immutable base package while OKX is captured prospectively over the same frozen geometry.
 unknown:
-  - Exact prospective v2 request window, which belongs to a later request-only package.
+  - Terminal exact-head workflow conclusions for the latest PR head.
+  - Terminal Synology artifact identities for the future request-only run.
 conflicts: []
 first_failure:
   marker: OKX_CANDLE_EVIDENCE_NOT_CONFIGURED
-  evidence: Current Portal reader explicitly excludes okx-swap from verified Market Evidence availability.
+  evidence: Current develop Portal reader excludes OKX because no accepted three-source package exists.
 rejected_hypotheses:
-  - Modify the active v1 request or collector constants in place.
-  - Accept confirm equal to 0 candles.
-  - Derive OKX eligibility from liquidation connectivity alone.
+  - Mutate or reuse PR 816.
+  - Treat OKX liquidation connectivity as candle evidence.
+  - Clear Portal blockers before immutable evidence exists.
+  - Add private endpoints, credentials, proxy routing or synthetic fallback.
 changed_paths:
+  - .github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml
+  - ai_platform/wickhunter/production-market-evidence-contract-v2.json
+  - ai_platform/wickhunter/production_market_evidence_v2.py
+  - ai_platform/wickhunter/production_market_evidence_service_v2.py
+  - ai_platform/wickhunter/production_market_evidence_daemon_v2.py
+  - ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json
+  - ai_platform/portal/web/lib/market-evidence/contracts.ts
+  - ai_platform/portal/web/lib/market-evidence/reader-v2.ts
+  - ai_platform/portal/web/lib/market-evidence/index.ts
+  - deploy/synology/wickhunter-market-evidence-v2/Dockerfile
+  - deploy/synology/wickhunter-market-evidence-v2/compose.yaml
+  - deploy/synology/wickhunter-market-evidence-v2/healthcheck.py
+  - tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py
+  - tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
   - docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
 validation:
-  - command: task ownership and current source-contract audit
+  - command: prior AI Platform test suite at head aee2a4bc0ea279e023c67f6ded99ab792a3f68da
     result: PASS
-    evidence: Owned paths are disjoint from current effective open-PR diffs.
-blockers: []
-next_action: Implement the versioned public OKX normalization and safety contract with focused tests before wiring the v2 publication and Portal reader.
+    evidence: 1007 passed and 71 skipped before formatting fixes and added merge tests.
+  - command: prior Portal Market Evidence typecheck, lint, build and browser flow
+    result: PASS
+    evidence: dedicated Market Evidence workflow completed all Portal steps successfully.
+  - command: exact-head CI for 3d153565c9ab2cf502559ad7fec2aeaae391a09d
+    result: IN_PROGRESS
+    evidence: GitHub Actions were retriggered by the latest implementation commit.
+blockers:
+  - Implementation PR must pass exact-head CI and merge before the request-only production trigger is opened.
+next_action: Resolve exact-head CI findings on PR 836, merge the implementation normally, then open the exact-one-file prospective v2 request PR before decision_start_ms 1785477600000.
 ```

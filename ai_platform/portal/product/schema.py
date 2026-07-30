@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Self
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, PositiveInt, model_validator
 
 from ai_platform.portal.contracts.common import (
     ContractModel,
@@ -55,6 +55,16 @@ class StrategyRuntimeStatus(StrEnum):
     PORTAL_CONFIG_ONLY = "PORTAL_CONFIG_ONLY"
 
 
+class StrategyLifecycleState(StrEnum):
+    DRAFT = "DRAFT"
+    REVIEW_PENDING = "REVIEW_PENDING"
+    APPROVED = "APPROVED"
+    DRY_RUN = "DRY_RUN"
+    SHADOW = "SHADOW"
+    ROLLED_BACK = "ROLLED_BACK"
+    RETIRED = "RETIRED"
+
+
 class StrategyCatalogEntry(ContractModel):
     strategy_version: NonEmptyStr
     display_name: NonEmptyStr
@@ -63,6 +73,17 @@ class StrategyCatalogEntry(ContractModel):
     allowed_execution_modes: tuple[ExecutionMode, ...]
     runtime_status: StrategyRuntimeStatus
     immutable: bool = True
+    lifecycle_state: StrategyLifecycleState = StrategyLifecycleState.DRAFT
+    current_revision: PositiveInt = 1
+    approval_required: bool = True
+    required_capabilities: tuple[NonEmptyStr, ...] = ()
+    provenance_ref: NonEmptyStr | None = None
+
+    @model_validator(mode="after")
+    def validate_closure_extensions(self) -> Self:
+        if len(set(self.required_capabilities)) != len(self.required_capabilities):
+            raise ValueError("required_capabilities must be unique")
+        return self
 
 
 class GridBotConfig(ContractModel):

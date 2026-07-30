@@ -1,9 +1,5 @@
-export const LIQUIDATION_SOURCES = ["bybit-linear", "binance-usdm"] as const;
-export const LIQUIDATION_HEALTH_SOURCES = [
-  "bybit-linear",
-  "binance-usdm",
-  "okx-swap",
-] as const;
+export const LIQUIDATION_SOURCES = ["bybit-linear", "binance-usdm", "okx-swap"] as const;
+export const LIQUIDATION_HEALTH_SOURCES = LIQUIDATION_SOURCES;
 
 export type LiquidationSource = (typeof LIQUIDATION_SOURCES)[number];
 export type LiquidationHealthSource = (typeof LIQUIDATION_HEALTH_SOURCES)[number];

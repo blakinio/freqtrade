@@ -490,19 +490,19 @@ def normalize_okx_market_snapshot(
         tickers[canonical] = row
     records: list[dict[str, object]] = []
     for canonical in EXPECTED_SYMBOLS:
-        row = tickers.get(canonical)
+        ticker = tickers.get(canonical)
         contract = instruments.get(okx_native_symbol(canonical))
-        if row is None or contract is None:
+        if ticker is None or contract is None:
             raise ProductionMarketEvidenceV2Error(f"OKX market snapshot is missing {canonical}")
-        event_at_ms = _integer(row.get("ts"), field=f"OKX {canonical} ticker timestamp")
+        event_at_ms = _integer(ticker.get("ts"), field=f"OKX {canonical} ticker timestamp")
         if event_at_ms > available_at_ms:
             raise ProductionMarketEvidenceV2Error("OKX ticker timestamp is in the future")
         if available_at_ms - event_at_ms > maximum_source_age_ms:
             raise ProductionMarketEvidenceV2Error(f"OKX ticker is stale for {canonical}")
-        last = _decimal(row.get("last"), field=f"OKX {canonical} last", positive=True)
-        bid = _decimal(row.get("bidPx"), field=f"OKX {canonical} bid", positive=True)
-        ask = _decimal(row.get("askPx"), field=f"OKX {canonical} ask", positive=True)
-        base_volume = _decimal(row.get("volCcy24h"), field=f"OKX {canonical} base volume")
+        last = _decimal(ticker.get("last"), field=f"OKX {canonical} last", positive=True)
+        bid = _decimal(ticker.get("bidPx"), field=f"OKX {canonical} bid", positive=True)
+        ask = _decimal(ticker.get("askPx"), field=f"OKX {canonical} ask", positive=True)
+        base_volume = _decimal(ticker.get("volCcy24h"), field=f"OKX {canonical} base volume")
         records.append(
             {
                 "schema_version": 2,

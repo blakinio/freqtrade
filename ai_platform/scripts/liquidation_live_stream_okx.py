@@ -53,6 +53,7 @@ OKX_CREDENTIAL_ENVIRONMENT_NAMES = (
     "OKX_SECRET_KEY",
     "OKX_PASSPHRASE",
 )
+REQUIRED_LIVE_SOURCES = frozenset((BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE))
 
 
 def okx_credentials_present(environment: Mapping[str, str] | None = None) -> bool:
@@ -134,6 +135,8 @@ class OkxLiveRunManager(LiveRunManager):
         super().__init__(**kwargs)
         self.sources[OKX_SOURCE].configured = True
         self._okx_instrument_snapshot: dict[str, object] | None = None
+        self._startup_connected_sources: set[str] = set()
+        self._startup_activation_complete = False
 
     def _state_payload(self) -> dict[str, object]:
         payload = super()._state_payload()
@@ -169,6 +172,31 @@ class OkxLiveRunManager(LiveRunManager):
         }
         write_json_atomic(self.run_root / "okx-swap-summary.json", source_payload)
         self._write_okx_snapshot()
+
+    async def connected(self, source: str) -> None:
+        if self._startup_activation_complete:
+            await super().connected(source)
+            return
+        async with self._lock:
+            if source not in REQUIRED_LIVE_SOURCES:
+                raise ValueError("unsupported live liquidation source")
+            self._startup_connected_sources.add(source)
+            state = self.sources[source]
+            state.last_heartbeat_at_ms = self._now_ms()
+            state.latest_error = None
+            if self._startup_connected_sources == REQUIRED_LIVE_SOURCES:
+                activated_at_ms = self._now_ms()
+                for item in self.sources.values():
+                    item.connected = True
+                    item.last_heartbeat_at_ms = activated_at_ms
+                    item.latest_error = None
+                self._startup_activation_complete = True
+            await asyncio.to_thread(self._write_state)
+
+    async def disconnected(self, source: str, error: BaseException | str | None) -> None:
+        if not self._startup_activation_complete:
+            self._startup_connected_sources.discard(source)
+        await super().disconnected(source, error)
 
     async def set_okx_instruments(
         self,

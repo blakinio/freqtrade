@@ -48,7 +48,7 @@ Remove only the stale hardcoded registry-size assumptions exposed by the append-
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-30T17:35:00+02:00
-head: 3e0fe8e9310584aae3cd59750cbe013f54aaf698
+head: 4449ae131dac339a88b5210c98e5568713c8e86b
 branch: agent/program-closure-coordinator-repair
 pr: null
 status: validating
@@ -64,7 +64,7 @@ owned_paths:
 proven:
   - PR 780 adds support_resistance.v1 to the append-only feature registry and its exact implementation head passed all required CI.
   - Current develop still contains three hardcoded assumptions that the registry has exactly 21 entries.
-  - Open PR 762 and PR 758 do not touch either repair test path.
+  - Open PR 801 and PR 758 do not touch either repair test path.
 derived:
   - The smallest complete ownership repair covers both stale tests because both assert the obsolete total.
 unknown:

@@ -111,7 +111,10 @@ class DeterministicExchangeSimulator:
             raise SimulatorStateError("execution manifest identity mismatch")
         if trade_intent.environment is not self.manifest.environment:
             raise SimulatorStateError("execution environment mismatch")
-        if trade_intent.side is not self.manifest.side or trade_intent.amount != self.manifest.amount:
+        if (
+            trade_intent.side is not self.manifest.side
+            or trade_intent.amount != self.manifest.amount
+        ):
             raise SimulatorStateError("execution intent does not match scenario side and amount")
         if self._open_amount != 0:
             raise SimulatorStateError("simulator supports one deterministic position per scenario")

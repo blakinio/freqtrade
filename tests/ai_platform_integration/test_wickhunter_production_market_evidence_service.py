@@ -14,6 +14,7 @@ from ai_platform.wickhunter.production_market_evidence_service import (
     PACKAGE_MARKET_QUALITY_NAME,
     PACKAGE_SOURCE_SNAPSHOTS_NAME,
     MarketEvidencePublicationError,
+    _enrich_sample,
     collect_due_sample,
     initialize_capture,
     publish_immutable_package,
@@ -29,10 +30,14 @@ def _json_bytes(value: object) -> bytes:
 
 
 def _request(path: Path, durable_root: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setitem(core.EXPECTED_REQUEST, "durable_storage_uri", durable_root.as_uri())
     value = dict(core.EXPECTED_REQUEST)
     value["durable_storage_uri"] = durable_root.as_uri()
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(value, indent=2, sort_keys=True) + chr(10),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -132,7 +137,11 @@ def _complete(
     interval_ms = int(core.EXPECTED_REQUEST["sample_interval_seconds"]) * 1000
     for index in range(144):
         now_ms = start_ms + index * interval_ms + 100
-        monkeypatch.setattr(core.time, "time_ns", lambda now_ms=now_ms: now_ms * 1_000_000)
+        monkeypatch.setattr(
+            core.time,
+            "time_ns",
+            lambda now_ms=now_ms: now_ms * 1_000_000,
+        )
         result = collect_due_sample(
             durable_root=durable_root,
             environment={},
@@ -165,7 +174,9 @@ def test_full_service_package_is_source_separated_and_verified(
     package_root = run_root / PACKAGE_DIR_NAME
     verification = verify_immutable_package(package_root)
     assert verification["outcome"] == "accepted"
-    manifest = json.loads((package_root / PACKAGE_MANIFEST_NAME).read_text(encoding="utf-8"))
+    manifest = json.loads(
+        (package_root / PACKAGE_MANIFEST_NAME).read_text(encoding="utf-8")
+    )
     assert manifest["sources"] == ["bybit-linear", "binance-usdm"]
     assert manifest["record_counts"] == {
         "market_quality_observations": 5760,
@@ -186,9 +197,15 @@ def test_full_service_package_is_source_separated_and_verified(
         "performance_research_authorized": False,
         "live_capital_authorized": False,
     }
-    assert len((package_root / PACKAGE_SOURCE_SNAPSHOTS_NAME).read_text().splitlines()) == 288
-    assert len((package_root / PACKAGE_MARKET_QUALITY_NAME).read_text().splitlines()) == 5760
-    assert len((package_root / PACKAGE_INSTRUMENT_SNAPSHOTS_NAME).read_text().splitlines()) == 5760
+    assert len(
+        (package_root / PACKAGE_SOURCE_SNAPSHOTS_NAME).read_text().splitlines()
+    ) == 288
+    assert len(
+        (package_root / PACKAGE_MARKET_QUALITY_NAME).read_text().splitlines()
+    ) == 5760
+    assert len(
+        (package_root / PACKAGE_INSTRUMENT_SNAPSHOTS_NAME).read_text().splitlines()
+    ) == 5760
 
 
 def test_publication_is_restart_safe_and_no_overwrite(
@@ -214,7 +231,7 @@ def test_hash_tamper_and_symlink_fail_closed(
     run_root, _ = _complete(tmp_path, monkeypatch)
     package_root = run_root / PACKAGE_DIR_NAME
     quality_path = package_root / PACKAGE_MARKET_QUALITY_NAME
-    quality_path.write_text("tampered\n", encoding="utf-8")
+    quality_path.write_text("tampered" + chr(10), encoding="utf-8")
     with pytest.raises(MarketEvidencePublicationError, match="identity mismatch"):
         verify_immutable_package(package_root)
 
@@ -240,7 +257,11 @@ def test_future_availability_and_wrong_market_fail_closed(
         environment={},
     )
     start_ms = int(core.EXPECTED_REQUEST["decision_start_ms"])
-    future_ms = start_ms + int(core.EXPECTED_REQUEST["max_sample_lateness_seconds"]) * 1000 + 1
+    future_ms = (
+        start_ms
+        + int(core.EXPECTED_REQUEST["max_sample_lateness_seconds"]) * 1000
+        + 1
+    )
     monkeypatch.setattr(core.time, "time_ns", lambda: future_ms * 1_000_000)
     with pytest.raises(MarketEvidencePublicationError, match="availability timestamp"):
         collect_due_sample(
@@ -260,11 +281,14 @@ def test_future_availability_and_wrong_market_fail_closed(
     snapshot["records"][0]["market"] = "spot"
     run_root = durable_root / str(core.EXPECTED_REQUEST["run_id"])
     sample_root = run_root / "market-samples" / "0000"
-    (sample_root / "market-snapshot.json").write_text(json.dumps(snapshot), encoding="utf-8")
-    report = json.loads((sample_root / "sample-report.json").read_text())
+    (sample_root / "market-snapshot.json").write_text(
+        json.dumps(snapshot),
+        encoding="utf-8",
+    )
+    report_path = sample_root / "sample-report.json"
+    report = json.loads(report_path.read_text())
     report["status"] = "pass"
-    (sample_root / "sample-report.json").write_text(json.dumps(report), encoding="utf-8")
-    from ai_platform.wickhunter.production_market_evidence_service import _enrich_sample
+    report_path.write_text(json.dumps(report), encoding="utf-8")
 
     with pytest.raises(MarketEvidencePublicationError, match="source or market mismatch"):
         _enrich_sample(run_root, core.EXPECTED_REQUEST, 0)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 import { StatusPill } from "@/components/status-pill";
 import { csrfFetch } from "@/lib/client-fetch";
@@ -42,6 +42,34 @@ async function responseFailure(response: Response): Promise<RequestFailure> {
   };
 }
 
+function normalizeFailure(caught: unknown, fallback: string): RequestFailure {
+  const failure = caught as Partial<RequestFailure>;
+  return {
+    message: failure.message ?? fallback,
+    status: failure.status ?? 502,
+  };
+}
+
+async function requestCatalog(): Promise<StrategyCatalogListResponse> {
+  const view = new URLSearchParams(window.location.search).get("catalog_view");
+  const suffix = view ? `?view=${encodeURIComponent(view)}` : "";
+  const response = await fetch(`/api/strategy-catalog${suffix}`, {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (!response.ok) throw await responseFailure(response);
+  return (await response.json()) as StrategyCatalogListResponse;
+}
+
+async function requestDetail(strategyVersion: string): Promise<StrategyCatalogDetail> {
+  const response = await fetch(
+    `/api/strategy-catalog/${encodeURIComponent(strategyVersion)}`,
+    { cache: "no-store", credentials: "same-origin" },
+  );
+  if (!response.ok) throw await responseFailure(response);
+  return (await response.json()) as StrategyCatalogDetail;
+}
+
 export function StrategyCatalogClient() {
   const [catalog, setCatalog] = useState<StrategyCatalogListResponse | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
@@ -54,72 +82,96 @@ export function StrategyCatalogClient() {
   const [rollbackFailure, setRollbackFailure] = useState<RequestFailure | null>(null);
   const [rollbackResult, setRollbackResult] = useState<StrategyRollbackResult | null>(null);
 
-  const loadCatalog = useCallback(async () => {
-    setCatalogLoading(true);
-    setCatalogFailure(null);
-    setRollbackFailure(null);
-    setRollbackResult(null);
-    try {
-      const view = new URLSearchParams(window.location.search).get("catalog_view");
-      const suffix = view ? `?view=${encodeURIComponent(view)}` : "";
-      const response = await fetch(`/api/strategy-catalog${suffix}`, {
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-      if (!response.ok) throw await responseFailure(response);
-      const payload = (await response.json()) as StrategyCatalogListResponse;
-      setCatalog(payload);
-      setSelectedVersion((current) =>
-        current && payload.entries.some((entry) => entry.strategy_version === current)
-          ? current
-          : (payload.entries[0]?.strategy_version ?? null),
-      );
-      if (payload.entries.length === 0) setDetail(null);
-    } catch (caught) {
-      const failure = caught as Partial<RequestFailure>;
-      setCatalog(null);
-      setDetail(null);
-      setSelectedVersion(null);
-      setCatalogFailure({
-        message: failure.message ?? "Strategy Catalog request failed closed",
-        status: failure.status ?? 502,
-      });
-    } finally {
-      setCatalogLoading(false);
+  useEffect(() => {
+    let cancelled = false;
+
+    async function initialize() {
+      try {
+        const payload = await requestCatalog();
+        if (cancelled) return;
+        const initialVersion = payload.entries[0]?.strategy_version ?? null;
+        setCatalog(payload);
+        setSelectedVersion(initialVersion);
+        setCatalogFailure(null);
+        setCatalogLoading(false);
+        if (!initialVersion) {
+          setDetail(null);
+          return;
+        }
+
+        setDetailLoading(true);
+        try {
+          const initialDetail = await requestDetail(initialVersion);
+          if (cancelled) return;
+          setDetail(initialDetail);
+          setDetailFailure(null);
+        } catch (caught) {
+          if (cancelled) return;
+          setDetail(null);
+          setDetailFailure(normalizeFailure(caught, "Strategy detail request failed closed"));
+        } finally {
+          if (!cancelled) setDetailLoading(false);
+        }
+      } catch (caught) {
+        if (cancelled) return;
+        setCatalog(null);
+        setDetail(null);
+        setSelectedVersion(null);
+        setCatalogFailure(normalizeFailure(caught, "Strategy Catalog request failed closed"));
+        setCatalogLoading(false);
+      }
     }
+
+    void initialize();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const loadDetail = useCallback(async (strategyVersion: string) => {
+  async function loadSelectedDetail(strategyVersion: string) {
+    setSelectedVersion(strategyVersion);
     setDetailLoading(true);
     setDetailFailure(null);
     setRollbackFailure(null);
     setRollbackResult(null);
     try {
-      const response = await fetch(
-        `/api/strategy-catalog/${encodeURIComponent(strategyVersion)}`,
-        { cache: "no-store", credentials: "same-origin" },
-      );
-      if (!response.ok) throw await responseFailure(response);
-      setDetail((await response.json()) as StrategyCatalogDetail);
+      setDetail(await requestDetail(strategyVersion));
     } catch (caught) {
-      const failure = caught as Partial<RequestFailure>;
       setDetail(null);
-      setDetailFailure({
-        message: failure.message ?? "Strategy detail request failed closed",
-        status: failure.status ?? 502,
-      });
+      setDetailFailure(normalizeFailure(caught, "Strategy detail request failed closed"));
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }
 
-  useEffect(() => {
-    void loadCatalog();
-  }, [loadCatalog]);
-
-  useEffect(() => {
-    if (selectedVersion) void loadDetail(selectedVersion);
-  }, [loadDetail, selectedVersion]);
+  async function refreshCatalog() {
+    setCatalogLoading(true);
+    setCatalogFailure(null);
+    setRollbackFailure(null);
+    setRollbackResult(null);
+    try {
+      const payload = await requestCatalog();
+      const retainedVersion =
+        selectedVersion && payload.entries.some((entry) => entry.strategy_version === selectedVersion)
+          ? selectedVersion
+          : (payload.entries[0]?.strategy_version ?? null);
+      setCatalog(payload);
+      setSelectedVersion(retainedVersion);
+      if (retainedVersion) {
+        await loadSelectedDetail(retainedVersion);
+      } else {
+        setDetail(null);
+        setDetailFailure(null);
+      }
+    } catch (caught) {
+      setCatalog(null);
+      setDetail(null);
+      setSelectedVersion(null);
+      setCatalogFailure(normalizeFailure(caught, "Strategy Catalog request failed closed"));
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
 
   async function submitRollback(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -146,11 +198,7 @@ export function StrategyCatalogClient() {
       if (!response.ok) throw await responseFailure(response);
       setRollbackResult((await response.json()) as StrategyRollbackResult);
     } catch (caught) {
-      const failure = caught as Partial<RequestFailure>;
-      setRollbackFailure({
-        message: failure.message ?? "Rollback request failed closed",
-        status: failure.status ?? 502,
-      });
+      setRollbackFailure(normalizeFailure(caught, "Rollback request failed closed"));
     } finally {
       setRollbackSubmitting(false);
     }
@@ -171,7 +219,7 @@ export function StrategyCatalogClient() {
       <div className={`status-banner ${denied ? "status-danger" : "status-warning"}`} role="alert">
         <strong>{denied ? "Strategy Catalog access denied" : "Strategy Catalog unavailable"}</strong>
         <span>{catalogFailure.message}</span>
-        <button type="button" className="secondary-button" onClick={() => void loadCatalog()}>
+        <button type="button" className="secondary-button" onClick={() => void refreshCatalog()}>
           Retry catalog request
         </button>
       </div>
@@ -183,7 +231,7 @@ export function StrategyCatalogClient() {
       <div className="empty-state" role="status">
         <strong>No strategy versions are available</strong>
         <span>The tenant has no catalog entries that the current session may read.</span>
-        <button type="button" className="secondary-button" onClick={() => void loadCatalog()}>
+        <button type="button" className="secondary-button" onClick={() => void refreshCatalog()}>
           Refresh catalog
         </button>
       </div>
@@ -205,7 +253,7 @@ export function StrategyCatalogClient() {
             <span className="eyebrow">Tenant {catalog.tenant_id}</span>
             <h2>Immutable strategy versions</h2>
           </div>
-          <button type="button" className="secondary-button" onClick={() => void loadCatalog()}>
+          <button type="button" className="secondary-button" onClick={() => void refreshCatalog()}>
             Refresh
           </button>
         </div>
@@ -229,7 +277,7 @@ export function StrategyCatalogClient() {
                       type="button"
                       className="link-button"
                       aria-pressed={selectedVersion === entry.strategy_version}
-                      onClick={() => setSelectedVersion(entry.strategy_version)}
+                      onClick={() => void loadSelectedDetail(entry.strategy_version)}
                     >
                       {entry.display_name}
                     </button>
@@ -259,7 +307,11 @@ export function StrategyCatalogClient() {
           <strong>Strategy detail unavailable</strong>
           <span>{detailFailure.message}</span>
           {selectedVersion ? (
-            <button type="button" className="secondary-button" onClick={() => void loadDetail(selectedVersion)}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void loadSelectedDetail(selectedVersion)}
+            >
               Retry detail request
             </button>
           ) : null}

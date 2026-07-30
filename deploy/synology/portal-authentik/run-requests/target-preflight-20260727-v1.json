@@ -1,0 +1,16 @@
+{
+  "authentik_http_port": 9000,
+  "backup_root": "/var/lib/freqtrade-staging-state/portal-authentik-backups",
+  "bootstrap_authorized": false,
+  "bounded_storage_probe_authorized": true,
+  "deployment_mutation_authorized": false,
+  "expected_environment": "synology-staging",
+  "expected_runner_label": "freqtrade-staging",
+  "expected_runner_name": "freqtrade-synology-staging",
+  "expected_state_dir": "/var/lib/freqtrade-staging-state",
+  "request_id": "portal-pi06-authentik-synology-target-preflight-20260727-v1",
+  "restore_authorized": false,
+  "restore_root": "/var/lib/freqtrade-staging-state/portal-authentik-restore",
+  "schema_version": 1,
+  "target_root": "/var/lib/freqtrade-staging-state/portal-authentik"
+}

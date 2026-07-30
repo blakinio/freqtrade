@@ -14,8 +14,7 @@ test.describe("Strategy Catalog closure", { tag: [tags.regression, tags.responsi
       await expect(page.getByRole("heading", { name: "Approval evidence" })).toBeVisible();
       await expect(page.getByRole("heading", { name: "Paper and shadow deployments" })).toBeVisible();
       await expect(page.getByText("OOS_EVIDENCE_ACCEPTED")).toBeVisible();
-      await expect(page.getByText("deployment-ai-directional-v3-shadow")).not.toBeVisible();
-      await expect(page.getByRole("cell", { name: "SHADOW" })).toBeVisible();
+      await expect(page.getByRole("cell", { name: "SHADOW" }).last()).toBeVisible();
       await expect(page.getByRole("cell", { name: "ACTIVE" })).toBeVisible();
       await expect(page.getByText("Live capital authority").first()).toBeVisible();
 

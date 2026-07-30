@@ -286,7 +286,7 @@ export function MarketEvidenceDashboard() {
               <div><span>Ostatni ticker</span><strong>{formatTimestamp(source.last_ticker_at_ms)}</strong></div>
               <div><span>Ostatnia świeca</span><strong>{formatTimestamp(source.last_completed_candle_at_ms)}</strong></div>
               <div><span>Freshness</span><strong>{formatDuration(source.freshness_ms)}</strong></div>
-              <div><span>Symbole</span><strong>{source.active_symbols}</strong></div>
+              <div><span>Symbols</span><strong>{source.active_symbols}</strong></div>
               <div><span>Reconnects / gaps</span><strong>{source.reconnect_count} / {source.gaps}</strong></div>
             </div>
             {source.exclusion_reason ? (

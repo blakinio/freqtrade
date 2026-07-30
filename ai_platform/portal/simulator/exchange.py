@@ -220,11 +220,7 @@ class DeterministicExchangeSimulator:
             model=self.manifest.cost_model,
         )
         direction = Decimal("1") if self._entry_side is TradeSide.BUY else Decimal("-1")
-        gross_pnl = (
-            (costs.exit_fill_price - costs.entry_fill_price)
-            * self._open_amount
-            * direction
-        )
+        gross_pnl = (costs.exit_fill_price - costs.entry_fill_price) * self._open_amount * direction
         accruals = funding_accruals(
             events=self.manifest.funding_events,
             opened_at=self._entry_latency.filled_at,

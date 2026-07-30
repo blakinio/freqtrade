@@ -232,7 +232,7 @@ def test_hash_tamper_and_symlink_fail_closed(
     instrument_path = other_package / PACKAGE_INSTRUMENT_SNAPSHOTS_NAME
     instrument_path.unlink()
     instrument_path.symlink_to(other_package / PACKAGE_MARKET_QUALITY_NAME)
-    with pytest.raises(MarketEvidencePublicationError, match="missing or symlinked"):
+    with pytest.raises(MarketEvidencePublicationError, match="symlink"):
         verify_immutable_package(other_package)
 
 

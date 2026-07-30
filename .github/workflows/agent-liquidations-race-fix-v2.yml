@@ -1,13 +1,11 @@
 name: Agent Liquidations Watchdog Race Fix V2
 
 "on":
-  push:
+  pull_request:
     branches:
-      - fix/liquidations-live-telegram-monitoring-20260730
-    paths:
-      - .github/workflows/agent-liquidations-race-fix-v2.yml
-      - agent_liquidations_race_trigger.txt
-  workflow_dispatch:
+      - develop
+    types:
+      - synchronize
 
 permissions:
   contents: write
@@ -18,6 +16,7 @@ concurrency:
 
 jobs:
   fix:
+    if: github.event.pull_request.head.ref == 'fix/liquidations-live-telegram-monitoring-20260730'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -32,25 +31,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Synchronize develop and apply race fix
+      - name: Apply and validate race fix
         shell: bash
         run: |
           set -Eeuo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch origin develop
-
-          if ! git merge --no-edit origin/develop; then
-            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
-            if [[ "${#conflicts[@]}" -ne 1 || "${conflicts[0]}" != ".github/workflows/repair-synology-autostart.yml" ]]; then
-              printf 'Unexpected merge conflicts:\n%s\n' "${conflicts[*]}" >&2
-              exit 1
-            fi
-            git checkout --ours .github/workflows/repair-synology-autostart.yml
-            git add .github/workflows/repair-synology-autostart.yml
-            git commit --no-edit
-          fi
-
           python agent_liquidations_race_patch.py
           python -m pip install --disable-pip-version-check pytest ruff==0.15.21
           ruff format \
@@ -64,6 +48,8 @@ jobs:
             tests/ai_platform_integration/test_liquidation_alert_notifications.py \
             --confcutdir=tests/ai_platform_integration
 
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add \
             ai_platform/scripts/liquidation_alert_notifications.py \
             tests/ai_platform_integration/test_liquidation_alert_notifications.py

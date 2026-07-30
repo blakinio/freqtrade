@@ -142,3 +142,11 @@ export interface LiquidationHealth {
   trading_authorized: false;
   source_semantics: Record<LiquidationSource, string> & Record<string, string | undefined>;
 }
+
+export type LiquidationDataSource = LiquidationSource;
+export type LiquidationDataEvent = PortalLiquidationEvent;
+export type LiquidationDataQuery = LiquidationQuery;
+export type LiquidationDataPage = LiquidationPage;
+export type LiquidationDataWindowSummary = LiquidationWindowSummary;
+export type LiquidationDataSymbolRanking = LiquidationSymbolRanking;
+export type LiquidationDataSummary = LiquidationSummary;

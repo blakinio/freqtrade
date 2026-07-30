@@ -49,8 +49,7 @@ def test_feature_registry_read_only_vertical_slice() -> None:
     assert snapshot_payload["registry_version"] == "1.0.0"
     assert snapshot_payload["feature_count"] == len(snapshot_payload["features"])
     assert any(
-        feature["feature_id"] == "support_resistance.v1"
-        for feature in snapshot_payload["features"]
+        feature["feature_id"] == "support_resistance.v1" for feature in snapshot_payload["features"]
     )
     assert listing.status_code == 200
     assert listing.json()

@@ -54,8 +54,8 @@ Run every child checkpoint validator, structural ownership checks, documentation
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T12:05:00+02:00
-head: 354c21832d2bfd60d38baef4c7bccd513ba6386f
+updated_at: 2026-07-30T12:25:00+02:00
+head: 9b2b773dd654564bb470c8b94d660ee60f9f23b5
 branch: agent/program-closure-preflight
 pr: 767
 status: validating
@@ -79,11 +79,11 @@ derived:
   - Contracts, closed-bar scheduling, support and resistance and simulator fidelity can start after Gate 0 merges.
   - Research Data, AI routing and ranking, both frontend tasks and final integration must wait for recorded dependencies.
 unknown:
-  - Exact-head CI conclusions and unresolved review-thread state after this checkpoint commit.
+  - Exact-head CI conclusions and unresolved review-thread state after this user-authored checkpoint commit.
 conflicts: []
 first_failure:
   marker: EXACT_HEAD_VALIDATION_PENDING
-  evidence: The Gate 0 PR head moved after normal synchronization and checkpoint refresh; required exact-head CI and review verification must complete before merge.
+  evidence: Bot-authored refresh workflows required approval and had no jobs; this normal user-authored checkpoint commit must complete required exact-head CI and review verification before merge.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
   - Public GitHub source visibility is equivalent to a public Freqtrade runtime or browser execution path.
@@ -116,6 +116,6 @@ validation:
     result: PASS
     evidence: All 73 unchecked P0, P1 and P2 entries appear exactly once with an allowed status.
 blockers:
-  - Exact-head required CI and review-thread verification remain pending after this commit.
+  - Exact-head required CI and review-thread verification remain pending after this user-authored commit.
 next_action: Verify PR #767 exact-head CI and unresolved review threads, repair only evidenced failures, synchronize normally if develop advances, and merge normally when green.
 ```

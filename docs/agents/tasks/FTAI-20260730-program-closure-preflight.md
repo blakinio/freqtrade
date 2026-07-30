@@ -5,7 +5,7 @@ branch: agent/program-closure-preflight
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
-related_pr: null
+related_pr: 767
 program: FTAI-PROGRAM-AI-TRADING-PORTAL
 dependencies:
   - PR #759 merged
@@ -50,9 +50,9 @@ Run every child checkpoint validator, structural ownership checks, documentation
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-30T10:55:00+02:00
-head: 1d347a785eddc900f4484c30e06c3ab4e8851b29
+head: aa31b2e1e667b68bc7a12026a4fa81b6a1da9a6f
 branch: agent/program-closure-preflight
-pr: null
+pr: 767
 status: validating
 context_routes:
   - AGENTS.md
@@ -64,6 +64,7 @@ owned_paths:
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
 proven:
   - PR #759 merged as 1d347a785eddc900f4484c30e06c3ab4e8851b29 after exact-head Freqtrade CI and workflow security succeeded.
+  - PR #753 merged as 0208666d98849386e2f2d9acf534b13891e4afa2 and its WickHunter source contracts are frozen on develop.
   - The matrix classifies every unchecked backlog item and separates repository, external and live-capital lanes.
   - Child task implementation paths are pairwise disjoint and shared contracts have one exclusive owner.
 derived:
@@ -71,6 +72,7 @@ derived:
   - Research Data, AI routing and ranking, both frontend tasks and final integration must wait for their recorded dependencies.
 unknown:
   - Exact child PR numbers and workflow run IDs until workers execute.
+  - Exact-head CI conclusions for PR #767 after the live-state refresh.
 conflicts: []
 first_failure:
   marker: PUBLIC_REPOSITORY_VISIBILITY

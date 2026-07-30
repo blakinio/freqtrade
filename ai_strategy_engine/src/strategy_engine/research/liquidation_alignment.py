@@ -34,6 +34,9 @@ class ObservationConflictError(ValueError):
 
 class LiquidationEventLike(Protocol):
     @property
+    def schema_version(self) -> int: ...
+
+    @property
     def source(self) -> str: ...
 
     @property
@@ -73,8 +76,8 @@ class MarketObservation:
             ("source_event_id", self.source_event_id),
             ("symbol", self.symbol),
         ):
-            if not value.strip():
-                raise ValueError(f"{name} must be non-empty")
+            if not isinstance(value, str) or not value.strip():
+                raise ValueError(f"{name} must be a non-empty string")
         if self.event_time_ms <= 0:
             raise ValueError("event_time_ms must be > 0")
         if self.received_at_ms < self.event_time_ms:
@@ -111,20 +114,25 @@ class AlignedObservation:
     status: AlignmentStatus
     value: Decimal | None
     observation_id: str | None
+    source_event_id: str | None
+    schema_version: int | None
+    data_version: str | None
     event_time_ms: int | None
     received_at_ms: int | None
     available_at_ms: int | None
     age_ms: int | None
     delay_ms: int | None
-    data_version: str | None
 
 
 @dataclass(frozen=True, slots=True)
 class LiquidationAlignment:
+    liquidation_schema_version: int
     liquidation_id: str
     liquidation_source: str
+    liquidation_source_event_id: str
     symbol: str
     event_time_ms: int
+    received_at_ms: int
     as_of_ms: int
     observations: tuple[AlignedObservation, ...]
 
@@ -176,15 +184,32 @@ def align_liquidation_context(
     an available observation older than ``max_age_ms`` is ``STALE``.
     """
 
+    if liquidation.schema_version != 1:
+        raise ValueError("liquidation schema_version must be 1")
+    for name, value in (
+        ("source", liquidation.source),
+        ("source_event_id", liquidation.source_event_id),
+        ("symbol", liquidation.symbol),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"liquidation {name} must be a non-empty string")
+    if liquidation.occurred_at_ms <= 0:
+        raise ValueError("liquidation occurred_at_ms must be > 0")
+    if liquidation.received_at_ms < liquidation.occurred_at_ms:
+        raise ValueError("liquidation received_at_ms must be >= occurred_at_ms")
     if max_age_ms < 0:
         raise ValueError("max_age_ms must be >= 0")
     effective_as_of = liquidation.received_at_ms if as_of_ms is None else as_of_ms
     if effective_as_of < liquidation.occurred_at_ms:
         raise ValueError("as_of_ms must be >= liquidation occurred_at_ms")
 
-    normalized_sources = tuple(
-        sorted({source.strip().lower() for source in expected_sources if source.strip()})
-    )
+    normalized_source_set: set[str] = set()
+    for source in expected_sources:
+        if not isinstance(source, str):
+            raise TypeError("expected_sources entries must be strings")
+        if source.strip():
+            normalized_source_set.add(source.strip().lower())
+    normalized_sources = tuple(sorted(normalized_source_set))
     if not normalized_sources:
         raise ValueError("expected_sources must contain at least one source")
 
@@ -221,12 +246,14 @@ def align_liquidation_context(
                         status=status,
                         value=selected.value,
                         observation_id=selected.deterministic_id,
+                        source_event_id=selected.source_event_id,
+                        schema_version=selected.schema_version,
+                        data_version=selected.data_version,
                         event_time_ms=selected.event_time_ms,
                         received_at_ms=selected.received_at_ms,
                         available_at_ms=selected.available_at_ms,
                         age_ms=age_ms,
                         delay_ms=max(0, selected.available_at_ms - selected.event_time_ms),
-                        data_version=selected.data_version,
                     )
                 )
                 continue
@@ -247,12 +274,14 @@ def align_liquidation_context(
                         status=AlignmentStatus.DELAYED,
                         value=None,
                         observation_id=selected.deterministic_id,
+                        source_event_id=selected.source_event_id,
+                        schema_version=selected.schema_version,
+                        data_version=selected.data_version,
                         event_time_ms=selected.event_time_ms,
                         received_at_ms=selected.received_at_ms,
                         available_at_ms=selected.available_at_ms,
                         age_ms=liquidation.occurred_at_ms - selected.event_time_ms,
                         delay_ms=selected.available_at_ms - effective_as_of,
-                        data_version=selected.data_version,
                     )
                 )
                 continue
@@ -264,12 +293,14 @@ def align_liquidation_context(
                     status=AlignmentStatus.MISSING,
                     value=None,
                     observation_id=None,
+                    source_event_id=None,
+                    schema_version=None,
+                    data_version=None,
                     event_time_ms=None,
                     received_at_ms=None,
                     available_at_ms=None,
                     age_ms=None,
                     delay_ms=None,
-                    data_version=None,
                 )
             )
 
@@ -284,10 +315,13 @@ def align_liquidation_context(
         ).encode("utf-8")
     ).hexdigest()
     return LiquidationAlignment(
+        liquidation_schema_version=liquidation.schema_version,
         liquidation_id=liquidation_id,
         liquidation_source=liquidation.source,
+        liquidation_source_event_id=liquidation.source_event_id,
         symbol=symbol,
         event_time_ms=liquidation.occurred_at_ms,
+        received_at_ms=liquidation.received_at_ms,
         as_of_ms=effective_as_of,
         observations=tuple(aligned),
     )

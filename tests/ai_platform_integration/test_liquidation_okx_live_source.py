@@ -247,7 +247,7 @@ def test_operational_portal_and_deployment_contracts_require_okx() -> None:
         ROOT / "ai_platform/portal/web/lib/liquidations/okx-live-reader.ts"
     ).read_text(encoding="utf-8")
     portal_ui = (
-        ROOT / "ai_platform/portal/web/components/liquidations-live-dashboard-okx.tsx"
+        ROOT / "ai_platform/portal/web/components/liquidations-live-dashboard.tsx"
     ).read_text(encoding="utf-8")
 
     assert "liquidation_live_stream_okx" in entrypoint
@@ -265,7 +265,7 @@ def test_portal_has_no_direct_okx_or_collector_network_connection() -> None:
     portal_root = ROOT / "ai_platform" / "portal" / "web"
     inspected = [
         portal_root / "lib/liquidations/okx-live-reader.ts",
-        portal_root / "components/liquidations-live-dashboard-okx.tsx",
+        portal_root / "components/liquidations-live-dashboard.tsx",
         portal_root / "app/api/market/liquidations/_shared.ts",
     ]
     contents = "\n".join(path.read_text(encoding="utf-8") for path in inspected)

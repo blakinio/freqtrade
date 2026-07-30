@@ -51,12 +51,15 @@ def _codes(alerts: list[dict[str, str]]) -> set[str]:
 
 
 def test_three_source_runtime_and_portal_state_is_healthy() -> None:
-    assert _source_runtime_alerts(
-        _pointer(),
-        now_ms=NOW_MS,
-        event_stale_ms=300_000,
-        reconnect_max=100,
-    ) == []
+    assert (
+        _source_runtime_alerts(
+            _pointer(),
+            now_ms=NOW_MS,
+            event_stale_ms=300_000,
+            reconnect_max=100,
+        )
+        == []
+    )
     assert _runtime_portal_alerts(_pointer(), _portal_report()) == []
 
 
@@ -99,9 +102,7 @@ def test_okx_parse_reconnect_stale_and_write_alerts_are_source_isolated() -> Non
 def test_portal_runtime_drift_detects_missing_okx_and_impossible_counts() -> None:
     missing = _portal_report()
     del missing["observation"]["health"]["sources"]["okx-swap"]
-    assert _codes(_runtime_portal_alerts(_pointer(), missing)) == {
-        "LIQUID20_PORTAL_SOURCE_MISSING"
-    }
+    assert _codes(_runtime_portal_alerts(_pointer(), missing)) == {"LIQUID20_PORTAL_SOURCE_MISSING"}
 
     drift = _portal_report()
     drift["observation"]["health"]["sources"]["okx-swap"]["configured"] = False

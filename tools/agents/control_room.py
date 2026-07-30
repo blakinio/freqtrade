@@ -299,9 +299,7 @@ def task_dict(task: Task) -> dict[str, object]:
 
 
 def markdown(config: dict[str, object], tasks: list[Task], stale_after: int) -> str:
-    lanes = [
-        str(lane["id"]) for lane in object_map_list(config.get("lanes"), "lanes")
-    ]
+    lanes = [str(lane["id"]) for lane in object_map_list(config.get("lanes"), "lanes")]
     lines = [
         f"# Control Room — {config.get('repository', 'repository')}",
         "",
@@ -346,7 +344,10 @@ def main() -> int:
     config_path = Path(args.config)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     execution = object_map(config.get("execution", {}), "execution")
-    configured_stale = int(execution.get("stale_after_minutes", 45))
+    configured_stale_value = execution.get("stale_after_minutes", 45)
+    if not isinstance(configured_stale_value, int):
+        raise ValueError("execution.stale_after_minutes must be an integer")
+    configured_stale = configured_stale_value
     stale_after = args.stale_after_minutes or configured_stale
     now = parse_iso(args.now) if args.now else datetime.now(UTC)
     if now is None:

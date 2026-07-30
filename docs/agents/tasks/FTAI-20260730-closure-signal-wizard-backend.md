@@ -1,11 +1,12 @@
 ---
 task_id: FTAI-20260730-closure-signal-wizard-backend
-status: active
-branch: agent/closure-signal-wizard-backend
+status: completed
+branch: agent/closure-signal-wizard-unblock
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 825
+terminal_pr: null
 dependencies:
   - FTAI-20260730-closure-contracts merged as 6e489f7e10199120424cbcd01b3e125711630243
   - Signal Wizard blocker checkpoint merged as 18881d8847c765e939509a0f34b9dc327c5c9270
@@ -33,27 +34,24 @@ required_reads:
 
 # Canonical Signal Wizard backend
 
-## Goal
+## Terminal result
 
-Implement tenant-scoped durable preview and submit semantics for the frozen Signal Wizard v2 contracts without mapping arbitrary approved features onto incompatible fixed Strategy Lab catalog entries.
-
-## Boundaries
-
-- Preview and submission are research-only and require authenticated model-training permission.
-- Only Feature Registry entries with `approved_for_ai=true` may be selected.
-- Preview and submit are tenant-bound and idempotent.
-- Submitted records are durable research experiment intents; they do not run a strategy, place orders, promote a model or grant live-capital authority.
-- No browser, exchange, Vault, protected-holdout, workflow or production-deployment path is added.
+- Implementation PR #825 merged normally into `develop` as `0bc35521debd33312820dfad9f010e22aa651610`.
+- The control plane now exposes tenant-scoped `/v1/signal-wizard/preview` and `/v1/signal-wizard/submit` endpoints.
+- Preview consumes the frozen v2 contracts, validates authenticated context, `approved_for_ai` registry entries, parameters, explicit dependencies and recursive typed DSL conditions.
+- Preview definitions and hashes are deterministic and preserve registry snapshot identity, closed-bar semantics, provenance and zero execution authority.
+- Submit requires the persisted preview and expected strategy version, then stores the canonical command and durable research experiment intent with tenant-scoped idempotency.
+- No fixed Strategy Lab catalog identity is impersonated and no strategy run, order, deployment, promotion, protected-holdout or live-capital authority is introduced.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T22:46:00+02:00
-head: 6decc078bc4e24c2dafab2da0f05ccd331efc1c0
-branch: agent/closure-signal-wizard-backend
+updated_at: 2026-07-30T23:24:00+02:00
+head: 0bc35521debd33312820dfad9f010e22aa651610
+branch: agent/closure-signal-wizard-unblock
 pr: 825
-status: implementing
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -74,19 +72,20 @@ owned_paths:
   - tests/ai_platform/portal/signal_wizard/__init__.py
   - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 proven:
-  - Frozen v2 preview and submit contracts exist on develop.
-  - PR 825 implements registered canonical preview and submit routes with durable tenant-scoped storage.
-  - Preview validates approved Feature Registry entries, parameters, dependencies and recursive typed condition AST.
-  - Submit persists the canonical command and preview-derived research experiment intent without Strategy Lab catalog impersonation.
-  - Branch synchronization PRs 824 and 826 merged current Research Data changes normally with no owned-path collision.
+  - PR 825 exact head 47c042846094f43a8dc06494b177d3d69c64878d passed AI Platform CI run 30582265385.
+  - The same exact head passed AI Strategy Engine run 30582265713 and GitHub Actions Security Analysis run 30582265752.
+  - Freqtrade CI run 30582265405 passed pre-commit, documentation, Python 3.11 through 3.14, 5870-test coverage, distribution build and terminal CI Gate.
+  - PR 825 changed exactly thirteen assigned paths and had zero unresolved review threads.
+  - PR 825 merged normally as 0bc35521debd33312820dfad9f010e22aa651610.
+  - Registered OpenAPI contains both canonical Signal Wizard routes without private transport or credential material.
 derived:
-  - A green exact-head merge of PR 825 will satisfy the backend dependency recorded by Signal Wizard UI checkpoint PR 820.
-unknown:
-  - Exact final workflow conclusions and unresolved review-thread count for PR 825.
+  - The backend dependency recorded by UI blocker PRs 818 and 820 is satisfied.
+  - The Signal Wizard frontend task can return to READY without backend ownership transfer or mock-only behavior.
+unknown: []
 conflicts: []
 first_failure:
   marker: PRIVATE_RUNTIME_OPENAPI_ASSERTION_TOO_BROAD
-  evidence: AI Platform run 30580103154 found the legacy runtime test rejected the public frozen field authorization_decision_ref solely because it contained the word authorization; the regression is being narrowed to private transport and credential material.
+  evidence: An inherited regression rejected the public frozen field authorization_decision_ref by substring; the repair narrowed the test to actual private endpoint and authorization-header material, after which all exact-head gates passed.
 rejected_hypotheses:
   - Generate transient candidate identifiers in the BFF.
   - Map arbitrary approved features to fixed incompatible Strategy Lab strategies.
@@ -94,31 +93,22 @@ rejected_hypotheses:
   - Grant execution, promotion or live-capital authority.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md
-  - ai_platform/portal/signal_wizard/__init__.py
-  - ai_platform/portal/signal_wizard/models.py
-  - ai_platform/portal/signal_wizard/repository.py
-  - ai_platform/portal/signal_wizard/router.py
-  - ai_platform/portal/signal_wizard/service.py
-  - ai_platform/portal/signal_wizard/migrations/0001_signal_wizard.sql
-  - ai_platform/portal/control_plane/api.py
-  - ai_platform/portal/control_plane/database.py
-  - tests/ai_platform/portal/control_plane/test_api.py
-  - tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
-  - tests/ai_platform/portal/signal_wizard/__init__.py
-  - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 validation:
-  - command: live ownership and dependency preflight
+  - command: AI Platform CI run 30582265385
     result: PASS
-    evidence: Frozen contracts and Feature Registry are merged; active changed paths are disjoint.
-  - command: Freqtrade CI run 30579388841
-    result: FAIL
-    evidence: Ruff format changed one owned service file; commit e28b1d2a7f3d5be4352c83cdde768f861542c77c applied the exact formatter diff.
-  - command: AI Platform CI run 30579725358
-    result: FAIL
-    evidence: The explicit OpenAPI route allowlist omitted only /v1/signal-wizard/preview and /v1/signal-wizard/submit; the allowlist was updated.
-  - command: AI Platform CI run 30580103154
-    result: FAIL
-    evidence: All package tests except the legacy broad OpenAPI substring assertion passed.
+    evidence: Exact final head passed the complete AI Platform package and API contract suite.
+  - command: AI Strategy Engine run 30582265713
+    result: PASS
+    evidence: Exact final head passed package, type, deterministic and boundary checks.
+  - command: Freqtrade CI run 30582265405
+    result: PASS
+    evidence: Exact final head passed all required matrix jobs and terminal CI Gate.
+  - command: GitHub Actions Security Analysis run 30582265752
+    result: PASS
+    evidence: Exact final head passed zizmor analysis.
+  - command: PR 825 changed-file, review and merge audit
+    result: PASS
+    evidence: Thirteen assigned paths, zero unresolved threads and normal squash merge 0bc35521debd33312820dfad9f010e22aa651610.
 blockers: []
-next_action: Narrow the private runtime OpenAPI regression to actual private transport and credential fields, then validate PR 825 exact head.
+next_action: Agent 0 records the backend merge in the closure matrix and marks the Signal Wizard frontend task READY.
 ```

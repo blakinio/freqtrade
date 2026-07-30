@@ -6,6 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 777
+terminal_pr: 792
 dependencies:
   - none
 owned_paths:

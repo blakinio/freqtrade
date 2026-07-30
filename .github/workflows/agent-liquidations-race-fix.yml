@@ -1,0 +1,217 @@
+name: Agent Liquidations Watchdog Race Fix
+
+"on":
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-liquidations-watchdog-race-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.ref == 'fix/liquidations-live-telegram-monitoring-20260730'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out remediation branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/liquidations-live-telegram-monitoring-20260730
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Patch watchdog race and add regressions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          script = Path("ai_platform/scripts/liquidation_alert_notifications.py")
+          text = script.read_text(encoding="utf-8")
+
+          old = '''def _status_present(client: GitHubClient, repository: str, sha: str) -> bool:
+              payload = client.combined_status(repository, sha)
+              statuses = payload.get("statuses") if isinstance(payload, dict) else None
+              return any(
+                  isinstance(item, dict) and item.get("context") == HEALTH_STATUS_CONTEXT
+                  for item in statuses or []
+              )
+          '''
+          new = '''def _final_status_present(client: GitHubClient, repository: str, sha: str) -> bool:
+              payload = client.combined_status(repository, sha)
+              statuses = payload.get("statuses") if isinstance(payload, dict) else None
+              return any(
+                  isinstance(item, dict)
+                  and item.get("context") == HEALTH_STATUS_CONTEXT
+                  and item.get("state") in {"success", "failure", "error"}
+                  for item in statuses or []
+              )
+          '''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''    elif status == "completed" and conclusion == "cancelled":
+              synthetic_code = "LIQUIDATIONS_HEALTH_RUN_CANCELLED"
+              synthetic_description = (
+                  "Najnowszy run health został anulowany bez nowszego prawidłowego runu."
+              )
+          elif sha and status == "completed" and not _status_present(client, repository, sha):
+              synthetic_code = "LIQUIDATIONS_HEALTH_STATUS_MISSING"
+              synthetic_description = "Najnowszy run nie opublikował finalnego statusu commita."
+          '''
+          new = '''    elif status == "completed" and conclusion == "cancelled":
+              synthetic_code = "LIQUIDATIONS_HEALTH_RUN_CANCELLED"
+              synthetic_description = (
+                  "Najnowszy run health został anulowany bez nowszego prawidłowego runu."
+              )
+          elif (
+              status == "completed"
+              and conclusion not in {"success", "cancelled"}
+              and not (issue and issue.get("state") == "open")
+          ):
+              synthetic_code = "LIQUIDATIONS_HEALTH_RUN_FAILED_WITHOUT_ALERT"
+              synthetic_description = (
+                  "Run health zakończył się błędem, ale nie pozostawił otwartego alertu."
+              )
+          elif sha and status == "completed" and not _final_status_present(client, repository, sha):
+              synthetic_code = "LIQUIDATIONS_HEALTH_STATUS_MISSING"
+              synthetic_description = "Najnowszy run nie opublikował finalnego statusu commita."
+          '''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''    else:
+              report = {}
+              codes = ()
+              healthy = bool(
+                  issue is not None and issue.get("state") == "closed" and issue_number is not None
+              ) or (status == "completed" and conclusion == "success")
+              description = "Wszystkie kontrole Liquidations Live zakończyły się sukcesem."
+          '''
+          new = '''    else:
+              report = {}
+              codes = ()
+              event_confirms_recovery = bool(
+                  issue is not None and issue.get("state") == "closed" and issue_number is not None
+              )
+              run_is_fresh_and_active = status in {
+                  "queued",
+                  "in_progress",
+                  "pending",
+                  "requested",
+                  "waiting",
+              }
+              healthy = (
+                  event_confirms_recovery
+                  or (status == "completed" and conclusion == "success")
+                  or run_is_fresh_and_active
+              )
+              description = (
+                  "Monitoring jest w toku; brak nowej potwierdzonej awarii."
+                  if run_is_fresh_and_active and not event_confirms_recovery
+                  else "Wszystkie kontrole Liquidations Live zakończyły się sukcesem."
+              )
+          '''
+          assert text.count(old) == 1
+          script.write_text(text.replace(old, new), encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_liquidation_alert_notifications.py")
+          text = tests.read_text(encoding="utf-8")
+          text = text.replace(
+              "    decide_notification,\n",
+              "    decide_notification,\n    discover_incident,\n",
+              1,
+          )
+          addition = '''
+
+          def test_fresh_in_progress_run_does_not_create_false_incident() -> None:
+              client = FakeClient()
+              client.issues[0]["state"] = "closed"
+              client.list_workflow_runs = lambda repository, workflow: [
+                  {
+                      "status": "in_progress",
+                      "conclusion": None,
+                      "created_at": "2027-01-15T08:00:00Z",
+                      "head_sha": "b" * 40,
+                      "html_url": "https://github.com/blakinio/freqtrade/actions/runs/2",
+                  }
+              ]
+
+              current, _ = discover_incident(
+                  client,
+                  "blakinio/freqtrade",
+                  now_ms=NOW_MS,
+                  issue_number=None,
+              )
+
+              assert current.healthy is True
+              assert current.codes == ()
+              assert client.created_issues == []
+
+
+          def test_pending_commit_status_is_not_final() -> None:
+              client = FakeClient()
+              client.issues[0]["state"] = "closed"
+              client.list_workflow_runs = lambda repository, workflow: [
+                  {
+                      "status": "completed",
+                      "conclusion": "success",
+                      "created_at": "2027-01-15T08:00:00Z",
+                      "head_sha": "c" * 40,
+                      "html_url": "https://github.com/blakinio/freqtrade/actions/runs/3",
+                  }
+              ]
+              client.combined_status = lambda repository, sha: {
+                  "statuses": [
+                      {"context": "liquidations-live-health", "state": "pending"}
+                  ]
+              }
+
+              current, _ = discover_incident(
+                  client,
+                  "blakinio/freqtrade",
+                  now_ms=NOW_MS,
+                  issue_number=None,
+              )
+
+              assert current.healthy is False
+              assert current.codes == ("LIQUIDATIONS_HEALTH_STATUS_MISSING",)
+              assert client.created_issues[-1]["title"] == (
+                  "[liquidations-live] operational health alert"
+              )
+          '''
+          assert "def test_fresh_in_progress_run_does_not_create_false_incident" not in text
+          tests.write_text(text + addition, encoding="utf-8")
+          PY
+
+          python -m pip install --disable-pip-version-check pytest ruff==0.15.21
+          ruff format \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
+          ruff check \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
+          python -m py_compile ai_platform/scripts/liquidation_alert_notifications.py
+          pytest -q \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py \
+            --confcutdir=tests/ai_platform_integration
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
+          git commit -m "fix(liquidations): avoid watchdog races on active health runs"
+          git push origin HEAD:fix/liquidations-live-telegram-monitoring-20260730

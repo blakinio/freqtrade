@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -26,7 +28,7 @@ class SignalWizardRepository:
         *,
         request_digest: str,
         strategy_version: str,
-        created_at: object,
+        created_at: datetime,
     ) -> None:
         session.add(
             SignalWizardPreviewRow(
@@ -74,7 +76,8 @@ class SignalWizardRepository:
         *,
         request_digest: str,
         preview_hash: str,
-        created_at: object,
+        command_json: str,
+        created_at: datetime,
     ) -> None:
         session.add(
             SignalWizardSubmissionRow(
@@ -84,6 +87,7 @@ class SignalWizardRepository:
                 request_digest=request_digest,
                 preview_hash=preview_hash,
                 created_at=created_at,
+                command_json=command_json,
                 submission_json=result.canonical_json(),
             )
         )

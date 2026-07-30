@@ -127,6 +127,7 @@ test("three-source BFF model lists, filters and aggregates OKX liquidation data"
     );
     expect(health.sources["okx-swap"]?.configured).toBe(true);
     expect(health.sources["okx-swap"]?.connected).toBe(true);
+    expect(health.sources["okx-swap"]?.healthy).toBe(true);
     expect(health.sources["okx-swap"]?.events).toBe(1);
     expect(health.source_semantics["okx-swap"]).toContain("public ctVal");
     expect(all.events.map((item) => item.source)).toEqual([
@@ -154,9 +155,12 @@ test("one disconnected OKX source degrades the collector view without changing o
 
     expect(health.mode).toBe("stale");
     expect(health.sources["okx-swap"]?.connected).toBe(false);
+    expect(health.sources["okx-swap"]?.healthy).toBe(false);
     expect(health.sources["okx-swap"]?.reconnect_count).toBe(1);
     expect(health.sources["bybit-linear"]?.connected).toBe(true);
+    expect(health.sources["bybit-linear"]?.healthy).toBe(true);
     expect(health.sources["binance-usdm"]?.connected).toBe(true);
+    expect(health.sources["binance-usdm"]?.healthy).toBe(true);
   } finally {
     await data.cleanup();
   }
@@ -175,6 +179,7 @@ test("an unconfigured OKX source can never be reported as healthy", async () => 
     expect(health.active_sources).not.toContain("okx-swap");
     expect(health.sources["okx-swap"]?.configured).toBe(false);
     expect(health.sources["okx-swap"]?.connected).toBe(false);
+    expect(health.sources["okx-swap"]?.healthy).toBe(false);
     expect(page.mode).toBe("stale");
     expect(summary.mode).toBe("stale");
     expect(health.sources["bybit-linear"]?.connected).toBe(true);
@@ -196,9 +201,12 @@ test("stale OKX events degrade the view even while its heartbeat remains fresh",
     expect(page.mode).toBe("stale");
     expect(health.sources["okx-swap"]?.configured).toBe(true);
     expect(health.sources["okx-swap"]?.connected).toBe(true);
+    expect(health.sources["okx-swap"]?.healthy).toBe(false);
     expect(health.sources["okx-swap"]?.last_heartbeat_at_ms).toBe(now - 500);
     expect(health.sources["bybit-linear"]?.connected).toBe(true);
+    expect(health.sources["bybit-linear"]?.healthy).toBe(true);
     expect(health.sources["binance-usdm"]?.connected).toBe(true);
+    expect(health.sources["binance-usdm"]?.healthy).toBe(true);
   } finally {
     await data.cleanup();
   }
@@ -219,4 +227,5 @@ test("Portal OKX implementation remains filesystem/BFF only", async () => {
   expect(dashboard).toContain("/api/market/liquidations");
   expect(dashboard).toContain("OKX SWAP");
   expect(dashboard).toContain('value="okx-swap"');
+  expect(dashboard).toContain("DEGRADED · dane nieświeże");
 });

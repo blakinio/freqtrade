@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -59,6 +60,8 @@ def test_v1_payload_is_readable_as_typed_recursive_ast() -> None:
 
     assert strategy.schema_version == "1.0.0"
     assert isinstance(strategy.entry_long, ConditionGroup)
+    assert isinstance(strategy.entry_long, Mapping)
+    assert isinstance(strategy.entry_long.get("all"), list)
     assert strategy.entry_long.all is not None
     assert isinstance(strategy.entry_long.all[1], ConditionGroup)
     assert strategy.entry_long.all[0].op == ConditionOperator.GT

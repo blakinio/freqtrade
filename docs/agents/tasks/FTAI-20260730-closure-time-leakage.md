@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260730-closure-time-leakage
-status: ready
-branch: agent/closure-time-leakage
+status: completed
+branch: agent/closure-time-leakage-terminal
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
@@ -32,9 +32,14 @@ search_first:
 
 Implement the missing reusable closed-bar scheduler without changing already proven UTC, HTF, pivot, point-in-time or leakage contracts.
 
-## Evidence at Gate 0
+## Terminal result
 
-UTC validation, timestamp ordering, HTF confirmation, pivot delay, future-shift and target-leakage rejection already have implementation and tests. No reusable scheduler module exists.
+- PR #777 merged normally into `develop` as `979744f1143246bd42e42fc2213c7e79fc68ea57`.
+- The merged scheduler provides deterministic UTC closed-bar scheduling for configured base and higher timeframes.
+- Bars remain unavailable before close and confirmation time; `available_at > decision_time` fails closed.
+- Duplicate events are idempotent, conflicting duplicates and out-of-order history are rejected, and later data cannot rewrite emitted history.
+- Canonical payload hashing and replay tests prove deterministic append-only parity.
+- Canonical UTC, HTF, pivot, feature, simulator and leakage contracts remain unchanged.
 
 ## Deliverables
 
@@ -48,28 +53,25 @@ UTC validation, timestamp ordering, HTF confirmation, pivot delay, future-shift 
 - Paper, shadow or dry-run only; no live-capital authority.
 - No browser-to-Freqtrade, exchange or Vault path.
 - No protected-holdout reuse and no changes to frozen thresholds `0.006/-0.009`.
-- Stay inside exact `owned_paths`; stop on the first incompatible shared-contract requirement.
-- Add tests at the same layer and merge only through normal green CI.
+- No changes outside exact implementation ownership were required.
 
-## Acceptance criteria
+## Acceptance evidence
 
-- Identical input manifests produce identical schedules.
-- No bar is available before its close or confirmation time.
-- Historical output cannot be rewritten by later data.
-
-## Validation
-
-Run narrow tests first, then all repository workflows required by the changed paths. Validate this task checkpoint before every handoff.
+- Identical input manifests produce identical schedules and canonical SHA-256 values.
+- No bar is available before its close or configured confirmation time.
+- Historical output remains append-only and cannot be rewritten by later observations.
+- Focused tests, AI Strategy Engine CI, full Freqtrade CI and security analysis passed.
+- PR #777 changed exactly the five declared owned paths and had zero unresolved review threads.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T12:43:00+02:00
-head: 6ea38ca9b39587534b88be92be9d362e56814674
-branch: agent/closure-time-leakage
+updated_at: 2026-07-30T16:52:00+02:00
+head: 979744f1143246bd42e42fc2213c7e79fc68ea57
+branch: agent/closure-time-leakage-terminal
 pr: 777
-status: ready
+status: completed
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -82,24 +84,23 @@ owned_paths:
   - ai_strategy_engine/tests/unit/test_closed_bar_scheduler.py
   - ai_strategy_engine/tests/integration/test_closed_bar_scheduler_replay.py
 proven:
-  - Gate 0 classifies only the reusable closed-bar scheduler as REAL_GAP; canonical UTC, HTF, pivot and leakage contracts remain unchanged.
-  - Implementation head 6ea38ca9b39587534b88be92be9d362e56814674 adds deterministic UTC scheduling for configured base and higher timeframes.
+  - PR 777 merged normally into develop as 979744f1143246bd42e42fc2213c7e79fc68ea57.
+  - Implementation head 6ea38ca9b39587534b88be92be9d362e56814674 added deterministic UTC scheduling for configured base and higher timeframes.
   - Naive or non-UTC timestamps, unconfirmed bars, pre-close detection and available_at after decision_time fail closed with typed reason codes.
-  - Late bars use actual detection time, exact boundaries are accepted, duplicates are idempotent, conflicting duplicates and out-of-order history are rejected.
+  - Late bars use actual detection time, exact close boundaries are accepted, duplicates are idempotent, and conflicting duplicates or out-of-order history are rejected.
   - Canonical schedule hashing and replay tests prove identical manifests and append-only historical prefixes remain deterministic.
-  - PR 777 changes exactly the five owned paths and has no review comments, unresolved threads, path overlap or shared-contract mutation.
+  - PR 777 changed exactly the five owned paths and had no review comments, unresolved threads, path overlap or shared-contract mutation.
   - AI Strategy Engine run 30534705422 passed package tests, Ruff, mypy, compile, deterministic E2E, schema and security-boundary checks.
-  - Freqtrade CI run 30534705379 passed pre-commit, documentation, Python 3.11-3.14 core tests, coverage, build and the CI Gate.
-  - GitHub Actions Security Analysis run 30534705382 passed and develop remained at 91ddbf60c986ff2a85f24ab0416ec1274e5f1460 during implementation validation.
+  - Freqtrade CI run 30534705379 passed pre-commit, documentation, Python 3.11-3.14 core tests, coverage, build and the terminal CI Gate.
+  - GitHub Actions Security Analysis run 30534705382 passed zizmor security analysis.
 derived:
   - The scheduler is an isolated standard-library timing boundary and requires no shared model, feature formula, simulator or leakage-guard change.
-  - The task-record-only readiness commit may be merged after its exact-head required checks pass.
-unknown:
-  - Exact squash merge commit until PR 777 is merged normally.
+  - The time/leakage workstream has no remaining autonomous implementation, validation, review or merge action.
+unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: No implementation, focused-validation, CI, ownership or review failure remains at the validated implementation head.
+  evidence: All implementation, deterministic replay, exact-head CI, review and merge gates passed.
 rejected_hypotheses:
   - Existing inline simulator checks are a reusable scheduling boundary.
   - This task may redefine canonical timestamp, HTF, pivot or leakage contracts.
@@ -126,9 +127,9 @@ validation:
   - command: GitHub Actions Security Analysis run 30534705382
     result: PASS
     evidence: Exact implementation head completed zizmor security analysis successfully.
-  - command: PR 777 changed-file, diff, review-thread and live-base inspection
+  - command: PR 777 merge, changed-file and review-thread inspection
     result: PASS
-    evidence: Exactly five owned paths, mergeable draft, zero reviews or threads and unchanged develop base.
+    evidence: Squash merge 979744f1143246bd42e42fc2213c7e79fc68ea57, exactly five owned paths and zero unresolved review threads.
 blockers: []
-next_action: Mark PR 777 ready and squash-merge it normally after the task-record-only exact-head required checks pass.
+next_action: Closure coordinator consumes the merged scheduler from develop at or after 979744f1143246bd42e42fc2213c7e79fc68ea57 and continues the remaining program-closure integration.
 ```

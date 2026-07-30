@@ -5,7 +5,7 @@ branch: deploy/portal-real-target-acceptance-20260730
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
-related_pr: null
+related_pr: 758
 owned_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
   - deploy/synology/portal/real_target_preflight.py
@@ -43,11 +43,11 @@ Add a secret-free, read-only target inventory that:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T23:06:00+02:00
-head: 403aa55be0daae4bd17d042384c449cc16c939cc
+updated_at: 2026-07-30T23:46:00+02:00
+head: f9b162315e4a00f0f16233f25b723758bfbd20bf
 branch: deploy/portal-real-target-acceptance-20260730
 pr: 758
-status: validating
+status: blocked
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -64,30 +64,35 @@ owned_paths:
   - tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
   - docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md
 proven:
-  - PR #758 is open and mergeable on branch deploy/portal-real-target-acceptance-20260730 at authored head 403aa55be0daae4bd17d042384c449cc16c939cc.
-  - Current develop is 0e6de6a2a6e441b4f334103ffff6fd071aa773f8; the branch is 5 commits ahead and 282 commits behind.
-  - PR #758 security workflow 30522725306 passed; Freqtrade CI 30522724745 and AI Platform CI 30522724917 failed on the old exact head.
-  - Freqtrade pre-commit job 90806705013 reported 8 Ruff findings and ruff-format changes in the preflight implementation and test.
-  - The PI-06 Synology target preflight uses the existing self-hosted freqtrade-staging runner and synology-staging environment.
-  - The portal Authentik workflow currently validates the Compose package on ubuntu-24.04; it does not perform real target deployment.
-  - Prior real target evidence showed missing PI-06 variables, protected secrets and durable state configuration, with no Authentik target resources present.
-  - The task remains read-only and authorizes no deployment mutation, trading credentials, withdrawals or live capital.
+  - PR #758 is open and mergeable at validated implementation head f9b162315e4a00f0f16233f25b723758bfbd20bf.
+  - Current develop is 4ef04c40406197409b00a5142f5023b3b95ac9e5; the branch is 13 commits ahead and 0 behind with only four task paths changed.
+  - The branch was synchronized by non-forced fast-forward updates through GitHub virtual merge commits.
+  - The original Ruff import, security-audit, complexity and formatting findings were repaired only in the preflight implementation and focused test.
+  - Exact-head AI Platform CI run 30584361200 passed after 1007 tests, Ruff check and Ruff format.
+  - Exact-head security run 30584361203 passed.
+  - Exact-head Freqtrade CI run 30584361192 passed pre-commit, CI scope and documentation jobs; its core matrix remained in progress at checkpoint time.
+  - Exact-head Portal Web CI run 30584361312 passed.
+  - Exact-head Portal Universal E2E run 30584361194 passed Chromium but failed its backend scenario because jsonschema was not installed.
+  - Prior real-target evidence showed missing PI-06 variables, protected secrets and durable state configuration, with no Authentik target resources present.
+  - No real-target preflight request or deployment mutation was executed in this task continuation.
+  - The task remains read-only and authorizes no trading credentials, withdrawals or live capital.
 derived:
-  - A new dedicated runner is not required for Authentik; the existing approved Synology runner is the intended target executor for a separately governed deployment package.
-  - PR #758 must be synchronized and repaired before its evidence can govern any later real target mutation.
+  - The CI repairs resolve the original task-owned lint and formatting gate.
+  - The Portal Universal E2E backend failure is an unrelated workflow dependency-contract defect outside the four changed task paths.
+  - Real-target mutation remains gated on owner-controlled PI-06 configuration and a separately governed exact-one-file read-only preflight request.
 unknown:
-  - Whether the owner has since populated the PI-06 variables, secrets and durable state path.
-  - Current real target presence and health of Authentik, Vault, Cloudflare Tunnel, portal API/database and private Freqtrade dry-run runtime.
-  - Exact-head CI outcome after synchronization with current develop.
+  - Whether the owner has since populated the PI-06 variables, protected secrets and durable state path.
+  - Current real-target presence and health of Authentik, Vault, Cloudflare Tunnel, portal API/database and private Freqtrade dry-run runtime.
+  - Final conclusion of Freqtrade CI run 30584361192 after its core matrix completes.
 conflicts:
-  - The prior checkpoint recorded no PR and instructed opening one, but PR #758 is already open and stale against current develop.
+  - The prior checkpoint head and develop relationship were stale; live PR, branch comparison and CI now govern the task.
 first_failure:
-  marker: PR758_PRECOMMIT_RUFF_FAILED
-  evidence: Run 30522724745 job 90806705013 failed first on Ruff import, security-audit and complexity findings, then ruff-format changed two files.
+  marker: PR758_PORTAL_UNIVERSAL_E2E_JSONSCHEMA_MISSING
+  evidence: Run 30584361194 job 91012147140 failed 3 backend tests with ModuleNotFoundError for jsonschema while the Chromium journey passed.
 rejected_hypotheses:
-  - A fixture preview, emulated Authentik or repository-only validation can satisfy real target acceptance.
+  - A fixture preview, emulated Authentik or repository-only validation can satisfy real-target acceptance.
   - Missing owner-controlled secrets or public infrastructure can be invented.
-  - A second runner is necessary merely to create the isolated portal-authentik Compose project.
+  - The unrelated Portal Universal E2E dependency failure should be repaired by expanding this task beyond its owned paths.
   - Live-capital trading, withdrawals and production credentials are authorized.
 changed_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
@@ -95,26 +100,36 @@ changed_paths:
   - tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
   - docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md
 validation:
-  - command: python3 -m py_compile deploy/synology/portal/real_target_preflight.py
+  - command: python3 -m py_compile deploy/synology/portal/real_target_preflight.py tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
     result: PASS
-    evidence: Pre-PR local syntax validation recorded in the task.
+    evidence: Local syntax validation passed after the exact Ruff formatter repair.
   - command: python3 -m pytest -q tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
     result: PASS
-    evidence: Pre-PR focused suite recorded 5 passed.
-  - command: GitHub Actions security run 30522725306
+    evidence: Focused local suite passed with 5 tests.
+  - command: GitHub Actions AI Platform CI run 30584361200
     result: PASS
-    evidence: Exact authored head security workflow completed successfully.
-  - command: GitHub Actions Freqtrade CI run 30522724745
+    evidence: Exact implementation head completed successfully, including 1007 tests, Ruff and Ruff format.
+  - command: GitHub Actions security run 30584361203
+    result: PASS
+    evidence: Exact implementation head security analysis completed successfully.
+  - command: GitHub Actions Freqtrade CI run 30584361192 pre-commit, scope and documentation jobs
+    result: PASS
+    evidence: All three jobs completed successfully on the exact implementation head.
+  - command: GitHub Actions Portal Web CI run 30584361312
+    result: PASS
+    evidence: Exact implementation head portal web workflow completed successfully.
+  - command: GitHub Actions Portal Universal E2E run 30584361194
     result: FAIL
-    evidence: Pre-commit Ruff and format failures plus downstream core-test failures on the stale merge ref.
-  - command: GitHub Actions AI Platform CI run 30522724917
-    result: FAIL
-    evidence: Exact authored head workflow completed with failure; revalidation is required after synchronization.
+    evidence: Chromium passed; backend scenario failed only because jsonschema was absent from validation dependencies.
+  - command: GitHub Actions Freqtrade CI run 30584361192 core matrix
+    result: BLOCKED
+    evidence: Matrix remained in progress at checkpoint time; no task-owned failure was observed.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md --require-checkpoint
     result: PASS
-    evidence: Validated 1 checkpoint task(s).
+    evidence: Validated locally before checkpoint publication.
 blockers:
-  - PR #758 is 282 commits behind current develop and its old exact-head CI is red.
-  - Owner-controlled PI-06 variables, secrets and durable state configuration were absent in the last real target preflight.
-next_action: Synchronize PR #758 normally with develop@0e6de6a2a6e441b4f334103ffff6fd071aa773f8, apply only evidenced CI repairs, and rerun exact-head validation before any deployment mutation.
+  - Portal Universal E2E backend-scenario lacks the jsonschema validation dependency in an unrelated workflow.
+  - Owner-controlled PI-06 variables, protected secrets and durable state configuration remain unverified after their last proven absence.
+  - Real-target service presence and health remain unknown because no separately governed preflight request was executed.
+next_action: Open a separate scoped repair for the Portal Universal E2E validation dependency contract, rerun PR #758 exact-head CI, and keep real-target mutation blocked.
 ```

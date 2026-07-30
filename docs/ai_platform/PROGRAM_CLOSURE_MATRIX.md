@@ -4,20 +4,23 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- coordinator evidence anchor: `develop@e03c00ce9824fdf467108780387b52c58659c01b`;
+- coordinator evidence anchor: `develop@38f7ad50cfe1b03fdf7a6e9ee4a9b73ebbebe7de`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
   - Time/Leakage PR #777 -> `979744f1143246bd42e42fc2213c7e79fc68ea57`;
   - Simulator PR #787 -> `34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9`;
   - Liquid20/OKX source PR #761 -> `141e59a3c7da441432b3990a54903e5fcfc935c8`;
+  - Research Data PR #821 -> `38f7ad50cfe1b03fdf7a6e9ee4a9b73ebbebe7de`;
 - merged adjacent monitoring: PR #762 -> `e73de2c7a080c79486141cdafa4d2bb41afdd80e`;
 - merged Feature Engine: PR #780 -> `09bc139a766034840ac01898f8b68cd5c76fb7a2`;
+- merged Strategy Catalog implementation PR #819 -> `d8ae3f5775500dda8259f415a84f77b59ab1b8ac` and terminal PR #822 -> `0e3c98086344904c852ecb2b8c5c201353df29ab`;
+- merged Signal Wizard blocker PR #818 -> `94e15dde23e0a2402b580ef263d51af689e989b6` and terminal PR #820 -> `18881d8847c765e939509a0f34b9dc327c5c9270`;
 - merged coordinator closure: PR #808 -> `a256dc59ad896a21f593c098bcc8c076858790d9`;
 - merged coordinator terminal checkpoint: PR #812 -> `e03c00ce9824fdf467108780387b52c58659c01b`;
-- active repository PRs: rotating WickHunter operational request lane (observed as #813 at this checkpoint; never merge into `develop`) and external read-only preflight #758;
-- coordinator terminal branch: `agent/program-closure-coordinator-terminal`;
-- coordinator repair task: `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md`;
+- active repository PRs: Research Data terminal checkpoint #823, WickHunter operational request #816 (never merge into `develop`) and external read-only preflight #758;
+- coordinator branch: `agent/program-closure-signal-wizard-backend-dispatch`;
+- new backend task: `docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;
 - paper/shadow/dry-run only; no live capital.
 
@@ -71,35 +74,35 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | P1.2 | `artifact storage` | **PROVEN_COMPLETE** | `none` | Immutable experiment JSON/hashes/trades/equity/signals and registry artifacts. |
 | P1.2 | `comparison API` | **PROVEN_COMPLETE** | `none` | Strategy Lab compare API/UI and registry comparison tooling. |
 | P1.4 | `liquidation aggregation` | **PROVEN_COMPLETE** | `none` | Source-separated Liquid20/WickHunter aggregation and Portal read models. |
-| P1.4 | `OI alignment` | **READY** | `closure-research-data` | PR #761 is terminal; source identity/time metadata is frozen for the child worker. |
-| P1.4 | `funding alignment` | **READY** | `closure-research-data` | PR #761 is terminal; source identity/time metadata is frozen for the child worker. |
+| P1.4 | `OI alignment` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 merged as `38f7ad50cfe1b03fdf7a6e9ee4a9b73ebbebe7de` with point-in-time alignment and deterministic source identity. |
+| P1.4 | `funding alignment` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 merged as `38f7ad50cfe1b03fdf7a6e9ee4a9b73ebbebe7de` with aligned/missing/delayed/stale states. |
 | P1.4 | `deduplication` | **PROVEN_COMPLETE** | `none` | Deterministic event/source identities and dedup tests. |
 | P1.4 | `latency metadata` | **PROVEN_COMPLETE** | `none` | Occurred/received timestamps and ingest latency are explicit. |
 | P1.4 | `cross-exchange confirmation` | **PROVEN_COMPLETE** | `none` | Binance/Bybit plus merged OKX source PR #761. |
-| P1.5 | `clean-room BOS/CHoCH` | **READY** | `closure-research-data` | Child task is unblocked after PR #761. |
-| P1.5 | `HH/HL/LH/LL` | **READY** | `closure-research-data` | Child task is unblocked after PR #761. |
-| P1.5 | `EQH/EQL` | **READY** | `closure-research-data` | Child task is unblocked after PR #761. |
-| P1.5 | `confirmed FVG` | **READY** | `closure-research-data` | Child task is unblocked after PR #761. |
-| P1.5 | `own zone heuristic` | **READY** | `closure-research-data` | Child task is unblocked after PR #761. |
+| P1.5 | `clean-room BOS/CHoCH` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 added close-confirmed non-repainting structure events. |
+| P1.5 | `HH/HL/LH/LL` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 added confirmed pivot classification. |
+| P1.5 | `EQH/EQL` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 added tolerance-bounded equal-high/equal-low classification. |
+| P1.5 | `confirmed FVG` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 added third-closed-bar confirmation. |
+| P1.5 | `own zone heuristic` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 added documented pre-break-extreme-body-v1 zones. |
 | P1.5 | `no LuxAlgo code copy` | **PROVEN_COMPLETE** | `none` | Module/license boundaries explicitly prohibit proprietary copying. |
-| P2.2 | `trend/range` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine is merged; Research Data must merge. |
-| P2.2 | `high/low volatility` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine is merged; Research Data must merge. |
-| P2.2 | `liquidation regime` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
-| P2.2 | `drift monitoring` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
-| P2.3 | `correlation penalties` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
-| P2.3 | `OOS stability` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
-| P2.3 | `drawdown contribution` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
-| P2.3 | `calibration` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
-| P2.4 | `feature selection` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
-| P2.4 | `parameter constraints` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
-| P2.4 | `leakage warnings` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
-| P2.4 | `strategy preview` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
-| P2.4 | `experiment submit` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
-| P2.5 | `version history` | **READY** | `closure-ui-strategy-catalog` | Frozen Strategy Catalog contracts are merged and ownership is disjoint. |
-| P2.5 | `approvals` | **READY** | `closure-ui-strategy-catalog` | Frozen Strategy Catalog contracts are merged and ownership is disjoint. |
-| P2.5 | `deployments` | **READY** | `closure-ui-strategy-catalog` | Frozen Strategy Catalog contracts are merged and ownership is disjoint. |
-| P2.5 | `rollback` | **READY** | `closure-ui-strategy-catalog` | Frozen Strategy Catalog contracts are merged and ownership is disjoint. |
-| P2.5 | `provenance` | **READY** | `closure-ui-strategy-catalog` | Frozen Strategy Catalog contracts are merged and ownership is disjoint. |
+| P2.2 | `trend/range` | **READY** | `closure-ai-routing-ranking` | Feature Engine and Research Data implementations are merged. |
+| P2.2 | `high/low volatility` | **READY** | `closure-ai-routing-ranking` | Feature Engine and Research Data implementations are merged. |
+| P2.2 | `liquidation regime` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
+| P2.2 | `drift monitoring` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
+| P2.3 | `correlation penalties` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
+| P2.3 | `OOS stability` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
+| P2.3 | `drawdown contribution` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
+| P2.3 | `calibration` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
+| P2.4 | `feature selection` | **WAIT_FOR_BACKEND** | `closure-signal-wizard-backend -> closure-ui-signal-wizard` | PRs #818/#820 proved canonical approved-feature validation is absent; bounded backend task is READY. |
+| P2.4 | `parameter constraints` | **WAIT_FOR_BACKEND** | `closure-signal-wizard-backend -> closure-ui-signal-wizard` | Backend must validate and preserve exact constraints before UI resumes. |
+| P2.4 | `leakage warnings` | **WAIT_FOR_BACKEND** | `closure-signal-wizard-backend -> closure-ui-signal-wizard` | Canonical typed-DSL validation/reason codes must merge before route-local UI convergence. |
+| P2.4 | `strategy preview` | **WAIT_FOR_BACKEND** | `closure-signal-wizard-backend -> closure-ui-signal-wizard` | No durable canonical preview service or registered endpoint exists on develop. |
+| P2.4 | `experiment submit` | **WAIT_FOR_BACKEND** | `closure-signal-wizard-backend -> closure-ui-signal-wizard` | Submit requires tenant-scoped durable admission and deterministic idempotency, not transient BFF IDs. |
+| P2.5 | `version history` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Implementation PR #819 and terminal PR #822 merged. |
+| P2.5 | `approvals` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Implementation PR #819 and terminal PR #822 merged. |
+| P2.5 | `deployments` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Paper/dry-run/shadow lifecycle evidence merged without live authority. |
+| P2.5 | `rollback` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Same-origin guarded rollback intent/evidence merged. |
+| P2.5 | `provenance` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Immutable tenant-scoped provenance merged. |
 
 ## Portal and program completion
 
@@ -113,10 +116,10 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | Post-trade analysis and insight | **PROVEN_COMPLETE** | `none` | P8 deterministic diagnosis and evidence-linked insight. |
 | Bounded learning candidate without promotion | **PROVEN_COMPLETE** | `none` | P9/ASE-02; active model remains immutable. |
 | Evidence-based seeded-defect repair | **PROVEN_COMPLETE** | `none` | P12 simulation-first bounded repair. |
-| Signal Wizard research workflow | **READY** | `closure-ui-signal-wizard` | Contract dependency merged; no active overlap. |
-| Strategy Catalog lifecycle workflow | **READY** | `closure-ui-strategy-catalog` | Contract dependency merged; no active overlap. |
-| Full closure E2E and first-failure observability | **WAIT_FOR_IMPLEMENTATION_MERGES** | `closure-integration-e2e` | Research Data, routing/ranking and both UI workers must merge. |
-| Backlog/roadmap/program terminal freshness | **BLOCKED** | `Agent 0` | Update only after implementation and integration merges provide terminal evidence. |
+| Signal Wizard research workflow | **WAIT_FOR_BACKEND** | `closure-signal-wizard-backend -> closure-ui-signal-wizard` | UI blocker and terminal checkpoints #818/#820 are authoritative; backend child is dispatched with disjoint ownership. |
+| Strategy Catalog lifecycle workflow | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | PR #819 and terminal PR #822 merged with exact-head browser/platform/security evidence. |
+| Full closure E2E and first-failure observability | **WAIT_FOR_IMPLEMENTATION_MERGES** | `closure-integration-e2e` | Signal Wizard backend/frontend and AI routing/ranking must merge. |
+| Backlog/roadmap/program terminal freshness | **BLOCKED** | `Agent 0` | Update only after remaining implementation and integration merges provide terminal evidence. |
 | Real P11 protected external acceptance | **EXTERNAL_OWNER_ACTION** | `owner-managed lane` | Requires owner-approved resources; PR #758 is read-only preflight only. |
 | P13 scale/service extraction | **DEFERRED_BY_POLICY** | `none` | Start only after a measured bottleneck or unmet SLO. |
 | Live capital/P14 | **DEFERRED_BY_POLICY** | `none` | Separate unauthorized package; no credentials, withdrawals or live-capital authority. |
@@ -136,17 +139,18 @@ Compatibility remains:
 
 ```text
 contracts MERGED
-  ├─> Signal Wizard READY
-  └─> Strategy Catalog READY
+  ├─> Signal Wizard backend READY
+  │     └─> Signal Wizard frontend WAIT_FOR_BACKEND
+  └─> Strategy Catalog COMPLETED
 
 time/leakage MERGED
 simulator MERGED
 Feature Engine MERGED
-PR #761 MERGED -> Research Data READY
+Research Data implementation MERGED through PR #821
+  └─> AI routing/ranking READY
 coordinator registry repair COMPLETED through PR #808
 terminal coordinator checkpoint MERGED through PR #812
-Research Data -> AI routing/ranking
-all repository child PRs -> Integration/E2E
+remaining repository child PRs -> Integration/E2E
 
 P11 external acceptance: separate owner-managed lane
 P13 scale: deferred until measured need
@@ -161,12 +165,13 @@ Live capital/P14: excluded and unauthorized
 | Time/leakage | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-time-leakage.md` | `agent/closure-time-leakage-terminal` | — | PR #777 and terminal PR #792 merged. |
 | Simulator | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-simulator.md` | `agent/closure-simulator-terminal` | — | PR #787 merged; coordinator terminal checkpoint recorded. |
 | Coordinator registry repair | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-terminal` | — | PR #780 absorbed the dynamic-count repair; PR #808 merged closure evidence and PR #812 merged the terminal checkpoint. |
-| Feature Engine | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-engine.md` | `agent/closure-feature-engine` | `docs/agents/prompts/ai-program-closure/FEATURE-ENGINE-AGENT-PROMPT.md` | PR #780 merged as `09bc139a766034840ac01898f8b68cd5c76fb7a2`; do not start a duplicate chat. |
-| Research Data | **READY** | `docs/agents/tasks/FTAI-20260730-closure-research-data.md` | `agent/closure-research-data` | `docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md` | PR #761 merged and no active ownership overlap exists. |
-| Signal Wizard | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | PR #781 merged and no active ownership overlap exists. |
-| Strategy Catalog | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ui-strategy-catalog.md` | `agent/closure-ui-strategy-catalog` | `docs/agents/prompts/ai-program-closure/UI-STRATEGY-CATALOG-AGENT-PROMPT.md` | PR #781 merged and no active ownership overlap exists. |
-| AI routing/ranking | **WAIT_FOR_RESEARCH** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | Research Data PR merged. |
-| Integration/E2E | **WAIT_FOR_IMPLEMENTATION_MERGES** | `docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md` | `agent/closure-integration-e2e` | `docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md` | All repository child PRs merged and develop green. |
+| Feature Engine | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-engine.md` | `agent/closure-feature-engine` | `docs/agents/prompts/ai-program-closure/FEATURE-ENGINE-AGENT-PROMPT.md` | PR #780 merged; do not start a duplicate chat. |
+| Research Data | **IMPLEMENTATION_MERGED** | `docs/agents/tasks/FTAI-20260730-closure-research-data.md` | `agent/closure-research-data-terminal` | `docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md` | PR #821 merged; terminal task PR #823 is open, so do not start a duplicate chat. |
+| Signal Wizard backend/API | **READY** | `docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md` | `agent/closure-signal-wizard-backend` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-BACKEND-AGENT-PROMPT.md` | Start from current develop after verifying open PR ownership remains disjoint. |
+| Signal Wizard frontend | **WAIT_FOR_BACKEND** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | Backend PR merged normally with green exact-head CI; Agent 0 then changes dispatch to READY. |
+| Strategy Catalog | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-ui-strategy-catalog.md` | `agent/closure-ui-strategy-catalog-terminal` | `docs/agents/prompts/ai-program-closure/UI-STRATEGY-CATALOG-AGENT-PROMPT.md` | PR #819 and terminal PR #822 merged; do not start a duplicate chat. |
+| AI routing/ranking | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | Research Data implementation PR #821 is merged. |
+| Integration/E2E | **WAIT_FOR_IMPLEMENTATION_MERGES** | `docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md` | `agent/closure-integration-e2e` | `docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md` | Remaining repository child PRs merged and develop green. |
 | External P11 | **BLOCKED** | `docs/agents/tasks/FTAI-20260730-closure-external-staging.md` | `owner/closure-external-staging` | `docs/agents/prompts/ai-program-closure/EXTERNAL-STAGING-AGENT-PROMPT.md` | Explicit owner authorization/resources and PR #758 terminal. |
 | Live capital/P14 | **DO_NOT_START** | — | — | — | No authorization exists. |
 
@@ -179,6 +184,7 @@ The coordinator repair task records the stale-count ownership decision. PR #780 
 - all original unchecked P0/P1/P2 items remain classified;
 - merged workstreams record exact merge commits;
 - every READY workstream has disjoint owned paths and no active duplicate PR;
-- final E2E waits for all repository implementation merges;
+- Signal Wizard frontend remains explicitly `WAIT_FOR_BACKEND` until canonical backend merge evidence exists;
+- final E2E waits for all remaining repository implementation merges;
 - P11 cannot be proven by fixtures;
 - P13 and live capital remain outside autonomous closure.

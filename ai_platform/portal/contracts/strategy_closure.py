@@ -25,6 +25,7 @@ from ai_platform.portal.product.schema import (
     StrategyLifecycleState,
 )
 
+
 _SENSITIVE_KEY_PARTS = (
     "secret",
     "token",

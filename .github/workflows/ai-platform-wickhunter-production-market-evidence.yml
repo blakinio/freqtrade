@@ -96,7 +96,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence \
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
             init \
             --request "$REQUEST_PATH" \
             --durable-root "$DURABLE_ROOT" \
@@ -155,12 +155,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence \
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
             sample \
             --durable-root "$DURABLE_ROOT"
 
       - name: Upload bounded terminal metadata evidence
-        if: ${{ always() && steps.sample.outputs.status == 'finalized' }}
+        if: ${{ always() && steps.sample.outputs.status == 'published' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: wickhunter-production-market-evidence-${{ steps.sample.outputs.run_id }}
@@ -171,18 +171,29 @@ jobs:
             ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-manifest.json
             ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-report.json
             ${{ steps.sample.outputs.run_root }}/artifact-sha256.txt
-          if-no-files-found: warn
+            ${{ steps.sample.outputs.package_root }}/request.json
+            ${{ steps.sample.outputs.package_root }}/policy.json
+            ${{ steps.sample.outputs.package_root }}/run-state.json
+            ${{ steps.sample.outputs.package_root }}/completed-candles-index.json
+            ${{ steps.sample.outputs.package_root }}/source-artifacts-index.json
+            ${{ steps.sample.outputs.package_root }}/manifest.json
+            ${{ steps.sample.outputs.package_root }}/verification-report.json
+            ${{ steps.sample.outputs.package_root }}/artifact-sha256.txt
+          if-no-files-found: error
           retention-days: 90
 
       - name: Enforce terminal capture outcome
-        if: ${{ always() && steps.sample.outputs.status == 'finalized' }}
+        if: ${{ always() && steps.sample.outputs.status == 'published' }}
         shell: bash
         env:
           OUTCOME: ${{ steps.sample.outputs.outcome }}
+          PACKAGE_ROOT: ${{ steps.sample.outputs.package_root }}
         run: |
           set -euo pipefail
           if [[ "$OUTCOME" != "accepted" ]]; then
             echo "WickHunter production market evidence was not accepted" >&2
             exit 1
           fi
-          echo "WickHunter production market evidence accepted; all downstream authority remains false"
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
+            verify --package-root "$PACKAGE_ROOT"
+          echo "WickHunter market evidence accepted; all downstream authority remains false"

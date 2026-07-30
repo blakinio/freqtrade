@@ -12,9 +12,12 @@ import shutil
 import subprocess
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+
 
 EXPECTED_REQUEST = {
     "schema_version": 1,
@@ -52,6 +55,7 @@ PRESENCE_ONLY_ENV = {
 }
 SAFE_VALUE_RE = re.compile(r"^[A-Za-z0-9_.:-]{0,64}$")
 MIGRATION_RE = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
+ALL_INTERFACE_ADDRESSES = {"0.0.0.0", "::", ""}  # noqa: S104
 
 
 def run_command(*args: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -75,7 +79,7 @@ def bind_scope(address: str) -> str:
     normalized = address.strip().lower()
     if normalized in {"127.0.0.1", "::1", "localhost"}:
         return "loopback"
-    if normalized in {"0.0.0.0", "::", ""}:
+    if normalized in ALL_INTERFACE_ADDRESSES:
         return "all_interfaces"
     if normalized.startswith(
         (
@@ -104,9 +108,7 @@ def parse_env(entries: Iterable[str]) -> tuple[list[str], dict[str, str], dict[s
             continue
         names.append(name)
         if name in SAFE_ENV_VALUES:
-            safe_values[name] = (
-                value if SAFE_VALUE_RE.fullmatch(value) else "INVALID_OR_REDACTED"
-            )
+            safe_values[name] = value if SAFE_VALUE_RE.fullmatch(value) else "INVALID_OR_REDACTED"
         if name in PRESENCE_ONLY_ENV:
             presence[name] = bool(value)
     return (
@@ -161,7 +163,7 @@ def health_state(container: dict[str, Any]) -> str:
 
 
 def published_ports(container: dict[str, Any]) -> list[dict[str, Any]]:
-    ports = ((container.get("NetworkSettings") or {}).get("Ports") or {})
+    ports = (container.get("NetworkSettings") or {}).get("Ports") or {}
     result: list[dict[str, Any]] = []
     for container_port, bindings in sorted(ports.items()):
         for binding in bindings or []:
@@ -196,13 +198,17 @@ def config_fingerprint(record: dict[str, Any]) -> str:
 
 
 def bounded_http_status(url: str) -> dict[str, Any]:
-    request = urllib.request.Request(
+    if urllib.parse.urlsplit(url).scheme not in {"http", "https"}:
+        return {"reachable": False, "status": None}
+    request = urllib.request.Request(  # noqa: S310 - scheme is restricted above
         url,
         method="GET",
         headers={"User-Agent": "portal-real-target-preflight/1"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=8) as response:
+        with urllib.request.urlopen(  # noqa: S310 - request scheme is restricted above
+            request, timeout=8
+        ) as response:
             return {"reachable": True, "status": int(response.status)}
     except urllib.error.HTTPError as error:
         return {"reachable": True, "status": int(error.code)}
@@ -211,21 +217,19 @@ def bounded_http_status(url: str) -> dict[str, Any]:
 
 
 def container_probe_url(container: dict[str, Any]) -> str | None:
-    ports = ((container.get("NetworkSettings") or {}).get("Ports") or {})
+    ports = (container.get("NetworkSettings") or {}).get("Ports") or {}
     for key in ("3000/tcp", "8000/tcp", "8080/tcp"):
         for binding in ports.get(key) or []:
             host_ip = str(binding.get("HostIp") or "")
             host_port = str(binding.get("HostPort") or "")
             if host_port:
-                host = "127.0.0.1" if host_ip in {"0.0.0.0", "::", ""} else host_ip
+                host = "127.0.0.1" if host_ip in ALL_INTERFACE_ADDRESSES else host_ip
                 return f"http://{host}:{host_port}/"
     return None
 
 
 def vault_status(container_name: str) -> dict[str, Any]:
-    result = run_command(
-        "docker", "exec", container_name, "vault", "status", "-format=json"
-    )
+    result = run_command("docker", "exec", container_name, "vault", "status", "-format=json")
     if result.returncode not in {0, 2}:
         return {"available": False}
     try:
@@ -273,10 +277,7 @@ def inspect_containers() -> tuple[list[dict[str, Any]], list[str]]:
     for container in containers:
         name = str(container.get("Name") or "").lstrip("/")
         config = container.get("Config") or {}
-        labels = {
-            str(key): str(value)
-            for key, value in (config.get("Labels") or {}).items()
-        }
+        labels = {str(key): str(value) for key, value in (config.get("Labels") or {}).items()}
         image = str(config.get("Image") or "")
         role = relevant_role(name, image, labels)
         if role is None:
@@ -291,9 +292,7 @@ def inspect_containers() -> tuple[list[dict[str, Any]], list[str]]:
             "image_id": str(container.get("Image") or ""),
             "state": str((container.get("State") or {}).get("Status") or "unknown"),
             "health": health_state(container),
-            "restart_policy": str(
-                (host_config.get("RestartPolicy") or {}).get("Name") or "no"
-            ),
+            "restart_policy": str((host_config.get("RestartPolicy") or {}).get("Name") or "no"),
             "compose_project": labels.get("com.docker.compose.project", ""),
             "compose_service": labels.get("com.docker.compose.service", ""),
             "deployment_commit": labels.get(
@@ -326,9 +325,7 @@ def inspect_containers() -> tuple[list[dict[str, Any]], list[str]]:
             "safe_environment": safe_env,
             "environment_presence": env_presence,
         }
-        record["sanitized_configuration_fingerprint"] = config_fingerprint(
-            fingerprint_material
-        )
+        record["sanitized_configuration_fingerprint"] = config_fingerprint(fingerprint_material)
         if role == "portal_web":
             probe_url = container_probe_url(container)
             record["lan_probe"] = (
@@ -371,11 +368,7 @@ def disk_summary() -> dict[str, Any]:
         ("root", Path("/")),
         (
             "staging_state",
-            Path(
-                os.environ.get(
-                    "FREQTRADE_STAGING_STATE_DIR", "/var/lib/freqtrade-staging-state"
-                )
-            ),
+            Path(os.environ.get("FREQTRADE_STAGING_STATE_DIR", "/var/lib/freqtrade-staging-state")),
         ),
     ):
         if path.is_dir():
@@ -394,7 +387,7 @@ def disk_summary() -> dict[str, Any]:
     return result
 
 
-def build_report(request: dict[str, Any]) -> dict[str, Any]:
+def build_report(request: dict[str, Any]) -> dict[str, Any]:  # noqa: C901
     blockers: list[str] = []
     runner_name = os.environ.get("RUNNER_NAME_VALUE", "")
     runner_os = os.environ.get("RUNNER_OS_VALUE", "")
@@ -416,32 +409,24 @@ def build_report(request: dict[str, Any]) -> dict[str, Any]:
     portal = next((item for item in containers if item["role"] == "portal_web"), None)
     current_mode = {
         "portal_present": portal is not None,
-        "data_mode": (portal or {}).get("safe_environment", {}).get(
-            "PORTAL_WEB_DATA_MODE", "UNKNOWN"
-        ),
-        "identity_fixture_mode": (portal or {}).get("safe_environment", {}).get(
-            "PORTAL_IDENTITY_FIXTURE_MODE", "UNKNOWN"
-        ),
-        "environment": (portal or {}).get("safe_environment", {}).get(
-            "PORTAL_ENVIRONMENT", "UNKNOWN"
-        ),
+        "data_mode": (portal or {})
+        .get("safe_environment", {})
+        .get("PORTAL_WEB_DATA_MODE", "UNKNOWN"),
+        "identity_fixture_mode": (portal or {})
+        .get("safe_environment", {})
+        .get("PORTAL_IDENTITY_FIXTURE_MODE", "UNKNOWN"),
+        "environment": (portal or {})
+        .get("safe_environment", {})
+        .get("PORTAL_ENVIRONMENT", "UNKNOWN"),
         "control_plane_url_present": bool(
-            (portal or {})
-            .get("environment_presence", {})
-            .get("PORTAL_CONTROL_PLANE_URL")
+            (portal or {}).get("environment_presence", {}).get("PORTAL_CONTROL_PLANE_URL")
         ),
     }
 
     public_config = {
-        "portal_public_base_url_present": bool(
-            os.environ.get("PI06_PORTAL_PUBLIC_BASE_URL")
-        ),
-        "authentik_public_base_url_present": bool(
-            os.environ.get("PI06_AUTHENTIK_PUBLIC_BASE_URL")
-        ),
-        "portal_identity_client_id_present": bool(
-            os.environ.get("PI06_PORTAL_IDENTITY_CLIENT_ID")
-        ),
+        "portal_public_base_url_present": bool(os.environ.get("PI06_PORTAL_PUBLIC_BASE_URL")),
+        "authentik_public_base_url_present": bool(os.environ.get("PI06_AUTHENTIK_PUBLIC_BASE_URL")),
+        "portal_identity_client_id_present": bool(os.environ.get("PI06_PORTAL_IDENTITY_CLIENT_ID")),
     }
 
     acceptance_blockers: list[str] = []
@@ -546,9 +531,7 @@ def main() -> int:
         return 2
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if not report["blockers"] and not report["acceptance_blockers"] else 1
 

@@ -169,8 +169,10 @@ def _source_runtime_alerts(
                     f"{source} has written no events.",
                 )
             )
-        if events is not None and events > 0 and (
-            last_receive is None or now_ms - last_receive > event_stale_ms
+        if (
+            events is not None
+            and events > 0
+            and (last_receive is None or now_ms - last_receive > event_stale_ms)
         ):
             alerts.append(
                 _alert(
@@ -300,9 +302,7 @@ def main(argv: list[str] | None = None) -> int:
     operational_alerts = _source_runtime_alerts(
         pointer,
         now_ms=now_ms,
-        event_stale_ms=(
-            int(os.environ.get("LIQUID20_EVENT_STALE_SECONDS", "300")) * 1000
-        ),
+        event_stale_ms=(int(os.environ.get("LIQUID20_EVENT_STALE_SECONDS", "300")) * 1000),
         reconnect_max=int(os.environ.get("LIQUID20_RECONNECT_COUNT_MAX", "100")),
     )
     consistency_alerts = (

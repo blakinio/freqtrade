@@ -110,7 +110,7 @@ def test_alignment_uses_latest_visible_observation_without_lookahead() -> None:
     funding = by(result, "bybit-linear", ObservationKind.FUNDING_RATE)
 
     assert oi.status is AlignmentStatus.ALIGNED
-    assert oi.value == Decimal("11")
+    assert oi.value == Decimal(11)
     assert oi.age_ms == 100
     assert funding.value == Decimal("-0.0001")
 
@@ -207,7 +207,7 @@ def test_invalid_observation_timestamps_and_values_fail_closed() -> None:
             100,
             110,
             109,
-            Decimal("1"),
+            Decimal(1),
         )
     with pytest.raises(ValueError, match="open_interest"):
         observation("x", ObservationKind.OPEN_INTEREST, 100, 120, "-1")

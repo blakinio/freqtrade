@@ -22,6 +22,8 @@ env:
   STATE_DIR: /var/lib/freqtrade-staging-state
   DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
   PERSISTED_REQUEST_PATH: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence/request.json
+  COLLECTOR_UID: "1026"
+  COLLECTOR_GID: "100"
   COMPOSE_FILE: deploy/synology/wickhunter-market-evidence/compose.yaml
 
 jobs:
@@ -139,6 +141,18 @@ jobs:
           print("Existing initialized capture validated; deployment will resume it.")
           PY
           fi
+
+      - name: Hand durable state to hardened collector identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find "$DURABLE_ROOT" -xdev -type l -print -quit | grep -q .; then
+            echo "Durable WickHunter root contains a forbidden symlink" >&2
+            exit 1
+          fi
+          chown -R -- "$COLLECTOR_UID:$COLLECTOR_GID" "$DURABLE_ROOT"
+          [[ "$(stat -c '%u:%g' "$DURABLE_ROOT")" == "$COLLECTOR_UID:$COLLECTOR_GID" ]]
+          [[ "$(stat -c '%a' "$PERSISTED_REQUEST_PATH")" == "444" ]]
 
       - name: Deploy collector and release runner
         shell: bash

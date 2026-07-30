@@ -157,7 +157,7 @@ test("Portal OKX implementation remains filesystem/BFF only", async () => {
     readFile(join(root, "lib/liquidations/okx-live-reader.ts"), "utf8"),
   );
   const dashboard = await import("node:fs/promises").then(({ readFile }) =>
-    readFile(join(root, "components/liquidations-live-dashboard-okx.tsx"), "utf8"),
+    readFile(join(root, "components/liquidations-live-dashboard.tsx"), "utf8"),
   );
   const content = `${reader}\n${dashboard}`;
 

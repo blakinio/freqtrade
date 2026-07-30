@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260730-portal-real-target-deployment-and-web-acceptance
-status: active
-branch: deploy/portal-real-target-acceptance-20260730
+status: blocked
+branch: develop
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-31
@@ -22,19 +22,19 @@ Deploy and accept the real API-backed AI Trading Portal on the owner-controlled 
 
 ## Current target gate
 
-The bounded PI-06 target preflight was rerun through PR #756 on the real `freqtrade-synology-staging` runner. Docker and Compose were reachable, the host had sufficient CPU and memory, no Authentik port conflict existed and the `age` tool was present. The preflight remained blocked because the protected PI-06 variables and secrets were absent, `FREQTRADE_STAGING_STATE_DIR` was unset and the durable state directory was unavailable. No Authentik containers, networks or volumes existed.
+The repository-side, secret-free preflight implementation was merged through PR #758. A separately governed exact-one-file request was then executed through PR #834 on the trusted `freqtrade-synology-staging` runner. The request was closed without merge after evidence collection.
 
-The last repository-proven portal deployment is the Synology LAN preview. Its deployment contract explicitly sets `PORTAL_WEB_DATA_MODE=fixture`, `PORTAL_ENVIRONMENT=test`, `PORTAL_IDENTITY_FIXTURE_MODE=enabled` and omits `PORTAL_CONTROL_PLANE_URL`. It is not real-target acceptance.
+The target host and existing LAN preview are healthy enough for further work, but real API-backed acceptance is blocked. The current portal remains a fixture-mode test preview. Required identity, secret-management, public-access, control-plane, database and private Freqtrade services are absent or unverified, and required public PI-06 variables are not configured.
 
 ## Bounded implementation
 
-Add a secret-free, read-only target inventory that:
+The merged preflight:
 
 - runs only from an exact-one-file request PR on the trusted Synology runner;
 - inventories only portal-related containers and services;
-- records environment names, safe mode values and presence booleans without values;
+- records environment names, safe mode values and presence booleans without secret values;
 - fingerprints mount sources instead of recording private paths;
-- records image IDs, restart policies, health, sanitized ports, networks, resource limits and rollback metadata;
+- records image IDs, health, restart policy, sanitized port scope, networks, resource limits and rollback metadata;
 - checks portal fixture/API mode and presence of Authentik, Vault, Cloudflare Tunnel, portal API/database and private Freqtrade runtime;
 - never mutates containers, storage, identity, secrets, credentials or trading state;
 - fails the readiness gate while real acceptance blockers remain.
@@ -43,9 +43,9 @@ Add a secret-free, read-only target inventory that:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T00:30:00+02:00
-head: 77732c4052e93e86d0229da236bdb96cefb05a3c
-branch: deploy/portal-real-target-acceptance-20260730
+updated_at: 2026-07-31T00:49:00+02:00
+head: b2ad36c4426ea1aa730e87961b4d1ddb43bcc5e4
+branch: develop
 pr: 758
 status: blocked
 context_routes:
@@ -55,8 +55,8 @@ context_routes:
   - docs/ai_platform/portal/README.md
   - docs/ai_platform/portal/PI06_IDENTITY_AND_SESSION_DECISION.md
   - docs/ai_platform/portal/runbooks/PI06_AUTHENTIK_SYNOLOGY.md
-  - .github/workflows/portal-authentik-synology-target-preflight.yml
-  - .github/workflows/portal-authentik-deployment.yml
+  - .github/workflows/portal-real-target-readonly-preflight.yml
+  - deploy/synology/portal/real_target_preflight.py
 owned_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
   - deploy/synology/portal/real_target_preflight.py
@@ -65,35 +65,43 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md
 proven:
   - PR #831 repaired the Portal Universal E2E validation dependency contract and was squash-merged to develop as e19327315cd40d11bcaaa48b11dc53afa80d78e8.
-  - PR #758 branch head 77732c4052e93e86d0229da236bdb96cefb05a3c was synchronized non-forced with develop and was 16 commits ahead and 0 behind.
-  - The synchronized PR #758 diff contained only the four repository task paths: workflow, preflight implementation, focused tests and this checkpoint.
-  - PR #758 exact-head security run 30586241671 passed.
-  - PR #758 exact-head AI Platform CI run 30586241675 passed.
-  - PR #758 exact-head AI Strategy Engine run 30586241698 passed.
-  - PR #758 exact-head Portal Universal E2E run 30586241683 passed backend-scenario and Chromium.
-  - PR #758 exact-head WickHunter Market Evidence run 30586241672 passed.
-  - PR #758 exact-head Portal Web CI run 30586241726 passed.
-  - PR #758 exact-head Freqtrade CI run 30586241725 passed pre-commit, scope, documentation, Python 3.11 through 3.14, Python 3.12 coverage, smoke tests, Ruff, Ruff format, mypy, distribution build and the final CI Gate.
-  - The original Ruff import, security-audit, complexity and formatting findings were repaired only in the preflight implementation and focused test.
-  - Local syntax validation passed and the focused preflight suite passed with 5 tests.
-  - Prior real-target evidence showed missing PI-06 variables, protected secrets and durable state configuration, with no Authentik target resources present.
-  - No real-target preflight request or deployment mutation was executed while implementing and validating PR #758.
-  - The task remains read-only and authorizes no trading credentials, withdrawals or live capital.
+  - PR #758 was squash-merged to develop as b2ad36c4426ea1aa730e87961b4d1ddb43bcc5e4 after all exact-head security, AI Platform, Portal Universal E2E, Portal Web and Freqtrade CI gates passed.
+  - The merged PR #758 repository diff contained only the workflow, preflight implementation, focused tests and task checkpoint.
+  - Request PR #834 added exactly the frozen request file at head 10e1c0bc3f4431c64741eb151a0f987fbe1fa483 and was closed without merge after evidence collection.
+  - Portal Real Target Read-only Preflight run 30588368235 executed on the trusted Synology runner.
+  - Exact-one-file scope validation passed.
+  - The recognized trading-credential environment refusal check passed.
+  - Secret-free report collection and artifact upload passed before the readiness enforcement step failed as designed.
+  - Artifact portal-real-target-readonly-preflight-834 has ID 8777392839 and digest sha256:9ae35f01970505fc73de60f469ce9f36ab3640c3654b8a5597f94e9f5d24fc53.
+  - The runner name and environment matched the frozen request, Docker 24.0.2 and Compose v2 were available, and the host reported 3 CPUs and about 20.8 GB memory.
+  - Root and staging-state storage were present with about 2.9 TB free.
+  - The existing freqtrade-portal-staging container was running, healthy and reachable on the private LAN with HTTP 200.
+  - The existing portal mode was PORTAL_WEB_DATA_MODE=fixture, PORTAL_ENVIRONMENT=test and PORTAL_IDENTITY_FIXTURE_MODE=enabled.
+  - PORTAL_CONTROL_PLANE_URL was absent.
+  - Authentik, Authentik PostgreSQL, Vault, Cloudflare Tunnel, portal API, portal PostgreSQL and private Freqtrade runtime were absent or unverified.
+  - PI06_AUTHENTIK_PUBLIC_BASE_URL, PI06_PORTAL_PUBLIC_BASE_URL and PI06_PORTAL_IDENTITY_CLIENT_ID were absent.
+  - The report recorded mutation_executed=false, bootstrap_executed=false, restore_executed=false and live_capital_authorized=false.
+  - The report recorded no secret values and no private mount source paths.
+  - No deployment, restore, identity, secret, container, storage, trading, withdrawal or live-capital mutation was performed.
 derived:
-  - The repository-only preflight implementation is ready to merge after the checkpoint-only exact-head validation completes.
-  - Real-target mutation remains gated on owner-controlled PI-06 configuration and a separately governed exact-one-file read-only preflight request.
+  - The target host is reachable and has sufficient basic runtime and storage capacity for a separately authorized deployment task.
+  - The current healthy LAN preview cannot satisfy real API-backed acceptance because it remains in fixture/test identity mode.
+  - Repository implementation and read-only evidence collection are complete; further progress requires owner-controlled configuration and explicit authorization for a mutation-capable deployment task.
 unknown:
-  - Whether the owner has since populated the PI-06 variables, protected secrets and durable state path.
-  - Current real-target presence and health of Authentik, Vault, Cloudflare Tunnel, portal API/database and private Freqtrade dry-run runtime.
+  - Whether approved protected secret references for Authentik, Vault and portal identity have been provisioned outside the inspected environment.
+  - Which public hostnames and Cloudflare Tunnel routes the owner authorizes for the real portal.
+  - Which private Freqtrade dry-run instance and control-plane endpoint the owner authorizes for integration.
 conflicts:
-  - The prior checkpoint listed exact-head CI as pending; all implementation-head workflows and the final CI Gate are now proven green.
+  - Earlier evidence reported the staging-state path unavailable; the latest report proves staging-state storage is now present.
+  - Earlier target state was unverified; run 30588368235 now proves the current service and configuration blockers without exposing secret values.
 first_failure:
-  marker: REAL_TARGET_STATE_UNVERIFIED
-  evidence: Repository validation cannot prove owner-controlled Synology variables, secrets, durable state or service health without the separately governed read-only request.
+  marker: REAL_TARGET_REQUIRED_STACK_ABSENT
+  evidence: The readiness gate failed because the target remains fixture/test mode and lacks required PI-06 public configuration, Authentik, Vault, Cloudflare Tunnel, portal API/database and private Freqtrade runtime.
 rejected_hypotheses:
   - A fixture preview, emulated Authentik or repository-only validation can satisfy real-target acceptance.
-  - Missing owner-controlled secrets or public infrastructure can be invented.
-  - Live-capital trading, withdrawals and production credentials are authorized.
+  - Missing owner-controlled secrets, public hostnames or private runtime endpoints can be invented.
+  - A failed readiness gate authorizes automatic deployment mutation.
+  - Live-capital trading, withdrawals or production trading credentials are authorized.
 changed_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
   - deploy/synology/portal/real_target_preflight.py
@@ -102,30 +110,28 @@ changed_paths:
 validation:
   - command: python3 -m py_compile deploy/synology/portal/real_target_preflight.py tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
     result: PASS
-    evidence: Local syntax validation passed after the exact Ruff formatter repair.
+    evidence: Local syntax validation passed.
   - command: python3 -m pytest -q tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
     result: PASS
     evidence: Focused local suite passed with 5 tests.
-  - command: GitHub Actions security run 30586241671
+  - command: GitHub Actions Freqtrade CI run 30587431380
     result: PASS
-    evidence: Exact synchronized PR #758 implementation head passed workflow security analysis.
-  - command: GitHub Actions AI Platform CI run 30586241675
+    evidence: Final PR #758 checkpoint head passed pre-commit, documentation, Python 3.11 through 3.14, Python 3.12 coverage, distribution build and CI Gate.
+  - command: GitHub Actions Portal Real Target Read-only Preflight run 30588368235
+    result: EXPECTED_BLOCKED
+    evidence: Scope, credential refusal, report generation and artifact upload passed; readiness enforcement failed on genuine target blockers.
+  - command: Artifact 8777392839 digest verification
     result: PASS
-    evidence: Exact synchronized PR #758 implementation head passed AI Platform validation.
-  - command: GitHub Actions Portal Universal E2E run 30586241683
-    result: PASS
-    evidence: Backend deterministic scenarios and Chromium journey passed.
-  - command: GitHub Actions Portal Web CI run 30586241726
-    result: PASS
-    evidence: Typecheck, lint, production build and Chromium regression passed.
-  - command: GitHub Actions Freqtrade CI run 30586241725
-    result: PASS
-    evidence: All required jobs and the final CI Gate passed.
+    evidence: GitHub reported sha256:9ae35f01970505fc73de60f469ce9f36ab3640c3654b8a5597f94e9f5d24fc53.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md --require-checkpoint
     result: PASS
-    evidence: The checkpoint schema and exactly-one-next-action contract were preserved from the last validated task record.
+    evidence: The checkpoint schema and exactly-one-next-action contract were preserved from the previously validated task record.
 blockers:
-  - Owner-controlled PI-06 variables, protected secrets and durable state configuration remain unverified after their last proven absence.
-  - Real-target service presence and health remain unknown because no separately governed preflight request has run yet.
-next_action: Merge PR #758 after the checkpoint-only exact-head CI passes.
+  - Required PI-06 public variables are absent.
+  - Authentik and its PostgreSQL service are absent.
+  - Vault and Cloudflare Tunnel are absent or unverified.
+  - Portal API and portal PostgreSQL are absent.
+  - Private Freqtrade runtime and control-plane URL are absent.
+  - No mutation-capable real-target deployment is authorized by this task.
+next_action: Owner must provision the approved PI-06 public configuration and protected secret references before opening a separately authorized real-target deployment task.
 ```

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  LiquidationLiveReadModelV3,
+  LiquidationLiveReadModel,
   type LiquidationDataSource,
 } from "@/lib/liquidations";
 
@@ -104,7 +104,7 @@ test("three-source BFF model lists, filters and aggregates OKX liquidation data"
   const now = 1_784_956_800_000;
   const data = await fixture(now);
   try {
-    const model = new LiquidationLiveReadModelV3({ dataRoot: data.dataRoot, now: () => now });
+    const model = new LiquidationLiveReadModel({ dataRoot: data.dataRoot, now: () => now });
     const health = await model.health();
     const all = await model.list({ limit: 20 });
     const okx = await model.list({ source: "okx-swap", limit: 20 });
@@ -138,7 +138,7 @@ test("one disconnected OKX source degrades the collector view without changing o
   const now = 1_784_956_800_000;
   const data = await fixture(now, false);
   try {
-    const model = new LiquidationLiveReadModelV3({ dataRoot: data.dataRoot, now: () => now });
+    const model = new LiquidationLiveReadModel({ dataRoot: data.dataRoot, now: () => now });
     const health = await model.health();
 
     expect(health.mode).toBe("stale");
@@ -154,7 +154,7 @@ test("one disconnected OKX source degrades the collector view without changing o
 test("Portal OKX implementation remains filesystem/BFF only", async () => {
   const root = join(process.cwd());
   const reader = await import("node:fs/promises").then(({ readFile }) =>
-    readFile(join(root, "lib/liquidations/okx-live-reader.ts"), "utf8"),
+    readFile(join(root, "lib/liquidations/reader.ts"), "utf8"),
   );
   const dashboard = await import("node:fs/promises").then(({ readFile }) =>
     readFile(join(root, "components/liquidations-live-dashboard.tsx"), "utf8"),

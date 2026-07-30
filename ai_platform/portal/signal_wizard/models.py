@@ -43,4 +43,5 @@ class SignalWizardSubmissionRow(Base):
     request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     preview_hash: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    command_json: Mapped[str] = mapped_column(Text, nullable=False)
     submission_json: Mapped[str] = mapped_column(Text, nullable=False)

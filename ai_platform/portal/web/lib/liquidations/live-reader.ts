@@ -428,10 +428,13 @@ export class LiquidationLiveReadModel {
     if (
       LIQUIDATION_HEALTH_SOURCES.some((source) => {
         const item = state.sources[source];
+        const sourceEventReference =
+          item.last_event_received_at_ms ?? state.collector_started_at_ms;
         return (
           !item.connected ||
           item.last_heartbeat_at_ms === null ||
-          now - item.last_heartbeat_at_ms > this.sourceStaleAfterMs
+          now - item.last_heartbeat_at_ms > this.sourceStaleAfterMs ||
+          now - sourceEventReference > this.eventStaleAfterMs
         );
       })
     ) {

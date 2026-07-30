@@ -1,0 +1,50 @@
+name: Agent WickHunter Codespell Fix
+
+"on":
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-wickhunter-codespell-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.ref == 'fix/wickhunter-ruff-baseline-20260730'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out baseline repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-ruff-baseline-20260730
+          fetch-depth: 0
+
+      - name: Repair inherited codespell finding
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("ai_platform/portal/web/components/market-evidence-dashboard.tsx")
+          text = path.read_text(encoding="utf-8")
+          old = "<div><span>Symbole</span><strong>{source.active_symbols}</strong></div>"
+          new = "<div><span>Symbols</span><strong>{source.active_symbols}</strong></div>"
+          assert text.count(old) == 1
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+          python -m pip install --disable-pip-version-check codespell==2.4.2
+          codespell ai_platform/portal/web/components/market-evidence-dashboard.tsx
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/portal/web/components/market-evidence-dashboard.tsx
+          git commit -m "fix(portal): use codespell-safe market evidence label"
+          git push origin HEAD:fix/wickhunter-ruff-baseline-20260730

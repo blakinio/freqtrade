@@ -130,6 +130,7 @@ def test_okx_live_manager_registers_separate_state_files_and_zero_orders(tmp_pat
         assert okx["observed_symbol_count"] == 1
         assert okx["parse_error_count"] == 0
         assert okx["ingest_lag_ms"] == 20
+        assert state["orders_submitted"] == 0
 
         output = manager.run_root / "okx-swap.ndjson"
         assert output.read_text(encoding="utf-8").count("\n") == 1
@@ -158,7 +159,7 @@ def test_okx_failure_does_not_rewrite_other_source_state(tmp_path: Path) -> None
         await manager.connected(BYBIT_SOURCE)
         await manager.connected(BINANCE_SOURCE)
         await manager.connected(OKX_SOURCE)
-        await manager.disconnected(OKX_SOURCE, "wss://user:pass@example.invalid/?token=value")
+        await manager.disconnected(OKX_SOURCE, "connection token=sensitive")
         state = _read(manager.run_root / "run-state-v1.json")
         sources = state["sources"]
         assert isinstance(sources, dict)
@@ -166,7 +167,7 @@ def test_okx_failure_does_not_rewrite_other_source_state(tmp_path: Path) -> None
         assert sources[BINANCE_SOURCE]["connected"] is True
         assert sources[OKX_SOURCE]["connected"] is False
         assert sources[OKX_SOURCE]["reconnect_count"] == 1
-        assert "value" not in str(sources[OKX_SOURCE]["latest_error"])
+        assert "sensitive" not in str(sources[OKX_SOURCE]["latest_error"])
         await manager.stop()
 
     asyncio.run(scenario())
@@ -228,6 +229,7 @@ def test_old_disabled_okx_live_state_migrates_to_new_active_run(tmp_path: Path) 
         current = _read(tmp_path / "live" / LIVE_STATE_FILE)["state"]
         assert isinstance(current, dict)
         assert current["sources"][OKX_SOURCE]["configured"] is True
+        assert current["orders_submitted"] == 0
         assert manager.run_id != old_run_id
         await manager.stop()
 
@@ -243,9 +245,9 @@ def test_operational_portal_and_deployment_contracts_require_okx() -> None:
     verify = (ROOT / "deploy/synology/liquid20/verify-okx-live.sh").read_text(
         encoding="utf-8"
     )
-    portal_reader = (
-        ROOT / "ai_platform/portal/web/lib/liquidations/okx-live-reader.ts"
-    ).read_text(encoding="utf-8")
+    portal_reader = (ROOT / "ai_platform/portal/web/lib/liquidations/reader.ts").read_text(
+        encoding="utf-8"
+    )
     portal_ui = (
         ROOT / "ai_platform/portal/web/components/liquidations-live-dashboard.tsx"
     ).read_text(encoding="utf-8")
@@ -264,7 +266,8 @@ def test_operational_portal_and_deployment_contracts_require_okx() -> None:
 def test_portal_has_no_direct_okx_or_collector_network_connection() -> None:
     portal_root = ROOT / "ai_platform" / "portal" / "web"
     inspected = [
-        portal_root / "lib/liquidations/okx-live-reader.ts",
+        portal_root / "lib/liquidations/reader.ts",
+        portal_root / "lib/liquidations/live-reader.ts",
         portal_root / "components/liquidations-live-dashboard.tsx",
         portal_root / "app/api/market/liquidations/_shared.ts",
     ]

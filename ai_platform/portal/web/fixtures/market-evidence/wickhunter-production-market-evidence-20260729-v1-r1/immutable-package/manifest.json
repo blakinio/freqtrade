@@ -1,0 +1,47 @@
+{
+  "artifact_type": "WickHunterProductionMarketEvidencePackage",
+  "artifacts": [],
+  "authorities": {
+    "execution_enabled": false,
+    "live_capital_authorized": false,
+    "model_execution_authorized": false,
+    "orders_submitted": 0,
+    "performance_research_authorized": false,
+    "replay_authorized": false,
+    "trading_credentials_present": false
+  },
+  "capture": {
+    "cadence_seconds": 300,
+    "decision_end_ms": 1785348000000,
+    "decision_start_ms": 1785304800000,
+    "pre_roll_ms": 86400000,
+    "pre_roll_start_ms": 1785218400000,
+    "timeframe": "5m"
+  },
+  "collector_commit": "3333333333333333333333333333333333333333",
+  "gaps": [],
+  "instruments": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"],
+  "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "policy_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "record_counts": {
+    "completed_candles": 3456,
+    "instrument_snapshots": 1152,
+    "market_quality_observations": 1152,
+    "source_health_snapshots": 288
+  },
+  "request_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "run_id": "wickhunter-production-market-evidence-20260729-v1-r1",
+  "schema_version": 1,
+  "source_health": {
+    "binance-usdm": {"completed_candles": 1728, "gaps": 0, "healthy": true, "market_quality_records": 576, "samples": 144},
+    "bybit-linear": {"completed_candles": 1728, "gaps": 0, "healthy": true, "market_quality_records": 576, "samples": 144}
+  },
+  "sources": ["bybit-linear", "binance-usdm"],
+  "verification_result": "accepted",
+  "wh01": {
+    "blocker_code": "LIQUIDATION_ARCHIVE_NOT_BOUND",
+    "blocker_detail": "A contemporaneous accepted Liquid20 archive and frozen WH-01 split geometry must be bound before materialization.",
+    "market_evidence_ready": true,
+    "ready": false
+  }
+}

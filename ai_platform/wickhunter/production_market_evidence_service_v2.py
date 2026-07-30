@@ -74,22 +74,16 @@ def _integer(value: object, *, field: str) -> int:
     try:
         return int(value)
     except ValueError as exc:
-        raise MarketEvidenceV2PublicationError(
-            f"{field} must be an integer"
-        ) from exc
+        raise MarketEvidenceV2PublicationError(f"{field} must be an integer") from exc
 
 
 def _load_json(path: Path, *, field: str) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
-        raise MarketEvidenceV2PublicationError(
-            f"{field} must be a regular file"
-        )
+        raise MarketEvidenceV2PublicationError(f"{field} must be a regular file")
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise MarketEvidenceV2PublicationError(
-            f"unable to read {field}: {exc}"
-        ) from exc
+        raise MarketEvidenceV2PublicationError(f"unable to read {field}: {exc}") from exc
     return _object(value, field=field)
 
 
@@ -116,41 +110,29 @@ def _safe_member(root: Path, logical_name: str) -> Path:
         or any(part in {"", ".", ".."} for part in relative.parts)
     )
     if unsafe:
-        raise MarketEvidenceV2PublicationError(
-            "artifact path must remain relative"
-        )
+        raise MarketEvidenceV2PublicationError("artifact path must remain relative")
     resolved_root = root.resolve(strict=True)
     current = root
     for part in relative.parts:
         current = current / part
         if current.is_symlink():
-            raise MarketEvidenceV2PublicationError(
-                "artifact path traverses a symlink"
-            )
+            raise MarketEvidenceV2PublicationError("artifact path traverses a symlink")
     try:
         current.resolve(strict=True).relative_to(resolved_root)
     except (FileNotFoundError, ValueError) as exc:
-        raise MarketEvidenceV2PublicationError(
-            "artifact path escapes its immutable root"
-        ) from exc
+        raise MarketEvidenceV2PublicationError("artifact path escapes its immutable root") from exc
     if not current.is_file():
-        raise MarketEvidenceV2PublicationError(
-            "artifact member is not a regular file"
-        )
+        raise MarketEvidenceV2PublicationError("artifact member is not a regular file")
     return current
 
 
 def _identity(path: Path, *, root: Path) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
-        raise MarketEvidenceV2PublicationError(
-            "artifact is not a regular file"
-        )
+        raise MarketEvidenceV2PublicationError("artifact is not a regular file")
     try:
         logical_name = path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError as exc:
-        raise MarketEvidenceV2PublicationError(
-            "artifact path escapes package root"
-        ) from exc
+        raise MarketEvidenceV2PublicationError("artifact path escapes package root") from exc
     return {
         "logical_name": logical_name,
         "sha256": _file_hash(path),
@@ -165,44 +147,30 @@ def _copy_verified(
     expected_sha256: str,
 ) -> None:
     if source.is_symlink() or not source.is_file():
-        raise MarketEvidenceV2PublicationError(
-            "source artifact is not a regular file"
-        )
+        raise MarketEvidenceV2PublicationError("source artifact is not a regular file")
     if _file_hash(source) != expected_sha256:
-        raise MarketEvidenceV2PublicationError(
-            "source artifact hash mismatch before copy"
-        )
+        raise MarketEvidenceV2PublicationError("source artifact hash mismatch before copy")
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() or destination.is_symlink():
-        raise MarketEvidenceV2PublicationError(
-            "destination artifact already exists"
-        )
+        raise MarketEvidenceV2PublicationError("destination artifact already exists")
     shutil.copyfile(source, destination)
     if _file_hash(destination) != expected_sha256:
-        raise MarketEvidenceV2PublicationError(
-            "copied artifact hash mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("copied artifact hash mismatch")
 
 
 def _append_verified_ndjson(paths: Sequence[Path], destination: Path) -> int:
     rows = 0
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists() or destination.is_symlink():
-        raise MarketEvidenceV2PublicationError(
-            "combined NDJSON destination already exists"
-        )
+        raise MarketEvidenceV2PublicationError("combined NDJSON destination already exists")
     with destination.open("xb") as target:
         for path in paths:
             if path.is_symlink() or not path.is_file():
-                raise MarketEvidenceV2PublicationError(
-                    "NDJSON source must be a regular file"
-                )
+                raise MarketEvidenceV2PublicationError("NDJSON source must be a regular file")
             with path.open("rb") as source:
                 for line in source:
                     if not line.strip():
-                        raise MarketEvidenceV2PublicationError(
-                            "NDJSON source contains a blank row"
-                        )
+                        raise MarketEvidenceV2PublicationError("NDJSON source contains a blank row")
                     try:
                         parsed = json.loads(line)
                     except (
@@ -213,9 +181,7 @@ def _append_verified_ndjson(paths: Sequence[Path], destination: Path) -> int:
                             "NDJSON source contains invalid JSON"
                         ) from exc
                     if not isinstance(parsed, dict):
-                        raise MarketEvidenceV2PublicationError(
-                            "NDJSON row must be an object"
-                        )
+                        raise MarketEvidenceV2PublicationError("NDJSON row must be an object")
                     target.write(_canonical_bytes(parsed) + b"\n")
                     rows += 1
         target.flush()
@@ -243,10 +209,7 @@ def _capture_geometry(manifest: Mapping[str, object]) -> dict[str, int]:
 
 def _candle_artifacts(index: object) -> list[dict[str, Any]]:
     raw = index.get("artifacts") if isinstance(index, dict) else index
-    return [
-        _object(item, field="candle artifact")
-        for item in _sequence(raw, field="candle index")
-    ]
+    return [_object(item, field="candle artifact") for item in _sequence(raw, field="candle index")]
 
 
 def _copy_candles(
@@ -261,19 +224,12 @@ def _copy_candles(
     for artifact in artifacts:
         source = str(artifact.get("source", ""))
         symbol = str(artifact.get("symbol", "")).upper()
-        invalid_identity = (
-            source not in expected_sources
-            or symbol not in v1_core.EXPECTED_SYMBOLS
-        )
+        invalid_identity = source not in expected_sources or symbol not in v1_core.EXPECTED_SYMBOLS
         if invalid_identity:
-            raise MarketEvidenceV2PublicationError(
-                "candle source or symbol identity mismatch"
-            )
+            raise MarketEvidenceV2PublicationError("candle source or symbol identity mismatch")
         identity = (source, symbol)
         if identity in seen:
-            raise MarketEvidenceV2PublicationError(
-                "duplicate candle source-symbol identity"
-            )
+            raise MarketEvidenceV2PublicationError("duplicate candle source-symbol identity")
         seen.add(identity)
         normalized = _object(
             artifact.get("normalized_file"),
@@ -282,9 +238,7 @@ def _copy_candles(
         logical_name = str(normalized.get("logical_name", ""))
         source_path = _safe_member(source_root, logical_name)
         expected_sha256 = str(normalized.get("sha256", ""))
-        destination = (
-            destination_root / "candles" / source / f"{symbol}-5m.ndjson"
-        )
+        destination = destination_root / "candles" / source / f"{symbol}-5m.ndjson"
         _copy_verified(
             source_path,
             destination,
@@ -300,14 +254,10 @@ def _copy_candles(
             }
         )
     expected = {
-        (source, symbol)
-        for source in expected_sources
-        for symbol in v1_core.EXPECTED_SYMBOLS
+        (source, symbol) for source in expected_sources for symbol in v1_core.EXPECTED_SYMBOLS
     }
     if seen != expected:
-        raise MarketEvidenceV2PublicationError(
-            "candle source-symbol coverage mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("candle source-symbol coverage mismatch")
     return copied
 
 
@@ -317,13 +267,8 @@ def _authority_is_safe(
     field: str,
 ) -> None:
     authorities = _object(manifest.get("authorities"), field=field)
-    if any(
-        authorities.get(key) != value
-        for key, value in v1_service.EXPECTED_AUTHORITY.items()
-    ):
-        raise MarketEvidenceV2PublicationError(
-            f"{field} authority boundary mismatch"
-        )
+    if any(authorities.get(key) != value for key, value in v1_service.EXPECTED_AUTHORITY.items()):
+        raise MarketEvidenceV2PublicationError(f"{field} authority boundary mismatch")
 
 
 def merge_verified_packages(
@@ -349,13 +294,9 @@ def merge_verified_packages(
             "base run identity does not match supplement binding"
         )
     if base_manifest.get("sources") != list(v1_core.EXPECTED_SOURCES):
-        raise MarketEvidenceV2PublicationError(
-            "base package source coverage mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("base package source coverage mismatch")
     if _capture_geometry(base_manifest) != _capture_geometry(supplement_manifest):
-        raise MarketEvidenceV2PublicationError(
-            "base and supplement capture geometry differ"
-        )
+        raise MarketEvidenceV2PublicationError("base and supplement capture geometry differ")
     _authority_is_safe(
         base_manifest,
         field="base package",
@@ -364,14 +305,10 @@ def merge_verified_packages(
     if final_root.exists() and not final_root.is_symlink():
         return verify_combined_package(final_root)
     if final_root.exists() or final_root.is_symlink():
-        raise MarketEvidenceV2PublicationError(
-            "combined package root is unsafe"
-        )
+        raise MarketEvidenceV2PublicationError("combined package root is unsafe")
     partial_root = output_run_root / PACKAGE_PARTIAL_DIR_NAME
     if partial_root.exists() or partial_root.is_symlink():
-        raise MarketEvidenceV2PublicationError(
-            "partial combined package already exists"
-        )
+        raise MarketEvidenceV2PublicationError("partial combined package already exists")
     output_run_root.mkdir(parents=True, exist_ok=True)
     partial_root.mkdir()
     try:
@@ -386,27 +323,19 @@ def merge_verified_packages(
         _write_json(partial_root / PACKAGE_REQUEST_NAME, supplement_request)
         binding: dict[str, object] = {
             "schema_version": 2,
-            "binding_type": (
-                "WickHunterMarketEvidenceSourcePackageBinding"
-            ),
+            "binding_type": ("WickHunterMarketEvidenceSourcePackageBinding"),
             "run_id": supplement_manifest["run_id"],
             "base_v1": {
                 "run_id": base_manifest["run_id"],
                 "manifest_sha256": base_manifest["manifest_sha256"],
-                "request_sha256": _file_hash(
-                    base_package / PACKAGE_REQUEST_NAME
-                ),
-                "verification_manifest_sha256": v1_verification[
-                    "manifest_sha256"
-                ],
+                "request_sha256": _file_hash(base_package / PACKAGE_REQUEST_NAME),
+                "verification_manifest_sha256": v1_verification["manifest_sha256"],
             },
             "okx_supplement": {
                 "run_id": supplement_manifest["run_id"],
                 "manifest_sha256": supplement_manifest["manifest_sha256"],
                 "request_sha256": _file_hash(supplement / "request.json"),
-                "verification_manifest_sha256": v2_verification[
-                    "manifest_sha256"
-                ],
+                "verification_manifest_sha256": v2_verification["manifest_sha256"],
             },
             "geometry": _capture_geometry(base_manifest),
             "sources": list(v2.EXPECTED_SOURCES),
@@ -442,14 +371,10 @@ def merge_verified_packages(
             ),
         }
         base_index = json.loads(
-            (base_package / PACKAGE_CANDLE_INDEX_NAME).read_text(
-                encoding="utf-8"
-            )
+            (base_package / PACKAGE_CANDLE_INDEX_NAME).read_text(encoding="utf-8")
         )
         supplement_index = json.loads(
-            (supplement / "completed-candles-index.json").read_text(
-                encoding="utf-8"
-            )
+            (supplement / "completed-candles-index.json").read_text(encoding="utf-8")
         )
         copied_candles = [
             *_copy_candles(
@@ -508,22 +433,15 @@ def merge_verified_packages(
             PACKAGE_INSTRUMENT_SNAPSHOTS_NAME,
             PACKAGE_CANDLE_INDEX_NAME,
         )
-        artifacts = [
-            _identity(partial_root / name, root=partial_root)
-            for name in top_level_names
-        ]
+        artifacts = [_identity(partial_root / name, root=partial_root) for name in top_level_names]
         artifacts.extend(
             _identity(path, root=partial_root)
-            for path in sorted(
-                (partial_root / "candles").rglob("*.ndjson")
-            )
+            for path in sorted((partial_root / "candles").rglob("*.ndjson"))
         )
         geometry = _capture_geometry(base_manifest)
         manifest: dict[str, object] = {
             "schema_version": 2,
-            "artifact_type": (
-                "WickHunterProductionMarketEvidencePackage"
-            ),
+            "artifact_type": ("WickHunterProductionMarketEvidencePackage"),
             "contract_id": v2.CONTRACT_ID,
             "run_id": supplement_manifest["run_id"],
             "base_v1_run_id": base_manifest["run_id"],
@@ -535,10 +453,7 @@ def merge_verified_packages(
             "instruments": list(v1_core.EXPECTED_SYMBOLS),
             "capture": {
                 **geometry,
-                "pre_roll_ms": (
-                    geometry["decision_start_ms"]
-                    - geometry["pre_roll_start_ms"]
-                ),
+                "pre_roll_ms": (geometry["decision_start_ms"] - geometry["pre_roll_start_ms"]),
                 "cadence_seconds": 300,
                 "timeframe": "5m",
             },
@@ -586,8 +501,7 @@ def merge_verified_packages(
             ),
         ]
         checksum_lines = sorted(
-            f"{item['sha256']}  {item['logical_name']}"
-            for item in checksum_identities
+            f"{item['sha256']}  {item['logical_name']}" for item in checksum_identities
         )
         _write_new(
             partial_root / PACKAGE_CHECKSUM_NAME,
@@ -619,9 +533,7 @@ def merge_verified_packages(
 
 def verify_combined_package(package_root: Path) -> dict[str, object]:
     if package_root.is_symlink() or not package_root.is_dir():
-        raise MarketEvidenceV2PublicationError(
-            "combined package root must be a regular directory"
-        )
+        raise MarketEvidenceV2PublicationError("combined package root must be a regular directory")
     manifest = _load_json(
         package_root / PACKAGE_MANIFEST_NAME,
         field="combined manifest",
@@ -630,22 +542,16 @@ def verify_combined_package(package_root: Path) -> dict[str, object]:
     seed = dict(manifest)
     seed.pop("manifest_sha256", None)
     if not isinstance(claimed, str) or _canonical_hash(seed) != claimed:
-        raise MarketEvidenceV2PublicationError(
-            "combined manifest self hash mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("combined manifest self hash mismatch")
     invalid_coverage = (
         manifest.get("sources") != list(v2.EXPECTED_SOURCES)
         or manifest.get("instruments") != list(v1_core.EXPECTED_SYMBOLS)
         or manifest.get("record_counts") != EXPECTED_COUNTS
     )
     if invalid_coverage:
-        raise MarketEvidenceV2PublicationError(
-            "combined package coverage mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("combined package coverage mismatch")
     if manifest.get("authorities") != v2.AUTHORITY:
-        raise MarketEvidenceV2PublicationError(
-            "combined authority boundary mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("combined authority boundary mismatch")
     binding = _load_json(
         package_root / PACKAGE_BINDING_NAME,
         field="source binding",
@@ -659,40 +565,29 @@ def verify_combined_package(package_root: Path) -> dict[str, object]:
         or manifest.get("source_package_binding_sha256") != binding_claim
     )
     if invalid_binding:
-        raise MarketEvidenceV2PublicationError(
-            "source binding identity mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("source binding identity mismatch")
     expected_lines: set[str] = set()
     artifacts = _sequence(manifest.get("artifacts"), field="combined artifacts")
     for raw in artifacts:
         identity = _object(raw, field="artifact identity")
         logical_name = str(identity.get("logical_name", ""))
         path = _safe_member(package_root, logical_name)
-        identity_mismatch = (
-            _file_hash(path) != identity.get("sha256")
-            or path.stat().st_size != identity.get("size_bytes")
-        )
+        identity_mismatch = _file_hash(path) != identity.get(
+            "sha256"
+        ) or path.stat().st_size != identity.get("size_bytes")
         if identity_mismatch:
-            raise MarketEvidenceV2PublicationError(
-                "combined artifact identity mismatch"
-            )
+            raise MarketEvidenceV2PublicationError("combined artifact identity mismatch")
         expected_lines.add(f"{identity['sha256']}  {logical_name}")
     manifest_identity = _identity(
         package_root / PACKAGE_MANIFEST_NAME,
         root=package_root,
     )
-    expected_lines.add(
-        f"{manifest_identity['sha256']}  {PACKAGE_MANIFEST_NAME}"
-    )
+    expected_lines.add(f"{manifest_identity['sha256']}  {PACKAGE_MANIFEST_NAME}")
     checksum = package_root / PACKAGE_CHECKSUM_NAME
     if checksum.is_symlink() or not checksum.is_file():
-        raise MarketEvidenceV2PublicationError(
-            "combined checksum is missing"
-        )
+        raise MarketEvidenceV2PublicationError("combined checksum is missing")
     if set(checksum.read_text(encoding="utf-8").splitlines()) != expected_lines:
-        raise MarketEvidenceV2PublicationError(
-            "combined checksum mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("combined checksum mismatch")
     verification = _load_json(
         package_root / PACKAGE_VERIFICATION_NAME,
         field="verification",
@@ -700,15 +595,10 @@ def verify_combined_package(package_root: Path) -> dict[str, object]:
     invalid_verification = (
         verification.get("outcome") != "accepted"
         or verification.get("manifest_sha256") != claimed
-        or any(
-            verification.get(key) != value
-            for key, value in v2.AUTHORITY.items()
-        )
+        or any(verification.get(key) != value for key, value in v2.AUTHORITY.items())
     )
     if invalid_verification:
-        raise MarketEvidenceV2PublicationError(
-            "combined verification mismatch"
-        )
+        raise MarketEvidenceV2PublicationError("combined verification mismatch")
     return {
         "status": "published",
         "outcome": "accepted",

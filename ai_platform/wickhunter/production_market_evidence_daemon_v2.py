@@ -101,9 +101,7 @@ def main() -> int:
             character in "0123456789abcdef" for character in collector_commit
         )
         if not valid_commit:
-            raise RuntimeError(
-                "COLLECTOR_COMMIT must be a lowercase 40-character Git SHA"
-            )
+            raise RuntimeError("COLLECTOR_COMMIT must be a lowercase 40-character Git SHA")
         health_path = durable_root / "collector-health.json"
         while not _STOP:
             observed_at_ms = time.time_ns() // 1_000_000
@@ -118,8 +116,7 @@ def main() -> int:
                     {
                         "schema_version": 2,
                         "observed_at_ms": observed_at_ms,
-                        "healthy": result.get("status")
-                        not in {"rejected", "failed"},
+                        "healthy": result.get("status") not in {"rejected", "failed"},
                         "result": result,
                         **core.AUTHORITY,
                     },

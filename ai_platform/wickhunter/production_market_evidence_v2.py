@@ -36,12 +36,8 @@ EXPECTED_CANDLES = 432
 BASE_SOURCES = ("bybit-linear", "binance-usdm")
 EXPECTED_SOURCES = (*BASE_SOURCES, "okx-swap")
 OKX_SOURCE = "okx-swap"
-EXPECTED_SOURCE_CATALOG_SHA256 = (
-    "f4afd993df84441d34639d1b149e42cdba1613569ab9828e1f3bf5e30983f641"
-)
-EXPECTED_SYMBOL_UNIVERSE_SHA256 = (
-    "a75bd2734275b837a14db359ff8d380936e01eab93af436433682e47442582f4"
-)
+EXPECTED_SOURCE_CATALOG_SHA256 = "f4afd993df84441d34639d1b149e42cdba1613569ab9828e1f3bf5e30983f641"
+EXPECTED_SYMBOL_UNIVERSE_SHA256 = "a75bd2734275b837a14db359ff8d380936e01eab93af436433682e47442582f4"
 OKX_INSTRUMENTS_URL = "https://www.okx.com/api/v5/public/instruments?instType=SWAP"
 OKX_TICKERS_URL = "https://www.okx.com/api/v5/market/tickers?instType=SWAP"
 OKX_CANDLES_URL = "https://www.okx.com/api/v5/market/history-candles"
@@ -198,15 +194,11 @@ def _decimal(value: object, *, field: str, positive: bool = False) -> Decimal:
     try:
         parsed = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError) as exc:
-        raise ProductionMarketEvidenceV2Error(
-            f"{field} must be decimal-compatible"
-        ) from exc
+        raise ProductionMarketEvidenceV2Error(f"{field} must be decimal-compatible") from exc
     invalid = not parsed.is_finite() or (parsed <= 0 if positive else parsed < 0)
     if invalid:
         qualifier = "positive" if positive else "non-negative"
-        raise ProductionMarketEvidenceV2Error(
-            f"{field} must be finite and {qualifier}"
-        )
+        raise ProductionMarketEvidenceV2Error(f"{field} must be finite and {qualifier}")
     return parsed
 
 
@@ -242,9 +234,7 @@ def _write_json(path: Path, value: object, *, replace: bool = False) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp")
     if temporary.exists() or temporary.is_symlink():
-        raise ProductionMarketEvidenceV2Error(
-            f"temporary file already exists: {temporary}"
-        )
+        raise ProductionMarketEvidenceV2Error(f"temporary file already exists: {temporary}")
     with temporary.open("xb") as handle:
         handle.write(content)
         handle.flush()
@@ -277,9 +267,7 @@ def _verify_self_hash(
 
 
 def _refuse_environment(environment: Mapping[str, str]) -> None:
-    credentials = sorted(
-        name for name in _CREDENTIAL_ENV if environment.get(name, "").strip()
-    )
+    credentials = sorted(name for name in _CREDENTIAL_ENV if environment.get(name, "").strip())
     if credentials:
         raise ProductionMarketEvidenceV2Error(
             f"recognized trading credentials are present: {credentials}"
@@ -307,39 +295,23 @@ def load_capture_request(path: Path) -> CaptureRequestV2:
     if not re.fullmatch(request_pattern, request_id):
         raise ProductionMarketEvidenceV2Error("request_id is invalid")
     if run_id != f"{request_id}-r1":
-        raise ProductionMarketEvidenceV2Error(
-            "run_id must be the first immutable v2 run"
-        )
+        raise ProductionMarketEvidenceV2Error("run_id must be the first immutable v2 run")
     base_pattern = r"wickhunter-production-market-evidence-\d{8}-v1-r1"
     if not re.fullmatch(base_pattern, base_v1_run_id):
         raise ProductionMarketEvidenceV2Error("base_v1_run_id is invalid")
-    symbols = tuple(
-        str(item) for item in _sequence(payload.get("symbols"), field="symbols")
-    )
-    sources = tuple(
-        str(item) for item in _sequence(payload.get("sources"), field="sources")
-    )
+    symbols = tuple(str(item) for item in _sequence(payload.get("symbols"), field="symbols"))
+    sources = tuple(str(item) for item in _sequence(payload.get("sources"), field="sources"))
     if symbols != EXPECTED_SYMBOLS:
-        raise ProductionMarketEvidenceV2Error(
-            "symbol universe does not match Liquid20 v1"
-        )
+        raise ProductionMarketEvidenceV2Error("symbol universe does not match Liquid20 v1")
     if sources != EXPECTED_SOURCES:
-        raise ProductionMarketEvidenceV2Error(
-            "sources must contain the exact three-source order"
-        )
+        raise ProductionMarketEvidenceV2Error("sources must contain the exact three-source order")
     if payload.get("profile") != "liquid20-v1":
         raise ProductionMarketEvidenceV2Error("profile mismatch")
     if payload.get("timeframe") != TIMEFRAME:
         raise ProductionMarketEvidenceV2Error("timeframe mismatch")
-    pre_roll_start_ms = _integer(
-        payload.get("pre_roll_start_ms"), field="pre_roll_start_ms"
-    )
-    decision_start_ms = _integer(
-        payload.get("decision_start_ms"), field="decision_start_ms"
-    )
-    decision_end_ms = _integer(
-        payload.get("decision_end_ms"), field="decision_end_ms"
-    )
+    pre_roll_start_ms = _integer(payload.get("pre_roll_start_ms"), field="pre_roll_start_ms")
+    decision_start_ms = _integer(payload.get("decision_start_ms"), field="decision_start_ms")
+    decision_end_ms = _integer(payload.get("decision_end_ms"), field="decision_end_ms")
     sample_interval_seconds = _integer(
         payload.get("sample_interval_seconds"),
         field="sample_interval_seconds",
@@ -356,29 +328,17 @@ def load_capture_request(path: Path) -> CaptureRequestV2:
         field="protected_holdout_start_ms",
     )
     if sample_interval_seconds != 300 or max_sample_lateness_seconds != 420:
-        raise ProductionMarketEvidenceV2Error(
-            "sample cadence or lateness contract mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("sample cadence or lateness contract mismatch")
     if maximum_source_age_ms <= 0 or maximum_source_age_ms > 900_000:
-        raise ProductionMarketEvidenceV2Error(
-            "maximum_source_age_ms is outside the safe range"
-        )
+        raise ProductionMarketEvidenceV2Error("maximum_source_age_ms is outside the safe range")
     if decision_start_ms - pre_roll_start_ms < 86_400_000:
-        raise ProductionMarketEvidenceV2Error(
-            "at least 24 hours of pre-roll are required"
-        )
+        raise ProductionMarketEvidenceV2Error("at least 24 hours of pre-roll are required")
     if decision_end_ms - decision_start_ms != 43_200_000:
-        raise ProductionMarketEvidenceV2Error(
-            "decision interval must be exactly 12 hours"
-        )
+        raise ProductionMarketEvidenceV2Error("decision interval must be exactly 12 hours")
     if decision_start_ms % TIMEFRAME_MS or decision_end_ms % TIMEFRAME_MS:
-        raise ProductionMarketEvidenceV2Error(
-            "decision geometry must align to 5m"
-        )
+        raise ProductionMarketEvidenceV2Error("decision geometry must align to 5m")
     if decision_end_ms > protected_holdout_start_ms:
-        raise ProductionMarketEvidenceV2Error(
-            "decision interval overlaps the protected holdout"
-        )
+        raise ProductionMarketEvidenceV2Error("decision interval overlaps the protected holdout")
     if payload.get("source_catalog_sha256") != EXPECTED_SOURCE_CATALOG_SHA256:
         raise ProductionMarketEvidenceV2Error("source catalog identity mismatch")
     if payload.get("symbol_universe_sha256") != EXPECTED_SYMBOL_UNIVERSE_SHA256:
@@ -418,9 +378,7 @@ def load_capture_request(path: Path) -> CaptureRequestV2:
         durable_storage_uri=str(payload.get("durable_storage_uri", "")),
     )
     if request.expected_sample_count != EXPECTED_SAMPLES:
-        raise ProductionMarketEvidenceV2Error(
-            "expected sample geometry mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("expected sample geometry mismatch")
     parsed = urlsplit(request.durable_storage_uri)
     invalid_uri = (
         parsed.scheme != "file"
@@ -430,18 +388,14 @@ def load_capture_request(path: Path) -> CaptureRequestV2:
         or bool(parsed.fragment)
     )
     if invalid_uri:
-        raise ProductionMarketEvidenceV2Error(
-            "durable_storage_uri must be an absolute file URI"
-        )
+        raise ProductionMarketEvidenceV2Error("durable_storage_uri must be an absolute file URI")
     return request
 
 
 def okx_native_symbol(canonical_symbol: str) -> str:
     normalized = canonical_symbol.strip().upper()
     if normalized not in EXPECTED_SYMBOLS or not normalized.endswith("USDT"):
-        raise ProductionMarketEvidenceV2Error(
-            "unsupported canonical OKX symbol"
-        )
+        raise ProductionMarketEvidenceV2Error("unsupported canonical OKX symbol")
     return f"{normalized[:-4]}-USDT-SWAP"
 
 
@@ -454,9 +408,7 @@ def _instrument_rows_by_id(
         row = _object(raw, field=f"OKX instruments.data[{index}]")
         inst_id = str(row.get("instId", "")).strip().upper()
         if inst_id in rows and rows[inst_id] != row:
-            raise ProductionMarketEvidenceV2Error(
-                f"conflicting OKX instrument row for {inst_id}"
-            )
+            raise ProductionMarketEvidenceV2Error(f"conflicting OKX instrument row for {inst_id}")
         rows[inst_id] = row
     return rows
 
@@ -473,9 +425,7 @@ def normalize_okx_instruments(
             requested_symbols=EXPECTED_SYMBOLS,
         )
     except (TypeError, ValueError) as exc:
-        raise ProductionMarketEvidenceV2Error(
-            f"invalid OKX instrument response: {exc}"
-        ) from exc
+        raise ProductionMarketEvidenceV2Error(f"invalid OKX instrument response: {exc}") from exc
     raw_rows = _instrument_rows_by_id(root)
     normalized: list[dict[str, object]] = []
     for canonical_symbol in EXPECTED_SYMBOLS:
@@ -483,9 +433,7 @@ def normalize_okx_instruments(
         contract = contracts.get(inst_id)
         raw = raw_rows.get(inst_id)
         if contract is None or raw is None:
-            raise ProductionMarketEvidenceV2Error(
-                f"missing verified OKX instrument {inst_id}"
-            )
+            raise ProductionMarketEvidenceV2Error(f"missing verified OKX instrument {inst_id}")
         row: dict[str, object] = {
             "schema_version": 2,
             "source": OKX_SOURCE,
@@ -510,9 +458,7 @@ def _spread_bps(bid: Decimal, ask: Decimal, *, field: str) -> Decimal:
         raise ProductionMarketEvidenceV2Error(f"{field} ask is below bid")
     midpoint = (ask + bid) / Decimal(2)
     if midpoint <= 0:
-        raise ProductionMarketEvidenceV2Error(
-            f"{field} midpoint is not positive"
-        )
+        raise ProductionMarketEvidenceV2Error(f"{field} midpoint is not positive")
     return (ask - bid) / midpoint * Decimal(10_000)
 
 
@@ -526,13 +472,9 @@ def normalize_okx_market_snapshot(
 ) -> dict[str, object]:
     root = _object(ticker_payload, field="OKX ticker response")
     if str(root.get("code", "")) != "0":
-        raise ProductionMarketEvidenceV2Error(
-            "OKX ticker response code must be 0"
-        )
+        raise ProductionMarketEvidenceV2Error("OKX ticker response code must be 0")
     tickers: dict[str, dict[str, Any]] = {}
-    for index, raw in enumerate(
-        _sequence(root.get("data"), field="OKX ticker data")
-    ):
+    for index, raw in enumerate(_sequence(root.get("data"), field="OKX ticker data")):
         row = _object(raw, field=f"OKX ticker data[{index}]")
         if str(row.get("instType", "")).upper() != "SWAP":
             continue
@@ -544,41 +486,23 @@ def normalize_okx_market_snapshot(
         if canonical not in EXPECTED_SYMBOLS:
             continue
         if canonical in tickers and tickers[canonical] != row:
-            raise ProductionMarketEvidenceV2Error(
-                f"conflicting OKX ticker for {canonical}"
-            )
+            raise ProductionMarketEvidenceV2Error(f"conflicting OKX ticker for {canonical}")
         tickers[canonical] = row
     records: list[dict[str, object]] = []
     for canonical in EXPECTED_SYMBOLS:
         row = tickers.get(canonical)
         contract = instruments.get(okx_native_symbol(canonical))
         if row is None or contract is None:
-            raise ProductionMarketEvidenceV2Error(
-                f"OKX market snapshot is missing {canonical}"
-            )
-        event_at_ms = _integer(
-            row.get("ts"), field=f"OKX {canonical} ticker timestamp"
-        )
+            raise ProductionMarketEvidenceV2Error(f"OKX market snapshot is missing {canonical}")
+        event_at_ms = _integer(row.get("ts"), field=f"OKX {canonical} ticker timestamp")
         if event_at_ms > available_at_ms:
-            raise ProductionMarketEvidenceV2Error(
-                "OKX ticker timestamp is in the future"
-            )
+            raise ProductionMarketEvidenceV2Error("OKX ticker timestamp is in the future")
         if available_at_ms - event_at_ms > maximum_source_age_ms:
-            raise ProductionMarketEvidenceV2Error(
-                f"OKX ticker is stale for {canonical}"
-            )
-        last = _decimal(
-            row.get("last"), field=f"OKX {canonical} last", positive=True
-        )
-        bid = _decimal(
-            row.get("bidPx"), field=f"OKX {canonical} bid", positive=True
-        )
-        ask = _decimal(
-            row.get("askPx"), field=f"OKX {canonical} ask", positive=True
-        )
-        base_volume = _decimal(
-            row.get("volCcy24h"), field=f"OKX {canonical} base volume"
-        )
+            raise ProductionMarketEvidenceV2Error(f"OKX ticker is stale for {canonical}")
+        last = _decimal(row.get("last"), field=f"OKX {canonical} last", positive=True)
+        bid = _decimal(row.get("bidPx"), field=f"OKX {canonical} bid", positive=True)
+        ask = _decimal(row.get("askPx"), field=f"OKX {canonical} ask", positive=True)
+        base_volume = _decimal(row.get("volCcy24h"), field=f"OKX {canonical} base volume")
         records.append(
             {
                 "schema_version": 2,
@@ -595,9 +519,7 @@ def normalize_okx_market_snapshot(
                 "last_price": _decimal_text(last),
                 "bid_price": _decimal_text(bid),
                 "ask_price": _decimal_text(ask),
-                "spread_bps": _decimal_text(
-                    _spread_bps(bid, ask, field=canonical)
-                ),
+                "spread_bps": _decimal_text(_spread_bps(bid, ask, field=canonical)),
                 "base_volume_24h": _decimal_text(base_volume),
                 "quote_volume_24h_usd": _decimal_text(base_volume * last),
                 "market_available": True,
@@ -628,30 +550,18 @@ def normalize_okx_candle_page(
 ) -> list[dict[str, object]]:
     root = _object(payload, field="OKX candle response")
     if str(root.get("code", "")) != "0":
-        raise ProductionMarketEvidenceV2Error(
-            "OKX candle response code must be 0"
-        )
+        raise ProductionMarketEvidenceV2Error("OKX candle response code must be 0")
     records: list[dict[str, object]] = []
-    for index, raw in enumerate(
-        _sequence(root.get("data"), field="OKX candle data")
-    ):
+    for index, raw in enumerate(_sequence(root.get("data"), field="OKX candle data")):
         row = _sequence(raw, field=f"OKX candle data[{index}]")
         if len(row) < 9:
-            raise ProductionMarketEvidenceV2Error(
-                "OKX candle row must contain nine fields"
-            )
+            raise ProductionMarketEvidenceV2Error("OKX candle row must contain nine fields")
         if str(row[8]) != "1":
-            raise ProductionMarketEvidenceV2Error(
-                "uncompleted OKX candle was returned"
-            )
+            raise ProductionMarketEvidenceV2Error("uncompleted OKX candle was returned")
         open_time_ms = _integer(row[0], field="OKX candle open time")
         if open_time_ms % TIMEFRAME_MS:
-            raise ProductionMarketEvidenceV2Error(
-                "OKX candle open time is not aligned to 5m"
-            )
-        open_price = _decimal(
-            row[1], field="OKX candle open", positive=True
-        )
+            raise ProductionMarketEvidenceV2Error("OKX candle open time is not aligned to 5m")
+        open_price = _decimal(row[1], field="OKX candle open", positive=True)
         high = _decimal(row[2], field="OKX candle high", positive=True)
         low = _decimal(row[3], field="OKX candle low", positive=True)
         close = _decimal(row[4], field="OKX candle close", positive=True)
@@ -662,9 +572,7 @@ def normalize_okx_candle_page(
             high,
             close,
         ):
-            raise ProductionMarketEvidenceV2Error(
-                "OKX candle OHLC geometry is invalid"
-            )
+            raise ProductionMarketEvidenceV2Error("OKX candle OHLC geometry is invalid")
         close_time_ms = open_time_ms + TIMEFRAME_MS
         records.append(
             {
@@ -708,17 +616,11 @@ def validate_okx_candle_coverage(
         )
     for row in records:
         if row.get("source") != OKX_SOURCE or row.get("symbol") != canonical_symbol:
-            raise ProductionMarketEvidenceV2Error(
-                "OKX candle source or symbol mismatch"
-            )
+            raise ProductionMarketEvidenceV2Error("OKX candle source or symbol mismatch")
         open_ms = _integer(row.get("open_time_ms"), field="open time")
-        close_ms = _integer(
-            row.get("close_time_ms_exclusive"), field="close time"
-        )
+        close_ms = _integer(row.get("close_time_ms_exclusive"), field="close time")
         if close_ms != open_ms + TIMEFRAME_MS or close_ms > end_ms:
-            raise ProductionMarketEvidenceV2Error(
-                "OKX candle close boundary is invalid"
-            )
+            raise ProductionMarketEvidenceV2Error("OKX candle close boundary is invalid")
 
 
 def okx_candle_url(canonical_symbol: str, *, before_open_ms: int) -> str:
@@ -750,13 +652,9 @@ def capture_okx_candles(
         )
         if not page:
             raise ProductionMarketEvidenceV2Error("OKX candle page is empty")
-        earliest = min(
-            _integer(row["open_time_ms"], field="open time") for row in page
-        )
+        earliest = min(_integer(row["open_time_ms"], field="open time") for row in page)
         if earliest >= cursor:
-            raise ProductionMarketEvidenceV2Error(
-                "OKX candle pagination did not move backward"
-            )
+            raise ProductionMarketEvidenceV2Error("OKX candle pagination did not move backward")
         for row in page:
             open_ms = _integer(row["open_time_ms"], field="open time")
             if not start_ms <= open_ms < end_ms:
@@ -768,9 +666,7 @@ def capture_okx_candles(
                 previous_copy.pop("fetched_at_ms", None)
                 row_copy.pop("fetched_at_ms", None)
                 if previous_copy != row_copy:
-                    raise ProductionMarketEvidenceV2Error(
-                        "conflicting duplicate OKX candle"
-                    )
+                    raise ProductionMarketEvidenceV2Error("conflicting duplicate OKX candle")
             by_open[open_ms] = row
         if earliest <= start_ms:
             break
@@ -788,18 +684,12 @@ def capture_okx_candles(
 def _validate_public_url(url: str) -> None:
     parsed = urlsplit(url)
     if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_HOSTS:
-        raise ProductionMarketEvidenceV2Error(
-            "public endpoint is outside the OKX allowlist"
-        )
+        raise ProductionMarketEvidenceV2Error("public endpoint is outside the OKX allowlist")
     if parsed.username or parsed.password or parsed.fragment:
-        raise ProductionMarketEvidenceV2Error(
-            "public endpoint contains forbidden URL fields"
-        )
+        raise ProductionMarketEvidenceV2Error("public endpoint contains forbidden URL fields")
     forbidden = ("/api/v5/account", "/api/v5/trade", "/api/v5/asset")
     if parsed.path.startswith(forbidden):
-        raise ProductionMarketEvidenceV2Error(
-            "private or mutating OKX endpoint is forbidden"
-        )
+        raise ProductionMarketEvidenceV2Error("private or mutating OKX endpoint is forbidden")
 
 
 def fetch_public_bytes(url: str, timeout_seconds: int = 30) -> bytes:
@@ -812,22 +702,14 @@ def fetch_public_bytes(url: str, timeout_seconds: int = 30) -> bytes:
     try:
         with opener.open(request, timeout=timeout_seconds) as response:
             if response.status != 200 or response.geturl() != url:
-                raise ProductionMarketEvidenceV2Error(
-                    "public response status or URL drifted"
-                )
+                raise ProductionMarketEvidenceV2Error("public response status or URL drifted")
             content = response.read(MAX_RESPONSE_BYTES + 1)
     except HTTPError as exc:
-        raise ProductionMarketEvidenceV2Error(
-            f"public endpoint returned HTTP {exc.code}"
-        ) from exc
+        raise ProductionMarketEvidenceV2Error(f"public endpoint returned HTTP {exc.code}") from exc
     except (OSError, TimeoutError, URLError) as exc:
-        raise ProductionMarketEvidenceV2Error(
-            f"public endpoint failed: {exc}"
-        ) from exc
+        raise ProductionMarketEvidenceV2Error(f"public endpoint failed: {exc}") from exc
     if len(content) > MAX_RESPONSE_BYTES:
-        raise ProductionMarketEvidenceV2Error(
-            "public response exceeds size limit"
-        )
+        raise ProductionMarketEvidenceV2Error("public response exceeds size limit")
     return content
 
 
@@ -835,9 +717,7 @@ def fetch_public_json(url: str) -> object:
     try:
         return json.loads(fetch_public_bytes(url).decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ProductionMarketEvidenceV2Error(
-            "public response is not valid UTF-8 JSON"
-        ) from exc
+        raise ProductionMarketEvidenceV2Error("public response is not valid UTF-8 JSON") from exc
 
 
 @contextmanager
@@ -873,9 +753,7 @@ def _write_state(
     _write_json(_state_path(run_root), state, replace=True)
     pointer = _self_hashed(
         {
-            "pointer_version": (
-                "wickhunter-production-market-evidence-active-pointer-v2"
-            ),
+            "pointer_version": ("wickhunter-production-market-evidence-active-pointer-v2"),
             "run_id": state["run_id"],
             "run_root": str(run_root),
             "state_sha256": state["state_sha256"],
@@ -896,23 +774,18 @@ def _load_active(root: Path) -> tuple[Path, dict[str, Any]]:
     run_id = str(pointer.get("run_id", ""))
     run_root = Path(str(pointer.get("run_root", "")))
     if run_root != root / run_id:
-        raise ProductionMarketEvidenceV2Error(
-            "active run root escapes durable root"
-        )
+        raise ProductionMarketEvidenceV2Error("active run root escapes durable root")
     state = _load_json(_state_path(run_root), field="v2 incremental state")
     _verify_self_hash(
         state,
         hash_field="state_sha256",
         field="v2 incremental state",
     )
-    identity_mismatch = (
-        state.get("run_id") != run_id
-        or state.get("state_sha256") != pointer.get("state_sha256")
+    identity_mismatch = state.get("run_id") != run_id or state.get("state_sha256") != pointer.get(
+        "state_sha256"
     )
     if identity_mismatch:
-        raise ProductionMarketEvidenceV2Error(
-            "active state identity mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("active state identity mismatch")
     return run_root, state
 
 
@@ -925,33 +798,23 @@ def initialize_capture(
 ) -> dict[str, object]:
     _refuse_environment(environment if environment is not None else os.environ)
     if not re.fullmatch(r"[0-9a-f]{40}", collector_commit):
-        raise ProductionMarketEvidenceV2Error(
-            "collector_commit must be a lowercase commit SHA"
-        )
+        raise ProductionMarketEvidenceV2Error("collector_commit must be a lowercase commit SHA")
     request = load_capture_request(request_path)
     if _durable_path(request) != durable_root:
-        raise ProductionMarketEvidenceV2Error(
-            "request durable root does not match runtime root"
-        )
+        raise ProductionMarketEvidenceV2Error("request durable root does not match runtime root")
     with _exclusive_lock(durable_root):
         if _pointer_path(durable_root).exists():
-            raise ProductionMarketEvidenceV2Error(
-                "an active v2 capture already exists"
-            )
+            raise ProductionMarketEvidenceV2Error("an active v2 capture already exists")
         run_root = durable_root / request.run_id
         if run_root.exists() or run_root.is_symlink():
-            raise ProductionMarketEvidenceV2Error(
-                "v2 run root already exists"
-            )
+            raise ProductionMarketEvidenceV2Error("v2 run root already exists")
         (run_root / "market-samples").mkdir(parents=True)
         _write_json(run_root / REQUEST_NAME, request.as_json_dict())
         _write_state(
             durable_root,
             run_root,
             {
-                "state_version": (
-                    "wickhunter-production-market-evidence-state-v2"
-                ),
+                "state_version": ("wickhunter-production-market-evidence-state-v2"),
                 "status": "active",
                 "run_id": request.run_id,
                 "base_v1_run_id": request.base_v1_run_id,
@@ -999,25 +862,18 @@ def _sample_rows(
             hash_field="snapshot_sha256",
             field=f"instrument snapshot {index}",
         )
-        records = _sequence(
-            snapshot.get("records"), field=f"snapshot {index} records"
-        )
+        records = _sequence(snapshot.get("records"), field=f"snapshot {index} records")
         instrument_records = _sequence(
             instrument.get("records"),
             field=f"instrument snapshot {index} records",
         )
-        valid_geometry = (
-            len(records) == len(EXPECTED_SYMBOLS)
-            and len(instrument_records) == len(EXPECTED_SYMBOLS)
+        valid_geometry = len(records) == len(EXPECTED_SYMBOLS) and len(instrument_records) == len(
+            EXPECTED_SYMBOLS
         )
         if not valid_geometry:
-            raise ProductionMarketEvidenceV2Error(
-                "sample source-symbol geometry mismatch"
-            )
+            raise ProductionMarketEvidenceV2Error("sample source-symbol geometry mismatch")
         quality.extend(_object(row, field="quality row") for row in records)
-        instruments.extend(
-            _object(row, field="instrument row") for row in instrument_records
-        )
+        instruments.extend(_object(row, field="instrument row") for row in instrument_records)
     return quality, instruments
 
 
@@ -1037,9 +893,7 @@ def collect_due_sample(
                 "status": str(state.get("status")),
                 "run_id": request.run_id,
             }
-        index = _integer(
-            state.get("next_sample_index"), field="next_sample_index"
-        )
+        index = _integer(state.get("next_sample_index"), field="next_sample_index")
         if index >= EXPECTED_SAMPLES:
             return finalize_supplement(
                 durable_root=durable_root,
@@ -1049,9 +903,7 @@ def collect_due_sample(
                 fetch_json=fetch_json,
                 wall_clock_ms=wall_clock_ms,
             )
-        due_ms = request.decision_start_ms + (
-            index * request.sample_interval_seconds * 1000
-        )
+        due_ms = request.decision_start_ms + (index * request.sample_interval_seconds * 1000)
         now_ms = wall_clock_ms()
         if now_ms < due_ms:
             return {
@@ -1072,9 +924,7 @@ def collect_due_sample(
                 }
             )
             _write_state(durable_root, run_root, failed)
-            raise ProductionMarketEvidenceV2Error(
-                f"sample {index} exceeded the lateness window"
-            )
+            raise ProductionMarketEvidenceV2Error(f"sample {index} exceeded the lateness window")
         instruments_payload = fetch_json(OKX_INSTRUMENTS_URL)
         tickers_payload = fetch_json(OKX_TICKERS_URL)
         available_at_ms = wall_clock_ms()
@@ -1095,17 +945,13 @@ def collect_due_sample(
         )
         sample_root = _sample_root(run_root, index)
         if sample_root.exists() or sample_root.is_symlink():
-            raise ProductionMarketEvidenceV2Error(
-                "sample root already exists"
-            )
+            raise ProductionMarketEvidenceV2Error("sample root already exists")
         sample_root.mkdir()
         _write_json(sample_root / "market-snapshot.json", snapshot)
         instrument_snapshot = _self_hashed(
             {
                 "schema_version": 2,
-                "snapshot_type": (
-                    "WickHunterOkxInstrumentHistorySnapshot"
-                ),
+                "snapshot_type": ("WickHunterOkxInstrumentHistorySnapshot"),
                 "sample_index": index,
                 "scheduled_at_ms": due_ms,
                 "available_at_ms": available_at_ms,
@@ -1164,15 +1010,11 @@ def collect_due_sample(
 
 def _artifact_identity(path: Path, *, root: Path) -> dict[str, object]:
     if path.is_symlink() or not path.is_file():
-        raise ProductionMarketEvidenceV2Error(
-            "artifact is not a regular file"
-        )
+        raise ProductionMarketEvidenceV2Error("artifact is not a regular file")
     try:
         logical_name = path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError as exc:
-        raise ProductionMarketEvidenceV2Error(
-            "artifact path escapes supplement root"
-        ) from exc
+        raise ProductionMarketEvidenceV2Error("artifact path escapes supplement root") from exc
     return {
         "logical_name": logical_name,
         "sha256": _file_hash(path),
@@ -1185,9 +1027,7 @@ def _candle_artifact_path(
     *,
     root: Path,
 ) -> Path:
-    normalized = _object(
-        artifact.get("normalized_file"), field="normalized candle file"
-    )
+    normalized = _object(artifact.get("normalized_file"), field="normalized candle file")
     logical_name = str(normalized.get("logical_name", ""))
     return root / logical_name
 
@@ -1201,13 +1041,9 @@ def finalize_supplement(
     fetch_json: _FETCH_JSON,
     wall_clock_ms: _CLOCK_MS,
 ) -> dict[str, object]:
-    sample_index = _integer(
-        state.get("next_sample_index"), field="next_sample_index"
-    )
+    sample_index = _integer(state.get("next_sample_index"), field="next_sample_index")
     if sample_index != EXPECTED_SAMPLES:
-        raise ProductionMarketEvidenceV2Error(
-            "not all prospective OKX samples are complete"
-        )
+        raise ProductionMarketEvidenceV2Error("not all prospective OKX samples are complete")
     if wall_clock_ms() < request.decision_end_ms:
         return {
             "status": "waiting_for_interval_end",
@@ -1219,9 +1055,7 @@ def finalize_supplement(
         return verify_supplement(final_root)
     partial_root = run_root / SUPPLEMENT_PARTIAL_DIR_NAME
     if partial_root.exists() or partial_root.is_symlink():
-        raise ProductionMarketEvidenceV2Error(
-            "partial supplement root already exists"
-        )
+        raise ProductionMarketEvidenceV2Error("partial supplement root already exists")
     partial_root.mkdir()
     try:
         quality_rows, instrument_rows = _sample_rows(run_root)
@@ -1286,8 +1120,7 @@ def finalize_supplement(
             "completed-candles-index.json",
         )
         artifacts = [
-            _artifact_identity(partial_root / name, root=partial_root)
-            for name in artifact_names
+            _artifact_identity(partial_root / name, root=partial_root) for name in artifact_names
         ]
         artifacts.extend(
             _artifact_identity(
@@ -1298,9 +1131,7 @@ def finalize_supplement(
         )
         manifest: dict[str, object] = {
             "schema_version": 2,
-            "artifact_type": (
-                "WickHunterProductionMarketEvidenceOkxSupplement"
-            ),
+            "artifact_type": ("WickHunterProductionMarketEvidenceOkxSupplement"),
             "contract_id": CONTRACT_ID,
             "request_id": request.request_id,
             "run_id": request.run_id,
@@ -1319,9 +1150,7 @@ def finalize_supplement(
                 "market_quality_observations": len(quality_rows),
                 "instrument_snapshots": len(instrument_rows),
                 "source_health_snapshots": len(source_rows),
-                "completed_candles": (
-                    len(EXPECTED_SYMBOLS) * EXPECTED_CANDLES
-                ),
+                "completed_candles": (len(EXPECTED_SYMBOLS) * EXPECTED_CANDLES),
             },
             "gaps": [],
             "artifacts": artifacts,
@@ -1339,8 +1168,7 @@ def finalize_supplement(
             ),
         ]
         checksum_lines = sorted(
-            f"{item['sha256']}  {item['logical_name']}"
-            for item in checksum_identities
+            f"{item['sha256']}  {item['logical_name']}" for item in checksum_identities
         )
         _write_new(
             partial_root / "artifact-sha256.txt",
@@ -1374,29 +1202,20 @@ def finalize_supplement(
 
 def verify_supplement(root: Path) -> dict[str, object]:
     if root.is_symlink() or not root.is_dir():
-        raise ProductionMarketEvidenceV2Error(
-            "supplement root must be a regular directory"
-        )
+        raise ProductionMarketEvidenceV2Error("supplement root must be a regular directory")
     manifest = _load_json(root / "manifest.json", field="supplement manifest")
     claimed = manifest.get("manifest_sha256")
     seed = dict(manifest)
     seed.pop("manifest_sha256", None)
     if not isinstance(claimed, str) or _canonical_hash(seed) != claimed:
-        raise ProductionMarketEvidenceV2Error(
-            "supplement manifest self hash mismatch"
-        )
-    coverage_mismatch = (
-        manifest.get("source") != OKX_SOURCE
-        or manifest.get("symbols") != list(EXPECTED_SYMBOLS)
+        raise ProductionMarketEvidenceV2Error("supplement manifest self hash mismatch")
+    coverage_mismatch = manifest.get("source") != OKX_SOURCE or manifest.get("symbols") != list(
+        EXPECTED_SYMBOLS
     )
     if coverage_mismatch:
-        raise ProductionMarketEvidenceV2Error(
-            "supplement source or symbol coverage mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("supplement source or symbol coverage mismatch")
     if any(manifest.get(key) != value for key, value in AUTHORITY.items()):
-        raise ProductionMarketEvidenceV2Error(
-            "supplement authority boundary mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("supplement authority boundary mismatch")
     expected_counts = {
         "market_quality_observations": EXPECTED_SAMPLES * len(EXPECTED_SYMBOLS),
         "instrument_snapshots": EXPECTED_SAMPLES * len(EXPECTED_SYMBOLS),
@@ -1405,23 +1224,16 @@ def verify_supplement(root: Path) -> dict[str, object]:
     }
     counts = _object(manifest.get("record_counts"), field="record counts")
     if counts != expected_counts:
-        raise ProductionMarketEvidenceV2Error(
-            "supplement record counts mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("supplement record counts mismatch")
     expected_lines: set[str] = set()
     artifacts = _sequence(manifest.get("artifacts"), field="supplement artifacts")
     for raw in artifacts:
         identity = _object(raw, field="artifact identity")
         logical_name = str(identity.get("logical_name", ""))
         relative = Path(logical_name)
-        unsafe = (
-            relative.is_absolute()
-            or any(part in {"", ".", ".."} for part in relative.parts)
-        )
+        unsafe = relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts)
         if unsafe:
-            raise ProductionMarketEvidenceV2Error(
-                "artifact path is unsafe"
-            )
+            raise ProductionMarketEvidenceV2Error("artifact path is unsafe")
         path = root / relative
         identity_mismatch = (
             path.is_symlink()
@@ -1430,39 +1242,26 @@ def verify_supplement(root: Path) -> dict[str, object]:
             or path.stat().st_size != identity.get("size_bytes")
         )
         if identity_mismatch:
-            raise ProductionMarketEvidenceV2Error(
-                "supplement artifact identity mismatch"
-            )
+            raise ProductionMarketEvidenceV2Error("supplement artifact identity mismatch")
         expected_lines.add(f"{identity['sha256']}  {logical_name}")
     manifest_identity = _artifact_identity(root / "manifest.json", root=root)
-    expected_lines.add(
-        f"{manifest_identity['sha256']}  {manifest_identity['logical_name']}"
-    )
+    expected_lines.add(f"{manifest_identity['sha256']}  {manifest_identity['logical_name']}")
     checksum = root / "artifact-sha256.txt"
     if checksum.is_symlink() or not checksum.is_file():
-        raise ProductionMarketEvidenceV2Error(
-            "supplement checksum is missing"
-        )
+        raise ProductionMarketEvidenceV2Error("supplement checksum is missing")
     if set(checksum.read_text(encoding="utf-8").splitlines()) != expected_lines:
-        raise ProductionMarketEvidenceV2Error(
-            "supplement checksum mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("supplement checksum mismatch")
     verification = _load_json(
         root / "verification-report.json",
         field="verification report",
     )
     invalid_verification = (
-        verification.get("outcome") != "accepted"
-        or verification.get("manifest_sha256") != claimed
+        verification.get("outcome") != "accepted" or verification.get("manifest_sha256") != claimed
     )
     if invalid_verification:
-        raise ProductionMarketEvidenceV2Error(
-            "supplement verification mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("supplement verification mismatch")
     if any(verification.get(key) != value for key, value in AUTHORITY.items()):
-        raise ProductionMarketEvidenceV2Error(
-            "verification authority boundary mismatch"
-        )
+        raise ProductionMarketEvidenceV2Error("verification authority boundary mismatch")
     return {
         "status": "supplement_completed",
         "outcome": "accepted",
@@ -1478,9 +1277,7 @@ def verify_supplement(root: Path) -> dict[str, object]:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Capture and verify the public OKX Market Evidence v2 supplement."
-        )
+        description=("Capture and verify the public OKX Market Evidence v2 supplement.")
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     initialize = subparsers.add_parser("initialize")

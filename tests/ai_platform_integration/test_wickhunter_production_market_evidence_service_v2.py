@@ -81,9 +81,7 @@ def _supplement(root: Path) -> tuple[Path, dict[str, object]]:
     run_id = "wickhunter-production-market-evidence-20260731-v2-r1"
     manifest = {
         "run_id": run_id,
-        "base_v1_run_id": (
-            "wickhunter-production-market-evidence-20260730-v1-r1"
-        ),
+        "base_v1_run_id": ("wickhunter-production-market-evidence-20260730-v1-r1"),
         "manifest_sha256": "2" * 64,
         "collector_commit": "a" * 40,
         "capture": _geometry(),
@@ -139,9 +137,7 @@ def test_merge_binds_verified_source_packages_and_keeps_wh01_blocked(
     assert result["wh01_ready"] is False
     assert result["wh01_blocker"] == "LIQUIDATION_ARCHIVE_NOT_BOUND"
     package = Path(str(result["package_root"]))
-    manifest = json.loads(
-        (package / subject.PACKAGE_MANIFEST_NAME).read_text(encoding="utf-8")
-    )
+    manifest = json.loads((package / subject.PACKAGE_MANIFEST_NAME).read_text(encoding="utf-8"))
     assert manifest["sources"] == list(v2.EXPECTED_SOURCES)
     assert manifest["record_counts"] == subject.EXPECTED_COUNTS
     assert manifest["wh01"]["market_evidence_ready"] is True

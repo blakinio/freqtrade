@@ -15,9 +15,7 @@ def _request_payload(durable_root: Path) -> dict[str, object]:
         "contract_id": subject.CONTRACT_ID,
         "request_id": "wickhunter-production-market-evidence-20260731-v2",
         "run_id": "wickhunter-production-market-evidence-20260731-v2-r1",
-        "base_v1_run_id": (
-            "wickhunter-production-market-evidence-20260730-v1-r1"
-        ),
+        "base_v1_run_id": ("wickhunter-production-market-evidence-20260730-v1-r1"),
         "profile": "liquid20-v1",
         "symbols": list(subject.EXPECTED_SYMBOLS),
         "sources": list(subject.EXPECTED_SOURCES),
@@ -104,9 +102,7 @@ def test_load_request_preserves_v1_identity_and_requires_exact_three_sources(
 
     request = subject.load_capture_request(request_path)
 
-    assert request.base_v1_run_id == (
-        "wickhunter-production-market-evidence-20260730-v1-r1"
-    )
+    assert request.base_v1_run_id == ("wickhunter-production-market-evidence-20260730-v1-r1")
     assert request.sources == subject.EXPECTED_SOURCES
     assert request.expected_sample_count == 144
 
@@ -240,10 +236,7 @@ def test_okx_candles_require_confirmed_rows_and_exact_coverage() -> None:
 def test_okx_candle_pagination_produces_exact_432_completed_rows() -> None:
     start_ms = 1_785_391_200_000
     end_ms = start_ms + 432 * subject.TIMEFRAME_MS
-    rows = [
-        _candle_row(open_ms)
-        for open_ms in range(start_ms, end_ms, subject.TIMEFRAME_MS)
-    ]
+    rows = [_candle_row(open_ms) for open_ms in range(start_ms, end_ms, subject.TIMEFRAME_MS)]
 
     def fetch_json(url: str) -> object:
         cursor = int(parse_qs(urlsplit(url).query)["after"][0])
@@ -294,12 +287,7 @@ def test_collect_due_sample_persists_one_verified_okx_sample(
     )
 
     assert result["status"] == "sampled"
-    sample_root = (
-        durable_root
-        / str(payload["run_id"])
-        / "market-samples"
-        / "0000"
-    )
+    sample_root = durable_root / str(payload["run_id"]) / "market-samples" / "0000"
     assert (sample_root / "market-snapshot.json").is_file()
     assert (sample_root / "instrument-snapshot.json").is_file()
     assert (sample_root / "source-health.json").is_file()

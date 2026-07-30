@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, localcontext
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,7 @@ from ai_platform.wickhunter.production_market_evidence_service import (
     verify_immutable_package,
 )
 from ai_platform.wickhunter.universe import DynamicUniverseSnapshot, UniverseInstrumentDecision
+
 
 POLICY_SCHEMA = "wickhunter-production-market-evidence-wh01-policy-v1"
 INPUT_MANIFEST_SCHEMA = "wickhunter-production-market-evidence-wh01-input-manifest-v1"
@@ -97,7 +99,7 @@ class Wh01AdapterPolicy:
     embargo_ms: int
     protected_holdout_start_ms: int
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != POLICY_SCHEMA:
             raise WickHunterInputAdapterError(f"schema_version must be {POLICY_SCHEMA}")
         if not self.policy_version or self.timeframe != "5m":
@@ -461,7 +463,7 @@ def _source_metrics(
     ) / vwma_weight
 
     true_ranges: list[Decimal] = []
-    for previous, current in zip(atr_rows, atr_rows[1:]):
+    for previous, current in pairwise(atr_rows):
         previous_close = _decimal(previous.get("close"), field="previous close")
         high = _decimal(current.get("high"), field="high")
         low = _decimal(current.get("low"), field="low")
@@ -476,7 +478,7 @@ def _source_metrics(
     atr_ratio = _mean(true_ranges, field="ATR") / latest_close
 
     returns: list[Decimal] = []
-    for previous, current in zip(volatility_rows, volatility_rows[1:]):
+    for previous, current in pairwise(volatility_rows):
         previous_close = _decimal(previous.get("close"), field="previous close")
         current_close = _decimal(current.get("close"), field="current close")
         returns.append(current_close / previous_close - Decimal(1))
@@ -733,7 +735,7 @@ def _artifact_candles(
     return candles
 
 
-def build_wh01_input_package(  # noqa: C901, PLR0915
+def build_wh01_input_package(  # noqa: C901
     *,
     evidence_package_root: Path,
     accepted_import_roots: Sequence[Path],

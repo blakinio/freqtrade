@@ -12,6 +12,7 @@ from typing import Any
 
 from ai_platform.wickhunter import production_market_evidence as core
 
+
 PACKAGE_DIR_NAME = "immutable-package"
 PACKAGE_PARTIAL_DIR_NAME = ".immutable-package.partial"
 PACKAGE_MANIFEST_NAME = "manifest.json"
@@ -653,7 +654,7 @@ def publish_immutable_package(run_root: Path) -> dict[str, object]:
         raise
 
 
-def verify_immutable_package(package_root: Path) -> dict[str, object]:
+def verify_immutable_package(package_root: Path) -> dict[str, object]:  # noqa: C901
     if package_root.is_symlink() or not package_root.is_dir():
         raise MarketEvidencePublicationError(
             "package root must be a regular directory"

@@ -135,7 +135,11 @@ def main() -> int:
                         "live_capital_authorized": False,
                     },
                 )
-            except (core.ProductionMarketEvidenceError, MarketEvidencePublicationError, OSError) as exc:
+            except (
+                core.ProductionMarketEvidenceError,
+                MarketEvidencePublicationError,
+                OSError,
+            ) as exc:
                 _atomic_health(
                     health_path,
                     {

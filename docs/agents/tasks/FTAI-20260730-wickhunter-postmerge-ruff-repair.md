@@ -36,14 +36,15 @@ Repair only the ten Ruff regressions exposed after PR #753 merged, without chang
 - added only the two reported complexity annotations;
 - replaced two successive-pair `zip` loops with `itertools.pairwise`;
 - removed the one unused `noqa` selector;
-- removed the temporary branch-local repair workflow after it produced the focused commit.
+- applied exact Ruff 0.15.21 formatting to the three declared files;
+- removed both temporary branch-local repair workflows after they produced their commits.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T12:00:00+02:00
-head: 04d541d93fb1af37562800a583bd46a25f40f7cc
+updated_at: 2026-07-30T12:05:00+02:00
+head: d8bf248e9be05e3f615047011176edfc64a6c456
 branch: agent/wickhunter-postmerge-ruff-repair
 pr: 771
 status: validating
@@ -58,32 +59,33 @@ owned_paths:
   - ai_platform/wickhunter/production_market_evidence_wh01.py
 proven:
   - AI Platform CI run 30531046030 passed 976 tests and failed Ruff with ten findings only in the three declared WickHunter files.
-  - The branch-local repair run completed Ruff 0.15.21 successfully and committed only the three code files before deleting its helper workflow.
-  - PR #771 diff contains only the declared code repairs and this task record.
+  - The first repair commit passed Ruff check; AI Platform CI then proved that two files still required exact Ruff formatting.
+  - The second branch-local repair run passed Ruff check and Ruff format check before committing the formatted files and deleting its helper workflow.
+  - PR #771 contains only the three declared WickHunter files and this task record.
 derived:
-  - The repair preserves WickHunter behavior while restoring the lint gate required by Gate 0.
+  - The repair preserves WickHunter behavior while restoring both lint and formatting gates required by Gate 0.
 unknown:
   - Exact-head PR #771 CI conclusions and unresolved review-thread state after this checkpoint commit.
 conflicts: []
 first_failure:
   marker: EXACT_HEAD_VALIDATION_PENDING
-  evidence: The focused repair is committed, but normal exact-head repository CI and review verification are still required before merge.
+  evidence: The lint and formatting repair is committed, but normal exact-head repository CI and review verification are still required before merge.
 rejected_hypotheses:
   - Put unrelated WickHunter implementation edits into PR #767.
   - Bypass or ignore AI Platform CI.
-  - Broaden the repair beyond the ten reported Ruff findings.
+  - Broaden the repair beyond the reported Ruff and formatting findings.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-wickhunter-postmerge-ruff-repair.md
   - ai_platform/wickhunter/production_market_evidence_daemon.py
   - ai_platform/wickhunter/production_market_evidence_service.py
   - ai_platform/wickhunter/production_market_evidence_wh01.py
 validation:
-  - command: ruff check --fix --unsafe-fixes <three-declared-WickHunter-files>
-    result: PASS
-    evidence: The helper workflow committed successfully only after Ruff 0.15.21 accepted the repaired files.
   - command: ruff check <three-declared-WickHunter-files>
     result: PASS
-    evidence: The branch-local focused lint gate passed before commit.
+    evidence: Ruff 0.15.21 accepted all three repaired files after the bounded changes.
+  - command: ruff format --check <three-declared-WickHunter-files>
+    result: PASS
+    evidence: The branch-local formatting workflow committed only after exact Ruff formatting passed.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-wickhunter-postmerge-ruff-repair.md --require-checkpoint
     result: PASS
     evidence: The checkpoint satisfies governance contract v1.

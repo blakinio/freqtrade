@@ -68,6 +68,7 @@ from ai_platform.portal.contracts.secret_refs import (
     SecretRef,
 )
 
+
 _CLOSURE_EXPORTS = frozenset(
     {
         "ApprovalDecision",

@@ -1,6 +1,6 @@
 # Liquidations live/shadow stream architecture
 
-Status: implementation contract for `FTAI-20260727-liquidations-live-stream-repair`.
+Status: implementation contract for `FTAI-20260730-liquid20-okx-live-source-v1`.
 
 ## Root cause
 
@@ -41,19 +41,24 @@ PORTAL_LIQUIDATIONS_DATA_ROOT/live/live-state-v1.json
 PORTAL_LIQUIDATIONS_DATA_ROOT/live/runs/liquid20-*/run-state-v1.json
 PORTAL_LIQUIDATIONS_DATA_ROOT/live/runs/liquid20-*/bybit-linear.ndjson
 PORTAL_LIQUIDATIONS_DATA_ROOT/live/runs/liquid20-*/binance-usdm.ndjson
+PORTAL_LIQUIDATIONS_DATA_ROOT/live/runs/liquid20-*/okx-swap.ndjson
+PORTAL_LIQUIDATIONS_DATA_ROOT/live/runs/liquid20-*/okx-swap-summary.json
+PORTAL_LIQUIDATIONS_DATA_ROOT/live/runs/liquid20-*/okx-swap-instruments-v1.json
 ```
 
 Properties:
 
-- public Bybit Linear and Binance USD-M market-data endpoints only;
+- public Bybit Linear, Binance USD-M and OKX SWAP market-data endpoints only;
 - no exchange trading credentials and no execution authority;
 - dynamically discovers bounded USDT perpetual symbol universes;
+- OKX contract count is converted through the accepted parser and a frozen public `ctVal` instrument snapshot;
 - source-labelled deterministic event identifiers are retained from the canonical parsers;
-- append-only NDJSON with newline-delimited records, periodic flush and `fsync`;
+- append-only source-separated NDJSON with newline-delimited records, periodic flush and `fsync`;
 - readers ignore a partial final line until it is completed;
 - daily UTC rotation creates a new live run without modifying the completed segment;
 - collector and source heartbeat, reconnect, parse-error and source-error counters are written atomically;
-- OKX is present in the health contract as disabled and can be enabled later without changing the portal shape.
+- source failure is isolated: one disconnected source degrades the overall live view without overwriting another source state;
+- the OKX source summary proves `orders_submitted: 0`.
 
 ## Explicit lifecycle contract
 
@@ -70,6 +75,7 @@ collector_heartbeat_at_ms
 last_event_at_ms
 last_event_received_at_ms
 completed_at_ms
+sources.<source>.configured
 sources.<source>.connected
 sources.<source>.last_heartbeat_at_ms
 sources.<source>.last_event_at_ms
@@ -78,7 +84,11 @@ sources.<source>.ingest_lag_ms
 sources.<source>.reconnect_count
 sources.<source>.observed_symbol_count
 sources.<source>.subscription_symbol_count
+sources.<source>.events_written
+sources.<source>.error_count
+sources.<source>.parse_error_count
 sources.<source>.latest_error
+orders_submitted: 0
 execution_enabled: false
 trading_authorized: false
 trading_credentials_present: false
@@ -107,13 +117,13 @@ PORTAL_LIQUIDATIONS_SOURCE_STALE_MS=45000
 Status inputs:
 
 - `LIVE`: active run, fresh collector heartbeat, fresh event/receive reference and fresh connected configured sources;
-- `STALE`: active run, but a configured freshness threshold is exceeded or a configured source is delayed/disconnected;
+- `STALE`: active run, but a configured freshness threshold is exceeded or any configured source is delayed/disconnected;
 - `OFFLINE`: completed live run or collector heartbeat older than the offline threshold;
 - `HISTORICAL`: no live contract and a completed dataset is selected.
 
 Portal time labels are intentionally separate:
 
-- `Ostatnie zdarzenie` uses exchange event time;
+- `Ostatnie zdarzenie rynkowe` uses exchange event time;
 - `Ostatni heartbeat collectora` uses collector state time;
 - `Ostatnie sprawdzenie przez portal` uses BFF read time.
 
@@ -125,6 +135,7 @@ The default Compose service is `liquid20-live` with `restart: unless-stopped`. T
 
 The live process:
 
+- starts independent `binance-usdm`, `bybit-linear` and `okx-swap` tasks;
 - reconnects each exchange independently;
 - uses bounded exponential backoff capped at 60 seconds;
 - refreshes the dynamic symbol universe periodically;
@@ -146,7 +157,8 @@ Unchanged boundaries:
 - portal remains non-root and has no Docker socket;
 - collector remains non-root, has no published ports and has a read-only root filesystem;
 - collector data mount is writable only because it owns the separate `live/` append path;
-- no API keys, secrets, signals, trade recommendations, order routes or live capital.
+- no API keys, secrets, account endpoints, signals, trade recommendations, order routes or live capital;
+- no replay, model training, strategy research, protected holdout, DCA or leverage.
 
 ## Controlled Synology deployment
 
@@ -162,11 +174,13 @@ Unchanged boundaries:
 - writes an operational JSON evidence artifact;
 - labels a quiet exchange window honestly when no real liquidation event is observed.
 
+After the exact implementation reaches `develop`, the separate bounded operational verification in `deploy/synology/liquid20/verify-okx-live.sh` proves all three source states, OKX files and `orders_submitted == 0`, and can verify the same-origin Portal health response.
+
 The portal continues to mount `/volume1/docker/freqtrade-liquidations/data` at `/liquid20-data:ro`, with `PORTAL_LIQUIDATIONS_DATA_ROOT=/liquid20-data`.
 
 ## Migration and rollback
 
-Migration does not move, rename, chmod, chown or rewrite accepted runs. The new service creates only `data/live/`.
+Migration does not move, rename, chmod, chown or rewrite accepted runs. The new service creates only `data/live/`. If the previous pointer represented `okx-swap` as `configured=false`, the next collector start completes that old active segment as a restart boundary and creates a new run where OKX is configured.
 
 To retain the old bounded evidence workflow:
 
@@ -174,4 +188,4 @@ To retain the old bounded evidence workflow:
 docker compose --profile evidence run --rm liquid20-evidence
 ```
 
-Collector rollback restores the previous exact image through `deploy-live.sh`. Portal rollback restores the previous portal image through the existing portal deployment script. Rolling the portal back causes the old read-model to ignore `data/live/` and continue showing historical evidence; it does not delete live files. Rolling the collector back leaves the last live pointer to age naturally into `STALE` and then `OFFLINE`.
+Collector rollback restores the previous exact image through `deploy-live.sh`. Portal rollback restores the previous portal image through the existing portal deployment script. Rolling the portal back causes the old read-model to ignore OKX live data and continue using its previous contract; it does not delete live files. Rolling the collector back leaves the last live pointer to age naturally into `STALE` and then `OFFLINE`.

@@ -605,6 +605,8 @@ def discover_incident(
         synthetic_code = "LIQUIDATIONS_HEALTH_STATUS_MISSING"
         synthetic_description = "Najnowszy run nie opublikował finalnego statusu commita."
 
+    codes: tuple[str, ...]
+    report: dict[str, Any]
     if synthetic_code:
         issue = _ensure_watchdog_issue(
             client,
@@ -615,7 +617,7 @@ def discover_incident(
             run_url=run_url,
         )
         codes = (synthetic_code,)
-        report: dict[str, Any] = {}
+        report = {}
         healthy = False
         description = synthetic_description or synthetic_code
     elif issue is not None and issue.get("state") == "open":

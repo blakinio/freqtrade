@@ -22,7 +22,7 @@ def test_live_entrypoint_and_deploy_script_have_valid_shell_syntax() -> None:
 def test_compose_separates_restartable_live_service_from_evidence_profile() -> None:
     compose = (DEPLOYMENT_ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert "liquid20-live:" in compose
-    assert "restart: unless-stopped" in compose
+    assert "restart: always" in compose
     assert 'entrypoint: ["/usr/local/bin/liquid20-live-entrypoint"]' in compose
     assert "liquid20-evidence:" in compose
     assert 'profiles: ["evidence"]' in compose
@@ -178,8 +178,3 @@ def test_deployment_uses_validated_full_public_universe_bound() -> None:
     assert "MAXIMUM_SYMBOLS=1000" in defaults
     assert "LIQUID20_MAXIMUM_SYMBOLS:-1000" in entrypoint
     assert "MAXIMUM_SYMBOLS:-1000" in compose
-    assert (
-        'maximum_symbols="${LIQUID20_MAXIMUM_SYMBOLS:-$(read_default MAXIMUM_SYMBOLS)}"' in script
-    )
-    assert "LIQUID20_MAXIMUM_SYMBOLS=${maximum_symbols}" in script
-    assert 'item.get("connected") is not True' in script

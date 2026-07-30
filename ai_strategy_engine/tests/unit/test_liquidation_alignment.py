@@ -17,6 +17,7 @@ from strategy_engine.research.liquidation_alignment import (
 
 @dataclass(frozen=True, slots=True)
 class LiquidationFixture:
+    schema_version: int
     source: str
     source_event_id: str
     symbol: str
@@ -26,6 +27,7 @@ class LiquidationFixture:
 
 def liquidation() -> LiquidationFixture:
     return LiquidationFixture(
+        schema_version=1,
         source="bybit-linear",
         source_event_id="liq-1",
         symbol="BTCUSDT",
@@ -105,8 +107,19 @@ def test_alignment_uses_latest_visible_observation_without_lookahead() -> None:
     oi = by(result, "bybit-linear", ObservationKind.OPEN_INTEREST)
     funding = by(result, "bybit-linear", ObservationKind.FUNDING_RATE)
 
+    assert result.liquidation_schema_version == 1
+    assert result.liquidation_source == "bybit-linear"
+    assert result.liquidation_source_event_id == "liq-1"
+    assert result.event_time_ms == 10_000
+    assert result.received_at_ms == 10_050
     assert oi.status is AlignmentStatus.ALIGNED
     assert oi.value == Decimal(11)
+    assert oi.source_event_id == "bybit-linear-open_interest-9900"
+    assert oi.schema_version == 1
+    assert oi.data_version == "v1"
+    assert oi.event_time_ms == 9_900
+    assert oi.received_at_ms == 9_910
+    assert oi.available_at_ms == 10_040
     assert oi.age_ms == 100
     assert funding.value == Decimal("-0.0001")
 
@@ -140,7 +153,11 @@ def test_missing_delayed_and_stale_are_distinct() -> None:
 
     assert delayed.status is AlignmentStatus.DELAYED
     assert delayed.delay_ms == 50
+    assert delayed.schema_version == 1
+    assert delayed.data_version == "v1"
     assert missing.status is AlignmentStatus.MISSING
+    assert missing.schema_version is None
+    assert missing.data_version is None
     assert stale.status is AlignmentStatus.STALE
     assert stale.age_ms == 2_000
 
@@ -214,4 +231,22 @@ def test_invalid_observation_timestamps_and_values_fail_closed() -> None:
             expected_sources=["x"],
             as_of_ms=9_999,
             max_age_ms=1,
+        )
+
+
+def test_invalid_liquidation_contract_fails_closed() -> None:
+    invalid = LiquidationFixture(
+        schema_version=2,
+        source="bybit-linear",
+        source_event_id="liq-1",
+        symbol="BTCUSDT",
+        occurred_at_ms=10_000,
+        received_at_ms=10_050,
+    )
+    with pytest.raises(ValueError, match="liquidation schema_version"):
+        align_liquidation_context(
+            invalid,
+            [],
+            expected_sources=["bybit-linear"],
+            max_age_ms=1_000,
         )

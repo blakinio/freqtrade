@@ -73,7 +73,7 @@ export interface MarketEvidenceSourceStatus {
 }
 
 export interface MarketEvidenceInstrument {
-  source: Exclude<MarketEvidenceSource, "okx-swap">;
+  source: MarketEvidenceSource;
   symbol: string;
   native_symbol: string;
   market: string;

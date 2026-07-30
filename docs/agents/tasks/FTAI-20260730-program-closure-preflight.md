@@ -6,6 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 767
+terminal_pr: 776
 program: FTAI-PROGRAM-AI-TRADING-PORTAL
 dependencies:
   - PR #759 merged
@@ -48,10 +49,10 @@ Produce the evidence-backed Gate 0 closure matrix, freeze shared ownership, crea
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T12:35:00+02:00
+updated_at: 2026-07-30T12:36:00+02:00
 head: 38ef16ba55539f7729bb6d1a459823019c3d574d
 branch: agent/program-closure-preflight-terminal
-pr: null
+pr: 776
 status: completed
 context_routes:
   - AGENTS.md

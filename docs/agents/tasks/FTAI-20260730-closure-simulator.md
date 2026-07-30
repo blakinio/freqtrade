@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260730-closure-simulator
-status: ready
-branch: agent/closure-simulator-restack
+status: completed
+branch: agent/closure-simulator-terminal
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
@@ -24,56 +24,21 @@ required_reads:
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260730-ai-program-closure-orchestration.md
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
-  - ai_strategy_engine/TASKS.md
-search_first:
-  - current develop, open PRs and exact owned-path conflicts
-  - canonical implementation and tests before adding code
-  - shared contract freeze commit and dependency state
 ---
 
 # Closure simulator fidelity
 
-## Goal
+## Terminal result
 
-Add the missing latency, funding and gap-through-stop fidelity to the canonical deterministic simulator while preserving existing fee, slippage and replay behavior.
-
-## Evidence at Gate 0
-
-Strategy Lab already models fees and slippage, and P10/ASE-03 prove deterministic replay. The canonical portal simulator currently records zero fees and has no latency, funding or gap-stop model.
-
-## Deliverables
-
-- Versioned deterministic fee/slippage/cost contract reused by simulator scenarios.
-- Latency model tied to scenario time rather than wall-clock sleeps.
-- Funding accrual with explicit timestamps and signs.
-- Gap-through-stop fill semantics with deterministic reason codes.
-- Replay and negative safety tests.
-
-## Non-negotiable boundaries
-
-- Paper, shadow or dry-run only; no live-capital authority.
-- No browser-to-Freqtrade, exchange or Vault path.
-- No protected-holdout reuse and no changes to frozen thresholds `0.006/-0.009`.
-- Stay inside exact `owned_paths`; stop on the first incompatible shared-contract requirement.
-- Add tests at the same layer and merge only through normal green CI.
-
-## Acceptance criteria
-
-- Same manifest and seed produce byte-stable evidence.
-- No real exchange or order endpoint is called.
-- Costs and stop behavior are explicit in reconciliation evidence.
-
-## Validation
-
-Run narrow tests first, then all repository workflows required by the changed paths. Validate this task checkpoint before every handoff.
+PR #787 merged normally into `develop` as `34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9`. It delivers deterministic versioned costs, scenario-time latency, funding accrual, gap-through-stop semantics and immutable replay evidence without exchange, order or live-capital authority.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T13:32:28+02:00
-head: b040f03939aed4bd8dba224a8817ccd9d74ed91c
-branch: agent/closure-simulator-restack
+updated_at: 2026-07-30T17:35:00+02:00
+head: 34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9
+branch: agent/closure-simulator-terminal
 pr: 787
 status: ready
 context_routes:
@@ -93,59 +58,29 @@ owned_paths:
   - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
   - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 proven:
-  - Gate 0 is merged and the dispatch table marks closure-simulator READY with no dependencies.
-  - Develop advanced only in five disjoint time-leakage paths through merged PR 777.
-  - PR 787 is a no-force restack from develop commit 979744f1143246bd42e42fc2213c7e79fc68ea57.
-  - PR 787 is not behind develop and changes exactly the ten assigned paths.
-  - Versioned cost, latency, funding and gap-stop models remain simulation-only and fail closed.
-  - Zero-cost, zero-latency and no-stop defaults preserve the existing universal scenario result.
-  - Same manifest and seed produce canonical evidence with deterministic UUID5 identities and SHA-256.
-  - AI Platform CI run 30538061822 passed compile, tests, Ruff, format, codespell and JSON validation.
-  - Portal Universal E2E run 30538061770 passed backend and Chromium journeys.
-  - Security run 30538061796 passed zizmor analysis.
-  - Freqtrade CI run 30538061837 passed pre-commit, docs, Python 3.11-3.14 core tests, coverage, distributions and CI Gate.
+  - PR 787 merged normally as 34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9.
+  - Exact head 9e6edfde255b87bdbdeda0ad6c9f522660dfdf36 passed AI Platform CI 30538061822, Portal Universal E2E 30538061770, security 30538061796 and Freqtrade CI 30538061837.
+  - The merged change contains exactly the ten declared owned paths and preserves zero-cost and zero-latency defaults.
 derived:
-  - Positive funding is a cash outflow for BUY positions and an inflow for SELL positions.
-  - A stop crossed between discrete ticks fills at the adverse observed price.
-  - Scenario latency uses the first tick at or after readiness and raises when no tick exists.
+  - The simulator workstream has no remaining implementation, validation, review or merge action.
 unknown: []
 conflicts: []
 first_failure:
-  marker: BASE_ADVANCED_RESTACKED
-  evidence: Develop advanced after PR 779 became green; the work was restacked from current develop without force-push and revalidated on PR 787.
+  marker: NONE
+  evidence: Implementation, restack, exact-head CI, review and merge gates completed successfully.
 rejected_hypotheses:
-  - Merge PR 779 while one commit behind develop.
-  - Force-update the original branch.
-  - Use wall-clock sleeps or network data to model latency.
-  - Treat repository simulation as real exchange submission evidence.
-  - Modify runner, Risk Core, shared execution contracts, exports or CI outside assigned ownership.
+  - Merge superseded PR 779.
+  - Model latency with wall-clock sleeps or network data.
+  - Treat simulator evidence as real exchange submission.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-simulator.md
-  - ai_platform/portal/simulator/schema.py
-  - ai_platform/portal/simulator/exchange.py
-  - ai_platform/portal/simulator/costs.py
-  - ai_platform/portal/simulator/latency.py
-  - ai_platform/portal/simulator/funding.py
-  - ai_platform/portal/simulator/gap_stop.py
-  - tests/ai_platform/portal/simulator/test_execution_costs.py
-  - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
-  - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 validation:
-  - command: AI Platform CI run 30538061822
+  - command: PR 787 exact-head required workflows
     result: PASS
-    evidence: Compile, full tests, Ruff, format, codespell and JSON validation passed.
-  - command: Portal Universal E2E run 30538061770
+    evidence: AI Platform, Portal E2E, security and full Freqtrade CI succeeded before merge.
+  - command: PR 787 changed-file and merge inspection
     result: PASS
-    evidence: Deterministic backend scenario and critical Chromium journey passed.
-  - command: GitHub Actions Security Analysis run 30538061796
-    result: PASS
-    evidence: Zizmor completed successfully.
-  - command: Freqtrade CI run 30538061837
-    result: PASS
-    evidence: Pre-commit, docs, Python 3.11-3.14 core tests, coverage, distributions and CI Gate passed.
-  - command: compare develop...agent/closure-simulator-restack
-    result: PASS
-    evidence: Branch is ahead, not behind, mergeable, and changes exactly ten assigned paths.
+    evidence: Exactly ten owned paths, zero unresolved review threads and normal merge commit 34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9.
 blockers: []
-next_action: Merge PR 787 normally after all required checks on the final checkpoint head are green.
+next_action: Closure coordinator consumes the merged simulator from develop and continues the remaining repository workstreams.
 ```

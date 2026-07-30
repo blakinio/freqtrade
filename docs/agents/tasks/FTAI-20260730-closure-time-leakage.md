@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-time-leakage
-status: ready
+status: in_progress
 branch: agent/closure-time-leakage
 base_branch: develop
 created: 2026-07-30
@@ -65,11 +65,11 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T10:55:00+02:00
-head: 1d347a785eddc900f4484c30e06c3ab4e8851b29
+updated_at: 2026-07-30T12:16:00+02:00
+head: 91ddbf60c986ff2a85f24ab0416ec1274e5f1460
 branch: agent/closure-time-leakage
 pr: null
-status: ready
+status: in_progress
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -82,24 +82,27 @@ owned_paths:
   - ai_strategy_engine/tests/unit/test_closed_bar_scheduler.py
   - ai_strategy_engine/tests/integration/test_closed_bar_scheduler_replay.py
 proven:
-  - UTC validation, timestamp ordering, HTF confirmation, pivot delay, future-shift and target-leakage rejection already have implementation and tests. No reusable scheduler module exists.
+  - Gate 0 classifies only the reusable closed-bar scheduler as REAL_GAP; UTC, timestamp ordering, HTF, pivot and leakage guards are already canonical and read-only for this task.
+  - Current develop is 91ddbf60c986ff2a85f24ab0416ec1274e5f1460.
+  - Open PRs 758, 761 and 762 do not overlap any owned path.
 derived:
-  - The bounded implementation scope is restricted to 5 exact path entries.
+  - The scheduler can remain an isolated standard-library timing module and consume no mutable shared contract.
 unknown:
-  - Exact implementation HEAD, PR number and CI run IDs until the worker starts.
+  - Exact implementation HEAD, PR number and CI run IDs until implementation is published.
 conflicts: []
 first_failure:
-  marker: PRE_IMPLEMENTATION_GATE
-  evidence: Implementation has not started; the Gate 0 dispatch condition is the first enforced gate.
+  marker: IMPLEMENTATION_NOT_STARTED
+  evidence: The branch and ownership checkpoint exist, but scheduler code and focused tests are not yet committed.
 rejected_hypotheses:
-  - An unchecked backlog box alone proves missing implementation.
-  - A downstream worker may redefine shared contracts.
-  - Repository fixtures may be described as real external acceptance.
-changed_paths: []
+  - Existing inline simulator checks are a reusable scheduling boundary.
+  - This task may change proven domain, feature, pivot or leakage contracts.
+  - A late bar may be inserted by rewriting previously emitted history.
+changed_paths:
+  - docs/agents/tasks/FTAI-20260730-closure-time-leakage.md
 validation:
-  - command: python tools/agents/checkpoint.py <task-path> --require-checkpoint
+  - command: repository/live-state preflight
     result: PASS
-    evidence: Gate 0 validates this compact checkpoint before dispatch.
+    evidence: Gate 0 READY, exact branch absent before creation, no owned-path overlap, and no contract dependency.
 blockers: []
-next_action: Create the branch from current develop, implement the isolated scheduler and tests, and open one focused PR.
+next_action: Open the focused draft PR, implement the isolated scheduler and add deterministic unit and replay tests.
 ```

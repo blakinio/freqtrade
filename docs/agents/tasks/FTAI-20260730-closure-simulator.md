@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-simulator
-status: active
+status: ready
 branch: agent/closure-simulator-restack
 base_branch: develop
 created: 2026-07-30
@@ -71,11 +71,11 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T13:20:00+02:00
-head: 3f30b9f376280cf8368907e539d8082f2998b03a
+updated_at: 2026-07-30T13:32:28+02:00
+head: b040f03939aed4bd8dba224a8817ccd9d74ed91c
 branch: agent/closure-simulator-restack
 pr: 787
-status: active
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -94,22 +94,25 @@ owned_paths:
   - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 proven:
   - Gate 0 is merged and the dispatch table marks closure-simulator READY with no dependencies.
-  - PR 779 passed AI Platform CI, Portal Universal E2E, security and the complete Freqtrade CI gate on its exact head.
-  - Develop then advanced only in five disjoint time-leakage paths through merged PR 777.
+  - Develop advanced only in five disjoint time-leakage paths through merged PR 777.
   - PR 787 is a no-force restack from develop commit 979744f1143246bd42e42fc2213c7e79fc68ea57.
+  - PR 787 is not behind develop and changes exactly the ten assigned paths.
   - Versioned cost, latency, funding and gap-stop models remain simulation-only and fail closed.
   - Zero-cost, zero-latency and no-stop defaults preserve the existing universal scenario result.
   - Same manifest and seed produce canonical evidence with deterministic UUID5 identities and SHA-256.
+  - AI Platform CI run 30538061822 passed compile, tests, Ruff, format, codespell and JSON validation.
+  - Portal Universal E2E run 30538061770 passed backend and Chromium journeys.
+  - Security run 30538061796 passed zizmor analysis.
+  - Freqtrade CI run 30538061837 passed pre-commit, docs, Python 3.11-3.14 core tests, coverage, distributions and CI Gate.
 derived:
   - Positive funding is a cash outflow for BUY positions and an inflow for SELL positions.
   - A stop crossed between discrete ticks fills at the adverse observed price.
   - Scenario latency uses the first tick at or after readiness and raises when no tick exists.
-unknown:
-  - Exact-head CI conclusions for restacked PR 787.
+unknown: []
 conflicts: []
 first_failure:
-  marker: BASE_ADVANCED_AFTER_GREEN_CI
-  evidence: Develop advanced by merged PR 777 after PR 779 became green; the connector could not create a normal merge commit without a tree SHA, so the work was restacked without force-push.
+  marker: BASE_ADVANCED_RESTACKED
+  evidence: Develop advanced after PR 779 became green; the work was restacked from current develop without force-push and revalidated on PR 787.
 rejected_hypotheses:
   - Merge PR 779 while one commit behind develop.
   - Force-update the original branch.
@@ -128,21 +131,21 @@ changed_paths:
   - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
   - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 validation:
-  - command: AI Platform CI run 30536561953 on PR 779 exact head
+  - command: AI Platform CI run 30538061822
     result: PASS
-    evidence: Compile, tests, Ruff, format, codespell and JSON validation passed.
-  - command: Portal Universal E2E run 30536561940 on PR 779 exact head
+    evidence: Compile, full tests, Ruff, format, codespell and JSON validation passed.
+  - command: Portal Universal E2E run 30538061770
     result: PASS
     evidence: Deterministic backend scenario and critical Chromium journey passed.
-  - command: GitHub Actions Security Analysis run 30536562029 on PR 779 exact head
+  - command: GitHub Actions Security Analysis run 30538061796
     result: PASS
     evidence: Zizmor completed successfully.
-  - command: Freqtrade CI run 30536561954 on PR 779 exact head
+  - command: Freqtrade CI run 30538061837
     result: PASS
     evidence: Pre-commit, docs, Python 3.11-3.14 core tests, coverage, distributions and CI Gate passed.
-  - command: compare 91ddbf60...979744f1
+  - command: compare develop...agent/closure-simulator-restack
     result: PASS
-    evidence: The new develop commit changes five time-leakage paths with no overlap with simulator ownership.
+    evidence: Branch is ahead, not behind, mergeable, and changes exactly ten assigned paths.
 blockers: []
-next_action: Run all required workflows on PR 787 exact head, finalize the checkpoint as ready, close superseded PR 779, and merge PR 787 normally.
+next_action: Merge PR 787 normally after all required checks on the final checkpoint head are green.
 ```

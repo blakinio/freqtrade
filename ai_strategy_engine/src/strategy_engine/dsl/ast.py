@@ -87,11 +87,11 @@ class Condition(DslAstModel):
 
 
 class ConditionGroup(DslAstModel):
-    all: tuple["ConditionNode", ...] | None = None
-    any: tuple["ConditionNode", ...] | None = None
-    none: tuple["ConditionNode", ...] | None = None
+    all: tuple[ConditionNode, ...] | None = None
+    any: tuple[ConditionNode, ...] | None = None
+    none: tuple[ConditionNode, ...] | None = None
 
-    def branches(self) -> tuple[tuple[str, tuple["ConditionNode", ...]], ...]:
+    def branches(self) -> tuple[tuple[str, tuple[ConditionNode, ...]], ...]:
         return tuple(
             (name, branch)
             for name in ("all", "any", "none")

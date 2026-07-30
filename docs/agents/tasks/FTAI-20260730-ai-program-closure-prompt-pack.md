@@ -54,8 +54,8 @@ Provide one self-contained coordinator prompt and separate copy/paste worker pro
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T09:49:00+02:00
-head: 3516a7b29a80495500d8c5e112904de5e95ba14a
+updated_at: 2026-07-30T10:35:00+02:00
+head: d4151885dec7bd5c0e3afa42d0d3070228d585ca
 branch: agent/ai-program-closure-orchestration
 pr: 759
 status: validating
@@ -74,7 +74,7 @@ proven:
   - Repository task records, branches, PRs, CI and checkpoints are the durable coordination mechanism.
   - The orchestration plan requires serialized Gate 0 before parallel implementation and one exclusive shared-contract owner.
   - The prompt pack provides a coordinator prompt, common worker rules and separate domain prompts matching every launch candidate.
-  - Initial exact-head CI exposed one codespell false positive and a pre-existing zizmor finding in the newly merged Synology autostart workflow.
+  - Initial exact-head CI exposed a codespell false positive and a pre-existing zizmor finding in the newly merged Synology autostart workflow.
   - The workflow_run upstream is restricted to trusted develop/manual events; the repair job has no checkout and no token permissions.
   - PR 759 is mergeable, has zero unresolved review threads and is synchronized with develop after the narrow repairs.
 derived:
@@ -83,11 +83,11 @@ derived:
   - A narrow inline dangerous-trigger suppression is preferable to removing the operational workflow_run behavior because its trust assumptions are explicit and bounded.
 unknown:
   - Exact worker prompts that Gate 0 will mark READY after live backlog reconciliation.
-  - Exact-head CI conclusions after the codespell and zizmor repairs.
+  - Exact-head CI conclusions after the codespell wording repair.
 conflicts: []
 first_failure:
-  marker: PROMPT_PACK_PRECOMMIT
-  evidence: Freqtrade CI 30523582634 failed codespell on Polish word Te and zizmor dangerous-triggers on repair-synology-autostart workflow_run; docs build and standalone workflow security passed.
+  marker: PROMPT_PACK_CODESPELL
+  evidence: Freqtrade CI 30524327860 failed only because codespell matched the Polish demonstrative in two checkpoint evidence lines; documentation build and standalone workflow security passed.
 rejected_hypotheses:
   - Let one chat pretend it started or controls other chats.
   - Launch all workers before Gate 0 classifies real gaps and freezes ownership.
@@ -105,12 +105,12 @@ validation:
   - command: Manual launch-sequence review
     result: PASS
     evidence: README requires coordinator Gate 0 first, then one separate chat per READY workstream, followed by integration and final coordinator closure.
-  - command: Freqtrade CI 30523582634 on b47658f3793702fc4f08df7e3d86cb6f6040136c
+  - command: Freqtrade CI 30524327860 on d4151885dec7bd5c0e3afa42d0d3070228d585ca
     result: FAIL
-    evidence: Documentation build passed; pre-commit failed only on codespell for Polish Te and zizmor dangerous-triggers for the trusted Synology workflow_run trigger.
-  - command: Narrow CI repair through 3516a7b29a80495500d8c5e112904de5e95ba14a
-    result: NOT_RUN
-    evidence: The Polish wording was changed, the trusted workflow_run has a reasoned inline suppression, and coordinator dispatch output was made explicit without changing runtime behavior.
+    evidence: Documentation build passed; pre-commit failed only on codespell matching the Polish demonstrative in two evidence lines.
+  - command: Narrow codespell wording repair
+    result: PASS
+    evidence: Both reported false-positive tokens were removed without changing task scope, workflow behavior or implementation.
 blockers: []
-next_action: Inspect exact-head CI and review state after the narrow repairs, fix only evidenced failures, synchronize normally if develop advances, then merge PR 759 without bypassing checks.
+next_action: Inspect exact-head CI and review state after this narrow wording repair, synchronize normally if develop advances, then merge PR 759 without bypassing checks.
 ```

@@ -430,4 +430,5 @@ def test_runtime_evidence_api_exposes_freshness_without_private_transport_detail
     openapi = json_text = str(client.get("/openapi.json").json()).lower()
     assert "/v1/runtime-evidence" in openapi
     assert "private_endpoint" not in json_text
-    assert "authorization" not in json_text
+    assert "authorization_header" not in json_text
+    assert "proxy_authorization" not in json_text

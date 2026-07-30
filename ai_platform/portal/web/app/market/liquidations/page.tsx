@@ -1,7 +1,7 @@
-import { LiquidationsLiveDashboardOkx } from "@/components/liquidations-live-dashboard-okx";
+import { LiquidationsLiveDashboard } from "@/components/liquidations-live-dashboard";
 
 export const dynamic = "force-dynamic";
 
 export default function LiquidationsPage() {
-  return <LiquidationsLiveDashboardOkx />;
+  return <LiquidationsLiveDashboard />;
 }

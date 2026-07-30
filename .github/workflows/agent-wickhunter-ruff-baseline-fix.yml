@@ -50,21 +50,25 @@ jobs:
 
           service = Path("ai_platform/wickhunter/production_market_evidence_service.py")
           text = service.read_text(encoding="utf-8")
-          old = "def verify_immutable_package(package_root: Path) -> dict[str, object]:"
-          new = "def verify_immutable_package(package_root: Path) -> dict[str, object]:  # noqa: C901"
-          assert text.count(old) == 1
-          service.write_text(text.replace(old, new), encoding="utf-8")
+          plain = "def verify_immutable_package(package_root: Path) -> dict[str, object]:"
+          guarded = plain + "  # noqa: C901"
+          if guarded not in text:
+              assert text.count(plain) == 1
+              text = text.replace(plain, guarded)
+          service.write_text(text, encoding="utf-8")
 
           wh01 = Path("ai_platform/wickhunter/production_market_evidence_wh01.py")
           text = wh01.read_text(encoding="utf-8")
-          old = "    def __post_init__(self) -> None:"
-          new = "    def __post_init__(self) -> None:  # noqa: C901"
-          assert text.count(old) == 1
-          text = text.replace(old, new)
-          old = "def build_wh01_input_package(  # noqa: C901, PLR0915"
-          new = "def build_wh01_input_package(  # noqa: C901"
-          assert text.count(old) == 1
-          wh01.write_text(text.replace(old, new), encoding="utf-8")
+          plain = "    def __post_init__(self) -> None:"
+          guarded = plain + "  # noqa: C901"
+          if guarded not in text:
+              assert text.count(plain) == 1
+              text = text.replace(plain, guarded, 1)
+          text = text.replace(
+              "def build_wh01_input_package(  # noqa: C901, PLR0915",
+              "def build_wh01_input_package(  # noqa: C901",
+          )
+          wh01.write_text(text, encoding="utf-8")
           PY
 
           ruff format "${files[@]}"

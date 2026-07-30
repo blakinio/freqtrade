@@ -88,7 +88,9 @@ The bot-management product architecture and agent plan describe the future bound
 
 PI-06 repository identity, BFF/browser integration, Authentik/Synology deployment and emulation-first target acceptance are complete through PR #678, merge `8b29bf87a94bcc9f9861e465666b74e23bb900e2`. Real Synology, OIDC, MFA, recovery, backup and restore evidence remains owner-managed and no additional autonomous repository implementation is authorized by that task.
 
-The read-only Liquid20 portal path is separately integrated through the server-side read-model, same-origin BFF, responsive Likwidacje page and Synology read-only evidence mount. It remains market-data and research preview only. Use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` before extending it into a strategy, model, or execution package.
+The read-only Liquid20 portal path is separately integrated through the server-side read model, same-origin BFF, responsive Likwidacje page and Synology read-only evidence mount. It remains market-data and research preview only. Use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` before extending it into a strategy, model, or execution package.
+
+The WickHunter Market Evidence path is an additive read-only surface at `/market/evidence`. Its BFF projects source-separated Binance USD-M and Bybit Linear completed candles, market quality, instrument history, immutable run identities and WH-01 readiness. It overlays the existing liquidation health model so OKX Swap can be shown truthfully as a liquidation-only source without claiming candle-evidence equivalence. The browser cannot mutate evidence, mark a run accepted or reach a trading boundary. Use `MARKET_EVIDENCE_READ_MODEL.md` and `../WICKHUNTER_PRODUCTION_MARKET_EVIDENCE.md` before changing this surface.
 
 ## Documentation map
 
@@ -104,6 +106,7 @@ The read-only Liquid20 portal path is separately integrated through the server-s
 - `UI_DELIVERY_STATUS.md` — truthful per-surface implementation/integration status and remaining read-model gaps.
 - `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md` — canonical Liquid20 portal, strategy-research, AI-bot, Synology and future-expansion contract.
 - `LIQUIDATIONS_READ_MODEL.md` — focused implementation contract for the bounded server-side Liquid20 reader.
+- `MARKET_EVIDENCE_READ_MODEL.md` — WickHunter source, instrument, run, blocker, API, UI and deployment contract.
 - `NEXT_WORK_AND_REPAIR_PLAN.md` — current continuation ledger, repair priorities, next bounded task and stop conditions.
 - `ARCHITECTURE_DECISIONS.md` — accepted program-level decisions that downstream agents must not silently redefine.
 - `DELIVERY_ROADMAP.md` — staged delivery plan and gates.
@@ -120,6 +123,8 @@ The read-only Liquid20 portal path is separately integrated through the server-s
 - Model promotion is explicit, auditable and evidence-gated.
 - Autonomous repair agents may create branches, regression tests and PRs; they may not patch production or bypass CI.
 - Raw private UI captures, profile identifiers, session material and third-party proprietary assets must not be committed as product code or public documentation.
+- Market-evidence APIs must not return host paths, raw exchange payloads, credential names, secret references or mutation controls.
+- OKX liquidation availability must not be reported as complete WickHunter market-evidence readiness.
 
 ## Relationship to the existing AI Platform
 

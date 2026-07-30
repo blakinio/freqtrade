@@ -6,7 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 825
-terminal_pr: null
+terminal_pr: 830
 dependencies:
   - FTAI-20260730-closure-contracts merged as 6e489f7e10199120424cbcd01b3e125711630243
   - Signal Wizard blocker checkpoint merged as 18881d8847c765e939509a0f34b9dc327c5c9270
@@ -47,10 +47,10 @@ required_reads:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T23:24:00+02:00
+updated_at: 2026-07-30T23:36:00+02:00
 head: 0bc35521debd33312820dfad9f010e22aa651610
 branch: agent/closure-signal-wizard-unblock
-pr: 825
+pr: 830
 status: ready
 context_routes:
   - AGENTS.md
@@ -110,5 +110,5 @@ validation:
     result: PASS
     evidence: Thirteen assigned paths, zero unresolved threads and normal squash merge 0bc35521debd33312820dfad9f010e22aa651610.
 blockers: []
-next_action: Agent 0 records the backend merge in the closure matrix and marks the Signal Wizard frontend task READY.
+next_action: Signal Wizard frontend is READY; the owner may manually start its canonical UI prompt from current develop.
 ```

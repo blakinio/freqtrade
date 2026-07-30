@@ -7,6 +7,8 @@ name: AI Platform WickHunter Production Market Evidence
       - develop
     paths:
       - "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json"
+  schedule:
+    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
@@ -23,7 +25,7 @@ env:
   COMPOSE_FILE: deploy/synology/wickhunter-market-evidence/compose.yaml
 
 jobs:
-  deploy:
+  initialize:
     name: Deploy persistent WickHunter market evidence collector
     if: >-
       github.event_name == 'pull_request' &&
@@ -31,7 +33,7 @@ jobs:
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     environment: synology-staging
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
       - name: Checkout exact request commit
@@ -155,3 +157,11 @@ jobs:
           docker logs --tail 100 wickhunter-market-evidence || true
           echo "Persistent WickHunter collector did not become healthy" >&2
           exit 1
+
+  sample:
+    name: Scheduled polling disabled; persistent container owns sampling
+    if: ${{ false }}
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 20
+    steps:
+      - run: echo "Persistent Synology container collects samples without occupying the runner."

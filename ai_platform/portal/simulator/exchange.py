@@ -82,7 +82,12 @@ class DeterministicExchangeSimulator:
             raise SimulatorStateError("simulator pair mismatch")
         if side is not self.manifest.side or amount != self.manifest.amount:
             raise SimulatorStateError("simulator intent does not match the scenario manifest")
-        intent_notional = self._current_tick.price * amount
+        projected_entry_price = adverse_fill_price(
+            self._current_tick.price,
+            side,
+            self.manifest.cost_model.entry_slippage_bps,
+        )
+        intent_notional = projected_entry_price * amount
         current_exposure = (
             Decimal("0")
             if self._entry_fill_price is None

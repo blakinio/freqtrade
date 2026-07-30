@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 from pathlib import Path
 
 MODULE_PATH = (
@@ -71,12 +70,14 @@ def test_relevant_roles_exclude_unrelated_containers() -> None:
 
 def test_request_is_frozen_and_read_only(tmp_path: Path) -> None:
     request_path = tmp_path / "request.json"
-    request_path.write_text(json.dumps(MODULE.EXPECTED_REQUEST), encoding="utf-8")
+    request_path.write_text(
+        __import__("json").dumps(MODULE.EXPECTED_REQUEST), encoding="utf-8"
+    )
     assert MODULE.load_request(request_path)["mutation_authorized"] is False
 
     changed = dict(MODULE.EXPECTED_REQUEST)
     changed["mutation_authorized"] = True
-    request_path.write_text(json.dumps(changed), encoding="utf-8")
+    request_path.write_text(__import__("json").dumps(changed), encoding="utf-8")
     try:
         MODULE.load_request(request_path)
     except ValueError:

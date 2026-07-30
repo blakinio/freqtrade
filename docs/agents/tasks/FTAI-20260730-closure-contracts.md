@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-contracts
-status: validating
+status: ready
 branch: agent/closure-contracts
 base_branch: develop
 created: 2026-07-30
@@ -76,11 +76,11 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T12:48:00+02:00
-head: f376b1e29c5cf2cce5ff02ec84b66b237f7c819c
+updated_at: 2026-07-30T13:29:00+02:00
+head: 5a3aa56114f4d03979ed868e94e5dadd3a5cddaa
 branch: agent/closure-contracts
 pr: 781
-status: validating
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -101,20 +101,22 @@ owned_paths:
   - tests/ai_platform/portal/test_strategy_closure_contracts.py
 proven:
   - Gate 0 is terminal and the contract workstream is READY with exclusive ownership of all 12 declared paths.
-  - Existing v1 StrategyDefinition payloads parse into the typed recursive AST and preserve their JSON wire shape.
-  - The typed AST remains compatible with the existing evaluator through read-only Mapping semantics.
-  - Signal Wizard and Strategy Catalog v2 contracts require tenant, actor, target, provenance, idempotency and explicit capability evidence.
+  - Contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6 adds the canonical typed recursive Strategy DSL AST, stable reason codes and strict v2 JSON Schema while retaining readable v1 payloads and evaluator Mapping compatibility.
+  - The same freeze commit adds versioned Signal Wizard and Strategy Catalog contracts with tenant, actor, target, provenance, idempotency and explicit capability evidence.
   - Portal closure contracts expose no execution, promotion or live-capital authority and reject secret-bearing metadata.
+  - Focused compatibility and safety validation passed with 11 tests, Python compilation and Draft 2020-12 schema validation.
+  - Exact freeze head passed AI Platform CI run 30537501408, AI Strategy Engine run 30537501338, Freqtrade CI run 30537501286 and security analysis run 30537501418.
+  - Synchronization PR 786 merged current develop normally as 5a3aa56114f4d03979ed868e94e5dadd3a5cddaa after Freqtrade CI run 30537660168 passed pre-commit, documentation and Python 3.11-3.14 core gates.
+  - PR 781 is zero commits behind develop, changes exactly the 12 owned paths and has no review comments or unresolved threads.
 derived:
-  - `f376b1e29c5cf2cce5ff02ec84b66b237f7c819c` is the pre-checkpoint implementation freeze candidate for downstream consumers.
-  - PR #781 is the only open PR modifying the shared contract paths.
+  - `549ba3afddba39ce455fce5eebbd4d67bea813a6` is the immutable shared-contract freeze commit downstream workers must consume after PR 781 merges.
+  - The task-record-only readiness commit may be merged after its exact-head required checks pass.
 unknown:
-  - Exact-head required CI conclusions after the checkpoint and normal develop synchronization commits.
-  - Unresolved review-thread count at the final merge gate.
+  - Exact squash merge commit until PR 781 is merged normally.
 conflicts: []
 first_failure:
-  marker: EXACT_HEAD_VALIDATION_PENDING
-  evidence: Repository CI is queued for PR #781 and the branch must include current develop before final validation.
+  marker: NONE
+  evidence: No implementation, compatibility, CI, ownership, synchronization or review failure remains at the validated readiness head.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
   - A downstream worker may redefine shared contracts.
@@ -142,10 +144,21 @@ validation:
   - command: Draft202012Validator.check_schema(strategy-definition.v2.schema.json)
     result: PASS
     evidence: The published v2 JSON Schema is valid Draft 2020-12.
-  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-closure-contracts.md --require-checkpoint
-    result: NOT_RUN
-    evidence: The repository checkpoint validator will run in exact-head CI because the sandbox cannot clone the private repository.
-blockers:
-  - Exact-head required CI and review verification remain pending.
-next_action: Synchronize current develop through PR #782, inspect PR #781 exact-head CI and review threads, repair only evidenced failures, and merge normally when every required gate is green.
+  - command: AI Platform CI run 30537501408
+    result: PASS
+    evidence: Exact freeze head passed the full portal contract suite, Ruff and format checks.
+  - command: AI Strategy Engine run 30537501338
+    result: PASS
+    evidence: Exact freeze head passed package tests, Ruff, mypy, compile, deterministic E2E, schemas and security-boundary checks.
+  - command: Freqtrade CI runs 30537501286 and 30537660168
+    result: PASS
+    evidence: Exact freeze and synchronized heads passed pre-commit, documentation, Python 3.11-3.14 core tests, coverage, generated-file checks, smoke tests, Ruff and mypy.
+  - command: GitHub Actions Security Analysis run 30537501418
+    result: PASS
+    evidence: Exact freeze head completed zizmor security analysis successfully.
+  - command: PR 781 changed-file, live-base, comments and review-thread inspection
+    result: PASS
+    evidence: Exactly 12 owned paths, zero commits behind develop, mergeable draft, zero comments and zero unresolved review threads.
+blockers: []
+next_action: Mark PR 781 ready and squash-merge it normally after the task-record-only exact-head required checks pass, then return contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6 to the closure coordinator for downstream synchronization.
 ```

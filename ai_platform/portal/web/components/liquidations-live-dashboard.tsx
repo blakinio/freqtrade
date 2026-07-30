@@ -9,6 +9,7 @@ import type {
   LiquidationDataSummary,
   LiquidationHealth,
   LiquidationHealthSource,
+  LiquidationSourceHealth,
 } from "@/lib/liquidations";
 
 import styles from "./liquidations-dashboard.module.css";
@@ -100,12 +101,11 @@ function acceptanceLabel(status: LiquidationHealth["acceptance_status"]): string
   return "BRAK RAPORTU";
 }
 
-function sourceConnectionLabel(
-  configured: boolean | undefined,
-  connected: boolean | undefined,
-): string {
-  if (!configured) return "OFFLINE · nieskonfigurowane";
-  return connected ? "LIVE · połączone" : "DEGRADED · rozłączone";
+function sourceConnectionLabel(item: LiquidationSourceHealth | undefined): string {
+  if (!item?.configured) return "OFFLINE · nieskonfigurowane";
+  if (!item.connected) return "DEGRADED · rozłączone";
+  if (item.healthy === false) return "DEGRADED · dane nieświeże";
+  return "LIVE · zdrowe";
 }
 
 export function LiquidationsLiveDashboard() {
@@ -246,7 +246,7 @@ export function LiquidationsLiveDashboard() {
           return (
             <article key={source}>
               <strong>{SOURCE_NAMES[source]}</strong>
-              <p>{sourceConnectionLabel(item?.configured, item?.connected)}</p>
+              <p>{sourceConnectionLabel(item)}</p>
               <p>Ostatnie zdarzenie: {formatTimestamp(item?.last_event_at_ms)}</p>
               <p>Ostatni odbiór: {formatTimestamp(item?.last_event_received_at_ms)}</p>
               <p>Heartbeat: {formatTimestamp(item?.last_heartbeat_at_ms)}</p>

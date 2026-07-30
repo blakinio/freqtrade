@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS portal_signal_wizard_submissions (
     request_digest VARCHAR(64) NOT NULL,
     preview_hash VARCHAR(64) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    command_json TEXT NOT NULL,
     submission_json TEXT NOT NULL,
     PRIMARY KEY (tenant_id, experiment_id),
     CONSTRAINT uq_portal_signal_wizard_submit_tenant_idempotency

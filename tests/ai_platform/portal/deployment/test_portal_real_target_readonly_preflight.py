@@ -5,11 +5,7 @@ from pathlib import Path
 
 
 MODULE_PATH = (
-    Path(__file__).parents[4]
-    / "deploy"
-    / "synology"
-    / "portal"
-    / "real_target_preflight.py"
+    Path(__file__).parents[4] / "deploy" / "synology" / "portal" / "real_target_preflight.py"
 )
 SPEC = importlib.util.spec_from_file_location("portal_real_target_preflight", MODULE_PATH)
 assert SPEC and SPEC.loader

@@ -22,7 +22,7 @@ def test_live_entrypoint_and_deploy_script_have_valid_shell_syntax() -> None:
 def test_compose_separates_restartable_live_service_from_evidence_profile() -> None:
     compose = (DEPLOYMENT_ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert "liquid20-live:" in compose
-    assert "restart: unless-stopped" in compose
+    assert "restart: always" in compose
     assert 'entrypoint: ["/usr/local/bin/liquid20-live-entrypoint"]' in compose
     assert "liquid20-evidence:" in compose
     assert 'profiles: ["evidence"]' in compose

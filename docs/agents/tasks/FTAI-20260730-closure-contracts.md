@@ -1,11 +1,12 @@
 ---
 task_id: FTAI-20260730-closure-contracts
-status: ready
-branch: agent/closure-contracts
+status: completed
+branch: agent/closure-contracts-terminal
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 781
+terminal_pr: null
 dependencies:
   - none
 owned_paths:
@@ -39,9 +40,13 @@ search_first:
 
 Freeze the one canonical typed Strategy DSL AST and the versioned Signal Wizard/Strategy Catalog read and command contracts required by downstream work.
 
-## Evidence at Gate 0
+## Terminal result
 
-Existing v1 models, schemas and idempotency are proven, but `StrategyDefinition` condition groups remain untyped dictionaries and the product catalog contract contains only static summary fields. This is a real shared-contract gap.
+- PR #781 merged normally into `develop` as `6e489f7e10199120424cbcd01b3e125711630243`.
+- The immutable contract freeze commit for downstream compatibility is `549ba3afddba39ce455fce5eebbd4d67bea813a6`.
+- Existing StrategyDefinition `1.0.0` payloads remain readable and migrate deterministically to the typed `2.0.0` contract.
+- Signal Wizard and Strategy Catalog contracts fail closed on tenant, actor, target, environment, idempotency and capability context.
+- The contracts grant no execution, promotion or live-capital authority and expose no browser-to-Freqtrade, exchange or Vault path.
 
 ## Deliverables
 
@@ -57,30 +62,25 @@ Existing v1 models, schemas and idempotency are proven, but `StrategyDefinition`
 - Paper, shadow or dry-run only; no live-capital authority.
 - No browser-to-Freqtrade, exchange or Vault path.
 - No protected-holdout reuse and no changes to frozen thresholds `0.006/-0.009`.
-- Stay inside exact `owned_paths`; stop on the first incompatible shared-contract requirement.
-- Add tests at the same layer and merge only through normal green CI.
-- This task is the exclusive mutable owner of shared contracts until its PR merges.
+- No downstream worker may redefine the frozen shared contracts.
 
-## Acceptance criteria
+## Acceptance evidence
 
 - One canonical import path exists for each new contract.
-- Existing v1 payloads remain readable or receive a deterministic migration result.
-- Breaking semantic changes require a new version; additive optional fields require compatibility tests.
-- No contract grants execution, promotion or live-capital authority.
-
-## Validation
-
-Run narrow tests first, then all repository workflows required by the changed paths. Validate this task checkpoint before every handoff.
+- Existing v1 payloads remain readable and deterministic migration evidence exists.
+- Breaking semantic changes require a new version; additive optional changes retain compatibility tests.
+- Focused and repository-wide CI passed on the exact synchronized implementation head.
+- PR #781 had exactly the 12 owned paths, zero unresolved review threads and was zero commits behind `develop` before merge.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T13:29:00+02:00
-head: 5a3aa56114f4d03979ed868e94e5dadd3a5cddaa
-branch: agent/closure-contracts
+updated_at: 2026-07-30T16:31:00+02:00
+head: 6e489f7e10199120424cbcd01b3e125711630243
+branch: agent/closure-contracts-terminal
 pr: 781
-status: ready
+status: completed
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -100,23 +100,20 @@ owned_paths:
   - ai_platform/portal/product/schema.py
   - tests/ai_platform/portal/test_strategy_closure_contracts.py
 proven:
-  - Gate 0 is terminal and the contract workstream is READY with exclusive ownership of all 12 declared paths.
-  - Contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6 adds the canonical typed recursive Strategy DSL AST, stable reason codes and strict v2 JSON Schema while retaining readable v1 payloads and evaluator Mapping compatibility.
-  - The same freeze commit adds versioned Signal Wizard and Strategy Catalog contracts with tenant, actor, target, provenance, idempotency and explicit capability evidence.
-  - Portal closure contracts expose no execution, promotion or live-capital authority and reject secret-bearing metadata.
-  - Focused compatibility and safety validation passed with 11 tests, Python compilation and Draft 2020-12 schema validation.
-  - Exact freeze head passed AI Platform CI run 30537501408, AI Strategy Engine run 30537501338, Freqtrade CI run 30537501286 and security analysis run 30537501418.
-  - Synchronization PR 786 merged current develop normally as 5a3aa56114f4d03979ed868e94e5dadd3a5cddaa after Freqtrade CI run 30537660168 passed pre-commit, documentation and Python 3.11-3.14 core gates.
-  - PR 781 is zero commits behind develop, changes exactly the 12 owned paths and has no review comments or unresolved threads.
+  - PR 781 merged normally into develop as 6e489f7e10199120424cbcd01b3e125711630243.
+  - Contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6 is the immutable compatibility anchor for downstream workers.
+  - Exact synchronized head 764eeac79fd7ea807b4845500bcd4bd05ca900c1 passed AI Platform CI run 30550888968, AI Strategy Engine run 30550890438, Freqtrade CI run 30550888947 and security analysis run 30550893131.
+  - Freqtrade CI passed pre-commit, documentation, Python 3.11 through 3.14 core tests, coverage, generated-file checks, smoke tests, Ruff and mypy.
+  - The merged change contains exactly the 12 declared owned paths and had zero unresolved review threads.
+  - Typed AST, v2 JSON Schema, portal lifecycle contracts, v1 compatibility, secret exclusion, tenant scope and idempotency tests are merged on develop.
 derived:
-  - `549ba3afddba39ce455fce5eebbd4d67bea813a6` is the immutable shared-contract freeze commit downstream workers must consume after PR 781 merges.
-  - The task-record-only readiness commit may be merged after its exact-head required checks pass.
-unknown:
-  - Exact squash merge commit until PR 781 is merged normally.
+  - Downstream workers may now synchronize normally to develop at or after 6e489f7e10199120424cbcd01b3e125711630243 and consume the canonical contract imports.
+  - The shared-contract workstream has no remaining autonomous implementation, validation, review or merge action.
+unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: No implementation, compatibility, CI, ownership, synchronization or review failure remains at the validated readiness head.
+  evidence: All implementation, compatibility, synchronization, exact-head CI, review and merge gates passed.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
   - A downstream worker may redefine shared contracts.
@@ -135,30 +132,21 @@ changed_paths:
   - ai_platform/portal/product/schema.py
   - tests/ai_platform/portal/test_strategy_closure_contracts.py
 validation:
-  - command: pytest -q ai_strategy_engine/tests/unit/test_dsl_ast.py tests/ai_platform/portal/test_strategy_closure_contracts.py
+  - command: AI Platform CI run 30550888968
     result: PASS
-    evidence: 11 focused compatibility and safety contract tests passed in the isolated validation harness.
-  - command: python -m compileall -q strategy_engine ai_platform
+    evidence: Exact synchronized implementation head passed portal contract tests, Ruff and formatting.
+  - command: AI Strategy Engine run 30550890438
     result: PASS
-    evidence: All changed Python modules compiled successfully in the isolated validation harness.
-  - command: Draft202012Validator.check_schema(strategy-definition.v2.schema.json)
+    evidence: Exact synchronized implementation head passed package tests, mypy, deterministic E2E, schema and security-boundary checks.
+  - command: Freqtrade CI run 30550888947
     result: PASS
-    evidence: The published v2 JSON Schema is valid Draft 2020-12.
-  - command: AI Platform CI run 30537501408
+    evidence: Exact synchronized implementation head passed all required core, coverage, documentation and static-analysis gates.
+  - command: GitHub Actions Security Analysis run 30550893131
     result: PASS
-    evidence: Exact freeze head passed the full portal contract suite, Ruff and format checks.
-  - command: AI Strategy Engine run 30537501338
+    evidence: Exact synchronized implementation head passed zizmor security analysis.
+  - command: PR 781 live-base, changed-file and review-thread inspection
     result: PASS
-    evidence: Exact freeze head passed package tests, Ruff, mypy, compile, deterministic E2E, schemas and security-boundary checks.
-  - command: Freqtrade CI runs 30537501286 and 30537660168
-    result: PASS
-    evidence: Exact freeze and synchronized heads passed pre-commit, documentation, Python 3.11-3.14 core tests, coverage, generated-file checks, smoke tests, Ruff and mypy.
-  - command: GitHub Actions Security Analysis run 30537501418
-    result: PASS
-    evidence: Exact freeze head completed zizmor security analysis successfully.
-  - command: PR 781 changed-file, live-base, comments and review-thread inspection
-    result: PASS
-    evidence: Exactly 12 owned paths, zero commits behind develop, mergeable draft, zero comments and zero unresolved review threads.
+    evidence: Zero commits behind develop, exactly 12 owned paths, mergeable and zero unresolved review threads before squash merge.
 blockers: []
-next_action: Mark PR 781 ready and squash-merge it normally after the task-record-only exact-head required checks pass, then return contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6 to the closure coordinator for downstream synchronization.
+next_action: Closure coordinator synchronizes downstream workers to develop at or after 6e489f7e10199120424cbcd01b3e125711630243 using contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6.
 ```

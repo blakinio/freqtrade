@@ -46,7 +46,7 @@ Znane istotne elementy repozytorium:
 - PR #761: terminalny kontrakt OKX Liquid20;
 - PR #816: aktywny operational request dla production evidence capture — nie duplikuj go i nigdy nie merge'uj request-only PR do `develop`.
 
-Wszystkie te informacje ponownie zweryfikuj na żywo.
+Wszystkie powyższe informacje ponownie zweryfikuj na żywo.
 
 ## Cel końcowy
 
@@ -68,7 +68,7 @@ Pracuj sekwencyjnie w kilku focused packages. Nie rób jednego ogromnego PR-a.
 
 Przed jakąkolwiek implementacją:
 
-- pobierz aktualny `develop`, open PR-y, branche, task ownership, workflow conclusions i unresolved review threads;
+- pobierz aktualny `develop`, open PR-y, gałęzie, task ownership, workflow conclusions i unresolved review threads;
 - sprawdź dokładny stan PR #816, jego workflow i trwałego capture state;
 - sprawdź aktualny Portal API/read model oraz immutable package, na który wskazuje;
 - ustal pierwszą rzeczywistą przyczynę każdego czerwonego statusu;

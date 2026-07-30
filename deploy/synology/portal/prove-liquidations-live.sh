@@ -105,7 +105,7 @@ test "$mount_source" = "$liquidations_host_root"
 test "$mount_rw" = "false"
 test -z "$docker_socket_mount"
 test "$portal_uid" != "0"
-test "$portal_restart" = "unless-stopped"
+test "$portal_restart" = "always"
 configure_pids_limit
 
 data_gid="$(

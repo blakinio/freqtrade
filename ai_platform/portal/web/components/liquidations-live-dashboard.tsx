@@ -256,7 +256,7 @@ export function LiquidationsLiveDashboard() {
               <p>Błędy źródła: {item?.error_count ?? 0}</p>
               <p>Zdarzenia: {item?.events ?? 0}</p>
               <p>
-                Symbole: {item?.observed_symbols ?? 0} obserwowane /{" "}
+                Instrumenty: {item?.observed_symbols ?? 0} obserwowane /{" "}
                 {item?.subscription_symbol_count ?? 0} subskrybowane
               </p>
               <p>Błąd: {item?.latest_error ?? "brak"}</p>

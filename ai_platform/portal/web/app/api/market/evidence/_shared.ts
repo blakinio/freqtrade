@@ -6,6 +6,7 @@ import {
   MarketEvidenceDataUnavailableError,
   MarketEvidenceQueryError,
   MarketEvidenceReadModel,
+  MARKET_EVIDENCE_SOURCES,
   type MarketEvidenceInstrumentQuery,
   type MarketEvidenceQualityStatus,
   type MarketEvidenceSource,
@@ -68,30 +69,48 @@ function booleanParameter(value: string | null, name: string): boolean | undefin
   throw new MarketEvidenceQueryError(`${name} must be true or false`);
 }
 
+function sourceParameter(value: string | null): MarketEvidenceSource | "all" | undefined {
+  if (value === null || value === "") return undefined;
+  if (value === "all" || MARKET_EVIDENCE_SOURCES.includes(value as MarketEvidenceSource)) {
+    return value as MarketEvidenceSource | "all";
+  }
+  throw new MarketEvidenceQueryError("source is invalid");
+}
+
+function qualityParameter(value: string | null): MarketEvidenceQualityStatus | undefined {
+  if (value === null || value === "") return undefined;
+  if (["healthy", "degraded", "stale", "unavailable"].includes(value)) {
+    return value as MarketEvidenceQualityStatus;
+  }
+  throw new MarketEvidenceQueryError("quality is invalid");
+}
+
+function sortParameter(value: string | null): MarketEvidenceInstrumentQuery["sort"] {
+  if (value === null || value === "") return undefined;
+  if (["symbol", "source", "spread", "volume", "freshness"].includes(value)) {
+    return value as MarketEvidenceInstrumentQuery["sort"];
+  }
+  throw new MarketEvidenceQueryError("sort is invalid");
+}
+
+function directionParameter(value: string | null): "asc" | "desc" | undefined {
+  if (value === null || value === "") return undefined;
+  if (value === "asc" || value === "desc") return value;
+  throw new MarketEvidenceQueryError("direction is invalid");
+}
+
 export function marketEvidenceInstrumentQuery(
   searchParams: URLSearchParams,
 ): MarketEvidenceInstrumentQuery {
-  const source = (searchParams.get("source") ?? undefined) as
-    | MarketEvidenceSource
-    | "all"
-    | undefined;
-  const quality = (searchParams.get("quality") ?? undefined) as
-    | MarketEvidenceQualityStatus
-    | undefined;
-  const sort = (searchParams.get("sort") ?? undefined) as MarketEvidenceInstrumentQuery["sort"];
-  const direction = (searchParams.get("direction") ?? undefined) as
-    | "asc"
-    | "desc"
-    | undefined;
   return {
-    source,
+    source: sourceParameter(searchParams.get("source")),
     symbol: searchParams.get("symbol") ?? undefined,
     market: searchParams.get("market") ?? undefined,
     active: booleanParameter(searchParams.get("active"), "active"),
     included: booleanParameter(searchParams.get("included"), "included"),
-    quality,
-    sort,
-    direction,
+    quality: qualityParameter(searchParams.get("quality")),
+    sort: sortParameter(searchParams.get("sort")),
+    direction: directionParameter(searchParams.get("direction")),
     page: integerParameter(searchParams.get("page"), "page"),
     page_size: integerParameter(searchParams.get("page_size"), "page_size"),
   };
@@ -116,7 +135,10 @@ export function safeMarketEvidenceError(error: unknown): NextResponse {
   }
   if (error instanceof MarketEvidenceDataUnavailableError) {
     return NextResponse.json(
-      { detail: "WickHunter market evidence is currently unavailable", code: "MARKET_EVIDENCE_UNAVAILABLE" },
+      {
+        detail: "WickHunter market evidence is currently unavailable",
+        code: "MARKET_EVIDENCE_UNAVAILABLE",
+      },
       { status: 503, headers: { "cache-control": "no-store" } },
     );
   }

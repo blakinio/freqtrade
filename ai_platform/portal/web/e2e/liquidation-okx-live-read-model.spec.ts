@@ -24,17 +24,17 @@ function event(source: LiquidationDataSource, id: string, occurredAtMs: number):
   });
 }
 
-function sourceState(now: number, events: number, connected = true) {
+function sourceState(now: number, events: number, connected = true, configured = true) {
   return {
-    configured: true,
-    connected,
+    configured,
+    connected: configured && connected,
     last_event_at_ms: events > 0 ? now - 1_000 : null,
     last_event_received_at_ms: events > 0 ? now - 975 : null,
     last_heartbeat_at_ms: now - 500,
     ingest_lag_ms: events > 0 ? 25 : null,
     reconnect_count: connected ? 0 : 1,
     observed_symbol_count: events > 0 ? 1 : 0,
-    subscription_symbol_count: 2,
+    subscription_symbol_count: configured ? 2 : 0,
     events_written: events,
     error_count: connected ? 0 : 1,
     parse_error_count: 0,
@@ -42,7 +42,7 @@ function sourceState(now: number, events: number, connected = true) {
   };
 }
 
-async function fixture(now: number, okxConnected = true) {
+async function fixture(now: number, okxConnected = true, okxConfigured = true) {
   const dataRoot = await mkdtemp(join(tmpdir(), "portal-liquidations-okx-live-"));
   const runId = "liquid20-20260730T000000Z-0";
   const runRoot = join(dataRoot, "live", "runs", runId);
@@ -80,7 +80,7 @@ async function fixture(now: number, okxConnected = true) {
     sources: {
       "bybit-linear": sourceState(now, 1),
       "binance-usdm": sourceState(now, 1),
-      "okx-swap": sourceState(now, 1, okxConnected),
+      "okx-swap": sourceState(now, 1, okxConnected, okxConfigured),
     },
   };
   await writeFile(
@@ -144,6 +144,28 @@ test("one disconnected OKX source degrades the collector view without changing o
     expect(health.mode).toBe("stale");
     expect(health.sources["okx-swap"]?.connected).toBe(false);
     expect(health.sources["okx-swap"]?.reconnect_count).toBe(1);
+    expect(health.sources["bybit-linear"]?.connected).toBe(true);
+    expect(health.sources["binance-usdm"]?.connected).toBe(true);
+  } finally {
+    await data.cleanup();
+  }
+});
+
+test("an unconfigured OKX source can never be reported as healthy", async () => {
+  const now = 1_784_956_800_000;
+  const data = await fixture(now, false, false);
+  try {
+    const model = new LiquidationLiveReadModel({ dataRoot: data.dataRoot, now: () => now });
+    const health = await model.health();
+    const page = await model.list({ limit: 20 });
+    const summary = await model.summary();
+
+    expect(health.mode).toBe("stale");
+    expect(health.active_sources).not.toContain("okx-swap");
+    expect(health.sources["okx-swap"]?.configured).toBe(false);
+    expect(health.sources["okx-swap"]?.connected).toBe(false);
+    expect(page.mode).toBe("stale");
+    expect(summary.mode).toBe("stale");
     expect(health.sources["bybit-linear"]?.connected).toBe(true);
     expect(health.sources["binance-usdm"]?.connected).toBe(true);
   } finally {

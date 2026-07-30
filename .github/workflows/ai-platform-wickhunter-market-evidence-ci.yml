@@ -1,0 +1,206 @@
+name: AI Platform WickHunter Market Evidence CI
+
+"on":
+  pull_request:
+    branches:
+      - develop
+      - agent/wickhunter-production-market-evidence-capture-v1
+    paths:
+      - ".github/workflows/ai-platform-wickhunter-market-evidence-ci.yml"
+      - ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml"
+      - "ai_platform/wickhunter/production_market_evidence*.py"
+      - "ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v1.json"
+      - "ai_platform/portal/web/app/api/market/evidence/**"
+      - "ai_platform/portal/web/app/market/evidence/**"
+      - "ai_platform/portal/web/components/market-evidence-*"
+      - "ai_platform/portal/web/components/app-shell.tsx"
+      - "ai_platform/portal/web/e2e/specs/market-evidence*.spec.ts"
+      - "ai_platform/portal/web/fixtures/market-evidence/**"
+      - "ai_platform/portal/web/lib/market-evidence/**"
+      - "deploy/synology/wickhunter-market-evidence/**"
+      - "deploy/synology/portal/deploy-market-evidence-preview.sh"
+      - "docs/ai_platform/WICKHUNTER_PRODUCTION_MARKET_EVIDENCE.md"
+      - "docs/ai_platform/portal/MARKET_EVIDENCE_READ_MODEL.md"
+      - "docs/agents/tasks/FTAI-20260730-wickhunter-production-market-evidence-capture-and-portal-v1.md"
+      - "tests/ai_platform_integration/test_wickhunter_production_market_evidence*.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend collector, package and WH-01 adapter
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.13"
+
+      - name: Install repository dependencies
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e .
+
+      - name: Compile collector and adapter
+        run: |
+          set -euo pipefail
+          python -m compileall -q \
+            ai_platform/wickhunter/production_market_evidence.py \
+            ai_platform/wickhunter/production_market_evidence_service.py \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_wh01.py
+
+      - name: Run focused backend tests
+        run: |
+          set -euo pipefail
+          pytest -q \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+
+      - name: Ruff collector and tests
+        run: |
+          set -euo pipefail
+          ruff check \
+            ai_platform/wickhunter/production_market_evidence.py \
+            ai_platform/wickhunter/production_market_evidence_service.py \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+          ruff format --check \
+            ai_platform/wickhunter/production_market_evidence.py \
+            ai_platform/wickhunter/production_market_evidence_service.py \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+
+      - name: Validate task checkpoint
+        run: >-
+          python tools/agents/checkpoint.py
+          docs/agents/tasks/FTAI-20260730-wickhunter-production-market-evidence-capture-and-portal-v1.md
+          --require-checkpoint
+
+  portal:
+    name: Portal API, UI and critical browser flow
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ai_platform/portal/web/package-lock.json
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Typecheck, lint and build
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
+        run: |
+          set -euo pipefail
+          npm run typecheck
+          npm run lint
+          npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run market-evidence browser tests
+        env:
+          CI: "true"
+          PORTAL_E2E_DATA_MODE: fixture
+          PORTAL_E2E_ENVIRONMENT: test
+          PORTAL_E2E_IDENTITY_FIXTURE_MODE: enabled
+        run: >-
+          npx playwright test
+          e2e/specs/market-evidence.spec.ts
+          e2e/specs/market-evidence-states.spec.ts
+          --project=chromium-desktop
+
+      - name: Upload browser evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: market-evidence-playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ai_platform/portal/web/artifacts/test-results
+            ai_platform/portal/web/artifacts/playwright-report
+            ai_platform/portal/web/artifacts/results.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  deployment:
+    name: Hardened deployment definitions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate scripts and Compose
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            deploy/synology/wickhunter-market-evidence/healthcheck.py \
+            ai_platform/wickhunter/production_market_evidence_daemon.py
+          bash -n deploy/synology/portal/deploy-market-evidence-preview.sh
+          MARKET_EVIDENCE_REQUEST_FILE=/tmp/request.json \
+          COLLECTOR_COMMIT=1111111111111111111111111111111111111111 \
+          docker compose \
+            -f deploy/synology/wickhunter-market-evidence/compose.yaml \
+            config --quiet
+
+      - name: Verify hardened collector service settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          rendered="$(
+            MARKET_EVIDENCE_REQUEST_FILE=/tmp/request.json \
+            COLLECTOR_COMMIT=1111111111111111111111111111111111111111 \
+            docker compose \
+              -f deploy/synology/wickhunter-market-evidence/compose.yaml \
+              config
+          )"
+          grep -q 'read_only: true' <<< "$rendered"
+          grep -q 'no-new-privileges:true' <<< "$rendered"
+          grep -q 'cap_drop:' <<< "$rendered"
+          grep -q -- '- ALL' <<< "$rendered"
+          if grep -Eq 'network_mode: host|ports:' <<< "$rendered"; then
+            echo "Collector must not use host network or publish ports" >&2
+            exit 1
+          fi

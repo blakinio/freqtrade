@@ -1,0 +1,21 @@
+{
+  "artifact_count": 8,
+  "completed_candles": 3456,
+  "execution_enabled": false,
+  "instrument_snapshots": 1152,
+  "live_capital_authorized": false,
+  "manifest_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "market_quality_observations": 1152,
+  "model_execution_authorized": false,
+  "orders_submitted": 0,
+  "outcome": "accepted",
+  "performance_research_authorized": false,
+  "replay_authorized": false,
+  "run_id": "wickhunter-production-market-evidence-20260729-v1-r1",
+  "schema_version": 1,
+  "source_health_snapshots": 288,
+  "status": "verified",
+  "trading_credentials_present": false,
+  "wh01_blocker": "LIQUIDATION_ARCHIVE_NOT_BOUND",
+  "wh01_ready": false
+}

@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "contract_id": "wickhunter-production-market-evidence-v1",
+  "classification": "prospective_public_market_evidence_only",
+  "request_path": "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json",
+  "profile": "liquid20-v1",
+  "source_catalog_sha256": "4ead5a062bcd5516178cb954be2c5680610e78973d34688c2490173f23aee59c",
+  "symbol_universe_sha256": "a75bd2734275b837a14db359ff8d380936e01eab93af436433682e47442582f4",
+  "sources": [
+    {
+      "source": "bybit-linear",
+      "market": "linear perpetual",
+      "market_quality_endpoint": "https://api.bybit.com/v5/market/tickers?category=linear",
+      "completed_candle_endpoint": "https://api.bybit.com/v5/market/kline"
+    },
+    {
+      "source": "binance-usdm",
+      "market": "USD-M perpetual",
+      "market_quality_endpoints": [
+        "https://fapi.binance.com/fapi/v1/ticker/24hr",
+        "https://fapi.binance.com/fapi/v1/ticker/bookTicker"
+      ],
+      "completed_candle_endpoint": "https://fapi.binance.com/fapi/v1/klines"
+    }
+  ],
+  "time_geometry": {
+    "timeframe": "5m",
+    "pre_roll_start_ms": 1785391200000,
+    "decision_start_ms": 1785477600000,
+    "decision_end_ms": 1785520800000,
+    "sample_interval_seconds": 300,
+    "max_sample_lateness_seconds": 420,
+    "expected_market_samples": 144,
+    "expected_candles_per_source_symbol": 432,
+    "protected_holdout_start_ms": 1785542400000
+  },
+  "availability_semantics": {
+    "market_quality": "response_fully_received_at_ms",
+    "completed_candle": "close_time_ms_exclusive"
+  },
+  "policies": {
+    "public_only": true,
+    "source_separated": true,
+    "cross_exchange_deduplication": false,
+    "trading_credentials_allowed": false,
+    "proxy_routing_allowed": false,
+    "redirects_allowed": false,
+    "execution_enabled": false,
+    "replay_authorized": false,
+    "model_training_authorized": false,
+    "strategy_research_authorized": false,
+    "performance_research_authorized": false,
+    "production_source_enabled": false,
+    "orders_submitted": 0,
+    "overwrite_existing_run": false
+  }
+}

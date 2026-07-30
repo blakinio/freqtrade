@@ -1,0 +1,199 @@
+name: AI Platform WickHunter Production Market Evidence
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json"
+  schedule:
+    - cron: "*/5 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-production-market-evidence-v1
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json
+  STATE_DIR: /var/lib/freqtrade-staging-state
+  DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
+
+jobs:
+  initialize:
+    name: Initialize WickHunter market evidence capture
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "WickHunter market evidence trigger must add exactly the canonical request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate approved runner and durable storage
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$DURABLE_ROOT"
+          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Validate frozen request and initialize durable capture
+        id: initialize
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
+            init \
+            --request "$REQUEST_PATH" \
+            --durable-root "$DURABLE_ROOT" \
+            --collector-commit "$HEAD_SHA"
+
+  sample:
+    name: Collect one due WickHunter market evidence sample
+    if: github.event_name == 'schedule'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact scheduled develop commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+
+      - name: Validate approved runner and durable storage
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$DURABLE_ROOT"
+          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Validate state and collect at most one due sample or finalize
+        id: sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
+            sample \
+            --durable-root "$DURABLE_ROOT"
+
+      - name: Upload bounded terminal metadata evidence
+        if: ${{ always() && steps.sample.outputs.status == 'published' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-production-market-evidence-${{ steps.sample.outputs.run_id }}
+          path: |
+            ${{ steps.sample.outputs.run_root }}/run-request.json
+            ${{ steps.sample.outputs.run_root }}/incremental-state.json
+            ${{ steps.sample.outputs.run_root }}/market-samples/*/sample-report.json
+            ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-manifest.json
+            ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-report.json
+            ${{ steps.sample.outputs.run_root }}/artifact-sha256.txt
+            ${{ steps.sample.outputs.package_root }}/request.json
+            ${{ steps.sample.outputs.package_root }}/policy.json
+            ${{ steps.sample.outputs.package_root }}/run-state.json
+            ${{ steps.sample.outputs.package_root }}/completed-candles-index.json
+            ${{ steps.sample.outputs.package_root }}/source-artifacts-index.json
+            ${{ steps.sample.outputs.package_root }}/manifest.json
+            ${{ steps.sample.outputs.package_root }}/verification-report.json
+            ${{ steps.sample.outputs.package_root }}/artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Enforce terminal capture outcome
+        if: ${{ always() && steps.sample.outputs.status == 'published' }}
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.sample.outputs.outcome }}
+          PACKAGE_ROOT: ${{ steps.sample.outputs.package_root }}
+        run: |
+          set -euo pipefail
+          if [[ "$OUTCOME" != "accepted" ]]; then
+            echo "WickHunter production market evidence was not accepted" >&2
+            exit 1
+          fi
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
+            verify --package-root "$PACKAGE_ROOT"
+          echo "WickHunter market evidence accepted; all downstream authority remains false"

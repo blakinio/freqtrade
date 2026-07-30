@@ -133,6 +133,8 @@ def discover_okx_instruments(
 class OkxLiveRunManager(LiveRunManager):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
+        self._last_event_at_ms: int | None = None
+        self._last_event_received_at_ms: int | None = None
         self.sources[OKX_SOURCE].configured = True
         self._okx_instrument_snapshot: dict[str, object] | None = None
         self._startup_connected_sources: set[str] = set()

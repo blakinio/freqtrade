@@ -22,7 +22,8 @@ const SOURCE_SEMANTICS: Record<LiquidationHealthSource, string> = {
   "bybit-linear": "All liquidation events published by Bybit linear allLiquidation.",
   "binance-usdm":
     "Latest Binance USD-M forceOrder event per symbol in each approximately 1000 ms window.",
-  "okx-swap": "OKX liquidation events are reserved by contract and are not enabled yet.",
+  "okx-swap":
+    "Public OKX SWAP liquidation-orders events normalized with verified public ctVal metadata.",
 };
 
 interface LiveSourceState {
@@ -52,6 +53,7 @@ interface LiveState {
   execution_enabled: false;
   trading_authorized: false;
   trading_credentials_present: false;
+  orders_submitted: 0;
 }
 
 export interface LiquidationLiveReadModelOptions {
@@ -332,7 +334,8 @@ export class LiquidationLiveReadModel {
     if (
       state.execution_enabled !== false ||
       state.trading_authorized !== false ||
-      state.trading_credentials_present !== false
+      state.trading_credentials_present !== false ||
+      state.orders_submitted !== 0
     ) {
       throw new LiquidationDataUnavailableError("live state crossed the no-trading boundary");
     }
@@ -364,6 +367,7 @@ export class LiquidationLiveReadModel {
       execution_enabled: false,
       trading_authorized: false,
       trading_credentials_present: false,
+      orders_submitted: 0,
     };
     await this.requireLiveRunIsLatest(runId);
     const activeRunId = pointer.active_run_id;
@@ -495,14 +499,15 @@ export class LiquidationLiveReadModel {
         "bybit-linear": enrich("bybit-linear"),
         "binance-usdm": enrich("binance-usdm"),
         "okx-swap": {
+          ...historical.sources["okx-swap"],
           configured: false,
           connected: false,
-          events: 0,
-          observed_symbols: 0,
+          events: historical.sources["okx-swap"].events,
+          observed_symbols: historical.sources["okx-swap"].observed_symbols,
           subscription_symbol_count: 0,
-          availability_ratio: null,
-          disconnects_per_hour: null,
-          last_event_at_ms: null,
+          availability_ratio: historical.sources["okx-swap"].availability_ratio,
+          disconnects_per_hour: historical.sources["okx-swap"].disconnects_per_hour,
+          last_event_at_ms: historical.sources["okx-swap"].last_event_at_ms,
           last_event_received_at_ms: null,
           last_heartbeat_at_ms: null,
           ingest_lag_ms: null,

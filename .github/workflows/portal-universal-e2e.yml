@@ -39,7 +39,8 @@ jobs:
       - name: Install validation dependencies
         run: >-
           python -m pip install --disable-pip-version-check
-          pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1" fastapi
+          pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" "httpx>=0.24.1"
+          fastapi jsonschema pyjwt "PyYAML>=6.0"
       - name: Run deterministic universal and BM-09 closure scenarios
         run: >-
           python -m pytest -q -o addopts=''

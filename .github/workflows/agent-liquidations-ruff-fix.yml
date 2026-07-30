@@ -1,0 +1,57 @@
+name: Agent Liquidations Ruff Fix
+
+"on":
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+
+permissions:
+  contents: write
+
+concurrency:
+  group: agent-liquidations-ruff-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.ref == 'fix/liquidations-live-telegram-monitoring-20260730'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out remediation branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/liquidations-live-telegram-monitoring-20260730
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.12"
+
+      - name: Apply repository Ruff rules
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.15.21
+          ruff check --fix --unsafe-fixes \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
+          ruff format \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
+          ruff check \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
+          python -m py_compile ai_platform/scripts/liquidation_alert_notifications.py
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
+          git diff --cached --quiet && exit 0
+          git commit -m "style(liquidations): satisfy repository Ruff rules"
+          git push origin HEAD:fix/liquidations-live-telegram-monitoring-20260730

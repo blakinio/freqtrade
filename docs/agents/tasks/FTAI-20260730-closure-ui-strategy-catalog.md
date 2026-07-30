@@ -6,6 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 819
+terminal_pr: 822
 dependencies:
   - FTAI-20260730-closure-contracts merged as 6e489f7e10199120424cbcd01b3e125711630243
 owned_paths:

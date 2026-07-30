@@ -200,7 +200,7 @@ jobs:
           set -euo pipefail
           python -m py_compile \
             deploy/synology/wickhunter-market-evidence/healthcheck.py \
-            deploy/synology/wickhunter-market-evidence-v2/healthcheck.py \
+            deploy/synology/wickhunter-market-evidence-v2/healthcheck_v2.py \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_daemon_v2.py
           bash -n deploy/synology/portal/deploy-market-evidence-preview.sh

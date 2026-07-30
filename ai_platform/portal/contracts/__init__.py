@@ -1,5 +1,4 @@
-from importlib import import_module
-from typing import Any
+import importlib
 
 from ai_platform.portal.contracts.audit import AuditAction, AuditEvent, AuditResult
 from ai_platform.portal.contracts.bots import (
@@ -100,10 +99,10 @@ _CLOSURE_EXPORTS = frozenset(
 )
 
 
-def __getattr__(name: str) -> Any:
+def __getattr__(name: str) -> object:
     if name not in _CLOSURE_EXPORTS:
         raise AttributeError(name)
-    module = import_module("ai_platform.portal.contracts.strategy_closure")
+    module = importlib.import_module("ai_platform.portal.contracts.strategy_closure")
     value = getattr(module, name)
     globals()[name] = value
     return value

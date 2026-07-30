@@ -57,7 +57,9 @@ class ScenarioManifest(ContractModel):
             if tick.pair != self.pair:
                 raise ValueError("all scenario market ticks must match the manifest pair")
             if tick.occurred_at in reserved_times:
-                raise ValueError("additional market ticks cannot duplicate entry or exit timestamps")
+                raise ValueError(
+                    "additional market ticks cannot duplicate entry or exit timestamps"
+                )
             if previous_tick_at is not None and tick.occurred_at <= previous_tick_at:
                 raise ValueError("additional market ticks must be strictly ordered")
             previous_tick_at = tick.occurred_at

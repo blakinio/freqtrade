@@ -286,12 +286,18 @@ def _health_word(value: object, healthy: str, unhealthy: str) -> str:
 
 
 def _components(report: dict[str, Any], codes: tuple[str, ...]) -> dict[str, str]:
-    checks = report.get("checks") if isinstance(report.get("checks"), dict) else {}
-    container = checks.get("container") if isinstance(checks.get("container"), dict) else {}
-    state = checks.get("state") if isinstance(checks.get("state"), dict) else {}
-    sources = checks.get("sources") if isinstance(checks.get("sources"), dict) else {}
-    disk = checks.get("disk") if isinstance(checks.get("disk"), dict) else {}
-    portal = checks.get("portal") if isinstance(checks.get("portal"), dict) else {}
+    raw_checks = report.get("checks")
+    checks = raw_checks if isinstance(raw_checks, dict) else {}
+    raw_container = checks.get("container")
+    raw_state = checks.get("state")
+    raw_sources = checks.get("sources")
+    raw_disk = checks.get("disk")
+    raw_portal = checks.get("portal")
+    container = raw_container if isinstance(raw_container, dict) else {}
+    state = raw_state if isinstance(raw_state, dict) else {}
+    sources = raw_sources if isinstance(raw_sources, dict) else {}
+    disk = raw_disk if isinstance(raw_disk, dict) else {}
+    portal = raw_portal if isinstance(raw_portal, dict) else {}
     runner_bad = any(
         code
         in {

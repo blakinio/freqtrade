@@ -37,7 +37,7 @@ Implement point-in-time OI and funding alignment plus clean-room market-structur
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-07-30T17:35:00+02:00
-head: 3e0fe8e9310584aae3cd59750cbe013f54aaf698
+head: acfd66f6fb6f8db03eb4425e8c1a5c8ae4e83ff0
 branch: agent/closure-research-data
 pr: null
 status: ready
@@ -56,7 +56,7 @@ owned_paths:
 proven:
   - PR 761 merged normally as 141e59a3c7da441432b3990a54903e5fcfc935c8.
   - The merged Liquid20 source contract preserves explicit exchange event, receive and heartbeat times plus source-separated identities.
-  - Open PRs 780, 762 and 758 do not touch any Research Data owned path.
+  - Open PRs 801, 780 and 758 do not touch any Research Data owned path.
 derived:
   - The terminal-source dependency is satisfied and no active duplicate or ownership conflict exists.
 unknown:
@@ -77,7 +77,7 @@ validation:
     evidence: PR 761 merged as 141e59a3c7da441432b3990a54903e5fcfc935c8.
   - command: Open PR changed-path comparison against Research Data ownership
     result: PASS
-    evidence: PR 780, PR 762 and PR 758 have no overlap with the six declared paths.
+    evidence: PR 801, PR 780 and PR 758 have no overlap with the six declared paths.
 blockers: []
 next_action: Start docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md in a new chat from current develop.
 ```

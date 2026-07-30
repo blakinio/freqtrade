@@ -3,7 +3,13 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Literal, Self
 
-from pydantic import Field, JsonValue, PositiveInt, field_validator, model_validator
+from pydantic import (
+    Field,
+    JsonValue,
+    PositiveInt,
+    field_validator,
+    model_validator,
+)
 
 from ai_platform.portal.contracts.common import (
     ContractModel,
@@ -14,7 +20,10 @@ from ai_platform.portal.contracts.common import (
 )
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
 from ai_platform.portal.contracts.identity import ActorType
-from ai_platform.portal.product.schema import StrategyCatalogEntry, StrategyLifecycleState
+from ai_platform.portal.product.schema import (
+    StrategyCatalogEntry,
+    StrategyLifecycleState,
+)
 
 _SENSITIVE_KEY_PARTS = (
     "secret",

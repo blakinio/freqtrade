@@ -120,6 +120,8 @@ W macierzy dodaj tabelę zawierającą:
 
 Tabela musi pozwolić właścicielowi otworzyć wiele czatów bez dodatkowego wyjaśniania kontekstu.
 
+W końcowej odpowiedzi po Gate 0 pokaż właścicielowi krótką listę dokładnie tych promptów, które może teraz wkleić do nowych czatów, oraz tych, które muszą czekać. Nie twierdź, że sam uruchomiłeś inne czaty.
+
 ### 5. Walidacja Gate 0
 
 Gate 0 przechodzi tylko wtedy, gdy:

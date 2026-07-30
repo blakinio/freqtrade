@@ -1,0 +1,63 @@
+name: WickHunter post-merge Ruff format repair
+
+on:
+  push:
+    branches:
+      - agent/wickhunter-postmerge-ruff-repair
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-postmerge-ruff-format-repair
+  cancel-in-progress: false
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+
+      - name: Install exact Ruff version
+        run: python -m pip install ruff==0.15.21
+
+      - name: Apply and verify exact formatting
+        shell: bash
+        run: |
+          ruff format \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_service.py \
+            ai_platform/wickhunter/production_market_evidence_wh01.py
+          ruff check \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_service.py \
+            ai_platform/wickhunter/production_market_evidence_wh01.py
+          ruff format --check \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_service.py \
+            ai_platform/wickhunter/production_market_evidence_wh01.py
+
+      - name: Commit formatting and remove helper workflow
+        shell: bash
+        run: |
+          rm .github/workflows/wickhunter-postmerge-ruff-format-repair.yml
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add \
+            .github/workflows/wickhunter-postmerge-ruff-format-repair.yml \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_service.py \
+            ai_platform/wickhunter/production_market_evidence_wh01.py
+          git diff --cached --check
+          git commit -m "style(wickhunter): apply exact Ruff formatting"
+          git push origin HEAD:agent/wickhunter-postmerge-ruff-repair

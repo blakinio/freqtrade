@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, cast
 
 from pydantic import (
     BaseModel,
@@ -48,7 +49,7 @@ class ConditionOperator(StrEnum):
     BARS_SINCE_LTE = "bars_since_lte"
 
 
-class DslAstModel(BaseModel):
+class DslAstModel(BaseModel, Mapping[str, JsonValue]):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     @model_serializer(mode="wrap")
@@ -61,6 +62,18 @@ class DslAstModel(BaseModel):
             for key, value in payload.items()
             if value is not None or key in self.model_fields_set
         }
+
+    def _as_mapping(self) -> dict[str, JsonValue]:
+        return cast(dict[str, JsonValue], self.model_dump(mode="json"))
+
+    def __getitem__(self, key: str) -> JsonValue:
+        return self._as_mapping()[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._as_mapping())
+
+    def __len__(self) -> int:
+        return len(self._as_mapping())
 
 
 class Condition(DslAstModel):

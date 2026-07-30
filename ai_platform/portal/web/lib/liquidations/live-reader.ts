@@ -453,9 +453,12 @@ export class LiquidationLiveReadModel {
       const heartbeatFresh =
         item.last_heartbeat_at_ms !== null &&
         checkedAtMs - item.last_heartbeat_at_ms <= this.sourceStaleAfterMs;
+      const eventReference = item.last_event_received_at_ms ?? state.collector_started_at_ms;
+      const eventFresh = checkedAtMs - eventReference <= this.eventStaleAfterMs;
       result[source] = {
         configured: item.configured,
         connected: item.configured && item.connected && heartbeatFresh,
+        healthy: item.configured && item.connected && heartbeatFresh && eventFresh,
         events: item.events_written,
         observed_symbols: item.observed_symbol_count,
         subscription_symbol_count: item.subscription_symbol_count,
@@ -482,6 +485,7 @@ export class LiquidationLiveReadModel {
       ...historical.sources[source],
       configured: true,
       connected: false,
+      healthy: false,
       subscription_symbol_count: 0,
       last_event_received_at_ms: null,
       last_heartbeat_at_ms: null,
@@ -505,6 +509,7 @@ export class LiquidationLiveReadModel {
           ...historical.sources["okx-swap"],
           configured: false,
           connected: false,
+          healthy: false,
           events: historical.sources["okx-swap"].events,
           observed_symbols: historical.sources["okx-swap"].observed_symbols,
           subscription_symbol_count: 0,

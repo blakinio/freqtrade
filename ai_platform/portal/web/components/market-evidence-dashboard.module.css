@@ -1,0 +1,324 @@
+.dashboard {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.hero,
+.panel,
+.sourceCard,
+.metric,
+.state {
+  border: 1px solid color-mix(in srgb, currentColor 16%, transparent);
+  background: color-mix(in srgb, Canvas 94%, transparent);
+  border-radius: 1rem;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.4rem;
+  align-items: flex-start;
+}
+
+.hero h1,
+.panel h2,
+.sourceCard h3 {
+  margin: 0;
+}
+
+.hero p {
+  margin: 0.55rem 0 0;
+  max-width: 58rem;
+  color: color-mix(in srgb, currentColor 72%, transparent);
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  opacity: 0.68;
+}
+
+.statusCluster {
+  display: grid;
+  justify-items: end;
+  gap: 0.45rem;
+  text-align: right;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.live,
+.healthy,
+.available,
+.eligible {
+  color: #35a86b;
+  background: color-mix(in srgb, #35a86b 14%, transparent);
+}
+
+.blocked,
+.degraded,
+.stale,
+.unavailable,
+.error {
+  color: #d66a56;
+  background: color-mix(in srgb, #d66a56 14%, transparent);
+}
+
+.warning {
+  padding: 1rem 1.1rem;
+  border-left: 4px solid #d6a756;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, #d6a756 12%, transparent);
+}
+
+.warning strong,
+.warning span {
+  display: block;
+}
+
+.warning span {
+  margin-top: 0.3rem;
+  opacity: 0.78;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.metric {
+  padding: 1rem;
+  min-width: 0;
+}
+
+.metric span,
+.metric small {
+  display: block;
+  opacity: 0.68;
+}
+
+.metric strong {
+  display: block;
+  margin: 0.35rem 0;
+  font-size: 1.2rem;
+  overflow-wrap: anywhere;
+}
+
+.sources {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.sourceCard {
+  padding: 1rem;
+  min-width: 0;
+}
+
+.sourceHeader,
+.panelHeader,
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.capabilities {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.9rem 0 0;
+}
+
+.capability {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.sourceMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+  font-size: 0.78rem;
+}
+
+.sourceMeta span {
+  display: block;
+  opacity: 0.66;
+}
+
+.sourceMeta strong {
+  display: block;
+  margin-top: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.panel {
+  padding: 1rem;
+  min-width: 0;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(4, minmax(8rem, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.filters label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.filters input,
+.filters select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.55rem;
+  color: inherit;
+  background: Canvas;
+}
+
+.tableWrap {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 0.75rem;
+}
+
+.tableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 64rem;
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: 0.7rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+  vertical-align: top;
+}
+
+.tableWrap th {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.65;
+}
+
+.tableWrap td {
+  font-size: 0.82rem;
+}
+
+.tableWrap tr:last-child td {
+  border-bottom: 0;
+}
+
+.reasonCodes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.reasonCode {
+  padding: 0.18rem 0.42rem;
+  border-radius: 0.35rem;
+  font-size: 0.68rem;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+}
+
+.hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.74rem;
+}
+
+.state,
+.empty {
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.state strong,
+.state span {
+  display: block;
+}
+
+.state span {
+  margin-top: 0.35rem;
+  opacity: 0.72;
+}
+
+.pagination {
+  margin-top: 0.85rem;
+}
+
+.pagination button {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.5rem;
+  color: inherit;
+  background: transparent;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+}
+
+@media (max-width: 1100px) {
+  .metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .sources {
+    grid-template-columns: 1fr;
+  }
+
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .hero {
+    display: grid;
+  }
+
+  .statusCluster {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .metrics,
+  .filters {
+    grid-template-columns: 1fr;
+  }
+
+  .sourceMeta {
+    grid-template-columns: 1fr;
+  }
+}

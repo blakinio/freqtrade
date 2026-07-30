@@ -86,9 +86,7 @@ def test_latency_uses_first_tick_at_or_after_scenario_ready_time() -> None:
 
     assert outcome.opened_at == _time(0, 1)
     assert outcome.closed_at == _time(5, 1)
-    assert evidence.entry_latency.ready_at == datetime(
-        2026, 7, 30, 10, 0, 0, 500_000, tzinfo=UTC
-    )
+    assert evidence.entry_latency.ready_at == datetime(2026, 7, 30, 10, 0, 0, 500_000, tzinfo=UTC)
     assert evidence.entry_latency.delay_ms == 500
     assert evidence.costs.entry_market_price == Decimal("101")
     assert evidence.costs.exit_market_price == Decimal("109")

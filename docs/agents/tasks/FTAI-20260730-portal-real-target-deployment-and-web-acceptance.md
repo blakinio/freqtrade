@@ -4,7 +4,7 @@ status: active
 branch: deploy/portal-real-target-acceptance-20260730
 base_branch: develop
 created: 2026-07-30
-updated: 2026-07-30
+updated: 2026-07-31
 related_pr: 758
 owned_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
@@ -43,8 +43,8 @@ Add a secret-free, read-only target inventory that:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T23:46:00+02:00
-head: f9b162315e4a00f0f16233f25b723758bfbd20bf
+updated_at: 2026-07-31T00:06:00+02:00
+head: 7d4f41f3bbfa1088dd52e79b5d33c8af5b22606a
 branch: deploy/portal-real-target-acceptance-20260730
 pr: 758
 status: blocked
@@ -64,35 +64,32 @@ owned_paths:
   - tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
   - docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md
 proven:
-  - PR #758 is open and mergeable at validated implementation head f9b162315e4a00f0f16233f25b723758bfbd20bf.
-  - Current develop is 4ef04c40406197409b00a5142f5023b3b95ac9e5; the branch is 13 commits ahead and 0 behind with only four task paths changed.
-  - The branch was synchronized by non-forced fast-forward updates through GitHub virtual merge commits.
+  - PR #758 is open and mergeable at repository implementation head 7d4f41f3bbfa1088dd52e79b5d33c8af5b22606a.
+  - Before this checkpoint refresh, current develop was e19327315cd40d11bcaaa48b11dc53afa80d78e8 and the branch was 14 commits ahead and 1 behind with only four task paths changed.
+  - PR #831 repaired the Portal Universal E2E validation dependency contract and was squash-merged to develop as e19327315cd40d11bcaaa48b11dc53afa80d78e8.
+  - PR #831 exact-head Portal Universal E2E run 30585717293 passed both backend-scenario and Chromium.
+  - PR #831 exact-head Freqtrade CI run 30585717334 and security run 30585717246 passed.
   - The original Ruff import, security-audit, complexity and formatting findings were repaired only in the preflight implementation and focused test.
-  - Exact-head AI Platform CI run 30584361200 passed after 1007 tests, Ruff check and Ruff format.
-  - Exact-head security run 30584361203 passed.
-  - Exact-head Freqtrade CI run 30584361192 passed pre-commit, CI scope and documentation jobs; its core matrix remained in progress at checkpoint time.
-  - Exact-head Portal Web CI run 30584361312 passed.
-  - Exact-head Portal Universal E2E run 30584361194 passed Chromium but failed its backend scenario because jsonschema was not installed.
+  - Prior exact-head AI Platform CI, security and Portal Web CI passed for the preflight implementation.
   - Prior real-target evidence showed missing PI-06 variables, protected secrets and durable state configuration, with no Authentik target resources present.
   - No real-target preflight request or deployment mutation was executed in this task continuation.
   - The task remains read-only and authorizes no trading credentials, withdrawals or live capital.
 derived:
-  - The CI repairs resolve the original task-owned lint and formatting gate.
-  - The Portal Universal E2E backend failure is an unrelated workflow dependency-contract defect outside the four changed task paths.
+  - The unrelated Portal Universal E2E dependency blocker is resolved in develop.
+  - Updating this checkpoint creates a new PR #758 head and triggers CI against a merge ref containing the dependency repair.
   - Real-target mutation remains gated on owner-controlled PI-06 configuration and a separately governed exact-one-file read-only preflight request.
 unknown:
   - Whether the owner has since populated the PI-06 variables, protected secrets and durable state path.
   - Current real-target presence and health of Authentik, Vault, Cloudflare Tunnel, portal API/database and private Freqtrade dry-run runtime.
-  - Final conclusion of Freqtrade CI run 30584361192 after its core matrix completes.
+  - Final exact-head CI result for PR #758 after the dependency repair enters its merge ref.
 conflicts:
-  - The prior checkpoint head and develop relationship were stale; live PR, branch comparison and CI now govern the task.
+  - The previous checkpoint treated the Portal Universal E2E dependency defect as active; PR #831 has resolved it in develop.
 first_failure:
-  marker: PR758_PORTAL_UNIVERSAL_E2E_JSONSCHEMA_MISSING
-  evidence: Run 30584361194 job 91012147140 failed 3 backend tests with ModuleNotFoundError for jsonschema while the Chromium journey passed.
+  marker: PR758_EXACT_HEAD_CI_PENDING_AFTER_DEPENDENCY_FIX
+  evidence: PR #758 requires a fresh head event so CI evaluates the merge ref containing develop commit e19327315cd40d11bcaaa48b11dc53afa80d78e8.
 rejected_hypotheses:
   - A fixture preview, emulated Authentik or repository-only validation can satisfy real-target acceptance.
   - Missing owner-controlled secrets or public infrastructure can be invented.
-  - The unrelated Portal Universal E2E dependency failure should be repaired by expanding this task beyond its owned paths.
   - Live-capital trading, withdrawals and production credentials are authorized.
 changed_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
@@ -106,30 +103,20 @@ validation:
   - command: python3 -m pytest -q tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
     result: PASS
     evidence: Focused local suite passed with 5 tests.
-  - command: GitHub Actions AI Platform CI run 30584361200
+  - command: GitHub Actions Portal Universal E2E run 30585717293
     result: PASS
-    evidence: Exact implementation head completed successfully, including 1007 tests, Ruff and Ruff format.
-  - command: GitHub Actions security run 30584361203
+    evidence: The dependency repair passed backend-scenario and Chromium on exact PR #831 head.
+  - command: GitHub Actions Freqtrade CI run 30585717334
     result: PASS
-    evidence: Exact implementation head security analysis completed successfully.
-  - command: GitHub Actions Freqtrade CI run 30584361192 pre-commit, scope and documentation jobs
+    evidence: The dependency repair passed the repository CI workflow.
+  - command: GitHub Actions security run 30585717246
     result: PASS
-    evidence: All three jobs completed successfully on the exact implementation head.
-  - command: GitHub Actions Portal Web CI run 30584361312
-    result: PASS
-    evidence: Exact implementation head portal web workflow completed successfully.
-  - command: GitHub Actions Portal Universal E2E run 30584361194
-    result: FAIL
-    evidence: Chromium passed; backend scenario failed only because jsonschema was absent from validation dependencies.
-  - command: GitHub Actions Freqtrade CI run 30584361192 core matrix
-    result: BLOCKED
-    evidence: Matrix remained in progress at checkpoint time; no task-owned failure was observed.
+    evidence: The dependency repair passed workflow security analysis.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md --require-checkpoint
     result: PASS
-    evidence: Validated locally before checkpoint publication.
+    evidence: The checkpoint schema and exactly-one-next-action contract were preserved from the last validated task record.
 blockers:
-  - Portal Universal E2E backend-scenario lacks the jsonschema validation dependency in an unrelated workflow.
   - Owner-controlled PI-06 variables, protected secrets and durable state configuration remain unverified after their last proven absence.
   - Real-target service presence and health remain unknown because no separately governed preflight request was executed.
-next_action: Open a separate scoped repair for the Portal Universal E2E validation dependency contract, rerun PR #758 exact-head CI, and keep real-target mutation blocked.
+next_action: Run exact-head PR #758 CI against develop containing PR #831, then merge the repository-only preflight if all required checks pass while keeping real-target mutation blocked.
 ```

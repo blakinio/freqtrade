@@ -213,11 +213,7 @@ def align_liquidation_context(
                     ),
                 )
                 age_ms = liquidation.occurred_at_ms - selected.event_time_ms
-                status = (
-                    AlignmentStatus.ALIGNED
-                    if age_ms <= max_age_ms
-                    else AlignmentStatus.STALE
-                )
+                status = AlignmentStatus.ALIGNED if age_ms <= max_age_ms else AlignmentStatus.STALE
                 aligned.append(
                     AlignedObservation(
                         source=source,

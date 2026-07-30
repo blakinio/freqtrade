@@ -6,7 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 821
-terminal_pr: pending
+terminal_pr: 823
 dependencies:
   - Gate 0 merged
   - PR #761 merged as 141e59a3c7da441432b3990a54903e5fcfc935c8

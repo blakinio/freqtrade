@@ -257,6 +257,8 @@ def test_openapi_surface_contains_only_control_plane_business_routes(
         "/v1/feature-registry/features/{feature_id}",
         "/v1/feature-registry/resolve",
         "/v1/feature-registry/replay",
+        "/v1/signal-wizard/preview",
+        "/v1/signal-wizard/submit",
         "/v1/strategy-lab/strategies",
         "/v1/strategy-lab/experiments",
         "/v1/strategy-lab/experiments/compare",

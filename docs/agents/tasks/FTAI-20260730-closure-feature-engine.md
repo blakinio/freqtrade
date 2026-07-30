@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-feature-engine
-status: in_progress
+status: ready
 branch: agent/closure-feature-engine
 base_branch: develop
 created: 2026-07-30
@@ -67,11 +67,11 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T16:52:00+02:00
-head: 2c729d5309357a88726e0cc676568e440bbd6737
+updated_at: 2026-07-30T17:20:00+02:00
+head: de2c2481840284b81b48b4c4d217d91336aadd26
 branch: agent/closure-feature-engine
 pr: 780
-status: in_progress
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -86,23 +86,21 @@ owned_paths:
   - tests/ai_platform/portal/feature_registry/test_feature_registry.py
   - tests/ai_platform_integration/test_ase_fr_01_feature_registry_e2e.py
 proven:
-  - Gate 0 is merged and the workstream is READY with no implementation dependency or original owned-path overlap.
-  - The implementation consumes only confirmed PivotEvent inputs and emits one append-only support or resistance confirmation after the configured source pivots become available.
+  - The implementation consumes only confirmed PivotEvent inputs and emits append-only support or resistance confirmations with explicit timing.
   - Registry entry support_resistance.v1 is experimental, research-only and explicitly not approved for AI.
-  - The prior exact-head failures were limited to three stale assertions that hardcoded the registry size as 21.
-  - The bounded repair now derives counts from returned feature collections and explicitly verifies support_resistance.v1 is present.
+  - Numerical, timing, repaint-negative, future-pivot and registry tests pass.
+  - Portal and integration tests derive registry counts dynamically and explicitly verify support_resistance.v1.
+  - Exact implementation head de2c2481840284b81b48b4c4d217d91336aadd26 passed all required CI.
+  - PR #780 has zero unresolved review threads.
 derived:
   - Immutable anchor matching and one-time emission prevent later pivots from repainting an emitted level.
-  - Dynamic count assertions preserve deterministic replay checks without coupling Portal tests to every append-only registry addition.
-unknown:
-  - Exact-head AI Strategy Engine and Freqtrade CI conclusions after the bounded repair.
-  - Unresolved review-thread count after implementation review.
+  - Dynamic count assertions preserve deterministic replay validation without coupling tests to each append-only registry addition.
+unknown: []
 conflicts: []
 first_failure:
   marker: PORTAL_FEATURE_COUNT_ASSERTION_OUTSIDE_ORIGINAL_OWNERSHIP
-  evidence: Runs 30535356595 and 30535547703 exposed stale count assertions; the owner directed completion of this task and the bounded repair is now included.
+  evidence: Earlier runs exposed three stale assertions fixed by the bounded owner-directed repair.
 rejected_hypotheses:
-  - An unchecked backlog box alone proves missing implementation.
   - Support or resistance may use an unconfirmed future pivot.
   - An experimental feature is automatically approved for AI.
   - An existing registered feature may be removed to preserve a stale count.
@@ -118,19 +116,25 @@ changed_paths:
 validation:
   - command: python -m compileall -q ai_strategy_engine/src/strategy_engine/features/support_resistance.py
     result: PASS
-    evidence: The new module compiles in the isolated Python validation workspace.
+    evidence: The new module compiles in the isolated validation workspace.
   - command: pytest -q ai_strategy_engine/tests/unit/test_support_resistance.py ai_strategy_engine/tests/integration/test_registry_support_resistance.py
     result: PASS
-    evidence: 8 deterministic tests passed in the isolated validation workspace.
-  - command: GitHub AI Strategy Engine run 30535547703 on 886722a7b65f49ce75d1e905baa1d5ad3f2c800f
-    result: FAIL
-    evidence: Package tests passed; Portal research tests failed only at stale feature-count assertions expecting 21 instead of 22.
-  - command: GitHub Freqtrade CI run 30535547695 on 886722a7b65f49ce75d1e905baa1d5ad3f2c800f
-    result: FAIL
-    evidence: 5817 tests passed and only three stale feature-count assertions failed across Portal and integration layers.
+    evidence: 8 deterministic targeted tests passed.
+  - command: GitHub AI Platform CI run 30554634298
+    result: PASS
+    evidence: Tests, Ruff, Ruff format and repository validations passed.
+  - command: GitHub AI Strategy Engine run 30554634244
+    result: PASS
+    evidence: Package, Portal research, Ruff, mypy, compile, deterministic E2E and safety validations passed.
+  - command: GitHub Freqtrade CI run 30554634234
+    result: PASS
+    evidence: Pre-commit, documentation, Python 3.11-3.14 core tests, coverage, distributions and CI Gate passed.
+  - command: GitHub security run 30554634227
+    result: PASS
+    evidence: Workflow security analysis passed.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-closure-feature-engine.md --require-checkpoint
-    result: PENDING
-    evidence: Must be rerun on the repaired exact head.
+    result: PASS
+    evidence: The terminal checkpoint satisfies the shared governance contract and compactness limits.
 blockers: []
-next_action: Run required exact-head CI, resolve any evidenced review or validation failure, then mark PR ready and merge normally.
+next_action: Mark PR #780 ready and merge normally with the expected final head after the task-only exact-head checks pass.
 ```

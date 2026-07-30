@@ -293,7 +293,7 @@ def structure_zones(
     for event in sorted(events, key=lambda item: (item.available_at, item.break_index)):
         _validate_structure_event(event, len(frame))
         start = max(0, event.break_index - lookback_bars)
-        window = frame.iloc[start:event.break_index]
+        window = frame.iloc[start : event.break_index]
         if window.empty:
             continue
         bullish = event.event_type in {

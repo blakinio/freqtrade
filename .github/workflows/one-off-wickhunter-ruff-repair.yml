@@ -1,4 +1,4 @@
-name: One-off WickHunter Ruff repair
+name: One-off WickHunter gate repair
 
 "on":
   pull_request:
@@ -9,6 +9,9 @@ name: One-off WickHunter Ruff repair
       - "ai_platform/wickhunter/production_market_evidence_daemon.py"
       - "ai_platform/wickhunter/production_market_evidence_service.py"
       - "ai_platform/wickhunter/production_market_evidence_wh01.py"
+      - "tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py"
+      - "tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py"
+      - "ai_platform/portal/web/components/market-evidence-dashboard.tsx"
 
 permissions:
   contents: write
@@ -30,7 +33,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Apply exact Ruff repair
+      - name: Apply exact proven repairs
         shell: bash
         run: |
           set -euo pipefail
@@ -38,65 +41,52 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_exact(path: str, old: str, new: str) -> None:
-              target = Path(path)
-              text = target.read_text(encoding="utf-8")
-              if text.count(old) != 1:
-                  raise SystemExit(f"expected one exact match in {path}: {old!r}")
-              target.write_text(text.replace(old, new), encoding="utf-8")
+          service_path = Path("ai_platform/wickhunter/production_market_evidence_service.py")
+          service = service_path.read_text(encoding="utf-8")
+          if "from typing import Any\n" not in service:
+              raise SystemExit("service typing import did not match expected repair state")
+          service = service.replace("from typing import Any\n", "from typing import Any, cast\n", 1)
+          keys = (
+              "decision_start_ms",
+              "pre_roll_start_ms",
+              "sample_interval_seconds",
+              "max_sample_lateness_seconds",
+          )
+          replacement_count = 0
+          for key in keys:
+              old = f'int(request["{key}"])'
+              count = service.count(old)
+              replacement_count += count
+              service = service.replace(old, f'int(cast(Any, request["{key}"]))')
+          if replacement_count != 7:
+              raise SystemExit(f"expected 7 request integer conversions, found {replacement_count}")
+          service_path.write_text(service, encoding="utf-8")
 
-          replace_exact(
-              "ai_platform/wickhunter/production_market_evidence_daemon.py",
-              "            except (core.ProductionMarketEvidenceError, MarketEvidencePublicationError, OSError) as exc:\n",
-              "            except (\n"
-              "                core.ProductionMarketEvidenceError,\n"
-              "                MarketEvidencePublicationError,\n"
-              "                OSError,\n"
-              "            ) as exc:\n",
+          dashboard_path = Path(
+              "ai_platform/portal/web/components/market-evidence-dashboard.tsx"
           )
-          replace_exact(
-              "ai_platform/wickhunter/production_market_evidence_service.py",
-              "def verify_immutable_package(package_root: Path) -> dict[str, object]:\n",
-              "def verify_immutable_package(package_root: Path) -> dict[str, object]:  # noqa: C901\n",
-          )
-          replace_exact(
-              "ai_platform/wickhunter/production_market_evidence_wh01.py",
-              "from decimal import Decimal, InvalidOperation, localcontext\n",
-              "from decimal import Decimal, InvalidOperation, localcontext\nfrom itertools import pairwise\n",
-          )
-          replace_exact(
-              "ai_platform/wickhunter/production_market_evidence_wh01.py",
-              "    def __post_init__(self) -> None:\n",
-              "    def __post_init__(self) -> None:  # noqa: C901\n",
-          )
-          replace_exact(
-              "ai_platform/wickhunter/production_market_evidence_wh01.py",
-              "    for previous, current in zip(atr_rows, atr_rows[1:]):\n",
-              "    for previous, current in pairwise(atr_rows):\n",
-          )
-          replace_exact(
-              "ai_platform/wickhunter/production_market_evidence_wh01.py",
-              "    for previous, current in zip(volatility_rows, volatility_rows[1:]):\n",
-              "    for previous, current in pairwise(volatility_rows):\n",
-          )
-          replace_exact(
-              "ai_platform/wickhunter/production_market_evidence_wh01.py",
-              "def build_wh01_input_package(  # noqa: C901, PLR0915\n",
-              "def build_wh01_input_package(  # noqa: C901\n",
+          dashboard = dashboard_path.read_text(encoding="utf-8")
+          old_label = "<span>Symbole</span>"
+          if dashboard.count(old_label) != 1:
+              raise SystemExit("dashboard label did not match expected repair state")
+          dashboard_path.write_text(
+              dashboard.replace(old_label, "<span>Symbol</span>"),
+              encoding="utf-8",
           )
           PY
-          ruff check --fix \
-            ai_platform/wickhunter/production_market_evidence_daemon.py \
-            ai_platform/wickhunter/production_market_evidence_service.py \
-            ai_platform/wickhunter/production_market_evidence_wh01.py
           ruff format \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_service.py \
-            ai_platform/wickhunter/production_market_evidence_wh01.py
-          ruff check \
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+          ruff check --fix \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_service.py \
-            ai_platform/wickhunter/production_market_evidence_wh01.py
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+          ruff check ai_platform tests/ai_platform tests/ai_platform_integration
           git diff --check
 
       - name: Commit repair to branch
@@ -105,18 +95,18 @@ jobs:
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- \
-            ai_platform/wickhunter/production_market_evidence_daemon.py \
-            ai_platform/wickhunter/production_market_evidence_service.py \
-            ai_platform/wickhunter/production_market_evidence_wh01.py; then
-            echo "No repair changes produced" >&2
-            exit 1
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_service.py \
-            ai_platform/wickhunter/production_market_evidence_wh01.py
-          git commit -m "fix(wickhunter): satisfy repository Ruff gate"
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py \
+            ai_platform/portal/web/components/market-evidence-dashboard.tsx
+          if git diff --cached --quiet; then
+            echo "No repair changes produced" >&2
+            exit 1
+          fi
+          git commit -m "fix(wickhunter): satisfy repository quality gates"
           git push origin "HEAD:${HEAD_BRANCH}"

@@ -7,7 +7,7 @@ created: 2026-07-30
 updated: 2026-07-30
 related_pr: null
 dependencies:
-  - PR #753 merged or closed with a durable replacement
+  - PR #753 merged as 0208666d98849386e2f2d9acf534b13891e4afa2
   - PR #761 merged or closed
   - current Liquid20 and WickHunter source contracts frozen
 owned_paths:
@@ -94,7 +94,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: ACTIVE_SOURCE_OWNERSHIP
-  evidence: Active PRs #753 and #761 can still change canonical source identities and time metadata; downstream alignment must not start against unstable inputs.
+  evidence: PR #753 is merged and frozen; active PR #761 can still change canonical Liquid20 source identities and time metadata, so downstream alignment must not start against the remaining unstable input.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
   - A downstream worker may redefine shared contracts.
@@ -105,7 +105,6 @@ validation:
     result: PASS
     evidence: Gate 0 validates this compact checkpoint before dispatch.
 blockers:
-  - PR #753 owns WickHunter market-evidence source and Portal paths.
   - PR #761 owns active Liquid20 source catalog, runtime and Portal read-model paths.
-next_action: After PR #753 and PR #761 reach terminal state, verify their frozen source contracts and then create the declared branch from the new develop.
+next_action: After PR #761 reaches terminal state, verify its source contract together with merged PR #753 and then create the declared branch from current develop.
 ```

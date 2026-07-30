@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-ui-signal-wizard
-status: ready
+status: blocked
 branch: agent/closure-ui-signal-wizard
 base_branch: develop
 created: 2026-07-30
@@ -35,11 +35,11 @@ Build the complete research-only Signal Wizard against the frozen typed DSL and 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T17:35:00+02:00
-head: 09bc139a766034840ac01898f8b68cd5c76fb7a2
+updated_at: 2026-07-30T21:43:51+02:00
+head: 9bb8edad795e122a2e513b354cd4aafa16d5917b
 branch: agent/closure-ui-signal-wizard
 pr: null
-status: ready
+status: blocked
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -55,30 +55,40 @@ owned_paths:
   - ai_platform/portal/web/lib/signal-wizard-contracts.ts
   - ai_platform/portal/web/e2e/signal-wizard-closure.spec.ts
 proven:
-  - Shared contracts PR 781 merged as 6e489f7e10199120424cbcd01b3e125711630243.
-  - Contract freeze commit 549ba3afddba39ce455fce5eebbd4d67bea813a6 provides the canonical typed AST and versioned Signal Wizard preview and submit contracts.
-  - Open PRs 801 and 758 do not touch any Signal Wizard owned path.
+  - The worker branch was created from current develop at 9bb8edad795e122a2e513b354cd4aafa16d5917b.
+  - Shared contracts PR 781 merged as 6e489f7e10199120424cbcd01b3e125711630243 and defines typed Signal Wizard preview and submit commands/results.
+  - The canonical control-plane app registers Feature Registry and Strategy Lab routers but no Signal Wizard preview or submit router/service.
+  - Strategy Lab accepts only catalog identities loaded from tv_supertrend_v1 and tv_squeeze_momentum_v1.
+  - Those catalog strategies depend on supertrend_direction.v1 and squeeze_ratio.v1, which are approved_for_ai false in the current Feature Registry.
+  - Open PRs 816 and 758 do not touch any Signal Wizard owned path.
 derived:
-  - The contract dependency is satisfied and no active duplicate or ownership conflict exists.
+  - A production Signal Wizard cannot persist a preview-derived experiment or candidate through the existing Strategy Lab API without discarding the selected approved features or falsely claiming compatibility.
+  - A route-local synthetic candidate identifier would not provide durable canonical experiment storage and cannot be merged as production convergence.
 unknown:
-  - Exact implementation head, PR number and CI run IDs until the worker starts.
-conflicts: []
+  - The coordinator-assigned owner and exact paths for the missing canonical Signal Wizard application service and control-plane endpoints.
+conflicts:
+  - Complete preview and submit require a canonical backend capability outside this child task's owned paths.
 first_failure:
-  marker: NONE
-  evidence: The prior shared-contract blocker is resolved and live ownership is disjoint.
+  marker: MISSING_CANONICAL_SIGNAL_WIZARD_SERVICE
+  evidence: The frozen SignalWizardPreviewCommand and SignalWizardSubmitCommand contracts have no registered control-plane endpoint or service, while the only existing experiment create endpoint accepts two fixed catalog strategies that are not approved_for_ai.
 rejected_hypotheses:
-  - Redefine the frozen contracts in browser code.
-  - Add a direct browser path to Freqtrade, exchange or Vault.
-  - Grant execution or promotion authority to submitted research work.
+  - Generate a transient experiment or candidate ID inside the BFF and describe it as a persisted submission.
+  - Map approved feature selections onto either fixed Strategy Lab strategy while ignoring incompatible feature identity.
+  - Add a new backend router, service or shared API implementation outside the eight assigned paths.
+  - Redefine the frozen contracts in browser code or add a direct browser path to Freqtrade, exchange or Vault.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md
 validation:
   - command: Open PR changed-path comparison against Signal Wizard ownership
     result: PASS
-    evidence: PR 801 and PR 758 have no overlap with the eight declared paths.
-  - command: Contract dependency verification
-    result: PASS
-    evidence: PR 781 and terminal checkpoint PR 790 are merged on develop.
-blockers: []
-next_action: Start docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md in a new chat from current develop.
+    evidence: PR 816 changes one WickHunter run request and PR 758 changes external preflight paths; neither overlaps the eight declared paths.
+  - command: Canonical Signal Wizard endpoint and service inventory
+    result: BLOCKED
+    evidence: Repository and PR search found the frozen contract definitions only; create_app registers Feature Registry and Strategy Lab but no /v1/signal-wizard preview or submit endpoint.
+  - command: Existing Strategy Lab compatibility review
+    result: BLOCKED
+    evidence: The catalog loads only tv_supertrend_v1 and tv_squeeze_momentum_v1, whose registry features are not approved_for_ai and cannot represent arbitrary approved wizard selections.
+blockers:
+  - A coordinator-owned backend/API slice must implement durable canonical Signal Wizard preview and submit semantics, or transfer exact backend ownership to this task.
+next_action: Agent 0 must assign and merge one bounded canonical Signal Wizard preview/submit backend task, then mark this UI child READY.
 ```

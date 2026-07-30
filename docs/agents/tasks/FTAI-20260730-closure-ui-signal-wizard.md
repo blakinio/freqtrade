@@ -57,10 +57,10 @@ Build the complete research-only Signal Wizard against the frozen typed DSL and 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T22:41:00+02:00
-head: 087456dc23c9c198744b8cae7822c88a97d5abff
+updated_at: 2026-07-30T22:43:00+02:00
+head: 3146c334c6d96b48e3f134b30816322b75d73745
 branch: agent/program-closure-signal-wizard-backend-dispatch-v2
-pr: null
+pr: 827
 status: blocked
 context_routes:
   - AGENTS.md

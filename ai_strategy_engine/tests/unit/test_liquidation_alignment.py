@@ -62,11 +62,7 @@ def by(
     source: str,
     kind: ObservationKind,
 ) -> AlignedObservation:
-    return next(
-        item
-        for item in result.observations
-        if item.source == source and item.kind is kind
-    )
+    return next(item for item in result.observations if item.source == source and item.kind is kind)
 
 
 def test_alignment_uses_latest_visible_observation_without_lookahead() -> None:

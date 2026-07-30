@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-liquid20-okx-live-source-v1
-status: awaiting_ci
+status: awaiting_final_ci
 branch: feat/liquid20-okx-live-source-20260730
 base_branch: develop
 created: 2026-07-30
@@ -8,24 +8,29 @@ updated: 2026-07-30
 related_pr: 761
 owned_paths:
   - .github/workflows/liquidations-live-synology.yml
+  - ai_platform/research/liquidations/source-catalog-v1.json
   - ai_platform/scripts/liquidation_live_stream_okx.py
   - ai_platform/scripts/liquidation_operational_health.py
-  - ai_platform/research/liquidations/source-catalog-v1.json
-  - ai_platform/portal/web/lib/liquidations/okx-live-reader.ts
-  - ai_platform/portal/web/lib/liquidations/index.ts
-  - ai_platform/portal/web/app/api/market/liquidations/_shared.ts
+  - ai_platform/portal/web/lib/liquidations/contracts.ts
+  - ai_platform/portal/web/lib/liquidations/reader.ts
+  - ai_platform/portal/web/lib/liquidations/live-reader.ts
   - ai_platform/portal/web/components/liquidations-live-dashboard.tsx
+  - ai_platform/portal/web/e2e/liquidation-live-read-model.spec.ts
   - ai_platform/portal/web/e2e/liquidation-okx-live-read-model.spec.ts
+  - ai_platform/portal/web/e2e/specs/market/liquidations.spec.ts
+  - deploy/synology/liquid20/LIVE_STREAM.md
+  - deploy/synology/liquid20/OKX_LIVE_SOURCE.md
   - deploy/synology/liquid20/deploy-live.sh
   - deploy/synology/liquid20/live-entrypoint.sh
   - deploy/synology/liquid20/verify-okx-live.sh
-  - deploy/synology/liquid20/OKX_LIVE_SOURCE.md
-  - tests/ai_platform_integration/test_liquidation_okx_source.py
-  - tests/ai_platform_integration/test_liquidation_okx_live_source.py
-  - tests/ai_platform_integration/test_liquidation_okx_live_safety.py
-  - tests/ai_platform_integration/test_liquidation_okx_startup_gate.py
-  - tests/ai_platform_integration/test_liquidation_okx_operational_health.py
+  - docs/ai_platform/portal/LIQUIDATIONS_LIVE_STREAM_ARCHITECTURE.md
+  - tests/ai_platform_integration/test_liquidation_binance_source.py
   - tests/ai_platform_integration/test_liquidation_okx_deploy_contract.py
+  - tests/ai_platform_integration/test_liquidation_okx_live_safety.py
+  - tests/ai_platform_integration/test_liquidation_okx_live_source.py
+  - tests/ai_platform_integration/test_liquidation_okx_operational_health.py
+  - tests/ai_platform_integration/test_liquidation_okx_source.py
+  - tests/ai_platform_integration/test_liquidation_okx_startup_gate.py
   - docs/agents/tasks/FTAI-20260730-liquid20-okx-live-source-v1.md
 ---
 
@@ -35,11 +40,11 @@ owned_paths:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T11:15:00+02:00
-head_before_checkpoint: 6b746073b3066700180ce049b6f33dae651faf90
+updated_at: 2026-07-30T11:54:00+02:00
+head_before_checkpoint: a64feab001bd8e7a0c9d28afdf83a10369457cd1
 branch: feat/liquid20-okx-live-source-20260730
 pr: 761
-status: awaiting_ci
+status: awaiting_final_ci
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -47,91 +52,96 @@ context_routes:
   - deploy/synology/liquid20/LIVE_STREAM.md
   - docs/ai_platform/portal/LIQUIDATIONS_LIVE_STREAM_ARCHITECTURE.md
   - ai_platform/scripts/liquidation_live_stream.py
+  - ai_platform/scripts/liquidation_live_stream_okx.py
   - ai_platform/research/liquidations/okx.py
   - ai_platform/scripts/liquidation_okx_collector.py
-  - ai_platform/portal/web/lib/liquidations/live-reader.ts
+  - ai_platform/portal/web/lib/liquidations/contracts.ts
   - ai_platform/portal/web/lib/liquidations/reader.ts
-  - ai_platform/portal/web/app/api/market/liquidations/_shared.ts
+  - ai_platform/portal/web/lib/liquidations/live-reader.ts
   - ai_platform/portal/web/components/liquidations-live-dashboard.tsx
   - deploy/synology/liquid20/deploy-live.sh
   - ai_platform/scripts/liquidation_live_health.py
   - ai_platform/scripts/liquidation_portal_health.py
 owned_paths:
   - .github/workflows/liquidations-live-synology.yml
+  - ai_platform/research/liquidations/source-catalog-v1.json
   - ai_platform/scripts/liquidation_live_stream_okx.py
   - ai_platform/scripts/liquidation_operational_health.py
-  - ai_platform/research/liquidations/source-catalog-v1.json
-  - ai_platform/portal/web/lib/liquidations/okx-live-reader.ts
-  - ai_platform/portal/web/lib/liquidations/index.ts
-  - ai_platform/portal/web/app/api/market/liquidations/_shared.ts
+  - ai_platform/portal/web/lib/liquidations/contracts.ts
+  - ai_platform/portal/web/lib/liquidations/reader.ts
+  - ai_platform/portal/web/lib/liquidations/live-reader.ts
   - ai_platform/portal/web/components/liquidations-live-dashboard.tsx
+  - ai_platform/portal/web/e2e/liquidation-live-read-model.spec.ts
   - ai_platform/portal/web/e2e/liquidation-okx-live-read-model.spec.ts
+  - ai_platform/portal/web/e2e/specs/market/liquidations.spec.ts
+  - deploy/synology/liquid20/LIVE_STREAM.md
+  - deploy/synology/liquid20/OKX_LIVE_SOURCE.md
   - deploy/synology/liquid20/deploy-live.sh
   - deploy/synology/liquid20/live-entrypoint.sh
   - deploy/synology/liquid20/verify-okx-live.sh
-  - deploy/synology/liquid20/OKX_LIVE_SOURCE.md
-  - tests/ai_platform_integration/test_liquidation_okx_source.py
-  - tests/ai_platform_integration/test_liquidation_okx_live_source.py
-  - tests/ai_platform_integration/test_liquidation_okx_live_safety.py
-  - tests/ai_platform_integration/test_liquidation_okx_startup_gate.py
-  - tests/ai_platform_integration/test_liquidation_okx_operational_health.py
+  - docs/ai_platform/portal/LIQUIDATIONS_LIVE_STREAM_ARCHITECTURE.md
+  - tests/ai_platform_integration/test_liquidation_binance_source.py
   - tests/ai_platform_integration/test_liquidation_okx_deploy_contract.py
+  - tests/ai_platform_integration/test_liquidation_okx_live_safety.py
+  - tests/ai_platform_integration/test_liquidation_okx_live_source.py
+  - tests/ai_platform_integration/test_liquidation_okx_operational_health.py
+  - tests/ai_platform_integration/test_liquidation_okx_source.py
+  - tests/ai_platform_integration/test_liquidation_okx_startup_gate.py
   - docs/agents/tasks/FTAI-20260730-liquid20-okx-live-source-v1.md
 proven:
-  - Work started from exact develop SHA 7240762e134d8db42b83030491ae52ec0d02cad6; the branch is not behind develop.
-  - Open pull-request searches found no competing OKX Liquid20 or Portal implementation; WickHunter PR 753 explicitly excludes active Liquid20 collector and Portal changes.
-  - Existing OKX implementation from PR 339 provides the public WebSocket channel, public instrument snapshot, parser, ctVal conversion, side normalization, heartbeat/reconnect and data-only safeguards.
-  - Terminal acceptance used exact trigger head 2a6accbf6b6c21233d897c4ab419debd0aec72a6 in workflow 30358400049 job 90271896559 and completed accepted after approximately 86400 seconds with 1352 events, zero parse failures and zero failed gates.
-  - Terminal evidence artifact 8723546610 and checkpoint were merged by PR 714 as commit 436d2934e120dacf64c81d594059e37667eebcac.
-  - The active implementation reuses the accepted OKX parser and public ctVal contract, writes separate okx-swap NDJSON, summary and instrument snapshot files, and exposes source-isolated state without changing Binance or Bybit parsers.
-  - The live state and OKX summary serialize execution_enabled=false, trading_authorized=false, trading_credentials_present=false and orders_submitted=0.
-  - Direct runtime and container entrypoint refuse OKX credentials.
-  - Portal browser code calls only same-origin liquidation BFF endpoints and contains no OKX WebSocket or public instruments endpoint.
-  - The existing liquidation dashboard is extended in place; the temporary duplicate UI component was removed.
-  - The existing health and GitHub issue mechanism is extended rather than replaced.
-  - Synology candidate and production readiness now explicitly require configured, connected, non-empty subscriptions for bybit-linear, binance-usdm and okx-swap.
-  - The deploy script observes all three NDJSON files and retains exact-image rollback, accepted-evidence digest verification, non-root runtime, read-only root filesystem, existing restart policy and no Docker socket.
-  - PR 761 is open, mergeable and has no review submissions or unresolved review threads.
+  - Terminal OKX acceptance remains the immutable evidence from trigger head 2a6accbf6b6c21233d897c4ab419debd0aec72a6, workflow 30358400049, job 90271896559, artifact 8723546610 and merged checkpoint 436d2934e120dacf64c81d594059e37667eebcac; it was not rerun or reused.
+  - The runtime uses the accepted public OKX parser and verified ctVal instrument contract, with no duplicate parser or substitute public contract.
+  - OKX uses only the public liquidation-orders WebSocket and public SWAP instrument snapshot; runtime and container entrypoint refuse OKX credentials.
+  - Source-separated okx-swap NDJSON, summary and instrument snapshot files are append-only within a new live run; accepted historical archives are not rewritten.
+  - Live state serializes configured, connected, event and receive timestamps, source heartbeat, ingest lag, reconnect/error/parse-error counts, observed/subscribed symbols and events written for all three sources.
+  - Live state and OKX summaries require execution_enabled=false, trading_authorized=false, trading_credentials_present=false and orders_submitted=0.
+  - Initial readiness requires connection of bybit-linear, binance-usdm and okx-swap; subsequent single-source failures preserve the independent state of the other two sources.
+  - Portal extends the existing same-origin BFF, existing read model and existing dashboard; browser code has no direct OKX, collector or Synology network path.
+  - Portal source health distinguishes connected transport from healthy data. Missing configuration, stale heartbeat or stale per-source receive time degrades the source and overall live mode.
+  - A legacy live state with okx-swap configured=false cannot be reported as live or healthy and is covered for health, list and summary responses.
+  - UI labels stale but connected source data as DEGRADED rather than LIVE, while retaining the factual connected transport state.
+  - Operational health extends the existing alert mechanism and requires configured/connected/subscribed/fresh heartbeat for all three sources, plus write, receive freshness, parse-error, reconnect and Portal drift checks.
+  - Synology retains the persistent data root, non-root runtime, read-only container root, existing restart policies, no Docker socket in Portal, exact-image rollback and accepted-evidence digest checks.
+  - Baseline repair PR 766 passed exact-head AI Platform, Portal Web, Portal E2E, WickHunter, security and full Freqtrade CI and merged normally as ac545041046e618c477e0ab5d999e11d261a742e.
+  - The feature branch was synchronized normally with develop through PR 772; compare status is ahead with behind_by=0 and only OKX/Liquid20/Portal paths remain in PR 761.
+  - PR 761 is open, mergeable and has no submitted reviews or unresolved review threads at this checkpoint.
 derived:
-  - The minimal complete runtime boundary is a dedicated live adapter around the accepted parser plus the existing BFF/read-only mount, not a duplicate parser or alternate browser API.
-  - A previous live state with okx-swap configured=false is completed on restart and replaced by a new append-only run with OKX configured=true; accepted historical runs are not modified.
-  - A single-source failure degrades the overall live mode while preserving the independent Binance and Bybit source state.
+  - The smallest complete implementation is an OKX live adapter around accepted parser evidence plus extensions to existing Liquid20 and Portal contracts, not a parallel collector contract or alternate API.
+  - Per-source healthy must be stricter than connected: configured, connected, fresh source heartbeat and fresh source receive time are all required.
+  - A failure of OKX degrades the overall collector view without rewriting or falsely degrading the factual source state of Binance or Bybit.
 unknown:
-  - Exact required CI outcome for the final branch head until pull-request checks run.
-  - Exact Synology production runtime outcome until the reviewed implementation is merged and the separate controlled deployment step executes.
+  - Exact required CI outcome for the checkpoint commit and any later synchronization commit until all pull-request checks complete.
+  - Exact Synology production runtime outcome until PR 761 is merged and the separate controlled deployment and verification step executes.
 conflicts: []
 first_failure:
   marker: LOCAL_GIT_CLONE_DNS_UNAVAILABLE
-  evidence: The sandbox could not resolve github.com, so repository reads and writes use the connected GitHub API; local validation is limited to reconstructed changed files and deterministic syntax/contract checks.
+  evidence: The sandbox could not resolve github.com, so authoritative repository reads, writes, PR state and CI evidence use the connected GitHub API.
 rejected_hypotheses:
-  - Rerun or reuse OKX terminal acceptance workflow, request ID or run ID.
+  - Rerun or reuse the consumed OKX acceptance workflow, request ID or run ID.
   - Add OKX credentials, account endpoints, order routes, replay, model training, strategy research or live-capital authority.
   - Modify accepted OKX archives or Binance acceptance workflows.
   - Connect the browser directly to OKX, the collector or Synology.
-  - Dispatch the develop-only Synology workflow from the feature branch.
+  - Dispatch a production or acceptance workflow from the feature branch.
 validation:
-  - command: python py_compile on reconstructed changed Python runtime, health and tests
+  - command: baseline exact-head CI for PR 766 at dd8595fe7a2d3559340d46d9c2b43e05aabbd0e0
     result: PASS
-    evidence: Reconstructed branch files compiled without syntax errors in the sandbox before the final health-test additions.
-  - command: bash/sh syntax checks for live entrypoint and bounded OKX verification
+    evidence: AI Platform CI, Portal Web CI, Portal Universal E2E, dedicated WickHunter CI, security analysis and full Freqtrade CI including CI Gate completed successfully before merge.
+  - command: intermediate Portal typecheck, lint, production build and critical E2E
     result: PASS
-    evidence: Shell parsers accepted both scripts; the deploy-live.sh PR patch contains only three bounded tuple extensions for OKX.
-  - command: JSON validation for source-catalog-v1.json
+    evidence: The in-place three-source read model and unconfigured-source fail-closed regression passed TypeScript validation and backend/Chromium E2E before the final per-source healthy extension.
+  - command: structural source and deployment review
     result: PASS
-    evidence: Python json.tool parsed the updated catalog.
-  - command: isolated TypeScript strict check for okx-live-reader.ts with bounded local stubs
-    result: PASS
-    evidence: The new BFF read model passed the isolated strict TypeScript check before final UI test updates.
+    evidence: The final diff contains only 25 OKX/Liquid20/Portal paths, no WickHunter paths, no alternate API, no credentials and no production dispatch.
   - command: real exchange connections
     result: NOT_RUN
-    evidence: Tests are intentionally network-free and terminal OKX acceptance is not rerun.
+    evidence: Tests remain network-free and the terminal OKX acceptance is intentionally not rerun.
   - command: production deployment/workflow
     result: NOT_RUN
-    evidence: The exact implementation is not merged to develop.
-  - command: repository CI
+    evidence: PR 761 is not merged to develop.
+  - command: repository CI for final checkpoint head
     result: PENDING
-    evidence: PR 761 remains draft until the implementation checkpoint is complete.
+    evidence: The checkpoint commit must complete normal pull-request validation before merge.
 blockers:
-  - Repository CI has not run for the final head.
-next_action: Mark PR 761 ready for review to trigger normal pull-request checks, inspect every job and review thread, fix failures without dispatching acceptance or production workflows, and leave the PR unmerged unless all required checks are green.
+  - Final exact-head pull-request CI has not completed.
+next_action: Inspect every exact-head PR 761 check and review thread, repair only scoped failures, and merge normally only when required CI is fully green and the branch remains synchronized with develop; do not dispatch acceptance or production workflows.
 ```

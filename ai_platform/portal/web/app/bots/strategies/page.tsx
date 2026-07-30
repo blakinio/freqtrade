@@ -1,39 +1,22 @@
-import { cookies } from "next/headers";
+import { StrategyCatalogClient } from "@/components/strategy-catalog-client";
 
-import { StatusPill } from "@/components/status-pill";
-import { listStrategies } from "@/lib/product-api";
-
-export default async function StrategyCatalogPage() {
-  const cookieHeader = (await cookies()).toString();
-  const strategies = await listStrategies(cookieHeader);
-
+export default function StrategyCatalogPage() {
   return (
     <section className="page-stack">
       <div className="page-heading">
-        <div><span className="eyebrow">Bots</span><h1>Strategy Catalog</h1></div>
-        <span className="freshness">Immutable portal strategy metadata</span>
+        <div>
+          <span className="eyebrow">Bots</span>
+          <h1>Strategy Catalog</h1>
+        </div>
+        <span className="freshness">Tenant-scoped immutable lifecycle evidence</span>
       </div>
       <div className="status-banner status-info">
-        <strong>Catalog boundary</strong>
-        <span>The catalog describes approved portal configuration references. It does not promote research candidates or grant live-capital execution.</span>
+        <strong>Research-only catalog boundary</strong>
+        <span>
+          Strategy versions, approvals, paper or shadow deployments and rollback evidence remain behind the same-origin Portal boundary. The catalog cannot promote a model, contact Freqtrade directly or grant live-capital authority.
+        </span>
       </div>
-      <article className="panel">
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Strategy</th><th>Version</th><th>Kind</th><th>Modes</th><th>Runtime status</th><th>Immutable</th></tr></thead>
-            <tbody>{strategies.map((strategy) => (
-              <tr key={strategy.strategy_version}>
-                <td><strong>{strategy.display_name}</strong><span>{strategy.description}</span></td>
-                <td>{strategy.strategy_version}</td>
-                <td>{strategy.kind}</td>
-                <td>{strategy.allowed_execution_modes.join(", ")}</td>
-                <td><StatusPill value={strategy.runtime_status} /></td>
-                <td>{strategy.immutable ? "Yes" : "No"}</td>
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-      </article>
+      <StrategyCatalogClient />
     </section>
   );
 }

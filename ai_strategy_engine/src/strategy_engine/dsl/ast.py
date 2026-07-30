@@ -69,7 +69,7 @@ class DslAstModel(BaseModel, Mapping[str, JsonValue]):
     def __getitem__(self, key: str) -> JsonValue:
         return self._as_mapping()[key]
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[str]:  # type: ignore[override]
         return iter(self._as_mapping())
 
     def __len__(self) -> int:

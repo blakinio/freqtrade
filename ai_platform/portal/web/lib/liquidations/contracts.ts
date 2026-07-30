@@ -100,6 +100,7 @@ export interface LiquidationSourceHealth {
   last_event_at_ms: number | null;
   configured?: boolean;
   connected?: boolean;
+  healthy?: boolean;
   subscription_symbol_count?: number;
   last_event_received_at_ms?: number | null;
   last_heartbeat_at_ms?: number | null;

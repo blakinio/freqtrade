@@ -10,12 +10,7 @@ from typing import Any
 
 import ai_platform.scripts.liquidation_live_health as live_health_module
 import ai_platform.scripts.liquidation_portal_health as portal_health_module
-
-REQUIRED_SOURCES = ("bybit-linear", "binance-usdm", "okx-swap")
-live_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
-portal_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
-
-from ai_platform.scripts.liquidation_live_health import (  # noqa: E402
+from ai_platform.scripts.liquidation_live_health import (
     GitHubIssueClient,
     _alert,
     _workflow_run_url,
@@ -23,7 +18,7 @@ from ai_platform.scripts.liquidation_live_health import (  # noqa: E402
     inspect_container,
     reconcile_alert_issue,
 )
-from ai_platform.scripts.liquidation_portal_health import (  # noqa: E402
+from ai_platform.scripts.liquidation_portal_health import (
     build_parser,
     evaluate_portal_report,
     normalize_portal_report,
@@ -32,6 +27,7 @@ from ai_platform.scripts.liquidation_portal_health import (  # noqa: E402
 )
 
 
+REQUIRED_SOURCES = ("bybit-linear", "binance-usdm", "okx-swap")
 DATA_MOUNT_DESTINATION = "/data"
 
 _CONTAINER_OBSERVATION_SCRIPT = r"""
@@ -132,6 +128,12 @@ def _record(value: object) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _integer(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
 def _source_runtime_alerts(
     pointer: dict[str, Any] | None,
     *,
@@ -141,31 +143,42 @@ def _source_runtime_alerts(
 ) -> list[dict[str, str]]:
     state = _record(_record(pointer).get("state"))
     sources = _record(state.get("sources"))
+    collector_started_at_ms = _integer(state.get("collector_started_at_ms"))
     alerts: list[dict[str, str]] = []
     for source in REQUIRED_SOURCES:
         item = _record(sources.get(source))
-        events = item.get("events_written")
-        last_receive = item.get("last_event_received_at_ms")
-        parse_errors = item.get("parse_error_count")
-        reconnects = item.get("reconnect_count")
-        if not isinstance(events, int) or events < 0:
+        events = _integer(item.get("events_written"))
+        last_receive = _integer(item.get("last_event_received_at_ms"))
+        parse_errors = _integer(item.get("parse_error_count"))
+        reconnects = _integer(item.get("reconnect_count"))
+        if events is None:
             alerts.append(
                 _alert(
                     "LIQUID20_SOURCE_WRITE_STATE_INVALID",
                     f"{source} events_written is invalid.",
                 )
             )
-        elif events == 0 and now_ms - int(state.get("collector_started_at_ms", now_ms)) > event_stale_ms:
-            alerts.append(
-                _alert("LIQUID20_SOURCE_NO_DATA_WRITTEN", f"{source} has written no events.")
-            )
-        if events and (
-            not isinstance(last_receive, int) or now_ms - last_receive > event_stale_ms
+        elif (
+            events == 0
+            and collector_started_at_ms is not None
+            and now_ms - collector_started_at_ms > event_stale_ms
         ):
             alerts.append(
-                _alert("LIQUID20_SOURCE_EVENT_STALE", f"{source} last receive time is stale.")
+                _alert(
+                    "LIQUID20_SOURCE_NO_DATA_WRITTEN",
+                    f"{source} has written no events.",
+                )
             )
-        if not isinstance(parse_errors, int) or parse_errors < 0:
+        if events is not None and events > 0 and (
+            last_receive is None or now_ms - last_receive > event_stale_ms
+        ):
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_EVENT_STALE",
+                    f"{source} last receive time is stale.",
+                )
+            )
+        if parse_errors is None:
             alerts.append(
                 _alert(
                     "LIQUID20_SOURCE_PARSE_STATE_INVALID",
@@ -174,9 +187,12 @@ def _source_runtime_alerts(
             )
         elif parse_errors > 0:
             alerts.append(
-                _alert("LIQUID20_SOURCE_PARSE_ERRORS", f"{source} parse errors={parse_errors}.")
+                _alert(
+                    "LIQUID20_SOURCE_PARSE_ERRORS",
+                    f"{source} parse errors={parse_errors}.",
+                )
             )
-        if not isinstance(reconnects, int) or reconnects < 0:
+        if reconnects is None:
             alerts.append(
                 _alert(
                     "LIQUID20_SOURCE_RECONNECT_STATE_INVALID",
@@ -198,29 +214,32 @@ def _runtime_portal_alerts(
     portal_report: dict[str, Any] | None,
 ) -> list[dict[str, str]]:
     runtime_sources = _record(_record(_record(pointer).get("state")).get("sources"))
-    portal_sources = _record(
-        _record(_record(portal_report).get("observation")).get("health")
-    ).get("sources")
-    portal_sources = _record(portal_sources)
+    portal_health = _record(_record(_record(portal_report).get("observation")).get("health"))
+    portal_sources = _record(portal_health.get("sources"))
     alerts: list[dict[str, str]] = []
     for source in REQUIRED_SOURCES:
         runtime = _record(runtime_sources.get(source))
         portal = _record(portal_sources.get(source))
         if not portal:
-            alerts.append(_alert("LIQUID20_PORTAL_SOURCE_MISSING", f"Portal omitted {source}."))
+            alerts.append(
+                _alert(
+                    "LIQUID20_PORTAL_SOURCE_MISSING",
+                    f"Portal omitted {source}.",
+                )
+            )
             continue
-        if runtime.get("configured") is not portal.get("configured"):
+        if runtime.get("configured") != portal.get("configured"):
             alerts.append(
                 _alert(
                     "LIQUID20_PORTAL_SOURCE_CONFIG_DRIFT",
                     f"{source} configured state differs.",
                 )
             )
-        runtime_events = runtime.get("events_written")
-        portal_events = portal.get("events")
+        runtime_events = _integer(runtime.get("events_written"))
+        portal_events = _integer(portal.get("events"))
         if (
-            isinstance(runtime_events, int)
-            and isinstance(portal_events, int)
+            runtime_events is not None
+            and portal_events is not None
             and portal_events > runtime_events
         ):
             alerts.append(
@@ -247,6 +266,12 @@ def main(argv: list[str] | None = None) -> int:
         args.container_name,
         args.data_root,
     )
+
+    # The operational entrypoint extends the existing health functions for this run only.
+    # Importing this module does not mutate global source requirements for unrelated tests.
+    live_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
+    portal_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
+
     report = evaluate_health(
         now_ms=now_ms,
         container=inspect_container(args.container_name),
@@ -275,10 +300,14 @@ def main(argv: list[str] | None = None) -> int:
     operational_alerts = _source_runtime_alerts(
         pointer,
         now_ms=now_ms,
-        event_stale_ms=int(os.environ.get("LIQUID20_EVENT_STALE_SECONDS", "300")) * 1000,
+        event_stale_ms=(
+            int(os.environ.get("LIQUID20_EVENT_STALE_SECONDS", "300")) * 1000
+        ),
         reconnect_max=int(os.environ.get("LIQUID20_RECONNECT_COUNT_MAX", "100")),
     )
-    consistency_alerts = _runtime_portal_alerts(pointer, portal_report) if args.require_portal else []
+    consistency_alerts = (
+        _runtime_portal_alerts(pointer, portal_report) if args.require_portal else []
+    )
     report["schema_version"] = 2
     report["checks"]["portal"] = portal_result
     report["alerts"].extend(portal_alerts + operational_alerts + consistency_alerts)
@@ -307,7 +336,10 @@ def main(argv: list[str] | None = None) -> int:
         report["github_alert_action"] = "disabled"
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.report.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps(report, separators=(",", ":"), sort_keys=True))
     return 0 if report["healthy"] is True else 1
 

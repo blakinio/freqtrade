@@ -22,8 +22,6 @@ env:
   STATE_DIR: /var/lib/freqtrade-staging-state
   DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
   PERSISTED_REQUEST_PATH: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence/request.json
-  HOST_DURABLE_ROOT: /volume1/docker/freqtrade-staging-state/wickhunter-production-market-evidence
-  HOST_PERSISTED_REQUEST_PATH: /volume1/docker/freqtrade-staging-state/wickhunter-production-market-evidence/request.json
   COMPOSE_FILE: deploy/synology/wickhunter-market-evidence/compose.yaml
 
 jobs:
@@ -61,7 +59,7 @@ jobs:
             exit 1
           fi
 
-      - name: Validate approved runner, Docker and durable storage
+      - name: Validate runner, Docker, storage and host mount
         shell: bash
         env:
           RUNNER_NAME_VALUE: ${{ runner.name }}
@@ -77,6 +75,16 @@ jobs:
           [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
           docker version >/dev/null
           docker compose version >/dev/null
+
+          host_state_dir="$(docker inspect \
+            --format '{{range .Mounts}}{{if eq .Destination "/var/lib/freqtrade-staging-state"}}{{.Source}}{{end}}{{end}}' \
+            freqtrade-synology-staging-runner)"
+          [[ "$host_state_dir" =~ ^/volume1/docker/[A-Za-z0-9._/-]+$ ]]
+          [[ "$host_state_dir" != *$'\n'* ]]
+          printf 'HOST_DURABLE_ROOT=%s\n' \
+            "$host_state_dir/wickhunter-production-market-evidence" >> "$GITHUB_ENV"
+          printf 'HOST_PERSISTED_REQUEST_PATH=%s\n' \
+            "$host_state_dir/wickhunter-production-market-evidence/request.json" >> "$GITHUB_ENV"
 
       - name: Refuse trading credentials and proxy routing
         shell: bash

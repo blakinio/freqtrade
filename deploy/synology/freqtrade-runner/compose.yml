@@ -4,7 +4,7 @@ services:
   runner:
     image: ${RUNNER_IMAGE:-ghcr.io/blakinio/freqtrade-deploy-runner:develop}
     container_name: freqtrade-synology-staging-runner
-    restart: unless-stopped
+    restart: always
     user: "0:0"
     environment:
       RUNNER_ALLOW_RUNASROOT: "1"

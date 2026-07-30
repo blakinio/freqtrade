@@ -1,0 +1,41 @@
+{
+  "dataset": {
+    "burst_window_ms": 300000,
+    "embargo_ms": 0,
+    "label_horizon_ms": 0,
+    "maximum_source_age_ms": 900000,
+    "minimum_history_events": 20,
+    "partition_span_ms": 43200000,
+    "protected_holdout_start_ms": 1785542400000,
+    "split": {
+      "end_ms": 1785520800000,
+      "name": "capture-v2",
+      "start_ms": 1785477600000
+    }
+  },
+  "decision_cadence_ms": 300000,
+  "metric_lookback_rows": {
+    "atr_ratio": 14,
+    "quote_volume_24h_usd": 288,
+    "trend_return_ratio": 288,
+    "volatility_ratio": 287,
+    "vwap": 288,
+    "vwma": 288,
+    "wick_ratio": 288
+  },
+  "policy_version": "wickhunter-production-market-evidence-wh01-policy-v2",
+  "required_sources": [
+    "bybit-linear",
+    "binance-usdm",
+    "okx-swap"
+  ],
+  "schema_version": "wickhunter-production-market-evidence-wh01-policy-v1",
+  "source_aggregation": "source_balanced_mean_require_all",
+  "timeframe": "5m",
+  "universe": {
+    "maximum_spread_bps": null,
+    "minimum_candle_history_rows": 288,
+    "minimum_healthy_liquidation_sources": 3,
+    "minimum_quote_volume_24h_usd": "1"
+  }
+}

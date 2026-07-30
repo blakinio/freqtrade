@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260730-closure-simulator
 status: ready
-branch: agent/closure-simulator
+branch: agent/closure-simulator-restack
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
-related_pr: null
+related_pr: 787
 dependencies:
   - none
 owned_paths:
@@ -71,10 +71,10 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T10:55:00+02:00
-head: 1d347a785eddc900f4484c30e06c3ab4e8851b29
-branch: agent/closure-simulator
-pr: null
+updated_at: 2026-07-30T13:32:28+02:00
+head: b040f03939aed4bd8dba224a8817ccd9d74ed91c
+branch: agent/closure-simulator-restack
+pr: 787
 status: ready
 context_routes:
   - AGENTS.md
@@ -93,24 +93,59 @@ owned_paths:
   - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
   - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 proven:
-  - Strategy Lab already models fees and slippage, and P10/ASE-03 prove deterministic replay. The canonical portal simulator currently records zero fees and has no latency, funding or gap-stop model.
+  - Gate 0 is merged and the dispatch table marks closure-simulator READY with no dependencies.
+  - Develop advanced only in five disjoint time-leakage paths through merged PR 777.
+  - PR 787 is a no-force restack from develop commit 979744f1143246bd42e42fc2213c7e79fc68ea57.
+  - PR 787 is not behind develop and changes exactly the ten assigned paths.
+  - Versioned cost, latency, funding and gap-stop models remain simulation-only and fail closed.
+  - Zero-cost, zero-latency and no-stop defaults preserve the existing universal scenario result.
+  - Same manifest and seed produce canonical evidence with deterministic UUID5 identities and SHA-256.
+  - AI Platform CI run 30538061822 passed compile, tests, Ruff, format, codespell and JSON validation.
+  - Portal Universal E2E run 30538061770 passed backend and Chromium journeys.
+  - Security run 30538061796 passed zizmor analysis.
+  - Freqtrade CI run 30538061837 passed pre-commit, docs, Python 3.11-3.14 core tests, coverage, distributions and CI Gate.
 derived:
-  - The bounded implementation scope is restricted to 10 exact path entries.
-unknown:
-  - Exact implementation HEAD, PR number and CI run IDs until the worker starts.
+  - Positive funding is a cash outflow for BUY positions and an inflow for SELL positions.
+  - A stop crossed between discrete ticks fills at the adverse observed price.
+  - Scenario latency uses the first tick at or after readiness and raises when no tick exists.
+unknown: []
 conflicts: []
 first_failure:
-  marker: PRE_IMPLEMENTATION_GATE
-  evidence: Implementation has not started; the Gate 0 dispatch condition is the first enforced gate.
+  marker: BASE_ADVANCED_RESTACKED
+  evidence: Develop advanced after PR 779 became green; the work was restacked from current develop without force-push and revalidated on PR 787.
 rejected_hypotheses:
-  - An unchecked backlog box alone proves missing implementation.
-  - A downstream worker may redefine shared contracts.
-  - Repository fixtures may be described as real external acceptance.
-changed_paths: []
+  - Merge PR 779 while one commit behind develop.
+  - Force-update the original branch.
+  - Use wall-clock sleeps or network data to model latency.
+  - Treat repository simulation as real exchange submission evidence.
+  - Modify runner, Risk Core, shared execution contracts, exports or CI outside assigned ownership.
+changed_paths:
+  - docs/agents/tasks/FTAI-20260730-closure-simulator.md
+  - ai_platform/portal/simulator/schema.py
+  - ai_platform/portal/simulator/exchange.py
+  - ai_platform/portal/simulator/costs.py
+  - ai_platform/portal/simulator/latency.py
+  - ai_platform/portal/simulator/funding.py
+  - ai_platform/portal/simulator/gap_stop.py
+  - tests/ai_platform/portal/simulator/test_execution_costs.py
+  - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
+  - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 validation:
-  - command: python tools/agents/checkpoint.py <task-path> --require-checkpoint
+  - command: AI Platform CI run 30538061822
     result: PASS
-    evidence: Gate 0 validates this compact checkpoint before dispatch.
+    evidence: Compile, full tests, Ruff, format, codespell and JSON validation passed.
+  - command: Portal Universal E2E run 30538061770
+    result: PASS
+    evidence: Deterministic backend scenario and critical Chromium journey passed.
+  - command: GitHub Actions Security Analysis run 30538061796
+    result: PASS
+    evidence: Zizmor completed successfully.
+  - command: Freqtrade CI run 30538061837
+    result: PASS
+    evidence: Pre-commit, docs, Python 3.11-3.14 core tests, coverage, distributions and CI Gate passed.
+  - command: compare develop...agent/closure-simulator-restack
+    result: PASS
+    evidence: Branch is ahead, not behind, mergeable, and changes exactly ten assigned paths.
 blockers: []
-next_action: Create the branch from current develop, extend only the declared simulator paths, run simulator tests, and open one focused PR.
+next_action: Merge PR 787 normally after all required checks on the final checkpoint head are green.
 ```

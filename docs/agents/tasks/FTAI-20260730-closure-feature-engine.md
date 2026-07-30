@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-feature-engine
-status: validating
+status: blocked
 branch: agent/closure-feature-engine
 base_branch: develop
 created: 2026-07-30
@@ -65,11 +65,11 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T12:37:00+02:00
-head: eb775b38e685223aa80c4b22c4e02e7dee44b642
+updated_at: 2026-07-30T12:42:00+02:00
+head: e1f8248a6fca02cd9798e25ed6889b4a674c9915
 branch: agent/closure-feature-engine
 pr: 780
-status: validating
+status: blocked
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -82,25 +82,28 @@ owned_paths:
   - ai_strategy_engine/tests/unit/test_support_resistance.py
   - ai_strategy_engine/tests/integration/test_registry_support_resistance.py
 proven:
-  - Gate 0 is merged and the workstream is READY with no dependencies or owned-path overlap.
-  - The implementation consumes only confirmed PivotEvent inputs and emits one append-only support or resistance confirmation after the configured number of available source pivots.
+  - Gate 0 is merged and the workstream is READY with no implementation dependency or owned-path overlap.
+  - The implementation consumes only confirmed PivotEvent inputs and emits one append-only support or resistance confirmation after the configured source pivots become available.
   - Registry entry support_resistance.v1 is experimental, research-only and explicitly not approved for AI.
-  - PR #780 contains only the five owned paths and is zero commits behind develop at implementation head eb775b38e685223aa80c4b22c4e02e7dee44b642.
+  - PR #780 contains exactly the five owned paths.
+  - Exact-head AI Strategy Engine run 30535356595 passed package tests before failing in two existing Portal registry count assertions.
 derived:
-  - Immutable anchor matching and one-time emission prevent later pivots from repainting an already emitted level.
-  - Explicit event_time, detected_at and available_at are the maxima across the source confirmations, preserving point-in-time availability.
+  - Immutable anchor matching and one-time emission prevent later pivots from repainting an emitted level.
+  - The Portal assertions expecting 21 features are stale after the required append-only 22nd registry entry.
 unknown:
-  - Exact-head required CI conclusions and workflow run IDs after the checkpoint commit.
-  - Unresolved review-thread count after PR review starts.
-conflicts: []
+  - Final exact-head Freqtrade CI conclusion after resolution of the ownership blocker.
+  - Unresolved review-thread count after implementation review.
+conflicts:
+  - Required update is in tests/ai_platform/portal/feature_registry/test_feature_registry.py, outside this task's exact owned paths.
 first_failure:
-  marker: EXACT_HEAD_VALIDATION_PENDING
-  evidence: The implementation and focused tests pass locally, but required GitHub workflows have not completed on the checkpoint head.
+  marker: PORTAL_FEATURE_COUNT_ASSERTION_OUTSIDE_OWNERSHIP
+  evidence: AI Strategy Engine run 30535356595 failed only because feature_count and replay range are hardcoded to 21 while the required registry now contains 22 entries.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
   - Support or resistance may use an unconfirmed future pivot.
-  - A newly implemented experimental feature is automatically approved for AI.
-  - Repository fixtures may be described as real external acceptance.
+  - An experimental feature is automatically approved for AI.
+  - An existing registered feature may be removed to preserve a stale count.
+  - The worker may silently edit a path not assigned in the Gate 0 matrix.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-feature-engine.md
   - ai_strategy_engine/src/strategy_engine/features/support_resistance.py
@@ -114,10 +117,13 @@ validation:
   - command: pytest -q ai_strategy_engine/tests/unit/test_support_resistance.py ai_strategy_engine/tests/integration/test_registry_support_resistance.py
     result: PASS
     evidence: 8 deterministic tests passed in the isolated validation workspace.
-  - command: compare develop...agent/closure-feature-engine
+  - command: GitHub AI Strategy Engine run 30535356595 on e1f8248a6fca02cd9798e25ed6889b4a674c9915
+    result: FAIL
+    evidence: Package tests passed; Portal research tests failed at two hardcoded feature-count assertions expecting 21 instead of 22.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-closure-feature-engine.md --require-checkpoint
     result: PASS
-    evidence: Branch was zero commits behind develop and changed only four implementation paths before this checkpoint-only update.
+    evidence: The checkpoint satisfies required fields, evidence separation, status and compactness limits.
 blockers:
-  - Exact-head required CI and review-thread verification are pending.
-next_action: Validate this checkpoint, mark PR #780 ready for review, verify exact-head CI and unresolved review threads, repair only evidenced failures, and merge normally when green.
+  - Explicit ownership transfer or a coordinator-owned repair is required for tests/ai_platform/portal/feature_registry/test_feature_registry.py.
+next_action: Agent 0 must assign a bounded update of the stale Portal registry count assertions; then this branch can integrate that authorized repair, rerun exact-head CI and continue normal review and merge.
 ```

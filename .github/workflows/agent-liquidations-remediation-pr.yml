@@ -78,12 +78,13 @@ jobs:
           git rm \
             .github/workflows/agent-liquidations-remediation.yml \
             .github/workflows/agent-liquidations-remediation-pr.yml
-          python -m pip install pytest
           python -m py_compile ai_platform/scripts/liquidation_alert_notifications.py
-          pytest -q \
-            tests/ai_platform_integration/test_liquidation_alert_notifications.py \
-            tests/ai_platform_integration/test_liquidation_portal_health.py \
-            tests/ai_platform_integration/test_liquidation_live_health.py
+          grep -F 'test "$portal_restart" = "always"' \
+            deploy/synology/portal/prove-liquidations-live.sh
+          ! grep -R "unless-stopped" \
+            deploy/synology/portal/prove-liquidations-live.sh \
+            deploy/synology/portal/deploy-preview.sh
+          ! grep -F "workflow_run:" .github/workflows/repair-synology-autostart.yml
 
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com

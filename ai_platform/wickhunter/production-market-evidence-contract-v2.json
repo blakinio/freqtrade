@@ -1,0 +1,61 @@
+{
+  "schema_version": 2,
+  "contract_id": "wickhunter-production-market-evidence-v2",
+  "classification": "prospective_public_market_evidence_supplement_and_verified_merge",
+  "profile": "liquid20-v1",
+  "base_contract_id": "wickhunter-production-market-evidence-v1",
+  "sources": [
+    {
+      "source": "bybit-linear",
+      "role": "verified immutable base package"
+    },
+    {
+      "source": "binance-usdm",
+      "role": "verified immutable base package"
+    },
+    {
+      "source": "okx-swap",
+      "market": "USDT-margined perpetual swap",
+      "instrument_endpoint": "https://www.okx.com/api/v5/public/instruments?instType=SWAP",
+      "market_quality_endpoint": "https://www.okx.com/api/v5/market/tickers?instType=SWAP",
+      "completed_candle_endpoint": "https://www.okx.com/api/v5/market/history-candles",
+      "native_symbol_template": "{BASE}-USDT-SWAP",
+      "completed_candle_marker": "confirm=1"
+    }
+  ],
+  "time_geometry": {
+    "timeframe": "5m",
+    "minimum_pre_roll_ms": 86400000,
+    "decision_interval_ms": 43200000,
+    "sample_interval_seconds": 300,
+    "max_sample_lateness_seconds": 420,
+    "expected_market_samples": 144,
+    "expected_candles_per_source_symbol": 432
+  },
+  "availability_semantics": {
+    "market_quality": "response_fully_received_at_ms",
+    "instrument_snapshot": "response_fully_received_at_ms",
+    "completed_candle": "close_time_ms_exclusive"
+  },
+  "merge_semantics": {
+    "base_package_must_verify": true,
+    "base_geometry_must_match": true,
+    "source_rows_are_copied_with_hash_verification": true,
+    "cross_exchange_deduplication": false,
+    "overwrite_existing_run": false
+  },
+  "policies": {
+    "public_only": true,
+    "trading_credentials_allowed": false,
+    "proxy_routing_allowed": false,
+    "redirects_allowed": false,
+    "private_or_account_endpoints_allowed": false,
+    "execution_enabled": false,
+    "replay_authorized": false,
+    "model_training_authorized": false,
+    "strategy_research_authorized": false,
+    "performance_research_authorized": false,
+    "production_source_enabled": false,
+    "orders_submitted": 0
+  }
+}

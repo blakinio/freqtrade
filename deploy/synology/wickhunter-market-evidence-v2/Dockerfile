@@ -13,7 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY ai_platform /app/ai_platform
-COPY deploy/synology/wickhunter-market-evidence-v2/healthcheck.py \
+COPY deploy/synology/wickhunter-market-evidence-v2/healthcheck_v2.py \
     /usr/local/bin/market-evidence-v2-healthcheck
 
 RUN printf '%s' "$COLLECTOR_COMMIT" | grep -Eq '^[0-9a-fA-F]{40}$' \

@@ -1,0 +1,85 @@
+name: Temporary WickHunter v2 mypy fix
+
+"on":
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/agent-fix-wickhunter-v2-mypy.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-wickhunter-v2-mypy-fix
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: agent/wickhunter-okx-market-evidence-v2
+
+      - name: Remove optional assignment ambiguity
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("ai_platform/wickhunter/production_market_evidence_v2.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''    for canonical in EXPECTED_SYMBOLS:
+              row = tickers.get(canonical)
+              contract = instruments.get(okx_native_symbol(canonical))
+              if row is None or contract is None:
+                  raise ProductionMarketEvidenceV2Error(f"OKX market snapshot is missing {canonical}")
+              event_at_ms = _integer(row.get("ts"), field=f"OKX {canonical} ticker timestamp")
+              if event_at_ms > available_at_ms:
+                  raise ProductionMarketEvidenceV2Error("OKX ticker timestamp is in the future")
+              if available_at_ms - event_at_ms > maximum_source_age_ms:
+                  raise ProductionMarketEvidenceV2Error(f"OKX ticker is stale for {canonical}")
+              last = _decimal(row.get("last"), field=f"OKX {canonical} last", positive=True)
+              bid = _decimal(row.get("bidPx"), field=f"OKX {canonical} bid", positive=True)
+              ask = _decimal(row.get("askPx"), field=f"OKX {canonical} ask", positive=True)
+              base_volume = _decimal(row.get("volCcy24h"), field=f"OKX {canonical} base volume")
+          '''
+          new = '''    for canonical in EXPECTED_SYMBOLS:
+              ticker = tickers.get(canonical)
+              contract = instruments.get(okx_native_symbol(canonical))
+              if ticker is None or contract is None:
+                  raise ProductionMarketEvidenceV2Error(f"OKX market snapshot is missing {canonical}")
+              event_at_ms = _integer(ticker.get("ts"), field=f"OKX {canonical} ticker timestamp")
+              if event_at_ms > available_at_ms:
+                  raise ProductionMarketEvidenceV2Error("OKX ticker timestamp is in the future")
+              if available_at_ms - event_at_ms > maximum_source_age_ms:
+                  raise ProductionMarketEvidenceV2Error(f"OKX ticker is stale for {canonical}")
+              last = _decimal(ticker.get("last"), field=f"OKX {canonical} last", positive=True)
+              bid = _decimal(ticker.get("bidPx"), field=f"OKX {canonical} bid", positive=True)
+              ask = _decimal(ticker.get("askPx"), field=f"OKX {canonical} ask", positive=True)
+              base_volume = _decimal(
+                  ticker.get("volCcy24h"), field=f"OKX {canonical} base volume"
+              )
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("expected mypy target block was not found exactly once")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+      - name: Format and commit exact fix
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check ruff==0.15.20
+          ruff format ai_platform/wickhunter/production_market_evidence_v2.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- ai_platform/wickhunter/production_market_evidence_v2.py
+          git commit -m "fix(wickhunter): remove optional ticker assignment ambiguity"
+          git push origin HEAD:agent/wickhunter-okx-market-evidence-v2

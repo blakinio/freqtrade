@@ -14,6 +14,16 @@ from .dataset import (
     load_dataset_manifest,
     validate_protected_holdout,
 )
+from .liquidation_alignment import (
+    AlignedObservation,
+    AlignmentStatus,
+    LiquidationAlignment,
+    MarketObservation,
+    ObservationConflictError,
+    ObservationKind,
+    align_liquidation_context,
+    deduplicate_observations,
+)
 from .optimization import (
     ConstrainedOptimizer,
     EvaluationMetrics,
@@ -26,6 +36,8 @@ from .optimization import (
 )
 
 __all__ = [
+    "AlignedObservation",
+    "AlignmentStatus",
     "CandidateGenerationError",
     "CandidateGenerator",
     "CandidateRequest",
@@ -39,10 +51,16 @@ __all__ = [
     "FeatureSearchBinding",
     "FeatureSelection",
     "ForbiddenCombination",
+    "LiquidationAlignment",
+    "MarketObservation",
+    "ObservationConflictError",
+    "ObservationKind",
     "OptimizationPlan",
     "OptimizationResult",
     "ProtectedFinalHoldout",
     "TrialLineage",
+    "align_liquidation_context",
+    "deduplicate_observations",
     "load_dataset_manifest",
     "robustness_score",
     "validate_protected_holdout",

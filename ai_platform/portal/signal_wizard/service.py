@@ -8,6 +8,7 @@ from numbers import Real
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
+from pydantic import ValidationError
 from sqlalchemy.exc import IntegrityError
 from strategy_engine.dsl.ast import Condition, ConditionGroup
 
@@ -176,7 +177,8 @@ class SignalWizardService:
         self._authorize(context)
         self._validate_context(context, command.context)
         key = _idempotency_key(command.idempotency_key)
-        request_digest = _sha256_text(command.canonical_json())
+        command_json = command.canonical_json()
+        request_digest = _sha256_text(command_json)
 
         with self._session_factory() as session:
             existing = self._repository.get_submission_by_idempotency(
@@ -234,6 +236,7 @@ class SignalWizardService:
                     result,
                     request_digest=request_digest,
                     preview_hash=command.preview_hash,
+                    command_json=command_json,
                     created_at=created_at,
                 )
         except IntegrityError:
@@ -372,7 +375,7 @@ class SignalWizardService:
     ) -> dict[str, Any]:
         try:
             group = ConditionGroup.model_validate(raw)
-        except Exception as exc:
+        except ValidationError as exc:
             raise SignalWizardValidationError(
                 "DSL_SCHEMA_INVALID",
                 str(exc),

@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-research-data
-status: blocked
+status: ready
 branch: agent/closure-research-data
 base_branch: develop
 created: 2026-07-30
@@ -8,8 +8,8 @@ updated: 2026-07-30
 related_pr: null
 dependencies:
   - Gate 0 merged
-  - PR #761 merged or closed
-  - current source identities/time metadata rechecked
+  - PR #761 merged as 141e59a3c7da441432b3990a54903e5fcfc935c8
+  - source identities and time metadata rechecked
 owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-research-data.md
   - ai_strategy_engine/src/strategy_engine/features/market_structure.py
@@ -23,53 +23,24 @@ required_reads:
   - docs/agents/tasks/FTAI-20260730-ai-program-closure-orchestration.md
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
   - ai_strategy_engine/TASKS.md
-  - ai_strategy_engine/src/strategy_engine/features/market_structure.py
   - ai_platform/research/liquidations/contracts.py
-search_first:
-  - current develop, open PRs and exact owned-path conflicts
-  - canonical implementation and tests before adding code
-  - shared contract/dependency state before editing
 ---
 
 # Closure research data and market structure
 
 ## Goal
 
-Implement point-in-time OI/funding alignment and clean-room market-structure research after active Liquid20 source work is terminal.
-
-## Deliverables
-
-- Source-separated OI/funding as-of alignment with availability timestamps.
-- Clean-room BOS/CHoCH, HH/HL/LH/LL, EQH/EQL, confirmed FVG and own zone heuristic.
-- Provenance, deduplication and negative-lookahead tests.
-
-## Non-negotiable boundaries
-
-- Paper, shadow or dry-run only; no live-capital authority.
-- No browser-to-Freqtrade, exchange or Vault path.
-- No protected-holdout reuse and no changes to frozen thresholds `0.006/-0.009`.
-- Stay inside exact `owned_paths`; stop on the first incompatible shared-contract requirement.
-- Add tests at the same layer and merge only through normal green CI.
-
-## Acceptance criteria
-
-- No observation is used before availability.
-- Structure events use confirmed pivots and explicit detected/available times.
-- No proprietary/LuxAlgo implementation or parity claim.
-
-## Validation
-
-Run narrow validation first, then all repository gates selected by affected paths. Open one focused PR, verify exact implementation HEAD, required CI and unresolved review threads, synchronize normally and merge only after green checks.
+Implement point-in-time OI and funding alignment plus clean-room market-structure research against the terminal source contract.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T11:35:00+02:00
-head: 0208666d98849386e2f2d9acf534b13891e4afa2
+updated_at: 2026-07-30T17:35:00+02:00
+head: 09bc139a766034840ac01898f8b68cd5c76fb7a2
 branch: agent/closure-research-data
 pr: null
-status: blocked
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -83,25 +54,30 @@ owned_paths:
   - ai_strategy_engine/tests/unit/test_market_structure.py
   - ai_strategy_engine/tests/unit/test_liquidation_alignment.py
 proven:
-  - PR #753 is merged; liquidation aggregation, dedup and latency metadata are proven.
+  - PR 761 merged normally as 141e59a3c7da441432b3990a54903e5fcfc935c8.
+  - The merged Liquid20 source contract preserves explicit exchange event, receive and heartbeat times plus source-separated identities.
+  - Open PRs 801 and 758 do not touch any Research Data owned path.
 derived:
-  - PR #761 can still extend source identity/time metadata; this task must wait.
+  - The terminal-source dependency is satisfied and no active duplicate or ownership conflict exists.
 unknown:
-  - Final PR #761 merge/close state and frozen source contract.
+  - Exact implementation head, PR number and CI run IDs until the worker starts.
 conflicts: []
 first_failure:
-  marker: PRE_IMPLEMENTATION_GATE
-  evidence: Implementation has not started; the matrix dispatch condition is the first enforced gate.
+  marker: NONE
+  evidence: The prior PR 761 dependency is terminal and live owned paths are disjoint.
 rejected_hypotheses:
-  - An unchecked backlog box alone proves missing implementation.
-  - A downstream worker may redefine shared contracts or edit another owner path.
-  - Repository fixtures may be described as real P11 acceptance.
-changed_paths: []
+  - Copy proprietary or LuxAlgo implementation details.
+  - Use observations before their availability time.
+  - Redefine shared source or strategy contracts.
+changed_paths:
+  - docs/agents/tasks/FTAI-20260730-closure-research-data.md
 validation:
-  - command: python tools/agents/checkpoint.py <task-path> --require-checkpoint
+  - command: PR 761 terminal-state verification
     result: PASS
-    evidence: Gate 0 validated this compact checkpoint against the repository governance contract.
-blockers:
-  - PR #761 remains open.
-next_action: After PR #761 reaches terminal state, verify source contracts and create `agent/closure-research-data` from the resulting develop.
+    evidence: PR 761 merged as 141e59a3c7da441432b3990a54903e5fcfc935c8.
+  - command: Open PR changed-path comparison against Research Data ownership
+    result: PASS
+    evidence: PR 801 and PR 758 have no overlap with the six declared paths.
+blockers: []
+next_action: Start docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md in a new chat from current develop.
 ```

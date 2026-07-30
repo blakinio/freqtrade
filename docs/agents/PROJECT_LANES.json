@@ -65,10 +65,7 @@
     },
     {
       "id": "freqtrade-core",
-      "label": "Freqtrade core and uncategorized work",
-      "task_prefixes": [
-        "FTAI"
-      ]
+      "label": "Freqtrade core and uncategorized work"
     }
   ]
 }

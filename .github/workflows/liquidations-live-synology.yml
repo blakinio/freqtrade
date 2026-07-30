@@ -8,6 +8,8 @@ on:
       - .github/workflows/liquidations-live-synology.yml
       - ai_platform/research/liquidations/**
       - ai_platform/scripts/liquidation_live_stream.py
+      - ai_platform/scripts/liquidation_live_stream_okx.py
+      - ai_platform/scripts/liquidation_okx_collector.py
       - ai_platform/scripts/liquidation_collector.py
       - ai_platform/scripts/liquidation_binance_collector.py
       - deploy/synology/liquid20/.env.example

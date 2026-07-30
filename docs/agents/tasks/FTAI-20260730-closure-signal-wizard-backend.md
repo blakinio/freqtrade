@@ -19,6 +19,7 @@ owned_paths:
   - ai_platform/portal/signal_wizard/migrations/0001_signal_wizard.sql
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
+  - tests/ai_platform/portal/control_plane/test_api.py
   - tests/ai_platform/portal/signal_wizard/__init__.py
   - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 required_reads:
@@ -47,11 +48,11 @@ Implement tenant-scoped durable preview and submit semantics for the frozen Sign
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T22:30:00+02:00
-head: 1f0cc85916ef25f6898308f0671c957ef8543cec
+updated_at: 2026-07-30T22:37:00+02:00
+head: e28b1d2a7f3d5be4352c83cdde768f861542c77c
 branch: agent/closure-signal-wizard-backend
 pr: 825
-status: validating
+status: implementing
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -67,6 +68,7 @@ owned_paths:
   - ai_platform/portal/signal_wizard/migrations/0001_signal_wizard.sql
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
+  - tests/ai_platform/portal/control_plane/test_api.py
   - tests/ai_platform/portal/signal_wizard/__init__.py
   - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 proven:
@@ -78,14 +80,15 @@ proven:
 derived:
   - A green exact-head merge of PR 825 will satisfy the backend dependency recorded by Signal Wizard UI checkpoint PR 820.
 unknown:
-  - Exact workflow conclusions and unresolved review-thread count for PR 825.
+  - Exact final workflow conclusions and unresolved review-thread count for PR 825.
 conflicts: []
 first_failure:
-  marker: MISSING_CANONICAL_SIGNAL_WIZARD_SERVICE
-  evidence: UI blocker PR 818 and terminal checkpoint PR 820 found no preview/submit application service; PR 825 supplies the bounded implementation.
+  marker: OPENAPI_SIGNAL_WIZARD_ROUTES_UNDECLARED
+  evidence: AI Platform run 30579725358 passed compile and all other tests until the explicit OpenAPI route allowlist rejected preview and submit; the exact contract test is now assigned.
 rejected_hypotheses:
   - Generate transient candidate identifiers in the BFF.
   - Map arbitrary approved features to fixed incompatible Strategy Lab strategies.
+  - Remove canonical routes to preserve a stale API allowlist.
   - Grant execution, promotion or live-capital authority.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md
@@ -97,14 +100,19 @@ changed_paths:
   - ai_platform/portal/signal_wizard/migrations/0001_signal_wizard.sql
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
+  - tests/ai_platform/portal/control_plane/test_api.py
   - tests/ai_platform/portal/signal_wizard/__init__.py
   - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 validation:
   - command: live ownership and dependency preflight
     result: PASS
     evidence: Frozen contracts and Feature Registry are merged; active changed paths are disjoint.
-  - command: PR 825 exact-head repository CI
-    result: PENDING
+  - command: Freqtrade CI run 30579388841
+    result: FAIL
+    evidence: Ruff format changed one owned service file; commit e28b1d2a7f3d5be4352c83cdde768f861542c77c applied the exact formatter diff.
+  - command: AI Platform CI run 30579725358
+    result: FAIL
+    evidence: The explicit OpenAPI route allowlist omitted only /v1/signal-wizard/preview and /v1/signal-wizard/submit.
 blockers: []
-next_action: Inspect PR 825 exact-head workflows and fix the first failing check inside the assigned paths.
+next_action: Update the assigned OpenAPI contract test, then validate PR 825 on its new exact head.
 ```

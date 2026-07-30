@@ -103,9 +103,7 @@ def test_signal_wizard_preview_is_idempotent_research_only_contract() -> None:
         context=_context(),
         idempotency_key="preview:tenant-1:1",
         strategy_id="strategy-1",
-        feature_selections=(
-            SignalWizardFeatureSelection(feature_id="rsi.v1", timeframe="5m"),
-        ),
+        feature_selections=(SignalWizardFeatureSelection(feature_id="rsi.v1", timeframe="5m"),),
         condition_ast={"all": [{"feature": "rsi.v1", "op": "gt", "value": 50}]},
         capability=_capability(StrategyCapability.STRATEGY_RESEARCH),
     )

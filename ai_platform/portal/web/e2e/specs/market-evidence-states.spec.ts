@@ -190,8 +190,11 @@ test.describe("Market evidence dashboard states", () => {
       );
     });
     await page.goto("/market/evidence");
-    await expect(page.getByRole("alert")).toContainText("Market evidence jest niedostępne.");
-    await expect(page.getByRole("alert")).toContainText(
+    const alert = page.getByRole("alert").filter({
+      hasText: "Market evidence jest niedostępne.",
+    });
+    await expect(alert).toContainText("Market evidence jest niedostępne.");
+    await expect(alert).toContainText(
       "WickHunter market evidence is currently unavailable",
     );
   });

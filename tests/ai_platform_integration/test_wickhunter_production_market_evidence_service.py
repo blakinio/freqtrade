@@ -174,9 +174,7 @@ def test_full_service_package_is_source_separated_and_verified(
     package_root = run_root / PACKAGE_DIR_NAME
     verification = verify_immutable_package(package_root)
     assert verification["outcome"] == "accepted"
-    manifest = json.loads(
-        (package_root / PACKAGE_MANIFEST_NAME).read_text(encoding="utf-8")
-    )
+    manifest = json.loads((package_root / PACKAGE_MANIFEST_NAME).read_text(encoding="utf-8"))
     assert manifest["sources"] == ["bybit-linear", "binance-usdm"]
     assert manifest["record_counts"] == {
         "market_quality_observations": 5760,
@@ -197,15 +195,9 @@ def test_full_service_package_is_source_separated_and_verified(
         "performance_research_authorized": False,
         "live_capital_authorized": False,
     }
-    assert len(
-        (package_root / PACKAGE_SOURCE_SNAPSHOTS_NAME).read_text().splitlines()
-    ) == 288
-    assert len(
-        (package_root / PACKAGE_MARKET_QUALITY_NAME).read_text().splitlines()
-    ) == 5760
-    assert len(
-        (package_root / PACKAGE_INSTRUMENT_SNAPSHOTS_NAME).read_text().splitlines()
-    ) == 5760
+    assert len((package_root / PACKAGE_SOURCE_SNAPSHOTS_NAME).read_text().splitlines()) == 288
+    assert len((package_root / PACKAGE_MARKET_QUALITY_NAME).read_text().splitlines()) == 5760
+    assert len((package_root / PACKAGE_INSTRUMENT_SNAPSHOTS_NAME).read_text().splitlines()) == 5760
 
 
 def test_publication_is_restart_safe_and_no_overwrite(
@@ -240,7 +232,7 @@ def test_hash_tamper_and_symlink_fail_closed(
     instrument_path = other_package / PACKAGE_INSTRUMENT_SNAPSHOTS_NAME
     instrument_path.unlink()
     instrument_path.symlink_to(other_package / PACKAGE_MARKET_QUALITY_NAME)
-    with pytest.raises(MarketEvidencePublicationError, match="missing or symlinked"):
+    with pytest.raises(MarketEvidencePublicationError, match="symlink"):
         verify_immutable_package(other_package)
 
 
@@ -257,11 +249,7 @@ def test_future_availability_and_wrong_market_fail_closed(
         environment={},
     )
     start_ms = int(core.EXPECTED_REQUEST["decision_start_ms"])
-    future_ms = (
-        start_ms
-        + int(core.EXPECTED_REQUEST["max_sample_lateness_seconds"]) * 1000
-        + 1
-    )
+    future_ms = start_ms + int(core.EXPECTED_REQUEST["max_sample_lateness_seconds"]) * 1000 + 1
     monkeypatch.setattr(core.time, "time_ns", lambda: future_ms * 1_000_000)
     with pytest.raises(MarketEvidencePublicationError, match="availability timestamp"):
         collect_due_sample(

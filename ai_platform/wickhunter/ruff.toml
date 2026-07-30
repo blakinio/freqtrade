@@ -1,0 +1,4 @@
+extend = "../../pyproject.toml"
+
+[lint.per-file-ignores]
+"production_market_evidence_v2.py" = ["C901"]

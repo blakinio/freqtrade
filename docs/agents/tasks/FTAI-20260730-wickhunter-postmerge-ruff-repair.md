@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260730-wickhunter-postmerge-ruff-repair
-status: in_progress
+status: validating
 branch: agent/wickhunter-postmerge-ruff-repair
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
-related_pr: null
+related_pr: 771
 dependencies:
   - PR #753 merged
   - AI Platform CI run 30531046030 failure reproduced on Gate 0 exact head
@@ -14,7 +14,6 @@ owned_paths:
   - ai_platform/wickhunter/production_market_evidence_daemon.py
   - ai_platform/wickhunter/production_market_evidence_service.py
   - ai_platform/wickhunter/production_market_evidence_wh01.py
-  - .github/workflows/wickhunter-postmerge-ruff-repair.yml
 required_reads:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -30,23 +29,24 @@ search_first:
 
 Repair only the ten Ruff regressions exposed after PR #753 merged, without changing WickHunter behavior or Gate 0 documentation scope.
 
-## Deliverables
+## Delivered
 
-- format the two reported import blocks;
-- wrap the reported long exception line;
-- replace two successive-pair `zip` loops with `itertools.pairwise`;
-- narrow the reported complexity/noqa annotations;
-- run Ruff, focused WickHunter tests and normal repository CI in one focused PR.
+- wrapped the one reported long exception line;
+- organized the two reported import blocks;
+- added only the two reported complexity annotations;
+- replaced two successive-pair `zip` loops with `itertools.pairwise`;
+- removed the one unused `noqa` selector;
+- removed the temporary branch-local repair workflow after it produced the focused commit.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T11:55:00+02:00
-head: 0208666d98849386e2f2d9acf534b13891e4afa2
+updated_at: 2026-07-30T12:00:00+02:00
+head: 04d541d93fb1af37562800a583bd46a25f40f7cc
 branch: agent/wickhunter-postmerge-ruff-repair
-pr: null
-status: in_progress
+pr: 771
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -56,26 +56,38 @@ owned_paths:
   - ai_platform/wickhunter/production_market_evidence_daemon.py
   - ai_platform/wickhunter/production_market_evidence_service.py
   - ai_platform/wickhunter/production_market_evidence_wh01.py
-  - .github/workflows/wickhunter-postmerge-ruff-repair.yml
 proven:
   - AI Platform CI run 30531046030 passed 976 tests and failed Ruff with ten findings only in the three declared WickHunter files.
+  - The branch-local repair run completed Ruff 0.15.21 successfully and committed only the three code files before deleting its helper workflow.
+  - PR #771 diff contains only the declared code repairs and this task record.
 derived:
-  - A separate focused repair PR preserves Gate 0 documentation ownership and allows normal synchronization after merge.
+  - The repair preserves WickHunter behavior while restoring the lint gate required by Gate 0.
 unknown:
-  - Exact repair commit and focused CI conclusions.
+  - Exact-head PR #771 CI conclusions and unresolved review-thread state after this checkpoint commit.
 conflicts: []
 first_failure:
-  marker: WICKHUNTER_POSTMERGE_RUFF
-  evidence: Ruff reports E501, I001, C901, B905, RUF007 and RUF100 findings in the three declared files.
+  marker: EXACT_HEAD_VALIDATION_PENDING
+  evidence: The focused repair is committed, but normal exact-head repository CI and review verification are still required before merge.
 rejected_hypotheses:
   - Put unrelated WickHunter implementation edits into PR #767.
   - Bypass or ignore AI Platform CI.
+  - Broaden the repair beyond the ten reported Ruff findings.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-wickhunter-postmerge-ruff-repair.md
+  - ai_platform/wickhunter/production_market_evidence_daemon.py
+  - ai_platform/wickhunter/production_market_evidence_service.py
+  - ai_platform/wickhunter/production_market_evidence_wh01.py
 validation:
+  - command: ruff check --fix --unsafe-fixes <three-declared-WickHunter-files>
+    result: PASS
+    evidence: The helper workflow committed successfully only after Ruff 0.15.21 accepted the repaired files.
+  - command: ruff check <three-declared-WickHunter-files>
+    result: PASS
+    evidence: The branch-local focused lint gate passed before commit.
   - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-wickhunter-postmerge-ruff-repair.md --require-checkpoint
     result: PASS
-    evidence: The repair checkpoint satisfies governance contract v1 before implementation.
-blockers: []
-next_action: Apply only the ten reported Ruff repairs, run focused validation, and open one focused PR to develop.
+    evidence: The checkpoint satisfies governance contract v1.
+blockers:
+  - Exact-head required CI and review-thread verification are pending.
+next_action: Verify PR #771 exact-head CI and review threads, repair only evidenced failures, synchronize normally if needed, and merge when green.
 ```

@@ -49,9 +49,7 @@ def find_stop_trigger(
         if tick.occurred_at <= opened_at or tick.occurred_at > planned_exit_at:
             continue
         crossed = (
-            tick.price <= stop_price
-            if entry_side is TradeSide.BUY
-            else tick.price >= stop_price
+            tick.price <= stop_price if entry_side is TradeSide.BUY else tick.price >= stop_price
         )
         if crossed:
             reason = "stop_loss" if tick.price == stop_price else "gap_through_stop"

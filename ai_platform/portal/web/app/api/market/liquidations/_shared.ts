@@ -3,16 +3,16 @@ import { resolve } from "node:path";
 import { NextResponse } from "next/server";
 
 import {
-  LIQUIDATION_SOURCES,
+  LIQUIDATION_DATA_SOURCES,
   LiquidationDataUnavailableError,
-  LiquidationLiveReadModel,
+  LiquidationLiveReadModelV3,
   LiquidationQueryError,
   type LiquidatedPositionSide,
-  type LiquidationQuery,
-  type LiquidationSource,
+  type LiquidationDataQuery,
+  type LiquidationDataSource,
 } from "@/lib/liquidations";
 
-let singleton: LiquidationLiveReadModel | null = null;
+let singleton: LiquidationLiveReadModelV3 | null = null;
 let singletonKey: string | null = null;
 
 function configuredDataRoot(): string {
@@ -43,7 +43,7 @@ function configuredThreshold(name: string, fallback: number): number {
   return parsed;
 }
 
-export function liquidationReadModel(): LiquidationLiveReadModel {
+export function liquidationReadModel(): LiquidationLiveReadModelV3 {
   const dataRoot = configuredDataRoot();
   const collectorStaleAfterMs = configuredThreshold(
     "PORTAL_LIQUIDATIONS_COLLECTOR_STALE_MS",
@@ -69,7 +69,7 @@ export function liquidationReadModel(): LiquidationLiveReadModel {
     sourceStaleAfterMs,
   ].join(":");
   if (!singleton || singletonKey !== key) {
-    singleton = new LiquidationLiveReadModel({
+    singleton = new LiquidationLiveReadModelV3({
       dataRoot,
       collectorStaleAfterMs,
       collectorOfflineAfterMs,
@@ -95,10 +95,10 @@ function integerParameter(value: string | null, name: string): number | undefine
   return parsed;
 }
 
-export function liquidationQuery(searchParams: URLSearchParams): LiquidationQuery {
+export function liquidationQuery(searchParams: URLSearchParams): LiquidationDataQuery {
   const sourceValue = searchParams.get("source") ?? undefined;
-  const source = sourceValue as LiquidationSource | "all" | undefined;
-  if (source && source !== "all" && !LIQUIDATION_SOURCES.includes(source)) {
+  const source = sourceValue as LiquidationDataSource | "all" | undefined;
+  if (source && source !== "all" && !LIQUIDATION_DATA_SOURCES.includes(source)) {
     throw new LiquidationQueryError("source is invalid");
   }
   const sideValue = searchParams.get("side") ?? undefined;

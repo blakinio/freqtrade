@@ -4,7 +4,7 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- current evidence anchor: `develop@a256dc59ad896a21f593c098bcc8c076858790d9`;
+- coordinator evidence anchor: `develop@e03c00ce9824fdf467108780387b52c58659c01b`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
@@ -14,13 +14,14 @@
 - merged adjacent monitoring: PR #762 -> `e73de2c7a080c79486141cdafa4d2bb41afdd80e`;
 - merged Feature Engine: PR #780 -> `09bc139a766034840ac01898f8b68cd5c76fb7a2`;
 - merged coordinator closure: PR #808 -> `a256dc59ad896a21f593c098bcc8c076858790d9`;
-- active repository PRs: operational request #809 and external read-only preflight #758;
+- merged coordinator terminal checkpoint: PR #812 -> `e03c00ce9824fdf467108780387b52c58659c01b`;
+- active repository PRs: rotating WickHunter operational request lane (observed as #813 at this checkpoint; never merge into `develop`) and external read-only preflight #758;
 - coordinator terminal branch: `agent/program-closure-coordinator-terminal`;
 - coordinator repair task: `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;
 - paper/shadow/dry-run only; no live capital.
 
-The current snapshot and manual dispatch table below supersede the original Gate 0 dispatch state. An unchecked backlog box remains a hypothesis until code, tests, merged PRs and current CI are inspected.
+The current snapshot and manual dispatch table below supersede the original Gate 0 dispatch state. An unchecked backlog box remains a hypothesis until code, tests, merged PRs and current CI are inspected. WickHunter operational request PR numbers may rotate without changing child-workstream ownership or dependencies.
 
 ## Every unchecked P0/P1/P2 item
 
@@ -143,6 +144,7 @@ simulator MERGED
 Feature Engine MERGED
 PR #761 MERGED -> Research Data READY
 coordinator registry repair COMPLETED through PR #808
+terminal coordinator checkpoint MERGED through PR #812
 Research Data -> AI routing/ranking
 all repository child PRs -> Integration/E2E
 
@@ -158,7 +160,7 @@ Live capital/P14: excluded and unauthorized
 | Shared contracts | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-contracts.md` | `agent/closure-contracts-terminal` | — | PR #781 and terminal PR #790 merged. |
 | Time/leakage | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-time-leakage.md` | `agent/closure-time-leakage-terminal` | — | PR #777 and terminal PR #792 merged. |
 | Simulator | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-simulator.md` | `agent/closure-simulator-terminal` | — | PR #787 merged; coordinator terminal checkpoint recorded. |
-| Coordinator registry repair | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-terminal` | — | PR #780 absorbed the dynamic-count repair and PR #808 merged terminal ownership and dispatch evidence as `a256dc59ad896a21f593c098bcc8c076858790d9`. |
+| Coordinator registry repair | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-terminal` | — | PR #780 absorbed the dynamic-count repair; PR #808 merged closure evidence and PR #812 merged the terminal checkpoint. |
 | Feature Engine | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-engine.md` | `agent/closure-feature-engine` | `docs/agents/prompts/ai-program-closure/FEATURE-ENGINE-AGENT-PROMPT.md` | PR #780 merged as `09bc139a766034840ac01898f8b68cd5c76fb7a2`; do not start a duplicate chat. |
 | Research Data | **READY** | `docs/agents/tasks/FTAI-20260730-closure-research-data.md` | `agent/closure-research-data` | `docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md` | PR #761 merged and no active ownership overlap exists. |
 | Signal Wizard | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | PR #781 merged and no active ownership overlap exists. |
@@ -170,7 +172,7 @@ Live capital/P14: excluded and unauthorized
 
 ## Coordinator repair ownership
 
-The coordinator repair task records the stale-count ownership decision. PR #780 merged the exact dynamic-count behavior before a standalone repair PR opened, and PR #808 merged the terminal ownership and dispatch checkpoint without a duplicate test diff.
+The coordinator repair task records the stale-count ownership decision. PR #780 merged the exact dynamic-count behavior before a standalone repair PR opened, PR #808 merged closure ownership and dispatch evidence, and PR #812 merged the terminal checkpoint without a duplicate test diff.
 
 ## Closure acceptance
 

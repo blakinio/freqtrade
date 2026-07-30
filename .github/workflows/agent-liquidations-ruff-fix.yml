@@ -42,6 +42,55 @@ jobs:
           ruff format \
             ai_platform/scripts/liquidation_alert_notifications.py \
             tests/ai_platform_integration/test_liquidation_alert_notifications.py
+
+          python - <<'PY'
+          from pathlib import Path
+
+          script = Path("ai_platform/scripts/liquidation_alert_notifications.py")
+          text = script.read_text(encoding="utf-8")
+          replacements = {
+              '        return "Sprawdź kontener runnera `freqtrade-synology-staging-runner` i jego rejestrację w GitHub Actions."': '''        return (
+              "Sprawdź kontener runnera `freqtrade-synology-staging-runner` "
+              "i jego rejestrację w GitHub Actions."
+          )''',
+              '        return "Sprawdź `freqtrade-portal-staging`, jego obraz, politykę restartu i chroniony endpoint health."': '''        return (
+              "Sprawdź `freqtrade-portal-staging`, jego obraz, politykę restartu "
+              "i chroniony endpoint health."
+          )''',
+          }
+          for old, new in replacements.items():
+              assert text.count(old) == 1, old
+              text = text.replace(old, new)
+          script.write_text(text, encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_liquidation_alert_notifications.py")
+          text = tests.read_text(encoding="utf-8")
+          old = '{"alerts":[{"code":"LIQUID20_CONTAINER_UNHEALTHY","message":"collector stopped"}],"checks":{"container":{"healthy":false},"state":{"healthy":false},"sources":{},"disk":{"healthy":true},"portal":{"healthy":true,"commit_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}'
+          new = '''{
+            "alerts": [
+              {
+                "code": "LIQUID20_CONTAINER_UNHEALTHY",
+                "message": "collector stopped"
+              }
+            ],
+            "checks": {
+              "container": {"healthy": false},
+              "state": {"healthy": false},
+              "sources": {},
+              "disk": {"healthy": true},
+              "portal": {
+                "healthy": true,
+                "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              }
+            }
+          }'''
+          assert text.count(old) == 1
+          tests.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+
+          ruff format \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py
           ruff check \
             ai_platform/scripts/liquidation_alert_notifications.py \
             tests/ai_platform_integration/test_liquidation_alert_notifications.py

@@ -6,7 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 808
-terminal_pr: null
+terminal_pr: 812
 owner: closure-coordinator
 dependencies:
   - PR #780 append-only feature registry count 22
@@ -31,10 +31,10 @@ The coordinator isolated the two stale append-only registry assertions and autho
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T18:02:00+02:00
-head: a256dc59ad896a21f593c098bcc8c076858790d9
+updated_at: 2026-07-30T18:03:00+02:00
+head: bdfd6374b77b8a54904adb1dd5e1e367bdb2e956
 branch: agent/program-closure-coordinator-terminal
-pr: 808
+pr: 812
 status: ready
 context_routes:
   - AGENTS.md

@@ -69,7 +69,8 @@ class DslAstModel(BaseModel, Mapping[str, JsonValue]):
     def __getitem__(self, key: str) -> JsonValue:
         return self._as_mapping()[key]
 
-    def __iter__(self) -> Generator[Any, None, None]:
+    def __iter__(self) -> Generator[Any, None, None]:  # noqa: PYI058
+        # Generator[Any] satisfies both BaseModel and Mapping iterator contracts.
         yield from self._as_mapping()
 
     def __len__(self) -> int:

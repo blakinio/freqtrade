@@ -6,6 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 761
+terminal_pr: 796
 implementation_merge: 141e59a3c7da441432b3990a54903e5fcfc935c8
 owned_paths:
   - .github/workflows/liquidations-live-synology.yml

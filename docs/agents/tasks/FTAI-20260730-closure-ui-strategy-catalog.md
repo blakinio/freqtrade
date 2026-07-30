@@ -53,11 +53,11 @@ Replace the static summary table with the tenant-scoped, research-only catalog l
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T21:48:00+02:00
-head: 4ee4ad5d5a7e62631185c662cddec77849f5e1eb
+updated_at: 2026-07-30T21:52:00+02:00
+head: 1f130f01b8f7d1d853aa6e92ecb59076705c914b
 branch: agent/closure-ui-strategy-catalog
 pr: 819
-status: ci_pending
+status: ci_recheck_pending
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -76,21 +76,22 @@ owned_paths:
 proven:
   - Shared contracts PR 781 merged as 6e489f7e10199120424cbcd01b3e125711630243 and freeze 549ba3afddba39ce455fce5eebbd4d67bea813a6 defines canonical history, approval, deployment, rollback and provenance contracts.
   - develop 9bb8edad795e122a2e513b354cd4aafa16d5917b was the branch base and open PRs 816 and 758 had no owned-path overlap.
-  - Implementation head 4ee4ad5d5a7e62631185c662cddec77849f5e1eb changes only eight route-local implementation and browser-test paths before this checkpoint update.
   - Browser reads require the portal session; rollback additionally requires CSRF and mutation-capable identity state.
   - Fixture and API modes remain separated, and fixture provenance explicitly labels repository fixture evidence.
-  - PR 819 is open against develop and requests Portal Web, browser, repository and security validation.
+  - PR 819 exact head aa5d92d7f6a9fef5c7246d24223e3e0791dfcf31 passed typecheck, AI Platform CI and GitHub Actions Security Analysis before the focused lint repair.
+  - Commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b removes synchronous state-setting call chains from both initial effects while preserving event-driven refresh, selection and retry behavior.
 derived:
-  - The owned routes can consume the frozen contracts without changing shared schemas or generated-client inputs.
-  - No backend, shell, navigation, CI workflow or live-capital ownership transfer is required.
+  - The owned routes consume the frozen contracts without changing shared schemas or generated-client inputs.
+  - The lint repair is route-local and requires no backend, shell, navigation, CI workflow or live-capital ownership transfer.
 unknown:
-  - Exact workflow run IDs and conclusions until PR 819 CI completes.
+  - Exact conclusions of the new workflow runs for head 1f130f01b8f7d1d853aa6e92ecb59076705c914b.
   - Exact merge commit until all required checks and review gates pass.
 conflicts: []
 first_failure:
-  marker: NONE
-  evidence: No implementation failure is recorded yet; PR CI is pending.
+  marker: PORTAL_WEB_ESLINT_REACT_HOOKS_SET_STATE_IN_EFFECT
+  evidence: Portal Web CI run 30576340147 passed typecheck then failed lint because loadCatalog and loadDetail synchronously set state when called from useEffect; commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b refactored initialization to await external requests before state updates.
 rejected_hypotheses:
+  - Disable the lint rule or suppress the findings.
   - Add approval or deployment authority to the browser.
   - Send browser requests directly to Freqtrade, an exchange or Vault.
   - Redefine frozen v2 lifecycle contracts in shared files.
@@ -111,10 +112,19 @@ validation:
     evidence: develop base 9bb8edad795e122a2e513b354cd4aafa16d5917b; PR 816 changes only a WickHunter request and PR 758 changes external preflight paths.
   - command: compare develop...agent/closure-ui-strategy-catalog
     result: PASS
-    evidence: Implementation diff is ahead without divergence and remains inside the eight implementation/test owned paths before this checkpoint update.
-  - command: PR 819 required CI
+    evidence: Implementation diff remains inside all nine declared owned paths including this task record.
+  - command: Portal Web CI run 30576340147
+    result: FAIL_REPAIRED
+    evidence: Typecheck passed; lint reported two react-hooks/set-state-in-effect findings in strategy-catalog-client.tsx; commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b removes the synchronous effect call chains without suppression.
+  - command: AI Platform CI run 30576340125
+    result: PASS
+    evidence: Exact pre-repair implementation head passed the AI Platform package gates.
+  - command: GitHub Actions Security Analysis run 30576340175
+    result: PASS
+    evidence: Exact pre-repair implementation head passed zizmor analysis.
+  - command: PR 819 required CI after lint repair
     result: PENDING
-    evidence: Workflow runs are being created for exact branch head.
+    evidence: New exact-head workflow runs are being created.
 blockers: []
-next_action: Inspect PR 819 exact-head CI and fix the first failing required check inside owned paths.
+next_action: Inspect PR 819 workflow runs for the exact repaired head and fix the first remaining failing required check inside owned paths.
 ```

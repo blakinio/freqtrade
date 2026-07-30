@@ -61,26 +61,28 @@ test.describe("Liquid20 read-only portal", { tag: [tags.critical, tags.regressio
     await expect(page.getByText("Market Data · Research preview")).toBeVisible();
     await expect(page.getByText("HISTORYCZNE", { exact: true })).toBeVisible();
     await expect(page.getByText("ODRZUCONE", { exact: true })).toBeVisible();
-    await expect(page.getByText("Ostatnie zdarzenie", { exact: true })).toBeVisible();
+    await expect(page.getByText("Ostatnie zdarzenie rynkowe", { exact: true })).toBeVisible();
     await expect(page.getByText("Ostatni heartbeat collectora", { exact: true })).toBeVisible();
     await expect(page.getByText("Ostatnie sprawdzenie przez portal", { exact: true })).toBeVisible();
     await expect(page.getByText("Strumień likwidacji")).toBeVisible();
     await expect(page.getByText("Ranking symboli")).toBeVisible();
     await expect(page.getByRole("cell", { name: "SOLUSDT" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Binance" }).first()).toBeVisible();
-    await expect(page.getByRole("region", { name: "Zdrowie źródeł" })).toContainText("OKX");
-    await expect(page.getByRole("region", { name: "Zdrowie źródeł" })).toContainText("niewłączone");
+    await expect(page.getByRole("cell", { name: "Binance USD-M" }).first()).toBeVisible();
+    await expect(page.getByRole("region", { name: "Zdrowie źródeł" })).toContainText("OKX SWAP");
+    await expect(page.getByRole("region", { name: "Zdrowie źródeł" })).toContainText(
+      "nieskonfigurowane",
+    );
     await expect(page.getByText(/approximately 1000 ms window/)).toBeVisible();
     await expect(page.getByText(/nie są deduplikowane/)).toBeVisible();
 
     await liquidations.filterBySource("binance-usdm");
-    await expect(page.getByRole("cell", { name: "Binance" }).first()).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Bybit" })).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: "Binance USD-M" }).first()).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Bybit Linear" })).toHaveCount(0);
 
     await liquidations.filterBySymbol("BTCUSDT");
     await expect(page.getByRole("cell", { name: "BTCUSDT" })).toHaveCount(1);
     await expect(page.getByRole("button", { name: /buy|sell|trade|order/i })).toHaveCount(0);
-    await expect(page.getByText(/uprawnień do składania zleceń/i)).toBeVisible();
+    await expect(page.getByText(/uprawnień do zleceń/i)).toBeVisible();
   });
 
   test("shows an explicit unavailable state when the read model fails", { tag: tags.resilience }, async ({ page }) => {
@@ -92,7 +94,7 @@ test.describe("Liquid20 read-only portal", { tag: [tags.critical, tags.regressio
       });
     });
     await page.goto("/market/liquidations");
-    await expect(page.getByRole("alert")).toContainText("Dane Liquid20 są niedostępne.");
+    await expect(page.getByRole("alert")).toContainText("Dane likwidacji są niedostępne.");
     await expect(page.getByRole("alert")).toContainText("Deterministic E2E outage");
   });
 });

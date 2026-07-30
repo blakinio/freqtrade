@@ -57,6 +57,7 @@ function liveState(runId: string, now: number, runState: "active" | "completed" 
     execution_enabled: false,
     trading_authorized: false,
     trading_credentials_present: false,
+    orders_submitted: 0,
     sources: {
       "bybit-linear": sourceState(now, true),
       "binance-usdm": sourceState(now, true),

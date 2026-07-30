@@ -223,7 +223,7 @@ if not isinstance(sources, dict):
 run_id = state.get("run_id")
 run_root = root / "live" / "runs" / str(run_id)
 sizes = {}
-for name in ("bybit-linear.ndjson", "binance-usdm.ndjson"):
+for name in ("bybit-linear.ndjson", "binance-usdm.ndjson", "okx-swap.ndjson"):
     path = run_root / name
     sizes[name] = path.stat().st_size if path.is_file() and not path.is_symlink() else -1
 print(json.dumps({
@@ -262,7 +262,7 @@ heartbeat = payload.get("collector_heartbeat_at_ms")
 if not isinstance(heartbeat, int) or heartbeat <= minimum:
     raise SystemExit(1)
 sources = payload.get("sources", {})
-for source in ("bybit-linear", "binance-usdm"):
+for source in ("bybit-linear", "binance-usdm", "okx-swap"):
     item = sources.get(source)
     if not isinstance(item, dict) or item.get("configured") is not True:
         raise SystemExit(1)
@@ -456,7 +456,7 @@ if second["collector_heartbeat_at_ms"] <= first["collector_heartbeat_at_ms"]:
 real_event_observed = second.get("last_event_at_ms") != first.get("last_event_at_ms")
 file_growth_observed = any(
     second["sizes"].get(name, -1) > first["sizes"].get(name, -1)
-    for name in ("bybit-linear.ndjson", "binance-usdm.ndjson")
+    for name in ("bybit-linear.ndjson", "binance-usdm.ndjson", "okx-swap.ndjson")
 )
 cpu_quota_supported = sys.argv[14] == "true"
 nano_cpus = int(sys.argv[15])

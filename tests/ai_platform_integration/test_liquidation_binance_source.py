@@ -162,8 +162,10 @@ def test_source_catalog_preserves_feed_semantics() -> None:
     payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     sources = {item["source"]: item for item in payload["sources"]}
 
-    assert set(sources) == {"bybit-linear", "binance-usdm", "okx-usdt-swap"}
+    assert set(sources) == {"bybit-linear", "binance-usdm", "okx-swap"}
     assert "all liquidation events" in sources["bybit-linear"]["coverage_semantics"]
     assert "latest liquidation order" in sources["binance-usdm"]["coverage_semantics"]
-    assert sources["okx-usdt-swap"]["included_in_liquid20_v1"] is False
+    assert sources["okx-swap"]["parser_source"] == "okx-usdt-swap"
+    assert sources["okx-swap"]["included_in_liquid20_v1"] is True
+    assert sources["okx-swap"]["collection_status"] == "active_public_liquid20_live_v1"
     assert payload["cross_source_policy"]["deduplicate_between_exchanges"] is False

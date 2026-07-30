@@ -24,10 +24,11 @@
       "parser": "ai_platform.research.liquidations.binance.parse_binance_force_order"
     },
     {
-      "source": "okx-usdt-swap",
+      "source": "okx-swap",
+      "parser_source": "okx-usdt-swap",
       "exchange": "OKX",
       "market": "USDT-margined perpetual swaps",
-      "collection_status": "shadow_only_not_in_liquid20_v1",
+      "collection_status": "active_public_liquid20_live_v1",
       "websocket_endpoint": "wss://ws.okx.com:8443/ws/v5/public",
       "stream_template": "liquidation-orders with instType=SWAP and local symbol filtering",
       "clock_endpoint": "https://www.okx.com/api/v5/public/time",
@@ -36,7 +37,9 @@
       "price_semantics": "bankruptcy price from bkPx",
       "quantity_semantics": "sz is contract count; normalize to base quantity with a frozen validated ctVal instrument snapshot",
       "parser": "ai_platform.research.liquidations.okx.parse_okx_liquidation_orders",
-      "included_in_liquid20_v1": false
+      "included_in_liquid20_v1": true,
+      "credentials_required": false,
+      "orders_submitted": 0
     }
   ],
   "canonical_symbols": [

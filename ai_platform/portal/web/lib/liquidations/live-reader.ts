@@ -22,7 +22,8 @@ const SOURCE_SEMANTICS: Record<LiquidationHealthSource, string> = {
   "bybit-linear": "All liquidation events published by Bybit linear allLiquidation.",
   "binance-usdm":
     "Latest Binance USD-M forceOrder event per symbol in each approximately 1000 ms window.",
-  "okx-swap": "OKX liquidation events are reserved by contract and are not enabled yet.",
+  "okx-swap":
+    "Public OKX SWAP liquidation-orders events normalized with verified public ctVal metadata.",
 };
 
 interface LiveSourceState {
@@ -52,6 +53,7 @@ interface LiveState {
   execution_enabled: false;
   trading_authorized: false;
   trading_credentials_present: false;
+  orders_submitted: 0;
 }
 
 export interface LiquidationLiveReadModelOptions {
@@ -332,7 +334,8 @@ export class LiquidationLiveReadModel {
     if (
       state.execution_enabled !== false ||
       state.trading_authorized !== false ||
-      state.trading_credentials_present !== false
+      state.trading_credentials_present !== false ||
+      state.orders_submitted !== 0
     ) {
       throw new LiquidationDataUnavailableError("live state crossed the no-trading boundary");
     }
@@ -364,6 +367,7 @@ export class LiquidationLiveReadModel {
       execution_enabled: false,
       trading_authorized: false,
       trading_credentials_present: false,
+      orders_submitted: 0,
     };
     await this.requireLiveRunIsLatest(runId);
     const activeRunId = pointer.active_run_id;
@@ -418,16 +422,19 @@ export class LiquidationLiveReadModel {
     if (Math.max(0, now - eventReference) > this.eventStaleAfterMs) {
       return "stale";
     }
-    const configuredSources = LIQUIDATION_HEALTH_SOURCES.filter(
-      (source) => state.sources[source].configured,
-    );
+    if (LIQUIDATION_HEALTH_SOURCES.some((source) => !state.sources[source].configured)) {
+      return "stale";
+    }
     if (
-      configuredSources.some((source) => {
+      LIQUIDATION_HEALTH_SOURCES.some((source) => {
         const item = state.sources[source];
+        const sourceEventReference =
+          item.last_event_received_at_ms ?? state.collector_started_at_ms;
         return (
           !item.connected ||
           item.last_heartbeat_at_ms === null ||
-          now - item.last_heartbeat_at_ms > this.sourceStaleAfterMs
+          now - item.last_heartbeat_at_ms > this.sourceStaleAfterMs ||
+          now - sourceEventReference > this.eventStaleAfterMs
         );
       })
     ) {
@@ -446,9 +453,12 @@ export class LiquidationLiveReadModel {
       const heartbeatFresh =
         item.last_heartbeat_at_ms !== null &&
         checkedAtMs - item.last_heartbeat_at_ms <= this.sourceStaleAfterMs;
+      const eventReference = item.last_event_received_at_ms ?? state.collector_started_at_ms;
+      const eventFresh = checkedAtMs - eventReference <= this.eventStaleAfterMs;
       result[source] = {
         configured: item.configured,
         connected: item.configured && item.connected && heartbeatFresh,
+        healthy: item.configured && item.connected && heartbeatFresh && eventFresh,
         events: item.events_written,
         observed_symbols: item.observed_symbol_count,
         subscription_symbol_count: item.subscription_symbol_count,
@@ -475,6 +485,7 @@ export class LiquidationLiveReadModel {
       ...historical.sources[source],
       configured: true,
       connected: false,
+      healthy: false,
       subscription_symbol_count: 0,
       last_event_received_at_ms: null,
       last_heartbeat_at_ms: null,
@@ -495,14 +506,16 @@ export class LiquidationLiveReadModel {
         "bybit-linear": enrich("bybit-linear"),
         "binance-usdm": enrich("binance-usdm"),
         "okx-swap": {
+          ...historical.sources["okx-swap"],
           configured: false,
           connected: false,
-          events: 0,
-          observed_symbols: 0,
+          healthy: false,
+          events: historical.sources["okx-swap"].events,
+          observed_symbols: historical.sources["okx-swap"].observed_symbols,
           subscription_symbol_count: 0,
-          availability_ratio: null,
-          disconnects_per_hour: null,
-          last_event_at_ms: null,
+          availability_ratio: historical.sources["okx-swap"].availability_ratio,
+          disconnects_per_hour: historical.sources["okx-swap"].disconnects_per_hour,
+          last_event_at_ms: historical.sources["okx-swap"].last_event_at_ms,
           last_event_received_at_ms: null,
           last_heartbeat_at_ms: null,
           ingest_lag_ms: null,

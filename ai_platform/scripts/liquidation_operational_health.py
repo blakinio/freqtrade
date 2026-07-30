@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import ai_platform.scripts.liquidation_live_health as live_health_module
+import ai_platform.scripts.liquidation_portal_health as portal_health_module
 from ai_platform.scripts.liquidation_live_health import (
     GitHubIssueClient,
     _alert,
@@ -25,6 +27,7 @@ from ai_platform.scripts.liquidation_portal_health import (
 )
 
 
+REQUIRED_SOURCES = ("bybit-linear", "binance-usdm", "okx-swap")
 DATA_MOUNT_DESTINATION = "/data"
 
 _CONTAINER_OBSERVATION_SCRIPT = r"""
@@ -121,6 +124,135 @@ def inspect_container_data(
         return None, empty_disk, f"{type(error).__name__}: {error}"[:500]
 
 
+def _record(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _integer(value: object) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+        return value
+    return None
+
+
+def _source_runtime_alerts(
+    pointer: dict[str, Any] | None,
+    *,
+    now_ms: int,
+    event_stale_ms: int,
+    reconnect_max: int,
+) -> list[dict[str, str]]:
+    state = _record(_record(pointer).get("state"))
+    sources = _record(state.get("sources"))
+    collector_started_at_ms = _integer(state.get("collector_started_at_ms"))
+    alerts: list[dict[str, str]] = []
+    for source in REQUIRED_SOURCES:
+        item = _record(sources.get(source))
+        events = _integer(item.get("events_written"))
+        last_receive = _integer(item.get("last_event_received_at_ms"))
+        parse_errors = _integer(item.get("parse_error_count"))
+        reconnects = _integer(item.get("reconnect_count"))
+        if events is None:
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_WRITE_STATE_INVALID",
+                    f"{source} events_written is invalid.",
+                )
+            )
+        elif (
+            events == 0
+            and collector_started_at_ms is not None
+            and now_ms - collector_started_at_ms > event_stale_ms
+        ):
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_NO_DATA_WRITTEN",
+                    f"{source} has written no events.",
+                )
+            )
+        if (
+            events is not None
+            and events > 0
+            and (last_receive is None or now_ms - last_receive > event_stale_ms)
+        ):
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_EVENT_STALE",
+                    f"{source} last receive time is stale.",
+                )
+            )
+        if parse_errors is None:
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_PARSE_STATE_INVALID",
+                    f"{source} parse count is invalid.",
+                )
+            )
+        elif parse_errors > 0:
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_PARSE_ERRORS",
+                    f"{source} parse errors={parse_errors}.",
+                )
+            )
+        if reconnects is None:
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_RECONNECT_STATE_INVALID",
+                    f"{source} reconnect count is invalid.",
+                )
+            )
+        elif reconnects > reconnect_max:
+            alerts.append(
+                _alert(
+                    "LIQUID20_SOURCE_RECONNECTS_UNCONTROLLED",
+                    f"{source} reconnect count {reconnects} exceeds {reconnect_max}.",
+                )
+            )
+    return alerts
+
+
+def _runtime_portal_alerts(
+    pointer: dict[str, Any] | None,
+    portal_report: dict[str, Any] | None,
+) -> list[dict[str, str]]:
+    runtime_sources = _record(_record(_record(pointer).get("state")).get("sources"))
+    portal_health = _record(_record(_record(portal_report).get("observation")).get("health"))
+    portal_sources = _record(portal_health.get("sources"))
+    alerts: list[dict[str, str]] = []
+    for source in REQUIRED_SOURCES:
+        runtime = _record(runtime_sources.get(source))
+        portal = _record(portal_sources.get(source))
+        if not portal:
+            alerts.append(
+                _alert(
+                    "LIQUID20_PORTAL_SOURCE_MISSING",
+                    f"Portal omitted {source}.",
+                )
+            )
+            continue
+        if runtime.get("configured") != portal.get("configured"):
+            alerts.append(
+                _alert(
+                    "LIQUID20_PORTAL_SOURCE_CONFIG_DRIFT",
+                    f"{source} configured state differs.",
+                )
+            )
+        runtime_events = _integer(runtime.get("events_written"))
+        portal_events = _integer(portal.get("events"))
+        if (
+            runtime_events is not None
+            and portal_events is not None
+            and portal_events > runtime_events
+        ):
+            alerts.append(
+                _alert(
+                    "LIQUID20_PORTAL_SOURCE_COUNT_DRIFT",
+                    f"{source} portal count exceeds runtime count.",
+                )
+            )
+    return alerts
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     proof_exit_code = None
@@ -136,6 +268,12 @@ def main(argv: list[str] | None = None) -> int:
         args.container_name,
         args.data_root,
     )
+
+    # The operational entrypoint extends the existing health functions for this run only.
+    # Importing this module does not mutate global source requirements for unrelated tests.
+    live_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
+    portal_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
+
     report = evaluate_health(
         now_ms=now_ms,
         container=inspect_container(args.container_name),
@@ -161,9 +299,18 @@ def main(argv: list[str] | None = None) -> int:
         portal_report,
         required=args.require_portal,
     )
+    operational_alerts = _source_runtime_alerts(
+        pointer,
+        now_ms=now_ms,
+        event_stale_ms=(int(os.environ.get("LIQUID20_EVENT_STALE_SECONDS", "300")) * 1000),
+        reconnect_max=int(os.environ.get("LIQUID20_RECONNECT_COUNT_MAX", "100")),
+    )
+    consistency_alerts = (
+        _runtime_portal_alerts(pointer, portal_report) if args.require_portal else []
+    )
     report["schema_version"] = 2
     report["checks"]["portal"] = portal_result
-    report["alerts"].extend(portal_alerts)
+    report["alerts"].extend(portal_alerts + operational_alerts + consistency_alerts)
     report["healthy"] = not report["alerts"]
 
     token = os.environ.get(args.github_token_env, "")
@@ -189,7 +336,10 @@ def main(argv: list[str] | None = None) -> int:
         report["github_alert_action"] = "disabled"
 
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    args.report.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     print(json.dumps(report, separators=(",", ":"), sort_keys=True))
     return 0 if report["healthy"] is True else 1
 

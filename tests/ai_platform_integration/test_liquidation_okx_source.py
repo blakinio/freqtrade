@@ -246,7 +246,7 @@ def test_okx_instrument_snapshot_records_normalization_formula() -> None:
     assert policy["quantity_formula"] == "base_quantity = contracts * ctVal"
 
 
-def test_source_catalog_marks_okx_as_shadow_only() -> None:
+def test_source_catalog_marks_okx_as_active_public_liquid20_source() -> None:
     catalog_path = (
         Path(__file__).parents[2]
         / "ai_platform"
@@ -257,6 +257,10 @@ def test_source_catalog_marks_okx_as_shadow_only() -> None:
     payload = json.loads(catalog_path.read_text(encoding="utf-8"))
     sources = {item["source"]: item for item in payload["sources"]}
 
-    assert set(sources) == {"bybit-linear", "binance-usdm", "okx-usdt-swap"}
-    assert sources["okx-usdt-swap"]["included_in_liquid20_v1"] is False
-    assert "ctVal" in sources["okx-usdt-swap"]["quantity_semantics"]
+    assert set(sources) == {"bybit-linear", "binance-usdm", "okx-swap"}
+    assert sources["okx-swap"]["parser_source"] == "okx-usdt-swap"
+    assert sources["okx-swap"]["included_in_liquid20_v1"] is True
+    assert sources["okx-swap"]["collection_status"] == "active_public_liquid20_live_v1"
+    assert sources["okx-swap"]["credentials_required"] is False
+    assert sources["okx-swap"]["orders_submitted"] == 0
+    assert "ctVal" in sources["okx-swap"]["quantity_semantics"]

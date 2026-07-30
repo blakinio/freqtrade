@@ -21,14 +21,14 @@ if [ "$COLLECTOR_COMMIT" != "$IMAGE_COMMIT" ]; then
   exit 64
 fi
 
-if [ -n "${BYBIT_API_KEY:-}${BYBIT_API_SECRET:-}${BINANCE_API_KEY:-}${BINANCE_API_SECRET:-}${OKX_API_KEY:-}${OKX_API_SECRET:-}${OKX_PASSPHRASE:-}${FT_EXCHANGE_KEY:-}${FT_EXCHANGE_SECRET:-}${FREQTRADE__EXCHANGE__KEY:-}${FREQTRADE__EXCHANGE__SECRET:-}" ]; then
+if [ -n "${BYBIT_API_KEY:-}${BYBIT_API_SECRET:-}${BINANCE_API_KEY:-}${BINANCE_API_SECRET:-}${OKX_API_KEY:-}${OKX_API_SECRET:-}${OKX_SECRET_KEY:-}${OKX_PASSPHRASE:-}${FT_EXCHANGE_KEY:-}${FT_EXCHANGE_SECRET:-}${FREQTRADE__EXCHANGE__KEY:-}${FREQTRADE__EXCHANGE__SECRET:-}" ]; then
   echo "Trading credentials are present; the live data-only container refuses to start" >&2
   exit 64
 fi
 
 mkdir -p "$DATA_ROOT/live/runs"
 
-exec python -m ai_platform.scripts.liquidation_live_stream \
+exec python -m ai_platform.scripts.liquidation_live_stream_okx \
   --data-root "$DATA_ROOT" \
   --collector-commit "$COLLECTOR_COMMIT" \
   --host-id "$HOST_ID" \

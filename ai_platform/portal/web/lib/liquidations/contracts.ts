@@ -1,9 +1,5 @@
-export const LIQUIDATION_SOURCES = ["bybit-linear", "binance-usdm"] as const;
-export const LIQUIDATION_HEALTH_SOURCES = [
-  "bybit-linear",
-  "binance-usdm",
-  "okx-swap",
-] as const;
+export const LIQUIDATION_SOURCES = ["bybit-linear", "binance-usdm", "okx-swap"] as const;
+export const LIQUIDATION_HEALTH_SOURCES = LIQUIDATION_SOURCES;
 
 export type LiquidationSource = (typeof LIQUIDATION_SOURCES)[number];
 export type LiquidationHealthSource = (typeof LIQUIDATION_HEALTH_SOURCES)[number];
@@ -104,6 +100,7 @@ export interface LiquidationSourceHealth {
   last_event_at_ms: number | null;
   configured?: boolean;
   connected?: boolean;
+  healthy?: boolean;
   subscription_symbol_count?: number;
   last_event_received_at_ms?: number | null;
   last_heartbeat_at_ms?: number | null;
@@ -146,3 +143,11 @@ export interface LiquidationHealth {
   trading_authorized: false;
   source_semantics: Record<LiquidationSource, string> & Record<string, string | undefined>;
 }
+
+export type LiquidationDataSource = LiquidationSource;
+export type LiquidationDataEvent = PortalLiquidationEvent;
+export type LiquidationDataQuery = LiquidationQuery;
+export type LiquidationDataPage = LiquidationPage;
+export type LiquidationDataWindowSummary = LiquidationWindowSummary;
+export type LiquidationDataSymbolRanking = LiquidationSymbolRanking;
+export type LiquidationDataSummary = LiquidationSummary;

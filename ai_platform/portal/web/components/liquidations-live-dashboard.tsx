@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type {
   LiquidatedPositionSide,
+  LiquidationDataPage,
+  LiquidationDataSource,
+  LiquidationDataSummary,
   LiquidationHealth,
   LiquidationHealthSource,
-  LiquidationPage,
-  LiquidationSource,
-  LiquidationSummary,
+  LiquidationSourceHealth,
 } from "@/lib/liquidations";
 
 import styles from "./liquidations-dashboard.module.css";
@@ -16,7 +17,7 @@ import styles from "./liquidations-dashboard.module.css";
 type TimeRange = "5m" | "1h" | "24h";
 
 interface Filters {
-  source: LiquidationSource | "all";
+  source: LiquidationDataSource | "all";
   symbol: string;
   side: LiquidatedPositionSide | "all";
   range: TimeRange;
@@ -30,9 +31,9 @@ const RANGE_MS: Record<TimeRange, number> = {
 const INITIAL_FILTERS: Filters = { source: "all", symbol: "", side: "all", range: "24h" };
 const HEALTH_SOURCES: LiquidationHealthSource[] = ["bybit-linear", "binance-usdm", "okx-swap"];
 const SOURCE_NAMES: Record<LiquidationHealthSource, string> = {
-  "bybit-linear": "Bybit",
-  "binance-usdm": "Binance",
-  "okx-swap": "OKX",
+  "bybit-linear": "Bybit Linear",
+  "binance-usdm": "Binance USD-M",
+  "okx-swap": "OKX SWAP",
 };
 
 async function fetchJson<T>(path: string, signal: AbortSignal): Promise<T> {
@@ -83,7 +84,7 @@ function formatTimestamp(value: number | null | undefined): string {
 function modeLabel(mode: LiquidationHealth["mode"]): string {
   if (mode === "historical") return "HISTORYCZNE";
   if (mode === "live") return "LIVE";
-  if (mode === "stale") return "STALE / NIEŚWIEŻE";
+  if (mode === "stale") return "STALE / DEGRADED";
   return "OFFLINE / NIEDOSTĘPNE";
 }
 
@@ -100,11 +101,18 @@ function acceptanceLabel(status: LiquidationHealth["acceptance_status"]): string
   return "BRAK RAPORTU";
 }
 
+function sourceConnectionLabel(item: LiquidationSourceHealth | undefined): string {
+  if (!item?.configured) return "OFFLINE · nieskonfigurowane";
+  if (!item.connected) return "DEGRADED · rozłączone";
+  if (item.healthy === false) return "DEGRADED · dane nieświeże";
+  return "LIVE · zdrowe";
+}
+
 export function LiquidationsLiveDashboard() {
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [health, setHealth] = useState<LiquidationHealth | null>(null);
-  const [summary, setSummary] = useState<LiquidationSummary | null>(null);
-  const [page, setPage] = useState<LiquidationPage | null>(null);
+  const [summary, setSummary] = useState<LiquidationDataSummary | null>(null);
+  const [page, setPage] = useState<LiquidationDataPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,11 +124,11 @@ export function LiquidationsLiveDashboard() {
           signal,
         );
         const [nextSummary, nextPage] = await Promise.all([
-          fetchJson<LiquidationSummary>(
+          fetchJson<LiquidationDataSummary>(
             `/api/market/liquidations/summary${buildQuery(filters, nextHealth, false)}`,
             signal,
           ),
-          fetchJson<LiquidationPage>(
+          fetchJson<LiquidationDataPage>(
             `/api/market/liquidations${buildQuery(filters, nextHealth, true)}`,
             signal,
           ),
@@ -178,8 +186,8 @@ export function LiquidationsLiveDashboard() {
           <span className={styles.eyebrow}>Market Data · Research preview</span>
           <h1>Likwidacje</h1>
           <p>
-            Ciągły, publiczny i wyłącznie odczytowy strumień shadow. Nie zawiera danych
-            uwierzytelniających, sygnałów ani uprawnień do składania zleceń.
+            Ciągły, publiczny i wyłącznie odczytowy strumień shadow z Binance USD-M,
+            Bybit Linear i OKX SWAP. Nie zawiera credentials ani uprawnień do zleceń.
           </p>
         </div>
         <div className={styles.statusCluster} aria-label="Stan danych">
@@ -194,7 +202,7 @@ export function LiquidationsLiveDashboard() {
 
       <section className={styles.sourceNotes} aria-label="Czasy aktualności">
         <article>
-          <strong>Ostatnie zdarzenie</strong>
+          <strong>Ostatnie zdarzenie rynkowe</strong>
           <p>{formatTimestamp(health.last_event_at_ms)}</p>
         </article>
         <article>
@@ -217,7 +225,7 @@ export function LiquidationsLiveDashboard() {
 
       {health.mode === "stale" ? (
         <div className={styles.warning} role="status">
-          Collector, źródło lub zdarzenia przekroczyły skonfigurowany próg świeżości.
+          Collector, pojedyncze źródło albo zdarzenia przekroczyły próg świeżości.
         </div>
       ) : null}
       {health.mode === "offline" ? (
@@ -234,23 +242,24 @@ export function LiquidationsLiveDashboard() {
 
       <section className={styles.sourceNotes} aria-label="Zdrowie źródeł">
         {HEALTH_SOURCES.map((source) => {
-          const sourceHealth = health.sources[source];
+          const item = health.sources[source];
           return (
             <article key={source}>
               <strong>{SOURCE_NAMES[source]}</strong>
+              <p>{sourceConnectionLabel(item)}</p>
+              <p>Ostatnie zdarzenie: {formatTimestamp(item?.last_event_at_ms)}</p>
+              <p>Ostatni odbiór: {formatTimestamp(item?.last_event_received_at_ms)}</p>
+              <p>Heartbeat: {formatTimestamp(item?.last_heartbeat_at_ms)}</p>
+              <p>Lag ingestu: {item?.ingest_lag_ms ?? "brak"} ms</p>
+              <p>Reconnecty: {item?.reconnect_count ?? 0}</p>
+              <p>Błędy parsera: {item?.parse_error_count ?? 0}</p>
+              <p>Błędy źródła: {item?.error_count ?? 0}</p>
+              <p>Zdarzenia: {item?.events ?? 0}</p>
               <p>
-                {sourceHealth?.configured
-                  ? sourceHealth.connected
-                    ? "połączone"
-                    : "rozłączone"
-                  : "niewłączone"}
+                Instrumenty: {item?.observed_symbols ?? 0} obserwowane /{" "}
+                {item?.subscription_symbol_count ?? 0} subskrybowane
               </p>
-              <p>Ostatnie zdarzenie: {formatTimestamp(sourceHealth?.last_event_at_ms)}</p>
-              <p>Heartbeat: {formatTimestamp(sourceHealth?.last_heartbeat_at_ms)}</p>
-              <p>Lag ingestu: {sourceHealth?.ingest_lag_ms ?? "brak"} ms</p>
-              <p>Reconnecty: {sourceHealth?.reconnect_count ?? 0}</p>
-              <p>Liczba symboli: {sourceHealth?.observed_symbols ?? 0}</p>
-              <p>Błąd: {sourceHealth?.latest_error ?? "brak"}</p>
+              <p>Błąd: {item?.latest_error ?? "brak"}</p>
             </article>
           );
         })}
@@ -269,8 +278,9 @@ export function LiquidationsLiveDashboard() {
             }
           >
             <option value="all">Wszystkie</option>
-            <option value="bybit-linear">Bybit</option>
-            <option value="binance-usdm">Binance</option>
+            <option value="bybit-linear">Bybit Linear</option>
+            <option value="binance-usdm">Binance USD-M</option>
+            <option value="okx-swap">OKX SWAP</option>
           </select>
         </label>
         <label>
@@ -367,14 +377,12 @@ export function LiquidationsLiveDashboard() {
                   {page.events.map((event) => (
                     <tr key={`${event.source}:${event.source_event_id}`}>
                       <td>{formatTimestamp(event.occurred_at_ms)}</td>
-                      <td>{event.source === "bybit-linear" ? "Bybit" : "Binance"}</td>
+                      <td>{SOURCE_NAMES[event.source]}</td>
                       <td>
                         <strong>{event.symbol}</strong>
                       </td>
                       <td>
-                        <span
-                          className={`${styles.side} ${styles[event.liquidated_position_side]}`}
-                        >
+                        <span className={`${styles.side} ${styles[event.liquidated_position_side]}`}>
                           {event.liquidated_position_side}
                         </span>
                       </td>

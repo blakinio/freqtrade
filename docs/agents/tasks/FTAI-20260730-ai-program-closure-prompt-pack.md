@@ -53,8 +53,8 @@ Provide one self-contained coordinator prompt and separate copy/paste worker pro
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T09:29:00+02:00
-head: a6823a6ca1666e726a7b8949604334d5b59e7678
+updated_at: 2026-07-30T09:31:00+02:00
+head: 4e6e3d6d3e09265db568d480ce77cb7be8c23b32
 branch: agent/ai-program-closure-orchestration
 pr: 759
 status: validating

@@ -1,0 +1,8 @@
+{"active":true,"available_at_ms":1785347700100,"canonical_symbol":"BTCUSDT","captured_at_ms":1785347700100,"market":"USD-M perpetual","native_symbol":"BTCUSDT","source":"binance-usdm"}
+{"active":true,"available_at_ms":1785347700100,"canonical_symbol":"ETHUSDT","captured_at_ms":1785347700100,"market":"USD-M perpetual","native_symbol":"ETHUSDT","source":"binance-usdm"}
+{"active":true,"available_at_ms":1785347700100,"canonical_symbol":"SOLUSDT","captured_at_ms":1785347700100,"market":"USD-M perpetual","native_symbol":"SOLUSDT","source":"binance-usdm"}
+{"active":true,"available_at_ms":1785347700100,"canonical_symbol":"XRPUSDT","captured_at_ms":1785347700100,"market":"USD-M perpetual","native_symbol":"XRPUSDT","source":"binance-usdm"}
+{"active":true,"available_at_ms":1785347700120,"canonical_symbol":"BTCUSDT","captured_at_ms":1785347700120,"market":"linear perpetual","native_symbol":"BTCUSDT","source":"bybit-linear"}
+{"active":true,"available_at_ms":1785347700120,"canonical_symbol":"ETHUSDT","captured_at_ms":1785347700120,"market":"linear perpetual","native_symbol":"ETHUSDT","source":"bybit-linear"}
+{"active":true,"available_at_ms":1785347700120,"canonical_symbol":"SOLUSDT","captured_at_ms":1785347700120,"market":"linear perpetual","native_symbol":"SOLUSDT","source":"bybit-linear"}
+{"active":true,"available_at_ms":1785347700120,"canonical_symbol":"XRPUSDT","captured_at_ms":1785347700120,"market":"linear perpetual","native_symbol":"XRPUSDT","source":"bybit-linear"}

@@ -16,7 +16,10 @@ const navigationGroups = [
   },
   {
     label: "Market Data",
-    items: [{ href: "/market/liquidations", label: "Likwidacje" }],
+    items: [
+      { href: "/market/liquidations", label: "Likwidacje" },
+      { href: "/market/evidence", label: "WickHunter Evidence" },
+    ],
   },
   {
     label: "Trading",

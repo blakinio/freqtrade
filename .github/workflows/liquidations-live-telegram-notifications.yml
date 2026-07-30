@@ -1,0 +1,91 @@
+name: Liquidations Live Telegram Notifications
+
+"on":
+  issues:
+    types:
+      - opened
+      - edited
+      - closed
+      - reopened
+  schedule:
+    - cron: "*/5 * * * *"
+  push:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquidations-live-telegram-notifications.yml
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Safe Telegram delivery test
+        required: true
+        default: test
+        type: choice
+        options:
+          - test
+          - controlled_failure
+          - controlled_recovery
+
+permissions: {}
+
+concurrency:
+  group: liquidations-live-telegram-notifications
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    name: Reconcile Telegram alert state
+    if: >-
+      github.event_name != 'issues' ||
+      github.event.issue.title == '[liquidations-live] operational health alert'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      statuses: write
+
+    steps:
+      - name: Check out trusted default-branch source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: develop
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
+      - name: Reconcile production alert or watchdog state
+        if: github.event_name == 'issues' || github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIQUIDATIONS_ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.LIQUIDATIONS_ALERT_TELEGRAM_BOT_TOKEN }}
+          LIQUIDATIONS_ALERT_TELEGRAM_CHAT_ID: ${{ secrets.LIQUIDATIONS_ALERT_TELEGRAM_CHAT_ID }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          args=(--mode auto)
+          if [[ -n "${ISSUE_NUMBER:-}" ]]; then
+            args+=(--issue-number "$ISSUE_NUMBER")
+          fi
+          python -m ai_platform.scripts.liquidation_alert_notifications "${args[@]}"
+
+      - name: Verify Telegram channel after deployment
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIQUIDATIONS_ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.LIQUIDATIONS_ALERT_TELEGRAM_BOT_TOKEN }}
+          LIQUIDATIONS_ALERT_TELEGRAM_CHAT_ID: ${{ secrets.LIQUIDATIONS_ALERT_TELEGRAM_CHAT_ID }}
+        run: python -m ai_platform.scripts.liquidation_alert_notifications --mode bootstrap
+
+      - name: Run isolated manual notification test
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIQUIDATIONS_ALERT_TELEGRAM_BOT_TOKEN: ${{ secrets.LIQUIDATIONS_ALERT_TELEGRAM_BOT_TOKEN }}
+          LIQUIDATIONS_ALERT_TELEGRAM_CHAT_ID: ${{ secrets.LIQUIDATIONS_ALERT_TELEGRAM_CHAT_ID }}
+          TEST_MODE: ${{ inputs.mode }}
+        run: python -m ai_platform.scripts.liquidation_alert_notifications --mode "$TEST_MODE"

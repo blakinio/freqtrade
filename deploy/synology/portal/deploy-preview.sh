@@ -250,7 +250,7 @@ rollback() {
             "$previous_image" \
             "$previous_bind_address" \
             "$previous_port" \
-            unless-stopped >/dev/null
+            always >/dev/null
         wait_healthy "$container_name" || true
         wait_http "$previous_bind_address" "$previous_port" || true
     else
@@ -291,7 +291,7 @@ if docker inspect "$container_name" >/dev/null 2>&1; then
 fi
 
 if ! start_container \
-    "$container_name" "$image" "$bind_address" "$portal_port" unless-stopped >/dev/null; then
+    "$container_name" "$image" "$bind_address" "$portal_port" always >/dev/null; then
     rollback
     exit 1
 fi

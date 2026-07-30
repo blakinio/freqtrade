@@ -1,6 +1,6 @@
 name: Repair Synology Autostart
 
-"on":
+on:
   push:
     branches:
       - develop
@@ -8,8 +8,11 @@ name: Repair Synology Autostart
       - .github/workflows/repair-synology-autostart.yml
       - deploy/synology/freqtrade-runner/compose.yml
       - deploy/synology/liquid20/compose.yaml
-      - deploy/synology/portal/deploy-preview.sh
-      - deploy/synology/portal/prove-liquidations-live.sh
+  workflow_run: # zizmor: ignore[dangerous-triggers] trusted develop/manual upstream; no checkout or token permissions
+    workflows:
+      - Portal Synology LAN Preview
+    types:
+      - completed
   workflow_dispatch:
 
 permissions: {}

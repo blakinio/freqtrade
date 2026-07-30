@@ -4,7 +4,7 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- current evidence anchor: `develop@09bc139a766034840ac01898f8b68cd5c76fb7a2`;
+- current evidence anchor: `develop@a256dc59ad896a21f593c098bcc8c076858790d9`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
@@ -13,8 +13,9 @@
   - Liquid20/OKX source PR #761 -> `141e59a3c7da441432b3990a54903e5fcfc935c8`;
 - merged adjacent monitoring: PR #762 -> `e73de2c7a080c79486141cdafa4d2bb41afdd80e`;
 - merged Feature Engine: PR #780 -> `09bc139a766034840ac01898f8b68cd5c76fb7a2`;
-- active repository PRs: operational request #801 and external read-only preflight #758;
-- coordinator repair branch: `agent/program-closure-coordinator-repair`;
+- merged coordinator closure: PR #808 -> `a256dc59ad896a21f593c098bcc8c076858790d9`;
+- active repository PRs: operational request #809 and external read-only preflight #758;
+- coordinator terminal branch: `agent/program-closure-coordinator-terminal`;
 - coordinator repair task: `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;
 - paper/shadow/dry-run only; no live capital.
@@ -141,7 +142,7 @@ time/leakage MERGED
 simulator MERGED
 Feature Engine MERGED
 PR #761 MERGED -> Research Data READY
-coordinator registry repair RESOLVED by merged PR #780
+coordinator registry repair COMPLETED through PR #808
 Research Data -> AI routing/ranking
 all repository child PRs -> Integration/E2E
 
@@ -157,7 +158,7 @@ Live capital/P14: excluded and unauthorized
 | Shared contracts | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-contracts.md` | `agent/closure-contracts-terminal` | — | PR #781 and terminal PR #790 merged. |
 | Time/leakage | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-time-leakage.md` | `agent/closure-time-leakage-terminal` | — | PR #777 and terminal PR #792 merged. |
 | Simulator | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-simulator.md` | `agent/closure-simulator-terminal` | — | PR #787 merged; coordinator terminal checkpoint recorded. |
-| Coordinator registry repair | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-repair` | — | PR #780 absorbed the exact dynamic-count repair; coordinator records terminal ownership without duplicate test changes. |
+| Coordinator registry repair | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-terminal` | — | PR #780 absorbed the dynamic-count repair and PR #808 merged terminal ownership and dispatch evidence as `a256dc59ad896a21f593c098bcc8c076858790d9`. |
 | Feature Engine | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-engine.md` | `agent/closure-feature-engine` | `docs/agents/prompts/ai-program-closure/FEATURE-ENGINE-AGENT-PROMPT.md` | PR #780 merged as `09bc139a766034840ac01898f8b68cd5c76fb7a2`; do not start a duplicate chat. |
 | Research Data | **READY** | `docs/agents/tasks/FTAI-20260730-closure-research-data.md` | `agent/closure-research-data` | `docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md` | PR #761 merged and no active ownership overlap exists. |
 | Signal Wizard | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | PR #781 merged and no active ownership overlap exists. |
@@ -169,7 +170,7 @@ Live capital/P14: excluded and unauthorized
 
 ## Coordinator repair ownership
 
-The coordinator repair task records the stale-count ownership decision. PR #780 merged the exact dynamic-count behavior before a standalone repair PR opened, so the coordinator branch intentionally carries no duplicate test diff.
+The coordinator repair task records the stale-count ownership decision. PR #780 merged the exact dynamic-count behavior before a standalone repair PR opened, and PR #808 merged the terminal ownership and dispatch checkpoint without a duplicate test diff.
 
 ## Closure acceptance
 

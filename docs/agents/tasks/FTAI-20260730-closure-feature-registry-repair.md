@@ -1,11 +1,12 @@
 ---
 task_id: FTAI-20260730-closure-feature-registry-repair
 status: completed
-branch: agent/program-closure-coordinator-repair
+branch: agent/program-closure-coordinator-terminal
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
 related_pr: 808
+terminal_pr: 812
 owner: closure-coordinator
 dependencies:
   - PR #780 append-only feature registry count 22
@@ -24,16 +25,16 @@ required_reads:
 
 ## Terminal result
 
-The coordinator isolated the two stale append-only registry assertions and authored the smallest complete test repair. Before a standalone repair PR was opened, PR #780 synchronized and merged the same dynamic-count behavior into `develop` as `09bc139a766034840ac01898f8b68cd5c76fb7a2`. The coordinator branch now matches both merged test blobs and intentionally carries no duplicate test change.
+The coordinator isolated the two stale append-only registry assertions and authored the smallest complete test repair. Before a standalone repair PR was opened, PR #780 synchronized and merged the same dynamic-count behavior into `develop` as `09bc139a766034840ac01898f8b68cd5c76fb7a2`. The coordinator then closed the repair ownership and program-dispatch updates through PR #808, merged normally as `a256dc59ad896a21f593c098bcc8c076858790d9`. No duplicate test change was merged.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T17:51:00+02:00
-head: fdabcb35266d894e43bd0486460d22ce684c62c3
-branch: agent/program-closure-coordinator-repair
-pr: 808
+updated_at: 2026-07-30T18:03:00+02:00
+head: bdfd6374b77b8a54904adb1dd5e1e367bdb2e956
+branch: agent/program-closure-coordinator-terminal
+pr: 812
 status: ready
 context_routes:
   - AGENTS.md
@@ -49,13 +50,16 @@ proven:
   - Develop test blobs 1a5f66801e080f54b5ac6ad7d7150842991df6e2 and 55e6d2dd80ccfda02c081e6cc89359fe57f4a7ab derive counts dynamically and verify support_resistance.v1.
   - Exact PR 780 head 6bb0d434c709481e283b398fbe2e4e89b7f701a5 passed AI Platform, AI Strategy Engine, Freqtrade and security workflows.
   - PR 780 has zero unresolved review threads.
+  - PR 808 exact head 844a393a40b679e0c56c7a9df6f68b5e1f0767f8 passed AI Platform run 30559091700, Freqtrade CI run 30559091692 and security run 30559091688.
+  - PR 808 merged normally as a256dc59ad896a21f593c098bcc8c076858790d9.
 derived:
-  - A second test repair merge would be a duplicate, so the coordinator retains only the durable ownership and terminal evidence record.
+  - A second test repair merge would be a duplicate, so the coordinator retained only durable ownership and terminal evidence.
+  - Research Data, Signal Wizard and Strategy Catalog are the only repository child prompts ready for new chats at this checkpoint.
 unknown: []
 conflicts: []
 first_failure:
-  marker: RESOLVED_STALE_APPEND_ONLY_REGISTRY_COUNT
-  evidence: Literal count 21 assertions were replaced by collection-derived count and contiguous replay assertions in merged PR 780.
+  marker: NONE
+  evidence: The stale count blocker, checkpoint closure, exact-head CI and normal merge gates are complete.
 rejected_hypotheses:
   - Remove support_resistance.v1 to preserve an obsolete count.
   - Merge a second formatting-only copy of the same repair.
@@ -66,9 +70,12 @@ validation:
   - command: PR 780 exact-head workflows 30556341137, 30556340978, 30556341843 and 30556341555
     result: PASS
     evidence: AI Platform, AI Strategy Engine, full Freqtrade CI and security analysis succeeded.
-  - command: Develop feature-registry test blob comparison
+  - command: PR 808 exact-head workflows 30559091700, 30559091692 and 30559091688
     result: PASS
-    evidence: The coordinator branch matches the merged dynamic-count test content; no duplicate test diff remains.
+    evidence: AI Platform, full Freqtrade CI including CI Gate, and security analysis succeeded.
+  - command: PR 808 merge and changed-file inspection
+    result: PASS
+    evidence: Seven documentation/task paths merged normally as a256dc59ad896a21f593c098bcc8c076858790d9 with no duplicate test diff.
 blockers: []
-next_action: Merge PR 808 normally after exact-head checks pass and dispatch only the READY Research Data, Signal Wizard and Strategy Catalog workers.
+next_action: Dispatch Research Data, Signal Wizard and Strategy Catalog from current develop; keep routing/ranking, integration/E2E and external staging gated by their recorded dependencies.
 ```

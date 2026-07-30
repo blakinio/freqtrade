@@ -42,6 +42,8 @@ After Gate 0, open separate chats and paste every worker prompt that the closure
 
 The integration/E2E agent may prepare harness work early only when its task record explicitly allows it. Final acceptance waits for all required implementation PRs.
 
+Every worker prompt requires `WORKER-COMMON-RULES.md`; the pasted prompt tells the agent to read it from the repository before editing.
+
 ### Optional external lane
 
 Use `EXTERNAL-STAGING-AGENT-PROMPT.md` only after the repository matrix marks it ready and the owner explicitly supplies/authorizes real Cloudflare, protected GitHub, Synology, Authentik, Vault and staging resources.
@@ -57,6 +59,8 @@ Use `EXTERNAL-STAGING-AGENT-PROMPT.md` only after the repository matrix marks it
 7. Keep the coordinator chat available for merge sequencing and bounded contract-change routing.
 8. After worker PRs merge, run the integration/E2E prompt if it was not already active.
 9. Return to the coordinator prompt/chat for final repository closure and terminal checkpoint.
+
+Launching all worker prompts before Gate 0 is intentionally unsupported: workers will refuse implementation when the matrix, task record or ownership gate is missing.
 
 ## Safety
 

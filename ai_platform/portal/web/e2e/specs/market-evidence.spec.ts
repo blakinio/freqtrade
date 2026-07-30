@@ -76,9 +76,13 @@ test.describe("WickHunter market evidence", () => {
       "/api/market/evidence/instruments?page=1&page_size=101",
     );
     expect(invalid.status()).toBe(422);
-    await expect(invalid.json()).resolves.toMatchObject({
-      code: "MARKET_EVIDENCE_QUERY_INVALID",
-    });
+    const invalidPayload = (await invalid.json()) as { code?: string };
+    expect(invalidPayload).toMatchObject({ code: "MARKET_EVIDENCE_QUERY_INVALID" });
+
+    const invalidQuality = await page.request.get(
+      "/api/market/evidence/instruments?quality=accepted",
+    );
+    expect(invalidQuality.status()).toBe(422);
   });
 
   test("@permissions denies cross-tenant identity", async ({ page }) => {
@@ -88,7 +92,8 @@ test.describe("WickHunter market evidence", () => {
     expect(state.status()).toBe(200);
     const api = await page.request.get("/api/market/evidence/summary");
     expect(api.status()).toBe(403);
-    await expect(api.json()).resolves.toMatchObject({ code: "CROSS_TENANT_DENIED" });
+    const payload = (await api.json()) as { code?: string };
+    expect(payload).toMatchObject({ code: "CROSS_TENANT_DENIED" });
 
     await page.goto("/market/evidence");
     await expect(page).toHaveURL(/\/denied\?reason=cross_tenant/u);

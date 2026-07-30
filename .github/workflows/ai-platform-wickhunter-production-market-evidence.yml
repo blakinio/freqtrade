@@ -160,7 +160,7 @@ jobs:
 
   sample:
     name: Scheduled polling disabled; persistent container owns sampling
-    if: ${{ false }}
+    if: false
     runs-on: [freqtrade-staging]
     timeout-minutes: 20
     steps:

@@ -35,14 +35,16 @@ def test_snapshot_and_replay_are_deterministic_and_execution_inert() -> None:
     second_replay = service.replay(context)
 
     assert first == second
-    assert first.feature_count == 21
+    assert first.feature_count == len(first.features)
     assert first.snapshot_sha256 == second.snapshot_sha256
     assert first.execution_authority is False
     assert first_replay == second_replay
     assert first_replay.record_count == first.feature_count
     assert first_replay.append_only is True
     assert first_replay.execution_authority is False
-    assert tuple(record.sequence for record in first_replay.records) == tuple(range(21))
+    assert tuple(record.sequence for record in first_replay.records) == tuple(
+        range(first.feature_count)
+    )
     with pytest.raises(ValidationError):
         FeatureRegistrySnapshot.model_validate(
             {
@@ -119,7 +121,11 @@ def test_router_is_get_only_and_returns_stable_errors() -> None:
     write_attempt = client.post("/v1/feature-registry/snapshot")
 
     assert snapshot.status_code == 200
-    assert snapshot.json()["feature_count"] == 21
+    snapshot_payload = snapshot.json()
+    assert snapshot_payload["feature_count"] == len(snapshot_payload["features"])
+    assert any(
+        item["feature_id"] == "support_resistance.v1" for item in snapshot_payload["features"]
+    )
     assert resolved.status_code == 200
     assert resolved.json()["resolved_feature_ids"][0] == "confirmed_pivot.v1"
     assert missing.status_code == 404

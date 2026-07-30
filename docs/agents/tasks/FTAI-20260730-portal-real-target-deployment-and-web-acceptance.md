@@ -43,23 +43,20 @@ Add a secret-free, read-only target inventory that:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T09:20:00+02:00
-head: 71164a99891988ac3d370422ddde737c75bddfe6
+updated_at: 2026-07-30T23:06:00+02:00
+head: 403aa55be0daae4bd17d042384c449cc16c939cc
 branch: deploy/portal-real-target-acceptance-20260730
-pr: null
-status: active
+pr: 758
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
   - docs/ai_platform/portal/README.md
-  - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
-  - docs/ai_platform/portal/SECURITY_ARCHITECTURE.md
-  - docs/ai_platform/portal/UI_DELIVERY_STATUS.md
   - docs/ai_platform/portal/PI06_IDENTITY_AND_SESSION_DECISION.md
   - docs/ai_platform/portal/runbooks/PI06_AUTHENTIK_SYNOLOGY.md
-  - docs/ai_platform/portal/runbooks/PI07_VAULT_SYNOLOGY.md
-  - docs/ai_platform/portal/PRODUCTION_LIKE_STAGING.md
+  - .github/workflows/portal-authentik-synology-target-preflight.yml
+  - .github/workflows/portal-authentik-deployment.yml
 owned_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
   - deploy/synology/portal/real_target_preflight.py
@@ -67,28 +64,31 @@ owned_paths:
   - tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
   - docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md
 proven:
-  - develop head at task start was 7240762e134d8db42b83030491ae52ec0d02cad6.
-  - The trusted runner is reachable and Docker/Compose inspection succeeds.
-  - PI-06 preflight run 30521552962 produced artifact 8750953672 without target mutation or secret disclosure.
-  - Required PI-06 public variables, protected secrets and FREQTRADE_STAGING_STATE_DIR were absent on 2026-07-30.
-  - No Authentik containers, networks or volumes existed during the PI-06 preflight.
-  - The existing Synology portal deployment workflow is fixture-only and intentionally omits the control-plane URL.
-  - Repository PI-06, PI-07, PI-08, BM-07 and BM-09 software packages exist, but repository evidence is not target acceptance.
+  - PR #758 is open and mergeable on branch deploy/portal-real-target-acceptance-20260730 at authored head 403aa55be0daae4bd17d042384c449cc16c939cc.
+  - Current develop is 0e6de6a2a6e441b4f334103ffff6fd071aa773f8; the branch is 5 commits ahead and 282 commits behind.
+  - PR #758 security workflow 30522725306 passed; Freqtrade CI 30522724745 and AI Platform CI 30522724917 failed on the old exact head.
+  - Freqtrade pre-commit job 90806705013 reported 8 Ruff findings and ruff-format changes in the preflight implementation and test.
+  - The PI-06 Synology target preflight uses the existing self-hosted freqtrade-staging runner and synology-staging environment.
+  - The portal Authentik workflow currently validates the Compose package on ubuntu-24.04; it does not perform real target deployment.
+  - Prior real target evidence showed missing PI-06 variables, protected secrets and durable state configuration, with no Authentik target resources present.
+  - The task remains read-only and authorizes no deployment mutation, trading credentials, withdrawals or live capital.
 derived:
-  - Real deployment mutation is unsafe until the owner-controlled identity configuration and durable storage gate pass.
-  - A broader secret-free target inventory can still be completed autonomously before the owner gate is resolved.
+  - A new dedicated runner is not required for Authentik; the existing approved Synology runner is the intended target executor for a separately governed deployment package.
+  - PR #758 must be synchronized and repaired before its evidence can govern any later real target mutation.
 unknown:
-  - Exact current portal image ID, health, restart policy and sanitized configuration fingerprint.
-  - Presence and health of portal API/database, Vault, Cloudflare Tunnel and private Freqtrade dry-run runtime.
-  - Public hostname, real OIDC/MFA, canonical database state, migrations, browser acceptance, restart/reboot and rollback proof.
-conflicts: []
+  - Whether the owner has since populated the PI-06 variables, secrets and durable state path.
+  - Current real target presence and health of Authentik, Vault, Cloudflare Tunnel, portal API/database and private Freqtrade dry-run runtime.
+  - Exact-head CI outcome after synchronization with current develop.
+conflicts:
+  - The prior checkpoint recorded no PR and instructed opening one, but PR #758 is already open and stale against current develop.
 first_failure:
-  marker: OWNER_PI06_TARGET_CONFIGURATION_MISSING
-  evidence: The real target preflight found the required PI-06 variables/secrets and durable state-directory configuration absent.
+  marker: PR758_PRECOMMIT_RUFF_FAILED
+  evidence: Run 30522724745 job 90806705013 failed first on Ruff import, security-audit and complexity findings, then ruff-format changed two files.
 rejected_hypotheses:
-  - Fixture preview, emulated Authentik, localhost tests or repository CI cannot satisfy real target acceptance.
-  - Missing credentials or public infrastructure cannot be invented.
-  - Live-capital trading, withdrawals and production credentials remain prohibited.
+  - A fixture preview, emulated Authentik or repository-only validation can satisfy real target acceptance.
+  - Missing owner-controlled secrets or public infrastructure can be invented.
+  - A second runner is necessary merely to create the isolated portal-authentik Compose project.
+  - Live-capital trading, withdrawals and production credentials are authorized.
 changed_paths:
   - .github/workflows/portal-real-target-readonly-preflight.yml
   - deploy/synology/portal/real_target_preflight.py
@@ -97,11 +97,24 @@ changed_paths:
 validation:
   - command: python3 -m py_compile deploy/synology/portal/real_target_preflight.py
     result: PASS
+    evidence: Pre-PR local syntax validation recorded in the task.
   - command: python3 -m pytest -q tests/ai_platform/portal/deployment/test_portal_real_target_readonly_preflight.py
     result: PASS
-    evidence: 5 passed
+    evidence: Pre-PR focused suite recorded 5 passed.
+  - command: GitHub Actions security run 30522725306
+    result: PASS
+    evidence: Exact authored head security workflow completed successfully.
+  - command: GitHub Actions Freqtrade CI run 30522724745
+    result: FAIL
+    evidence: Pre-commit Ruff and format failures plus downstream core-test failures on the stale merge ref.
+  - command: GitHub Actions AI Platform CI run 30522724917
+    result: FAIL
+    evidence: Exact authored head workflow completed with failure; revalidation is required after synchronization.
+  - command: python tools/agents/checkpoint.py docs/agents/tasks/FTAI-20260730-portal-real-target-deployment-and-web-acceptance.md --require-checkpoint
+    result: PASS
+    evidence: Validated 1 checkpoint task(s).
 blockers:
-  - marker: OWNER_PI06_TARGET_CONFIGURATION_MISSING
-    evidence: FREQTRADE_STAGING_STATE_DIR, three PI-06 public variables and seven PI-06 protected secrets are absent.
-next_action: Open and validate the bounded read-only preflight implementation PR against current develop.
+  - PR #758 is 282 commits behind current develop and its old exact-head CI is red.
+  - Owner-controlled PI-06 variables, secrets and durable state configuration were absent in the last real target preflight.
+next_action: Synchronize PR #758 normally with develop@0e6de6a2a6e441b4f334103ffff6fd071aa773f8, apply only evidenced CI repairs, and rerun exact-head validation before any deployment mutation.
 ```

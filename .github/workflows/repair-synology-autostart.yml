@@ -8,7 +8,7 @@ on:
       - .github/workflows/repair-synology-autostart.yml
       - deploy/synology/freqtrade-runner/compose.yml
       - deploy/synology/liquid20/compose.yaml
-  workflow_run:
+  workflow_run: # zizmor: ignore[dangerous-triggers] trusted develop/manual upstream; no checkout or token permissions
     workflows:
       - Portal Synology LAN Preview
     types:

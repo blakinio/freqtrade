@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "repository": "blakinio/freqtrade",
+  "default_lane": "freqtrade-core",
+  "task_globs": [
+    "docs/agents/tasks/*.md",
+    "docs/agents/tasks/active/*.md"
+  ],
+  "execution": {
+    "checkpoint_interval_minutes": 30,
+    "lease_minutes": 45,
+    "stale_after_minutes": 45,
+    "barrier_mode": "wave",
+    "max_interactive_interruptions": 0
+  },
+  "lanes": [
+    {
+      "id": "freqtrade-wickhunter",
+      "label": "WickHunter and market evidence",
+      "match_keywords": [
+        "wickhunter",
+        "market-evidence",
+        "market evidence",
+        "evidence-capture"
+      ]
+    },
+    {
+      "id": "freqtrade-portal",
+      "label": "AI Trading Portal and identity",
+      "match_keywords": [
+        "portal",
+        "signal-wizard",
+        "signal wizard",
+        "identity",
+        "control-plane",
+        "control plane"
+      ]
+    },
+    {
+      "id": "freqtrade-operations",
+      "label": "Deployment and real-target operations",
+      "match_keywords": [
+        "synology",
+        "deployment",
+        "real-target",
+        "real target",
+        "preflight",
+        "acceptance"
+      ]
+    },
+    {
+      "id": "freqtrade-ai",
+      "label": "AI research, routing and ranking",
+      "match_keywords": [
+        "routing",
+        "ranking",
+        "training",
+        "model",
+        "feature-engine",
+        "feature engine",
+        "liquidation",
+        "research-data",
+        "research data"
+      ]
+    },
+    {
+      "id": "freqtrade-core",
+      "label": "Freqtrade core and uncategorized work"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Generator, Mapping
 from enum import StrEnum
-from typing import Annotated, cast
+from typing import Annotated, Any, cast
 
 from pydantic import (
     BaseModel,
@@ -69,8 +69,8 @@ class DslAstModel(BaseModel, Mapping[str, JsonValue]):
     def __getitem__(self, key: str) -> JsonValue:
         return self._as_mapping()[key]
 
-    def __iter__(self) -> Iterator[str]:  # type: ignore[override]
-        return iter(self._as_mapping())
+    def __iter__(self) -> Generator[Any, None, None]:
+        yield from self._as_mapping()
 
     def __len__(self) -> int:
         return len(self._as_mapping())

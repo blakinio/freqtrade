@@ -422,11 +422,11 @@ export class LiquidationLiveReadModel {
     if (Math.max(0, now - eventReference) > this.eventStaleAfterMs) {
       return "stale";
     }
-    const configuredSources = LIQUIDATION_HEALTH_SOURCES.filter(
-      (source) => state.sources[source].configured,
-    );
+    if (LIQUIDATION_HEALTH_SOURCES.some((source) => !state.sources[source].configured)) {
+      return "stale";
+    }
     if (
-      configuredSources.some((source) => {
+      LIQUIDATION_HEALTH_SOURCES.some((source) => {
         const item = state.sources[source];
         return (
           !item.connected ||

@@ -8,6 +8,7 @@ created: 2026-07-30
 updated: 2026-07-30
 related_pr: 818
 terminal_pr: 820
+unblock_pr: 830
 backend_task: FTAI-20260730-closure-signal-wizard-backend
 backend_pr: 825
 backend_merge: 0bc35521debd33312820dfad9f010e22aa651610
@@ -57,10 +58,10 @@ Build the complete research-only Signal Wizard against the frozen typed DSL and 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T23:24:00+02:00
+updated_at: 2026-07-30T23:36:00+02:00
 head: 0bc35521debd33312820dfad9f010e22aa651610
 branch: agent/closure-signal-wizard-unblock
-pr: null
+pr: 830
 status: ready
 context_routes:
   - AGENTS.md

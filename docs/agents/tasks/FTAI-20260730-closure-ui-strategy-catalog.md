@@ -57,7 +57,7 @@ updated_at: 2026-07-30T21:52:00+02:00
 head: 1f130f01b8f7d1d853aa6e92ecb59076705c914b
 branch: agent/closure-ui-strategy-catalog
 pr: 819
-status: ci_recheck_pending
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -84,7 +84,7 @@ derived:
   - The owned routes consume the frozen contracts without changing shared schemas or generated-client inputs.
   - The lint repair is route-local and requires no backend, shell, navigation, CI workflow or live-capital ownership transfer.
 unknown:
-  - Exact conclusions of the new workflow runs for head 1f130f01b8f7d1d853aa6e92ecb59076705c914b.
+  - Exact conclusions of the new workflow runs for the repaired PR head.
   - Exact merge commit until all required checks and review gates pass.
 conflicts: []
 first_failure:
@@ -114,7 +114,7 @@ validation:
     result: PASS
     evidence: Implementation diff remains inside all nine declared owned paths including this task record.
   - command: Portal Web CI run 30576340147
-    result: FAIL_REPAIRED
+    result: FAIL
     evidence: Typecheck passed; lint reported two react-hooks/set-state-in-effect findings in strategy-catalog-client.tsx; commit 1f130f01b8f7d1d853aa6e92ecb59076705c914b removes the synchronous effect call chains without suppression.
   - command: AI Platform CI run 30576340125
     result: PASS
@@ -123,8 +123,8 @@ validation:
     result: PASS
     evidence: Exact pre-repair implementation head passed zizmor analysis.
   - command: PR 819 required CI after lint repair
-    result: PENDING
-    evidence: New exact-head workflow runs are being created.
+    result: NOT_RUN
+    evidence: New exact-head workflow runs are queued or executing and have no terminal conclusion yet.
 blockers: []
 next_action: Inspect PR 819 workflow runs for the exact repaired head and fix the first remaining failing required check inside owned paths.
 ```

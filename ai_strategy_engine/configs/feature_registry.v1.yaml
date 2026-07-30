@@ -582,3 +582,28 @@ features:
   timestamp_policy: same_as_confirmed_input_signal
   normalization: event {-1,0,1}
   license_origin: independent_policy
+- id: support_resistance.v1
+  status: experimental
+  approved_for_ai: false
+  research_only: true
+  roles:
+  - trigger
+  - confirmation
+  - ml_feature
+  inputs:
+  - confirmed_pivot.v1
+  parameters:
+    min_confirmations:
+      type: integer
+      minimum: 1
+      maximum: 20
+      default: 2
+    tolerance_bps:
+      type: number
+      minimum: 0.0
+      maximum: 1000.0
+      default: 25.0
+  warmup: depends_on_confirmed_pivot + min_confirmations
+  timestamp_policy: event_time_at_latest_confirmed_pivot_available_after_all_source_pivots
+  normalization: distance_to_level / atr; confirmations capped by parameter bounds
+  license_origin: independent_generic_formula

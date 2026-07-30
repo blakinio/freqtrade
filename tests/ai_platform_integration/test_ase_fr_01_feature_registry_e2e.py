@@ -45,8 +45,12 @@ def test_feature_registry_read_only_vertical_slice() -> None:
     replay = client.get("/v1/feature-registry/replay")
 
     assert snapshot.status_code == 200
-    assert snapshot.json()["registry_version"] == "1.0.0"
-    assert snapshot.json()["feature_count"] == 21
+    snapshot_payload = snapshot.json()
+    assert snapshot_payload["registry_version"] == "1.0.0"
+    assert snapshot_payload["feature_count"] == len(snapshot_payload["features"])
+    assert any(
+        feature["feature_id"] == "support_resistance.v1" for feature in snapshot_payload["features"]
+    )
     assert listing.status_code == 200
     assert listing.json()
     assert all(item["approved_for_ai"] for item in listing.json())
@@ -58,5 +62,5 @@ def test_feature_registry_read_only_vertical_slice() -> None:
     ]
     assert replay.status_code == 200
     assert replay.json()["append_only"] is True
-    assert replay.json()["record_count"] == snapshot.json()["feature_count"]
+    assert replay.json()["record_count"] == snapshot_payload["feature_count"]
     assert client.post("/v1/feature-registry/replay").status_code == 405

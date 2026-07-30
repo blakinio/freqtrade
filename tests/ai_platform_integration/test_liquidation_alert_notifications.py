@@ -3,18 +3,21 @@ from __future__ import annotations
 from typing import Any
 
 from ai_platform.scripts.liquidation_alert_notifications import (
-    Incident,
     REMINDER_MS,
+    Incident,
     decide_notification,
     render_failure_message,
     render_recovery_message,
     run,
 )
 
+
 NOW_MS = 1_800_000_000_000
 
 
-def incident(*, healthy: bool = False, codes: tuple[str, ...] = ("PORTAL_LIQUIDATIONS_API_UNHEALTHY",)) -> Incident:
+def incident(
+    *, healthy: bool = False, codes: tuple[str, ...] = ("PORTAL_LIQUIDATIONS_API_UNHEALTHY",)
+) -> Incident:
     return Incident(
         healthy=healthy,
         codes=codes,
@@ -92,7 +95,24 @@ class FakeClient:
                 "state": "open",
                 "body": """<!-- liquidations-live-operational-health -->
 ```json
-{"alerts":[{"code":"LIQUID20_CONTAINER_UNHEALTHY","message":"collector stopped"}],"checks":{"container":{"healthy":false},"state":{"healthy":false},"sources":{},"disk":{"healthy":true},"portal":{"healthy":true,"commit_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}
+{
+  "alerts": [
+    {
+      "code": "LIQUID20_CONTAINER_UNHEALTHY",
+      "message": "collector stopped"
+    }
+  ],
+  "checks": {
+    "container": {"healthy": false},
+    "state": {"healthy": false},
+    "sources": {},
+    "disk": {"healthy": true},
+    "portal": {
+      "healthy": true,
+      "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}
 ```""",
             }
         ]
@@ -108,11 +128,23 @@ class FakeClient:
         return next(item for item in self.issues if item["number"] == issue_number)
 
     def create_issue(self, repository: str, *, title: str, body: str) -> dict[str, Any]:
-        issue = {"number": 900 + len(self.created_issues), "title": title, "body": body, "state": "open"}
+        issue = {
+            "number": 900 + len(self.created_issues),
+            "title": title,
+            "body": body,
+            "state": "open",
+        }
         self.created_issues.append(issue)
         return issue
 
-    def update_issue(self, repository: str, issue_number: int, *, body: str | None = None, state: str | None = None) -> dict[str, Any]:
+    def update_issue(
+        self,
+        repository: str,
+        issue_number: int,
+        *,
+        body: str | None = None,
+        state: str | None = None,
+    ) -> dict[str, Any]:
         self.updated_issues.append((issue_number, {"body": body, "state": state}))
         return {"number": issue_number, "body": body, "state": state}
 
@@ -132,18 +164,29 @@ class FakeClient:
         raise AssertionError("comment not found")
 
     def list_workflow_runs(self, repository: str, workflow: str) -> list[dict[str, Any]]:
-        return [{
-            "status": "completed",
-            "conclusion": "failure",
-            "created_at": "2027-01-15T08:00:00Z",
-            "head_sha": "a" * 40,
-            "html_url": "https://github.com/blakinio/freqtrade/actions/runs/1",
-        }]
+        return [
+            {
+                "status": "completed",
+                "conclusion": "failure",
+                "created_at": "2027-01-15T08:00:00Z",
+                "head_sha": "a" * 40,
+                "html_url": "https://github.com/blakinio/freqtrade/actions/runs/1",
+            }
+        ]
 
     def combined_status(self, repository: str, sha: str) -> dict[str, Any]:
         return {"statuses": [{"context": "liquidations-live-health", "state": "failure"}]}
 
-    def create_status(self, repository: str, sha: str, *, state: str, context: str, description: str, target_url: str | None) -> None:
+    def create_status(
+        self,
+        repository: str,
+        sha: str,
+        *,
+        state: str,
+        context: str,
+        description: str,
+        target_url: str | None,
+    ) -> None:
         self.statuses.append({"sha": sha, "state": state, "context": context})
 
 
@@ -174,14 +217,19 @@ def test_delivery_failure_creates_separate_issue_and_red_status(monkeypatch: Any
     )
 
     assert result == 1
-    assert any(item["title"] == "[liquidations-live] Telegram delivery failure" for item in client.created_issues)
+    assert any(
+        item["title"] == "[liquidations-live] Telegram delivery failure"
+        for item in client.created_issues
+    )
     assert client.statuses[-1]["state"] == "failure"
     assert client.statuses[-1]["context"] == "liquidations-live-notification"
     assert "secret-token" not in client.created_issues[-1]["body"]
     assert "secret-chat" not in client.created_issues[-1]["body"]
 
 
-def test_bootstrap_sends_test_failure_and_recovery_without_production_issue(monkeypatch: Any) -> None:
+def test_bootstrap_sends_test_failure_and_recovery_without_production_issue(
+    monkeypatch: Any,
+) -> None:
     client = FakeClient()
     delivered: list[str] = []
     monkeypatch.setenv("GITHUB_SHA", "a" * 40)
@@ -203,14 +251,19 @@ def test_bootstrap_sends_test_failure_and_recovery_without_production_issue(monk
     assert delivered[0].startswith("🧪 TEST")
     assert "AWARIA KONTROLOWANA" in delivered[1]
     assert "PRZYWRÓCONO" in delivered[2]
-    assert not any(item["title"] == "[liquidations-live] operational health alert" for item in client.created_issues)
+    assert not any(
+        item["title"] == "[liquidations-live] operational health alert"
+        for item in client.created_issues
+    )
 
 
 def test_notification_workflow_is_github_hosted_secret_backed_and_watchdog_enabled() -> None:
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2]
-    workflow = (root / ".github" / "workflows" / "liquidations-live-telegram-notifications.yml").read_text(encoding="utf-8")
+    workflow = (
+        root / ".github" / "workflows" / "liquidations-live-telegram-notifications.yml"
+    ).read_text(encoding="utf-8")
 
     assert 'cron: "*/5 * * * *"' in workflow
     assert "runs-on: ubuntu-latest" in workflow
@@ -232,9 +285,15 @@ def test_portal_restart_contract_is_persistent_without_weakened_security() -> No
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[2]
-    proof = (root / "deploy" / "synology" / "portal" / "prove-liquidations-live.sh").read_text(encoding="utf-8")
-    deployment = (root / "deploy" / "synology" / "portal" / "deploy-preview.sh").read_text(encoding="utf-8")
-    repair = (root / ".github" / "workflows" / "repair-synology-autostart.yml").read_text(encoding="utf-8")
+    proof = (root / "deploy" / "synology" / "portal" / "prove-liquidations-live.sh").read_text(
+        encoding="utf-8"
+    )
+    deployment = (root / "deploy" / "synology" / "portal" / "deploy-preview.sh").read_text(
+        encoding="utf-8"
+    )
+    repair = (root / ".github" / "workflows" / "repair-synology-autostart.yml").read_text(
+        encoding="utf-8"
+    )
 
     assert 'test "$portal_restart" = "always"' in proof
     assert 'test "$portal_restart" = "unless-stopped"' not in proof

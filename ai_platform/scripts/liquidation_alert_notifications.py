@@ -9,10 +9,12 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Any, Callable, Literal, Protocol
+from typing import Any, Literal, Protocol
 from zoneinfo import ZoneInfo
+
 
 OPERATIONAL_TITLE = "[liquidations-live] operational health alert"
 DELIVERY_FAILURE_TITLE = "[liquidations-live] Telegram delivery failure"
@@ -44,7 +46,9 @@ class GitHubClient(Protocol):
 
     def list_comments(self, repository: str, issue_number: int) -> list[dict[str, Any]]: ...
 
-    def create_comment(self, repository: str, issue_number: int, *, body: str) -> dict[str, Any]: ...
+    def create_comment(
+        self, repository: str, issue_number: int, *, body: str
+    ) -> dict[str, Any]: ...
 
     def update_comment(self, repository: str, comment_id: int, *, body: str) -> dict[str, Any]: ...
 
@@ -99,7 +103,9 @@ class GitHubApiClient:
         return json.loads(raw.decode("utf-8"))
 
     def list_issues(self, repository: str, *, state: str = "all") -> list[dict[str, Any]]:
-        query = urllib.parse.urlencode({"state": state, "sort": "updated", "direction": "desc", "per_page": 100})
+        query = urllib.parse.urlencode(
+            {"state": state, "sort": "updated", "direction": "desc", "per_page": 100}
+        )
         payload = self._request("GET", f"/repos/{repository}/issues?{query}")
         if not isinstance(payload, list):
             raise RuntimeError("GitHub issues response is not a list")
@@ -112,7 +118,9 @@ class GitHubApiClient:
         return payload
 
     def create_issue(self, repository: str, *, title: str, body: str) -> dict[str, Any]:
-        payload = self._request("POST", f"/repos/{repository}/issues", {"title": title, "body": body})
+        payload = self._request(
+            "POST", f"/repos/{repository}/issues", {"title": title, "body": body}
+        )
         if not isinstance(payload, dict):
             raise RuntimeError("GitHub issue creation response is not an object")
         return payload
@@ -136,7 +144,9 @@ class GitHubApiClient:
         return payload
 
     def list_comments(self, repository: str, issue_number: int) -> list[dict[str, Any]]:
-        payload = self._request("GET", f"/repos/{repository}/issues/{issue_number}/comments?per_page=100")
+        payload = self._request(
+            "GET", f"/repos/{repository}/issues/{issue_number}/comments?per_page=100"
+        )
         if not isinstance(payload, list):
             raise RuntimeError("GitHub comments response is not a list")
         return [item for item in payload if isinstance(item, dict)]
@@ -230,8 +240,10 @@ def _epoch_ms(value: str | None) -> int | None:
 
 
 def _format_time(epoch_ms: int) -> str:
-    return datetime.fromtimestamp(epoch_ms / 1000, tz=UTC).astimezone(WARSAW).strftime(
-        "%Y-%m-%d %H:%M:%S Europe/Warsaw"
+    return (
+        datetime.fromtimestamp(epoch_ms / 1000, tz=UTC)
+        .astimezone(WARSAW)
+        .strftime("%Y-%m-%d %H:%M:%S Europe/Warsaw")
     )
 
 
@@ -315,9 +327,15 @@ def _components(report: dict[str, Any], codes: tuple[str, ...]) -> dict[str, str
 def _first_action(codes: tuple[str, ...]) -> str:
     joined = " ".join(codes)
     if "RUNNER" in joined or "QUEUED" in joined or "MONITOR_STALE" in joined:
-        return "Sprawdź kontener runnera `freqtrade-synology-staging-runner` i jego rejestrację w GitHub Actions."
+        return (
+            "Sprawdź kontener runnera `freqtrade-synology-staging-runner` "
+            "i jego rejestrację w GitHub Actions."
+        )
     if "PORTAL" in joined:
-        return "Sprawdź `freqtrade-portal-staging`, jego obraz, politykę restartu i chroniony endpoint health."
+        return (
+            "Sprawdź `freqtrade-portal-staging`, jego obraz, politykę restartu "
+            "i chroniony endpoint health."
+        )
     if "CONTAINER" in joined or "COLLECTOR" in joined or "STATE" in joined:
         return "Sprawdź kontener `liquid20-live` oraz świeżość `/data/live/live-state-v1.json`."
     if "DISK" in joined:
@@ -327,7 +345,9 @@ def _first_action(codes: tuple[str, ...]) -> str:
     return "Otwórz wskazany run GitHub Actions i sprawdź pierwszy czerwony krok."
 
 
-def decide_notification(prior: dict[str, Any] | None, incident: Incident, *, now_ms: int) -> Decision:
+def decide_notification(
+    prior: dict[str, Any] | None, incident: Incident, *, now_ms: int
+) -> Decision:
     previous = prior if isinstance(prior, dict) else {}
     was_unhealthy = previous.get("status") == "unhealthy"
     if incident.healthy:
@@ -373,7 +393,9 @@ def _state_body(state: dict[str, Any]) -> str:
     return f"{STATE_MARKER}\n```json\n{json.dumps(state, sort_keys=True)}\n```"
 
 
-def _load_state(client: GitHubClient, repository: str, issue_number: int) -> tuple[dict[str, Any] | None, int | None]:
+def _load_state(
+    client: GitHubClient, repository: str, issue_number: int
+) -> tuple[dict[str, Any] | None, int | None]:
     for comment in client.list_comments(repository, issue_number):
         body = str(comment.get("body") or "")
         if STATE_MARKER not in body:
@@ -456,7 +478,7 @@ def send_telegram(token: str, chat_id: str, text: str) -> None:
     data = urllib.parse.urlencode(
         {"chat_id": chat_id, "text": text, "disable_web_page_preview": "true"}
     ).encode()
-    request = urllib.request.Request(  # noqa: S310
+    request = urllib.request.Request(
         f"https://api.telegram.org/bot{token}/sendMessage",
         data=data,
         method="POST",
@@ -477,7 +499,9 @@ def send_telegram(token: str, chat_id: str, text: str) -> None:
         raise RuntimeError("Telegram API rejected the notification")
 
 
-def _find_issue(issues: list[dict[str, Any]], title: str, *, state: str | None = None) -> dict[str, Any] | None:
+def _find_issue(
+    issues: list[dict[str, Any]], title: str, *, state: str | None = None
+) -> dict[str, Any] | None:
     return next(
         (
             issue
@@ -552,10 +576,14 @@ def discover_incident(
         synthetic_description = "Brak prawidłowego uruchomienia monitoringu przez ponad 10 minut."
     elif status == "queued" and now_ms - created_at_ms > QUEUED_LIMIT_MS:
         synthetic_code = "LIQUIDATIONS_HEALTH_RUN_QUEUED"
-        synthetic_description = "Run health pozostaje w kolejce dłużej niż zakontraktowane 120 sekund."
+        synthetic_description = (
+            "Run health pozostaje w kolejce dłużej niż zakontraktowane 120 sekund."
+        )
     elif status == "completed" and conclusion == "cancelled":
         synthetic_code = "LIQUIDATIONS_HEALTH_RUN_CANCELLED"
-        synthetic_description = "Najnowszy run health został anulowany bez nowszego prawidłowego runu."
+        synthetic_description = (
+            "Najnowszy run health został anulowany bez nowszego prawidłowego runu."
+        )
     elif sha and status == "completed" and not _status_present(client, repository, sha):
         synthetic_code = "LIQUIDATIONS_HEALTH_STATUS_MISSING"
         synthetic_description = "Najnowszy run nie opublikował finalnego statusu commita."
@@ -577,11 +605,14 @@ def discover_incident(
         report = _extract_json_report(str(issue.get("body") or ""))
         codes = _codes_from_issue(issue, report)
         healthy = False
-        description = "; ".join(
-            str(item.get("message"))
-            for item in report.get("alerts", [])
-            if isinstance(item, dict) and item.get("message")
-        ) or "Monitoring wykrył awarię Liquidations Live."
+        description = (
+            "; ".join(
+                str(item.get("message"))
+                for item in report.get("alerts", [])
+                if isinstance(item, dict) and item.get("message")
+            )
+            or "Monitoring wykrył awarię Liquidations Live."
+        )
     else:
         report = {}
         codes = ()
@@ -680,7 +711,13 @@ def run(
     now_ms: int,
     sender: Callable[[str, str, str], None] = send_telegram,
 ) -> int:
-    run_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com") + "/" + repository + "/actions/runs/" + os.environ.get("GITHUB_RUN_ID", "unknown")
+    run_url = (
+        os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+        + "/"
+        + repository
+        + "/actions/runs/"
+        + os.environ.get("GITHUB_RUN_ID", "unknown")
+    )
     sha = os.environ.get("GITHUB_SHA", "")
     if mode in {"bootstrap", "test", "controlled_failure", "controlled_recovery"}:
         messages = _bootstrap_messages(now_ms, run_url, sha)
@@ -719,7 +756,7 @@ def run(
             )
         return 0
 
-    incident, issue = discover_incident(
+    incident, _issue = discover_incident(
         client, repository, now_ms=now_ms, issue_number=issue_number
     )
     if incident.issue_number is None:
@@ -736,7 +773,9 @@ def run(
     try:
         sender(token, chat_id, message)
     except RuntimeError as error:
-        _reconcile_delivery_issue(client, repository, failed=True, error=str(error), run_url=run_url)
+        _reconcile_delivery_issue(
+            client, repository, failed=True, error=str(error), run_url=run_url
+        )
         target_sha = incident.commit_sha or sha
         if target_sha:
             client.create_status(
@@ -764,7 +803,9 @@ def run(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Deliver deduplicated Liquidations Live Telegram alerts.")
+    parser = argparse.ArgumentParser(
+        description="Deliver deduplicated Liquidations Live Telegram alerts."
+    )
     parser.add_argument(
         "--mode",
         choices=("auto", "bootstrap", "test", "controlled_failure", "controlled_recovery"),
@@ -781,7 +822,9 @@ def main(argv: list[str] | None = None) -> int:
     if not repository or not github_token:
         print("GitHub repository and token are required", file=sys.stderr)
         return 2
-    client = GitHubApiClient(github_token, api_url=os.environ.get("GITHUB_API_URL", "https://api.github.com"))
+    client = GitHubApiClient(
+        github_token, api_url=os.environ.get("GITHUB_API_URL", "https://api.github.com")
+    )
     return run(
         client=client,
         repository=repository,

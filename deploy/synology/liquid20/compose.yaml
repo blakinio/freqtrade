@@ -7,7 +7,7 @@ services:
         COLLECTOR_COMMIT: ${COLLECTOR_COMMIT:-unknown}
     image: local/liquid20-collector:${IMAGE_TAG:-local}
     container_name: liquid20-live
-    restart: unless-stopped
+    restart: always
     init: true
     entrypoint: ["/usr/local/bin/liquid20-live-entrypoint"]
     user: "${PUID:-1026}:${PGID:-100}"

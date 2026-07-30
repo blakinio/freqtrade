@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260730-closure-simulator
-status: active
+status: ready
 branch: agent/closure-simulator
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-30
-related_pr: null
+related_pr: 779
 dependencies:
   - none
 owned_paths:
@@ -71,11 +71,11 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T12:45:00+02:00
-head: 1fd17232cf31b6bfd29588f66ada76773206d394
+updated_at: 2026-07-30T12:55:00+02:00
+head: 5c568be2d4b94a3d2fdf1828672a939fc3ef5510
 branch: agent/closure-simulator
-pr: null
-status: active
+pr: 779
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -93,27 +93,30 @@ owned_paths:
   - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
   - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 proven:
-  - Gate 0 is merged and the manual dispatch table marks closure-simulator READY with no dependencies.
-  - Open PRs 758, 761 and 762 do not touch any simulator-owned path.
-  - The existing universal scenario remains compatible through zero-cost, zero-latency and no-stop defaults.
-  - Versioned cost, latency, funding and gap-stop models are implemented only inside assigned paths.
-  - Canonical immutable simulation evidence uses deterministic UUID5 identities and SHA-256 over canonical JSON.
+  - Gate 0 is merged and the dispatch table marks closure-simulator READY with no dependencies.
+  - PR 779 changes exactly the ten assigned paths and is not behind develop.
+  - Versioned cost, latency, funding and gap-stop models remain simulation-only and fail closed.
+  - Zero-cost, zero-latency and no-stop defaults preserve the existing universal scenario result.
+  - Same manifest and seed produce canonical evidence with deterministic UUID5 identities and SHA-256.
+  - AI Platform CI run 30535727133 passed compile, tests, Ruff, format, codespell and JSON validation.
+  - Portal Universal E2E run 30535727198 passed backend and Chromium journeys.
+  - Security run 30535727139 passed zizmor analysis.
+  - Freqtrade CI run 30535727171 passed pre-commit and documentation stages before final checkpoint.
 derived:
-  - Scenario latency fails closed when no tick exists at or after the configured ready time.
   - Positive funding is a cash outflow for BUY positions and an inflow for SELL positions.
-  - A stop crossed between discrete ticks fills at the adverse observed price rather than the configured stop.
-unknown:
-  - Exact Ruff, pytest and repository workflow conclusions until PR CI runs.
-  - Review-thread count until the PR exists.
+  - A stop crossed between discrete ticks fills at the adverse observed price.
+  - Scenario latency uses the first tick at or after readiness and raises when no tick exists.
+unknown: []
 conflicts: []
 first_failure:
-  marker: VALIDATION_PENDING
-  evidence: The sandbox cannot check out the GitHub repository, so exact repository tests must run through GitHub Actions on the focused PR.
+  marker: RUFF_FORMAT_REPAIRED
+  evidence: Initial pre-commit changed three files; the exact hook diff was applied and subsequent format checks passed.
 rejected_hypotheses:
   - Use wall-clock sleeps or network data to model latency.
   - Treat repository simulation as real exchange submission evidence.
-  - Modify runner, Risk Core, execution contracts, shared exports or CI outside assigned ownership.
+  - Modify runner, Risk Core, shared execution contracts, exports or CI outside assigned ownership.
 changed_paths:
+  - docs/agents/tasks/FTAI-20260730-closure-simulator.md
   - ai_platform/portal/simulator/schema.py
   - ai_platform/portal/simulator/exchange.py
   - ai_platform/portal/simulator/costs.py
@@ -124,12 +127,24 @@ changed_paths:
   - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
   - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 validation:
-  - command: Python py_compile over the exact authored simulator and test file contents
+  - command: Python py_compile over the authored simulator and test files
     result: PASS
     evidence: All nine Python files compiled without syntax errors before repository writes.
+  - command: AI Platform CI run 30535727133
+    result: PASS
+    evidence: Compile, full AI platform tests, Ruff, format, codespell and JSON validation passed.
+  - command: Portal Universal E2E run 30535727198
+    result: PASS
+    evidence: Deterministic backend scenario and critical Chromium journey passed.
+  - command: GitHub Actions Security Analysis run 30535727139
+    result: PASS
+    evidence: Zizmor completed successfully.
+  - command: Freqtrade CI run 30535727171
+    result: PASS
+    evidence: Pre-commit and documentation stages completed successfully before final checkpoint.
   - command: compare develop...agent/closure-simulator
     result: PASS
-    evidence: Branch is ahead by nine commits, behind by zero, and changes exactly the nine implementation/test paths expected before checkpoint update.
+    evidence: Branch is ahead, not behind, mergeable, and changes exactly ten assigned paths.
 blockers: []
-next_action: Open the focused PR against develop and use exact-head GitHub Actions results to repair any Ruff, pytest or compatibility failure.
+next_action: Merge PR 779 normally after all required checks on the final checkpoint head are green.
 ```

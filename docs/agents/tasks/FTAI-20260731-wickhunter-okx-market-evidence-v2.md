@@ -11,12 +11,14 @@ depends_on:
   - merged production Market Evidence v1 implementation
   - merged public OKX Liquid20 source implementation
 owned_paths:
+  - .github/workflows/ai-platform-wickhunter-market-evidence-ci.yml
   - .github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml
   - ai_platform/wickhunter/production-market-evidence-contract-v2.json
   - ai_platform/wickhunter/production_market_evidence_v2.py
   - ai_platform/wickhunter/production_market_evidence_service_v2.py
   - ai_platform/wickhunter/production_market_evidence_daemon_v2.py
   - ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json
+  - ai_platform/wickhunter/ruff.toml
   - ai_platform/portal/web/lib/market-evidence/contracts.ts
   - ai_platform/portal/web/lib/market-evidence/reader-v2.ts
   - ai_platform/portal/web/lib/market-evidence/index.ts
@@ -52,7 +54,8 @@ Add a backward-compatible three-source Market Evidence path for `bybit-linear`, 
 - source-package binding digest and full artifact checksums;
 - Portal OKX status and instruments derived only from accepted v2 rows;
 - hardened Synology daemon, image, Compose service and exact-one-file deployment trigger;
-- backend normalization, persistence, merge and tamper tests.
+- backend normalization, persistence, merge and tamper tests;
+- dedicated CI that compiles, tests, lints and validates the complete v1 and v2 path.
 
 ## Safety boundary
 
@@ -71,8 +74,8 @@ The v2 package intentionally remains `WH-01 BLOCKED` with `LIQUIDATION_ARCHIVE_N
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T01:09:00+02:00
-head: 3d153565c9ab2cf502559ad7fec2aeaae391a09d
+updated_at: 2026-07-31T01:18:00+02:00
+head: 3834bdb90f381146befa638f6ccc1a07212ca79f
 branch: agent/wickhunter-okx-market-evidence-v2
 status: in_progress
 related_pr: 836
@@ -88,6 +91,7 @@ proven:
   - Portal OKX eligibility is derived from accepted v2 package rows and remains unavailable when those rows do not exist.
   - The combined package retains LIQUIDATION_ARCHIVE_NOT_BOUND until a separate binding is verified.
   - Synology deployment is exact-one-file, public-only, credential-free and persistent-container based.
+  - Dedicated CI now executes the v2 normalization, persistence, merge, tamper and deployment checks instead of testing v1 only.
 derived:
   - The existing Bybit and Binance capture can remain the immutable base package while OKX is captured prospectively over the same frozen geometry.
 unknown:
@@ -102,13 +106,16 @@ rejected_hypotheses:
   - Treat OKX liquidation connectivity as candle evidence.
   - Clear Portal blockers before immutable evidence exists.
   - Add private endpoints, credentials, proxy routing or synthetic fallback.
+  - Accept CI that triggers on v2 files but executes only the v1 test set.
 changed_paths:
+  - .github/workflows/ai-platform-wickhunter-market-evidence-ci.yml
   - .github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml
   - ai_platform/wickhunter/production-market-evidence-contract-v2.json
   - ai_platform/wickhunter/production_market_evidence_v2.py
   - ai_platform/wickhunter/production_market_evidence_service_v2.py
   - ai_platform/wickhunter/production_market_evidence_daemon_v2.py
   - ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json
+  - ai_platform/wickhunter/ruff.toml
   - ai_platform/portal/web/lib/market-evidence/contracts.ts
   - ai_platform/portal/web/lib/market-evidence/reader-v2.ts
   - ai_platform/portal/web/lib/market-evidence/index.ts
@@ -119,15 +126,15 @@ changed_paths:
   - tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
   - docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
 validation:
-  - command: prior AI Platform test suite at head aee2a4bc0ea279e023c67f6ded99ab792a3f68da
+  - command: prior AI Platform test suite
     result: PASS
-    evidence: 1007 passed and 71 skipped before formatting fixes and added merge tests.
+    evidence: 1007 passed and 71 skipped before exact-head dedicated v2 checks.
   - command: prior Portal Market Evidence typecheck, lint, build and browser flow
     result: PASS
-    evidence: dedicated Market Evidence workflow completed all Portal steps successfully.
-  - command: exact-head CI for 3d153565c9ab2cf502559ad7fec2aeaae391a09d
+    evidence: dedicated Market Evidence workflow completed all Portal steps successfully on a prior head.
+  - command: exact-head CI for PR 836
     result: IN_PROGRESS
-    evidence: GitHub Actions were retriggered by the latest implementation commit.
+    evidence: GitHub Actions were retriggered after extending the dedicated workflow to the complete v2 path.
 blockers:
   - Implementation PR must pass exact-head CI and merge before the request-only production trigger is opened.
 next_action: Resolve exact-head CI findings on PR 836, merge the implementation normally, then open the exact-one-file prospective v2 request PR before decision_start_ms 1785477600000.

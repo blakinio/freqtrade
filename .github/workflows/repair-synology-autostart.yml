@@ -1,0 +1,75 @@
+name: Repair Synology Autostart
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - .github/workflows/repair-synology-autostart.yml
+      - deploy/synology/freqtrade-runner/compose.yml
+      - deploy/synology/liquid20/compose.yaml
+  workflow_run:
+    workflows:
+      - Portal Synology LAN Preview
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: freqtrade-synology-autostart-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Enforce Docker restart policies
+    runs-on: freqtrade-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Set persistent services to always restart
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          mapfile -t runner_matches < <(
+            docker ps -aq \
+              --filter 'label=com.docker.compose.project=freqtrade-deploy-runner' \
+              --filter 'label=com.docker.compose.service=runner'
+          )
+          if [[ "${#runner_matches[@]}" -ne 1 ]]; then
+            echo "Expected exactly one Freqtrade runner container, found ${#runner_matches[@]}" >&2
+            exit 1
+          fi
+
+          declare -a containers=("${runner_matches[0]}")
+          for name in liquid20-live freqtrade-portal-staging; do
+            if ! container="$(docker inspect --format '{{.Id}}' "$name" 2>/dev/null)"; then
+              echo "Required container is missing: ${name}" >&2
+              exit 1
+            fi
+            containers+=("$container")
+          done
+
+          docker update --restart=always "${containers[@]}" >/dev/null
+
+          for container in "${containers[@]}"; do
+            docker start "$container" >/dev/null
+          done
+
+          sleep 3
+          for container in "${containers[@]}"; do
+            policy="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$container")"
+            state="$(docker inspect --format '{{.State.Status}}' "$container")"
+            name="$(docker inspect --format '{{.Name}}' "$container")"
+            [[ "$policy" == "always" ]]
+            case "$state" in
+              running|restarting) ;;
+              *)
+                echo "${name}: unexpected state ${state}" >&2
+                exit 1
+                ;;
+            esac
+            printf '%s policy=%s state=%s\n' "$name" "$policy" "$state"
+          done

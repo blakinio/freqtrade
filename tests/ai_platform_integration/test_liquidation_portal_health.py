@@ -211,7 +211,7 @@ def test_health_workflow_requires_combined_collector_and_portal_monitoring() -> 
     assert "python -m ai_platform.scripts.liquidation_operational_health" in workflow
     assert "LIQUID20_PORTAL_PROOF_SCRIPT" in workflow
     assert "prove-liquidations-live.sh" in workflow
-    assert 'PORTAL_LIVE_PROOF_DELAY_SECONDS: "5"' in workflow
+    assert 'PORTAL_LIVE_PROOF_DELAY_SECONDS: "12"' in workflow
     assert 'LIQUID20_REQUIRE_PORTAL_HEALTH: "true"' in workflow
     assert "liquidations-live-portal-health.json" in workflow
     assert "statuses: write" in workflow

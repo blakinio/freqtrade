@@ -176,7 +176,7 @@ Nazwa została wydzielona z wcześniejszego ogólnego wpisu `ASE-01`, aby nie ko
 
 ### ASE-03 — paper/shadow integration
 
-- [ ] simulator parity;
-- [ ] Risk Core approval;
-- [ ] private Freqtrade adapter w trybie paper/shadow;
-- [ ] E2E audit trail i rollback.
+- [x] simulator parity;
+- [x] Risk Core approval;
+- [x] private Freqtrade adapter w trybie paper/shadow;
+- [x] E2E audit trail i rollback.

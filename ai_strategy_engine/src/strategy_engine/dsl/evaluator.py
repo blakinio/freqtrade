@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import TypeAlias
 
 from pydantic import JsonValue
 
 from strategy_engine.domain.models import Action, Side, StrategyDefinition
 
-type SnapshotValue = JsonValue | Mapping[str, JsonValue]
+SnapshotValue: TypeAlias = JsonValue | Mapping[str, JsonValue]  # noqa: UP040
 
 
 class DslEvaluationError(ValueError):

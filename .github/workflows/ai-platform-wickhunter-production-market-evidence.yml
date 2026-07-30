@@ -7,8 +7,6 @@ name: AI Platform WickHunter Production Market Evidence
       - develop
     paths:
       - "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json"
-  schedule:
-    - cron: "*/5 * * * *"
 
 permissions:
   contents: read
@@ -21,17 +19,19 @@ env:
   REQUEST_PATH: ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json
   STATE_DIR: /var/lib/freqtrade-staging-state
   DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
+  PERSISTED_REQUEST_PATH: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence/request.json
+  COMPOSE_FILE: deploy/synology/wickhunter-market-evidence/compose.yaml
 
 jobs:
-  initialize:
-    name: Initialize WickHunter market evidence capture
+  deploy:
+    name: Deploy persistent WickHunter market evidence collector
     if: >-
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     environment: synology-staging
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout exact request commit
@@ -56,7 +56,7 @@ jobs:
             exit 1
           fi
 
-      - name: Validate approved runner and durable storage
+      - name: Validate approved runner, Docker and durable storage
         shell: bash
         env:
           RUNNER_NAME_VALUE: ${{ runner.name }}
@@ -70,6 +70,8 @@ jobs:
           [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
           mkdir -p "$DURABLE_ROOT"
           [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+          docker version >/dev/null
+          docker compose version >/dev/null
 
       - name: Refuse trading credentials and proxy routing
         shell: bash
@@ -89,111 +91,67 @@ jobs:
             fi
           done
 
-      - name: Validate frozen request and initialize durable capture
-        id: initialize
+      - name: Persist immutable request and initialize capture
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
+          if [[ -e "$PERSISTED_REQUEST_PATH" || -L "$PERSISTED_REQUEST_PATH" ]]; then
+            [[ -f "$PERSISTED_REQUEST_PATH" && ! -L "$PERSISTED_REQUEST_PATH" ]]
+            cmp --silent "$REQUEST_PATH" "$PERSISTED_REQUEST_PATH"
+          else
+            temporary="$DURABLE_ROOT/.request.json.${GITHUB_RUN_ID}.tmp"
+            install -m 0444 "$REQUEST_PATH" "$temporary"
+            mv "$temporary" "$PERSISTED_REQUEST_PATH"
+          fi
           PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
             init \
-            --request "$REQUEST_PATH" \
+            --request "$PERSISTED_REQUEST_PATH" \
             --durable-root "$DURABLE_ROOT" \
             --collector-commit "$HEAD_SHA"
 
-  sample:
-    name: Collect one due WickHunter market evidence sample
-    if: github.event_name == 'schedule'
-    runs-on: [freqtrade-staging]
-    environment: synology-staging
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout exact scheduled develop commit
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-          ref: ${{ github.sha }}
-
-      - name: Validate approved runner and durable storage
+      - name: Deploy collector and release runner
         shell: bash
         env:
-          RUNNER_NAME_VALUE: ${{ runner.name }}
-          RUNNER_OS_VALUE: ${{ runner.os }}
-          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
-          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
-          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
-          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
-          mkdir -p "$DURABLE_ROOT"
-          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+          export COLLECTOR_COMMIT="$HEAD_SHA"
+          export IMAGE_TAG="${HEAD_SHA:0:12}"
+          export MARKET_EVIDENCE_REQUEST_FILE="$PERSISTED_REQUEST_PATH"
+          export MARKET_EVIDENCE_STATE_DIR="$DURABLE_ROOT"
+          docker compose -f "$COMPOSE_FILE" config --quiet
+          docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans collector
 
-      - name: Refuse trading credentials and proxy routing
+      - name: Verify persistent collector health
         shell: bash
         run: |
           set -euo pipefail
-          for name in \
-            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
-            BYBIT_API_KEY BYBIT_API_SECRET \
-            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
-            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
-            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
-            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
-          do
-            if [[ -n "${!name:-}" ]]; then
-              echo "Forbidden credential or proxy environment is present: $name" >&2
-              exit 1
+          for _ in $(seq 1 24); do
+            if [[ "$(docker inspect --format '{{.State.Running}}' wickhunter-market-evidence 2>/dev/null || true)" == "true" ]] \
+              && [[ -f "$DURABLE_ROOT/collector-health.json" ]]; then
+              if python3 - "$DURABLE_ROOT/collector-health.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if payload.get("healthy") is not True:
+              raise SystemExit(1)
+          result = payload.get("result")
+          if not isinstance(result, dict) or result.get("status") in {"failed", "rejected"}:
+              raise SystemExit(1)
+          PY
+              then
+                docker inspect --format '{{json .State.Health}}' wickhunter-market-evidence
+                echo "Persistent collector is healthy; the GitHub runner is released."
+                exit 0
+              fi
             fi
+            sleep 5
           done
-
-      - name: Validate state and collect at most one due sample or finalize
-        id: sample
-        shell: bash
-        run: |
-          set -euo pipefail
-          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
-            sample \
-            --durable-root "$DURABLE_ROOT"
-
-      - name: Upload bounded terminal metadata evidence
-        if: ${{ always() && steps.sample.outputs.status == 'published' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: wickhunter-production-market-evidence-${{ steps.sample.outputs.run_id }}
-          path: |
-            ${{ steps.sample.outputs.run_root }}/run-request.json
-            ${{ steps.sample.outputs.run_root }}/incremental-state.json
-            ${{ steps.sample.outputs.run_root }}/market-samples/*/sample-report.json
-            ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-manifest.json
-            ${{ steps.sample.outputs.run_root }}/wickhunter-production-market-evidence-report.json
-            ${{ steps.sample.outputs.run_root }}/artifact-sha256.txt
-            ${{ steps.sample.outputs.package_root }}/request.json
-            ${{ steps.sample.outputs.package_root }}/policy.json
-            ${{ steps.sample.outputs.package_root }}/run-state.json
-            ${{ steps.sample.outputs.package_root }}/completed-candles-index.json
-            ${{ steps.sample.outputs.package_root }}/source-artifacts-index.json
-            ${{ steps.sample.outputs.package_root }}/manifest.json
-            ${{ steps.sample.outputs.package_root }}/verification-report.json
-            ${{ steps.sample.outputs.package_root }}/artifact-sha256.txt
-          if-no-files-found: error
-          retention-days: 90
-
-      - name: Enforce terminal capture outcome
-        if: ${{ always() && steps.sample.outputs.status == 'published' }}
-        shell: bash
-        env:
-          OUTCOME: ${{ steps.sample.outputs.outcome }}
-          PACKAGE_ROOT: ${{ steps.sample.outputs.package_root }}
-        run: |
-          set -euo pipefail
-          if [[ "$OUTCOME" != "accepted" ]]; then
-            echo "WickHunter production market evidence was not accepted" >&2
-            exit 1
-          fi
-          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
-            verify --package-root "$PACKAGE_ROOT"
-          echo "WickHunter market evidence accepted; all downstream authority remains false"
+          docker inspect wickhunter-market-evidence || true
+          docker logs --tail 100 wickhunter-market-evidence || true
+          echo "Persistent WickHunter collector did not become healthy" >&2
+          exit 1

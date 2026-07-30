@@ -40,7 +40,7 @@ Produce the evidence-backed Gate 0 closure matrix, freeze shared ownership, crea
 - Every one of the 73 unchecked P0/P1/P2 backlog entries is classified exactly once.
 - Shared contracts have one exclusive child owner and an explicit compatibility policy.
 - Ten child records exist: nine repository/integration workstreams plus one blocked owner-managed P11 lane.
-- Child implementation paths are pairwise disjoint and exclude active PR #761/#762/#758 paths.
+- All 69 exact child mutable-path declarations are pairwise disjoint and exclude active PR #761/#762/#758 paths.
 - Private Freqtrade means a private runtime/API boundary; GitHub repository visibility is not a Gate 0 blocker.
 - P11 remains external, P13 remains measured-need-only and live capital remains unauthorized.
 
@@ -52,8 +52,8 @@ Run every child checkpoint validator, structural ownership checks, documentation
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T11:40:00+02:00
-head: 41bb3b7d309146f2a984758efb24343f25c4162d
+updated_at: 2026-07-30T11:50:00+02:00
+head: f07ee8f53be18f902c1d3ead4d2bdac57cbb79fd
 branch: agent/program-closure-preflight
 pr: 767
 status: validating
@@ -69,7 +69,8 @@ proven:
   - PR #759 merged normally and PR #768 synchronized current develop into this Gate 0 branch.
   - The matrix classifies all 73 unchecked P0, P1 and P2 items exactly once.
   - Ten child task records exist with one exclusive shared-contract owner.
-  - Child mutable paths are pairwise disjoint and exclude active adjacent PR paths.
+  - All 69 exact child mutable-path declarations are pairwise disjoint and exclude active adjacent PR paths.
+  - The manual dispatch table now lists every exact child mutable path instead of path summaries.
 derived:
   - Contracts, closed-bar scheduling, support and resistance and simulator fidelity can start after Gate 0 merges.
   - Research Data, AI routing and ranking, both frontend tasks and final integration must wait for recorded dependencies.
@@ -78,7 +79,7 @@ unknown:
 conflicts: []
 first_failure:
   marker: EXACT_HEAD_VALIDATION_PENDING
-  evidence: The Gate 0 PR head moved after live-state corrections and must complete required CI and review verification before merge.
+  evidence: The Gate 0 PR head moved after the exact dispatch-path correction and must complete required CI and review verification before merge.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
   - Public GitHub source visibility is equivalent to a public Freqtrade runtime or browser execution path.
@@ -99,10 +100,13 @@ changed_paths:
 validation:
   - command: python tools/agents/checkpoint.py <each-created-task> --require-checkpoint
     result: PASS
-    evidence: Local governance-compatible validation passed for the Gate 0 and child checkpoints.
+    evidence: All eleven Gate 0 and child task checkpoints passed locally against the repository governance contract.
   - command: Gate 0 ownership intersection check
     result: PASS
-    evidence: No two child tasks declare the same exact mutable path.
+    evidence: 69 owned-path declarations are unique with zero exact collisions.
+  - command: Gate 0 next-action cardinality check
+    result: PASS
+    evidence: Every Gate 0 and child checkpoint contains exactly one next_action.
   - command: Backlog classification coverage check
     result: PASS
     evidence: All 73 unchecked P0, P1 and P2 entries appear exactly once with an allowed status.

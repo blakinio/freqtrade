@@ -20,12 +20,12 @@ from ai_platform.portal.contracts.strategy_closure import (
     StrategyCapability,
     StrategyDeploymentCommand,
     StrategyDeploymentMode,
-    StrategyLifecycleState,
     StrategyRollbackCommand,
 )
 from ai_platform.portal.product.schema import (
     StrategyCatalogEntry,
     StrategyKind,
+    StrategyLifecycleState,
     StrategyRuntimeStatus,
 )
 
@@ -112,7 +112,7 @@ def test_signal_wizard_preview_is_idempotent_research_only_contract() -> None:
     assert command.context.authority == "research_only"
     assert command.canonical_json() == command.model_copy().canonical_json()
 
-    with pytest.raises(ValidationError, match="strategy.research"):
+    with pytest.raises(ValidationError, match=r"strategy\.research"):
         SignalWizardPreviewCommand.model_validate(
             {
                 **command.model_dump(mode="python"),

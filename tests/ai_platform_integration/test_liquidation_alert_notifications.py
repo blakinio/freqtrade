@@ -6,6 +6,7 @@ from ai_platform.scripts.liquidation_alert_notifications import (
     REMINDER_MS,
     Incident,
     decide_notification,
+    discover_incident,
     render_failure_message,
     render_recovery_message,
     run,
@@ -305,3 +306,56 @@ def test_portal_restart_contract_is_persistent_without_weakened_security() -> No
     assert "--security-opt no-new-privileges:true" in proof
     assert "dst=${liquidations_container_root},readonly" in proof
     assert 'test -z "$candidate_docker_socket_mount"' in proof
+
+
+def test_fresh_in_progress_run_does_not_create_false_incident() -> None:
+    client = FakeClient()
+    client.issues[0]["state"] = "closed"
+    client.list_workflow_runs = lambda repository, workflow: [
+        {
+            "status": "in_progress",
+            "conclusion": None,
+            "created_at": "2027-01-15T08:00:00Z",
+            "head_sha": "b" * 40,
+            "html_url": "https://github.com/blakinio/freqtrade/actions/runs/2",
+        }
+    ]
+
+    current, _ = discover_incident(
+        client,
+        "blakinio/freqtrade",
+        now_ms=NOW_MS,
+        issue_number=None,
+    )
+
+    assert current.healthy is True
+    assert current.codes == ()
+    assert client.created_issues == []
+
+
+def test_pending_commit_status_is_not_final() -> None:
+    client = FakeClient()
+    client.issues[0]["state"] = "closed"
+    client.list_workflow_runs = lambda repository, workflow: [
+        {
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2027-01-15T08:00:00Z",
+            "head_sha": "c" * 40,
+            "html_url": "https://github.com/blakinio/freqtrade/actions/runs/3",
+        }
+    ]
+    client.combined_status = lambda repository, sha: {
+        "statuses": [{"context": "liquidations-live-health", "state": "pending"}]
+    }
+
+    current, _ = discover_incident(
+        client,
+        "blakinio/freqtrade",
+        now_ms=NOW_MS,
+        issue_number=None,
+    )
+
+    assert current.healthy is False
+    assert current.codes == ("LIQUIDATIONS_HEALTH_STATUS_MISSING",)
+    assert client.created_issues[-1]["title"] == ("[liquidations-live] operational health alert")

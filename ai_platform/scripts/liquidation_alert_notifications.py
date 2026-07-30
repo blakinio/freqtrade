@@ -512,11 +512,13 @@ def _find_issue(
     )
 
 
-def _status_present(client: GitHubClient, repository: str, sha: str) -> bool:
+def _final_status_present(client: GitHubClient, repository: str, sha: str) -> bool:
     payload = client.combined_status(repository, sha)
     statuses = payload.get("statuses") if isinstance(payload, dict) else None
     return any(
-        isinstance(item, dict) and item.get("context") == HEALTH_STATUS_CONTEXT
+        isinstance(item, dict)
+        and item.get("context") == HEALTH_STATUS_CONTEXT
+        and item.get("state") in {"success", "failure", "error"}
         for item in statuses or []
     )
 
@@ -584,7 +586,16 @@ def discover_incident(
         synthetic_description = (
             "Najnowszy run health został anulowany bez nowszego prawidłowego runu."
         )
-    elif sha and status == "completed" and not _status_present(client, repository, sha):
+    elif (
+        status == "completed"
+        and conclusion not in {"success", "cancelled"}
+        and not (issue and issue.get("state") == "open")
+    ):
+        synthetic_code = "LIQUIDATIONS_HEALTH_RUN_FAILED_WITHOUT_ALERT"
+        synthetic_description = (
+            "Run health zakończył się błędem, ale nie pozostawił otwartego alertu."
+        )
+    elif sha and status == "completed" and not _final_status_present(client, repository, sha):
         synthetic_code = "LIQUIDATIONS_HEALTH_STATUS_MISSING"
         synthetic_description = "Najnowszy run nie opublikował finalnego statusu commita."
 
@@ -616,10 +627,26 @@ def discover_incident(
     else:
         report = {}
         codes = ()
-        healthy = bool(
+        event_confirms_recovery = bool(
             issue is not None and issue.get("state") == "closed" and issue_number is not None
-        ) or (status == "completed" and conclusion == "success")
-        description = "Wszystkie kontrole Liquidations Live zakończyły się sukcesem."
+        )
+        run_is_fresh_and_active = status in {
+            "queued",
+            "in_progress",
+            "pending",
+            "requested",
+            "waiting",
+        }
+        healthy = (
+            event_confirms_recovery
+            or (status == "completed" and conclusion == "success")
+            or run_is_fresh_and_active
+        )
+        description = (
+            "Monitoring jest w toku; brak nowej potwierdzonej awarii."
+            if run_is_fresh_and_active and not event_confirms_recovery
+            else "Wszystkie kontrole Liquidations Live zakończyły się sukcesem."
+        )
 
     number = int(issue["number"]) if isinstance(issue, dict) and issue.get("number") else None
     return (

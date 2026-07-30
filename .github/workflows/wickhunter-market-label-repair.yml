@@ -1,0 +1,59 @@
+name: WickHunter exact market label repair
+
+on:
+  push:
+    branches:
+      - agent/wickhunter-postmerge-ruff-repair
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-market-label-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply exact one-line repair
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("ai_platform/portal/web/components/market-evidence-dashboard.tsx")
+          text = path.read_text(encoding="utf-8")
+          old = "<div><span>Symbole</span><strong>{source.active_symbols}</strong></div>"
+          new = "<div><span>Aktywne pary</span><strong>{source.active_symbols}</strong></div>"
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exactly one source label, found {text.count(old)}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+          git diff --check
+          test "$(git diff --numstat -- ai_platform/portal/web/components/market-evidence-dashboard.tsx)" = $'1\t1\tai_platform/portal/web/components/market-evidence-dashboard.tsx'
+
+      - name: Verify codespell target
+        run: |
+          python -m pip install codespell==2.4.2
+          codespell ai_platform/portal/web/components/market-evidence-dashboard.tsx
+
+      - name: Commit label repair and remove helper workflow
+        shell: bash
+        run: |
+          rm .github/workflows/wickhunter-market-label-repair.yml
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add \
+            .github/workflows/wickhunter-market-label-repair.yml \
+            ai_platform/portal/web/components/market-evidence-dashboard.tsx
+          git diff --cached --check
+          git commit -m "fix(wickhunter): clarify active market pairs label"
+          git push origin HEAD:agent/wickhunter-postmerge-ruff-repair

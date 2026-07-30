@@ -49,6 +49,12 @@ class MarketEvidencePublicationError(RuntimeError):
     """Raised when the outer immutable package cannot be published safely."""
 
 
+def _require_int(value: object, *, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise MarketEvidencePublicationError(f"{field} must be an integer")
+    return value
+
+
 def _canonical_bytes(value: object) -> bytes:
     return json.dumps(
         value,
@@ -140,7 +146,9 @@ def _identity(path: Path, *, root: Path) -> dict[str, object]:
 
 
 def _policy(request: Mapping[str, object]) -> dict[str, object]:
-    pre_roll_ms = int(request["decision_start_ms"]) - int(request["pre_roll_start_ms"])
+    pre_roll_ms = _require_int(
+        request["decision_start_ms"], field="decision_start_ms"
+    ) - _require_int(request["pre_roll_start_ms"], field="pre_roll_start_ms")
     return {
         "schema_version": 1,
         "policy_id": "wickhunter-production-market-evidence-policy-v2",
@@ -190,12 +198,17 @@ def _enrich_sample(
     if report.get("status") != "pass":
         raise MarketEvidencePublicationError(f"sample {index} is not successful")
 
-    scheduled_at_ms = int(snapshot.get("scheduled_at_ms", -1))
-    available_at_ms = int(snapshot.get("available_at_ms", -1))
-    due_ms = int(request["decision_start_ms"]) + (
-        index * int(request["sample_interval_seconds"]) * 1000
+    scheduled_at_ms = _require_int(snapshot.get("scheduled_at_ms", -1), field="scheduled_at_ms")
+    available_at_ms = _require_int(snapshot.get("available_at_ms", -1), field="available_at_ms")
+    due_ms = _require_int(request["decision_start_ms"], field="decision_start_ms") + (
+        index
+        * _require_int(request["sample_interval_seconds"], field="sample_interval_seconds")
+        * 1000
     )
-    latest_allowed_ms = due_ms + (int(request["max_sample_lateness_seconds"]) * 1000)
+    latest_allowed_ms = due_ms + (
+        _require_int(request["max_sample_lateness_seconds"], field="max_sample_lateness_seconds")
+        * 1000
+    )
     if scheduled_at_ms != due_ms:
         raise MarketEvidencePublicationError(f"sample {index} scheduled timestamp mismatch")
     if not scheduled_at_ms <= available_at_ms <= latest_allowed_ms:
@@ -403,7 +416,8 @@ def _build_manifest(
             "pre_roll_start_ms": request["pre_roll_start_ms"],
             "decision_start_ms": request["decision_start_ms"],
             "decision_end_ms": request["decision_end_ms"],
-            "pre_roll_ms": int(request["decision_start_ms"]) - int(request["pre_roll_start_ms"]),
+            "pre_roll_ms": _require_int(request["decision_start_ms"], field="decision_start_ms")
+            - _require_int(request["pre_roll_start_ms"], field="pre_roll_start_ms"),
             "cadence_seconds": request["sample_interval_seconds"],
             "timeframe": request["timeframe"],
         },

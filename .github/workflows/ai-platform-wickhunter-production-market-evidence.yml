@@ -2,7 +2,7 @@ name: AI Platform WickHunter Production Market Evidence
 
 "on":
   pull_request:
-    types: [opened]
+    types: [opened, reopened]
     branches:
       - develop
     paths:
@@ -22,6 +22,8 @@ env:
   STATE_DIR: /var/lib/freqtrade-staging-state
   DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
   PERSISTED_REQUEST_PATH: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence/request.json
+  HOST_DURABLE_ROOT: /volume1/docker/freqtrade-staging-state/wickhunter-production-market-evidence
+  HOST_PERSISTED_REQUEST_PATH: /volume1/docker/freqtrade-staging-state/wickhunter-production-market-evidence/request.json
   COMPOSE_FILE: deploy/synology/wickhunter-market-evidence/compose.yaml
 
 jobs:
@@ -51,7 +53,8 @@ jobs:
         run: |
           set -euo pipefail
           expected=$'A\tai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260730-v1.json'
-          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
           if [[ "$actual" != "$expected" ]]; then
             echo "WickHunter market evidence trigger must add exactly the canonical request" >&2
             printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
@@ -107,11 +110,27 @@ jobs:
             install -m 0444 "$REQUEST_PATH" "$temporary"
             mv "$temporary" "$PERSISTED_REQUEST_PATH"
           fi
-          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
-            init \
-            --request "$PERSISTED_REQUEST_PATH" \
-            --durable-root "$DURABLE_ROOT" \
-            --collector-commit "$HEAD_SHA"
+          if [[ ! -f "$DURABLE_ROOT/active-wickhunter-production-market-evidence-v1.json" ]]; then
+            PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
+              init \
+              --request "$PERSISTED_REQUEST_PATH" \
+              --durable-root "$DURABLE_ROOT" \
+              --collector-commit "$HEAD_SHA"
+          else
+            PYTHONPATH=. python3 - <<'PY'
+          from pathlib import Path
+          from ai_platform.wickhunter import production_market_evidence as core
+
+          durable_root = Path("/var/lib/freqtrade-staging-state/wickhunter-production-market-evidence")
+          request = core.load_capture_request(durable_root / "request.json")
+          run_root, state = core._load_active_run(durable_root)
+          if state.get("status") != "active" or state.get("run_id") != request["run_id"]:
+              raise SystemExit("existing active capture identity is invalid")
+          if run_root != durable_root / str(request["run_id"]):
+              raise SystemExit("existing active capture root is invalid")
+          print("Existing initialized capture validated; deployment will resume it.")
+          PY
+          fi
 
       - name: Deploy collector and release runner
         shell: bash
@@ -121,8 +140,8 @@ jobs:
           set -euo pipefail
           export COLLECTOR_COMMIT="$HEAD_SHA"
           export IMAGE_TAG="${HEAD_SHA:0:12}"
-          export MARKET_EVIDENCE_REQUEST_FILE="$PERSISTED_REQUEST_PATH"
-          export MARKET_EVIDENCE_STATE_DIR="$DURABLE_ROOT"
+          export MARKET_EVIDENCE_REQUEST_FILE="$HOST_PERSISTED_REQUEST_PATH"
+          export MARKET_EVIDENCE_STATE_DIR="$HOST_DURABLE_ROOT"
           docker compose -f "$COMPOSE_FILE" config --quiet
           docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans collector
 

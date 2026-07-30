@@ -3,10 +3,10 @@
 ## Gate 0 snapshot
 
 - branch: `agent/program-closure-preflight`;
-- evidence anchor: `develop@0208666d98849386e2f2d9acf534b13891e4afa2`;
-- normal synchronization: PR #768 merged into this branch as `6515346ca1e2a44b059cb1e7c2585285e1fc0c17`;
+- evidence anchor: `develop@d57c12b030259d0ae5931306c3e3046713e2e8aa`;
+- normal synchronization: PR #768 merged as `6515346ca1e2a44b059cb1e7c2585285e1fc0c17`; PR #774 merged current `develop` as `354c21832d2bfd60d38baef4c7bccd513ba6386f`;
 - PR #759: merged normally as `1d347a785eddc900f4484c30e06c3ab4e8851b29`;
-- live adjacent work: PR #761, PR #762 and PR #758 are open; PR #753 is merged in current `develop`;
+- live adjacent work: PR #761, PR #762 and PR #758 are open; PR #753, repair PR #766 and archival PR #773 are merged in current `develop`;
 - target: `repository-complete-paper-shadow`;
 - private boundary means private runtime/API reachability: the browser has no direct Freqtrade, exchange or Vault path;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;

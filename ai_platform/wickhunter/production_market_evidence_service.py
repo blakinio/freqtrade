@@ -131,9 +131,7 @@ def _identity(path: Path, *, root: Path) -> dict[str, object]:
     try:
         logical_name = path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError as exc:
-        raise MarketEvidencePublicationError(
-            "artifact path escapes package root"
-        ) from exc
+        raise MarketEvidencePublicationError("artifact path escapes package root") from exc
     return {
         "logical_name": logical_name,
         "sha256": _file_hash(path),
@@ -142,9 +140,7 @@ def _identity(path: Path, *, root: Path) -> dict[str, object]:
 
 
 def _policy(request: Mapping[str, object]) -> dict[str, object]:
-    pre_roll_ms = int(request["decision_start_ms"]) - int(
-        request["pre_roll_start_ms"]
-    )
+    pre_roll_ms = int(request["decision_start_ms"]) - int(request["pre_roll_start_ms"])
     return {
         "schema_version": 1,
         "policy_id": "wickhunter-production-market-evidence-policy-v2",
@@ -199,49 +195,33 @@ def _enrich_sample(
     due_ms = int(request["decision_start_ms"]) + (
         index * int(request["sample_interval_seconds"]) * 1000
     )
-    latest_allowed_ms = due_ms + (
-        int(request["max_sample_lateness_seconds"]) * 1000
-    )
+    latest_allowed_ms = due_ms + (int(request["max_sample_lateness_seconds"]) * 1000)
     if scheduled_at_ms != due_ms:
-        raise MarketEvidencePublicationError(
-            f"sample {index} scheduled timestamp mismatch"
-        )
+        raise MarketEvidencePublicationError(f"sample {index} scheduled timestamp mismatch")
     if not scheduled_at_ms <= available_at_ms <= latest_allowed_ms:
-        raise MarketEvidencePublicationError(
-            f"sample {index} availability timestamp is invalid"
-        )
+        raise MarketEvidencePublicationError(f"sample {index} availability timestamp is invalid")
 
     raw_records = snapshot.get("records")
     if not isinstance(raw_records, list) or len(raw_records) != 40:
-        raise MarketEvidencePublicationError(
-            f"sample {index} market record count mismatch"
-        )
+        raise MarketEvidencePublicationError(f"sample {index} market record count mismatch")
 
     seen: set[tuple[str, str]] = set()
     source_counts = {source: 0 for source in core.EXPECTED_SOURCES}
     instruments: list[dict[str, object]] = []
     for raw_value in raw_records:
         if not isinstance(raw_value, dict):
-            raise MarketEvidencePublicationError(
-                f"sample {index} contains a non-object record"
-            )
+            raise MarketEvidencePublicationError(f"sample {index} contains a non-object record")
         raw = raw_value
         source = str(raw.get("source", ""))
         symbol = str(raw.get("symbol", ""))
         market = str(raw.get("market", ""))
         identity = (source, symbol)
         if source not in core.EXPECTED_SOURCES:
-            raise MarketEvidencePublicationError(
-                f"sample {index} source or market mismatch"
-            )
+            raise MarketEvidencePublicationError(f"sample {index} source or market mismatch")
         if market != EXPECTED_MARKETS[source]:
-            raise MarketEvidencePublicationError(
-                f"sample {index} source or market mismatch"
-            )
+            raise MarketEvidencePublicationError(f"sample {index} source or market mismatch")
         if symbol not in core.EXPECTED_SYMBOLS or identity in seen:
-            raise MarketEvidencePublicationError(
-                f"sample {index} symbol identity mismatch"
-            )
+            raise MarketEvidencePublicationError(f"sample {index} symbol identity mismatch")
         seen.add(identity)
         source_counts[source] += 1
         instrument_seed: dict[str, object] = {
@@ -262,18 +242,12 @@ def _enrich_sample(
             },
             "source_payload_sha256": _canonical_hash(raw),
         }
-        instrument_seed["normalized_snapshot_sha256"] = _canonical_hash(
-            instrument_seed
-        )
+        instrument_seed["normalized_snapshot_sha256"] = _canonical_hash(instrument_seed)
         instruments.append(instrument_seed)
 
     if source_counts != {source: 20 for source in core.EXPECTED_SOURCES}:
-        raise MarketEvidencePublicationError(
-            f"sample {index} source coverage mismatch"
-        )
-    instruments.sort(
-        key=lambda row: (str(row["source"]), str(row["canonical_symbol"]))
-    )
+        raise MarketEvidencePublicationError(f"sample {index} source coverage mismatch")
+    instruments.sort(key=lambda row: (str(row["source"]), str(row["canonical_symbol"])))
     _write_json(
         instruments_path,
         {
@@ -368,14 +342,10 @@ def _package_rows(
         health = _load_object(health_path, field=f"source health {index}")
         records = snapshot.get("records")
         if not isinstance(records, list):
-            raise MarketEvidencePublicationError(
-                "market snapshot records are invalid"
-            )
+            raise MarketEvidencePublicationError("market snapshot records are invalid")
         for raw in records:
             if not isinstance(raw, dict):
-                raise MarketEvidencePublicationError(
-                    "market quality record is invalid"
-                )
+                raise MarketEvidencePublicationError("market quality record is invalid")
             quality_rows.append(
                 {
                     **raw,
@@ -387,23 +357,15 @@ def _package_rows(
             )
         records_value = instruments.get("records")
         if not isinstance(records_value, list):
-            raise MarketEvidencePublicationError(
-                "instrument snapshot records are invalid"
-            )
-        instrument_rows.extend(
-            dict(row) for row in records_value if isinstance(row, dict)
-        )
+            raise MarketEvidencePublicationError("instrument snapshot records are invalid")
+        instrument_rows.extend(dict(row) for row in records_value if isinstance(row, dict))
         sources = health.get("sources")
         if not isinstance(sources, dict):
-            raise MarketEvidencePublicationError(
-                "source health records are invalid"
-            )
+            raise MarketEvidencePublicationError("source health records are invalid")
         for source in core.EXPECTED_SOURCES:
             value = sources.get(source)
             if not isinstance(value, dict):
-                raise MarketEvidencePublicationError(
-                    "source health coverage is invalid"
-                )
+                raise MarketEvidencePublicationError("source health coverage is invalid")
             source_rows.append(
                 {
                     "sample_index": index,
@@ -441,8 +403,7 @@ def _build_manifest(
             "pre_roll_start_ms": request["pre_roll_start_ms"],
             "decision_start_ms": request["decision_start_ms"],
             "decision_end_ms": request["decision_end_ms"],
-            "pre_roll_ms": int(request["decision_start_ms"])
-            - int(request["pre_roll_start_ms"]),
+            "pre_roll_ms": int(request["decision_start_ms"]) - int(request["pre_roll_start_ms"]),
             "cadence_seconds": request["sample_interval_seconds"],
             "timeframe": request["timeframe"],
         },
@@ -458,8 +419,7 @@ def _build_manifest(
         "availability": {
             "decision_safe": True,
             "completed_candles_only": True,
-            "minimum_pre_roll_satisfied": policy["pre_roll_ms"]
-            >= policy["minimum_pre_roll_ms"],
+            "minimum_pre_roll_satisfied": policy["pre_roll_ms"] >= policy["minimum_pre_roll_ms"],
         },
         "source_health": {
             source: {
@@ -516,9 +476,7 @@ def publish_immutable_package(run_root: Path) -> dict[str, object]:
             field="inner verification report",
         )
         if state.get("status") != "completed" or state.get("outcome") != "accepted":
-            raise MarketEvidencePublicationError(
-                "inner capture is not accepted"
-            )
+            raise MarketEvidencePublicationError("inner capture is not accepted")
         core.verify_capture_package(run_root)
         source_rows, quality_rows, instrument_rows = _package_rows(
             run_root,
@@ -529,9 +487,7 @@ def publish_immutable_package(run_root: Path) -> dict[str, object]:
             len(quality_rows),
             len(instrument_rows),
         ) != (288, 5760, 5760):
-            raise MarketEvidencePublicationError(
-                "package record geometry mismatch"
-            )
+            raise MarketEvidencePublicationError("package record geometry mismatch")
 
         policy = _load_object(
             run_root / PACKAGE_POLICY_NAME,
@@ -591,10 +547,7 @@ def publish_immutable_package(run_root: Path) -> dict[str, object]:
             PACKAGE_CANDLE_INDEX_NAME,
             PACKAGE_SOURCE_INDEX_NAME,
         )
-        artifacts = [
-            _identity(partial_root / name, root=partial_root)
-            for name in artifact_names
-        ]
+        artifacts = [_identity(partial_root / name, root=partial_root) for name in artifact_names]
         manifest = _build_manifest(
             package_root=partial_root,
             request=request,
@@ -612,8 +565,7 @@ def publish_immutable_package(run_root: Path) -> dict[str, object]:
             ),
         ]
         checksum_lines = sorted(
-            f"{identity['sha256']}  {identity['logical_name']}"
-            for identity in checksum_identities
+            f"{identity['sha256']}  {identity['logical_name']}" for identity in checksum_identities
         )
         _write_new(
             partial_root / PACKAGE_CHECKSUM_NAME,
@@ -656,9 +608,7 @@ def publish_immutable_package(run_root: Path) -> dict[str, object]:
 
 def verify_immutable_package(package_root: Path) -> dict[str, object]:  # noqa: C901
     if package_root.is_symlink() or not package_root.is_dir():
-        raise MarketEvidencePublicationError(
-            "package root must be a regular directory"
-        )
+        raise MarketEvidencePublicationError("package root must be a regular directory")
     manifest = _load_object(
         package_root / PACKAGE_MANIFEST_NAME,
         field="package manifest",
@@ -667,64 +617,39 @@ def verify_immutable_package(package_root: Path) -> dict[str, object]:  # noqa: 
     hash_seed = dict(manifest)
     hash_seed.pop("manifest_sha256", None)
     if not isinstance(claimed_hash, str) or _canonical_hash(hash_seed) != claimed_hash:
-        raise MarketEvidencePublicationError(
-            "package manifest self hash mismatch"
-        )
+        raise MarketEvidencePublicationError("package manifest self hash mismatch")
     if manifest.get("sources") != list(core.EXPECTED_SOURCES):
-        raise MarketEvidencePublicationError(
-            "package source coverage mismatch"
-        )
+        raise MarketEvidencePublicationError("package source coverage mismatch")
     if manifest.get("authorities") != EXPECTED_AUTHORITY:
-        raise MarketEvidencePublicationError(
-            "package authority boundary mismatch"
-        )
+        raise MarketEvidencePublicationError("package authority boundary mismatch")
 
     artifacts = manifest.get("artifacts")
     if not isinstance(artifacts, list) or len(artifacts) != 8:
-        raise MarketEvidencePublicationError(
-            "package artifact index is invalid"
-        )
+        raise MarketEvidencePublicationError("package artifact index is invalid")
     expected_lines: set[str] = set()
     for raw in artifacts:
         if not isinstance(raw, dict):
-            raise MarketEvidencePublicationError(
-                "package artifact identity is invalid"
-            )
+            raise MarketEvidencePublicationError("package artifact identity is invalid")
         logical_name = raw.get("logical_name")
         if not isinstance(logical_name, str):
-            raise MarketEvidencePublicationError(
-                "package artifact name is invalid"
-            )
+            raise MarketEvidencePublicationError("package artifact name is invalid")
         path = _safe_child(package_root, logical_name)
         if path.is_symlink() or not path.is_file():
-            raise MarketEvidencePublicationError(
-                "package artifact is missing or symlinked"
-            )
-        if (
-            _file_hash(path) != raw.get("sha256")
-            or path.stat().st_size != raw.get("size_bytes")
-        ):
-            raise MarketEvidencePublicationError(
-                "package artifact identity mismatch"
-            )
+            raise MarketEvidencePublicationError("package artifact is missing or symlinked")
+        if _file_hash(path) != raw.get("sha256") or path.stat().st_size != raw.get("size_bytes"):
+            raise MarketEvidencePublicationError("package artifact identity mismatch")
         expected_lines.add(f"{raw['sha256']}  {logical_name}")
 
     manifest_identity = _identity(
         package_root / PACKAGE_MANIFEST_NAME,
         root=package_root,
     )
-    expected_lines.add(
-        f"{manifest_identity['sha256']}  {PACKAGE_MANIFEST_NAME}"
-    )
+    expected_lines.add(f"{manifest_identity['sha256']}  {PACKAGE_MANIFEST_NAME}")
     checksum_path = package_root / PACKAGE_CHECKSUM_NAME
     if checksum_path.is_symlink() or not checksum_path.is_file():
-        raise MarketEvidencePublicationError(
-            "package checksum index is missing"
-        )
+        raise MarketEvidencePublicationError("package checksum index is missing")
     if set(checksum_path.read_text(encoding="utf-8").splitlines()) != expected_lines:
-        raise MarketEvidencePublicationError(
-            "package checksum index mismatch"
-        )
+        raise MarketEvidencePublicationError("package checksum index mismatch")
 
     verification = _load_object(
         package_root / PACKAGE_VERIFICATION_NAME,
@@ -734,16 +659,9 @@ def verify_immutable_package(package_root: Path) -> dict[str, object]:  # noqa: 
         verification.get("outcome") != "accepted"
         or verification.get("manifest_sha256") != claimed_hash
     ):
-        raise MarketEvidencePublicationError(
-            "package verification report mismatch"
-        )
-    if any(
-        verification.get(key) != value
-        for key, value in EXPECTED_AUTHORITY.items()
-    ):
-        raise MarketEvidencePublicationError(
-            "verification authority boundary mismatch"
-        )
+        raise MarketEvidencePublicationError("package verification report mismatch")
+    if any(verification.get(key) != value for key, value in EXPECTED_AUTHORITY.items()):
+        raise MarketEvidencePublicationError("verification authority boundary mismatch")
     return {
         "outcome": "accepted",
         "run_id": manifest["run_id"],
@@ -803,9 +721,7 @@ def _write_github_outputs(result: Mapping[str, object]) -> None:
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Capture and publish WickHunter market evidence"
-    )
+    parser = argparse.ArgumentParser(description="Capture and publish WickHunter market evidence")
     commands = parser.add_subparsers(dest="command", required=True)
     initialize = commands.add_parser("init")
     initialize.add_argument("--request", type=Path, required=True)
@@ -828,13 +744,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 collector_commit=args.collector_commit,
             )
         elif args.command == "sample":
-            result = collect_due_sample(
-                durable_root=args.durable_root.resolve()
-            )
+            result = collect_due_sample(durable_root=args.durable_root.resolve())
         else:
-            result = verify_immutable_package(
-                args.package_root.resolve()
-            )
+            result = verify_immutable_package(args.package_root.resolve())
         _write_github_outputs(result)
         print(json.dumps(result, indent=2, sort_keys=True))
         return 2 if result.get("outcome") == "rejected" else 0

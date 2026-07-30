@@ -9,7 +9,6 @@ related_pr: null
 dependencies:
   - explicit owner authorization
   - PR #758 terminal
-  - private repository visibility confirmed
   - approved external resources available
 owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-external-staging.md
@@ -20,29 +19,25 @@ required_reads:
   - docs/agents/tasks/FTAI-20260730-ai-program-closure-orchestration.md
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
   - ai_strategy_engine/TASKS.md
+  - docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
 search_first:
   - current develop, open PRs and exact owned-path conflicts
   - canonical implementation and tests before adding code
-  - shared contract freeze commit and dependency state
+  - shared contract/dependency state before editing
 ---
 
-# Owner-managed external staging lane
+# Owner-managed external P11 staging lane
 
 ## Goal
 
 Record real P11 acceptance only after the owner provides and authorizes the protected external environment.
 
-## Evidence at Gate 0
-
-Repository-side staging packages exist and PR #758 adds a read-only target preflight. Real Cloudflare, Synology, Authentik, Vault, DNS/TLS and protected-environment evidence is absent. Repository metadata currently reports public visibility.
-
 ## Deliverables
 
 - Owner-approved Cloudflare Tunnel, DNS, Access, WAF, rate-limit and direct-origin-denial evidence.
 - Protected GitHub environment and reachable isolated Synology target.
-- Authentik test identity, MFA and recovery plus Vault and private-Freqtrade acceptance.
+- Authentik test identity, MFA and recovery plus Vault/private-runtime acceptance.
 - Five-probe External E2E evidence stored without secrets.
-- Repository visibility changed to private and verified.
 
 ## Non-negotiable boundaries
 
@@ -54,20 +49,20 @@ Repository-side staging packages exist and PR #758 adds a read-only target prefl
 
 ## Acceptance criteria
 
-- Only real target evidence may change P11 from external action.
-- No fixture or simulation result is described as production-like acceptance.
+- Only real target evidence may change P11 status.
+- No fixture or simulation is described as production-like acceptance.
 - No live-capital or withdrawal authority is introduced.
 
 ## Validation
 
-Run narrow tests first, then all repository workflows required by the changed paths. Validate this task checkpoint before every handoff.
+Run narrow validation first, then all repository gates selected by affected paths. Open one focused PR, verify exact implementation HEAD, required CI and unresolved review threads, synchronize normally and merge only after green checks.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T10:55:00+02:00
-head: 1d347a785eddc900f4484c30e06c3ab4e8851b29
+updated_at: 2026-07-30T11:35:00+02:00
+head: 0208666d98849386e2f2d9acf534b13891e4afa2
 branch: owner/closure-external-staging
 pr: null
 status: blocked
@@ -80,27 +75,26 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-external-staging.md
   - docs/ai_platform/portal/external-acceptance-evidence/**
 proven:
-  - Repository-side staging packages exist and PR #758 adds a read-only target preflight. Real Cloudflare, Synology, Authentik, Vault, DNS/TLS and protected-environment evidence is absent. Repository metadata currently reports public visibility.
+  - Repository-side staging packages exist; PR #758 is read-only preflight only.
 derived:
-  - The bounded implementation scope is restricted to 2 exact path entries.
+  - The missing evidence depends on owner-controlled external resources and authorization.
 unknown:
-  - Exact implementation HEAD, PR number and CI run IDs until the worker starts.
+  - Exact external resource identities and authorization.
 conflicts: []
 first_failure:
   marker: OWNER_RESOURCE_GATE
-  evidence: The missing evidence depends on owner-controlled external accounts, secrets, devices, targets and repository settings and cannot be produced autonomously.
+  evidence: The first missing evidence requires owner-controlled external accounts, identities, devices and protected targets.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
-  - A downstream worker may redefine shared contracts.
-  - Repository fixtures may be described as real external acceptance.
+  - A downstream worker may redefine shared contracts or edit another owner path.
+  - Repository fixtures may be described as real P11 acceptance.
 changed_paths: []
 validation:
   - command: python tools/agents/checkpoint.py <task-path> --require-checkpoint
     result: PASS
-    evidence: Gate 0 validates this compact checkpoint before dispatch.
+    evidence: Gate 0 validated this compact checkpoint against the repository governance contract.
 blockers:
-  - Repository metadata reports visibility public.
   - Cloudflare, protected environment, Synology, Authentik, Vault and external test identity evidence is unavailable.
-  - PR #758 is still open and owns the read-only real-target preflight.
-next_action: Do not start until the owner explicitly authorizes the lane, makes the repository private, and supplies the listed external resources.
+  - PR #758 remains open.
+next_action: Do not start until the owner explicitly authorizes the lane and supplies the listed real external resources.
 ```

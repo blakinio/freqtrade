@@ -27,6 +27,11 @@ jobs:
           ref: fix/liquidations-live-telegram-monitoring-20260730
           fetch-depth: 0
 
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.13"
+
       - name: Apply tested remediation payload
         shell: bash
         run: |
@@ -73,6 +78,7 @@ jobs:
           git rm \
             .github/workflows/agent-liquidations-remediation.yml \
             .github/workflows/agent-liquidations-remediation-pr.yml
+          python -m pip install pytest
           python -m py_compile ai_platform/scripts/liquidation_alert_notifications.py
           pytest -q \
             tests/ai_platform_integration/test_liquidation_alert_notifications.py \

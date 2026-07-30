@@ -124,8 +124,7 @@ def test_router_is_get_only_and_returns_stable_errors() -> None:
     snapshot_payload = snapshot.json()
     assert snapshot_payload["feature_count"] == len(snapshot_payload["features"])
     assert any(
-        item["feature_id"] == "support_resistance.v1"
-        for item in snapshot_payload["features"]
+        item["feature_id"] == "support_resistance.v1" for item in snapshot_payload["features"]
     )
     assert resolved.status_code == 200
     assert resolved.json()["resolved_feature_ids"][0] == "confirmed_pivot.v1"

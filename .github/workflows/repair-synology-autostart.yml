@@ -1,6 +1,6 @@
 name: Repair Synology Autostart
 
-on:
+"on":
   push:
     branches:
       - develop
@@ -8,11 +8,8 @@ on:
       - .github/workflows/repair-synology-autostart.yml
       - deploy/synology/freqtrade-runner/compose.yml
       - deploy/synology/liquid20/compose.yaml
-  workflow_run:
-    workflows:
-      - Portal Synology LAN Preview
-    types:
-      - completed
+      - deploy/synology/portal/deploy-preview.sh
+      - deploy/synology/portal/prove-liquidations-live.sh
   workflow_dispatch:
 
 permissions: {}

@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Apply tested remediation payload
+      - name: Apply non-workflow remediation payload
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -42,6 +42,7 @@ jobs:
           test "$(sha256sum /tmp/liquidfix-payload.tar.gz | cut -d' ' -f1)" = \
             "e19a6f16385722b311e4173dc78e7db1656c928192fc17b5ae85f58e5e7b8e6d"
           tar -xzf /tmp/liquidfix-payload.tar.gz
+          rm .github/workflows/liquidations-live-telegram-notifications.yml
 
           python - <<'PY'
           from pathlib import Path
@@ -56,38 +57,22 @@ jobs:
           text = deploy.read_text(encoding="utf-8")
           assert text.count("unless-stopped") == 2
           deploy.write_text(text.replace("unless-stopped", "always"), encoding="utf-8")
-
-          repair = Path(".github/workflows/repair-synology-autostart.yml")
-          text = repair.read_text(encoding="utf-8")
-          trigger = """  workflow_run:\n    workflows:\n      - Portal Synology LAN Preview\n    types:\n      - completed\n"""
-          assert text.count(trigger) == 1
-          text = text.replace(trigger, "")
-          anchor = "      - deploy/synology/liquid20/compose.yaml\n"
-          assert text.count(anchor) == 1
-          repair.write_text(
-              text.replace(
-                  anchor,
-                  anchor
-                  + "      - deploy/synology/portal/deploy-preview.sh\n"
-                  + "      - deploy/synology/portal/prove-liquidations-live.sh\n",
-              ),
-              encoding="utf-8",
-          )
           PY
 
-          git rm \
-            .github/workflows/agent-liquidations-remediation.yml \
-            .github/workflows/agent-liquidations-remediation-pr.yml
           python -m py_compile ai_platform/scripts/liquidation_alert_notifications.py
           grep -F 'test "$portal_restart" = "always"' \
             deploy/synology/portal/prove-liquidations-live.sh
           ! grep -R "unless-stopped" \
             deploy/synology/portal/prove-liquidations-live.sh \
             deploy/synology/portal/deploy-preview.sh
-          ! grep -F "workflow_run:" .github/workflows/repair-synology-autostart.yml
 
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .
-          git commit -m "fix(liquidations): add Telegram watchdog and align portal restart contract"
+          git add \
+            ai_platform/scripts/liquidation_alert_notifications.py \
+            tests/ai_platform_integration/test_liquidation_alert_notifications.py \
+            docs/agents/tasks/FTAI-20260730-liquidations-live-telegram-monitoring.md \
+            deploy/synology/portal/prove-liquidations-live.sh \
+            deploy/synology/portal/deploy-preview.sh
+          git commit -m "fix(liquidations): add Telegram notifier and align portal restart contract"
           git push origin HEAD:fix/liquidations-live-telegram-monitoring-20260730

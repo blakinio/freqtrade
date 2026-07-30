@@ -400,16 +400,20 @@ class SignalWizardService:
                     f"constraint references an undeclared parameter: {constraint.parameter}",
                 )
             for value in values:
-                if constraint.minimum is not None and isinstance(value, Real) and not isinstance(
-                    value, bool
+                if (
+                    constraint.minimum is not None
+                    and isinstance(value, Real)
+                    and not isinstance(value, bool)
                 ):
                     if float(value) < constraint.minimum:
                         raise SignalWizardValidationError(
                             constraint.reason_code,
                             f"{constraint.parameter} is below the requested minimum",
                         )
-                if constraint.maximum is not None and isinstance(value, Real) and not isinstance(
-                    value, bool
+                if (
+                    constraint.maximum is not None
+                    and isinstance(value, Real)
+                    and not isinstance(value, bool)
                 ):
                     if float(value) > constraint.maximum:
                         raise SignalWizardValidationError(

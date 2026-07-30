@@ -4,7 +4,7 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- current evidence anchor: `develop@acfd66f6fb6f8db03eb4425e8c1a5c8ae4e83ff0`;
+- current evidence anchor: `develop@09bc139a766034840ac01898f8b68cd5c76fb7a2`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
@@ -12,7 +12,8 @@
   - Simulator PR #787 -> `34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9`;
   - Liquid20/OKX source PR #761 -> `141e59a3c7da441432b3990a54903e5fcfc935c8`;
 - merged adjacent monitoring: PR #762 -> `e73de2c7a080c79486141cdafa4d2bb41afdd80e`;
-- active repository PRs: operational request #801, Feature Engine #780 and external read-only preflight #758;
+- merged Feature Engine: PR #780 -> `09bc139a766034840ac01898f8b68cd5c76fb7a2`;
+- active repository PRs: operational request #801 and external read-only preflight #758;
 - coordinator repair branch: `agent/program-closure-coordinator-repair`;
 - coordinator repair task: `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;
@@ -48,7 +49,7 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | P0.3 | `candle geometry` | **PROVEN_COMPLETE** | `none` | `features/candles.py` and tests. |
 | P0.3 | `robust volume` | **PROVEN_COMPLETE** | `none` | Robust z-score and volume oscillator in `features/volume.py`. |
 | P0.3 | `confirmed pivots` | **PROVEN_COMPLETE** | `none` | Delayed right-bar confirmation and availability in `features/pivots.py`. |
-| P0.3 | `support/resistance` | **IN_PROGRESS** | `closure-feature-engine` | PR #780 exact head `de2c2481840284b81b48b4c4d217d91336aadd26` passed required CI; coordinator repair must merge and the branch must restack. |
+| P0.3 | `support/resistance` | **MERGED_COMPLETE** | `closure-feature-engine` | PR #780 merged as `09bc139a766034840ac01898f8b68cd5c76fb7a2`; exact head `6bb0d434c709481e283b398fbe2e4e89b7f701a5` passed required CI. |
 | P0.4 | `timestamp order` | **PROVEN_COMPLETE** | `none` | Model validators and `FEATURE_AFTER_DECISION`. |
 | P0.4 | `HTF guard` | **PROVEN_COMPLETE** | `none` | `HTF_BAR_NOT_CLOSED` negative tests. |
 | P0.4 | `pivot guard` | **PROVEN_COMPLETE** | `none` | `PIVOT_BEFORE_CONFIRMATION` negative tests. |
@@ -79,14 +80,14 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | P1.5 | `confirmed FVG` | **READY** | `closure-research-data` | Child task is unblocked after PR #761. |
 | P1.5 | `own zone heuristic` | **READY** | `closure-research-data` | Child task is unblocked after PR #761. |
 | P1.5 | `no LuxAlgo code copy` | **PROVEN_COMPLETE** | `none` | Module/license boundaries explicitly prohibit proprietary copying. |
-| P2.2 | `trend/range` | **WAITING** | `closure-ai-routing-ranking` | Contracts are merged; Feature Engine and Research Data must merge. |
-| P2.2 | `high/low volatility` | **WAITING** | `closure-ai-routing-ranking` | Contracts are merged; Feature Engine and Research Data must merge. |
+| P2.2 | `trend/range` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine is merged; Research Data must merge. |
+| P2.2 | `high/low volatility` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine is merged; Research Data must merge. |
 | P2.2 | `liquidation regime` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
-| P2.2 | `drift monitoring` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine and Research Data must merge. |
-| P2.3 | `correlation penalties` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine and Research Data must merge. |
-| P2.3 | `OOS stability` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine and Research Data must merge. |
-| P2.3 | `drawdown contribution` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine and Research Data must merge. |
-| P2.3 | `calibration` | **WAITING** | `closure-ai-routing-ranking` | Feature Engine and Research Data must merge. |
+| P2.2 | `drift monitoring` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
+| P2.3 | `correlation penalties` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
+| P2.3 | `OOS stability` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
+| P2.3 | `drawdown contribution` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
+| P2.3 | `calibration` | **WAITING** | `closure-ai-routing-ranking` | Research Data must merge. |
 | P2.4 | `feature selection` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
 | P2.4 | `parameter constraints` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
 | P2.4 | `leakage warnings` | **READY** | `closure-ui-signal-wizard` | Frozen Signal Wizard contracts are merged and ownership is disjoint. |
@@ -112,7 +113,7 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | Evidence-based seeded-defect repair | **PROVEN_COMPLETE** | `none` | P12 simulation-first bounded repair. |
 | Signal Wizard research workflow | **READY** | `closure-ui-signal-wizard` | Contract dependency merged; no active overlap. |
 | Strategy Catalog lifecycle workflow | **READY** | `closure-ui-strategy-catalog` | Contract dependency merged; no active overlap. |
-| Full closure E2E and first-failure observability | **WAIT_FOR_IMPLEMENTATION_MERGES** | `closure-integration-e2e` | Feature Engine, Research Data, routing/ranking and both UI workers must merge. |
+| Full closure E2E and first-failure observability | **WAIT_FOR_IMPLEMENTATION_MERGES** | `closure-integration-e2e` | Research Data, routing/ranking and both UI workers must merge. |
 | Backlog/roadmap/program terminal freshness | **BLOCKED** | `Agent 0` | Update only after implementation and integration merges provide terminal evidence. |
 | Real P11 protected external acceptance | **EXTERNAL_OWNER_ACTION** | `owner-managed lane` | Requires owner-approved resources; PR #758 is read-only preflight only. |
 | P13 scale/service extraction | **DEFERRED_BY_POLICY** | `none` | Start only after a measured bottleneck or unmet SLO. |
@@ -138,9 +139,10 @@ contracts MERGED
 
 time/leakage MERGED
 simulator MERGED
+Feature Engine MERGED
 PR #761 MERGED -> Research Data READY
-coordinator registry repair -> Feature Engine #780 restack/merge
-Feature Engine + Research Data -> AI routing/ranking
+coordinator registry repair RESOLVED by merged PR #780
+Research Data -> AI routing/ranking
 all repository child PRs -> Integration/E2E
 
 P11 external acceptance: separate owner-managed lane
@@ -155,19 +157,19 @@ Live capital/P14: excluded and unauthorized
 | Shared contracts | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-contracts.md` | `agent/closure-contracts-terminal` | — | PR #781 and terminal PR #790 merged. |
 | Time/leakage | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-time-leakage.md` | `agent/closure-time-leakage-terminal` | — | PR #777 and terminal PR #792 merged. |
 | Simulator | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-simulator.md` | `agent/closure-simulator-terminal` | — | PR #787 merged; coordinator terminal checkpoint recorded. |
-| Coordinator registry repair | **IN_PROGRESS** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-repair` | — | Merge this focused repair PR, then sync PR #780. |
-| Feature Engine | **IN_PROGRESS** | `docs/agents/tasks/FTAI-20260730-closure-feature-engine.md` | `agent/closure-feature-engine` | `docs/agents/prompts/ai-program-closure/FEATURE-ENGINE-AGENT-PROMPT.md` | Do not start a duplicate chat; coordinator is finishing existing PR #780. |
+| Coordinator registry repair | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-repair` | — | PR #780 absorbed the exact dynamic-count repair; coordinator records terminal ownership without duplicate test changes. |
+| Feature Engine | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-engine.md` | `agent/closure-feature-engine` | `docs/agents/prompts/ai-program-closure/FEATURE-ENGINE-AGENT-PROMPT.md` | PR #780 merged as `09bc139a766034840ac01898f8b68cd5c76fb7a2`; do not start a duplicate chat. |
 | Research Data | **READY** | `docs/agents/tasks/FTAI-20260730-closure-research-data.md` | `agent/closure-research-data` | `docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md` | PR #761 merged and no active ownership overlap exists. |
 | Signal Wizard | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | PR #781 merged and no active ownership overlap exists. |
 | Strategy Catalog | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ui-strategy-catalog.md` | `agent/closure-ui-strategy-catalog` | `docs/agents/prompts/ai-program-closure/UI-STRATEGY-CATALOG-AGENT-PROMPT.md` | PR #781 merged and no active ownership overlap exists. |
-| AI routing/ranking | **WAIT_FOR_FEATURE_AND_RESEARCH** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | Feature Engine and Research Data PRs merged. |
+| AI routing/ranking | **WAIT_FOR_RESEARCH** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | Research Data PR merged. |
 | Integration/E2E | **WAIT_FOR_IMPLEMENTATION_MERGES** | `docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md` | `agent/closure-integration-e2e` | `docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md` | All repository child PRs merged and develop green. |
 | External P11 | **BLOCKED** | `docs/agents/tasks/FTAI-20260730-closure-external-staging.md` | `owner/closure-external-staging` | `docs/agents/prompts/ai-program-closure/EXTERNAL-STAGING-AGENT-PROMPT.md` | Explicit owner authorization/resources and PR #758 terminal. |
 | Live capital/P14 | **DO_NOT_START** | — | — | — | No authorization exists. |
 
 ## Coordinator repair ownership
 
-The repair task exclusively owns the two stale count tests until its PR merges. PR #780 must then synchronize normally from `develop`; after synchronization its effective changed paths must return to the original Feature Engine task record plus implementation and focused tests.
+The coordinator repair task records the stale-count ownership decision. PR #780 merged the exact dynamic-count behavior before a standalone repair PR opened, so the coordinator branch intentionally carries no duplicate test diff.
 
 ## Closure acceptance
 

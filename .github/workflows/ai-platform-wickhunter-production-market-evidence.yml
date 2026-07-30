@@ -2,7 +2,7 @@ name: AI Platform WickHunter Production Market Evidence
 
 "on":
   pull_request:
-    types: [opened, reopened]
+    types: [opened]
     branches:
       - develop
     paths:

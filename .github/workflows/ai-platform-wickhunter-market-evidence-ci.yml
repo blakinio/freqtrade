@@ -144,7 +144,9 @@ jobs:
           PORTAL_E2E_ENVIRONMENT: test
           PORTAL_E2E_IDENTITY_FIXTURE_MODE: enabled
         run: >-
-          npx playwright test e2e/specs/market-evidence.spec.ts
+          npx playwright test
+          e2e/specs/market-evidence.spec.ts
+          e2e/specs/market-evidence-states.spec.ts
           --project=chromium-desktop
 
       - name: Upload browser evidence on failure

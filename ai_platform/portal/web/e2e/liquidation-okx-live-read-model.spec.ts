@@ -24,12 +24,18 @@ function event(source: LiquidationDataSource, id: string, occurredAtMs: number):
   });
 }
 
-function sourceState(now: number, events: number, connected = true, configured = true) {
+function sourceState(
+  now: number,
+  events: number,
+  connected = true,
+  configured = true,
+  eventAgeMs = 1_000,
+) {
   return {
     configured,
     connected: configured && connected,
-    last_event_at_ms: events > 0 ? now - 1_000 : null,
-    last_event_received_at_ms: events > 0 ? now - 975 : null,
+    last_event_at_ms: events > 0 ? now - eventAgeMs : null,
+    last_event_received_at_ms: events > 0 ? now - eventAgeMs + 25 : null,
     last_heartbeat_at_ms: now - 500,
     ingest_lag_ms: events > 0 ? 25 : null,
     reconnect_count: connected ? 0 : 1,
@@ -42,7 +48,12 @@ function sourceState(now: number, events: number, connected = true, configured =
   };
 }
 
-async function fixture(now: number, okxConnected = true, okxConfigured = true) {
+async function fixture(
+  now: number,
+  okxConnected = true,
+  okxConfigured = true,
+  okxEventAgeMs = 1_000,
+) {
   const dataRoot = await mkdtemp(join(tmpdir(), "portal-liquidations-okx-live-"));
   const runId = "liquid20-20260730T000000Z-0";
   const runRoot = join(dataRoot, "live", "runs", runId);
@@ -57,7 +68,7 @@ async function fixture(now: number, okxConnected = true, okxConfigured = true) {
   );
   await writeFile(
     join(runRoot, "okx-swap.ndjson"),
-    `${event("okx-swap", "okx-1", now - 1_000)}\n`,
+    `${event("okx-swap", "okx-1", now - okxEventAgeMs)}\n`,
   );
   const state = {
     schema_version: 1,
@@ -78,9 +89,9 @@ async function fixture(now: number, okxConnected = true, okxConfigured = true) {
     trading_credentials_present: false,
     orders_submitted: 0,
     sources: {
-      "bybit-linear": sourceState(now, 1),
-      "binance-usdm": sourceState(now, 1),
-      "okx-swap": sourceState(now, 1, okxConnected, okxConfigured),
+      "bybit-linear": sourceState(now, 1, true, true, 3_000),
+      "binance-usdm": sourceState(now, 1, true, true, 2_000),
+      "okx-swap": sourceState(now, 1, okxConnected, okxConfigured, okxEventAgeMs),
     },
   };
   await writeFile(
@@ -166,6 +177,26 @@ test("an unconfigured OKX source can never be reported as healthy", async () => 
     expect(health.sources["okx-swap"]?.connected).toBe(false);
     expect(page.mode).toBe("stale");
     expect(summary.mode).toBe("stale");
+    expect(health.sources["bybit-linear"]?.connected).toBe(true);
+    expect(health.sources["binance-usdm"]?.connected).toBe(true);
+  } finally {
+    await data.cleanup();
+  }
+});
+
+test("stale OKX events degrade the view even while its heartbeat remains fresh", async () => {
+  const now = 1_784_956_800_000;
+  const data = await fixture(now, true, true, 300_001);
+  try {
+    const model = new LiquidationLiveReadModel({ dataRoot: data.dataRoot, now: () => now });
+    const health = await model.health();
+    const page = await model.list({ limit: 20 });
+
+    expect(health.mode).toBe("stale");
+    expect(page.mode).toBe("stale");
+    expect(health.sources["okx-swap"]?.configured).toBe(true);
+    expect(health.sources["okx-swap"]?.connected).toBe(true);
+    expect(health.sources["okx-swap"]?.last_heartbeat_at_ms).toBe(now - 500);
     expect(health.sources["bybit-linear"]?.connected).toBe(true);
     expect(health.sources["binance-usdm"]?.connected).toBe(true);
   } finally {

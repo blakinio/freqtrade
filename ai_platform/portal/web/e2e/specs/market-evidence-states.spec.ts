@@ -146,7 +146,7 @@ async function routeEmptyEvidence(page: Page, status = "UNAVAILABLE"): Promise<v
 
 test.describe("Market evidence dashboard states", () => {
   test("@component renders loading before the read model resolves", async ({ page }) => {
-    let release: (() => void) | null = null;
+    let release!: () => void;
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
@@ -156,7 +156,7 @@ test.describe("Market evidence dashboard states", () => {
     });
     await page.goto("/market/evidence");
     await expect(page.getByText("Ładowanie danych WickHunter Market Evidence…")).toBeVisible();
-    release?.();
+    release();
   });
 
   test("@component renders unavailable and empty states without invented rows", async ({ page }) => {

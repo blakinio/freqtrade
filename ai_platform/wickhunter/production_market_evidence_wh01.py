@@ -9,6 +9,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation, localcontext
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +34,7 @@ from ai_platform.wickhunter.production_market_evidence_service import (
     verify_immutable_package,
 )
 from ai_platform.wickhunter.universe import DynamicUniverseSnapshot, UniverseInstrumentDecision
+
 
 POLICY_SCHEMA = "wickhunter-production-market-evidence-wh01-policy-v1"
 INPUT_MANIFEST_SCHEMA = "wickhunter-production-market-evidence-wh01-input-manifest-v1"
@@ -97,7 +99,7 @@ class Wh01AdapterPolicy:
     embargo_ms: int
     protected_holdout_start_ms: int
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != POLICY_SCHEMA:
             raise WickHunterInputAdapterError(f"schema_version must be {POLICY_SCHEMA}")
         if not self.policy_version or self.timeframe != "5m":
@@ -105,15 +107,11 @@ class Wh01AdapterPolicy:
         if self.decision_cadence_ms != TIMEFRAME_MS:
             raise WickHunterInputAdapterError("WH-01 decision cadence must be 5m")
         if self.required_sources != core.EXPECTED_SOURCES:
-            raise WickHunterInputAdapterError(
-                "policy must require both source-separated markets"
-            )
+            raise WickHunterInputAdapterError("policy must require both source-separated markets")
         if self.source_aggregation != "source_balanced_mean_require_all":
             raise WickHunterInputAdapterError("unsupported source aggregation policy")
         if self.lookbacks.maximum_rows < 288:
-            raise WickHunterInputAdapterError(
-                "metric policy must require at least 24h of 5m data"
-            )
+            raise WickHunterInputAdapterError("metric policy must require at least 24h of 5m data")
         positive = (
             self.burst_window_ms,
             self.partition_span_ms,
@@ -123,25 +121,17 @@ class Wh01AdapterPolicy:
             self.minimum_healthy_liquidation_sources,
         )
         if any(value <= 0 for value in positive):
-            raise WickHunterInputAdapterError(
-                "positive policy values must be greater than zero"
-            )
+            raise WickHunterInputAdapterError("positive policy values must be greater than zero")
         if self.minimum_quote_volume_24h_usd < 0:
-            raise WickHunterInputAdapterError(
-                "minimum quote volume must be non-negative"
-            )
+            raise WickHunterInputAdapterError("minimum quote volume must be non-negative")
         if self.maximum_spread_bps is not None and self.maximum_spread_bps < 0:
             raise WickHunterInputAdapterError("maximum spread must be non-negative")
         if self.split_start_ms <= 0 or self.split_end_ms <= self.split_start_ms:
             raise WickHunterInputAdapterError("split geometry is invalid")
         if self.split_end_ms > self.protected_holdout_start_ms:
-            raise WickHunterInputAdapterError(
-                "split geometry overlaps the protected holdout"
-            )
+            raise WickHunterInputAdapterError("split geometry overlaps the protected holdout")
         if self.label_horizon_ms < 0 or self.embargo_ms < 0:
-            raise WickHunterInputAdapterError(
-                "label horizon and embargo must be non-negative"
-            )
+            raise WickHunterInputAdapterError("label horizon and embargo must be non-negative")
 
 
 def _object(value: object, *, field: str) -> dict[str, Any]:
@@ -171,9 +161,7 @@ def _decimal(value: object, *, field: str) -> Decimal:
     try:
         result = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError) as exc:
-        raise WickHunterInputAdapterError(
-            f"{field} must be decimal-compatible"
-        ) from exc
+        raise WickHunterInputAdapterError(f"{field} must be decimal-compatible") from exc
     if not result.is_finite():
         raise WickHunterInputAdapterError(f"{field} must be finite")
     return result
@@ -204,17 +192,11 @@ def _load_ndjson(
     with path.open("r", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, 1):
             if not line.strip():
-                raise WickHunterInputAdapterError(
-                    f"{field} contains a blank row at {line_number}"
-                )
+                raise WickHunterInputAdapterError(f"{field} contains a blank row at {line_number}")
             if line_number > maximum_rows:
-                raise WickHunterInputAdapterError(
-                    f"{field} exceeded the bounded row limit"
-                )
+                raise WickHunterInputAdapterError(f"{field} exceeded the bounded row limit")
             try:
-                rows.append(
-                    _object(json.loads(line), field=f"{field} row {line_number}")
-                )
+                rows.append(_object(json.loads(line), field=f"{field} row {line_number}"))
             except json.JSONDecodeError as exc:
                 raise WickHunterInputAdapterError(
                     f"{field} row {line_number} is invalid JSON"
@@ -287,9 +269,7 @@ def load_policy(path: Path) -> Wh01AdapterPolicy:
             field="minimum_quote_volume_24h_usd",
         ),
         maximum_spread_bps=(
-            None
-            if maximum_spread is None
-            else _decimal(maximum_spread, field="maximum_spread_bps")
+            None if maximum_spread is None else _decimal(maximum_spread, field="maximum_spread_bps")
         ),
         minimum_candle_history_rows=_integer(
             universe.get("minimum_candle_history_rows"),
@@ -340,9 +320,7 @@ def _safe_member(root: Path, logical_name: str) -> Path:
     try:
         current.resolve(strict=True).relative_to(resolved_root)
     except (FileNotFoundError, ValueError) as exc:
-        raise WickHunterInputAdapterError(
-            "artifact path escapes the run or is missing"
-        ) from exc
+        raise WickHunterInputAdapterError("artifact path escapes the run or is missing") from exc
     if not current.is_file():
         raise WickHunterInputAdapterError("artifact path is not a regular file")
     return current
@@ -356,9 +334,7 @@ def _mean(values: Sequence[Decimal], *, field: str) -> Decimal:
 
 def _balanced(values: Sequence[Decimal], *, field: str) -> Decimal:
     if len(values) != len(core.EXPECTED_SOURCES):
-        raise WickHunterInputAdapterError(
-            f"{field} does not cover every required source"
-        )
+        raise WickHunterInputAdapterError(f"{field} does not cover every required source")
     return _mean(values, field=field)
 
 
@@ -377,17 +353,13 @@ def _window(
         <= end_ms
     ]
     if len(eligible) < rows:
-        raise WickHunterInputAdapterError(
-            "missing required completed-candle pre-roll"
-        )
+        raise WickHunterInputAdapterError("missing required completed-candle pre-roll")
     selected = eligible[-rows:]
     expected_start = end_ms - rows * TIMEFRAME_MS
     for index, row in enumerate(selected):
         expected_open = expected_start + index * TIMEFRAME_MS
         if _integer(row.get("open_time_ms"), field="candle open") != expected_open:
-            raise WickHunterInputAdapterError(
-                "completed-candle lookback contains a gap"
-            )
+            raise WickHunterInputAdapterError("completed-candle lookback contains a gap")
         if (
             _integer(
                 row.get("close_time_ms_exclusive"),
@@ -395,9 +367,7 @@ def _window(
             )
             > end_ms
         ):
-            raise WickHunterInputAdapterError(
-                "incomplete candle entered a completed-candle window"
-            )
+            raise WickHunterInputAdapterError("incomplete candle entered a completed-candle window")
     return selected
 
 
@@ -420,48 +390,42 @@ def _source_metrics(
     latest_row = _window(candles, decision_ms, 1)[0]
 
     quote_volume = sum(
-        (
-            _decimal(row.get("quote_volume"), field="quote volume")
-            for row in quote_rows
-        ),
+        (_decimal(row.get("quote_volume"), field="quote volume") for row in quote_rows),
         Decimal(0),
     )
     vwap_weight = sum(
-        (
-            _decimal(row.get("base_volume"), field="base volume")
-            for row in vwap_rows
-        ),
+        (_decimal(row.get("base_volume"), field="base volume") for row in vwap_rows),
         Decimal(0),
     )
     if vwap_weight <= 0:
         raise WickHunterInputAdapterError("VWAP base volume must be positive")
-    vwap = sum(
-        (
-            _decimal(row.get("quote_volume"), field="quote volume")
-            for row in vwap_rows
-        ),
-        Decimal(0),
-    ) / vwap_weight
+    vwap = (
+        sum(
+            (_decimal(row.get("quote_volume"), field="quote volume") for row in vwap_rows),
+            Decimal(0),
+        )
+        / vwap_weight
+    )
     vwma_weight = sum(
-        (
-            _decimal(row.get("base_volume"), field="base volume")
-            for row in vwma_rows
-        ),
+        (_decimal(row.get("base_volume"), field="base volume") for row in vwma_rows),
         Decimal(0),
     )
     if vwma_weight <= 0:
         raise WickHunterInputAdapterError("VWMA base volume must be positive")
-    vwma = sum(
-        (
-            _decimal(row.get("close"), field="close")
-            * _decimal(row.get("base_volume"), field="base volume")
-            for row in vwma_rows
-        ),
-        Decimal(0),
-    ) / vwma_weight
+    vwma = (
+        sum(
+            (
+                _decimal(row.get("close"), field="close")
+                * _decimal(row.get("base_volume"), field="base volume")
+                for row in vwma_rows
+            ),
+            Decimal(0),
+        )
+        / vwma_weight
+    )
 
     true_ranges: list[Decimal] = []
-    for previous, current in zip(atr_rows, atr_rows[1:]):
+    for previous, current in pairwise(atr_rows):
         previous_close = _decimal(previous.get("close"), field="previous close")
         high = _decimal(current.get("high"), field="high")
         low = _decimal(current.get("low"), field="low")
@@ -476,7 +440,7 @@ def _source_metrics(
     atr_ratio = _mean(true_ranges, field="ATR") / latest_close
 
     returns: list[Decimal] = []
-    for previous, current in zip(volatility_rows, volatility_rows[1:]):
+    for previous, current in pairwise(volatility_rows):
         previous_close = _decimal(previous.get("close"), field="previous close")
         current_close = _decimal(current.get("close"), field="current close")
         returns.append(current_close / previous_close - Decimal(1))
@@ -492,9 +456,7 @@ def _source_metrics(
         [abs(value) for value in returns],
         field="absolute returns",
     )
-    volatility_ratio = (
-        Decimal(0) if absolute_mean == 0 else return_std / absolute_mean
-    )
+    volatility_ratio = Decimal(0) if absolute_mean == 0 else return_std / absolute_mean
 
     wick_values: list[Decimal] = []
     for row in wick_rows:
@@ -506,17 +468,12 @@ def _source_metrics(
         wick_values.append(
             Decimal(0)
             if span == 0
-            else (
-                (high - max(opening, closing))
-                + (min(opening, closing) - low)
-            )
-            / span
+            else ((high - max(opening, closing)) + (min(opening, closing) - low)) / span
         )
     trend_open = _decimal(trend_rows[0].get("open"), field="trend open")
-    trend_return = (
-        _decimal(trend_rows[-1].get("close"), field="trend close") / trend_open
-        - Decimal(1)
-    )
+    trend_return = _decimal(
+        trend_rows[-1].get("close"), field="trend close"
+    ) / trend_open - Decimal(1)
     return {
         "quote_volume_24h_usd": quote_volume,
         "vwap": vwap,
@@ -540,13 +497,9 @@ def _group_rows(
     grouped: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
     for row in rows:
         source = str(row.get("source", ""))
-        symbol = str(
-            row.get("canonical_symbol", row.get("symbol", ""))
-        ).upper()
+        symbol = str(row.get("canonical_symbol", row.get("symbol", ""))).upper()
         if source not in core.EXPECTED_SOURCES or symbol not in core.EXPECTED_SYMBOLS:
-            raise WickHunterInputAdapterError(
-                f"{field} source or symbol mismatch"
-            )
+            raise WickHunterInputAdapterError(f"{field} source or symbol mismatch")
         grouped[(source, symbol)].append(row)
     for values in grouped.values():
         values.sort(
@@ -574,9 +527,7 @@ def _latest_as_of(
         <= decision_ms
     ]
     if not eligible:
-        raise WickHunterInputAdapterError(
-            f"{field} is unavailable at decision time"
-        )
+        raise WickHunterInputAdapterError(f"{field} is unavailable at decision time")
     return eligible[-1]
 
 
@@ -603,11 +554,7 @@ def _active_sources_as_of(
             field="instrument availability",
         ):
             latest[source] = row
-    return {
-        source
-        for source, row in latest.items()
-        if row.get("active") is True
-    }
+    return {source for source, row in latest.items() if row.get("active") is True}
 
 
 def _event_symbol(event: Any) -> str:
@@ -633,16 +580,12 @@ def _liquidation_intensity(
     for event in events:
         if not history_start <= event.received_at_ms < current_start:
             continue
-        index = (
-            event.received_at_ms - history_start
-        ) // policy.burst_window_ms
+        index = (event.received_at_ms - history_start) // policy.burst_window_ms
         if 0 <= index < len(buckets):
             buckets[index] += event.notional_usd
     baseline = _mean(buckets, field="liquidation burst history")
     if baseline <= 0:
-        raise WickHunterInputAdapterError(
-            "liquidation intensity lacks historical burst evidence"
-        )
+        raise WickHunterInputAdapterError("liquidation intensity lacks historical burst evidence")
     return current / baseline
 
 
@@ -665,13 +608,9 @@ def _write_json(path: Path, value: Mapping[str, object]) -> None:
 
 def _copy_accepted(root: Path, destination: Path) -> None:
     if root.is_symlink() or not root.is_dir():
-        raise WickHunterInputAdapterError(
-            "accepted import root must be a regular directory"
-        )
+        raise WickHunterInputAdapterError("accepted import root must be a regular directory")
     if any(path.is_symlink() for path in root.rglob("*")):
-        raise WickHunterInputAdapterError(
-            "accepted import must not contain symlinks"
-        )
+        raise WickHunterInputAdapterError("accepted import must not contain symlinks")
     shutil.copytree(root, destination, copy_function=shutil.copy2)
 
 
@@ -691,14 +630,10 @@ def _artifact_candles(
         source = str(artifact.get("source", ""))
         symbol = str(artifact.get("symbol", "")).upper()
         if source not in core.EXPECTED_SOURCES or symbol not in core.EXPECTED_SYMBOLS:
-            raise WickHunterInputAdapterError(
-                "completed-candle source or symbol mismatch"
-            )
+            raise WickHunterInputAdapterError("completed-candle source or symbol mismatch")
         identity = (source, symbol)
         if identity in candles:
-            raise WickHunterInputAdapterError(
-                "duplicate completed-candle artifact"
-            )
+            raise WickHunterInputAdapterError("duplicate completed-candle artifact")
         normalized = _object(
             artifact.get("normalized_file"),
             field="normalized candle file",
@@ -708,32 +643,24 @@ def _artifact_candles(
             str(normalized.get("logical_name", "")),
         )
         if sha256_file(path) != normalized.get("sha256"):
-            raise WickHunterInputAdapterError(
-                "normalized candle SHA-256 mismatch"
-            )
+            raise WickHunterInputAdapterError("normalized candle SHA-256 mismatch")
         rows = _load_ndjson(
             path,
             field=f"{source} {symbol} candles",
             maximum_rows=1_000,
         )
         if len(rows) != 432:
-            raise WickHunterInputAdapterError(
-                "completed-candle geometry mismatch"
-            )
+            raise WickHunterInputAdapterError("completed-candle geometry mismatch")
         candles[identity] = rows
     expected = {
-        (source, symbol)
-        for source in core.EXPECTED_SOURCES
-        for symbol in core.EXPECTED_SYMBOLS
+        (source, symbol) for source in core.EXPECTED_SOURCES for symbol in core.EXPECTED_SYMBOLS
     }
     if set(candles) != expected:
-        raise WickHunterInputAdapterError(
-            "completed-candle source-symbol coverage mismatch"
-        )
+        raise WickHunterInputAdapterError("completed-candle source-symbol coverage mismatch")
     return candles
 
 
-def build_wh01_input_package(  # noqa: C901, PLR0915
+def build_wh01_input_package(  # noqa: C901
     *,
     evidence_package_root: Path,
     accepted_import_roots: Sequence[Path],
@@ -741,9 +668,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
     output_root: Path,
 ) -> dict[str, object]:
     if output_root.exists() or output_root.is_symlink():
-        raise WickHunterInputAdapterError(
-            "WH-01 input output root already exists"
-        )
+        raise WickHunterInputAdapterError("WH-01 input output root already exists")
     if not accepted_import_roots:
         return {
             "schema_version": REPORT_SCHEMA,
@@ -767,12 +692,9 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
     capture = _object(manifest.get("capture"), field="manifest.capture")
     collector_commit = str(manifest.get("collector_commit", ""))
     if len(collector_commit) != 40 or any(
-        character not in "0123456789abcdef"
-        for character in collector_commit
+        character not in "0123456789abcdef" for character in collector_commit
     ):
-        raise WickHunterInputAdapterError(
-            "collector commit identity is invalid"
-        )
+        raise WickHunterInputAdapterError("collector commit identity is invalid")
     decision_start = _integer(
         capture.get("decision_start_ms"),
         field="decision start",
@@ -793,9 +715,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
         request.get("protected_holdout_start_ms"),
         field="protected holdout",
     ):
-        raise WickHunterInputAdapterError(
-            "policy protected holdout identity mismatch"
-        )
+        raise WickHunterInputAdapterError("policy protected holdout identity mismatch")
     if _integer(capture.get("pre_roll_ms"), field="pre-roll") < (
         policy.lookbacks.maximum_rows * TIMEFRAME_MS
     ):
@@ -817,15 +737,10 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
     )
 
     bundles = tuple(
-        load_accepted_import(root.resolve(strict=True))
-        for root in accepted_import_roots
+        load_accepted_import(root.resolve(strict=True)) for root in accepted_import_roots
     )
-    if len({bundle.selection.selection_sha256 for bundle in bundles}) != len(
-        bundles
-    ):
-        raise WickHunterInputAdapterError(
-            "duplicate accepted liquidation import selection"
-        )
+    if len({bundle.selection.selection_sha256 for bundle in bundles}) != len(bundles):
+        raise WickHunterInputAdapterError("duplicate accepted liquidation import selection")
     pre_roll_start = _integer(
         capture.get("pre_roll_start_ms"),
         field="pre-roll start",
@@ -840,15 +755,9 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
                 "accepted liquidation import does not cover the evidence interval"
             )
         if selection.protected_holdout_start_ms != policy.protected_holdout_start_ms:
-            raise WickHunterInputAdapterError(
-                "accepted import protected holdout identity mismatch"
-            )
+            raise WickHunterInputAdapterError("accepted import protected holdout identity mismatch")
     events = sorted(
-        (
-            normalize_historical_event(event)
-            for bundle in bundles
-            for event in bundle.events
-        ),
+        (normalize_historical_event(event) for bundle in bundles for event in bundle.events),
         key=lambda event: (
             event.received_at_ms,
             event.source,
@@ -856,12 +765,8 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
             event.source_event_id,
         ),
     )
-    if len({(event.source, event.source_event_id) for event in events}) != len(
-        events
-    ):
-        raise WickHunterInputAdapterError(
-            "duplicate source-labelled liquidation event"
-        )
+    if len({(event.source, event.source_event_id) for event in events}) != len(events):
+        raise WickHunterInputAdapterError("duplicate source-labelled liquidation event")
 
     market_rows: list[dict[str, object]] = []
     universe_rows: list[dict[str, object]] = []
@@ -892,10 +797,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
             }
             values = {
                 name: _balanced(
-                    [
-                        source_metrics[source][name]
-                        for source in core.EXPECTED_SOURCES
-                    ],
+                    [source_metrics[source][name] for source in core.EXPECTED_SOURCES],
                     field=name,
                 )
                 for name in (
@@ -920,10 +822,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
             )
             values["market_wide_liquidation_intensity"] = intensity
             decision_price = _balanced(
-                [
-                    source_metrics[source]["decision_price"]
-                    for source in core.EXPECTED_SOURCES
-                ],
+                [source_metrics[source]["decision_price"] for source in core.EXPECTED_SOURCES],
                 field="decision_price",
             )
             quality_available_at = max(
@@ -935,25 +834,15 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
             )
             metrics: list[AvailableMetric] = []
             for name, value in sorted(values.items()):
-                available_at = (
-                    quality_available_at if name == "spread_bps" else decision_ms
-                )
+                available_at = quality_available_at if name == "spread_bps" else decision_ms
                 if name == "spread_bps":
-                    source_name = (
-                        "market_quality:bybit-linear+binance-usdm:"
-                        "source_balanced_mean"
-                    )
+                    source_name = "market_quality:bybit-linear+binance-usdm:source_balanced_mean"
                 elif name == "market_wide_liquidation_intensity":
                     source_name = "accepted_liquidation_archive:market_wide"
                 else:
-                    source_name = (
-                        "completed_candle:bybit-linear+binance-usdm:"
-                        "source_balanced_mean"
-                    )
+                    source_name = "completed_candle:bybit-linear+binance-usdm:source_balanced_mean"
                 if available_at > decision_ms:
-                    raise WickHunterInputAdapterError(
-                        "metric availability exceeds decision time"
-                    )
+                    raise WickHunterInputAdapterError("metric availability exceeds decision time")
                 metrics.append(
                     AvailableMetric(
                         name=name,
@@ -984,10 +873,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
                 decision_ms,
             ) != set(core.EXPECTED_SOURCES):
                 reasons.append("instrument_source_coverage_incomplete")
-            if (
-                values["quote_volume_24h_usd"]
-                < policy.minimum_quote_volume_24h_usd
-            ):
+            if values["quote_volume_24h_usd"] < policy.minimum_quote_volume_24h_usd:
                 reasons.append("quote_volume_below_minimum")
             if (
                 policy.maximum_spread_bps is not None
@@ -1012,8 +898,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
                 event
                 for event in events
                 if _event_symbol(event) == symbol
-                and event.received_at_ms
-                < decision_ms - policy.burst_window_ms
+                and event.received_at_ms < decision_ms - policy.burst_window_ms
             ]
             if len(symbol_events) < policy.minimum_history_events:
                 reasons.append("insufficient_feature_history")
@@ -1031,14 +916,10 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
             any_included = any_included or included
             decisions.append(
                 UniverseInstrumentDecision(
-                    canonical_instrument_id=(
-                        f"wickhunter:source-balanced-perpetual:{symbol}"
-                    ),
+                    canonical_instrument_id=(f"wickhunter:source-balanced-perpetual:{symbol}"),
                     canonical_symbol=symbol,
                     included=included,
-                    reason_codes=("eligible",)
-                    if included
-                    else tuple(sorted(set(reasons))),
+                    reason_codes=("eligible",) if included else tuple(sorted(set(reasons))),
                 )
             )
         universe = DynamicUniverseSnapshot(
@@ -1066,9 +947,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
 
     output_parent = output_root.resolve().parent
     output_parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(
-        tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_parent)
-    )
+    staging = Path(tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_parent))
     try:
         accepted_references: list[dict[str, str]] = []
         pairs = sorted(
@@ -1104,18 +983,14 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
                 "sha256": sha256_file(universe_path),
             },
             "dataset": {
-                "dataset_version": (
-                    f"wickhunter-production-{verification['run_id']}-wh01-v1"
-                ),
+                "dataset_version": (f"wickhunter-production-{verification['run_id']}-wh01-v1"),
                 "code_sha": collector_commit,
                 "burst_window_ms": policy.burst_window_ms,
                 "partition_span_ms": policy.partition_span_ms,
                 "minimum_history_events": policy.minimum_history_events,
                 "maximum_source_age_ms": policy.maximum_source_age_ms,
                 "split_geometry": {
-                    "geometry_version": (
-                        f"{policy.policy_version}-split-v1"
-                    ),
+                    "geometry_version": (f"{policy.policy_version}-split-v1"),
                     "windows": [
                         {
                             "name": policy.split_name,
@@ -1125,9 +1000,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
                     ],
                     "label_horizon_ms": policy.label_horizon_ms,
                     "embargo_ms": policy.embargo_ms,
-                    "protected_holdout_start_ms": (
-                        policy.protected_holdout_start_ms
-                    ),
+                    "protected_holdout_start_ms": (policy.protected_holdout_start_ms),
                 },
             },
             "trading_credentials_present": False,
@@ -1144,15 +1017,12 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
         )
         if preflight.status != "ready":
             raise WickHunterInputAdapterError(
-                "existing WH-01 preflight blocked the generated package: "
-                f"{preflight.missing_paths}"
+                f"existing WH-01 preflight blocked the generated package: {preflight.missing_paths}"
             )
         input_manifest = {
             "schema_version": INPUT_MANIFEST_SCHEMA,
             "run_id": verification["run_id"],
-            "market_evidence_manifest_sha256": verification[
-                "manifest_sha256"
-            ],
+            "market_evidence_manifest_sha256": verification["manifest_sha256"],
             "policy_sha256": sha256_file(policy_path),
             "materialization_request_sha256": sha256_file(request_path),
             "market_context_sha256": sha256_file(market_path),
@@ -1178,10 +1048,7 @@ def build_wh01_input_package(  # noqa: C901, PLR0915
             INPUT_MANIFEST_NAME: sha256_file(manifest_path),
         }
         (staging / CHECKSUM_NAME).write_text(
-            "".join(
-                f"{digest}  {name}\n"
-                for name, digest in sorted(identities.items())
-            ),
+            "".join(f"{digest}  {name}\n" for name, digest in sorted(identities.items())),
             encoding="utf-8",
         )
         report = {

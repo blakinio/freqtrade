@@ -53,7 +53,7 @@ updated_at: 2026-07-30T12:36:00+02:00
 head: 38ef16ba55539f7729bb6d1a459823019c3d574d
 branch: agent/program-closure-preflight-terminal
 pr: 776
-status: completed
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md

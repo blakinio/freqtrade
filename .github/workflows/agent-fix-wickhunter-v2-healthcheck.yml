@@ -28,22 +28,24 @@ jobs:
           fetch-depth: 0
           ref: agent/wickhunter-okx-market-evidence-v2
 
-      - name: Update references and remove duplicate module
+      - name: Update remaining healthcheck references
         run: |
           set -euo pipefail
           sed -i 's#wickhunter-market-evidence-v2/healthcheck.py#wickhunter-market-evidence-v2/healthcheck_v2.py#g' \
             .github/workflows/ai-platform-wickhunter-market-evidence-ci.yml \
             docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
-          git rm -- deploy/synology/wickhunter-market-evidence-v2/healthcheck.py
 
-      - name: Commit exact rename
+      - name: Commit exact reference update
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- \
             .github/workflows/ai-platform-wickhunter-market-evidence-ci.yml \
-            docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md \
-            deploy/synology/wickhunter-market-evidence-v2/healthcheck.py
-          git commit -m "fix(deploy): remove duplicate healthcheck module"
+            docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
+          if git diff --cached --quiet; then
+            echo "References already updated."
+            exit 0
+          fi
+          git commit -m "fix(deploy): point CI at unique v2 healthcheck"
           git push origin HEAD:agent/wickhunter-okx-market-evidence-v2

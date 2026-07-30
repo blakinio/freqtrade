@@ -302,20 +302,20 @@ def _components(report: dict[str, Any], codes: tuple[str, ...]) -> dict[str, str
         for code in codes
     )
     collector_ok = container.get("healthy") is True and state.get("healthy") is True
+    binance = sources.get("binance-usdm")
+    bybit = sources.get("bybit-linear")
+    binance_health = binance.get("healthy") if isinstance(binance, dict) else None
+    bybit_health = bybit.get("healthy") if isinstance(bybit, dict) else None
     return {
         "Portal": _health_word(portal.get("healthy"), "zdrowy", "niedostępny"),
         "Kolektor": _health_word(collector_ok, "zdrowy", "niezdrowy"),
         "Binance": _health_word(
-            (sources.get("binance-usdm") or {}).get("healthy")
-            if isinstance(sources.get("binance-usdm"), dict)
-            else None,
+            binance_health,
             "połączony",
             "rozłączony lub niezweryfikowany",
         ),
         "Bybit": _health_word(
-            (sources.get("bybit-linear") or {}).get("healthy")
-            if isinstance(sources.get("bybit-linear"), dict)
-            else None,
+            bybit_health,
             "połączony",
             "rozłączony lub niezweryfikowany",
         ),

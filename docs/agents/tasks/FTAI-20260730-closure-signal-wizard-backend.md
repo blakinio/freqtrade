@@ -20,6 +20,7 @@ owned_paths:
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
   - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
   - tests/ai_platform/portal/signal_wizard/__init__.py
   - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 required_reads:
@@ -48,8 +49,8 @@ Implement tenant-scoped durable preview and submit semantics for the frozen Sign
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T22:37:00+02:00
-head: e28b1d2a7f3d5be4352c83cdde768f861542c77c
+updated_at: 2026-07-30T22:46:00+02:00
+head: 6decc078bc4e24c2dafab2da0f05ccd331efc1c0
 branch: agent/closure-signal-wizard-backend
 pr: 825
 status: implementing
@@ -69,6 +70,7 @@ owned_paths:
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
   - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
   - tests/ai_platform/portal/signal_wizard/__init__.py
   - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 proven:
@@ -76,19 +78,19 @@ proven:
   - PR 825 implements registered canonical preview and submit routes with durable tenant-scoped storage.
   - Preview validates approved Feature Registry entries, parameters, dependencies and recursive typed condition AST.
   - Submit persists the canonical command and preview-derived research experiment intent without Strategy Lab catalog impersonation.
-  - Branch synchronization PR 824 merged current Research Data develop changes normally with no owned-path collision.
+  - Branch synchronization PRs 824 and 826 merged current Research Data changes normally with no owned-path collision.
 derived:
   - A green exact-head merge of PR 825 will satisfy the backend dependency recorded by Signal Wizard UI checkpoint PR 820.
 unknown:
   - Exact final workflow conclusions and unresolved review-thread count for PR 825.
 conflicts: []
 first_failure:
-  marker: OPENAPI_SIGNAL_WIZARD_ROUTES_UNDECLARED
-  evidence: AI Platform run 30579725358 passed compile and all other tests until the explicit OpenAPI route allowlist rejected preview and submit; the exact contract test is now assigned.
+  marker: PRIVATE_RUNTIME_OPENAPI_ASSERTION_TOO_BROAD
+  evidence: AI Platform run 30580103154 found the legacy runtime test rejected the public frozen field authorization_decision_ref solely because it contained the word authorization; the regression is being narrowed to private transport and credential material.
 rejected_hypotheses:
   - Generate transient candidate identifiers in the BFF.
   - Map arbitrary approved features to fixed incompatible Strategy Lab strategies.
-  - Remove canonical routes to preserve a stale API allowlist.
+  - Hide canonical routes or falsify their typed OpenAPI contract.
   - Grant execution, promotion or live-capital authority.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md
@@ -101,6 +103,7 @@ changed_paths:
   - ai_platform/portal/control_plane/api.py
   - ai_platform/portal/control_plane/database.py
   - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
   - tests/ai_platform/portal/signal_wizard/__init__.py
   - tests/ai_platform/portal/signal_wizard/test_signal_wizard.py
 validation:
@@ -112,7 +115,10 @@ validation:
     evidence: Ruff format changed one owned service file; commit e28b1d2a7f3d5be4352c83cdde768f861542c77c applied the exact formatter diff.
   - command: AI Platform CI run 30579725358
     result: FAIL
-    evidence: The explicit OpenAPI route allowlist omitted only /v1/signal-wizard/preview and /v1/signal-wizard/submit.
+    evidence: The explicit OpenAPI route allowlist omitted only /v1/signal-wizard/preview and /v1/signal-wizard/submit; the allowlist was updated.
+  - command: AI Platform CI run 30580103154
+    result: FAIL
+    evidence: All package tests except the legacy broad OpenAPI substring assertion passed.
 blockers: []
-next_action: Update the assigned OpenAPI contract test, then validate PR 825 on its new exact head.
+next_action: Narrow the private runtime OpenAPI regression to actual private transport and credential fields, then validate PR 825 exact head.
 ```

@@ -30,7 +30,7 @@ Zamknij wyłącznie udowodnione braki modelu symulacji wymagane dla wiarygodnego
 
 ## Wymagania
 
-- Te same eventy, konfiguracja, seed/czas i wersje dają ten sam wynik oraz hash.
+- Identyczne eventy, konfiguracja, seed/czas i wersje dają ten sam wynik oraz hash.
 - Model kosztów musi być jawny, wersjonowany i pokryty fixture’ami.
 - Gap stop i latency nie mogą korzystać z danych niedostępnych w momencie decyzji.
 - Symulator nie może być przedstawiany jako dowód realnego private Freqtrade submission.

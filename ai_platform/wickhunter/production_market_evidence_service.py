@@ -8,7 +8,7 @@ import shutil
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from ai_platform.wickhunter import production_market_evidence as core
 
@@ -140,7 +140,9 @@ def _identity(path: Path, *, root: Path) -> dict[str, object]:
 
 
 def _policy(request: Mapping[str, object]) -> dict[str, object]:
-    pre_roll_ms = int(request["decision_start_ms"]) - int(request["pre_roll_start_ms"])
+    pre_roll_ms = int(cast(Any, request["decision_start_ms"])) - int(
+        cast(Any, request["pre_roll_start_ms"])
+    )
     return {
         "schema_version": 1,
         "policy_id": "wickhunter-production-market-evidence-policy-v2",
@@ -192,10 +194,10 @@ def _enrich_sample(
 
     scheduled_at_ms = int(snapshot.get("scheduled_at_ms", -1))
     available_at_ms = int(snapshot.get("available_at_ms", -1))
-    due_ms = int(request["decision_start_ms"]) + (
-        index * int(request["sample_interval_seconds"]) * 1000
+    due_ms = int(cast(Any, request["decision_start_ms"])) + (
+        index * int(cast(Any, request["sample_interval_seconds"])) * 1000
     )
-    latest_allowed_ms = due_ms + (int(request["max_sample_lateness_seconds"]) * 1000)
+    latest_allowed_ms = due_ms + (int(cast(Any, request["max_sample_lateness_seconds"])) * 1000)
     if scheduled_at_ms != due_ms:
         raise MarketEvidencePublicationError(f"sample {index} scheduled timestamp mismatch")
     if not scheduled_at_ms <= available_at_ms <= latest_allowed_ms:
@@ -403,7 +405,8 @@ def _build_manifest(
             "pre_roll_start_ms": request["pre_roll_start_ms"],
             "decision_start_ms": request["decision_start_ms"],
             "decision_end_ms": request["decision_end_ms"],
-            "pre_roll_ms": int(request["decision_start_ms"]) - int(request["pre_roll_start_ms"]),
+            "pre_roll_ms": int(cast(Any, request["decision_start_ms"]))
+            - int(cast(Any, request["pre_roll_start_ms"])),
             "cadence_seconds": request["sample_interval_seconds"],
             "timeframe": request["timeframe"],
         },

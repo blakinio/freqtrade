@@ -17,8 +17,7 @@ from ai_platform.wickhunter.production_market_evidence_wh01 import (
 
 
 POLICY_PATH = Path(
-    "ai_platform/wickhunter/policies/"
-    "wickhunter-production-market-evidence-wh01-policy-v1.json"
+    "ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v1.json"
 )
 TIMEFRAME_MS = 300_000
 

@@ -8,9 +8,12 @@ from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator, model_validator
 
+from strategy_engine.dsl.ast import ConditionGroup
+
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 SchemaVersion = Literal["1.0.0"]
+StrategySchemaVersion = Literal["1.0.0", "2.0.0"]
 
 
 class Side(StrEnum):
@@ -162,15 +165,15 @@ class StrategyUniverse(CanonicalModel):
 
 
 class StrategyDefinition(CanonicalModel):
-    schema_version: SchemaVersion = "1.0.0"
+    schema_version: StrategySchemaVersion = "1.0.0"
     strategy_id: NonEmptyStr
     version: NonEmptyStr
     universe: StrategyUniverse
     features: tuple[FeatureReference, ...]
-    regime: dict[str, JsonValue] | None = None
-    entry_long: dict[str, JsonValue]
-    entry_short: dict[str, JsonValue] | None = None
-    exit: dict[str, JsonValue]
+    regime: ConditionGroup | None = None
+    entry_long: ConditionGroup
+    entry_short: ConditionGroup | None = None
+    exit: ConditionGroup
     risk: dict[str, JsonValue]
     execution: dict[str, JsonValue]
     provenance: Provenance
@@ -178,6 +181,10 @@ class StrategyDefinition(CanonicalModel):
     @property
     def strategy_version(self) -> str:
         return self.version
+
+    def migrate_to_v2(self) -> Self:
+        """Return the deterministic v2 wire representation of a readable v1 strategy."""
+        return self.model_copy(update={"schema_version": "2.0.0"})
 
 
 class ValidationReport(CanonicalModel):

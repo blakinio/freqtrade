@@ -13,7 +13,9 @@ from strategy_engine.registry import FeatureRegistry, RegistryError, SearchSpace
 class StrategyValidationError(ValueError):
     def __init__(self, reason_code: DslReasonCode | str, message: str) -> None:
         super().__init__(message)
-        self.reason_code = reason_code.value if isinstance(reason_code, DslReasonCode) else reason_code
+        self.reason_code = (
+            reason_code.value if isinstance(reason_code, DslReasonCode) else reason_code
+        )
 
 
 _FEATURE_SEARCH_SPACES = {

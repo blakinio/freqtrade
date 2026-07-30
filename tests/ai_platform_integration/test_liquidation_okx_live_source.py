@@ -6,7 +6,11 @@ from decimal import Decimal
 from pathlib import Path
 
 from ai_platform.research.liquidations.contracts import LiquidatedPositionSide, LiquidationEvent
-from ai_platform.scripts.liquidation_live_stream import BINANCE_SOURCE, BYBIT_SOURCE, LIVE_STATE_FILE
+from ai_platform.scripts.liquidation_live_stream import (
+    BINANCE_SOURCE,
+    BYBIT_SOURCE,
+    LIVE_STATE_FILE,
+)
 from ai_platform.scripts.liquidation_live_stream_okx import (
     OKX_INSTRUMENT_SNAPSHOT_FILE,
     OKX_SOURCE,
@@ -239,12 +243,8 @@ def test_old_disabled_okx_live_state_migrates_to_new_active_run(tmp_path: Path) 
 def test_operational_portal_and_deployment_contracts_require_okx() -> None:
     assert REQUIRED_SOURCES == (BYBIT_SOURCE, BINANCE_SOURCE, OKX_SOURCE)
 
-    entrypoint = (ROOT / "deploy/synology/liquid20/live-entrypoint.sh").read_text(
-        encoding="utf-8"
-    )
-    verify = (ROOT / "deploy/synology/liquid20/verify-okx-live.sh").read_text(
-        encoding="utf-8"
-    )
+    entrypoint = (ROOT / "deploy/synology/liquid20/live-entrypoint.sh").read_text(encoding="utf-8")
+    verify = (ROOT / "deploy/synology/liquid20/verify-okx-live.sh").read_text(encoding="utf-8")
     portal_reader = (ROOT / "ai_platform/portal/web/lib/liquidations/reader.ts").read_text(
         encoding="utf-8"
     )

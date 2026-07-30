@@ -24,15 +24,19 @@ const SYMBOL_PATTERN = /^[A-Z0-9]{2,24}$/;
 const SOURCE_FILE_NAMES: Record<LiquidationSource, string> = {
   "bybit-linear": "bybit-linear.ndjson",
   "binance-usdm": "binance-usdm.ndjson",
+  "okx-swap": "okx-swap.ndjson",
 };
 const SOURCE_SUMMARY_NAMES: Record<LiquidationSource, string> = {
   "bybit-linear": "bybit-linear-summary.json",
   "binance-usdm": "binance-usdm-summary.json",
+  "okx-swap": "okx-swap-summary.json",
 };
 const SOURCE_SEMANTICS: Record<LiquidationSource, string> = {
   "bybit-linear": "All liquidation events published by Bybit linear allLiquidation.",
   "binance-usdm":
     "Latest Binance USD-M forceOrder liquidation event per symbol in each approximately 1000 ms window.",
+  "okx-swap":
+    "Public OKX SWAP liquidation-orders events normalized with verified public ctVal metadata.",
 };
 const WINDOW_MS = {
   "5m": 5 * 60 * 1_000,
@@ -94,6 +98,7 @@ function newRunState(runId: string, runRoot: string): RunState {
     sourceStates: {
       "bybit-linear": newSourceState(),
       "binance-usdm": newSourceState(),
+      "okx-swap": newSourceState(),
     },
     rejectedRecords: 0,
     truncated: false,
@@ -284,6 +289,7 @@ function emptySourceBuckets(): Record<
   return {
     "bybit-linear": { event_count: 0, notional_usd: "0" },
     "binance-usdm": { event_count: 0, notional_usd: "0" },
+    "okx-swap": { event_count: 0, notional_usd: "0" },
   };
 }
 

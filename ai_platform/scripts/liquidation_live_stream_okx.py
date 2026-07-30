@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
@@ -46,6 +47,17 @@ from ai_platform.scripts.liquidation_okx_collector import (
 
 
 OKX_INSTRUMENT_SNAPSHOT_FILE = "okx-swap-instruments-v1.json"
+OKX_CREDENTIAL_ENVIRONMENT_NAMES = (
+    "OKX_API_KEY",
+    "OKX_API_SECRET",
+    "OKX_SECRET_KEY",
+    "OKX_PASSPHRASE",
+)
+
+
+def okx_credentials_present(environment: Mapping[str, str] | None = None) -> bool:
+    values = environment if environment is not None else os.environ
+    return any(values.get(name, "").strip() for name in OKX_CREDENTIAL_ENVIRONMENT_NAMES)
 
 
 def _okx_subscription() -> str:
@@ -286,7 +298,11 @@ async def run_live_collector(
         raise ValueError("symbol_refresh_seconds must be >= 60")
     if maximum_symbols < 1 or maximum_symbols > 1000:
         raise ValueError("maximum_symbols must be between 1 and 1000")
-    if trading_credentials_present_in_environment() or trading_credentials_present():
+    if (
+        trading_credentials_present_in_environment()
+        or trading_credentials_present()
+        or okx_credentials_present()
+    ):
         raise RuntimeError(
             "trading credentials are present; live data-only collector refuses to start"
         )

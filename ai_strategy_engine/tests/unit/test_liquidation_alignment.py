@@ -1,13 +1,12 @@
+from dataclasses import dataclass
 from decimal import Decimal
 
 import pytest
 
-from ai_platform.research.liquidations.contracts import (
-    LiquidatedPositionSide,
-    LiquidationEvent,
-)
 from strategy_engine.research.liquidation_alignment import (
+    AlignedObservation,
     AlignmentStatus,
+    LiquidationAlignment,
     MarketObservation,
     ObservationConflictError,
     ObservationKind,
@@ -16,19 +15,22 @@ from strategy_engine.research.liquidation_alignment import (
 )
 
 
-def liquidation() -> LiquidationEvent:
-    return LiquidationEvent(
-        schema_version=1,
+@dataclass(frozen=True, slots=True)
+class LiquidationFixture:
+    source: str
+    source_event_id: str
+    symbol: str
+    occurred_at_ms: int
+    received_at_ms: int
+
+
+def liquidation() -> LiquidationFixture:
+    return LiquidationFixture(
         source="bybit-linear",
         source_event_id="liq-1",
         symbol="BTCUSDT",
-        liquidated_position_side=LiquidatedPositionSide.LONG,
         occurred_at_ms=10_000,
         received_at_ms=10_050,
-        price=Decimal("100"),
-        quantity=Decimal("2"),
-        notional_usd=Decimal("200"),
-        raw_side="Sell",
     )
 
 
@@ -56,14 +58,13 @@ def observation(
 
 
 def by(
-    result: object,
+    result: LiquidationAlignment,
     source: str,
     kind: ObservationKind,
-):
-    observations = getattr(result, "observations")
+) -> AlignedObservation:
     return next(
         item
-        for item in observations
+        for item in result.observations
         if item.source == source and item.kind is kind
     )
 

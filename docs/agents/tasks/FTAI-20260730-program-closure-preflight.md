@@ -36,7 +36,9 @@ Produce the evidence-backed Gate 0 closure matrix, freeze shared ownership, crea
 ## Gate 0 result
 
 - PR #759 merged normally as `1d347a785eddc900f4484c30e06c3ab4e8851b29`.
-- The existing Gate 0 branch was synchronized normally with current `develop` through PR #768.
+- Gate 0 synchronized normally with `develop` through PR #768 and again through PR #774 at `develop@d57c12b030259d0ae5931306c3e3046713e2e8aa`.
+- PR #766 merged the canonical inherited validation repair with green exact-head Freqtrade, AI Platform, Portal, WickHunter and security workflows.
+- Duplicate repair PR #770 was closed without merge as `DUPLICATE_OR_SUPERSEDED`.
 - Every one of the 73 unchecked P0/P1/P2 backlog entries is classified exactly once.
 - Shared contracts have one exclusive child owner and an explicit compatibility policy.
 - Ten child records exist: nine repository/integration workstreams plus one blocked owner-managed P11 lane.
@@ -52,8 +54,8 @@ Run every child checkpoint validator, structural ownership checks, documentation
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T11:50:00+02:00
-head: f07ee8f53be18f902c1d3ead4d2bdac57cbb79fd
+updated_at: 2026-07-30T12:05:00+02:00
+head: 354c21832d2bfd60d38baef4c7bccd513ba6386f
 branch: agent/program-closure-preflight
 pr: 767
 status: validating
@@ -66,11 +68,13 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260730-program-closure-preflight.md
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
 proven:
-  - PR #759 merged normally and PR #768 synchronized current develop into this Gate 0 branch.
+  - PR #759 merged normally; PR #768 and PR #774 synchronized current develop into Gate 0 without force push.
+  - PR #766 passed exact-head Freqtrade, AI Platform, Portal, WickHunter and security CI and merged as `ac545041046e618c477e0ab5d999e11d261a742e`.
+  - PR #770 was closed without merge because PR #766 already supplied the canonical repair.
   - The matrix classifies all 73 unchecked P0, P1 and P2 items exactly once.
   - Ten child task records exist with one exclusive shared-contract owner.
   - All 69 exact child mutable-path declarations are pairwise disjoint and exclude active adjacent PR paths.
-  - The manual dispatch table now lists every exact child mutable path instead of path summaries.
+  - The manual dispatch table lists every exact child mutable path and start condition.
 derived:
   - Contracts, closed-bar scheduling, support and resistance and simulator fidelity can start after Gate 0 merges.
   - Research Data, AI routing and ranking, both frontend tasks and final integration must wait for recorded dependencies.
@@ -79,10 +83,11 @@ unknown:
 conflicts: []
 first_failure:
   marker: EXACT_HEAD_VALIDATION_PENDING
-  evidence: The Gate 0 PR head moved after the exact dispatch-path correction and must complete required CI and review verification before merge.
+  evidence: The Gate 0 PR head moved after normal synchronization and checkpoint refresh; required exact-head CI and review verification must complete before merge.
 rejected_hypotheses:
   - An unchecked backlog box alone proves missing implementation.
   - Public GitHub source visibility is equivalent to a public Freqtrade runtime or browser execution path.
+  - A duplicate repair should merge after its canonical equivalent has already merged.
   - Repository fixtures may be described as real P11 acceptance.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-program-closure-preflight.md
@@ -100,7 +105,7 @@ changed_paths:
 validation:
   - command: python tools/agents/checkpoint.py <each-created-task> --require-checkpoint
     result: PASS
-    evidence: All eleven Gate 0 and child task checkpoints passed locally against the repository governance contract.
+    evidence: All eleven Gate 0 and child task checkpoints passed against the repository governance contract.
   - command: Gate 0 ownership intersection check
     result: PASS
     evidence: 69 owned-path declarations are unique with zero exact collisions.

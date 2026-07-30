@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260730-closure-simulator
-status: ready
+status: active
 branch: agent/closure-simulator
 base_branch: develop
 created: 2026-07-30
@@ -71,11 +71,11 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T10:55:00+02:00
-head: 1d347a785eddc900f4484c30e06c3ab4e8851b29
+updated_at: 2026-07-30T12:45:00+02:00
+head: 1fd17232cf31b6bfd29588f66ada76773206d394
 branch: agent/closure-simulator
 pr: null
-status: ready
+status: active
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -93,24 +93,43 @@ owned_paths:
   - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
   - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 proven:
-  - Strategy Lab already models fees and slippage, and P10/ASE-03 prove deterministic replay. The canonical portal simulator currently records zero fees and has no latency, funding or gap-stop model.
+  - Gate 0 is merged and the manual dispatch table marks closure-simulator READY with no dependencies.
+  - Open PRs 758, 761 and 762 do not touch any simulator-owned path.
+  - The existing universal scenario remains compatible through zero-cost, zero-latency and no-stop defaults.
+  - Versioned cost, latency, funding and gap-stop models are implemented only inside assigned paths.
+  - Canonical immutable simulation evidence uses deterministic UUID5 identities and SHA-256 over canonical JSON.
 derived:
-  - The bounded implementation scope is restricted to 10 exact path entries.
+  - Scenario latency fails closed when no tick exists at or after the configured ready time.
+  - Positive funding is a cash outflow for BUY positions and an inflow for SELL positions.
+  - A stop crossed between discrete ticks fills at the adverse observed price rather than the configured stop.
 unknown:
-  - Exact implementation HEAD, PR number and CI run IDs until the worker starts.
+  - Exact Ruff, pytest and repository workflow conclusions until PR CI runs.
+  - Review-thread count until the PR exists.
 conflicts: []
 first_failure:
-  marker: PRE_IMPLEMENTATION_GATE
-  evidence: Implementation has not started; the Gate 0 dispatch condition is the first enforced gate.
+  marker: VALIDATION_PENDING
+  evidence: The sandbox cannot check out the GitHub repository, so exact repository tests must run through GitHub Actions on the focused PR.
 rejected_hypotheses:
-  - An unchecked backlog box alone proves missing implementation.
-  - A downstream worker may redefine shared contracts.
-  - Repository fixtures may be described as real external acceptance.
-changed_paths: []
+  - Use wall-clock sleeps or network data to model latency.
+  - Treat repository simulation as real exchange submission evidence.
+  - Modify runner, Risk Core, execution contracts, shared exports or CI outside assigned ownership.
+changed_paths:
+  - ai_platform/portal/simulator/schema.py
+  - ai_platform/portal/simulator/exchange.py
+  - ai_platform/portal/simulator/costs.py
+  - ai_platform/portal/simulator/latency.py
+  - ai_platform/portal/simulator/funding.py
+  - ai_platform/portal/simulator/gap_stop.py
+  - tests/ai_platform/portal/simulator/test_execution_costs.py
+  - tests/ai_platform/portal/simulator/test_latency_funding_gap_stop.py
+  - tests/ai_platform/portal/simulator/test_deterministic_replay.py
 validation:
-  - command: python tools/agents/checkpoint.py <task-path> --require-checkpoint
+  - command: Python py_compile over the exact authored simulator and test file contents
     result: PASS
-    evidence: Gate 0 validates this compact checkpoint before dispatch.
+    evidence: All nine Python files compiled without syntax errors before repository writes.
+  - command: compare develop...agent/closure-simulator
+    result: PASS
+    evidence: Branch is ahead by nine commits, behind by zero, and changes exactly the nine implementation/test paths expected before checkpoint update.
 blockers: []
-next_action: Create the branch from current develop, extend only the declared simulator paths, run simulator tests, and open one focused PR.
+next_action: Open the focused PR against develop and use exact-head GitHub Actions results to repair any Ruff, pytest or compatibility failure.
 ```

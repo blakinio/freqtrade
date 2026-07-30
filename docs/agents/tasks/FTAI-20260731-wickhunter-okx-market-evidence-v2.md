@@ -74,15 +74,33 @@ The v2 package intentionally remains `WH-01 BLOCKED` with `LIQUIDATION_ARCHIVE_N
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T01:18:00+02:00
-head: 3834bdb90f381146befa638f6ccc1a07212ca79f
+updated_at: 2026-07-31T02:08:00+02:00
+head: bf69b0e8b205cd4ba459f2fdb8e93f170e654716
 branch: agent/wickhunter-okx-market-evidence-v2
-status: in_progress
-related_pr: 836
+pr: 836
+status: validating
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260731-wickhunter-market-evidence-recovery-v1.md
+  - docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
+owned_paths:
+  - .github/workflows/ai-platform-wickhunter-market-evidence-ci.yml
+  - .github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml
+  - ai_platform/wickhunter/production-market-evidence-contract-v2.json
+  - ai_platform/wickhunter/production_market_evidence_v2.py
+  - ai_platform/wickhunter/production_market_evidence_service_v2.py
+  - ai_platform/wickhunter/production_market_evidence_daemon_v2.py
+  - ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json
+  - ai_platform/wickhunter/ruff.toml
+  - ai_platform/portal/web/lib/market-evidence/contracts.ts
+  - ai_platform/portal/web/lib/market-evidence/reader-v2.ts
+  - ai_platform/portal/web/lib/market-evidence/index.ts
+  - deploy/synology/wickhunter-market-evidence-v2/Dockerfile
+  - deploy/synology/wickhunter-market-evidence-v2/compose.yaml
+  - deploy/synology/wickhunter-market-evidence-v2/healthcheck.py
+  - tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py
+  - tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
   - docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md
 proven:
   - PR 816 and all v1 identities remain unchanged and two-source only.
@@ -91,7 +109,7 @@ proven:
   - Portal OKX eligibility is derived from accepted v2 package rows and remains unavailable when those rows do not exist.
   - The combined package retains LIQUIDATION_ARCHIVE_NOT_BOUND until a separate binding is verified.
   - Synology deployment is exact-one-file, public-only, credential-free and persistent-container based.
-  - Dedicated CI now executes the v2 normalization, persistence, merge, tamper and deployment checks instead of testing v1 only.
+  - Dedicated CI executes v2 normalization, persistence, merge, tamper and deployment checks.
 derived:
   - The existing Bybit and Binance capture can remain the immutable base package while OKX is captured prospectively over the same frozen geometry.
 unknown:
@@ -131,11 +149,11 @@ validation:
     evidence: 1007 passed and 71 skipped before exact-head dedicated v2 checks.
   - command: prior Portal Market Evidence typecheck, lint, build and browser flow
     result: PASS
-    evidence: dedicated Market Evidence workflow completed all Portal steps successfully on a prior head.
+    evidence: Dedicated Market Evidence workflow completed all Portal steps successfully on a prior head.
   - command: exact-head CI for PR 836
-    result: IN_PROGRESS
-    evidence: GitHub Actions were retriggered after extending the dedicated workflow to the complete v2 path.
+    result: NOT_RUN
+    evidence: Latest exact-head rerun is pending after correcting checkpoint governance fields.
 blockers:
   - Implementation PR must pass exact-head CI and merge before the request-only production trigger is opened.
-next_action: Resolve exact-head CI findings on PR 836, merge the implementation normally, then open the exact-one-file prospective v2 request PR before decision_start_ms 1785477600000.
+next_action: Validate exact-head CI on PR 836, merge normally, then open the exact-one-file prospective v2 request PR before decision_start_ms 1785477600000.
 ```

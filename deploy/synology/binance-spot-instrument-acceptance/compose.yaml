@@ -1,0 +1,44 @@
+services:
+  sampler:
+    build:
+      context: ../../..
+      dockerfile: deploy/synology/binance-spot-instrument-acceptance/Dockerfile
+      args:
+        SAMPLER_COMMIT: ${SAMPLER_COMMIT:?SAMPLER_COMMIT is required}
+    image: local/binance-v3-acceptance-sampler:${IMAGE_TAG:-local}
+    container_name: binance-v3-acceptance-sampler
+    restart: always
+    init: true
+    user: "${PUID:-1026}:${PGID:-100}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 256m
+    environment:
+      BINANCE_ACCEPTANCE_DURABLE_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+      BINANCE_ACCEPTANCE_POLICY_PATH: /app/ai_platform/market_data/binance-spot-instrument-shadow-acceptance-policy-v1.json
+      BINANCE_ACCEPTANCE_LOOP_SECONDS: ${BINANCE_ACCEPTANCE_LOOP_SECONDS:-15}
+      BINANCE_ACCEPTANCE_HEALTH_MAX_AGE_SECONDS: ${BINANCE_ACCEPTANCE_HEALTH_MAX_AGE_SECONDS:-120}
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
+    volumes:
+      - ${BINANCE_ACCEPTANCE_STATE_DIR:?BINANCE_ACCEPTANCE_STATE_DIR is required}:/var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance:rw
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/binance-acceptance-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    networks:
+      - binance-public-egress
+
+networks:
+  binance-public-egress:
+    driver: bridge
+    internal: false

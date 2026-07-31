@@ -1,10 +1,10 @@
 ---
 task_id: FTAI-20260730-closure-integration-e2e
-status: ready
+status: completed
 branch: agent/closure-integration-e2e
 base_branch: develop
 created: 2026-07-30
-updated: 2026-07-31
+updated: 2026-08-01
 related_pr: "#874"
 dependencies:
   - all repository REAL_GAP implementation PRs merged
@@ -46,7 +46,8 @@ All repository implementation dependencies are merged and terminal:
 - Strategy Catalog PR #819 and terminal PR #822;
 - Signal Wizard backend/context/hardening/frontend chain through PRs #825, #846, #858, #855 and terminal PR #863;
 - AI routing/ranking PR #829 and terminal PR #868;
-- responsive overflow repair PR #880.
+- responsive overflow repair PR #880;
+- final Integration/E2E PR #874 merged as `4660b1eb19b2c09af21f46cab2916b64dec7bfaf`.
 
 Open PRs #816 and #848 are immutable operational request lanes that must never merge into `develop`. PR #833 is a disjoint WickHunter recovery coordination package. External acceptance remains separately owner-managed and cannot be claimed by repository fixtures. None overlaps the five Integration/E2E owned paths.
 
@@ -84,9 +85,9 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T23:36:00+02:00
-head: b29b4055f4748b57b5820f0b2e0d70a543a7a5dd
-branch: agent/closure-integration-e2e
+updated_at: 2026-08-01T00:15:00+02:00
+head: 4660b1eb19b2c09af21f46cab2916b64dec7bfaf
+branch: develop
 pr: "#874"
 status: ready
 context_routes:
@@ -103,22 +104,22 @@ owned_paths:
   - docs/ai_platform/PROGRAM_CLOSURE_E2E_EVIDENCE.md
 proven:
   - All repository REAL_GAP implementation dependencies and terminal checkpoints are merged.
-  - PR 874 differs from develop by exactly the five declared Integration/E2E owned paths and is behind develop by zero commits.
+  - PR 874 differed from develop by exactly the five declared Integration/E2E owned paths at merge time.
   - Focused backend integration passed 3 tests and canonical regressions passed 49 tests.
-  - The dedicated exact-head closure workflow passed backend integration, canonical regressions, Ruff, desktop Chromium and the strict 390 px responsive assertion on the validated implementation head.
-  - Full Freqtrade CI passed pre-commit, documentation, Python 3.11, 3.12, 3.13 and 3.14 jobs, including coverage, Ruff, Ruff format and mypy where applicable.
-  - Portal Web CI passed typecheck, lint, production build and Chromium regression.
-  - Portal Universal E2E, AI Platform CI and GitHub Actions Security Analysis passed.
+  - The dedicated exact-head closure workflow passed backend integration, canonical regressions, Ruff, desktop Chromium and the strict 390 px responsive assertion on head dbb9d47e973eb2a5f0634525cf4f7866b3d7e5e8.
+  - Full Freqtrade CI passed on exact head dbb9d47e973eb2a5f0634525cf4f7866b3d7e5e8.
+  - Portal Web CI, Portal Universal E2E, AI Platform CI and GitHub Actions Security Analysis passed on the exact head.
   - Persisted intent, transport acknowledgement and deterministic execution proof remain separate evidence states.
   - Browser request and source scans reject direct Freqtrade, exchange-private, Vault and secret references.
   - Cross-tenant navigation is verified against the canonical proxy redirect and global denied page, while the protected API returns HTTP 403.
   - Repository fixtures are labelled explicitly and external P11 acceptance remains false.
   - Coordinator-authorized repair PR 880 removed the intrinsic table sizing defect without hiding overflow or removing the table minimum width.
-  - PR 880 merged normally as 6c43481187d8e74c2e80aeebc178aabff1bbb75c after all required workflows passed twice, including terminal exact-head CI.
-  - PR 874 has no inline review threads and is mergeable.
+  - PR 874 had no inline review threads and merged normally as 4660b1eb19b2c09af21f46cab2916b64dec7bfaf.
 derived:
   - Repository closure evidence is complete for paper, shadow and dry-run scope.
+  - No autonomous repository implementation or Integration/E2E worker remains.
   - External Cloudflare, Authentik, Vault and Synology P11 acceptance remains explicitly outside this repository fixture proof.
+  - The checkpoint contract has no terminal status enum, so ready represents a validated archive-ready handoff while frontmatter records completed.
 unknown: []
 conflicts: []
 first_failure:
@@ -137,24 +138,24 @@ changed_paths:
   - ai_platform/portal/web/e2e/program-closure.spec.ts
   - docs/ai_platform/PROGRAM_CLOSURE_E2E_EVIDENCE.md
 validation:
-  - command: AI Program Closure E2E run 30659016272
+  - command: AI Program Closure E2E run 30668369899
     result: PASS
     evidence: Backend deterministic integration, Critical Chromium journeys and Exact-head closure gate completed successfully.
-  - command: Freqtrade CI run 30659016107
+  - command: Freqtrade CI run 30668369907
     result: PASS
-    evidence: All required pre-commit, documentation and Python matrix jobs completed successfully.
-  - command: Portal Web CI run 30659016126
+    evidence: Full repository CI completed successfully.
+  - command: Portal Web CI run 30668369892
     result: PASS
     evidence: Typecheck, lint, production build and Chromium regression completed successfully.
-  - command: Portal Universal E2E run 30659016158
+  - command: Portal Universal E2E run 30668369884
     result: PASS
     evidence: Universal backend and browser journeys completed successfully.
-  - command: AI Platform CI run 30659016172
+  - command: AI Platform CI run 30668369963
     result: PASS
     evidence: AI Platform checks completed successfully.
-  - command: GitHub Actions Security Analysis run 30659016221
+  - command: GitHub Actions Security Analysis run 30668369883
     result: PASS
     evidence: Workflow security analysis completed successfully.
 blockers: []
-next_action: Merge PR 874 normally into develop after this terminal checkpoint commit passes the same required exact-head workflows.
+next_action: Archive this validated repository-closure checkpoint; external P11 remains owner-managed and live capital remains prohibited.
 ```

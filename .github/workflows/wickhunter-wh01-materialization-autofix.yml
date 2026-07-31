@@ -56,19 +56,19 @@ jobs:
           path.write_text(text, encoding="utf-8")
           PY
 
-      - name: Apply repository Ruff fixes and formatter
+      - name: Apply pinned Ruff fixes and formatter
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install pre-commit
+          python3 -m pip install ruff==0.15.21
           files=(
             ai_platform/wickhunter/production_dataset_materialization.py
             tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py
           )
-          pre-commit run ruff --files "${files[@]}" || true
-          pre-commit run ruff-format --files "${files[@]}" || true
-          pre-commit run ruff --files "${files[@]}"
-          pre-commit run ruff-format --files "${files[@]}"
+          ruff check --fix "${files[@]}"
+          ruff format "${files[@]}"
+          ruff check "${files[@]}"
+          ruff format --check "${files[@]}"
 
       - name: Commit repairs and remove one-shot workflow
         shell: bash

@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ai_platform.portal.contracts.strategy_closure import (
+    SignalWizardPreviewCommand,
     SignalWizardPreviewResult,
     SignalWizardSubmitResult,
 )
@@ -25,6 +26,7 @@ class SignalWizardRepository:
         self,
         session: Session,
         result: SignalWizardPreviewResult,
+        command: SignalWizardPreviewCommand,
         *,
         request_digest: str,
         strategy_version: str,
@@ -38,6 +40,7 @@ class SignalWizardRepository:
                 request_digest=request_digest,
                 strategy_version=strategy_version,
                 created_at=created_at,
+                command_json=command.canonical_json(),
                 preview_json=result.canonical_json(),
             )
         )
@@ -47,11 +50,11 @@ class SignalWizardRepository:
         session: Session,
         tenant_id: str,
         preview_hash: str,
-    ) -> tuple[SignalWizardPreviewResult, str] | None:
+    ) -> tuple[SignalWizardPreviewResult, str, SignalWizardPreviewCommand] | None:
         row = session.get(SignalWizardPreviewRow, (tenant_id, preview_hash))
         if row is None:
             return None
-        return self._parse_preview(row), row.strategy_version
+        return self._parse_preview(row), row.strategy_version, self._parse_preview_command(row)
 
     def get_preview_by_idempotency(
         self,
@@ -113,8 +116,19 @@ class SignalWizardRepository:
         try:
             return SignalWizardPreviewResult.model_validate_json(row.preview_json)
         except (ValidationError, ValueError) as exc:
+            raise CorruptSignalWizardRecordError("corrupt Signal Wizard preview record") from exc
+
+    @staticmethod
+    def _parse_preview_command(row: SignalWizardPreviewRow) -> SignalWizardPreviewCommand:
+        if row.command_json is None:
             raise CorruptSignalWizardRecordError(
-                f"corrupt Signal Wizard preview: {row.preview_hash}"
+                "Signal Wizard preview record predates canonical command persistence"
+            )
+        try:
+            return SignalWizardPreviewCommand.model_validate_json(row.command_json)
+        except (ValidationError, ValueError) as exc:
+            raise CorruptSignalWizardRecordError(
+                "corrupt Signal Wizard preview command record"
             ) from exc
 
     @staticmethod
@@ -123,5 +137,5 @@ class SignalWizardRepository:
             return SignalWizardSubmitResult.model_validate_json(row.submission_json)
         except (ValidationError, ValueError) as exc:
             raise CorruptSignalWizardRecordError(
-                f"corrupt Signal Wizard submission: {row.experiment_id}"
+                "corrupt Signal Wizard submission record"
             ) from exc

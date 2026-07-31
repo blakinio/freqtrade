@@ -6,6 +6,7 @@ base_branch: develop
 created: 2026-07-30
 updated: 2026-07-31
 related_pr: 829
+terminal_pr: 868
 dependencies:
   - FTAI-20260730-closure-contracts merged
   - FTAI-20260730-closure-feature-engine merged
@@ -39,6 +40,7 @@ Implement deterministic Regime Router and Ensemble Ranker research services with
 ## Terminal result
 
 - PR #829 merged normally into `develop` as `11f5924a2c8bed093fa1486c8df05df081121443`.
+- OI and funding alignment preserves source identity, schema/data version and event, receive and availability timestamps.
 - Regime routing consumes approved identity-bound features and point-in-time liquidation alignment, with explicit trend/range, high/low-volatility, stressed/normal liquidation and stable/drifted/unknown states.
 - Missing, delayed, stale, ambiguous or identity-incompatible evidence fails closed to unknown or ineligible output.
 - Ensemble ranking is deterministic and uses explicit OOS profit, correlation, instability, drawdown and calibration components from immutable validated evidence.

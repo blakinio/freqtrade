@@ -21,6 +21,8 @@ jobs:
       DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801
       RUN_ID: wickhunter-production-market-evidence-20260801-v2-r1
       CONTAINER: wickhunter-market-evidence-v2
+      BASE_DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence
+      BASE_RUN_ID: wickhunter-production-market-evidence-20260730-v1-r1
     steps:
       - name: Checkout exact observer head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -43,7 +45,7 @@ jobs:
             [[ -z "${!name:-}" ]] || { echo "BLOCKED forbidden environment: $name"; exit 1; }
           done
 
-      - name: Reconcile once and verify terminal package
+      - name: Reconcile, bind v1 and verify combined package
         shell: bash
         run: |
           set -euo pipefail
@@ -59,57 +61,46 @@ jobs:
             echo "RECONCILED container_started=false"
           fi
 
-          # Exactly one bounded, idempotent reconciliation attempt. Never wait for a later sample.
           PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_v2 \
             sample --durable-root "$DURABLE_ROOT"
 
           supplement="$DURABLE_ROOT/$RUN_ID/immutable-okx-supplement"
-          if [[ ! -d "$supplement" ]]; then
-            echo "BLOCKED first_error=terminal_supplement_missing"
-            find "$DURABLE_ROOT/$RUN_ID" -maxdepth 2 -type f -printf '%P\n' | sort | head -200
-            exit 2
-          fi
+          base_package="$BASE_DURABLE_ROOT/$BASE_RUN_ID/immutable-package"
+          output_run_root="$DURABLE_ROOT/$RUN_ID"
+          combined="$output_run_root/immutable-package"
+
+          [[ -d "$supplement" ]]
+          [[ -d "$base_package" ]]
 
           PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_v2 \
             verify --supplement-root "$supplement"
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service \
+            verify --package-root "$base_package"
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service_v2 \
+            merge \
+            --base-package-root "$base_package" \
+            --supplement-root "$supplement" \
+            --output-run-root "$output_run_root"
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_service_v2 \
+            verify --package-root "$combined"
 
-          python3 - "$DURABLE_ROOT/request.json" "$DURABLE_ROOT/$RUN_ID/incremental-state.json" "$supplement" <<'PY'
-          import hashlib
+          python3 - "$combined/manifest.json" "$combined/source-package-binding.json" <<'PY'
           import json
           import pathlib
           import sys
 
-          request_path = pathlib.Path(sys.argv[1])
-          state_path = pathlib.Path(sys.argv[2])
-          supplement = pathlib.Path(sys.argv[3])
-          request = json.loads(request_path.read_text(encoding="utf-8"))
-          state = json.loads(state_path.read_text(encoding="utf-8"))
-          expected_run = "wickhunter-production-market-evidence-20260801-v2-r1"
-          holdout = 1785542400000
-          if request.get("run_id") != expected_run:
-              raise SystemExit("BLOCKED first_error=run_identity_mismatch")
-          if int(request.get("protected_holdout_start_ms", -1)) != holdout:
-              raise SystemExit("BLOCKED first_error=holdout_identity_mismatch")
-          if int(request.get("decision_end_ms", holdout + 1)) > holdout:
-              raise SystemExit("BLOCKED first_error=holdout_overlap")
-          if request.get("orders_submitted") != 0 or request.get("live_capital_authorized") is not False:
-              raise SystemExit("BLOCKED first_error=authority_boundary_violation")
-          files = []
-          for path in sorted(supplement.rglob("*")):
-              if path.is_symlink():
-                  raise SystemExit(f"BLOCKED first_error=symlink:{path.relative_to(supplement)}")
-              if path.is_file():
-                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
-                  files.append({"path": str(path.relative_to(supplement)), "sha256": digest, "bytes": path.stat().st_size})
-          if not files:
-              raise SystemExit("BLOCKED first_error=empty_supplement")
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          binding = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+          if manifest.get("wh01_blocker") != "LIQUIDATION_ARCHIVE_NOT_BOUND":
+              raise SystemExit("BLOCKED first_error=unexpected_post_merge_blocker")
+          if manifest.get("orders_submitted") != 0:
+              raise SystemExit("BLOCKED first_error=orders_submitted_nonzero")
           print(json.dumps({
-              "status": "VERIFIED",
-              "run_id": expected_run,
-              "state_status": state.get("status"),
-              "completed_samples": state.get("completed_samples", state.get("sample_count")),
-              "decision_end_ms": request.get("decision_end_ms"),
-              "protected_holdout_start_ms": holdout,
-              "supplement_files": files,
+              "status": "COMBINED_PACKAGE_VERIFIED",
+              "run_id": manifest.get("run_id"),
+              "manifest_sha256": manifest.get("manifest_sha256"),
+              "binding_sha256": binding.get("binding_sha256"),
+              "wh01_blocker": manifest.get("wh01_blocker"),
+              "orders_submitted": manifest.get("orders_submitted"),
           }, sort_keys=True))
           PY

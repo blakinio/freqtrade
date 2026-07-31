@@ -4,7 +4,7 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- coordinator evidence anchor: `develop@6ac747a069455ddfbfa00d861008dd81fbf509cf`;
+- coordinator evidence anchor: `develop@286eb3a0d8a6e7a6eafe6da6ea5228e4c1a38595`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
@@ -12,6 +12,7 @@
   - Simulator PR #787 -> `34b36157312d79fe3d6b22e6e1ab9a5b5bd97ae9`;
   - Liquid20/OKX source PR #761 -> `141e59a3c7da441432b3990a54903e5fcfc935c8`;
   - Research Data PR #821 -> `38f7ad50cfe1b03fdf7a6e9ee4a9b73ebbebe7de`, terminal PR #823 -> `087456dc23c9c198744b8cae7822c88a97d5abff`;
+  - AI routing/ranking PR #829 -> `11f5924a2c8bed093fa1486c8df05df081121443`, terminal PR #868 -> `286eb3a0d8a6e7a6eafe6da6ea5228e4c1a38595`;
 - merged adjacent monitoring: PR #762 -> `e73de2c7a080c79486141cdafa4d2bb41afdd80e`;
 - merged Feature Engine: PR #780 -> `09bc139a766034840ac01898f8b68cd5c76fb7a2`;
 - merged Strategy Catalog implementation PR #819 -> `d8ae3f5775500dda8259f415a84f77b59ab1b8ac`, terminal PR #822 -> `0e3c98086344904c852ecb2b8c5c201353df29ab`;
@@ -24,10 +25,13 @@
 - superseded competing Signal Wizard PR #844 is closed;
 - merged coordinator closure: PR #808 -> `a256dc59ad896a21f593c098bcc8c076858790d9`;
 - merged coordinator terminal checkpoint: PR #812 -> `e03c00ce9824fdf467108780387b52c58659c01b`;
-- no active Signal Wizard implementation PR remains;
+- no active repository REAL_GAP implementation PR remains;
+- open PRs #816 and #848 are immutable WickHunter operational request lanes that must never merge; PR #833 is a disjoint WickHunter recovery coordinator package;
 - Signal Wizard semantic task: `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md` completed;
 - Signal Wizard frontend task: `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` completed;
 - Signal Wizard frontend dispatch: `COMPLETE`;
+- AI routing/ranking dispatch: `COMPLETE`;
+- Integration/E2E dispatch: `READY`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;
 - paper/shadow/dry-run only; no live capital.
 
@@ -92,14 +96,14 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | P1.5 | `confirmed FVG` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 added third-closed-bar confirmation. |
 | P1.5 | `own zone heuristic` | **MERGED_COMPLETE** | `closure-research-data` | PR #821 added documented `pre-break-extreme-body-v1` zones. |
 | P1.5 | `no LuxAlgo code copy` | **PROVEN_COMPLETE** | `none` | Module/license boundaries explicitly prohibit proprietary copying. |
-| P2.2 | `trend/range` | **READY** | `closure-ai-routing-ranking` | Feature Engine and Research Data implementations are merged. |
-| P2.2 | `high/low volatility` | **READY** | `closure-ai-routing-ranking` | Feature Engine and Research Data implementations are merged. |
-| P2.2 | `liquidation regime` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
-| P2.2 | `drift monitoring` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
-| P2.3 | `correlation penalties` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
-| P2.3 | `OOS stability` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
-| P2.3 | `drawdown contribution` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
-| P2.3 | `calibration` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
+| P2.2 | `trend/range` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 and terminal PR #868 merged with deterministic fail-closed routing evidence. |
+| P2.2 | `high/low volatility` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 and terminal PR #868 merged with explicit volatility states and identity-bound evidence. |
+| P2.2 | `liquidation regime` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 consumes point-in-time Research Data alignment and fails closed on incomplete evidence. |
+| P2.2 | `drift monitoring` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 adds deterministic drift evidence without mutating the active model. |
+| P2.3 | `correlation penalties` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 exposes deterministic OOS correlation penalties. |
+| P2.3 | `OOS stability` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 exposes OOS stability evidence and rejects ineligible candidates. |
+| P2.3 | `drawdown contribution` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 exposes drawdown contribution penalties from immutable evidence. |
+| P2.3 | `calibration` | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 exposes calibration penalties while preserving `selected_model = null`. |
 | P2.4 | `feature selection` | **MERGED_COMPLETE** | `closure-ui-signal-wizard` | PR #858 validates and preserves every approved enabled/disabled feature identity; PR #855 exposes the approved-only selection flow. |
 | P2.4 | `parameter constraints` | **MERGED_COMPLETE** | `closure-ui-signal-wizard` | PR #858 fails closed on invalid and nonnumeric constraints; PR #855 renders canonical bounds and errors. |
 | P2.4 | `leakage warnings` | **MERGED_COMPLETE** | `closure-ui-signal-wizard` | PR #858 provides stable bounded reason codes; PR #855 exposes blocking leakage/repaint evidence. |
@@ -125,8 +129,9 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | Evidence-based seeded-defect repair | **PROVEN_COMPLETE** | `none` | P12 simulation-first bounded repair. |
 | Signal Wizard research workflow | **MERGED_COMPLETE** | `closure-ui-signal-wizard` | Backend #825, context #846, semantic hardening #858, frontend #855 and terminal checkpoint #863 are merged with exact-head evidence. |
 | Strategy Catalog lifecycle workflow | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | PR #819 and terminal PR #822 merged with exact-head browser/platform/security evidence. |
-| Full closure E2E and first-failure observability | **WAIT_FOR_IMPLEMENTATION_MERGES** | `closure-integration-e2e` | AI routing/ranking and any other remaining repository implementation workstreams must merge. |
-| Backlog/roadmap/program terminal freshness | **BLOCKED** | `Agent 0` | Update only after remaining implementation and integration merges provide terminal evidence. |
+| AI regime routing and ensemble ranking | **MERGED_COMPLETE** | `closure-ai-routing-ranking` | PR #829 and terminal PR #868 merged; exact final head passed AI Strategy Engine, Freqtrade CI and security. |
+| Full closure E2E and first-failure observability | **READY** | `closure-integration-e2e` | All autonomous repository implementation workstreams are terminal and active PR ownership is disjoint. |
+| Backlog/roadmap/program terminal freshness | **WAIT_FOR_INTEGRATION_E2E** | `Agent 0` | Final terminal freshness follows Integration/E2E merge evidence. |
 | Real P11 protected external acceptance | **EXTERNAL_OWNER_ACTION** | `owner-managed lane` | Requires owner-approved resources; operational preflight remains a separate lane. |
 | P13 scale/service extraction | **DEFERRED_BY_POLICY** | `none` | Start only after a measured bottleneck or unmet SLO. |
 | Live capital/P14 | **DEFERRED_BY_POLICY** | `none` | Separate unauthorized package; no credentials, withdrawals or live-capital authority. |
@@ -156,10 +161,10 @@ time/leakage MERGED
 simulator MERGED
 Feature Engine MERGED
 Research Data COMPLETED through PRs #821/#823
-  └─> AI routing/ranking READY
+  └─> AI routing/ranking COMPLETED through PRs #829/#868
 coordinator registry repair COMPLETED through PR #808
 terminal coordinator checkpoint MERGED through PR #812
-remaining repository child PRs -> Integration/E2E
+all repository child implementations terminal -> Integration/E2E READY
 
 P11 external acceptance: separate owner-managed lane
 P13 scale: deferred until measured need
@@ -181,8 +186,8 @@ Live capital/P14: excluded and unauthorized
 | Signal Wizard semantic/persistence hardening | **COMPLETED** | `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md` | `agent/closure-signal-wizard-semantic-hardening` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md` | PR #858 merged as `da86b55310a3c3575ad3168743cd1062f1387d6d`; exact head `6604dbbfa41ed52b29b33697f4b56c890bc30435` passed AI Platform `30616727960`, Freqtrade `30616729952` and security `30616727733`; zero review threads. |
 | Signal Wizard frontend | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard-terminal-v2` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | PR #855 merged as `521c8ef6bd3f9281e0f2e429a7e32c70273b5e0e`; exact head `67168f0169803c36304750ccb8a983afb2700960` passed Portal Web `30624832191`, Universal E2E `30624832210`, AI Platform `30624832190`, Freqtrade `30624832227` and security `30624832215`; terminal PR #863 merged. |
 | Strategy Catalog | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-ui-strategy-catalog.md` | `agent/closure-ui-strategy-catalog-terminal` | `docs/agents/prompts/ai-program-closure/UI-STRATEGY-CATALOG-AGENT-PROMPT.md` | PR #819 and terminal PR #822 merged; do not start a duplicate chat. |
-| AI routing/ranking | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | Research Data implementation and terminal checkpoints are merged. |
-| Integration/E2E | **WAIT_FOR_IMPLEMENTATION_MERGES** | `docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md` | `agent/closure-integration-e2e` | `docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md` | Remaining repository child PRs merged and develop green. |
+| AI routing/ranking | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking-terminal` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | PR #829 merged as `11f5924a2c8bed093fa1486c8df05df081121443`; exact final head passed AI Strategy Engine `30633414223`, Freqtrade CI `30633414236` and security `30633414280`; terminal PR #868 merged. Do not restart. |
+| Integration/E2E | **READY** | `docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md` | `agent/closure-integration-e2e` | `docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md` | All autonomous repository implementation PRs and terminal checkpoints are merged; open operational/recovery PRs are disjoint. |
 | External P11 | **BLOCKED** | `docs/agents/tasks/FTAI-20260730-closure-external-staging.md` | `owner/closure-external-staging` | `docs/agents/prompts/ai-program-closure/EXTERNAL-STAGING-AGENT-PROMPT.md` | Explicit owner authorization/resources and terminal external evidence. |
 | Live capital/P14 | **DO_NOT_START** | — | — | — | No authorization exists. |
 
@@ -192,12 +197,15 @@ The coordinator repair task records the stale-count ownership decision. PR #780 
 
 Signal Wizard is complete through backend PR #825, authenticated context PR #846, semantic/persistence hardening PR #858, frontend implementation PR #855 and terminal checkpoint PR #863. The flow uses real identity/session/CSRF boundaries, stable server-bound correlation, durable canonical command identity, bounded reason codes and a same-origin research-only UI. Frozen contracts and no-live-authority boundaries remain intact.
 
+AI routing/ranking is complete through implementation PR #829 and terminal checkpoint PR #868. Deterministic routing and ranking consume immutable point-in-time evidence, fail closed on incomplete or incompatible inputs, reject the protected holdout and preserve `selected_model = null` with no promotion, execution or Risk Core bypass authority.
+
 ## Closure acceptance
 
 - all original unchecked P0/P1/P2 items remain classified;
 - merged workstreams record exact merge commits;
-- every active implementation workstream has non-overlapping owned paths;
+- no autonomous repository REAL_GAP implementation workstream remains active;
 - Signal Wizard backend, authenticated context, semantic hardening and frontend are complete with exact-head evidence;
-- final E2E waits for the remaining repository implementation merges;
+- AI routing/ranking is complete with exact-head evidence;
+- final Integration/E2E is released and is the only remaining autonomous repository closure worker;
 - P11 cannot be proven by fixtures;
 - P13 and live capital remain outside autonomous closure.

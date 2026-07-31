@@ -1,0 +1,103 @@
+name: Portal Authentik Local Test Deploy
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/portal-authentik/run-requests/local-test-deploy-20260731-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-authentik-local-test-deploy-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: deploy/synology/portal-authentik/run-requests/local-test-deploy-20260731-v1.json
+
+jobs:
+  deploy:
+    name: Deploy local-test Authentik on Synology
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 30
+    env:
+      FREQTRADE_STAGING_STATE_DIR: /var/lib/freqtrade-staging-state
+
+    steps:
+      - name: Checkout exact deployment request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file mutation request scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tdeploy/synology/portal-authentik/run-requests/local-test-deploy-20260731-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA...$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Local-test deployment must add exactly the frozen request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Refuse exchange and live-capital credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Deploy bounded local-test Authentik stack
+        id: deploy-authentik
+        continue-on-error: true
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/portal-authentik-local-test-deploy.json
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-authentik/local_test_deploy.py \
+            --request "$REQUEST_PATH" \
+            --report "$REPORT_PATH"
+
+      - name: Upload secret-free deployment report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-authentik-local-test-deploy-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/portal-authentik-local-test-deploy.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce local-test deployment result
+        if: always()
+        shell: bash
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy-authentik.outcome }}
+        run: |
+          set -euo pipefail
+          if [[ "$DEPLOY_OUTCOME" != "success" ]]; then
+            echo "Local-test Authentik deployment failed or was blocked" >&2
+            exit 1
+          fi

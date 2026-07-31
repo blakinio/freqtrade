@@ -24,6 +24,7 @@ from ai_platform.portal.signal_wizard.service import (
 
 
 CommandT = TypeVar("CommandT", SignalWizardPreviewCommand, SignalWizardSubmitCommand)
+_REQUEST_BODY = Body(...)
 
 
 def build_router(
@@ -38,7 +39,7 @@ def build_router(
         status_code=status.HTTP_200_OK,
     )
     def preview(
-        payload: Any = Body(...),
+        payload: Any = _REQUEST_BODY,
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardPreviewResult:
         command = _validate_command(SignalWizardPreviewCommand, payload)
@@ -66,7 +67,7 @@ def build_router(
         status_code=status.HTTP_201_CREATED,
     )
     def submit(
-        payload: Any = Body(...),
+        payload: Any = _REQUEST_BODY,
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardSubmitResult:
         command = _validate_command(SignalWizardSubmitCommand, payload)

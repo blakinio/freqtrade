@@ -5,10 +5,13 @@ on:
     paths:
       - "deploy/synology/portal-authentik/**"
       - "tests/ai_platform/portal/deployment/test_authentik_synology_deployment.py"
+      - "tests/ai_platform/portal/deployment/test_authentik_local_test_deploy.py"
       - "docs/ai_platform/portal/PI06_AUTHENTIK_SYNOLOGY_DEPLOYMENT.md"
       - "docs/ai_platform/portal/runbooks/PI06_AUTHENTIK_SYNOLOGY.md"
       - "docs/agents/tasks/FTAI-20260726-portal-pi06-authentik-synology-deployment.md"
+      - "docs/agents/tasks/FTAI-20260731-portal-local-authentik-test-deployment.md"
       - ".github/workflows/portal-authentik-deployment.yml"
+      - ".github/workflows/portal-authentik-local-test-deploy.yml"
   workflow_dispatch:
 
 permissions:
@@ -65,13 +68,18 @@ jobs:
         run: |
           ruff check \
             deploy/synology/portal-authentik/validate.py \
-            tests/ai_platform/portal/deployment/test_authentik_synology_deployment.py
+            deploy/synology/portal-authentik/local_test_deploy.py \
+            tests/ai_platform/portal/deployment/test_authentik_synology_deployment.py \
+            tests/ai_platform/portal/deployment/test_authentik_local_test_deploy.py
           ruff format --check \
             deploy/synology/portal-authentik/validate.py \
-            tests/ai_platform/portal/deployment/test_authentik_synology_deployment.py
+            deploy/synology/portal-authentik/local_test_deploy.py \
+            tests/ai_platform/portal/deployment/test_authentik_synology_deployment.py \
+            tests/ai_platform/portal/deployment/test_authentik_local_test_deploy.py
 
       - name: Run focused tests
         run: >-
           python -m pytest -q -o addopts=''
           --confcutdir=tests/ai_platform
           tests/ai_platform/portal/deployment/test_authentik_synology_deployment.py
+          tests/ai_platform/portal/deployment/test_authentik_local_test_deploy.py

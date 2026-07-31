@@ -1,8 +1,8 @@
 ---
 task_id: FTAI-20260730-closure-ui-signal-wizard
-status: in_progress
-dispatch_state: ACTIVE
-branch: agent/closure-ui-signal-wizard-v2
+status: completed
+dispatch_state: COMPLETE
+branch: agent/closure-ui-signal-wizard-terminal-v2
 base_branch: develop
 created: 2026-07-30
 updated: 2026-07-31
@@ -12,7 +12,11 @@ unblock_pr: 830
 correlation_blocker_pr: 832
 context_repair_pr: 846
 context_repair_merge: 367a51b610d2a34ee5841bc0b86622bd64fc6858
+semantic_hardening_pr: 858
+semantic_hardening_merge: da86b55310a3c3575ad3168743cd1062f1387d6d
 implementation_pr: 855
+implementation_merge: 521c8ef6bd3f9281e0f2e429a7e32c70273b5e0e
+completion_pr: 863
 backend_task: FTAI-20260730-closure-signal-wizard-backend
 backend_pr: 825
 backend_merge: 0bc35521debd33312820dfad9f010e22aa651610
@@ -20,6 +24,7 @@ dependencies:
   - FTAI-20260730-closure-contracts merged as 6e489f7e10199120424cbcd01b3e125711630243
   - FTAI-20260730-closure-signal-wizard-backend merged as 0bc35521debd33312820dfad9f010e22aa651610
   - FTAI-20260731-signal-wizard-context-repair merged as 367a51b610d2a34ee5841bc0b86622bd64fc6858
+  - Signal Wizard semantic hardening merged as da86b55310a3c3575ad3168743cd1062f1387d6d
 owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md
   - ai_platform/portal/web/app/ai/signal-wizard/page.tsx
@@ -43,19 +48,19 @@ required_reads:
 
 Build the complete research-only Signal Wizard against the frozen typed DSL and canonical identity-enabled Signal Wizard backend/API.
 
-## Current implementation
+## Delivered implementation
 
-PR #855 implements approved-only Feature Registry selection, parameter and dependency constraints, closed-bar conditions, canonical preview, leakage/repaint warnings, experiment-candidate submit, same-origin session/CSRF boundaries and responsive Chromium coverage. Submit remains research-only and grants no deployment, execution, promotion or live-capital authority.
+PR #855 is merged as `521c8ef6bd3f9281e0f2e429a7e32c70273b5e0e`. It delivers approved-only Feature Registry selection, dependency and parameter constraints, closed-bar conditions, canonical preview, blocking leakage/repaint evidence, experiment-candidate submission, same-origin session and CSRF boundaries, structured backend reason codes, responsive states and Chromium coverage. Submission remains research-only and grants no deployment, execution, promotion or live-capital authority.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T09:55:00+02:00
-head: 4919100c04eb921b4eae0c2c67a76a2d289c75f5
-branch: agent/closure-ui-signal-wizard-v2
+updated_at: 2026-07-31T12:52:20+02:00
+head: 521c8ef6bd3f9281e0f2e429a7e32c70273b5e0e
+branch: agent/closure-ui-signal-wizard-terminal-v2
 pr: 855
-status: in_progress
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/prompts/ai-program-closure/WORKER-COMMON-RULES.md
@@ -71,26 +76,27 @@ owned_paths:
   - ai_platform/portal/web/lib/signal-wizard-contracts.ts
   - ai_platform/portal/web/e2e/signal-wizard-closure.spec.ts
 proven:
-  - PR 825 provides canonical tenant-scoped preview and submit endpoints using frozen v2 contracts.
-  - PR 846 makes the production identity-enabled HTTP path compatible with durable command idempotency.
-  - PR 855 changes exactly the eight assigned Signal Wizard paths and is based on context-repair merge 367a51b610d2a34ee5841bc0b86622bd64fc6858.
-  - Exact head cca2cddfb19f3242e9d9471f9b9551a86069d79f passed typecheck, Universal E2E, AI Platform CI, Freqtrade CI and security analysis.
-  - The only failing gate on cca2cddfb19f3242e9d9471f9b9551a86069d79f was the React lint rule forbidding JSX construction inside try/catch.
-  - Implementation head 4919100c04eb921b4eae0c2c67a76a2d289c75f5 separates data acquisition from JSX rendering.
+  - PR 825 provides canonical tenant-scoped Signal Wizard preview and submit endpoints using frozen v2 contracts.
+  - PR 846 provides authenticated deterministic command correlation and merged as 367a51b610d2a34ee5841bc0b86622bd64fc6858.
+  - PR 858 hardens semantic identity, persistence and bounded reason codes and merged as da86b55310a3c3575ad3168743cd1062f1387d6d.
+  - PR 855 changes exactly the eight assigned Signal Wizard paths and merged as 521c8ef6bd3f9281e0f2e429a7e32c70273b5e0e.
+  - Exact implementation head 67168f0169803c36304750ccb8a983afb2700960 passed Portal Web, Universal E2E, AI Platform, Freqtrade and security workflows.
+  - Production BFF preview and submit preserve canonical backend status and structured detail including actionable reason codes.
+  - Chromium evidence covers approved selection, preview, accepted candidate, stale, empty, denied, leakage, CSRF and conflict states.
 derived:
-  - The frontend converges directly on canonical endpoints without guessed trusted correlation or incompatible Strategy Lab mapping.
-  - Fixture evidence is explicitly test-only; API mode forwards canonical commands through authenticated BFF routes.
-unknown:
-  - Exact-head Portal Web lint, build and Chromium evidence after the render-boundary repair.
+  - Browser traffic remains same-origin and cannot address Freqtrade, exchange or Vault endpoints directly.
+  - The implemented workflow converges on the hardened canonical backend without a Strategy Lab compatibility shim.
+  - The child task is complete and ready for coordinator archival.
+unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: The evidenced JSON typing and React render-boundary failures were repaired without changing authority semantics.
+  evidence: All evidenced contract, correlation, semantic, TypeScript, React lint and merge-base failures were repaired and exact-head gates passed.
 rejected_hypotheses:
   - Direct browser access to control-plane, Freqtrade, exchange or Vault endpoints.
   - Selection of features not returned as approved_for_ai.
   - Submit as deployment, promotion, execution or live-capital authority.
-  - Suppress the React lint rule instead of separating fetch error handling from rendering.
+  - Flatten canonical backend reason codes into generic BFF text.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md
   - ai_platform/portal/web/app/ai/signal-wizard/page.tsx
@@ -101,21 +107,24 @@ changed_paths:
   - ai_platform/portal/web/lib/signal-wizard-contracts.ts
   - ai_platform/portal/web/e2e/signal-wizard-closure.spec.ts
 validation:
-  - command: Portal Web typecheck on cca2cddfb19f3242e9d9471f9b9551a86069d79f
+  - command: Portal Web CI run 30624832191 on 67168f0169803c36304750ccb8a983afb2700960
     result: PASS
-    evidence: TypeScript accepted canonical command, response and explicit JSON constraint serialization.
-  - command: Portal Universal E2E run 30614167627
+    evidence: Typecheck, lint, production build and Chromium regression completed successfully.
+  - command: Portal Universal E2E run 30624832210 on 67168f0169803c36304750ccb8a983afb2700960
     result: PASS
-    evidence: Backend scenarios and critical Chromium journey completed successfully.
-  - command: AI Platform CI run 30614167658
+    evidence: Backend scenarios and the critical Chromium journey completed successfully.
+  - command: AI Platform CI run 30624832190 on 67168f0169803c36304750ccb8a983afb2700960
     result: PASS
-    evidence: AI platform tests and validation completed successfully.
-  - command: Freqtrade CI run 30614167628
+    evidence: AI platform tests, Ruff, formatting, codespell and schema validation completed successfully.
+  - command: Freqtrade CI run 30624832227 on 67168f0169803c36304750ccb8a983afb2700960
     result: PASS
-    evidence: Repository validation completed successfully.
-  - command: Security analysis run 30614167636
+    evidence: Scope, pre-commit, documentation and CI gate completed successfully.
+  - command: Security analysis run 30624832215 on 67168f0169803c36304750ccb8a983afb2700960
     result: PASS
     evidence: GitHub Actions security analysis completed successfully.
+  - command: PR 855 changed-file and review inspection
+    result: PASS
+    evidence: Exactly eight owned paths changed, the PR was mergeable and no unresolved review threads existed.
 blockers: []
-next_action: Inspect PR 855 exact-head CI and review state, fix only evidenced failures, and merge normally when all required gates are green.
+next_action: Agent 0 should archive FTAI-20260730-closure-ui-signal-wizard and mark its closure row complete after this terminal checkpoint PR merges.
 ```

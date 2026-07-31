@@ -263,9 +263,7 @@ def test_identity_enabled_routes_bind_trusted_per_request_correlation() -> None:
     create_schema(engine)
     factory = build_session_factory(engine)
     identity = _RotatingIdentityBoundary()
-    client = TestClient(
-        create_identity_enabled_app(factory, cast(IdentityService, identity))
-    )
+    client = TestClient(create_identity_enabled_app(factory, cast(IdentityService, identity)))
 
     preview_response = client.post(
         "/v1/signal-wizard/preview",

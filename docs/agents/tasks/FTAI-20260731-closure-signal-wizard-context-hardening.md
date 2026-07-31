@@ -15,9 +15,10 @@ related_prs:
   - 832
   - 844
 dependencies:
-  - PR 844 must merge normally before this task starts
+  - PR 844 must merge normally before implementation ownership is transferred
 owned_paths:
   - docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md
+planned_owned_paths_after_pr_844:
   - ai_platform/portal/signal_wizard/service.py
   - ai_platform/portal/signal_wizard/models.py
   - ai_platform/portal/signal_wizard/repository.py
@@ -38,17 +39,20 @@ required_reads:
 
 ## Goal
 
-After correlation repair PR #844 merges, repair the remaining semantic and persistence gaps in the merged Signal Wizard backend without touching the router/test paths currently owned by PR #844, frozen contracts, frontend paths or unrelated workstreams.
+After correlation repair PR #844 merges, repair the remaining semantic and persistence gaps in the merged Signal Wizard backend without touching frozen contracts, frontend paths or unrelated workstreams.
 
-## Dependency split
+## Dependency and ownership transfer
 
-PR #844 exclusively owns the active correlation/router lane:
+PR #844 currently owns the active correlation lane and, on its latest head, these implementation paths:
 
-- server-side trusted correlation binding;
-- identity-enabled HTTP coverage with a real portal session and CSRF;
-- router-level distinct reason codes, bounded messages and secret-exclusion assertions.
+- `ai_platform/portal/signal_wizard/router.py`;
+- `ai_platform/portal/signal_wizard/service.py`;
+- `tests/ai_platform/portal/signal_wizard/test_signal_wizard.py`;
+- its own task checkpoint.
 
-This task must not start or create its implementation branch until PR #844 merges. Its owned paths are deliberately disjoint from PR #844.
+PR #844 must deliver trusted correlation binding, idempotent retry semantics, real identity/session/CSRF HTTP coverage, router-level distinct reason codes, bounded public messages and secret-exclusion assertions.
+
+This child currently owns only its task checkpoint. It must not create its implementation branch or edit any planned implementation path until PR #844 merges. After that merge Agent 0 must re-run live overlap, transfer the exact `planned_owned_paths_after_pr_844` into active `owned_paths`, update the base evidence and set the task to `READY`.
 
 ## Proven semantic blockers
 
@@ -60,7 +64,7 @@ This task must not start or create its implementation branch until PR #844 merge
 6. Numeric minimum/maximum constraints with nonnumeric values do not fail closed.
 7. Service conflict classes do not expose stable machine reason codes for the router to preserve.
 
-## Required repair
+## Required repair after ownership transfer
 
 ### Feature and DSL identity
 
@@ -73,10 +77,10 @@ This task must not start or create its implementation branch until PR #844 merge
 
 ### Durable draft identity
 
-- Always derive a new immutable research-draft strategy version from the canonical trusted command digest produced after PR #844 binding.
+- Always derive a new immutable research-draft strategy version from the canonical trusted semantic command digest established after PR #844.
 - Preserve `base_strategy_version` only as provenance; never use it as the new draft version.
 - Remove fabricated risk/runtime compatibility fields. Represent the result explicitly as non-executable research-only draft metadata with execution, promotion and live-capital authority false.
-- Persist the exact canonical trusted preview command JSON together with result JSON, request digest and derived version.
+- Persist the exact canonical trusted preview command JSON together with result JSON, semantic request digest and derived version.
 - Add a forward migration for existing databases; do not rewrite or mutate migration `0001_signal_wizard.sql`.
 - Add restart-safe tests proving the exact persisted command and result identity survive a new service/session instance.
 
@@ -85,7 +89,7 @@ This task must not start or create its implementation branch until PR #844 merge
 - Submit must bind to the persisted preview's tenant, actor, actor type, resource type, resource ID, environment and execution mode.
 - Require the exact derived strategy version.
 - Preserve deterministic durable experiment ID and tenant-scoped idempotency.
-- Add stable service conflict reason codes for idempotency reuse, target mismatch, environment mismatch, execution-mode mismatch, actor mismatch, version mismatch and blocking leakage. PR #844 owns the router mapping.
+- Add stable service conflict reason codes for idempotency reuse, target mismatch, environment mismatch, execution-mode mismatch, actor mismatch, version mismatch and blocking leakage. The final router mapping remains established by PR #844.
 - Reject numeric minimum/maximum constraints when the resolved parameter value is nonnumeric.
 - Add service/persistence coverage for tenant isolation, disabled-feature preservation, non-approved disabled feature rejection, base-version provenance, exact target binding, restart-safe command identity, idempotency and secret exclusion.
 
@@ -98,7 +102,7 @@ This task must not start or create its implementation branch until PR #844 merge
 
 ## Validation and merge gate
 
-- Start from current `develop` only after PR #844 merges normally.
+- Start from current `develop` only after PR #844 merges normally and Agent 0 performs the ownership-transfer checkpoint.
 - Re-run open-PR path overlap before creating the branch.
 - Run focused semantic/persistence tests and all repository workflows required by touched paths.
 - Verify final exact implementation head, all required workflow conclusions and zero unresolved review threads.
@@ -109,10 +113,10 @@ This task must not start or create its implementation branch until PR #844 merge
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T09:20:00+02:00
-head: 20b4ca6e1341061a9ebe98a8415ff18501a11557
+updated_at: 2026-07-31T09:32:00+02:00
+head: c8051a6217430c7270fb26d4b8e6aeba336ad263
 branch: agent/program-closure-signal-wizard-context-repair-dispatch
-pr: null
+pr: 851
 status: blocked
 context_routes:
   - AGENTS.md
@@ -123,6 +127,7 @@ context_routes:
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
 owned_paths:
   - docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md
+planned_owned_paths_after_pr_844:
   - ai_platform/portal/signal_wizard/service.py
   - ai_platform/portal/signal_wizard/models.py
   - ai_platform/portal/signal_wizard/repository.py
@@ -131,23 +136,25 @@ owned_paths:
 proven:
   - Backend PR 825 merged as 0bc35521debd33312820dfad9f010e22aa651610 with green exact-head workflows.
   - Frontend blocker PR 832 merged as 28fb301db2c575d610c73143e44bd68c40b46ec7.
-  - Active PR 844 owns router.py, the existing Signal Wizard test file and its correlation task path.
-  - This task's implementation/test paths are disjoint from all currently open PRs.
-  - Final PR 825 service/persistence code still contains the seven semantic blockers listed above.
+  - Active PR 844 exact head c8051a6217430c7270fb26d4b8e6aeba336ad263 owns router.py, service.py, the existing Signal Wizard test and its task path.
+  - PR 844 now excludes correlation metadata only from the semantic command digest so retried requests can remain idempotent across fresh trusted request identifiers.
+  - Agent 0 reviews 4826262200 and 4826371246 remain unresolved: the current test uses a fake identity boundary and no-op CSRF, while the router still exposes generic/raw conflict errors without secret-exclusion assertions.
+  - Final PR 825 service/persistence code still contains the seven semantic blockers listed above except for the in-progress correlation digest change in PR 844.
 derived:
-  - PR 844 must finish the active correlation/router lane before semantic hardening begins.
-  - The frontend must remain blocked until both PR #844 and this semantic-hardening task merge.
+  - No implementation path is actively assigned to this child while PR #844 is open.
+  - Service ownership may transfer to this child only after PR #844 merges and live overlap is repeated.
+  - The frontend must remain blocked until both PR #844 and the later semantic-hardening PR merge.
 unknown:
   - PR 844 final head/workflow conclusions/merge SHA.
   - Semantic-hardening implementation PR number, exact head, workflow run IDs and merge SHA.
 conflicts:
-  - router.py and tests/ai_platform/portal/signal_wizard/test_signal_wizard.py are actively owned by PR 844 and are explicitly excluded.
+  - router.py, service.py and tests/ai_platform/portal/signal_wizard/test_signal_wizard.py are actively owned by PR #844 and are not active owned paths of this child.
 first_failure:
   marker: SIGNAL_WIZARD_SEMANTIC_IDENTITY_INCOMPLETE
   evidence: The merged service drops disabled feature identity, can reuse a base version as a new draft, fabricates risk compatibility and persists incomplete preview identity.
 rejected_hypotheses:
-  - Start a duplicate correlation branch while PR 844 is active.
-  - Edit router.py or the existing Signal Wizard test file before PR 844 merges.
+  - Start a duplicate correlation or semantic branch while PR #844 is active.
+  - Edit any active PR #844 path before its normal merge and ownership transfer.
   - Keep generic service conflicts, incomplete target binding or nonnumeric constraint fall-through.
   - Generate transient IDs or map to fixed Strategy Lab strategies.
 changed_paths:
@@ -155,11 +162,14 @@ changed_paths:
 validation:
   - command: live open-PR path inventory
     result: PASS
-    evidence: Active PR 844 overlap was detected and removed from this task's owned paths.
+    evidence: PR 844 expansion into service.py was detected; active ownership was removed from this blocked child and made sequential.
+  - command: PR 844 exact-head review
+    result: BLOCKED
+    evidence: Trusted correlation/idempotency direction is valid, but real identity/CSRF and bounded error requirements remain unresolved.
   - command: merged Signal Wizard service/persistence review
     result: BLOCKED
-    evidence: The seven semantic blockers remain in develop.
+    evidence: Remaining semantic blockers persist on develop.
 blockers:
-  - PR 844 must merge normally with green exact-head CI and zero unresolved review threads.
-next_action: Continue review and exact-head validation of PR 844; after its merge, mark this task READY and create agent/closure-signal-wizard-semantic-hardening from current develop.
+  - PR 844 must address Agent 0 reviews, synchronize normally and merge with green exact-head CI and zero unresolved review threads.
+next_action: Continue PR 844 to a reviewed exact-head green merge; then perform a coordinator-owned implementation-path transfer and mark this child READY.
 ```

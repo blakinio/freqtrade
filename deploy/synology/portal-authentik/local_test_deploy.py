@@ -81,9 +81,7 @@ def validate_request(request: dict[str, Any]) -> None:
     missing = sorted(set(EXPECTED_REQUEST) - set(request))
     extra = sorted(set(request) - set(EXPECTED_REQUEST))
     mismatched = sorted(
-        key
-        for key in set(EXPECTED_REQUEST) & set(request)
-        if request[key] != EXPECTED_REQUEST[key]
+        key for key in set(EXPECTED_REQUEST) & set(request) if request[key] != EXPECTED_REQUEST[key]
     )
     raise DeploymentError(
         f"frozen request mismatch (missing={missing}, extra={extra}, mismatched={mismatched})"
@@ -248,8 +246,7 @@ def verify_controls(inspected: dict[str, dict[str, Any]], *, port: int) -> dict[
         if host.get("Privileged") or host.get("NetworkMode") == "host":
             raise DeploymentError(f"unsafe container controls detected for {service}")
         if any(
-            mount.get("Source") == "/var/run/docker.sock"
-            for mount in details.get("Mounts", [])
+            mount.get("Source") == "/var/run/docker.sock" for mount in details.get("Mounts", [])
         ):
             raise DeploymentError(f"{service} unexpectedly mounts the Docker socket")
 
@@ -349,8 +346,7 @@ def deploy(root: Path, request: dict[str, Any], report_path: Path) -> dict[str, 
         "project_name": PROJECT_NAME,
         "deployment_action": "updated" if existing_project else "created",
         "containers": {
-            service: container_summary(details)
-            for service, details in sorted(inspected.items())
+            service: container_summary(details) for service, details in sorted(inspected.items())
         },
         "controls": verify_controls(inspected, port=port),
         "state": {

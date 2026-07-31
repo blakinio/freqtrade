@@ -138,7 +138,9 @@ def _submit_command(
     )
 
 
-def _service(database_url: str = "sqlite+pysqlite:///:memory:") -> tuple[SignalWizardService, object]:
+def _service(
+    database_url: str = "sqlite+pysqlite:///:memory:",
+) -> tuple[SignalWizardService, object]:
     engine = build_engine(database_url)
     create_schema(engine)
     factory = build_session_factory(engine)

@@ -1,10 +1,10 @@
 ---
 task_id: FTAI-20260730-closure-ai-routing-ranking
-status: active
-branch: agent/closure-ai-routing-ranking
+status: completed
+branch: agent/closure-ai-routing-ranking-terminal
 base_branch: develop
 created: 2026-07-30
-updated: 2026-07-30
+updated: 2026-07-31
 related_pr: 829
 dependencies:
   - FTAI-20260730-closure-contracts merged
@@ -36,46 +36,25 @@ search_first:
 
 Implement deterministic Regime Router and Ensemble Ranker research services with no promotion or execution authority.
 
-## Evidence at Gate 0
+## Terminal result
 
-The roadmap still marks the regime layer planned, and no canonical Regime Router or Ensemble Ranker implementation exists. Candidate generation and constrained optimization are already complete and must be reused.
-
-## Deliverables
-
-- Trend/range, high/low-volatility, liquidation and unknown regime states.
-- Drift monitoring that cannot mutate the active model.
-- Correlation, OOS stability, drawdown contribution and calibration penalties.
-- Immutable explanation and ranking evidence.
-- Protected-holdout and no-promotion guards.
-
-## Non-negotiable boundaries
-
-- Paper, shadow or dry-run only; no live-capital authority.
-- No browser-to-Freqtrade, exchange or Vault path.
-- No protected-holdout reuse and no changes to frozen thresholds `0.006/-0.009`.
-- Stay inside exact `owned_paths`; stop on the first incompatible shared-contract requirement.
-- Add tests at the same layer and merge only through normal green CI.
-
-## Acceptance criteria
-
-- Missing regime inputs fail closed to unknown.
-- Ranking is deterministic for the same evidence manifest.
-- Authoritative `selected_model = null` is unchanged.
-- No score can bypass validation or Risk Core.
-
-## Validation
-
-Run narrow tests first, then all repository workflows required by the changed paths. Validate this task checkpoint before every handoff.
+- PR #829 merged normally into `develop` as `11f5924a2c8bed093fa1486c8df05df081121443`.
+- Regime routing consumes approved identity-bound features and point-in-time liquidation alignment, with explicit trend/range, high/low-volatility, stressed/normal liquidation and stable/drifted/unknown states.
+- Missing, delayed, stale, ambiguous or identity-incompatible evidence fails closed to unknown or ineligible output.
+- Ensemble ranking is deterministic and uses explicit OOS profit, correlation, instability, drawdown and calibration components from immutable validated evidence.
+- Versioned manifest, policy, explanation and ranking hashes bind feature-registry, configuration, data and routing identities.
+- `selected_model = null`, frozen thresholds `0.006/-0.009`, protected holdout `20260801-20260930`, Risk Core authority and active-model immutability remain unchanged.
+- No promotion, execution authorization, order submission, exchange credential or live-capital path was introduced.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-30T23:38:25+02:00
-head: dcf36b0223b36ccc298d7d50c4708c53bf9346c6
-branch: agent/closure-ai-routing-ranking
+updated_at: 2026-07-31T15:25:04+02:00
+head: 11f5924a2c8bed093fa1486c8df05df081121443
+branch: agent/closure-ai-routing-ranking-terminal
 pr: 829
-status: active
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -90,30 +69,29 @@ owned_paths:
   - ai_strategy_engine/tests/unit/test_ensemble_ranker.py
   - ai_strategy_engine/tests/integration/test_routing_ranking_evidence.py
 proven:
-  - Shared Contracts PR 781, Feature Engine PR 780 and Research Data PR 821 are merged.
-  - Branch was created from develop 0e6de6a2a6e441b4f334103ffff6fd071aa773f8.
-  - Open PRs 825, 816 and 758 do not overlap the seven owned paths.
-  - Regime routing consumes approved identity-bound features and point-in-time liquidation alignment, with explicit unknown states and immutable explanation hashes.
-  - Ensemble ranking exposes OOS profit, correlation, instability, drawdown and calibration components without selection, promotion, Risk Core bypass or execution authority.
-  - Focused PR 829 targets develop and changes exactly the seven owned paths.
-  - AI Strategy Engine run 30583049517 is green on head b2a8aecd68cbebdf472546ca2da01c42707f570d.
-  - GitHub Actions Security Analysis run 30583049726 is green on head b2a8aecd68cbebdf472546ca2da01c42707f570d.
-  - Freqtrade CI run 30583049602 has green pre-commit, scope, documentation and Python 3.11, 3.13 and 3.14 jobs; Python 3.12 coverage remained active when develop advanced.
-  - develop advanced to 0bc35521debd33312820dfad9f010e22aa651610 via disjoint PR 825 after the previous merge-ref was created.
-  - Freqtrade CI job 91006387007 exposed test-protocol covariance, Optional narrowing and formatter-only differences.
-  - Commits d9da3c41acc8a701e4666405cbea5d338f56c10c, 218c8bf27d66a07b8f1cd76edbc1b67f00d63352, 68b4059aa3d18182a7404c9dac48ca38aa46dd7e and dcf36b0223b36ccc298d7d50c4708c53bf9346c6 apply the exact type and formatter repairs.
+  - Shared Contracts PR 781, Feature Engine PR 780 and Research Data PR 821 were merged before implementation.
+  - PR 829 changed exactly the seven declared owned paths and merged from exact final head 461c1d0c0b30fbda1523e7cf806720e878c9eb5b.
+  - Regime routing consumes approved feature-registry identities and point-in-time liquidation alignment without future-data access.
+  - Missing, delayed, stale, ambiguous and incompatible inputs fail closed to explicit unknown states with deterministic reason codes.
+  - Ranking exposes OOS profit, correlation, instability, drawdown and calibration components without selecting or promoting a model.
+  - Manifest, policy, explanation and ranking evidence use deterministic versioned hashes bound to feature, configuration, data and routing identities.
+  - Protected holdout 20260801-20260930 is rejected and frozen thresholds 0.006/-0.009 are unchanged.
+  - selected_model remains null; promotion_authorized, execution_authorized, risk_core_bypassed and active_model_mutated remain false.
+  - AI Strategy Engine run 30633414223, Freqtrade CI run 30633414236 and security run 30633414280 passed on exact final head.
+  - PR 829 merged as 11f5924a2c8bed093fa1486c8df05df081121443 with zero unresolved review threads.
 derived:
-  - The bounded implementation remains research-only and leaves selected_model null.
-unknown:
-  - Latest-base merge-ref CI conclusions after develop advanced to 0bc35521debd33312820dfad9f010e22aa651610.
+  - All assigned AI routing and ranking gaps are complete within research-only paper, shadow and dry-run authority.
+  - Integration/E2E can consume the merged deterministic routing and ranking evidence contracts.
+unknown: []
 conflicts: []
 first_failure:
   marker: AI_STRATEGY_ENGINE_RUFF_DTZ007
-  evidence: Run 30582108151 rejected naive datetime parsing; the repaired parser then passed exact-head AI Strategy Engine runs.
+  evidence: Initial validation rejected naive datetime parsing; timezone-safe date parsing plus protocol, Optional and formatter repairs passed exact-head CI.
 rejected_hypotheses:
-  - Redefine shared contracts or feature registry entries.
+  - Redefine shared contracts or feature-registry entries.
   - Use protected final holdout evidence iteratively.
-  - Allow ranking score to mutate or promote an active model.
+  - Allow ranking score to mutate, select or promote an active model.
+  - Add Risk Core bypass, order submission or live-capital authority.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md
   - ai_strategy_engine/src/strategy_engine/ai/__init__.py
@@ -125,20 +103,21 @@ changed_paths:
 validation:
   - command: isolated python -m compileall -q strategy_engine tests
     result: PASS
-  - command: isolated pytest -q tests/test_regime_router.py tests/test_ensemble_ranker.py tests/test_routing_ranking_evidence.py
+  - command: isolated focused routing and ranking pytest suite
     result: PASS
-    evidence: 15 passed after protocol, Optional and formatter repairs
-  - command: AI Strategy Engine run 30583049517
+    evidence: 15 deterministic tests passed.
+  - command: AI Strategy Engine run 30633414223
     result: PASS
-    evidence: all package, Portal, Ruff, mypy, compile, deterministic E2E, schema, materialization and boundary stages succeeded
-  - command: GitHub Actions Security Analysis run 30583049726
+    evidence: Package tests, Portal research tests, Ruff, mypy, compile, deterministic E2E, schema, materialization and boundary scans passed.
+  - command: Freqtrade CI run 30633414236
     result: PASS
-  - command: Freqtrade CI run 30583049602
-    result: SUPERSEDED
-    evidence: all completed jobs were green, but develop advanced before the Python 3.12 coverage job reached a terminal state
-  - command: live open-PR and owned-path comparison
+    evidence: Pre-commit, scope, documentation, Python 3.11 through 3.14, full 3.12 coverage, distributions and CI Gate passed.
+  - command: GitHub Actions Security Analysis run 30633414280
     result: PASS
-    evidence: PR 829 changes exactly seven owned paths and had zero review threads at last inspection.
+    evidence: Exact final head passed workflow security analysis.
+  - command: PR 829 merge and review audit
+    result: PASS
+    evidence: Squash merge 11f5924a2c8bed093fa1486c8df05df081121443 changed exactly seven owned paths and had zero unresolved review threads.
 blockers: []
-next_action: Verify PR 829 latest-base merge-ref CI and resolve the first failing check or review thread.
+next_action: Closure coordinator consumes merge 11f5924a2c8bed093fa1486c8df05df081121443 to mark AI routing and ranking complete and release Integration/E2E.
 ```

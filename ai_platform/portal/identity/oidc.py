@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import ipaddress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 import httpx
 import jwt
@@ -29,12 +30,19 @@ class OidcClientConfig:
     redirect_uri: str
     scopes: tuple[str, ...] = ("openid", "profile", "email")
     timeout_seconds: float = 10.0
+    allow_insecure_local_http: bool = False
 
     def __post_init__(self) -> None:
-        if not self.issuer.startswith("https://"):
-            raise ValueError("OIDC issuer must use HTTPS")
-        if not self.redirect_uri.startswith("https://"):
-            raise ValueError("OIDC redirect URI must use HTTPS")
+        _validate_configured_url(
+            self.issuer,
+            label="OIDC issuer",
+            allow_insecure_local_http=self.allow_insecure_local_http,
+        )
+        _validate_configured_url(
+            self.redirect_uri,
+            label="OIDC redirect URI",
+            allow_insecure_local_http=self.allow_insecure_local_http,
+        )
         if not self.client_id or not self.client_secret:
             raise ValueError("OIDC client credentials are required")
 
@@ -77,7 +85,7 @@ class PyJwtOidcClient:
         http_client: httpx.Client | None = None,
     ):
         self.config = config
-        self._http = http_client or httpx.Client(timeout=config.timeout_seconds)
+        self._http = http_client or httpx.Client(timeout=config.timeout_seconds, trust_env=False)
         self._discovery: dict[str, Any] | None = None
         self._jwks: dict[str, Any] | None = None
 
@@ -93,7 +101,7 @@ class PyJwtOidcClient:
         code_challenge: str,
     ) -> str:
         discovery = self._get_discovery()
-        endpoint = _required_url(discovery, "authorization_endpoint")
+        endpoint = self._required_discovery_url(discovery, "authorization_endpoint")
         params = {
             "client_id": self.config.client_id,
             "redirect_uri": self.config.redirect_uri,
@@ -114,7 +122,7 @@ class PyJwtOidcClient:
         expected_nonce: str,
     ) -> OidcIdentity:
         discovery = self._get_discovery()
-        endpoint = _required_url(discovery, "token_endpoint")
+        endpoint = self._required_discovery_url(discovery, "token_endpoint")
         try:
             response = self._http.post(
                 endpoint,
@@ -190,7 +198,7 @@ class PyJwtOidcClient:
         if self._jwks is not None:
             return self._jwks
         discovery = self._get_discovery()
-        url = _required_url(discovery, "jwks_uri")
+        url = self._required_discovery_url(discovery, "jwks_uri")
         try:
             response = self._http.get(url, headers={"accept": "application/json"})
             response.raise_for_status()
@@ -201,6 +209,22 @@ class PyJwtOidcClient:
             raise OidcProtocolError("OIDC JWKS response is invalid")
         self._jwks = payload
         return payload
+
+    def _required_discovery_url(self, payload: dict[str, Any], key: str) -> str:
+        value = payload.get(key)
+        if not isinstance(value, str):
+            raise OidcProtocolError(f"OIDC discovery {key} must be a URL")
+        parsed = urlparse(value)
+        if parsed.scheme == "https" and parsed.hostname:
+            return value
+        if not self.config.allow_insecure_local_http or parsed.scheme != "http":
+            raise OidcProtocolError(f"OIDC discovery {key} must be an HTTPS URL")
+        issuer = urlparse(self.issuer)
+        if not _is_private_host(parsed.hostname):
+            raise OidcProtocolError(f"OIDC discovery {key} must use a private host")
+        if (parsed.hostname, parsed.port) != (issuer.hostname, issuer.port):
+            raise OidcProtocolError(f"OIDC discovery {key} must use the issuer origin")
+        return value
 
     def _validate_jwt(
         self,
@@ -265,11 +289,37 @@ def pkce_challenge(code_verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
-def _required_url(payload: dict[str, Any], key: str) -> str:
-    value = payload.get(key)
-    if not isinstance(value, str) or not value.startswith("https://"):
-        raise OidcProtocolError(f"OIDC discovery {key} must be an HTTPS URL")
-    return value
+def _validate_configured_url(
+    value: str,
+    *,
+    label: str,
+    allow_insecure_local_http: bool,
+) -> None:
+    parsed = urlparse(value)
+    if parsed.scheme == "https" and parsed.hostname:
+        return
+    if (
+        allow_insecure_local_http
+        and parsed.scheme == "http"
+        and parsed.hostname
+        and _is_private_host(parsed.hostname)
+    ):
+        return
+    if allow_insecure_local_http:
+        raise ValueError(f"{label} must use HTTPS or private local-test HTTP")
+    raise ValueError(f"{label} must use HTTPS")
+
+
+def _is_private_host(hostname: str | None) -> bool:
+    if hostname is None:
+        return False
+    if hostname == "localhost" or hostname.endswith(".localhost"):
+        return True
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
 
 
 def _identity_from_claims(issuer: str, claims: dict[str, Any]) -> OidcIdentity:

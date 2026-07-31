@@ -1,0 +1,189 @@
+name: WickHunter Market Evidence v3 Derivation
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - .github/workflows/wickhunter-market-evidence-intersection-v3-derive.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-market-evidence-intersection-v3-derive
+  cancel-in-progress: false
+
+jobs:
+  derive:
+    name: Derive and verify immutable v3 package
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+    env:
+      BASE_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence/wickhunter-production-market-evidence-20260730-v1-r1/immutable-package
+      SUPPLEMENT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801/wickhunter-production-market-evidence-20260801-v2-r1/immutable-okx-supplement
+      OUTPUT_RUN_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1
+      RUN_ID: wickhunter-production-market-evidence-20260731-v3-r1
+      EXPECTED_PRE_ROLL_START_MS: "1785398400000"
+      EXPECTED_DECISION_START_MS: "1785484800000"
+      EXPECTED_DECISION_END_MS: "1785520800000"
+      PROTECTED_HOLDOUT_START_MS: "1785542400000"
+
+    steps:
+      - name: Checkout exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file operational scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\t.github/workflows/wickhunter-market-evidence-intersection-v3-derive.yml'
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Refuse credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "BLOCKED forbidden environment: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Derive verified immutable common geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME}" == "freqtrade-synology-staging" ]]
+          for path in "$BASE_PACKAGE_ROOT" "$SUPPLEMENT_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          mkdir -p "$(dirname "$OUTPUT_RUN_ROOT")"
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_intersection \
+            derive \
+            --base-package-root "$BASE_PACKAGE_ROOT" \
+            --supplement-root "$SUPPLEMENT_ROOT" \
+            --output-run-root "$OUTPUT_RUN_ROOT" \
+            --run-id "$RUN_ID"
+
+      - name: Independently verify hashes, geometry and authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$OUTPUT_RUN_ROOT/immutable-package"
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_intersection \
+            verify --package-root "$package"
+          python3 - \
+            "$package/manifest.json" \
+            "$package/source-package-binding.json" \
+            "$package/geometry-intersection-lineage.json" \
+            "$package/verification-report.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          manifest = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          binding = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+          lineage = json.loads(pathlib.Path(sys.argv[3]).read_text(encoding="utf-8"))
+          verification = json.loads(pathlib.Path(sys.argv[4]).read_text(encoding="utf-8"))
+          expected_geometry = {
+              "pre_roll_start_ms": int(os.environ["EXPECTED_PRE_ROLL_START_MS"]),
+              "decision_start_ms": int(os.environ["EXPECTED_DECISION_START_MS"]),
+              "decision_end_ms": int(os.environ["EXPECTED_DECISION_END_MS"]),
+          }
+          capture = manifest.get("capture")
+          if not isinstance(capture, dict):
+              raise SystemExit("BLOCKED first_error=manifest_capture_missing")
+          for key, value in expected_geometry.items():
+              if capture.get(key) != value:
+                  raise SystemExit(f"BLOCKED first_error=geometry_{key}_mismatch")
+          if manifest.get("protected_holdout_start_ms") != int(
+              os.environ["PROTECTED_HOLDOUT_START_MS"]
+          ):
+              raise SystemExit("BLOCKED first_error=holdout_identity_mismatch")
+          if capture["decision_end_ms"] >= int(os.environ["PROTECTED_HOLDOUT_START_MS"]):
+              raise SystemExit("BLOCKED first_error=holdout_overlap")
+          instruments = manifest.get("instruments")
+          sources = manifest.get("sources")
+          if not isinstance(instruments, list) or not instruments:
+              raise SystemExit("BLOCKED first_error=instruments_missing")
+          if sources != ["binance-usdm", "bybit-linear", "okx-swap"]:
+              raise SystemExit("BLOCKED first_error=sources_mismatch")
+          expected_samples = 120
+          expected_candles = 408
+          counts = manifest.get("record_counts")
+          expected_counts = {
+              "source_health_snapshots": expected_samples * len(sources),
+              "market_quality_observations": expected_samples * len(sources) * len(instruments),
+              "instrument_snapshots": expected_samples * len(sources) * len(instruments),
+              "completed_candles": expected_candles * len(sources) * len(instruments),
+          }
+          if counts != expected_counts:
+              raise SystemExit("BLOCKED first_error=record_counts_mismatch")
+          authorities = manifest.get("authorities")
+          required_false = (
+              "trading_credentials_present",
+              "execution_enabled",
+              "replay_authorized",
+              "model_execution_authorized",
+              "performance_research_authorized",
+              "live_capital_authorized",
+          )
+          if not isinstance(authorities, dict) or any(authorities.get(key) is not False for key in required_false):
+              raise SystemExit("BLOCKED first_error=authority_boundary_mismatch")
+          if authorities.get("orders_submitted") != 0:
+              raise SystemExit("BLOCKED first_error=orders_submitted_nonzero")
+          if manifest.get("protected_holdout_accessed") is not False:
+              raise SystemExit("BLOCKED first_error=holdout_access_flag")
+          if manifest.get("immutable_inputs_mutated") is not False:
+              raise SystemExit("BLOCKED first_error=immutable_input_mutation")
+          if manifest.get("backfill_performed") is not False:
+              raise SystemExit("BLOCKED first_error=backfill_flag")
+          if manifest.get("synthetic_observations_added") is not False:
+              raise SystemExit("BLOCKED first_error=synthetic_observation_flag")
+          wh01 = manifest.get("wh01")
+          if not isinstance(wh01, dict) or wh01.get("market_evidence_ready") is not True:
+              raise SystemExit("BLOCKED first_error=market_evidence_not_ready")
+          if wh01.get("ready") is not False or wh01.get("blocker_code") != "LIQUIDATION_ARCHIVE_NOT_BOUND":
+              raise SystemExit("BLOCKED first_error=unexpected_wh01_state")
+          if verification.get("outcome") != "accepted":
+              raise SystemExit("BLOCKED first_error=verification_not_accepted")
+          print(json.dumps({
+              "status": "MARKET_EVIDENCE_V3_VERIFIED",
+              "run_id": manifest.get("run_id"),
+              "manifest_sha256": manifest.get("manifest_sha256"),
+              "binding_sha256": binding.get("binding_sha256"),
+              "lineage_sha256": lineage.get("lineage_sha256"),
+              "geometry": expected_geometry,
+              "instrument_count": len(instruments),
+              "record_counts": counts,
+              "wh01_blocker": wh01.get("blocker_code"),
+              "orders_submitted": 0,
+          }, sort_keys=True))
+          PY

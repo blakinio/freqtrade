@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260730-closure-ui-signal-wizard
 status: blocked
-dispatch_state: WAIT_FOR_CONTEXT_REPAIR
+dispatch_state: WAIT_FOR_BACKEND
 branch: agent/closure-ui-signal-wizard-correlation-blocker
 base_branch: develop
 created: 2026-07-30
-updated: 2026-07-30
+updated: 2026-07-31
 related_pr: 818
 terminal_pr: 820
 unblock_pr: 830
@@ -13,9 +13,18 @@ correlation_blocker_pr: 832
 backend_task: FTAI-20260730-closure-signal-wizard-backend
 backend_pr: 825
 backend_merge: 0bc35521debd33312820dfad9f010e22aa651610
+correlation_repair_task: FTAI-20260731-signal-wizard-context-repair
+correlation_repair_pr: 846
+correlation_repair_merge: 367a51b610d2a34ee5841bc0b86622bd64fc6858
+superseded_correlation_pr: 844
+hardening_task: FTAI-20260731-closure-signal-wizard-context-hardening
+hardening_branch: agent/closure-signal-wizard-semantic-hardening
+hardening_prompt: docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md
 dependencies:
   - FTAI-20260730-closure-contracts merged as 6e489f7e10199120424cbcd01b3e125711630243
   - FTAI-20260730-closure-signal-wizard-backend merged as 0bc35521debd33312820dfad9f010e22aa651610
+  - FTAI-20260731-signal-wizard-context-repair merged as 367a51b610d2a34ee5841bc0b86622bd64fc6858
+  - FTAI-20260731-closure-signal-wizard-context-hardening must merge before frontend restart
 owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md
   - ai_platform/portal/web/app/ai/signal-wizard/page.tsx
@@ -37,25 +46,34 @@ required_reads:
 
 ## Goal
 
-Build the complete research-only Signal Wizard against the frozen typed DSL and the canonical Signal Wizard backend/API.
+Build the complete research-only Signal Wizard against the frozen typed DSL and canonical backend only after the remaining semantic/persistence hardening merges.
 
-## Integration blocker discovered after backend merge
+## Current dependency state
 
-- PR #825 added canonical preview and submit services, but its HTTP test uses a static `RequestContext` provider with fixed correlation identifiers.
-- The product identity-enabled control plane resolves every request through `IdentityService.resolve_request` and creates new random `request_id` and `correlation_id` values inside the upstream request.
-- `SignalWizardService._validate_context` requires the command body correlation values to equal those newly generated trusted values.
-- The same-origin Portal BFF can read tenant and principal session fields, but no API exposes the upstream request correlation values and the existing mutation forwarder cannot know them before the upstream request is authenticated.
-- Therefore a production BFF command cannot satisfy the canonical context equality check; fixture-only success would be false compatibility.
-- No UI, BFF or fixture implementation was added after this first incompatible requirement was proven.
+- PR #825 added canonical preview and submit services.
+- PR #846 removed the production correlation blocker using authenticated server-side command correlation and real IdentityService login/session/CSRF coverage.
+- PR #846 merged normally as `367a51b610d2a34ee5841bc0b86622bd64fc6858`; exact head `647ea9fb79134e90af87f165ea1529482f2c1f5c` passed AI Platform CI `30612077198`, Freqtrade CI `30612077288` and security `30612077128`, with zero review threads.
+- Competing PR #844 was closed as superseded.
+- The merged backend still leaves bounded semantic gaps around disabled feature identity, immutable draft versioning, fabricated risk compatibility, exact command persistence, full submit binding, deterministic reason codes, bounded public messages and fail-closed numeric constraints.
+- Therefore no UI or BFF implementation may restart yet.
+
+## Coordinator dispatch
+
+- Backend semantic task: `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md`.
+- Backend branch: `agent/closure-signal-wizard-semantic-hardening`.
+- Backend prompt: `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md`.
+- Backend dispatch state: `READY`.
+- Frontend dispatch state: `WAIT_FOR_BACKEND`.
+- Agent 0 may mark this task `READY` only after the semantic-hardening PR merges normally with green exact-head CI and zero unresolved review threads.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T00:02:00+02:00
-head: 6b380d2af08e95f5faaff3c40828fe29c7d957f3
-branch: agent/closure-ui-signal-wizard-correlation-blocker
-pr: 832
+updated_at: 2026-07-31T09:45:00+02:00
+head: 367a51b610d2a34ee5841bc0b86622bd64fc6858
+branch: agent/program-closure-signal-wizard-context-repair-dispatch
+pr: 851
 status: blocked
 context_routes:
   - AGENTS.md
@@ -63,6 +81,8 @@ context_routes:
   - docs/agents/tasks/FTAI-20260730-ai-program-closure-orchestration.md
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
   - docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md
+  - docs/agents/tasks/FTAI-20260731-signal-wizard-context-repair.md
+  - docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md
 owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md
   - ai_platform/portal/web/app/ai/signal-wizard/page.tsx
@@ -74,41 +94,41 @@ owned_paths:
   - ai_platform/portal/web/e2e/signal-wizard-closure.spec.ts
 proven:
   - PR 825 merged canonical /v1/signal-wizard/preview and /submit endpoints as 0bc35521debd33312820dfad9f010e22aa651610.
-  - SignalWizardService rejects a command when its tenant, actor, actor type or correlation context differs from trusted RequestContext.
-  - IdentityService creates request_id=uuid4() and correlation_id=uuid4() while authenticating each identity-enabled control-plane request.
-  - PortalSessionView exposes principal and tenant session data but not the new trusted request or correlation identifiers.
-  - Existing web mutation forwarding sends cookie, CSRF and JSON body only; it receives no trusted context before sending the command.
-  - PR 825 HTTP coverage uses a static lambda RequestContext provider and does not exercise create_identity_enabled_app.
+  - PR 832 merged the production correlation blocker as 28fb301db2c575d610c73143e44bd68c40b46ec7.
+  - PR 846 merged authenticated server-side correlation as 367a51b610d2a34ee5841bc0b86622bd64fc6858.
+  - PR 846 exact head 647ea9fb79134e90af87f165ea1529482f2c1f5c passed AI Platform, Freqtrade and security workflows and had zero review threads.
+  - PR 846 uses a real IdentityService, persisted principal/membership/session, login callback and CSRF cookie/header in its identity-enabled regression test.
+  - PR 844 is closed and cannot conflict with the new semantic branch.
+  - Live Signal Wizard open-PR inventory showed no implementation PR after #844 closed; Agent 0 created the semantic branch from current develop.
+  - Final backend code still drops disabled selection identity, can reuse base_strategy_version as the new draft version, fabricates risk.max_leverage, omits canonical preview command persistence, incompletely binds submit context, returns generic/raw conflicts and allows nonnumeric bound fall-through.
 derived:
-  - Production preview and submit cannot pass context validation through the current same-origin BFF boundary.
-  - Building only fixture payloads or claiming the current API path converges would conceal a deterministic production failure.
-unknown: []
-conflicts:
-  - The first required repair is outside the eight frontend-owned paths and affects identity/control-plane context propagation or Signal Wizard command construction semantics.
+  - Correlation compatibility is complete.
+  - One bounded backend semantic/persistence task remains before frontend implementation can safely start.
+  - UI implementation must remain WAIT_FOR_BACKEND until that PR merges and exact-head gates pass.
+unknown:
+  - Semantic-hardening implementation PR number, exact head, workflow conclusions and merge SHA.
+conflicts: []
 first_failure:
-  marker: SIGNAL_WIZARD_CORRELATION_CONTEXT_UNPROPAGATED
-  evidence: Identity-enabled requests generate trusted UUIDs after the BFF has already constructed the required command body, while SignalWizardService requires exact equality.
+  marker: SIGNAL_WIZARD_SEMANTIC_IDENTITY_INCOMPLETE
+  evidence: Production context construction now works, but canonical feature/draft/persistence/submit/error identity is still incomplete.
 rejected_hypotheses:
-  - Use fixture-only fixed UUIDs and describe the flow as production compatible.
-  - Guess or independently generate request and correlation identifiers in the BFF.
-  - Relax or bypass tenant, actor or correlation validation in route-local TypeScript.
-  - Add identity or backend changes outside assigned ownership without coordinator transfer.
+  - Revive or merge superseded PR 844.
+  - Use fixture-only compatibility or guess trusted correlation in the BFF.
+  - Start frontend before semantic hardening merges.
+  - Generate transient experiment IDs or map to incompatible fixed Strategy Lab entries.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md
 validation:
-  - command: Identity-enabled context construction review
-    result: BLOCKED
-    evidence: IdentityService creates fresh request and correlation UUIDs inside each authenticated upstream request.
-  - command: Signal Wizard context validator review
-    result: BLOCKED
-    evidence: Command correlation must equal the trusted RequestContext generated by that same upstream request.
-  - command: Same-origin BFF forwarding review
-    result: BLOCKED
-    evidence: The BFF has session, cookie and CSRF data but no pre-request trusted correlation values.
-  - command: Existing backend HTTP test review
+  - command: PR 846 exact-head workflow and review audit
     result: PASS
-    evidence: Static-provider tests prove service behavior but do not prove identity-enabled Portal integration.
+    evidence: Runs 30612077198, 30612077288 and 30612077128 succeeded; zero review threads.
+  - command: live Signal Wizard implementation overlap
+    result: PASS
+    evidence: PR 844 closed; no open implementation PR owns the semantic task paths.
+  - command: Final backend semantic/persistence review
+    result: BLOCKED
+    evidence: The listed semantic requirements remain unresolved on develop.
 blockers:
-  - A coordinator-owned repair must establish one canonical trusted correlation propagation/construction mechanism and cover Signal Wizard through create_identity_enabled_app.
-next_action: Agent 0 must assign and merge one bounded identity/control-plane correlation repair with an identity-enabled Signal Wizard HTTP test, then mark this frontend child READY.
+  - FTAI-20260731-closure-signal-wizard-context-hardening must merge normally with green exact-head CI and zero unresolved review threads.
+next_action: Run docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md on agent/closure-signal-wizard-semantic-hardening.
 ```

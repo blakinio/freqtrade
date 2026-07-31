@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TypeVar
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -20,6 +21,13 @@ from ai_platform.portal.signal_wizard.service import (
 )
 
 
+SignalWizardCommand = TypeVar(
+    "SignalWizardCommand",
+    SignalWizardPreviewCommand,
+    SignalWizardSubmitCommand,
+)
+
+
 def build_router(
     service: SignalWizardService,
     context_dependency: Callable[..., RequestContext],
@@ -36,7 +44,7 @@ def build_router(
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardPreviewResult:
         try:
-            return service.preview(context, command)
+            return service.preview(context, _bind_trusted_correlation(command, context))
         except SignalWizardValidationError as exc:
             raise _http_error(422, exc.reason_code, exc) from exc
         except SignalWizardConflictError as exc:
@@ -54,7 +62,7 @@ def build_router(
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardSubmitResult:
         try:
-            return service.submit(context, command)
+            return service.submit(context, _bind_trusted_correlation(command, context))
         except SignalWizardNotFoundError as exc:
             raise _http_error(404, "SIGNAL_WIZARD_PREVIEW_NOT_FOUND", exc) from exc
         except SignalWizardValidationError as exc:
@@ -65,6 +73,23 @@ def build_router(
             raise _http_error(500, "SIGNAL_WIZARD_CORRUPT_RECORD", exc) from exc
 
     return router
+
+
+def _bind_trusted_correlation(
+    command: SignalWizardCommand,
+    context: RequestContext,
+) -> SignalWizardCommand:
+    """Bind per-request correlation at the authenticated control-plane boundary.
+
+    The browser/BFF cannot know the trusted request identifiers generated while the
+    upstream request is authenticated. Tenant, actor, actor type and environment stay
+    unchanged and remain fail-closed in ``SignalWizardService._validate_context``.
+    """
+
+    command_context = command.context.model_copy(
+        update={"correlation": context.correlation_context()}
+    )
+    return command.model_copy(update={"context": command_context})
 
 
 def _http_error(status_code: int, reason_code: str, exc: Exception) -> HTTPException:

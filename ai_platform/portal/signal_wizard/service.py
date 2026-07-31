@@ -71,7 +71,7 @@ class SignalWizardService:
         self._authorize(context)
         self._validate_context(context, command.context)
         key = _idempotency_key(command.idempotency_key)
-        request_digest = _sha256_text(command.canonical_json())
+        request_digest = _semantic_command_digest(command)
 
         with self._session_factory() as session:
             existing = self._repository.get_preview_by_idempotency(
@@ -178,7 +178,7 @@ class SignalWizardService:
         self._validate_context(context, command.context)
         key = _idempotency_key(command.idempotency_key)
         command_json = command.canonical_json()
-        request_digest = _sha256_text(command_json)
+        request_digest = _semantic_command_digest(command)
 
         with self._session_factory() as session:
             existing = self._repository.get_submission_by_idempotency(
@@ -425,6 +425,16 @@ class SignalWizardService:
                         constraint.reason_code,
                         f"{constraint.parameter} is outside the requested allowed values",
                     )
+
+
+def _semantic_command_digest(
+    command: SignalWizardPreviewCommand | SignalWizardSubmitCommand,
+) -> str:
+    payload = command.model_dump(mode="json")
+    command_context = dict(payload["context"])
+    command_context.pop("correlation", None)
+    payload["context"] = command_context
+    return _sha256_json(payload)
 
 
 def _idempotency_key(value: str) -> str:

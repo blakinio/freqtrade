@@ -1,0 +1,335 @@
+name: Agent Binance V3 Acceptance Cadence Diagnostic
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/agent-binance-v3-acceptance-cadence-diagnostic.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    name: Diagnose Binance v3 scheduled sampling cadence
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    env:
+      DURABLE_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+      TARGET_WORKFLOW: ai-platform-binance-spot-instrument-shadow-acceptance-v3.yml
+
+    steps:
+      - name: Checkout exact diagnostic commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file diagnostic scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\t.github/workflows/agent-binance-v3-acceptance-cadence-diagnostic.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]]
+
+      - name: Validate approved runner and durable state
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ -d "$DURABLE_ROOT" ]]
+          [[ -r "$DURABLE_ROOT" ]]
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Correlate durable samples with scheduled workflow runs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+          GH_API_URL: ${{ github.api_url }}
+        run: |
+          set -euo pipefail
+          mkdir -p observer-evidence
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import json
+          import os
+          import statistics
+          import urllib.parse
+          import urllib.request
+          from collections import Counter
+          from datetime import datetime, timezone
+          from pathlib import Path
+          from typing import Any
+
+          durable_root = Path(os.environ["DURABLE_ROOT"])
+          pointer_path = durable_root / "active-binance-spot-instrument-acceptance-v3.json"
+          if not pointer_path.is_file():
+              raise SystemExit("active v3 pointer is absent")
+
+          pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+          run_root = Path(str(pointer["run_root"]))
+          if run_root.parent != durable_root or not run_root.is_dir():
+              raise SystemExit("active run root is invalid")
+
+          state_path = run_root / "incremental-state.json"
+          state = json.loads(state_path.read_text(encoding="utf-8"))
+          sample_paths = sorted(run_root.glob("samples/*/sample-report.json"))
+          sample_reports: list[dict[str, Any]] = []
+          for path in sample_paths:
+              try:
+                  report = json.loads(path.read_text(encoding="utf-8"))
+              except (OSError, json.JSONDecodeError):
+                  continue
+              sample_reports.append({"path": str(path.relative_to(run_root)), "report": report})
+
+          def parse_ns(value: Any) -> datetime | None:
+              if value is None:
+                  return None
+              try:
+                  return datetime.fromtimestamp(int(value) / 1_000_000_000, tz=timezone.utc)
+              except (TypeError, ValueError, OSError, OverflowError):
+                  return None
+
+          def find_time(report: dict[str, Any]) -> datetime | None:
+              candidates = [
+                  report.get("completed_ns"),
+                  report.get("sample_completed_ns"),
+                  report.get("completed_at_ns"),
+                  report.get("observed_at_ns"),
+              ]
+              for value in candidates:
+                  parsed = parse_ns(value)
+                  if parsed is not None:
+                      return parsed
+              for key in ("completed_at", "sample_completed_at", "observed_at"):
+                  value = report.get(key)
+                  if isinstance(value, str):
+                      try:
+                          return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+                      except ValueError:
+                          pass
+              return None
+
+          sample_times = [
+              parsed
+              for item in sample_reports
+              if (parsed := find_time(item["report"])) is not None
+          ]
+          sample_times.sort()
+          sample_gaps = [
+              (later - earlier).total_seconds()
+              for earlier, later in zip(sample_times, sample_times[1:])
+          ]
+
+          api_url = os.environ["GH_API_URL"].rstrip("/")
+          repository = os.environ["GH_REPOSITORY"]
+          workflow = urllib.parse.quote(os.environ["TARGET_WORKFLOW"], safe="")
+          token = os.environ["GH_TOKEN"]
+          runs: list[dict[str, Any]] = []
+          for page in range(1, 11):
+              url = (
+                  f"{api_url}/repos/{repository}/actions/workflows/{workflow}/runs"
+                  f"?event=schedule&per_page=100&page={page}"
+              )
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "binance-v3-cadence-diagnostic",
+                  },
+              )
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  payload = json.load(response)
+              page_runs = payload.get("workflow_runs", [])
+              if not isinstance(page_runs, list):
+                  raise SystemExit("invalid GitHub workflow-runs response")
+              runs.extend(page_runs)
+              if len(page_runs) < 100:
+                  break
+
+          def parse_iso(value: Any) -> datetime | None:
+              if not isinstance(value, str):
+                  return None
+              try:
+                  return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
+              except ValueError:
+                  return None
+
+          window_started = parse_ns(state.get("window_started_ns"))
+          relevant_runs = []
+          for run in runs:
+              created = parse_iso(run.get("created_at"))
+              if window_started is not None and created is not None and created < window_started:
+                  continue
+              relevant_runs.append(run)
+
+          run_rows = []
+          for run in relevant_runs:
+              created = parse_iso(run.get("created_at"))
+              started = parse_iso(run.get("run_started_at"))
+              updated = parse_iso(run.get("updated_at"))
+              run_rows.append(
+                  {
+                      "id": run.get("id"),
+                      "status": run.get("status"),
+                      "conclusion": run.get("conclusion"),
+                      "created_at": run.get("created_at"),
+                      "run_started_at": run.get("run_started_at"),
+                      "updated_at": run.get("updated_at"),
+                      "head_sha": run.get("head_sha"),
+                      "queue_delay_seconds": (
+                          (started - created).total_seconds()
+                          if created is not None and started is not None
+                          else None
+                      ),
+                      "total_elapsed_seconds": (
+                          (updated - created).total_seconds()
+                          if created is not None and updated is not None
+                          else None
+                      ),
+                  }
+              )
+
+          created_times = sorted(
+              parsed
+              for row in run_rows
+              if (parsed := parse_iso(row["created_at"])) is not None
+          )
+          schedule_gaps = [
+              (later - earlier).total_seconds()
+              for earlier, later in zip(created_times, created_times[1:])
+          ]
+          queue_delays = [
+              float(row["queue_delay_seconds"])
+              for row in run_rows
+              if row["queue_delay_seconds"] is not None
+          ]
+          elapsed = [
+              float(row["total_elapsed_seconds"])
+              for row in run_rows
+              if row["total_elapsed_seconds"] is not None
+          ]
+
+          status_counts = Counter(str(row["status"]) for row in run_rows)
+          conclusion_counts = Counter(str(row["conclusion"]) for row in run_rows)
+          now = datetime.now(timezone.utc)
+          expected_emissions = None
+          if window_started is not None:
+              expected_emissions = max(0, int((now - window_started).total_seconds() // 300) + 1)
+
+          diagnostic = {
+              "observed_at": now.isoformat(),
+              "run_id": state.get("run_id"),
+              "state_status": state.get("status"),
+              "next_sample_index": state.get("next_sample_index"),
+              "expected_sample_count": state.get("expected_sample_count"),
+              "sample_report_count": len(sample_paths),
+              "window_started_at": window_started.isoformat() if window_started else None,
+              "last_sample_completed_at": (
+                  parse_ns(state.get("last_sample_completed_ns")).isoformat()
+                  if parse_ns(state.get("last_sample_completed_ns"))
+                  else None
+              ),
+              "sample_gap_seconds": {
+                  "count": len(sample_gaps),
+                  "min": min(sample_gaps) if sample_gaps else None,
+                  "median": statistics.median(sample_gaps) if sample_gaps else None,
+                  "max": max(sample_gaps) if sample_gaps else None,
+                  "over_20_minutes": sum(gap > 1200 for gap in sample_gaps),
+                  "over_60_minutes": sum(gap > 3600 for gap in sample_gaps),
+              },
+              "scheduled_runs": {
+                  "retrieved": len(runs),
+                  "since_window_start": len(run_rows),
+                  "expected_every_5_minutes": expected_emissions,
+                  "status_counts": dict(status_counts),
+                  "conclusion_counts": dict(conclusion_counts),
+                  "creation_gap_seconds": {
+                      "count": len(schedule_gaps),
+                      "min": min(schedule_gaps) if schedule_gaps else None,
+                      "median": statistics.median(schedule_gaps) if schedule_gaps else None,
+                      "max": max(schedule_gaps) if schedule_gaps else None,
+                      "over_10_minutes": sum(gap > 600 for gap in schedule_gaps),
+                      "over_30_minutes": sum(gap > 1800 for gap in schedule_gaps),
+                  },
+                  "queue_delay_seconds": {
+                      "count": len(queue_delays),
+                      "min": min(queue_delays) if queue_delays else None,
+                      "median": statistics.median(queue_delays) if queue_delays else None,
+                      "max": max(queue_delays) if queue_delays else None,
+                      "over_10_minutes": sum(delay > 600 for delay in queue_delays),
+                      "over_30_minutes": sum(delay > 1800 for delay in queue_delays),
+                  },
+                  "total_elapsed_seconds": {
+                      "count": len(elapsed),
+                      "median": statistics.median(elapsed) if elapsed else None,
+                      "max": max(elapsed) if elapsed else None,
+                  },
+              },
+          }
+
+          evidence = Path("observer-evidence")
+          (evidence / "cadence-diagnostic.json").write_text(
+              json.dumps(diagnostic, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          (evidence / "scheduled-runs.json").write_text(
+              json.dumps(run_rows, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          (evidence / "incremental-state.json").write_text(
+              json.dumps(state, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          (evidence / "sample-timestamps.json").write_text(
+              json.dumps([time.isoformat() for time in sample_times], indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(diagnostic, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload bounded cadence evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-binance-v3-cadence-diagnostic-${{ github.run_id }}
+          path: observer-evidence
+          if-no-files-found: error
+          retention-days: 7

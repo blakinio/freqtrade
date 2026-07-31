@@ -6,20 +6,20 @@ name: AI Platform WickHunter Production Market Evidence v2
     branches:
       - develop
     paths:
-      - "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260731-v2.json"
+      - "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260801-v2.json"
 
 permissions:
   contents: read
 
 concurrency:
-  group: wickhunter-production-market-evidence-v2
+  group: wickhunter-production-market-evidence-v2-20260801
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260731-v2.json
+  REQUEST_PATH: ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260801-v2.json
   STATE_DIR: /var/lib/freqtrade-staging-state
-  DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2
-  PERSISTED_REQUEST_PATH: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2/request.json
+  DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801
+  PERSISTED_REQUEST_PATH: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801/request.json
   COLLECTOR_UID: "1026"
   COLLECTOR_GID: "100"
   COMPOSE_FILE: deploy/synology/wickhunter-market-evidence-v2/compose.yaml
@@ -49,7 +49,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          expected=$'A\tai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260731-v2.json'
+          expected=$'A\tai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260801-v2.json'
           merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
           actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
           if [[ "$actual" != "$expected" ]]; then
@@ -80,9 +80,9 @@ jobs:
           [[ "$host_state_dir" =~ ^/volume1/docker/[A-Za-z0-9._/-]+$ ]]
           [[ "$host_state_dir" != *$'\n'* ]]
           printf 'HOST_DURABLE_ROOT=%s\n' \
-            "$host_state_dir/wickhunter-production-market-evidence-v2" >> "$GITHUB_ENV"
+            "$host_state_dir/wickhunter-production-market-evidence-v2-20260801" >> "$GITHUB_ENV"
           printf 'HOST_PERSISTED_REQUEST_PATH=%s\n' \
-            "$host_state_dir/wickhunter-production-market-evidence-v2/request.json" >> "$GITHUB_ENV"
+            "$host_state_dir/wickhunter-production-market-evidence-v2-20260801/request.json" >> "$GITHUB_ENV"
 
       - name: Refuse credentials and proxy routing
         shell: bash
@@ -127,7 +127,7 @@ jobs:
           from pathlib import Path
           from ai_platform.wickhunter import production_market_evidence_v2 as core
 
-          root = Path("/var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2")
+          root = Path("/var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801")
           request = core.load_capture_request(root / "request.json")
           run_root, state = core._load_active(root)
           if state.get("status") != "active" or state.get("run_id") != request.run_id:

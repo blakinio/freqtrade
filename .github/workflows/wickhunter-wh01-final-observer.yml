@@ -1,0 +1,115 @@
+name: WickHunter WH-01 bounded final observer
+
+on:
+  pull_request:
+    branches: [develop]
+    paths:
+      - .github/workflows/wickhunter-wh01-final-observer.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh01-final-observer
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    runs-on: [self-hosted, freqtrade-synology-staging]
+    timeout-minutes: 5
+    env:
+      DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801
+      RUN_ID: wickhunter-production-market-evidence-20260801-v2-r1
+      CONTAINER: wickhunter-market-evidence-v2
+    steps:
+      - name: Checkout exact observer head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Refuse credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            [[ -z "${!name:-}" ]] || { echo "BLOCKED forbidden environment: $name"; exit 1; }
+          done
+
+      - name: Reconcile once and verify terminal package
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME}" == "freqtrade-synology-staging" ]]
+          [[ -d "$DURABLE_ROOT" ]]
+          [[ -f "$DURABLE_ROOT/request.json" ]]
+
+          running="$(docker inspect --format '{{.State.Running}}' "$CONTAINER" 2>/dev/null || true)"
+          if [[ "$running" != "true" ]]; then
+            docker start "$CONTAINER" >/dev/null
+            echo "RECONCILED container_started=true"
+          else
+            echo "RECONCILED container_started=false"
+          fi
+
+          # Exactly one bounded, idempotent reconciliation attempt. Never wait for a later sample.
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_v2 \
+            sample --durable-root "$DURABLE_ROOT"
+
+          supplement="$DURABLE_ROOT/$RUN_ID/immutable-okx-supplement"
+          if [[ ! -d "$supplement" ]]; then
+            echo "BLOCKED first_error=terminal_supplement_missing"
+            find "$DURABLE_ROOT/$RUN_ID" -maxdepth 2 -type f -printf '%P\n' | sort | head -200
+            exit 2
+          fi
+
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_v2 \
+            verify --supplement-root "$supplement"
+
+          python3 - "$DURABLE_ROOT/request.json" "$DURABLE_ROOT/$RUN_ID/incremental-state.json" "$supplement" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          request_path = pathlib.Path(sys.argv[1])
+          state_path = pathlib.Path(sys.argv[2])
+          supplement = pathlib.Path(sys.argv[3])
+          request = json.loads(request_path.read_text(encoding="utf-8"))
+          state = json.loads(state_path.read_text(encoding="utf-8"))
+          expected_run = "wickhunter-production-market-evidence-20260801-v2-r1"
+          holdout = 1785542400000
+          if request.get("run_id") != expected_run:
+              raise SystemExit("BLOCKED first_error=run_identity_mismatch")
+          if int(request.get("protected_holdout_start_ms", -1)) != holdout:
+              raise SystemExit("BLOCKED first_error=holdout_identity_mismatch")
+          if int(request.get("decision_end_ms", holdout + 1)) > holdout:
+              raise SystemExit("BLOCKED first_error=holdout_overlap")
+          if request.get("orders_submitted") != 0 or request.get("live_capital_authorized") is not False:
+              raise SystemExit("BLOCKED first_error=authority_boundary_violation")
+          files = []
+          for path in sorted(supplement.rglob("*")):
+              if path.is_symlink():
+                  raise SystemExit(f"BLOCKED first_error=symlink:{path.relative_to(supplement)}")
+              if path.is_file():
+                  digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                  files.append({"path": str(path.relative_to(supplement)), "sha256": digest, "bytes": path.stat().st_size})
+          if not files:
+              raise SystemExit("BLOCKED first_error=empty_supplement")
+          print(json.dumps({
+              "status": "VERIFIED",
+              "run_id": expected_run,
+              "state_status": state.get("status"),
+              "completed_samples": state.get("completed_samples", state.get("sample_count")),
+              "decision_end_ms": request.get("decision_end_ms"),
+              "protected_holdout_start_ms": holdout,
+              "supplement_files": files,
+          }, sort_keys=True))
+          PY

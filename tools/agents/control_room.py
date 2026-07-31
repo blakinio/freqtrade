@@ -4,25 +4,38 @@
 from __future__ import annotations
 
 import argparse
+import collections.abc
+import dataclasses
+import datetime
 import json
+import pathlib
 import re
 import sys
-from collections.abc import Iterable
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from pathlib import Path
-from typing import cast
+import typing
 
-ACTIVE_RAW = {"active", "in_progress", "in-progress", "investigating", "implementing", "validating", "running"}
+ACTIVE_RAW = {
+    "active",
+    "in_progress",
+    "in-progress",
+    "investigating",
+    "implementing",
+    "validating",
+    "running",
+}
 BLOCKED_RAW = {"blocked"}
 WAITING_RAW = {"waiting", "waiting_ci", "waiting_external", "waiting_dependency"}
 READY_RAW = {"ready"}
 DONE_RAW = {"done", "complete", "completed", "merged", "closed", "archived"}
-IGNORED_FILENAMES = {"README.md", "TASK_TEMPLATE.md", "CONTEXT_HANDOFF.md", "EXECUTION_PROTOCOL.md"}
+IGNORED_FILENAMES = {
+    "README.md",
+    "TASK_TEMPLATE.md",
+    "CONTEXT_HANDOFF.md",
+    "EXECUTION_PROTOCOL.md",
+}
 V2_REQUIRED_FIELDS = ("task_kind", "context_pressure", "decomposition_decision")
 
 
-@dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True)
 class Task:
     task_id: str
     lane: str
@@ -54,38 +67,69 @@ class Task:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build a compact Control Room view from durable task records.")
-    parser.add_argument("--config", default="docs/agents/PROJECT_LANES.json", help="Path to the repository lane configuration.")
-    parser.add_argument("--format", choices=("markdown", "json"), default="markdown", help="Output format.")
-    parser.add_argument("--lane", action="append", default=[], help="Only include the selected lane. May be repeated.")
-    parser.add_argument("--stale-after-minutes", type=int, default=None, help="Override the configured stale threshold.")
-    parser.add_argument("--now", default=None, help="ISO-8601 timestamp used for deterministic runs.")
-    parser.add_argument("--fail-on-stale", action="store_true", help="Exit with status 2 when at least one task is stale.")
+    parser = argparse.ArgumentParser(
+        description="Build a compact Control Room view from durable task records."
+    )
+    parser.add_argument(
+        "--config",
+        default="docs/agents/PROJECT_LANES.json",
+        help="Path to the repository lane configuration.",
+    )
+    parser.add_argument(
+        "--format",
+        choices=("markdown", "json"),
+        default="markdown",
+        help="Output format.",
+    )
+    parser.add_argument(
+        "--lane",
+        action="append",
+        default=[],
+        help="Only include the selected lane. May be repeated.",
+    )
+    parser.add_argument(
+        "--stale-after-minutes",
+        type=int,
+        default=None,
+        help="Override the configured stale threshold.",
+    )
+    parser.add_argument(
+        "--now",
+        default=None,
+        help="ISO-8601 timestamp used for deterministic runs.",
+    )
+    parser.add_argument(
+        "--fail-on-stale",
+        action="store_true",
+        help="Exit with status 2 when at least one task is stale.",
+    )
     return parser.parse_args()
 
 
-def parse_iso(value: str) -> datetime | None:
+def parse_iso(value: str) -> datetime.datetime | None:
     value = value.strip().strip("\"'")
     if not value:
         return None
     if value.endswith("Z"):
         value = value[:-1] + "+00:00"
     try:
-        parsed = datetime.fromisoformat(value)
+        parsed = datetime.datetime.fromisoformat(value)
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
+        parsed = parsed.replace(tzinfo=datetime.UTC)
+    return parsed.astimezone(datetime.UTC)
 
 
 def scalar_map(text: str) -> dict[str, str]:
     """Read simple top-level YAML scalars from frontmatter and checkpoint blocks."""
     values: dict[str, str] = {}
+
     if text.startswith("---"):
         end = text.find("\n---", 3)
         if end >= 0:
             read_scalar_lines(text[3:end].splitlines(), values)
+
     match = re.search(r"(?m)^## Context checkpoint\s*$", text)
     if match:
         remainder = text[match.end() :]
@@ -94,10 +138,13 @@ def scalar_map(text: str) -> dict[str, str]:
             block_end = remainder.find("```", fence.end())
             if block_end >= 0:
                 read_scalar_lines(remainder[fence.end() : block_end].splitlines(), values)
+
     return values
 
 
-def read_scalar_lines(lines: Iterable[str], values: dict[str, str]) -> None:
+def read_scalar_lines(
+    lines: collections.abc.Iterable[str], values: dict[str, str]
+) -> None:
     for raw in lines:
         if not raw or raw[0].isspace() or raw.lstrip().startswith("#") or ":" not in raw:
             continue
@@ -109,7 +156,9 @@ def read_scalar_lines(lines: Iterable[str], values: dict[str, str]) -> None:
 
 
 def first_list_item(text: str, key: str) -> str:
-    pattern = re.compile(rf"(?ms)^{re.escape(key)}:\s*\n(?P<body>(?:[ \t]+- .*(?:\n|$))*)")
+    pattern = re.compile(
+        rf"(?ms)^{re.escape(key)}:\s*\n(?P<body>(?:[ \t]+- .*(?:\n|$))*)"
+    )
     match = pattern.search(text)
     if not match:
         return ""
@@ -122,13 +171,13 @@ def string_list(value: object, label: str) -> list[str]:
         return []
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise ValueError(f"{label} must be a list of strings")
-    return cast(list[str], value)
+    return typing.cast(list[str], value)
 
 
 def object_map(value: object, label: str) -> dict[str, object]:
     if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
         raise ValueError(f"{label} must be an object")
-    return cast(dict[str, object], value)
+    return typing.cast(dict[str, object], value)
 
 
 def object_map_list(value: object, label: str) -> list[dict[str, object]]:
@@ -148,26 +197,40 @@ def non_negative_int(values: dict[str, str], key: str) -> int:
     return max(0, parsed)
 
 
-def infer_task_id(path: Path, text: str, values: dict[str, str]) -> str:
+def infer_task_id(path: pathlib.Path, text: str, values: dict[str, str]) -> str:
     for key in ("task_id", "id"):
         if values.get(key):
             return values[key]
-    pattern = re.compile(r"\b(?:FTAI|OTH|OTERYN|CAN|OTC2?|OTS)-[A-Z0-9][A-Z0-9-]*\b", re.I)
+    pattern = re.compile(
+        r"\b(?:FTAI|OTH|OTERYN|CAN|OTC2?|OTS)-[A-Z0-9][A-Z0-9-]*\b", re.I
+    )
     match = pattern.search(path.stem) or pattern.search(text)
     return match.group(0) if match else path.stem
 
 
-def infer_lane(task_id: str, path: Path, text: str, values: dict[str, str], lanes: list[dict[str, object]], default_lane: str) -> str:
+def infer_lane(
+    task_id: str,
+    path: pathlib.Path,
+    text: str,
+    values: dict[str, str],
+    lanes: list[dict[str, object]],
+    default_lane: str,
+) -> str:
     explicit = values.get("project_lane") or values.get("lane") or values.get("project")
     valid_ids = {str(lane["id"]) for lane in lanes}
     if explicit in valid_ids:
         return explicit
+
     haystack = f"{task_id} {path.as_posix()} {text[:12000]}".casefold()
     for lane in lanes:
         lane_id = str(lane["id"])
-        keywords = [item.casefold() for item in string_list(lane.get("match_keywords"), "lane match_keywords")]
+        keywords = [
+            item.casefold()
+            for item in string_list(lane.get("match_keywords"), "lane match_keywords")
+        ]
         if any(keyword and keyword in haystack for keyword in keywords):
             return lane_id
+
     upper_id = task_id.upper()
     matching: list[tuple[int, str]] = []
     for lane in lanes:
@@ -207,7 +270,62 @@ def infer_policy_status(values: dict[str, str]) -> str:
     return "LEGACY"
 
 
-def load_tasks(config: dict[str, object], now: datetime, stale_after: int) -> list[Task]:
+def task_from_file(
+    path: pathlib.Path,
+    lanes: list[dict[str, object]],
+    default_lane: str,
+    now: datetime.datetime,
+    stale_after: int,
+) -> Task:
+    text = path.read_text(encoding="utf-8")
+    values = scalar_map(text)
+    task_id = infer_task_id(path, text, values)
+    lane = infer_lane(task_id, path, text, values, lanes, default_lane)
+    updated_raw = values.get("updated_at") or values.get("updated") or ""
+    updated = parse_iso(updated_raw)
+    age_minutes = None
+    if updated:
+        age_minutes = max(0, int((now - updated).total_seconds() // 60))
+    raw_status = values.get("status", "unknown")
+    state = normalize_state(raw_status, age_minutes, stale_after)
+    blocker = values.get("blocker") or first_list_item(text, "blockers")
+    if blocker.strip().casefold() in {"none", "n/a", "no", "[]"}:
+        blocker = ""
+
+    return Task(
+        task_id=task_id,
+        lane=lane,
+        path=path.as_posix(),
+        raw_status=raw_status,
+        state=state,
+        updated_at=updated_raw,
+        age_minutes=age_minutes,
+        branch=values.get("branch", ""),
+        pr=values.get("pr", ""),
+        phase=values.get("phase", ""),
+        execution_mode=values.get("execution_mode", ""),
+        next_action=values.get("next_action", ""),
+        blocker=blocker,
+        task_kind=values.get("task_kind", ""),
+        context_pressure=values.get("context_pressure", ""),
+        context_growth=values.get("context_growth", ""),
+        decomposition_decision=values.get("decomposition_decision", ""),
+        estimate_confidence=values.get("estimate_confidence", ""),
+        session_id=values.get("session_id", ""),
+        session_role=values.get("session_role", ""),
+        validation_level=values.get("validation_level", ""),
+        policy_version=values.get("policy_version", ""),
+        policy_status=infer_policy_status(values),
+        session_rotation_count=non_negative_int(values, "session_rotation_count"),
+        heavy_validation_runs=non_negative_int(values, "heavy_validation_runs"),
+        stale_takeover_count=non_negative_int(values, "stale_takeover_count"),
+        human_interruptions=non_negative_int(values, "human_interruptions"),
+    )
+
+
+def load_tasks(
+    config: dict[str, object], now: datetime.datetime, stale_after: int
+) -> list[Task]:
     lanes = object_map_list(config.get("lanes"), "lanes")
     if not lanes:
         raise ValueError("configuration must define at least one lane")
@@ -215,57 +333,16 @@ def load_tasks(config: dict[str, object], now: datetime, stale_after: int) -> li
     task_globs = string_list(config.get("task_globs"), "task_globs")
     if not task_globs:
         task_globs = ["docs/agents/tasks/active/*.md"]
-    paths: set[Path] = set()
+
+    paths: set[pathlib.Path] = set()
     for pattern in task_globs:
-        paths.update(Path.cwd().glob(pattern))
-    tasks: list[Task] = []
-    for path in sorted(paths):
-        if path.name in IGNORED_FILENAMES or "/archive/" in path.as_posix():
-            continue
-        text = path.read_text(encoding="utf-8")
-        values = scalar_map(text)
-        task_id = infer_task_id(path, text, values)
-        lane = infer_lane(task_id, path, text, values, lanes, default_lane)
-        updated_raw = values.get("updated_at") or values.get("updated") or ""
-        updated = parse_iso(updated_raw)
-        age_minutes = None
-        if updated:
-            age_minutes = max(0, int((now - updated).total_seconds() // 60))
-        raw_status = values.get("status", "unknown")
-        state = normalize_state(raw_status, age_minutes, stale_after)
-        blocker = values.get("blocker") or first_list_item(text, "blockers")
-        if blocker.strip().casefold() in {"none", "n/a", "no", "[]"}:
-            blocker = ""
-        tasks.append(Task(
-            task_id=task_id,
-            lane=lane,
-            path=path.as_posix(),
-            raw_status=raw_status,
-            state=state,
-            updated_at=updated_raw,
-            age_minutes=age_minutes,
-            branch=values.get("branch", ""),
-            pr=values.get("pr", ""),
-            phase=values.get("phase", ""),
-            execution_mode=values.get("execution_mode", ""),
-            next_action=values.get("next_action", ""),
-            blocker=blocker,
-            task_kind=values.get("task_kind", ""),
-            context_pressure=values.get("context_pressure", ""),
-            context_growth=values.get("context_growth", ""),
-            decomposition_decision=values.get("decomposition_decision", ""),
-            estimate_confidence=values.get("estimate_confidence", ""),
-            session_id=values.get("session_id", ""),
-            session_role=values.get("session_role", ""),
-            validation_level=values.get("validation_level", ""),
-            policy_version=values.get("policy_version", ""),
-            policy_status=infer_policy_status(values),
-            session_rotation_count=non_negative_int(values, "session_rotation_count"),
-            heavy_validation_runs=non_negative_int(values, "heavy_validation_runs"),
-            stale_takeover_count=non_negative_int(values, "stale_takeover_count"),
-            human_interruptions=non_negative_int(values, "human_interruptions"),
-        ))
-    return tasks
+        paths.update(pathlib.Path.cwd().glob(pattern))
+
+    return [
+        task_from_file(path, lanes, default_lane, now, stale_after)
+        for path in sorted(paths)
+        if path.name not in IGNORED_FILENAMES and "/archive/" not in path.as_posix()
+    ]
 
 
 def task_dict(task: Task) -> dict[str, object]:
@@ -303,89 +380,107 @@ def task_dict(task: Task) -> dict[str, object]:
 def coordination_metrics(tasks: list[Task]) -> dict[str, int]:
     return {
         "active_tasks": sum(task.state == "RUNNING" for task in tasks),
-        "active_sessions": sum(task.state == "RUNNING" and bool(task.session_id) for task in tasks),
+        "active_sessions": sum(
+            task.state == "RUNNING" and bool(task.session_id) for task in tasks
+        ),
         "legacy_tasks": sum(task.policy_status == "LEGACY" for task in tasks),
         "session_rotations": sum(task.session_rotation_count for task in tasks),
-        "task_splits": sum(task.decomposition_decision.strip().casefold() == "split" for task in tasks),
+        "task_splits": sum(
+            task.decomposition_decision.strip().casefold() == "split" for task in tasks
+        ),
         "heavy_validation_runs": sum(task.heavy_validation_runs for task in tasks),
         "stale_takeovers": sum(task.stale_takeover_count for task in tasks),
         "human_interruptions": sum(task.human_interruptions for task in tasks),
     }
 
 
+def task_details(task: Task) -> list[str]:
+    candidates = (
+        ("kind", task.task_kind),
+        ("phase", task.phase),
+        ("context", task.context_pressure),
+        ("decomposition", task.decomposition_decision),
+        ("role", task.session_role),
+        ("mode", task.execution_mode),
+        ("validation", task.validation_level),
+        ("PR", task.pr),
+    )
+    details = [f"{label}={value}" for label, value in candidates if value]
+    if task.age_minutes is not None:
+        details.append(f"age={task.age_minutes}m")
+    if task.policy_status == "LEGACY":
+        details.append("policy=legacy")
+    return details
+
+
+def append_task(lines: list[str], task: Task, state: str) -> None:
+    details = task_details(task)
+    suffix = f" ({', '.join(details)})" if details else ""
+    lines.append(f"- `{task.task_id}`{suffix}")
+    if task.blocker and state in {"BLOCKED", "WAITING", "STALE"}:
+        lines.append(f"  - blocker: {task.blocker}")
+    if task.next_action:
+        lines.append(f"  - next: {task.next_action}")
+
+
+def append_lane(
+    lines: list[str], lane: str, lane_tasks: list[Task], state_order: tuple[str, ...]
+) -> None:
+    counts = {state: sum(task.state == state for task in lane_tasks) for state in state_order}
+    summary = ", ".join(f"{state} {count}" for state, count in counts.items() if count)
+    lines.extend([f"## {lane}", "", summary or "No active task records.", ""])
+
+    for state in state_order:
+        selected = [task for task in lane_tasks if task.state == state]
+        if not selected:
+            continue
+        lines.extend([f"### {state}", ""])
+        for task in selected:
+            append_task(lines, task, state)
+        lines.append("")
+
+
 def markdown(config: dict[str, object], tasks: list[Task], stale_after: int) -> str:
-    lanes = [str(lane["id"]) for lane in object_map_list(config.get("lanes"), "lanes")]
+    lanes = [
+        str(lane["id"]) for lane in object_map_list(config.get("lanes"), "lanes")
+    ]
     rollout = object_map(config.get("rollout", {}), "rollout")
-    metrics = coordination_metrics(tasks)
-    metrics_line = ", ".join(f"{key}={value}" for key, value in metrics.items())
+    metrics_line = ", ".join(
+        f"{key}={value}" for key, value in coordination_metrics(tasks).items()
+    )
     lines = [
         f"# Control Room — {config.get('repository', 'repository')}",
         "",
-        f"Stale threshold: {stale_after} minutes. STALE is derived; it does not rewrite task files.",
+        f"Stale threshold: {stale_after} minutes. "
+        "STALE is derived; it does not rewrite task files.",
         f"Policy rollout: {rollout.get('enforcement_mode', 'advisory')}.",
         f"Metrics: {metrics_line}",
         "",
     ]
     state_order = ("STALE", "BLOCKED", "WAITING", "RUNNING", "READY", "DONE", "UNKNOWN")
     for lane in lanes:
-        lane_tasks = [task for task in tasks if task.lane == lane]
-        counts = {state: sum(task.state == state for task in lane_tasks) for state in state_order}
-        summary = ", ".join(f"{state} {count}" for state, count in counts.items() if count)
-        lines.extend([f"## {lane}", "", summary or "No active task records.", ""])
-        for state in state_order:
-            selected = [task for task in lane_tasks if task.state == state]
-            if not selected:
-                continue
-            lines.extend([f"### {state}", ""])
-            for task in selected:
-                details = []
-                if task.task_kind:
-                    details.append(f"kind={task.task_kind}")
-                if task.phase:
-                    details.append(f"phase={task.phase}")
-                if task.context_pressure:
-                    details.append(f"context={task.context_pressure}")
-                if task.decomposition_decision:
-                    details.append(f"decomposition={task.decomposition_decision}")
-                if task.session_role:
-                    details.append(f"role={task.session_role}")
-                if task.execution_mode:
-                    details.append(f"mode={task.execution_mode}")
-                if task.validation_level:
-                    details.append(f"validation={task.validation_level}")
-                if task.pr:
-                    details.append(f"PR={task.pr}")
-                if task.age_minutes is not None:
-                    details.append(f"age={task.age_minutes}m")
-                if task.policy_status == "LEGACY":
-                    details.append("policy=legacy")
-                suffix = f" ({', '.join(details)})" if details else ""
-                lines.append(f"- `{task.task_id}`{suffix}")
-                if task.blocker and state in {"BLOCKED", "WAITING", "STALE"}:
-                    lines.append(f"  - blocker: {task.blocker}")
-                if task.next_action:
-                    lines.append(f"  - next: {task.next_action}")
-            lines.append("")
+        append_lane(lines, lane, [task for task in tasks if task.lane == lane], state_order)
     return "\n".join(lines).rstrip() + "\n"
 
 
 def main() -> int:
     args = parse_args()
-    config_path = Path(args.config)
+    config_path = pathlib.Path(args.config)
     config = json.loads(config_path.read_text(encoding="utf-8"))
     execution = object_map(config.get("execution", {}), "execution")
     configured_stale_value = execution.get("stale_after_minutes", 45)
     if not isinstance(configured_stale_value, int):
         raise ValueError("execution.stale_after_minutes must be an integer")
     stale_after = args.stale_after_minutes or configured_stale_value
-    now = parse_iso(args.now) if args.now else datetime.now(UTC)
+    now = parse_iso(args.now) if args.now else datetime.datetime.now(datetime.UTC)
     if now is None:
         raise SystemExit("--now must be a valid ISO-8601 timestamp")
+
     tasks = load_tasks(config, now, stale_after)
     if args.lane:
         selected = set(args.lane)
         tasks = [task for task in tasks if task.lane in selected]
-    metrics = coordination_metrics(tasks)
+
     if args.format == "json":
         payload = {
             "repository": config.get("repository"),
@@ -393,12 +488,13 @@ def main() -> int:
             "generated_at": now.isoformat(),
             "stale_after_minutes": stale_after,
             "rollout": config.get("rollout", {}),
-            "metrics": metrics,
+            "metrics": coordination_metrics(tasks),
             "tasks": [task_dict(task) for task in tasks],
         }
         print(json.dumps(payload, indent=2, ensure_ascii=False))
     else:
         print(markdown(config, tasks, stale_after), end="")
+
     return 2 if args.fail_on_stale and any(task.state == "STALE" for task in tasks) else 0
 
 

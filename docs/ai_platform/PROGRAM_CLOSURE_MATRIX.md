@@ -4,7 +4,7 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- coordinator evidence anchor: `develop@a6cd74cf0fef81ecfd2a3ce5cac1113f61e091e8`;
+- coordinator evidence anchor: `develop@367a51b610d2a34ee5841bc0b86622bd64fc6858`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
@@ -18,15 +18,17 @@
 - merged Signal Wizard blocker PR #818 -> `94e15dde23e0a2402b580ef263d51af689e989b6`, terminal PR #820 -> `18881d8847c765e939509a0f34b9dc327c5c9270`;
 - merged Signal Wizard backend PR #825 -> `0bc35521debd33312820dfad9f010e22aa651610`;
 - merged Signal Wizard correlation blocker PR #832 -> `28fb301db2c575d610c73143e44bd68c40b46ec7`;
+- merged Signal Wizard authenticated context repair PR #846 -> `367a51b610d2a34ee5841bc0b86622bd64fc6858`;
+- superseded competing Signal Wizard PR #844 is closed;
 - merged coordinator closure: PR #808 -> `a256dc59ad896a21f593c098bcc8c076858790d9`;
 - merged coordinator terminal checkpoint: PR #812 -> `e03c00ce9824fdf467108780387b52c58659c01b`;
-- active repository PRs include WickHunter request-only PRs #816/#842, WickHunter recovery #833, AI routing/ranking #829 and Signal Wizard correlation repair #844;
+- active repository PRs include WickHunter request-only PRs #816/#842, WickHunter recovery #833, AI routing/ranking #829, Authentik #852 and coordinator governance PR #851;
 - backend branch synchronization PRs #824, #826 and #828 merged normally;
 - coordinator branch: `agent/program-closure-signal-wizard-context-repair-dispatch`, governance PR #851;
-- active correlation task: `docs/agents/tasks/FTAI-20260731-signal-wizard-correlation-repair.md`, PR #844, exact head `c8051a6217430c7270fb26d4b8e6aeba336ad263`;
-- PR #844 currently owns Signal Wizard router, service, existing service/API test and its task checkpoint;
-- follow-up semantic task: `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md` owns only its checkpoint until PR #844 merges and Agent 0 transfers implementation paths;
-- Signal Wizard frontend dispatch: `WAIT_FOR_CONTEXT_REPAIR`;
+- Signal Wizard semantic task: `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md`;
+- Signal Wizard semantic branch: `agent/closure-signal-wizard-semantic-hardening`, created from current `develop` after live overlap verification;
+- Signal Wizard semantic dispatch: `READY`;
+- Signal Wizard frontend dispatch: `WAIT_FOR_BACKEND`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;
 - paper/shadow/dry-run only; no live capital.
 
@@ -99,11 +101,11 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | P2.3 | `OOS stability` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
 | P2.3 | `drawdown contribution` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
 | P2.3 | `calibration` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
-| P2.4 | `feature selection` | **WAIT_FOR_CONTEXT_REPAIR** | `closure-signal-wizard-context-hardening` | PR #825 drops disabled selections; implementation ownership transfers only after PR #844 merges. |
-| P2.4 | `parameter constraints` | **WAIT_FOR_CONTEXT_REPAIR** | `closure-signal-wizard-context-hardening` | Numeric bounds on nonnumeric values must fail closed after sequential ownership transfer. |
-| P2.4 | `leakage warnings` | **IMPLEMENTING** | `signal-wizard-correlation-repair` | PR #844 must expose stable bounded conflict reasons and secret-safe messages before semantic hardening proceeds. |
-| P2.4 | `strategy preview` | **IMPLEMENTING** | `signal-wizard-correlation-repair` | PR #844 binds trusted correlation and fixes retry digest semantics, but Agent 0 reviews remain unresolved. |
-| P2.4 | `experiment submit` | **WAIT_FOR_CONTEXT_REPAIR** | `closure-signal-wizard-context-hardening` | Submit still needs complete persisted actor/target/environment/execution-mode binding and exact derived version identity after PR #844. |
+| P2.4 | `feature selection` | **READY** | `closure-signal-wizard-context-hardening` | Exact backend path ownership is assigned; task must validate and preserve every approved enabled/disabled selection. |
+| P2.4 | `parameter constraints` | **READY** | `closure-signal-wizard-context-hardening` | Numeric bounds on nonnumeric values must fail closed. |
+| P2.4 | `leakage warnings` | **READY** | `closure-signal-wizard-context-hardening` | Correlation is merged; remaining deterministic bounded conflict/error behavior is assigned. |
+| P2.4 | `strategy preview` | **READY** | `closure-signal-wizard-context-hardening` | PR #846 merged authenticated context; exact command persistence, immutable draft version and feature identity remain assigned. |
+| P2.4 | `experiment submit` | **READY** | `closure-signal-wizard-context-hardening` | Full persisted actor/target/environment/execution-mode binding and exact derived version remain assigned. |
 | P2.5 | `version history` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Implementation PR #819 and terminal PR #822 merged. |
 | P2.5 | `approvals` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Implementation PR #819 and terminal PR #822 merged. |
 | P2.5 | `deployments` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Paper/dry-run/shadow lifecycle evidence merged without live authority. |
@@ -122,7 +124,7 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | Post-trade analysis and insight | **PROVEN_COMPLETE** | `none` | P8 deterministic diagnosis and evidence-linked insight. |
 | Bounded learning candidate without promotion | **PROVEN_COMPLETE** | `none` | P9/ASE-02; active model remains immutable. |
 | Evidence-based seeded-defect repair | **PROVEN_COMPLETE** | `none` | P12 simulation-first bounded repair. |
-| Signal Wizard research workflow | **WAIT_FOR_CONTEXT_REPAIR** | `signal-wizard-correlation-repair` + `closure-signal-wizard-context-hardening` | PR #844 must finish the active router/service/test lane; then Agent 0 transfers semantic implementation paths before frontend restart. |
+| Signal Wizard research workflow | **WAIT_FOR_BACKEND** | `closure-signal-wizard-context-hardening` | Authenticated context PR #846 is merged; one semantic/persistence/error child is READY and frontend remains blocked until it merges. |
 | Strategy Catalog lifecycle workflow | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | PR #819 and terminal PR #822 merged with exact-head browser/platform/security evidence. |
 | Full closure E2E and first-failure observability | **WAIT_FOR_IMPLEMENTATION_MERGES** | `closure-integration-e2e` | Signal Wizard frontend and AI routing/ranking must merge. |
 | Backlog/roadmap/program terminal freshness | **BLOCKED** | `Agent 0` | Update only after remaining implementation and integration merges provide terminal evidence. |
@@ -146,10 +148,9 @@ Compatibility remains:
 ```text
 contracts MERGED
   ├─> Signal Wizard backend MERGED through PR #825
-  │     └─> correlation/router/service repair IMPLEMENTING in PR #844
-  │            └─> semantic/persistence checkpoint WAIT_FOR_CORRELATION_REPAIR
-  │                   └─> Agent 0 implementation-path transfer
-  │                          └─> Signal Wizard frontend WAIT_FOR_CONTEXT_REPAIR
+  │     └─> authenticated context repair MERGED through PR #846
+  │            └─> semantic/persistence/error hardening READY
+  │                   └─> Signal Wizard frontend WAIT_FOR_BACKEND
   └─> Strategy Catalog COMPLETED
 
 time/leakage MERGED
@@ -176,10 +177,10 @@ Live capital/P14: excluded and unauthorized
 | Coordinator registry repair | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-registry-repair.md` | `agent/program-closure-coordinator-terminal` | — | PR #780 absorbed the dynamic-count repair; PR #808 merged closure ownership and PR #812 merged the terminal checkpoint. |
 | Feature Engine | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-feature-engine.md` | `agent/closure-feature-engine` | `docs/agents/prompts/ai-program-closure/FEATURE-ENGINE-AGENT-PROMPT.md` | PR #780 merged; do not start a duplicate chat. |
 | Research Data | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-research-data.md` | `agent/closure-research-data-terminal` | `docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md` | PR #821 and terminal PR #823 merged; do not start a duplicate chat. |
-| Signal Wizard backend/API | **MERGED_REQUIRES_REPAIR** | `docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md` | `agent/closure-signal-wizard-unblock` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-BACKEND-AGENT-PROMPT.md` | PR #825 merged as `0bc35521debd33312820dfad9f010e22aa651610`; do not restart the original task. |
-| Signal Wizard correlation/router/service repair | **IMPLEMENTING** | `docs/agents/tasks/FTAI-20260731-signal-wizard-correlation-repair.md` | `agent/signal-wizard-correlation-repair-20260731` | — | Continue PR #844; address Agent 0 reviews 4826262200/4826371246, sync normally and merge only after final exact-head green CI. |
-| Signal Wizard semantic/persistence hardening | **WAIT_FOR_CORRELATION_REPAIR** | `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md` | `agent/closure-signal-wizard-semantic-hardening` (reserved, not created) | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md` | Current owned path is task checkpoint only. After PR #844 merges, Agent 0 repeats overlap and transfers the exact planned service/model/repository/migration/new-test paths. |
-| Signal Wizard frontend | **WAIT_FOR_CONTEXT_REPAIR** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | Both repair lanes must merge normally with green exact-head CI and zero unresolved review threads. |
+| Signal Wizard backend/API | **MERGED_REQUIRES_HARDENING** | `docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md` | `agent/closure-signal-wizard-unblock` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-BACKEND-AGENT-PROMPT.md` | PR #825 merged as `0bc35521debd33312820dfad9f010e22aa651610`; do not restart the original task. |
+| Signal Wizard authenticated context | **COMPLETED** | `docs/agents/tasks/FTAI-20260731-signal-wizard-context-repair.md` | `agent/closure-signal-wizard-context-repair` | — | PR #846 merged as `367a51b610d2a34ee5841bc0b86622bd64fc6858`; exact-head required CI green and zero review threads. PR #844 is superseded/closed. |
+| Signal Wizard semantic/persistence hardening | **READY** | `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md` | `agent/closure-signal-wizard-semantic-hardening` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md` | Branch exists from current develop; live Signal Wizard implementation overlap is empty. Start one worker chat. |
+| Signal Wizard frontend | **WAIT_FOR_BACKEND** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | Semantic-hardening PR must merge normally with green exact-head CI and zero unresolved review threads. |
 | Strategy Catalog | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-ui-strategy-catalog.md` | `agent/closure-ui-strategy-catalog-terminal` | `docs/agents/prompts/ai-program-closure/UI-STRATEGY-CATALOG-AGENT-PROMPT.md` | PR #819 and terminal PR #822 merged; do not start a duplicate chat. |
 | AI routing/ranking | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | Research Data implementation and terminal checkpoints are merged. |
 | Integration/E2E | **WAIT_FOR_IMPLEMENTATION_MERGES** | `docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md` | `agent/closure-integration-e2e` | `docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md` | Remaining repository child PRs merged and develop green. |
@@ -190,14 +191,14 @@ Live capital/P14: excluded and unauthorized
 
 The coordinator repair task records the stale-count ownership decision. PR #780 merged the exact dynamic-count behavior before a standalone repair PR opened, PR #808 merged closure ownership and dispatch evidence, and PR #812 merged the terminal checkpoint without a duplicate test diff.
 
-Signal Wizard repair follows sequential ownership. PR #844 currently owns router.py, service.py, the existing Signal Wizard test and its task while fixing trusted correlation, retry semantics and public error behavior. The blocked follow-up child owns only its checkpoint. After PR #844 merges, Agent 0 must repeat live overlap and explicitly transfer service/model/repository/migration and new disjoint test paths before creating the semantic branch. Frozen contracts and frontend paths remain untouched.
+Signal Wizard authenticated context is complete through PR #846 with a real identity-enabled login/session/CSRF regression and stable server-bound command correlation. Competing PR #844 is closed. The remaining semantic child owns only Signal Wizard backend service/router/model/repository/migration and focused tests; frozen contracts and frontend paths remain untouched.
 
 ## Closure acceptance
 
 - all original unchecked P0/P1/P2 items remain classified;
 - merged workstreams record exact merge commits;
 - every active implementation workstream has non-overlapping owned paths;
-- Signal Wizard frontend remains explicitly `WAIT_FOR_CONTEXT_REPAIR` until PR #844, the coordinator ownership transfer and the semantic-hardening task all complete with exact-head evidence;
+- Signal Wizard frontend remains explicitly `WAIT_FOR_BACKEND` until the semantic-hardening task merges with exact-head evidence;
 - final E2E waits for all remaining repository implementation merges;
 - P11 cannot be proven by fixtures;
 - P13 and live capital remain outside autonomous closure.

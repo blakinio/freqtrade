@@ -3,7 +3,7 @@ from __future__ import annotations
 import base64
 import os
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
@@ -80,7 +80,7 @@ def _transport_mode() -> IdentityTransportMode:
         raise IdentityConfigurationError(
             "PORTAL_IDENTITY_TRANSPORT_MODE must be secure_https or local_http_test"
         )
-    return value  # type: ignore[return-value]
+    return cast(IdentityTransportMode, value)
 
 
 def _required(name: str) -> str:

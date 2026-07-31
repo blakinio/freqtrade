@@ -160,6 +160,7 @@ jobs:
           export IMAGE_TAG="${HEAD_SHA:0:12}"
           export MARKET_EVIDENCE_V2_REQUEST_FILE="$HOST_PERSISTED_REQUEST_PATH"
           export MARKET_EVIDENCE_V2_STATE_DIR="$HOST_DURABLE_ROOT"
+          export MARKET_EVIDENCE_V2_CONTAINER_STATE_DIR="$DURABLE_ROOT"
           docker compose -f "$COMPOSE_FILE" config --quiet
           docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans collector
 

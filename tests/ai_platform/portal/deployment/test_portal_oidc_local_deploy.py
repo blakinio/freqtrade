@@ -62,7 +62,10 @@ def test_blueprint_has_exact_provider_application_scopes_and_redirect() -> None:
     assert "scope_name, profile" in blueprint
     assert "scope_name, email" in blueprint
     assert "client_secret:" not in blueprint
-    assert "return bool(request.user and request.user.is_authenticated and request.user.is_active)" in blueprint
+    policy_expression = (
+        "return bool(request.user and request.user.is_authenticated and request.user.is_active)"
+    )
+    assert policy_expression in blueprint
 
 
 def test_images_are_pinned_by_exact_version_and_digest() -> None:
@@ -101,8 +104,12 @@ def test_deployer_preserves_secrets_and_forbids_unsafe_runtime_controls() -> Non
 def test_control_plane_is_internal_and_portal_is_the_only_published_service() -> None:
     source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
 
-    control_section = source[source.index("def _start_control_candidate") : source.index("def _promote_control")]
-    web_section = source[source.index("def _web_run_args") : source.index("def _probe_web_login")]
+    control_section = source[
+        source.index("def _start_control_candidate") : source.index("def _promote_control")
+    ]
+    web_section = source[
+        source.index("def _web_run_args") : source.index("def _probe_web_login")
+    ]
     assert "--publish" not in control_section
     assert "--publish" in web_section
     assert f"{module.PORTAL_BIND_ADDRESS}" in source

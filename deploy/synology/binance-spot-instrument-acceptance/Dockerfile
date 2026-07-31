@@ -13,7 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 COPY ai_platform /app/ai_platform
-COPY deploy/synology/binance-spot-instrument-acceptance/healthcheck.py /usr/local/bin/binance-acceptance-healthcheck
+COPY deploy/synology/binance-spot-instrument-acceptance/binance_acceptance_healthcheck.py /usr/local/bin/binance-acceptance-healthcheck
 
 RUN printf '%s' "$SAMPLER_COMMIT" | grep -Eq '^[0-9a-fA-F]{40}$' \
     && python -m pip install --no-cache-dir "jsonschema==4.26.0" \

@@ -2,7 +2,7 @@
 
 ## Status
 
-`implementing`
+`validating`
 
 ## Goal
 
@@ -33,6 +33,14 @@ Cryptographically bind the accepted Liquid20 production import to the independen
 6. Publish an atomic materialization containing a self-hashed source binding, non-empty dataset manifest, partition hashes, checksum index and independent verification report.
 7. Bind Market Evidence manifest/binding/lineage hashes, Liquid20 selection hash, split geometry hash, dataset request hash, exact code SHA and dataset manifest hash.
 8. Keep credentials, replay, execution, model execution, live capital and orders disabled.
+
+## Validation checkpoint
+
+- focused functional tests passed on the initial implementation head;
+- all reported Ruff/import/format findings were repaired mechanically;
+- the one-shot autofix removed itself from the branch;
+- the current PR changes exactly the implementation, focused tests and this task record;
+- a clean exact-head AI Platform, full Freqtrade and security run is in progress.
 
 ## Acceptance
 

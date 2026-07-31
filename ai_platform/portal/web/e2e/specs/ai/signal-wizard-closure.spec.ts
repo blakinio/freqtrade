@@ -3,10 +3,6 @@ import { expect, test } from "../../fixtures/test.fixture";
 
 const snapshotSha = "b".repeat(64);
 
-async function selectAtrAndPreview(page: Parameters<typeof test>[0] extends never ? never : never) {
-  void page;
-}
-
 test.describe("Signal Wizard closure", { tag: [tags.regression, tags.responsive] }, () => {
   test(
     "selects approved features, validates a preview and creates a research experiment",

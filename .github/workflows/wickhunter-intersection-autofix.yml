@@ -1,0 +1,149 @@
+name: WickHunter Intersection One-Shot Autofix
+
+"on":
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+    paths:
+      - .github/workflows/wickhunter-intersection-autofix.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-intersection-autofix-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'agent/wickhunter-market-evidence-intersection-v3'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact head branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: agent/wickhunter-market-evidence-intersection-v3
+          fetch-depth: 0
+
+      - name: Apply exact mechanical repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("ai_platform/wickhunter/production_market_evidence_intersection.py")
+          text = path.read_text(encoding="utf-8")
+
+          replacements = {
+              "RUN_ID_PATTERN = re.compile(\n    r\"^wickhunter-production-market-evidence-\\d{8}-v3-r\\d+$\"\n)": (
+                  "RUN_ID_PATTERN = re.compile("
+                  "r\"^wickhunter-production-market-evidence-\\d{8}-v3-r\\d+$\""
+                  ")"
+              ),
+              "def build_intersection_package(  # noqa: C901, PLR0912, PLR0915": (
+                  "def build_intersection_package("
+              ),
+              "def verify_intersection_package(  # noqa: C901, PLR0912, PLR0915": (
+                  "def verify_intersection_package(  # noqa: C901"
+              ),
+              "sum(int(item[\"record_count\"]) for item in candle_artifacts)": (
+                  "sum("
+                  "_integer(item.get(\"record_count\"), field=\"candle record_count\") "
+                  "for item in candle_artifacts"
+                  ")"
+              ),
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"missing expected replacement target: {old[:80]}")
+              text = text.replace(old, new)
+
+          identity_block = """        identity = (source, symbol)
+                  if identity in seen:
+                      raise MarketEvidenceIntersectionError(\"duplicate candle source-symbol identity\")
+                  seen.add(identity)
+          """
+          replacement_block = """        source_symbol = (source, symbol)
+                  if source_symbol in seen:
+                      raise MarketEvidenceIntersectionError(\"duplicate candle source-symbol identity\")
+                  seen.add(source_symbol)
+          """
+          if text.count(identity_block) != 1:
+              raise SystemExit("expected one copy-candle identity block")
+          text = text.replace(identity_block, replacement_block)
+
+          verifier_block = """        identity = (source, symbol)
+                  if identity in seen or identity not in expected_identities:
+                      raise MarketEvidenceIntersectionError(\"candle index identity mismatch\")
+                  seen.add(identity)
+          """
+          verifier_replacement = """        source_symbol = (source, symbol)
+                  if source_symbol in seen or source_symbol not in expected_identities:
+                      raise MarketEvidenceIntersectionError(\"candle index identity mismatch\")
+                  seen.add(source_symbol)
+          """
+          if verifier_block not in text:
+              raise SystemExit("missing verifier candle identity block")
+          text = text.replace(verifier_block, verifier_replacement)
+
+          artifact_block = """    for raw in artifacts:
+                  identity = _object(raw, field=\"artifact identity\")
+                  logical_name = str(identity.get(\"logical_name\", \"\"))
+                  path = _safe_member(package_root, logical_name)
+                  if (
+                      _file_hash(path) != identity.get(\"sha256\")
+                      or path.stat().st_size != identity.get(\"size_bytes\")
+                  ):
+                      raise MarketEvidenceIntersectionError(\"intersection artifact identity mismatch\")
+                  expected_lines.add(f\"{identity['sha256']}  {logical_name}\")
+          """
+          artifact_replacement = """    for raw in artifacts:
+                  artifact_identity = _object(raw, field=\"artifact identity\")
+                  logical_name = str(artifact_identity.get(\"logical_name\", \"\"))
+                  path = _safe_member(package_root, logical_name)
+                  if (
+                      _file_hash(path) != artifact_identity.get(\"sha256\")
+                      or path.stat().st_size != artifact_identity.get(\"size_bytes\")
+                  ):
+                      raise MarketEvidenceIntersectionError(\"intersection artifact identity mismatch\")
+                  expected_lines.add(f\"{artifact_identity['sha256']}  {logical_name}\")
+          """
+          if artifact_block not in text:
+              raise SystemExit("missing artifact identity block")
+          text = text.replace(artifact_block, artifact_replacement)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Apply repository formatter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install pre-commit
+          files=(
+            ai_platform/wickhunter/production_market_evidence_intersection.py
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_intersection.py
+          )
+          pre-commit run ruff-format --files "${files[@]}" || true
+          pre-commit run ruff-format --files "${files[@]}"
+          pre-commit run ruff --files "${files[@]}"
+
+      - name: Commit repairs and remove one-shot workflow
+        shell: bash
+        env:
+          TARGET_BRANCH: agent/wickhunter-market-evidence-intersection-v3
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/wickhunter-intersection-autofix.yml
+          git add \
+            ai_platform/wickhunter/production_market_evidence_intersection.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_intersection.py
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git commit -m "fix(wickhunter): satisfy intersection checks"
+          git push origin "HEAD:$TARGET_BRANCH"

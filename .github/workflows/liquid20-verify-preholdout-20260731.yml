@@ -1,0 +1,156 @@
+name: Liquid20 Verify Pre-Holdout Closure
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-verify-preholdout-20260731.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquid20-verify-preholdout-20260731
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    name: Verify closed July 31 run and live recovery
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout exact observer head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file observer scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\t.github/workflows/liquid20-verify-preholdout-20260731.yml'
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Refuse credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "BLOCKED forbidden environment: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Observe durable closure and active collector
+        shell: bash
+        env:
+          HOLDOUT_START_MS: "1785542400000"
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME}" == "freqtrade-synology-staging" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' liquid20-live)" == "true" ]]
+          docker exec -i liquid20-live python - "$HOLDOUT_START_MS" <<'PY'
+          import json
+          import sys
+          import time
+          from pathlib import Path
+
+          holdout_start_ms = int(sys.argv[1])
+          live_root = Path('/data/live')
+          runs_root = live_root / 'runs'
+          candidates = []
+          for run_root in runs_root.glob('liquid20-20260731T000000Z-*'):
+              state_path = run_root / 'run-state-v1.json'
+              if run_root.is_symlink() or not state_path.is_file() or state_path.is_symlink():
+                  continue
+              state = json.loads(state_path.read_text(encoding='utf-8'))
+              completed_at_ms = state.get('completed_at_ms')
+              if (
+                  state.get('run_state') == 'completed'
+                  and state.get('data_mode') == 'historical'
+                  and isinstance(completed_at_ms, int)
+                  and completed_at_ms < holdout_start_ms
+              ):
+                  candidates.append((completed_at_ms, run_root.name, run_root, state))
+          if not candidates:
+              raise SystemExit('no eligible completed July 31 run exists')
+          completed_at_ms, closed_run_id, closed_root, closed_state = max(candidates)
+          event_counts = {}
+          for source in ('binance-usdm', 'bybit-linear'):
+              item = closed_state.get('sources', {}).get(source)
+              if not isinstance(item, dict):
+                  raise SystemExit(f'{source} state is missing')
+              count = item.get('events_written')
+              if isinstance(count, bool) or not isinstance(count, int) or count <= 0:
+                  raise SystemExit(f'{source} has no captured events')
+              event_counts[source] = count
+              for suffix in ('.ndjson', '-summary.json'):
+                  path = closed_root / f'{source}{suffix}'
+                  if path.is_symlink() or not path.is_file() or path.stat().st_size <= 0:
+                      raise SystemExit(f'invalid closed artifact: {path.name}')
+
+          pointer_path = live_root / 'live-state-v1.json'
+          if pointer_path.is_symlink() or not pointer_path.is_file():
+              raise SystemExit('active pointer is invalid')
+          pointer = json.loads(pointer_path.read_text(encoding='utf-8'))
+          active_run_id = pointer.get('active_run_id')
+          active = pointer.get('state')
+          if not isinstance(active_run_id, str) or active_run_id == closed_run_id:
+              raise SystemExit('new active run identity is invalid')
+          if not isinstance(active, dict) or active.get('run_state') != 'active':
+              raise SystemExit('new active run state is invalid')
+          now_ms = time.time_ns() // 1_000_000
+          heartbeat = active.get('collector_heartbeat_at_ms')
+          if not isinstance(heartbeat, int) or now_ms - heartbeat > 60_000:
+              raise SystemExit('new collector heartbeat is stale')
+          active_sources = {}
+          for source in ('binance-usdm', 'bybit-linear', 'okx-swap'):
+              item = active.get('sources', {}).get(source)
+              if not isinstance(item, dict):
+                  raise SystemExit(f'active {source} state is missing')
+              if item.get('configured') is not True or item.get('connected') is not True:
+                  raise SystemExit(f'active {source} is not connected')
+              subscriptions = item.get('subscription_symbol_count')
+              if isinstance(subscriptions, bool) or not isinstance(subscriptions, int) or subscriptions <= 0:
+                  raise SystemExit(f'active {source} subscriptions are empty')
+              active_sources[source] = {
+                  'connected': True,
+                  'subscription_symbol_count': subscriptions,
+              }
+
+          print(json.dumps({
+              'status': 'PRE_HOLDOUT_RUN_VERIFIED',
+              'closed_run_id': closed_run_id,
+              'closed_at_ms': completed_at_ms,
+              'completion_reason': closed_state.get('completion_reason'),
+              'closed_event_counts': event_counts,
+              'active_run_id': active_run_id,
+              'active_sources': active_sources,
+              'orders_submitted': 0,
+          }, sort_keys=True))
+          PY

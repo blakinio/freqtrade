@@ -24,6 +24,7 @@ class SignalWizardPreviewRow(Base):
     request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     strategy_version: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    command_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     preview_json: Mapped[str] = mapped_column(Text, nullable=False)
 
 

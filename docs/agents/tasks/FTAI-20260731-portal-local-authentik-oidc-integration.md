@@ -5,7 +5,7 @@ branch: feat/portal-local-authentik-oidc-20260731
 base_branch: develop
 created: 2026-07-31
 updated: 2026-07-31
-related_pr: null
+related_pr: 876
 owned_paths:
   - .github/workflows/portal-oidc-local-test-deploy.yml
   - ai_platform/portal/identity/local_test_runtime.py
@@ -54,9 +54,11 @@ Replace the Synology Portal identity fixture with a real local Authentik OIDC Au
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T18:40:00+02:00
+updated_at: 2026-07-31T18:43:00+02:00
 branch: feat/portal-local-authentik-oidc-20260731
 base_branch: develop
+pr: 876
+head: e96354b40c3476d5d59687a6aab567933a35862b
 status: active
 proven:
   - The Next.js BFF browser callback is /api/identity/callback.
@@ -65,6 +67,7 @@ proven:
   - Portal product membership is local and cannot be granted from email, domain or browser tenant input.
   - The existing Authentik stack is healthy and persists its runtime secrets under the protected Synology staging state directory.
   - The existing Portal preview is on private-LAN TCP 3031 and currently uses fixture identity.
+  - Implementation PR 876 was opened against develop from exact head e96354b40c3476d5d59687a6aab567933a35862b.
 derived:
   - A separate internal identity session API is required because the deployed Next.js Portal does not itself host the Python identity service.
   - The LAN-only HTTP target requires a narrowly gated test transport because production cookies and issuer validation are HTTPS-only.
@@ -73,8 +76,8 @@ unknown:
   - The Authentik-generated provider client secret value; it must remain unknown outside Synology.
   - Whether full browser acceptance will stop at the owner's interactive MFA challenge.
 first_failure:
-  marker: DEPLOYMENT_NOT_YET_AUTHORIZED_BY_FROZEN_REQUEST
-  evidence: The implementation must pass exact-head CI and merge before the request-only PR may run on the trusted Synology target.
+  marker: EXACT_HEAD_CI_PENDING
+  evidence: PR 876 must pass all required exact-head checks before merge.
 validation_required:
   - focused OIDC and identity tests
   - Authentik blueprint/deployment contract tests
@@ -86,5 +89,5 @@ validation_required:
   - Freqtrade CI
   - CI Gate
 blockers: []
-next_action: Open the implementation PR, resolve exact-head CI, merge with expected head SHA, then create exactly one frozen deployment request from the resulting develop SHA.
+next_action: Resolve all exact-head PR 876 CI failures, merge with expected_head_sha, then create exactly one frozen deployment request from the resulting develop SHA.
 ```

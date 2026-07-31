@@ -258,16 +258,17 @@ def test_control_plane_registers_preview_and_submit_routes() -> None:
     assert submit_response.json()["accepted"] is True
 
 
-def test_identity_enabled_routes_bind_trusted_per_request_correlation() -> None:
+def test_identity_enabled_routes_bind_trusted_correlation_and_preserve_retries() -> None:
     engine = build_engine("sqlite+pysqlite:///:memory:")
     create_schema(engine)
     factory = build_session_factory(engine)
     identity = _RotatingIdentityBoundary()
     client = TestClient(create_identity_enabled_app(factory, cast(IdentityService, identity)))
 
+    preview_command = _preview_command(idempotency_key="preview-identity")
     preview_response = client.post(
         "/v1/signal-wizard/preview",
-        json=_preview_command(idempotency_key="preview-identity").model_dump(mode="json"),
+        json=preview_command.model_dump(mode="json"),
     )
     assert preview_response.status_code == 200
     assert identity.last_context is not None
@@ -277,6 +278,15 @@ def test_identity_enabled_routes_bind_trusted_per_request_correlation() -> None:
         preview_context.correlation_context().model_dump(mode="json")
     )
     assert preview_payload["context"]["correlation"]["request_id"] != str(REQUEST_ID)
+
+    preview_retry = client.post(
+        "/v1/signal-wizard/preview",
+        json=preview_command.model_dump(mode="json"),
+    )
+    assert preview_retry.status_code == 200
+    assert identity.last_context is not None
+    assert identity.last_context.request_id != preview_context.request_id
+    assert preview_retry.json() == preview_payload
 
     submit = SignalWizardSubmitCommand(
         context=_closure_context(),
@@ -293,7 +303,17 @@ def test_identity_enabled_routes_bind_trusted_per_request_correlation() -> None:
     assert submit_response.status_code == 201
     assert identity.last_context is not None
     submit_context = identity.last_context
+    submit_payload = submit_response.json()
     assert submit_context.request_id != preview_context.request_id
-    assert submit_response.json()["context"]["correlation"] == (
+    assert submit_payload["context"]["correlation"] == (
         submit_context.correlation_context().model_dump(mode="json")
     )
+
+    submit_retry = client.post(
+        "/v1/signal-wizard/submit",
+        json=submit.model_dump(mode="json"),
+    )
+    assert submit_retry.status_code == 201
+    assert identity.last_context is not None
+    assert identity.last_context.request_id != submit_context.request_id
+    assert submit_retry.json() == submit_payload

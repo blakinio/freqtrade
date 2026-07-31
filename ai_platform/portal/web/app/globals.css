@@ -129,8 +129,8 @@ button, input, select, textarea { font: inherit; }
 .environment-research, .status-created, .status-info, .status-candidate, .status-validated { color: var(--accent); border-color: rgb(91 214 255 / 35%); background: rgb(91 214 255 / 8%); }
 .topbar-health { color: var(--muted); font-size: .86rem; }
 .health-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--success); box-shadow: 0 0 14px var(--success); }
-.page-content { padding: clamp(24px, 2.2vw, 48px); }
-.page-stack { display: grid; gap: 24px; max-width: var(--content-max); margin: 0 auto; }
+.page-content { min-width: 0; padding: clamp(24px, 2.2vw, 48px); }
+.page-stack { min-width: 0; display: grid; gap: 24px; max-width: var(--content-max); margin: 0 auto; }
 .page-heading, .panel-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; }
 .page-lede { max-width: 980px; color: #d7e3f3; font-size: 1.05rem; line-height: 1.65; }
 h1, h2, p { margin-top: 0; }
@@ -147,7 +147,7 @@ h2 { margin-bottom: 0; font-size: clamp(1.2rem, .5vw + 1rem, 1.5rem); }
 .metric-card { padding: 20px; min-height: 122px; display: flex; flex-direction: column; justify-content: space-between; }
 .metric-card span { color: var(--muted); font-size: .82rem; }
 .metric-card strong { font-size: clamp(1.5rem, .7vw + 1.2rem, 2rem); text-transform: capitalize; }
-.panel { padding: clamp(20px, 1.5vw, 28px); }
+.panel { min-width: 0; padding: clamp(20px, 1.5vw, 28px); }
 .surface-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 18px; }
 .surface-card { min-width: 0; }
 .surface-card p { color: #cad8eb; line-height: 1.65; }
@@ -172,7 +172,7 @@ h2 { margin-bottom: 0; font-size: clamp(1.2rem, .5vw + 1rem, 1.5rem); }
 .status-warning { border-color: rgb(247 199 108 / 35%); background: rgb(247 199 108 / 7%); }
 .capability-list { margin: 16px 0 0; padding-left: 20px; color: #d8e5f7; }
 .capability-list li { margin: 7px 0; }
-.table-wrap { overflow: auto; }
+.table-wrap { min-width: 0; max-width: 100%; overflow: auto; }
 table { width: 100%; border-collapse: collapse; min-width: 880px; font-size: .9rem; }
 th, td { text-align: left; padding: 15px 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 th { color: var(--muted); font-size: .73rem; text-transform: uppercase; letter-spacing: .06em; }

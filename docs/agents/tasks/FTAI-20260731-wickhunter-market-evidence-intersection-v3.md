@@ -2,7 +2,7 @@
 
 ## Status
 
-`implementing`
+`validating`
 
 ## Goal
 
@@ -39,6 +39,12 @@ The implementation must calculate `max(start)` / `min(end)` from verified manife
 4. Publish a new no-overwrite immutable package with source manifest/request hashes, a self-hashed binding, a self-hashed lineage record, artifact hashes, checksum index and an independent verifier.
 5. Preserve all execution, replay, model, performance-research, credential and live-capital authorities as false and `orders_submitted=0`.
 6. Keep WH-01 blocked only on the separate accepted Liquid20/split binding step.
+
+## Validation checkpoint
+
+- first exact-head pre-commit identified only mechanical Mypy, Ruff directive and formatter failures;
+- the one-shot repair fixed those findings and removed itself from the branch;
+- the current exact head is cleanly re-triggering the complete CI and security suite.
 
 ## Acceptance
 

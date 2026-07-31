@@ -8,8 +8,10 @@ name: AI Platform WickHunter Market Evidence CI
     paths:
       - ".github/workflows/ai-platform-wickhunter-market-evidence-ci.yml"
       - ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml"
+      - ".github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml"
       - "ai_platform/wickhunter/production_market_evidence*.py"
       - "ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v1.json"
+      - "ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json"
       - "ai_platform/portal/web/app/api/market/evidence/**"
       - "ai_platform/portal/web/app/market/evidence/**"
       - "ai_platform/portal/web/components/market-evidence-*"
@@ -18,10 +20,12 @@ name: AI Platform WickHunter Market Evidence CI
       - "ai_platform/portal/web/fixtures/market-evidence/**"
       - "ai_platform/portal/web/lib/market-evidence/**"
       - "deploy/synology/wickhunter-market-evidence/**"
+      - "deploy/synology/wickhunter-market-evidence-v2/**"
       - "deploy/synology/portal/deploy-market-evidence-preview.sh"
       - "docs/ai_platform/WICKHUNTER_PRODUCTION_MARKET_EVIDENCE.md"
       - "docs/ai_platform/portal/MARKET_EVIDENCE_READ_MODEL.md"
       - "docs/agents/tasks/FTAI-20260730-wickhunter-production-market-evidence-capture-and-portal-v1.md"
+      - "docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md"
       - "tests/ai_platform_integration/test_wickhunter_production_market_evidence*.py"
   workflow_dispatch:
 
@@ -57,14 +61,17 @@ jobs:
           uv pip install -r requirements-dev.txt
           uv pip install -e .
 
-      - name: Compile collector and adapter
+      - name: Compile collectors and adapters
         run: |
           set -euo pipefail
           python -m compileall -q \
             ai_platform/wickhunter/production_market_evidence.py \
             ai_platform/wickhunter/production_market_evidence_service.py \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
-            ai_platform/wickhunter/production_market_evidence_wh01.py
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            ai_platform/wickhunter/production_market_evidence_v2.py \
+            ai_platform/wickhunter/production_market_evidence_service_v2.py \
+            ai_platform/wickhunter/production_market_evidence_daemon_v2.py
 
       - name: Run focused backend tests
         run: |
@@ -72,9 +79,11 @@ jobs:
           pytest -q \
             tests/ai_platform_integration/test_wickhunter_production_market_evidence.py \
             tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
-            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
 
-      - name: Ruff collector and tests
+      - name: Ruff collectors and tests
         run: |
           set -euo pipefail
           ruff check \
@@ -82,23 +91,37 @@ jobs:
             ai_platform/wickhunter/production_market_evidence_service.py \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_wh01.py \
+            ai_platform/wickhunter/production_market_evidence_v2.py \
+            ai_platform/wickhunter/production_market_evidence_service_v2.py \
+            ai_platform/wickhunter/production_market_evidence_daemon_v2.py \
             tests/ai_platform_integration/test_wickhunter_production_market_evidence.py \
             tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
-            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
           ruff format --check \
             ai_platform/wickhunter/production_market_evidence.py \
             ai_platform/wickhunter/production_market_evidence_service.py \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_wh01.py \
+            ai_platform/wickhunter/production_market_evidence_v2.py \
+            ai_platform/wickhunter/production_market_evidence_service_v2.py \
+            ai_platform/wickhunter/production_market_evidence_daemon_v2.py \
             tests/ai_platform_integration/test_wickhunter_production_market_evidence.py \
             tests/ai_platform_integration/test_wickhunter_production_market_evidence_service.py \
-            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_service_v2.py
 
-      - name: Validate task checkpoint
-        run: >-
-          python tools/agents/checkpoint.py
-          docs/agents/tasks/FTAI-20260730-wickhunter-production-market-evidence-capture-and-portal-v1.md
-          --require-checkpoint
+      - name: Validate task checkpoints
+        run: |
+          set -euo pipefail
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260730-wickhunter-production-market-evidence-capture-and-portal-v1.md \
+            --require-checkpoint
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md \
+            --require-checkpoint
 
   portal:
     name: Portal API, UI and critical browser flow
@@ -177,30 +200,47 @@ jobs:
           set -euo pipefail
           python -m py_compile \
             deploy/synology/wickhunter-market-evidence/healthcheck.py \
-            ai_platform/wickhunter/production_market_evidence_daemon.py
+            deploy/synology/wickhunter-market-evidence-v2/healthcheck_v2.py \
+            ai_platform/wickhunter/production_market_evidence_daemon.py \
+            ai_platform/wickhunter/production_market_evidence_daemon_v2.py
           bash -n deploy/synology/portal/deploy-market-evidence-preview.sh
           MARKET_EVIDENCE_REQUEST_FILE=/tmp/request.json \
           COLLECTOR_COMMIT=1111111111111111111111111111111111111111 \
           docker compose \
             -f deploy/synology/wickhunter-market-evidence/compose.yaml \
             config --quiet
+          MARKET_EVIDENCE_V2_REQUEST_FILE=/tmp/request-v2.json \
+          COLLECTOR_COMMIT=1111111111111111111111111111111111111111 \
+          docker compose \
+            -f deploy/synology/wickhunter-market-evidence-v2/compose.yaml \
+            config --quiet
 
       - name: Verify hardened collector service settings
         shell: bash
         run: |
           set -euo pipefail
-          rendered="$(
-            MARKET_EVIDENCE_REQUEST_FILE=/tmp/request.json \
-            COLLECTOR_COMMIT=1111111111111111111111111111111111111111 \
-            docker compose \
-              -f deploy/synology/wickhunter-market-evidence/compose.yaml \
-              config
-          )"
-          grep -q 'read_only: true' <<< "$rendered"
-          grep -q 'no-new-privileges:true' <<< "$rendered"
-          grep -q 'cap_drop:' <<< "$rendered"
-          grep -q -- '- ALL' <<< "$rendered"
-          if grep -Eq 'network_mode: host|ports:' <<< "$rendered"; then
-            echo "Collector must not use host network or publish ports" >&2
-            exit 1
-          fi
+          for version in v1 v2; do
+            if [[ "$version" == "v1" ]]; then
+              compose=deploy/synology/wickhunter-market-evidence/compose.yaml
+              rendered="$(
+                MARKET_EVIDENCE_REQUEST_FILE=/tmp/request.json \
+                COLLECTOR_COMMIT=1111111111111111111111111111111111111111 \
+                docker compose -f "$compose" config
+              )"
+            else
+              compose=deploy/synology/wickhunter-market-evidence-v2/compose.yaml
+              rendered="$(
+                MARKET_EVIDENCE_V2_REQUEST_FILE=/tmp/request-v2.json \
+                COLLECTOR_COMMIT=1111111111111111111111111111111111111111 \
+                docker compose -f "$compose" config
+              )"
+            fi
+            grep -q 'read_only: true' <<< "$rendered"
+            grep -q 'no-new-privileges:true' <<< "$rendered"
+            grep -q 'cap_drop:' <<< "$rendered"
+            grep -q -- '- ALL' <<< "$rendered"
+            if grep -Eq 'network_mode: host|ports:' <<< "$rendered"; then
+              echo "Collector must not use host network or publish ports: $compose" >&2
+              exit 1
+            fi
+          done

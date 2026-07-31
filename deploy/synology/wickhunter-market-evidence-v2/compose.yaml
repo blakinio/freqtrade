@@ -1,0 +1,46 @@
+services:
+  collector:
+    build:
+      context: ../../..
+      dockerfile: deploy/synology/wickhunter-market-evidence-v2/Dockerfile
+      args:
+        COLLECTOR_COMMIT: ${COLLECTOR_COMMIT:?COLLECTOR_COMMIT is required}
+    image: local/wickhunter-market-evidence-v2:${IMAGE_TAG:-local}
+    container_name: wickhunter-market-evidence-v2
+    restart: always
+    init: true
+    user: "${PUID:-1026}:${PGID:-100}"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    environment:
+      COLLECTOR_COMMIT: ${COLLECTOR_COMMIT:?COLLECTOR_COMMIT is required}
+      MARKET_EVIDENCE_V2_DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2
+      MARKET_EVIDENCE_V2_REQUEST_PATH: /run/config/request.json
+      MARKET_EVIDENCE_V2_LOOP_SECONDS: ${MARKET_EVIDENCE_V2_LOOP_SECONDS:-60}
+      MARKET_EVIDENCE_V2_HEALTH_MAX_AGE_SECONDS: ${MARKET_EVIDENCE_V2_HEALTH_MAX_AGE_SECONDS:-600}
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: /app
+    volumes:
+      - ${MARKET_EVIDENCE_V2_STATE_DIR:-/volume1/docker/freqtrade-staging-state/wickhunter-production-market-evidence-v2}:/var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2:rw
+      - ${MARKET_EVIDENCE_V2_REQUEST_FILE:?MARKET_EVIDENCE_V2_REQUEST_FILE is required}:/run/config/request.json:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/market-evidence-v2-healthcheck"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    networks:
+      - market-evidence-v2-egress
+
+networks:
+  market-evidence-v2-egress:
+    driver: bridge
+    internal: false

@@ -1,2 +1,2 @@
 export * from "./contracts";
-export * from "./reader";
+export * from "./reader-v2";

@@ -1,0 +1,198 @@
+name: AI Platform WickHunter Production Market Evidence v2
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260731-v2.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-production-market-evidence-v2
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: ai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260731-v2.json
+  STATE_DIR: /var/lib/freqtrade-staging-state
+  DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2
+  PERSISTED_REQUEST_PATH: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2/request.json
+  COLLECTOR_UID: "1026"
+  COLLECTOR_GID: "100"
+  COMPOSE_FILE: deploy/synology/wickhunter-market-evidence-v2/compose.yaml
+
+jobs:
+  initialize:
+    name: Deploy persistent OKX market evidence collector
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file trigger scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/wickhunter/run-requests/wickhunter-production-market-evidence-20260731-v2.json'
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "WickHunter v2 trigger must add exactly the canonical request" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+
+      - name: Validate runner, Docker and durable storage
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          mkdir -p "$DURABLE_ROOT"
+          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+          docker version >/dev/null
+          docker compose version >/dev/null
+          host_state_dir="$(docker inspect \
+            --format '{{range .Mounts}}{{if eq .Destination "/var/lib/freqtrade-staging-state"}}{{.Source}}{{end}}{{end}}' \
+            freqtrade-synology-staging-runner)"
+          [[ "$host_state_dir" =~ ^/volume1/docker/[A-Za-z0-9._/-]+$ ]]
+          [[ "$host_state_dir" != *$'\n'* ]]
+          printf 'HOST_DURABLE_ROOT=%s\n' \
+            "$host_state_dir/wickhunter-production-market-evidence-v2" >> "$GITHUB_ENV"
+          printf 'HOST_PERSISTED_REQUEST_PATH=%s\n' \
+            "$host_state_dir/wickhunter-production-market-evidence-v2/request.json" >> "$GITHUB_ENV"
+
+      - name: Refuse credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Persist immutable request and initialize capture
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ -e "$PERSISTED_REQUEST_PATH" || -L "$PERSISTED_REQUEST_PATH" ]]; then
+            [[ -f "$PERSISTED_REQUEST_PATH" && ! -L "$PERSISTED_REQUEST_PATH" ]]
+            cmp --silent "$REQUEST_PATH" "$PERSISTED_REQUEST_PATH"
+          else
+            temporary="$DURABLE_ROOT/.request.json.${GITHUB_RUN_ID}.tmp"
+            install -m 0444 "$REQUEST_PATH" "$temporary"
+            mv "$temporary" "$PERSISTED_REQUEST_PATH"
+          fi
+          if [[ ! -f "$DURABLE_ROOT/active-wickhunter-production-market-evidence-v2.json" ]]; then
+            PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_v2 \
+              initialize \
+              --request "$PERSISTED_REQUEST_PATH" \
+              --durable-root "$DURABLE_ROOT" \
+              --collector-commit "$HEAD_SHA"
+          else
+            PYTHONPATH=. python3 - <<'PY'
+          from pathlib import Path
+          from ai_platform.wickhunter import production_market_evidence_v2 as core
+
+          root = Path("/var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2")
+          request = core.load_capture_request(root / "request.json")
+          run_root, state = core._load_active(root)
+          if state.get("status") != "active" or state.get("run_id") != request.run_id:
+              raise SystemExit("existing active v2 capture identity is invalid")
+          if run_root != root / request.run_id:
+              raise SystemExit("existing active v2 capture root is invalid")
+          print("Existing initialized v2 capture validated; deployment will resume it.")
+          PY
+          fi
+
+      - name: Hand durable state to hardened collector identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find "$DURABLE_ROOT" -xdev -type l -print -quit | grep -q .; then
+            echo "Durable WickHunter v2 root contains a forbidden symlink" >&2
+            exit 1
+          fi
+          chown -R -- "$COLLECTOR_UID:$COLLECTOR_GID" "$DURABLE_ROOT"
+          [[ "$(stat -c '%u:%g' "$DURABLE_ROOT")" == "$COLLECTOR_UID:$COLLECTOR_GID" ]]
+          [[ "$(stat -c '%a' "$PERSISTED_REQUEST_PATH")" == "444" ]]
+
+      - name: Deploy collector and release runner
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          export COLLECTOR_COMMIT="$HEAD_SHA"
+          export IMAGE_TAG="${HEAD_SHA:0:12}"
+          export MARKET_EVIDENCE_V2_REQUEST_FILE="$HOST_PERSISTED_REQUEST_PATH"
+          export MARKET_EVIDENCE_V2_STATE_DIR="$HOST_DURABLE_ROOT"
+          docker compose -f "$COMPOSE_FILE" config --quiet
+          docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans collector
+
+      - name: Verify persistent collector health
+        shell: bash
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 24); do
+            running="$(docker inspect --format '{{.State.Running}}' \
+              wickhunter-market-evidence-v2 2>/dev/null || true)"
+            if [[ "$running" == "true" && -f "$DURABLE_ROOT/collector-health.json" ]]; then
+              if python3 - "$DURABLE_ROOT/collector-health.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          result = payload.get("result")
+          if payload.get("healthy") is not True or not isinstance(result, dict):
+              raise SystemExit(1)
+          if result.get("status") in {"failed", "rejected"}:
+              raise SystemExit(1)
+          PY
+              then
+                docker inspect --format '{{json .State.Health}}' \
+                  wickhunter-market-evidence-v2
+                echo "Persistent OKX collector is healthy; runner released."
+                exit 0
+              fi
+            fi
+            sleep 5
+          done
+          docker inspect wickhunter-market-evidence-v2 || true
+          docker logs --tail 100 wickhunter-market-evidence-v2 || true
+          echo "Persistent OKX collector did not become healthy" >&2
+          exit 1

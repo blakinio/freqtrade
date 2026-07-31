@@ -92,9 +92,7 @@ def test_daemon_fails_closed_without_active_or_terminal_state(tmp_path: Path) ->
 def test_persistent_sampler_deployment_is_hardened_and_request_gated() -> None:
     compose = (DEPLOY_ROOT / "compose.yaml").read_text(encoding="utf-8")
     dockerfile = (DEPLOY_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    healthcheck = (DEPLOY_ROOT / "binance_acceptance_healthcheck.py").read_text(
-        encoding="utf-8"
-    )
+    healthcheck = (DEPLOY_ROOT / "binance_acceptance_healthcheck.py").read_text(encoding="utf-8")
     workflow = DEPLOY_WORKFLOW.read_text(encoding="utf-8")
 
     assert "container_name: binance-v3-acceptance-sampler" in compose

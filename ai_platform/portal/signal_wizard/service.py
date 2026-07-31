@@ -15,6 +15,7 @@ from strategy_engine.dsl.ast import Condition, ConditionGroup
 from ai_platform.portal.contracts.environment import Environment
 from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.contracts.strategy_closure import (
+    ClosureRequestContext,
     SignalWizardFeatureSelection,
     SignalWizardLeakageWarning,
     SignalWizardParameterConstraint,
@@ -38,17 +39,39 @@ from ai_platform.portal.signal_wizard.repository import SignalWizardRepository
 
 
 class SignalWizardNotFoundError(LookupError):
-    pass
+    def __init__(
+        self,
+        reason_code: str,
+        message: str,
+        public_message: str,
+    ) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+        self.public_message = public_message
 
 
 class SignalWizardConflictError(RuntimeError):
-    pass
+    def __init__(
+        self,
+        reason_code: str,
+        message: str,
+        public_message: str,
+    ) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+        self.public_message = public_message
 
 
 class SignalWizardValidationError(ValueError):
-    def __init__(self, reason_code: str, message: str) -> None:
+    def __init__(
+        self,
+        reason_code: str,
+        message: str,
+        public_message: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.reason_code = reason_code
+        self.public_message = public_message or _bounded_public_message(reason_code)
 
 
 class SignalWizardService:
@@ -83,27 +106,37 @@ class SignalWizardService:
             result, existing_digest, _ = existing
             if existing_digest != request_digest:
                 raise SignalWizardConflictError(
-                    "preview idempotency key was already used for a different command"
+                    "SIGNAL_WIZARD_PREVIEW_IDEMPOTENCY_CONFLICT",
+                    "preview idempotency key was already used for a different command",
+                    "The preview idempotency key is already bound to another request.",
                 )
             return result
 
-        features, warnings, registry_version, snapshot_sha256 = self._validate_features(
-            context,
-            command.feature_selections,
+        features, enabled_feature_ids, warnings, registry_version, snapshot_sha256 = (
+            self._validate_features(context, command.feature_selections)
         )
         condition_ast = self._validate_condition_ast(
             command.condition_ast,
-            {feature["id"] for feature in features},
+            enabled_feature_ids,
         )
-        self._validate_parameter_constraints(command.parameter_constraints, features)
-        strategy_version = command.base_strategy_version or (
-            f"{command.strategy_id}:wizard:{request_digest[:12]}"
+        self._validate_parameter_constraints(
+            command.parameter_constraints,
+            [feature for feature in features if feature["enabled"]],
         )
+        strategy_version = f"{command.strategy_id}:wizard:{request_digest[:12]}"
+        execution_metadata = {
+            "mode": command.context.execution_mode.value,
+            "use_closed_bars_only": True,
+            "execution_authority": False,
+            "promotion_authority": False,
+            "live_capital_authority": False,
+        }
         strategy_definition: dict[str, Any] = {
             "schema_version": command.requested_strategy_schema_version,
             "strategy_id": command.strategy_id,
             "version": strategy_version,
             "base_strategy_version": command.base_strategy_version,
+            "lifecycle_state": "research_draft",
             "features": features,
             "condition_ast": condition_ast,
             "parameter_constraints": [
@@ -113,16 +146,11 @@ class SignalWizardService:
                 "registry_version": registry_version,
                 "snapshot_sha256": snapshot_sha256,
             },
-            "execution": {
-                "mode": command.context.execution_mode.value,
-                "use_closed_bars_only": True,
-                "execution_authority": False,
+            "execution": execution_metadata,
+            "draft_authority": {
+                "research_only": True,
+                **execution_metadata,
             },
-            "risk": {
-                "max_leverage": 1.0,
-                "live_capital_authority": False,
-            },
-            "authority": "research_only",
             "provenance": command.context.provenance.model_dump(mode="json"),
         }
         preview_hash = _sha256_json(
@@ -148,6 +176,7 @@ class SignalWizardService:
                 self._repository.add_preview(
                     session,
                     result,
+                    command,
                     request_digest=request_digest,
                     strategy_version=strategy_version,
                     created_at=created_at,
@@ -164,7 +193,9 @@ class SignalWizardService:
             concurrent_result, concurrent_digest, _ = concurrent
             if concurrent_digest != request_digest:
                 raise SignalWizardConflictError(
-                    "preview idempotency key was concurrently used for another command"
+                    "SIGNAL_WIZARD_PREVIEW_IDEMPOTENCY_CONFLICT",
+                    "preview idempotency key was concurrently used for another command",
+                    "The preview idempotency key is already bound to another request.",
                 )
             return concurrent_result
         return result
@@ -190,7 +221,9 @@ class SignalWizardService:
             result, existing_digest = existing
             if existing_digest != request_digest:
                 raise SignalWizardConflictError(
-                    "submit idempotency key was already used for a different command"
+                    "SIGNAL_WIZARD_SUBMIT_IDEMPOTENCY_CONFLICT",
+                    "submit idempotency key was already used for a different command",
+                    "The submit idempotency key is already bound to another request.",
                 )
             return result
 
@@ -201,16 +234,25 @@ class SignalWizardService:
                 command.preview_hash,
             )
         if preview_record is None:
-            raise SignalWizardNotFoundError("Signal Wizard preview was not found")
-        preview, strategy_version = preview_record
-        if preview.context.resource_id != command.context.resource_id:
-            raise SignalWizardConflictError("preview target does not match submit target")
+            raise SignalWizardNotFoundError(
+                "SIGNAL_WIZARD_PREVIEW_NOT_FOUND",
+                "Signal Wizard preview was not found",
+                "The persisted Signal Wizard preview was not found.",
+            )
+        preview, strategy_version, preview_command = preview_record
+        self._validate_submit_binding(preview_command.context, command.context)
         if command.expected_strategy_version != strategy_version:
             raise SignalWizardConflictError(
-                "expected strategy version does not match the persisted preview"
+                "SIGNAL_WIZARD_VERSION_MISMATCH",
+                "expected strategy version does not match the persisted preview",
+                "The expected strategy version no longer matches the persisted preview.",
             )
         if any(warning.blocking for warning in preview.leakage_warnings):
-            raise SignalWizardConflictError("preview contains blocking leakage warnings")
+            raise SignalWizardConflictError(
+                "SIGNAL_WIZARD_BLOCKING_LEAKAGE",
+                "preview contains blocking leakage warnings",
+                "The preview contains a blocking leakage or repaint warning.",
+            )
 
         experiment_id = str(
             uuid5(
@@ -251,7 +293,9 @@ class SignalWizardService:
             concurrent_result, concurrent_digest = concurrent
             if concurrent_digest != request_digest:
                 raise SignalWizardConflictError(
-                    "submit idempotency key was concurrently used for another command"
+                    "SIGNAL_WIZARD_SUBMIT_IDEMPOTENCY_CONFLICT",
+                    "submit idempotency key was concurrently used for another command",
+                    "The submit idempotency key is already bound to another request.",
                 )
             return concurrent_result
         return result
@@ -293,44 +337,86 @@ class SignalWizardService:
                 "Signal Wizard commands are not accepted for production environment",
             )
 
+    @staticmethod
+    def _validate_submit_binding(
+        preview_context: ClosureRequestContext,
+        submit_context: ClosureRequestContext,
+    ) -> None:
+        if (
+            preview_context.actor_id != submit_context.actor_id
+            or preview_context.actor_type != submit_context.actor_type
+        ):
+            raise SignalWizardConflictError(
+                "SIGNAL_WIZARD_ACTOR_MISMATCH",
+                "submit actor does not match the persisted preview actor",
+                "The authenticated actor does not match the persisted preview.",
+            )
+        if (
+            preview_context.resource_type != submit_context.resource_type
+            or preview_context.resource_id != submit_context.resource_id
+        ):
+            raise SignalWizardConflictError(
+                "SIGNAL_WIZARD_TARGET_MISMATCH",
+                "submit target does not match the persisted preview target",
+                "The submit target does not match the persisted preview.",
+            )
+        if preview_context.environment != submit_context.environment:
+            raise SignalWizardConflictError(
+                "SIGNAL_WIZARD_ENVIRONMENT_MISMATCH",
+                "submit environment does not match the persisted preview environment",
+                "The submit environment does not match the persisted preview.",
+            )
+        if preview_context.execution_mode != submit_context.execution_mode:
+            raise SignalWizardConflictError(
+                "SIGNAL_WIZARD_EXECUTION_MODE_MISMATCH",
+                "submit execution mode does not match the persisted preview execution mode",
+                "The submit execution mode does not match the persisted preview.",
+            )
+
     def _validate_features(
         self,
         context: RequestContext,
         selections: tuple[SignalWizardFeatureSelection, ...],
-    ) -> tuple[list[dict[str, Any]], tuple[SignalWizardLeakageWarning, ...], str, str]:
-        enabled = tuple(selection for selection in selections if selection.enabled)
-        if not enabled:
-            raise SignalWizardValidationError(
-                "SIGNAL_WIZARD_NO_ENABLED_FEATURES",
-                "at least one feature selection must be enabled",
-            )
+    ) -> tuple[
+        list[dict[str, Any]],
+        set[str],
+        tuple[SignalWizardLeakageWarning, ...],
+        str,
+        str,
+    ]:
         definitions: list[tuple[SignalWizardFeatureSelection, FeatureRegistryFeature]] = []
-        for selection in enabled:
+        for selection in selections:
             try:
                 definition = self._feature_registry.get_feature(context, selection.feature_id)
             except FeatureRegistryNotFoundError as exc:
                 raise SignalWizardValidationError(
                     "FEATURE_REGISTRY_UNKNOWN_FEATURE",
-                    str(exc),
+                    "unknown Feature Registry identity",
                 ) from exc
             if not definition.approved_for_ai:
                 raise SignalWizardValidationError(
                     "FEATURE_NOT_APPROVED_FOR_AI",
-                    f"feature is not approved for AI use: {selection.feature_id}",
+                    "feature is not approved for AI use",
                 )
             definitions.append((selection, definition))
 
-        selected_ids = tuple(selection.feature_id for selection, _ in definitions)
-        resolution = self._feature_registry.resolve_dependencies(context, selected_ids)
+        enabled_definitions = tuple(item for item in definitions if item[0].enabled)
+        if not enabled_definitions:
+            raise SignalWizardValidationError(
+                "SIGNAL_WIZARD_NO_ENABLED_FEATURES",
+                "at least one feature selection must be enabled",
+            )
+        enabled_ids = tuple(selection.feature_id for selection, _ in enabled_definitions)
+        resolution = self._feature_registry.resolve_dependencies(context, enabled_ids)
         missing_dependencies = tuple(
             feature_id
             for feature_id in resolution.resolved_feature_ids
-            if feature_id not in selected_ids
+            if feature_id not in enabled_ids
         )
         if missing_dependencies:
             raise SignalWizardValidationError(
                 "FEATURE_DEPENDENCY_MISSING",
-                "explicitly select required dependencies: " + ", ".join(missing_dependencies),
+                "enabled feature dependencies must be explicitly selected and enabled",
             )
 
         warnings: list[SignalWizardLeakageWarning] = []
@@ -338,14 +424,16 @@ class SignalWizardService:
         for index, (selection, definition) in enumerate(definitions):
             parameters = _resolved_parameters(selection.parameters, definition)
             timestamp_policy = definition.timestamp_policy.lower()
-            if "closed_bar" not in timestamp_policy and "confirm" not in timestamp_policy:
+            if selection.enabled and (
+                "closed_bar" not in timestamp_policy and "confirm" not in timestamp_policy
+            ):
                 warnings.append(
                     SignalWizardLeakageWarning(
                         reason_code="FEATURE_TIMESTAMP_POLICY_REQUIRES_REVIEW",
                         field_path=f"feature_selections[{index}].feature_id",
                         message=(
-                            f"{selection.feature_id} does not declare an explicit closed or "
-                            "confirmed-bar timestamp policy"
+                            "The enabled feature does not declare an explicit closed or "
+                            "confirmed-bar timestamp policy."
                         ),
                         blocking=True,
                     )
@@ -353,6 +441,7 @@ class SignalWizardService:
             resolved_features.append(
                 {
                     "id": selection.feature_id,
+                    "enabled": selection.enabled,
                     "params": parameters,
                     "timeframe": selection.timeframe,
                     "confirmation": (
@@ -363,6 +452,7 @@ class SignalWizardService:
             )
         return (
             resolved_features,
+            set(enabled_ids),
             tuple(warnings),
             resolution.registry_version,
             resolution.snapshot_sha256,
@@ -378,7 +468,7 @@ class SignalWizardService:
         except ValidationError as exc:
             raise SignalWizardValidationError(
                 "DSL_SCHEMA_INVALID",
-                str(exc),
+                "condition AST failed typed schema validation",
             ) from exc
         _validate_condition_group(group, declared_features, "condition_ast")
         return group.model_dump(mode="json")
@@ -397,33 +487,30 @@ class SignalWizardService:
             if not values:
                 raise SignalWizardValidationError(
                     "PARAMETER_CONSTRAINT_UNKNOWN",
-                    f"constraint references an undeclared parameter: {constraint.parameter}",
+                    "constraint references an undeclared enabled parameter",
                 )
             for value in values:
-                if (
-                    constraint.minimum is not None
-                    and isinstance(value, Real)
-                    and not isinstance(value, bool)
-                ):
-                    if float(value) < constraint.minimum:
+                if constraint.minimum is not None or constraint.maximum is not None:
+                    if not isinstance(value, Real) or isinstance(value, bool):
                         raise SignalWizardValidationError(
-                            constraint.reason_code,
-                            f"{constraint.parameter} is below the requested minimum",
+                            "PARAMETER_CONSTRAINT_TYPE_INVALID",
+                            "numeric constraint requires a numeric parameter value",
                         )
-                if (
-                    constraint.maximum is not None
-                    and isinstance(value, Real)
-                    and not isinstance(value, bool)
-                ):
-                    if float(value) > constraint.maximum:
+                    numeric = float(value)
+                    if constraint.minimum is not None and numeric < constraint.minimum:
                         raise SignalWizardValidationError(
                             constraint.reason_code,
-                            f"{constraint.parameter} exceeds the requested maximum",
+                            "parameter is below the requested minimum",
+                        )
+                    if constraint.maximum is not None and numeric > constraint.maximum:
+                        raise SignalWizardValidationError(
+                            constraint.reason_code,
+                            "parameter exceeds the requested maximum",
                         )
                 if constraint.allowed_values and value not in constraint.allowed_values:
                     raise SignalWizardValidationError(
                         constraint.reason_code,
-                        f"{constraint.parameter} is outside the requested allowed values",
+                        "parameter is outside the requested allowed values",
                     )
 
 
@@ -446,7 +533,7 @@ def _resolved_parameters(
     if unknown:
         raise SignalWizardValidationError(
             "FEATURE_PARAMETER_UNKNOWN",
-            f"unknown parameters for {definition.feature_id}: {', '.join(unknown)}",
+            "feature selection contains an undeclared parameter",
         )
     result: dict[str, Any] = {}
     for name, spec in specs.items():
@@ -536,8 +623,34 @@ def _validate_condition(
     if condition.feature is not None and condition.feature not in declared_features:
         raise SignalWizardValidationError(
             "FEATURE_NOT_DECLARED",
-            f"{label} references an undeclared feature: {condition.feature}",
+            f"{label} references an undeclared enabled feature",
         )
+
+
+def _bounded_public_message(reason_code: str) -> str:
+    messages = {
+        "SIGNAL_WIZARD_CONTEXT_MISMATCH": "Authenticated identity mismatch.",
+        "SIGNAL_WIZARD_ACTOR_TYPE_MISMATCH": "Authenticated actor type mismatch.",
+        "SIGNAL_WIZARD_CORRELATION_MISMATCH": "Command correlation is invalid.",
+        "SIGNAL_WIZARD_PRODUCTION_FORBIDDEN": "Signal Wizard is forbidden in production.",
+        "SIGNAL_WIZARD_NO_ENABLED_FEATURES": "Enable at least one approved feature.",
+        "FEATURE_REGISTRY_UNKNOWN_FEATURE": "A registry feature identity is unknown.",
+        "FEATURE_NOT_APPROVED_FOR_AI": "A feature is not approved for AI research.",
+        "FEATURE_DEPENDENCY_MISSING": "An enabled feature dependency is missing.",
+        "DSL_SCHEMA_INVALID": "The typed condition definition is invalid.",
+        "PARAMETER_CONSTRAINT_UNKNOWN": "A constraint references an unavailable parameter.",
+        "PARAMETER_CONSTRAINT_TYPE_INVALID": "A numeric constraint requires a number.",
+        "FEATURE_PARAMETER_UNKNOWN": "A selected feature has an unknown parameter.",
+        "FEATURE_PARAMETER_TYPE_INVALID": "A feature parameter has an invalid type.",
+        "FEATURE_PARAMETER_BELOW_MINIMUM": "A feature parameter is below its minimum.",
+        "FEATURE_PARAMETER_ABOVE_MAXIMUM": "A feature parameter exceeds its maximum.",
+        "FEATURE_PARAMETER_CHOICE_INVALID": "A feature parameter is outside allowed values.",
+        "CONDITION_GROUP_EMPTY": "The typed condition group cannot be empty.",
+        "CONDITION_INVALID": "The typed condition contains an invalid selector.",
+        "FEATURE_NOT_DECLARED": "The condition references a feature that is not enabled.",
+        "SIGNAL_WIZARD_INVALID_IDEMPOTENCY_KEY": "The idempotency key is invalid.",
+    }
+    return messages.get(reason_code, "The Signal Wizard request failed validation.")
 
 
 def _sha256_text(value: str) -> str:

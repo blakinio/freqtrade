@@ -5,7 +5,7 @@ branch: fix/ai-program-closure-responsive-overflow-20260731
 base_branch: develop
 created: 2026-07-31
 updated: 2026-07-31
-related_pr: pending
+related_pr: "#880"
 parent_task: FTAI-20260730-closure-integration-e2e
 owned_paths:
   - docs/agents/tasks/FTAI-20260731-closure-responsive-overflow-repair.md
@@ -38,11 +38,11 @@ The repair is restricted to the global portal stylesheet and this durable task c
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T20:47:00+02:00
-head: bdedbf55f9200e566e613737ce4aa05aa274b187
+updated_at: 2026-07-31T20:50:00+02:00
+head: 1217fd101401aab1623ce49941c665bf66ce95ee
 branch: fix/ai-program-closure-responsive-overflow-20260731
-pr: pending
-status: implementing
+pr: "#880"
+status: validating
 context_routes:
   - docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md
   - docs/ai_platform/portal/E2E_TEST_ARCHITECTURE.md
@@ -52,11 +52,14 @@ owned_paths:
 proven:
   - PR 874 responsive Chromium journey measured 547 pixels of document-level overflow at a 390 by 844 viewport.
   - Wide portal tables intentionally use min-width 880px and are wrapped by .table-wrap with overflow auto.
-  - The containing .panel is a grid item with default min-width auto, allowing intrinsic table width plus panel padding to expand the document.
+  - The containing .panel was a grid item with default min-width auto, allowing intrinsic table width plus panel padding to expand the document.
+  - The repair adds intrinsic shrink containment to page-content, page-stack, panel and table-wrap without changing the table minimum width.
+  - PR 880 changes exactly the two coordinator-authorized owned paths.
 derived:
-  - Applying min-width zero to the relevant grid and panel containment chain will retain local table scrolling without clipping or weakening the assertion.
+  - The intrinsic sizing repair should retain local table scrolling without clipping or weakening the responsive assertion.
 unknown:
-  - Exact-head CI outcome after the bounded stylesheet repair.
+  - Exact-head CI outcome for PR 880.
+  - Exact-head PR 874 responsive outcome after repair merge and refresh.
 conflicts: []
 first_failure:
   marker: PORTAL_MOBILE_DOCUMENT_HORIZONTAL_OVERFLOW
@@ -67,10 +70,17 @@ rejected_hypotheses:
   - Raise or delete the responsive E2E threshold.
 changed_paths:
   - docs/agents/tasks/FTAI-20260731-closure-responsive-overflow-repair.md
+  - ai_platform/portal/web/app/globals.css
 validation:
   - command: inspect globals.css intrinsic sizing chain
     result: PASS
-    evidence: .table-wrap owns scrolling, but .panel and .page-stack do not explicitly permit intrinsic shrinkage.
+    evidence: .table-wrap owned scrolling, but its grid-item containment chain did not explicitly permit intrinsic shrinkage.
+  - command: compare develop to repair branch
+    result: PASS
+    evidence: Branch is ahead by two commits, behind by zero and changes exactly two owned paths; stylesheet delta is four bounded declarations.
+  - command: open focused repair PR
+    result: PASS
+    evidence: PR 880 opened normally against develop with exactly two changed files.
 blockers: []
-next_action: Apply the minimal intrinsic-sizing containment repair in globals.css, open the focused PR, and validate exact-head CI.
+next_action: Inspect PR 880 exact-head checks, repair only the first concrete owned-path failure, then merge normally when green.
 ```

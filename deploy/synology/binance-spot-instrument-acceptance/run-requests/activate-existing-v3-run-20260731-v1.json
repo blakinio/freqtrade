@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "request_id": "binance-v3-persistent-sampler-activation-20260731-v1",
+  "target_run_id": "binance-spot-instrument-shadow-acceptance-20260729-v3-r1",
+  "minimum_existing_sample_count": 24,
+  "persistent_sampler_deployment_authorized": true,
+  "initialize_new_run": false,
+  "reset_or_delete_state": false,
+  "reuse_acceptance_request_identity": false,
+  "production_source_enabled": false,
+  "execution_enabled": false,
+  "orders_submitted": 0
+}

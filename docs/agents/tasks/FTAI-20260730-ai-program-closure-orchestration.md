@@ -5,7 +5,7 @@ branch: agent/program-closure-final-terminal-20260801
 base_branch: develop
 created: 2026-07-30
 updated: 2026-08-01
-related_pr: pending
+related_pr: "#897"
 program: FTAI-PROGRAM-AI-TRADING-PORTAL
 goal_state: repository-complete-paper-shadow
 required_reads:
@@ -112,10 +112,10 @@ The terminal Integration/E2E task PR #894 subsequently passed AI Program Closure
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T00:30:00+02:00
-head: 04404b14c05586e6452ab5d9ce26920822412ed9
+updated_at: 2026-08-01T00:32:00+02:00
+head: ba4cbbe4d989bd1e6149c959f3cd21cc8e999c14
 branch: agent/program-closure-final-terminal-20260801
-pr: pending
+pr: "#897"
 status: ready
 context_routes:
   - AGENTS.md

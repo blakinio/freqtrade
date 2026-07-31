@@ -18,7 +18,6 @@ from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
 from ai_platform.wickhunter.contracts import AvailableMetric, MarketContextSnapshot
 from ai_platform.wickhunter.dataset import (
     DATASET_MANIFEST_SCHEMA_VERSION,
-    AcceptedImportBundle,
     DatasetSplitGeometry,
     DatasetSplitWindow,
     WickHunterDatasetBuildRequest,
@@ -27,11 +26,13 @@ from ai_platform.wickhunter.dataset import (
 )
 from ai_platform.wickhunter.production_market_evidence_intersection import (
     CANDLE_INDEX_NAME,
-    MANIFEST_NAME as MARKET_MANIFEST_NAME,
     QUALITY_ROWS_NAME,
     SOURCE_ROWS_NAME,
     TIMEFRAME_MS,
     verify_intersection_package,
+)
+from ai_platform.wickhunter.production_market_evidence_intersection import (
+    MANIFEST_NAME as MARKET_MANIFEST_NAME,
 )
 from ai_platform.wickhunter.universe import (
     DynamicUniverseSnapshot,
@@ -134,9 +135,7 @@ def _decimal(value: object, *, field: str, positive: bool = False) -> Decimal:
     try:
         parsed = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as exc:
-        raise ProductionDatasetMaterializationError(
-            f"{field} must be decimal-compatible"
-        ) from exc
+        raise ProductionDatasetMaterializationError(f"{field} must be decimal-compatible") from exc
     if not parsed.is_finite() or (positive and parsed <= 0):
         raise ProductionDatasetMaterializationError(f"{field} has an invalid value")
     return parsed
@@ -169,12 +168,8 @@ def _market_geometry(manifest: Mapping[str, object]) -> tuple[int, int, int, int
     capture = manifest.get("capture")
     if not isinstance(capture, dict):
         raise ProductionDatasetMaterializationError("market manifest capture is missing")
-    pre_roll_start_ms = _integer(
-        capture.get("pre_roll_start_ms"), field="pre_roll_start_ms"
-    )
-    decision_start_ms = _integer(
-        capture.get("decision_start_ms"), field="decision_start_ms"
-    )
+    pre_roll_start_ms = _integer(capture.get("pre_roll_start_ms"), field="pre_roll_start_ms")
+    decision_start_ms = _integer(capture.get("decision_start_ms"), field="decision_start_ms")
     decision_end_ms = _integer(capture.get("decision_end_ms"), field="decision_end_ms")
     holdout_start_ms = _integer(
         manifest.get("protected_holdout_start_ms"),
@@ -185,8 +180,7 @@ def _market_geometry(manifest: Mapping[str, object]) -> tuple[int, int, int, int
     if decision_end_ms > holdout_start_ms:
         raise ProductionDatasetMaterializationError("market geometry overlaps holdout")
     if any(
-        value % TIMEFRAME_MS
-        for value in (pre_roll_start_ms, decision_start_ms, decision_end_ms)
+        value % TIMEFRAME_MS for value in (pre_roll_start_ms, decision_start_ms, decision_end_ms)
     ):
         raise ProductionDatasetMaterializationError("market geometry is not 5m-aligned")
     return pre_roll_start_ms, decision_start_ms, decision_end_ms, holdout_start_ms
@@ -234,7 +228,7 @@ def production_split_geometry(
     )
 
 
-def _candle_maps(
+def _candle_maps(  # noqa: C901
     market_root: Path,
     *,
     manifest: Mapping[str, object],
@@ -283,7 +277,7 @@ def _candle_maps(
     return result
 
 
-def _market_inputs(  # noqa: C901, PLR0912, PLR0915
+def _market_inputs(  # noqa: C901
     market_root: Path,
 ) -> tuple[
     tuple[MarketContextSnapshot, ...],
@@ -292,8 +286,8 @@ def _market_inputs(  # noqa: C901, PLR0912, PLR0915
 ]:
     verification = verify_intersection_package(market_root)
     manifest = _load_json(market_root / MARKET_MANIFEST_NAME, field="market manifest")
-    pre_roll_start_ms, decision_start_ms, decision_end_ms, holdout_start_ms = (
-        _market_geometry(manifest)
+    pre_roll_start_ms, decision_start_ms, decision_end_ms, holdout_start_ms = _market_geometry(
+        manifest
     )
     del pre_roll_start_ms
     sources = manifest.get("sources")
@@ -433,12 +427,16 @@ def _market_inputs(  # noqa: C901, PLR0912, PLR0915
     market_keys = {(item.decision_timestamp_ms, item.symbol) for item in markets}
     if len(market_keys) != len(markets):
         raise ProductionDatasetMaterializationError("market context keys are not unique")
-    return tuple(markets), tuple(universes), {
-        "market_verification": verification,
-        "market_manifest": manifest,
-        "market_context_count": len(markets),
-        "universe_snapshot_count": len(universes),
-    }
+    return (
+        tuple(markets),
+        tuple(universes),
+        {
+            "market_verification": verification,
+            "market_manifest": manifest,
+            "market_context_count": len(markets),
+            "universe_snapshot_count": len(universes),
+        },
+    )
 
 
 def _dataset_request(
@@ -498,7 +496,7 @@ def _verify_partitions(dataset_root: Path, manifest: Mapping[str, object]) -> No
         raise ProductionDatasetMaterializationError("dataset partition totals mismatch")
 
 
-def materialize_production_dataset(  # noqa: C901, PLR0915
+def materialize_production_dataset(
     *,
     output_root: Path,
     market_package_root: Path,
@@ -514,9 +512,7 @@ def materialize_production_dataset(  # noqa: C901, PLR0915
     market_manifest = market_evidence["market_manifest"]
     if not isinstance(market_manifest, dict):
         raise ProductionDatasetMaterializationError("market manifest is unavailable")
-    _, decision_start_ms, decision_end_ms, holdout_start_ms = _market_geometry(
-        market_manifest
-    )
+    _, decision_start_ms, decision_end_ms, holdout_start_ms = _market_geometry(market_manifest)
     accepted = load_accepted_import(accepted_import_root.resolve(strict=True))
     if accepted.selection.protected_holdout_start_ms != holdout_start_ms:
         raise ProductionDatasetMaterializationError(
@@ -536,9 +532,7 @@ def materialize_production_dataset(  # noqa: C901, PLR0915
     request = _dataset_request(code_sha=code_sha, geometry=geometry)
 
     output_root.parent.mkdir(parents=True, exist_ok=True)
-    temporary_root = Path(
-        tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_root.parent)
-    )
+    temporary_root = Path(tempfile.mkdtemp(prefix=f".{output_root.name}.", dir=output_root.parent))
     try:
         dataset_root = temporary_root / DATASET_DIR_NAME
         artifacts = build_wickhunter_dataset(
@@ -593,12 +587,8 @@ def materialize_production_dataset(  # noqa: C901, PLR0915
             "market_context_count": market_evidence["market_context_count"],
             "universe_snapshot_count": market_evidence["universe_snapshot_count"],
             "total_rows": dataset_manifest["total_rows"],
-            "earliest_decision_timestamp_ms": dataset_manifest[
-                "earliest_decision_timestamp_ms"
-            ],
-            "latest_decision_timestamp_ms": dataset_manifest[
-                "latest_decision_timestamp_ms"
-            ],
+            "earliest_decision_timestamp_ms": dataset_manifest["earliest_decision_timestamp_ms"],
+            "latest_decision_timestamp_ms": dataset_manifest["latest_decision_timestamp_ms"],
             "wh01_ready": True,
             "wh01_blocker": None,
             "protected_holdout_accessed": False,
@@ -619,7 +609,10 @@ def materialize_production_dataset(  # noqa: C901, PLR0915
             dataset_root / "manifest.json",
             dataset_root / "sources.json",
             dataset_root / "universe" / "history.jsonl",
-            *(dataset_root / Path(str(item["relative_path"])) for item in dataset_manifest["partitions"]),
+            *(
+                dataset_root / Path(str(item["relative_path"]))
+                for item in dataset_manifest["partitions"]
+            ),
         ]
         checksum_lines = [
             f"{sha256_file(path)}  {path.relative_to(temporary_root).as_posix()}"
@@ -635,9 +628,7 @@ def materialize_production_dataset(  # noqa: C901, PLR0915
                 "schema_version": MATERIALIZATION_SCHEMA_VERSION,
                 "status": "verified",
                 "outcome": "accepted",
-                "materialization_sha256": materialization[
-                    "materialization_sha256"
-                ],
+                "materialization_sha256": materialization["materialization_sha256"],
                 "source_binding_sha256": binding["binding_sha256"],
                 "dataset_manifest_sha256": dataset_manifest["manifest_sha256"],
                 "total_rows": dataset_manifest["total_rows"],
@@ -662,38 +653,35 @@ def verify_production_materialization(output_root: Path) -> dict[str, object]:  
     dataset_root = output_root / DATASET_DIR_NAME
     binding = _load_json(output_root / BINDING_NAME, field="source binding")
     binding_hash = binding.get("binding_sha256")
-    if not isinstance(binding_hash, str) or _self_hash(
-        binding, field="binding_sha256"
-    ) != binding_hash:
+    if (
+        not isinstance(binding_hash, str)
+        or _self_hash(binding, field="binding_sha256") != binding_hash
+    ):
         raise ProductionDatasetMaterializationError("source binding self hash mismatch")
     materialization = _load_json(
         output_root / MATERIALIZATION_MANIFEST_NAME,
         field="materialization manifest",
     )
     materialization_hash = materialization.get("materialization_sha256")
-    if not isinstance(materialization_hash, str) or _self_hash(
-        materialization,
-        field="materialization_sha256",
-    ) != materialization_hash:
-        raise ProductionDatasetMaterializationError(
-            "materialization manifest self hash mismatch"
+    if (
+        not isinstance(materialization_hash, str)
+        or _self_hash(
+            materialization,
+            field="materialization_sha256",
         )
+        != materialization_hash
+    ):
+        raise ProductionDatasetMaterializationError("materialization manifest self hash mismatch")
     dataset_manifest = _dataset_manifest(dataset_root / "manifest.json")
     _verify_partitions(dataset_root, dataset_manifest)
     if binding.get("dataset_manifest_sha256") != dataset_manifest.get("manifest_sha256"):
         raise ProductionDatasetMaterializationError("binding dataset identity mismatch")
-    if materialization.get("dataset_manifest_sha256") != dataset_manifest.get(
-        "manifest_sha256"
-    ):
-        raise ProductionDatasetMaterializationError(
-            "materialization dataset identity mismatch"
-        )
+    if materialization.get("dataset_manifest_sha256") != dataset_manifest.get("manifest_sha256"):
+        raise ProductionDatasetMaterializationError("materialization dataset identity mismatch")
     if binding.get("source_binding_sha256") is not None:
         raise ProductionDatasetMaterializationError("unexpected nested binding identity")
     if materialization.get("source_binding_sha256") != binding_hash:
-        raise ProductionDatasetMaterializationError(
-            "materialization source binding mismatch"
-        )
+        raise ProductionDatasetMaterializationError("materialization source binding mismatch")
     for payload, field in (
         (binding, "source binding"),
         (materialization, "materialization manifest"),
@@ -710,9 +698,10 @@ def verify_production_materialization(output_root: Path) -> dict[str, object]:  
             raise ProductionDatasetMaterializationError(f"{field} authorizes live capital")
         if payload.get("orders_submitted") != 0:
             raise ProductionDatasetMaterializationError(f"{field} submitted orders")
-    if materialization.get("wh01_ready") is not True or materialization.get(
-        "wh01_blocker"
-    ) is not None:
+    if (
+        materialization.get("wh01_ready") is not True
+        or materialization.get("wh01_blocker") is not None
+    ):
         raise ProductionDatasetMaterializationError("WH-01 terminal state mismatch")
     checksum_path = output_root / CHECKSUM_NAME
     if checksum_path.is_symlink() or not checksum_path.is_file():
@@ -733,8 +722,7 @@ def verify_production_materialization(output_root: Path) -> dict[str, object]:  
         verification.get("outcome") != "accepted"
         or verification.get("materialization_sha256") != materialization_hash
         or verification.get("source_binding_sha256") != binding_hash
-        or verification.get("dataset_manifest_sha256")
-        != dataset_manifest.get("manifest_sha256")
+        or verification.get("dataset_manifest_sha256") != dataset_manifest.get("manifest_sha256")
         or verification.get("wh01_ready") is not True
         or verification.get("protected_holdout_accessed") is not False
         or verification.get("orders_submitted") != 0
@@ -750,12 +738,8 @@ def verify_production_materialization(output_root: Path) -> dict[str, object]:  
         "dataset_manifest_file_sha256": sha256_file(dataset_root / "manifest.json"),
         "total_rows": dataset_manifest["total_rows"],
         "partition_count": len(dataset_manifest["partitions"]),
-        "earliest_decision_timestamp_ms": dataset_manifest[
-            "earliest_decision_timestamp_ms"
-        ],
-        "latest_decision_timestamp_ms": dataset_manifest[
-            "latest_decision_timestamp_ms"
-        ],
+        "earliest_decision_timestamp_ms": dataset_manifest["earliest_decision_timestamp_ms"],
+        "latest_decision_timestamp_ms": dataset_manifest["latest_decision_timestamp_ms"],
         "wh01_ready": True,
         "wh01_blocker": None,
         "protected_holdout_accessed": False,

@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 
 from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
@@ -34,6 +34,7 @@ from ai_platform.portal.signal_wizard.service import (
     SignalWizardService,
     SignalWizardValidationError,
 )
+
 
 REQUEST_ID = UUID("20000000-0000-0000-0000-000000000001")
 CORRELATION_ID = UUID("20000000-0000-0000-0000-000000000002")

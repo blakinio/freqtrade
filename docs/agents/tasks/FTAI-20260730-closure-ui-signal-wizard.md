@@ -16,7 +16,7 @@ semantic_hardening_pr: 858
 semantic_hardening_merge: da86b55310a3c3575ad3168743cd1062f1387d6d
 implementation_pr: 855
 implementation_merge: 521c8ef6bd3f9281e0f2e429a7e32c70273b5e0e
-completion_pr: pending
+completion_pr: 863
 backend_task: FTAI-20260730-closure-signal-wizard-backend
 backend_pr: 825
 backend_merge: 0bc35521debd33312820dfad9f010e22aa651610

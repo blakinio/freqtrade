@@ -136,6 +136,4 @@ class SignalWizardRepository:
         try:
             return SignalWizardSubmitResult.model_validate_json(row.submission_json)
         except (ValidationError, ValueError) as exc:
-            raise CorruptSignalWizardRecordError(
-                "corrupt Signal Wizard submission record"
-            ) from exc
+            raise CorruptSignalWizardRecordError("corrupt Signal Wizard submission record") from exc

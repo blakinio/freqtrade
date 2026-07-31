@@ -1,57 +1,61 @@
-# Signal Wizard Context Hardening Worker Prompt
+# Signal Wizard Semantic Hardening Worker Prompt
 
-Paste the complete text below into a separate agent chat only when the closure dispatch table authorizes `FTAI-20260731-closure-signal-wizard-context-hardening` and no active implementation PR already owns it.
+Paste the complete text below into a separate agent chat only after PR #844 has merged normally and the closure dispatch table changes `FTAI-20260731-closure-signal-wizard-context-hardening` to `READY`.
 
 ---
 
-Pracujesz autonomicznie w repozytorium `blakinio/freqtrade` jako bounded backend/API worker naprawiający Signal Wizard po merge PR #825.
+Pracujesz autonomicznie w repozytorium `blakinio/freqtrade` jako bounded backend/persistence worker domykający semantykę Signal Wizard po merge PR #825 i correlation repair PR #844.
 
 Przeczytaj i stosuj:
 
 - `docs/agents/prompts/ai-program-closure/WORKER-COMMON-RULES.md`;
 - `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md`;
+- `docs/agents/tasks/FTAI-20260731-signal-wizard-correlation-repair.md`;
 - `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md`;
 - `docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md`;
 - `docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md`;
 - frozen contracts z PR #781;
 - merged backend z PR #825;
-- identity-enabled control plane z `ai_platform/portal/identity/http.py` i `service.py`.
+- finalny correlation/router repair z PR #844.
+
+## Start condition
+
+Nie zaczynaj implementacji, dopóki PR #844 nie jest normalnie scalony z zielonym exact-head CI i zerem unresolved review threads. Po jego merge wykonaj nowy preflight `develop` i open PR path inventory.
 
 ## Branch
 
-Pracuj wyłącznie na `agent/closure-signal-wizard-context-hardening`, utworzonym z aktualnego `develop` po ponownym preflightcie. Jeżeli aktywny PR już używa tego brancha i tasku, kontynuuj go zamiast tworzyć duplikat.
+Pracuj wyłącznie na `agent/closure-signal-wizard-semantic-hardening`, utworzonym z aktualnego `develop` po merge PR #844. Jeżeli aktywny PR już używa tego brancha i tasku, kontynuuj go zamiast tworzyć duplikat.
 
 ## Owned paths
 
-Nie wychodź poza dokładne `owned_paths` zapisane w tasku. W szczególności nie zmieniaj frozen contracts, Feature Registry source definitions, Strategy Lab fixed catalog ani żadnego frontendowego Signal Wizard path.
+Nie wychodź poza dokładne `owned_paths` zapisane w tasku. W szczególności nie zmieniaj:
+
+- frozen contracts;
+- `ai_platform/portal/signal_wizard/router.py`;
+- `tests/ai_platform/portal/signal_wizard/test_signal_wizard.py`;
+- Feature Registry source definitions;
+- Strategy Lab fixed catalog;
+- żadnego frontendowego Signal Wizard path.
 
 ## Cel
 
-Dostarcz jeden focused repair, który:
-
-1. wiąże correlation context po stronie serwera do trusted `RequestContext` przed digestem, idempotency, persistence i response construction;
-2. przechodzi prawdziwy identity-enabled HTTP flow przez `create_identity_enabled_app`, realną portal session i CSRF;
-3. domyka wszystkie wykazane luki semantyczne scalonego backendu.
+Dostarcz jeden focused repair, który domyka pozostałe luki semantyczne i persistence bez ponownego implementowania correlation/router lane z PR #844.
 
 ## Wymagania implementacyjne
 
-- Zachowaj frozen `SignalWizardPreviewCommand` i `SignalWizardSubmitCommand` bez redefinicji.
-- Zweryfikuj tenant, actor i actor type względem trusted `RequestContext`.
-- Zastąp wyłącznie command correlation context przez `RequestContext.correlation_context()` przed canonical JSON, digestem i persistence.
-- Nigdy nie traktuj correlation z body jako authorization lub trusted provenance.
-- Identity-enabled test ma wysłać inne UUID-y w body niż wygenerowane przez identity boundary i potwierdzić zapis trusted wartości.
 - Waliduj wszystkie feature selections, również disabled; każda musi istnieć i mieć `approved_for_ai=true`.
 - Zachowaj exact `feature_id`, `enabled`, timeframe, resolved parameters i registry definition identity.
 - Warunki DSL mogą odwoływać się tylko do enabled features; co najmniej jedna feature musi być enabled.
-- Zawsze wyprowadzaj nowy immutable research-draft strategy version z canonical trusted request digest. `base_strategy_version` zachowaj wyłącznie jako provenance.
+- Zawsze wyprowadzaj nowy immutable research-draft strategy version z canonical trusted request digest po bindingu z PR #844.
+- `base_strategy_version` zachowaj wyłącznie jako provenance; nigdy nie używaj go jako nowej wersji draftu.
 - Usuń wymyślone `risk.max_leverage` i wszelką fałszywą runtime compatibility.
-- Dodaj forward migration i zapis exact canonical trusted preview command JSON.
-- Submit ma wiązać persisted preview z pełnym tenant/actor/resource_type/resource_id/environment/execution_mode identity oraz exact derived version.
-- Zachowaj deterministic durable experiment ID.
-- Wprowadź stabilne, rozłączne reason codes dla idempotency, target, environment, execution mode, version, leakage i corrupt-record konfliktów.
-- Router nie może zwracać raw exception, Pydantic input, cookies, tokens, headers, credentials ani private endpoints.
+- Dodaj forward migration `0002_semantic_hardening.sql`; nie modyfikuj `0001_signal_wizard.sql`.
+- Persistuj exact canonical trusted preview command JSON wraz z result JSON, request digest i derived version.
+- Submit ma wiązać persisted preview z pełnym tenant/actor/actor_type/resource_type/resource_id/environment/execution_mode identity oraz exact derived version.
+- Zachowaj deterministic durable experiment ID i tenant-scoped idempotency.
+- Dodaj stabilne service conflict reason codes dla idempotency, target, environment, execution mode, actor, version i blocking leakage; router mapping pozostaje własnością PR #844.
 - Numeric minimum/maximum constraint z nonnumeric value ma fail closed.
-- Dodaj service, persistence, tenant-isolation, restart-safe idempotency, compatibility, identity-enabled HTTP i secret-exclusion tests.
+- Dodaj nowy, rozłączny test file z service/persistence, tenant-isolation, disabled-feature preservation, non-approved disabled feature rejection, base-version provenance, exact target binding, restart-safe command identity, idempotency i secret-exclusion coverage.
 
 ## Safety
 

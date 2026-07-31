@@ -284,7 +284,7 @@ def container_summary(details: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def deploy(root: Path, request: dict[str, Any], report_path: Path) -> dict[str, Any]:  # noqa: C901
+def deploy(root: Path, request: dict[str, Any], report_path: Path) -> dict[str, Any]:
     validate_request(request)
     port = int(request["authentik_http_port"])
     state_root = Path(

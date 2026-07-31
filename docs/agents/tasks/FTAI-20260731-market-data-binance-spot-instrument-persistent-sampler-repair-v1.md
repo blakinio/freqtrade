@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260731-market-data-binance-spot-instrument-persistent-sampler-repair-v1
-status: validating
+status: completed
 branch: fix/binance-v3-persistent-sampler-20260731
 base_branch: develop
 created: 2026-07-31
@@ -10,7 +10,7 @@ owned_paths:
   - ai_platform/market_data/binance_spot_instrument_acceptance_daemon.py
   - deploy/synology/binance-spot-instrument-acceptance/Dockerfile
   - deploy/synology/binance-spot-instrument-acceptance/compose.yaml
-  - deploy/synology/binance-spot-instrument-acceptance/healthcheck.py
+  - deploy/synology/binance-spot-instrument-acceptance/binance_acceptance_healthcheck.py
   - .github/workflows/ai-platform-binance-spot-instrument-persistent-sampler-deploy.yml
   - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_daemon.py
   - docs/agents/tasks/FTAI-20260731-market-data-binance-spot-instrument-persistent-sampler-repair-v1.md
@@ -30,45 +30,52 @@ The repair must not initialize a new acceptance run, reset or delete durable sta
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T21:50:00+02:00
-head: 6c43481187d8e74c2e80aeebc178aabff1bbb75c
+updated_at: 2026-07-31T22:22:00+02:00
+head: b735a6c8cd3b5ac8340c61a0171aa1cde947a9b7
 branch: fix/binance-v3-persistent-sampler-20260731
-pr: null
-status: validating
+pr: "#882"
+status: completed
 proven:
-  - The immutable run binance-spot-instrument-shadow-acceptance-20260729-v3-r1 remains active and had 24 of 97 samples at 2026-07-31T21:19:13.991121+02:00.
-  - GitHub emitted only 26 scheduled runs versus approximately 545 expected, with schedule gaps up to 12510 seconds.
-  - One scheduled job waited approximately 7 hours 52 minutes for the shared runner and three pending runs were cancelled before job creation.
-  - Existing incremental sampling uses a Linux file lock, enforces at least 900 seconds after the last completed observation and performs one attempt without retry.
-  - The repository already uses a hardened persistent Synology container to solve the same scheduler and runner-occupancy failure class for WickHunter.
+  - PR 882 implemented a persistent Synology sampler that reuses the existing locked, due-time-enforced and single-attempt incremental sampling function.
+  - The container is non-root, read-only, drops all capabilities, exposes no ports and keeps production, execution and order authority disabled.
+  - Exact-head AI Platform CI 30660990277, Freqtrade CI 30660989969 and workflow-security run 30660990016 completed success.
+  - PR 882 merged to develop as b735a6c8cd3b5ac8340c61a0171aa1cde947a9b7.
+  - Exact-one-file deployment request PR 885 at head 15e84526dc4206221747b05c589eba1c9bcab911 was closed without merge.
+  - Deployment workflow 30662088662 job 91260465852 completed success on freqtrade-synology-staging.
+  - Deployment artifact 8805675828 has digest sha256:07db6cb4ca51f4c88a5df97488cd9fe4377c7a9d8a12d5c179de0a9cbcce4c60.
+  - Container binance-v3-acceptance-sampler was healthy and advanced immutable run binance-spot-instrument-shadow-acceptance-20260729-v3-r1 from sample index 24 to 25.
+  - No new run was initialized, no durable state was reset or deleted and zero orders were submitted.
 derived:
-  - A local persistent loop can safely call the existing due-sample function because state locking and due-time enforcement remain authoritative.
-  - A separate exact-one-file operational request is required after implementation merge to deploy the container without merging the request.
+  - The cadence repair is deployed and no longer depends on GitHub schedule emission or availability of the shared runner for each sample.
+  - Existing file locking makes any residual scheduled workflow a serialized fallback rather than the primary cadence source.
 unknown:
-  - Exact sample index when the deployment request reaches the trusted runner.
-  - Terminal accepted, rejected or inconclusive outcome.
+  - Terminal outcome of the parent 97-observation acceptance run.
 conflicts: []
 first_failure:
   marker: BINANCE_ACCEPTANCE_SCHEDULER_CADENCE_UNRELIABLE
-  evidence: Sparse GitHub schedule emission plus prolonged shared-runner contention cannot provide the required cadence.
+  evidence: Sparse GitHub schedule emission and shared-runner contention were replaced by a verified persistent local sampler.
 rejected_hypotheses:
-  - Restart or replace the immutable v3 acceptance run.
-  - Shorten the required 900-second interval.
-  - Retry missed or failed Binance observations.
-  - Enable production, execution or order authority.
+  - Restart or replace the immutable acceptance run.
+  - Shorten the 900-second interval or add observation retries.
+  - Enable production, execution, orders or live capital.
 changed_paths:
   - ai_platform/market_data/binance_spot_instrument_acceptance_daemon.py
   - deploy/synology/binance-spot-instrument-acceptance/Dockerfile
   - deploy/synology/binance-spot-instrument-acceptance/compose.yaml
-  - deploy/synology/binance-spot-instrument-acceptance/healthcheck.py
+  - deploy/synology/binance-spot-instrument-acceptance/binance_acceptance_healthcheck.py
   - .github/workflows/ai-platform-binance-spot-instrument-persistent-sampler-deploy.yml
   - tests/ai_platform_integration/test_market_data_binance_spot_instrument_acceptance_daemon.py
   - docs/agents/tasks/FTAI-20260731-market-data-binance-spot-instrument-persistent-sampler-repair-v1.md
 validation:
-  - command: Python syntax compilation of daemon, healthcheck and focused tests
+  - command: Exact-head implementation CI for 7892c6c026783614a6ecf1188b1167de93636d8e
     result: PASS
-    evidence: All authored Python files compile before repository CI.
-blockers:
-  - Implementation PR must pass exact-head CI before the operational deployment request is created.
-next_action: Open the implementation PR, obtain green exact-head CI, merge it normally, then create one exact-file operational request PR that deploys the persistent sampler against the unchanged active v3 run and closes without merge after verified sample advancement.
+    evidence: AI Platform tests and lint, full Freqtrade matrix and CI Gate, pre-commit, documentation and zizmor succeeded.
+  - command: Deployment workflow 30662088662 job 91260465852
+    result: PASS
+    evidence: Artifact 8805675828 proves healthy deployment and real sample advancement 24 to 25.
+  - command: GitHub PR 885 terminal state
+    result: PASS
+    evidence: Operational request closed without merge after its one authorized deployment attempt.
+blockers: []
+next_action: Continue the parent acceptance task from its deployed persistent sampler and record the terminal artifact and outcome when the immutable run completes.
 ```

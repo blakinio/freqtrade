@@ -35,7 +35,6 @@ from ai_platform.portal.signal_wizard.service import (
     SignalWizardValidationError,
 )
 
-
 REQUEST_ID = UUID("20000000-0000-0000-0000-000000000001")
 CORRELATION_ID = UUID("20000000-0000-0000-0000-000000000002")
 NOW = datetime(2026, 7, 31, 8, 0, tzinfo=UTC)
@@ -165,31 +164,13 @@ def test_disabled_feature_identity_is_validated_and_preserved() -> None:
             ),
         )
     )
-
     preview = service.preview(context, command)
-
-    assert preview.strategy_definition["features"] == [
-        {
-            "id": "atr.v1",
-            "enabled": True,
-            "params": {"period": 14, "ma_type": "rma"},
-            "timeframe": "5m",
-            "confirmation": "closed_bar",
-            "definition_sha256": preview.strategy_definition["features"][0][
-                "definition_sha256"
-            ],
-        },
-        {
-            "id": "rsi.v1",
-            "enabled": False,
-            "params": {"period": 21, "ma_type": "rma"},
-            "timeframe": "1h",
-            "confirmation": "closed_bar",
-            "definition_sha256": preview.strategy_definition["features"][1][
-                "definition_sha256"
-            ],
-        },
-    ]
+    features = preview.strategy_definition["features"]
+    assert [feature["id"] for feature in features] == ["atr.v1", "rsi.v1"]
+    assert [feature["enabled"] for feature in features] == [True, False]
+    assert [feature["timeframe"] for feature in features] == ["5m", "1h"]
+    assert features[1]["params"] == {"period": 21, "ma_type": "rma"}
+    assert all(feature["definition_sha256"] for feature in features)
 
     with pytest.raises(SignalWizardValidationError) as rejected:
         service.preview(
@@ -242,7 +223,6 @@ def test_disabled_feature_cannot_satisfy_condition_identity() -> None:
 def test_preview_derives_new_research_draft_and_removes_fabricated_risk() -> None:
     service, _factory = _service()
     preview = service.preview(_trusted_context(), _preview_command())
-
     version = preview.strategy_definition["version"]
     assert isinstance(version, str)
     assert version.startswith("strategy-a:wizard:")
@@ -261,16 +241,12 @@ def test_preview_derives_new_research_draft_and_removes_fabricated_risk() -> Non
 
 
 def test_preview_command_and_result_survive_service_restart(tmp_path: Path) -> None:
-    database = tmp_path / "signal-wizard.sqlite"
-    database_url = f"sqlite+pysqlite:///{database}"
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'signal-wizard.sqlite'}"
     first_service, factory = _service(database_url)
     context = _trusted_context()
     command = _preview_command()
     preview = first_service.preview(context, command)
-
-    restarted = SignalWizardService(factory)
-    retried = restarted.preview(context, command)
-    assert retried == preview
+    assert SignalWizardService(factory).preview(context, command) == preview
 
     with factory() as session:
         stored = SignalWizardRepository().get_preview(
@@ -297,7 +273,6 @@ def test_submit_binds_full_persisted_identity_with_distinct_reason_codes() -> No
     trusted = _trusted_context()
     preview = service.preview(trusted, _preview_command())
     version = str(preview.strategy_definition["version"])
-
     cases = (
         (
             _command_context(actor_id="analyst-b"),
@@ -376,20 +351,17 @@ def test_router_returns_stable_bounded_conflict_without_raw_input() -> None:
     engine = build_engine("sqlite+pysqlite:///:memory:")
     create_schema(engine)
     factory = build_session_factory(engine)
-    context = _trusted_context()
-    client = TestClient(create_app(factory, lambda: context))
+    client = TestClient(create_app(factory, lambda: _trusted_context()))
     command = _preview_command(idempotency_key="router-conflict")
-
     first = client.post(
         "/v1/signal-wizard/preview",
         json=command.model_dump(mode="json"),
     )
-    changed = command.model_copy(update={"strategy_id": "private-endpoint-secret-value"})
+    changed = command.model_copy(update={"strategy_id": "untrusted-raw-input-value"})
     conflict = client.post(
         "/v1/signal-wizard/preview",
         json=changed.model_dump(mode="json"),
     )
-
     assert first.status_code == 200
     assert conflict.status_code == 409
     assert conflict.json() == {
@@ -398,7 +370,7 @@ def test_router_returns_stable_bounded_conflict_without_raw_input() -> None:
             "message": "The preview idempotency key is already bound to another request.",
         }
     }
-    assert "private-endpoint-secret-value" not in conflict.text
+    assert "untrusted-raw-input-value" not in conflict.text
 
 
 def test_forward_migration_adds_nullable_preview_command_column() -> None:

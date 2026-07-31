@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 from uuid import NAMESPACE_URL, uuid5
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from pydantic import ValidationError
 
 from ai_platform.portal.contracts.strategy_closure import (
     SignalWizardPreviewCommand,
@@ -37,9 +38,10 @@ def build_router(
         status_code=status.HTTP_200_OK,
     )
     def preview(
-        command: SignalWizardPreviewCommand,
+        payload: Any = Body(...),
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardPreviewResult:
+        command = _validate_command(SignalWizardPreviewCommand, payload)
         bound_context, bound_command = _bind_command_context(
             context,
             command,
@@ -64,9 +66,10 @@ def build_router(
         status_code=status.HTTP_201_CREATED,
     )
     def submit(
-        command: SignalWizardSubmitCommand,
+        payload: Any = Body(...),
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardSubmitResult:
+        command = _validate_command(SignalWizardSubmitCommand, payload)
         bound_context, bound_command = _bind_command_context(
             context,
             command,
@@ -88,6 +91,17 @@ def build_router(
             ) from exc
 
     return router
+
+
+def _validate_command(command_type: type[CommandT], payload: Any) -> CommandT:
+    try:
+        return command_type.model_validate(payload)
+    except ValidationError as exc:
+        raise _http_error(
+            422,
+            "SIGNAL_WIZARD_COMMAND_INVALID",
+            "The Signal Wizard command does not match the canonical contract.",
+        ) from exc
 
 
 def _bind_command_context(

@@ -246,9 +246,7 @@ def test_builds_verified_intersection_without_touching_holdout(
         "completed_candles": 1_224,
     }
     package = Path(str(result["package_root"]))
-    manifest = json.loads(
-        (package / subject.MANIFEST_NAME).read_text(encoding="utf-8")
-    )
+    manifest = json.loads((package / subject.MANIFEST_NAME).read_text(encoding="utf-8"))
     assert manifest["capture"] == {
         "pre_roll_start_ms": SUPPLEMENT_PRE_ROLL,
         "decision_start_ms": SUPPLEMENT_DECISION_START,

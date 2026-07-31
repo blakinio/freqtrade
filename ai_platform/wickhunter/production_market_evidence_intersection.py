@@ -33,9 +33,7 @@ CANDLE_INDEX_NAME = "completed-candles-index.json"
 TIMEFRAME_MS = 300_000
 MINIMUM_PRE_ROLL_MS = 86_400_000
 MINIMUM_DECISION_SAMPLES = 120
-RUN_ID_PATTERN = re.compile(
-    r"^wickhunter-production-market-evidence-\d{8}-v3-r\d+$"
-)
+RUN_ID_PATTERN = re.compile(r"^wickhunter-production-market-evidence-\d{8}-v3-r\d+$")
 BASE_SOURCES = tuple(v1_core.EXPECTED_SOURCES)
 EXPECTED_SOURCES = tuple(v2.EXPECTED_SOURCES)
 EXPECTED_SYMBOLS = tuple(v1_core.EXPECTED_SYMBOLS)
@@ -332,10 +330,7 @@ def _selected_instrument_rows(
 
 def _candle_artifacts(index: object) -> list[dict[str, Any]]:
     raw = index.get("artifacts") if isinstance(index, dict) else index
-    return [
-        _object(item, field="candle artifact")
-        for item in _sequence(raw, field="candle index")
-    ]
+    return [_object(item, field="candle artifact") for item in _sequence(raw, field="candle index")]
 
 
 def _filtered_candle_rows(
@@ -350,15 +345,12 @@ def _filtered_candle_rows(
     selected = [
         row
         for row in rows
-        if start_ms
-        <= _integer(row.get("open_time_ms"), field="candle open_time_ms")
-        < end_ms
+        if start_ms <= _integer(row.get("open_time_ms"), field="candle open_time_ms") < end_ms
     ]
     selected.sort(key=lambda row: _integer(row["open_time_ms"], field="candle open_time_ms"))
     expected_times = list(range(start_ms, end_ms, TIMEFRAME_MS))
     actual_times = [
-        _integer(row.get("open_time_ms"), field="candle open_time_ms")
-        for row in selected
+        _integer(row.get("open_time_ms"), field="candle open_time_ms") for row in selected
     ]
     if actual_times != expected_times:
         raise MarketEvidenceIntersectionError(
@@ -393,10 +385,10 @@ def _copy_filtered_candles(
         symbol = str(artifact.get("symbol", "")).upper()
         if source not in expected_sources or symbol not in EXPECTED_SYMBOLS:
             raise MarketEvidenceIntersectionError("candle artifact identity mismatch")
-        identity = (source, symbol)
-        if identity in seen:
+        source_symbol = (source, symbol)
+        if source_symbol in seen:
             raise MarketEvidenceIntersectionError("duplicate candle source-symbol identity")
-        seen.add(identity)
+        seen.add(source_symbol)
         normalized = _object(
             artifact.get("normalized_file"),
             field="normalized candle file",
@@ -423,11 +415,7 @@ def _copy_filtered_candles(
                 "normalized_file": _identity(destination, root=destination_root),
             }
         )
-    expected = {
-        (source, symbol)
-        for source in expected_sources
-        for symbol in EXPECTED_SYMBOLS
-    }
+    expected = {(source, symbol) for source in expected_sources for symbol in EXPECTED_SYMBOLS}
     if seen != expected:
         raise MarketEvidenceIntersectionError("candle source-symbol coverage mismatch")
     return copied
@@ -448,7 +436,7 @@ def _row_counts(
     }
 
 
-def build_intersection_package(  # noqa: C901, PLR0912, PLR0915
+def build_intersection_package(
     *,
     base_package_root: Path,
     supplement_root: Path,
@@ -675,12 +663,8 @@ def build_intersection_package(  # noqa: C901, PLR0912, PLR0915
         _write_ndjson(partial_root / QUALITY_ROWS_NAME, quality_rows)
         _write_ndjson(partial_root / INSTRUMENT_ROWS_NAME, instrument_rows)
 
-        base_index = json.loads(
-            (base_package / CANDLE_INDEX_NAME).read_text(encoding="utf-8")
-        )
-        supplement_index = json.loads(
-            (supplement / CANDLE_INDEX_NAME).read_text(encoding="utf-8")
-        )
+        base_index = json.loads((base_package / CANDLE_INDEX_NAME).read_text(encoding="utf-8"))
+        supplement_index = json.loads((supplement / CANDLE_INDEX_NAME).read_text(encoding="utf-8"))
         candle_artifacts = [
             *_copy_filtered_candles(
                 artifacts=_candle_artifacts(base_index),
@@ -699,9 +683,13 @@ def build_intersection_package(  # noqa: C901, PLR0912, PLR0915
                 end_ms=end_ms,
             ),
         ]
-        if sum(int(item["record_count"]) for item in candle_artifacts) != expected_counts[
-            "completed_candles"
-        ]:
+        if (
+            sum(
+                _integer(item.get("record_count"), field="candle record_count")
+                for item in candle_artifacts
+            )
+            != expected_counts["completed_candles"]
+        ):
             raise MarketEvidenceIntersectionError("intersection candle count mismatch")
         _write_json(
             partial_root / CANDLE_INDEX_NAME,
@@ -737,10 +725,7 @@ def build_intersection_package(  # noqa: C901, PLR0912, PLR0915
             INSTRUMENT_ROWS_NAME,
             CANDLE_INDEX_NAME,
         )
-        artifacts = [
-            _identity(partial_root / name, root=partial_root)
-            for name in top_level_names
-        ]
+        artifacts = [_identity(partial_root / name, root=partial_root) for name in top_level_names]
         artifacts.extend(
             _identity(path, root=partial_root)
             for path in sorted((partial_root / "candles").rglob("*.ndjson"))
@@ -811,8 +796,7 @@ def build_intersection_package(  # noqa: C901, PLR0912, PLR0915
             _identity(partial_root / MANIFEST_NAME, root=partial_root),
         ]
         checksum_lines = sorted(
-            f"{item['sha256']}  {item['logical_name']}"
-            for item in checksum_identities
+            f"{item['sha256']}  {item['logical_name']}" for item in checksum_identities
         )
         _write_new(
             partial_root / CHECKSUM_NAME,
@@ -845,7 +829,7 @@ def build_intersection_package(  # noqa: C901, PLR0912, PLR0915
         raise
 
 
-def verify_intersection_package(  # noqa: C901, PLR0912, PLR0915
+def verify_intersection_package(  # noqa: C901
     package_root: Path,
 ) -> dict[str, object]:
     if package_root.is_symlink() or not package_root.is_dir():
@@ -880,17 +864,12 @@ def verify_intersection_package(  # noqa: C901, PLR0912, PLR0915
         field="protected_holdout_start_ms",
     )
     if (
-        capture["decision_start_ms"] - capture["pre_roll_start_ms"]
-        < MINIMUM_PRE_ROLL_MS
+        capture["decision_start_ms"] - capture["pre_roll_start_ms"] < MINIMUM_PRE_ROLL_MS
         or capture["decision_end_ms"] > protected_holdout_start_ms
     ):
         raise MarketEvidenceIntersectionError("intersection geometry safety mismatch")
-    sample_count = (
-        capture["decision_end_ms"] - capture["decision_start_ms"]
-    ) // TIMEFRAME_MS
-    candle_count = (
-        capture["decision_end_ms"] - capture["pre_roll_start_ms"]
-    ) // TIMEFRAME_MS
+    sample_count = (capture["decision_end_ms"] - capture["decision_start_ms"]) // TIMEFRAME_MS
+    candle_count = (capture["decision_end_ms"] - capture["pre_roll_start_ms"]) // TIMEFRAME_MS
     expected_counts = _row_counts(
         sample_count=sample_count,
         candle_count_per_source_symbol=candle_count,
@@ -937,19 +916,17 @@ def verify_intersection_package(  # noqa: C901, PLR0912, PLR0915
     index = _load_json(package_root / CANDLE_INDEX_NAME, field="candle index")
     candle_artifacts = _candle_artifacts(index)
     expected_identities = {
-        (source, symbol)
-        for source in EXPECTED_SOURCES
-        for symbol in EXPECTED_SYMBOLS
+        (source, symbol) for source in EXPECTED_SOURCES for symbol in EXPECTED_SYMBOLS
     }
     seen: set[tuple[str, str]] = set()
     total_candles = 0
     for artifact in candle_artifacts:
         source = str(artifact.get("source", ""))
         symbol = str(artifact.get("symbol", "")).upper()
-        identity = (source, symbol)
-        if identity in seen or identity not in expected_identities:
+        source_symbol = (source, symbol)
+        if source_symbol in seen or source_symbol not in expected_identities:
             raise MarketEvidenceIntersectionError("candle index identity mismatch")
-        seen.add(identity)
+        seen.add(source_symbol)
         count = _integer(artifact.get("record_count"), field="candle record_count")
         if count != candle_count:
             raise MarketEvidenceIntersectionError("candle file row count mismatch")
@@ -958,9 +935,8 @@ def verify_intersection_package(  # noqa: C901, PLR0912, PLR0915
             field="normalized candle file",
         )
         path = _safe_member(package_root, str(normalized.get("logical_name", "")))
-        if (
-            _file_hash(path) != normalized.get("sha256")
-            or path.stat().st_size != normalized.get("size_bytes")
+        if _file_hash(path) != normalized.get("sha256") or path.stat().st_size != normalized.get(
+            "size_bytes"
         ):
             raise MarketEvidenceIntersectionError("candle file identity mismatch")
         rows = _filtered_candle_rows(
@@ -979,15 +955,14 @@ def verify_intersection_package(  # noqa: C901, PLR0912, PLR0915
     artifacts = _sequence(manifest.get("artifacts"), field="manifest artifacts")
     expected_lines: set[str] = set()
     for raw in artifacts:
-        identity = _object(raw, field="artifact identity")
-        logical_name = str(identity.get("logical_name", ""))
+        artifact_identity = _object(raw, field="artifact identity")
+        logical_name = str(artifact_identity.get("logical_name", ""))
         path = _safe_member(package_root, logical_name)
-        if (
-            _file_hash(path) != identity.get("sha256")
-            or path.stat().st_size != identity.get("size_bytes")
-        ):
+        if _file_hash(path) != artifact_identity.get(
+            "sha256"
+        ) or path.stat().st_size != artifact_identity.get("size_bytes"):
             raise MarketEvidenceIntersectionError("intersection artifact identity mismatch")
-        expected_lines.add(f"{identity['sha256']}  {logical_name}")
+        expected_lines.add(f"{artifact_identity['sha256']}  {logical_name}")
     manifest_identity = _identity(package_root / MANIFEST_NAME, root=package_root)
     expected_lines.add(f"{manifest_identity['sha256']}  {MANIFEST_NAME}")
     checksum = package_root / CHECKSUM_NAME

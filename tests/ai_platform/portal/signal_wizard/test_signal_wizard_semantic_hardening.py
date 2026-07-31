@@ -250,6 +250,7 @@ def test_preview_derives_new_research_draft_and_removes_fabricated_risk() -> Non
     assert "risk" not in preview.strategy_definition
     assert preview.strategy_definition["draft_authority"] == {
         "research_only": True,
+        "mode": "simulated",
         "use_closed_bars_only": True,
         "execution_authority": False,
         "promotion_authority": False,

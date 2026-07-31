@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "request_id": "portal-authentik-local-test-deploy-20260731-v1",
+  "target_environment": "synology-staging",
+  "runner_label": "freqtrade-staging",
+  "deployment_mode": "local_test",
+  "state_subdirectory": "portal-authentik-local-test",
+  "authentik_http_port": 9000,
+  "publish_scope": "private_lan",
+  "initialize_via_gui": true,
+  "mutation_authorized": true,
+  "bootstrap_hash_authorized": false,
+  "restore_authorized": false,
+  "trading_credentials_authorized": false,
+  "live_capital_authorized": false,
+  "confirmation": "DEPLOY_LOCAL_TEST_AUTHENTIK_ON_SYNOLOGY"
+}

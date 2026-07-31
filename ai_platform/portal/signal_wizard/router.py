@@ -48,11 +48,15 @@ def build_router(
         try:
             return service.preview(bound_context, bound_command)
         except SignalWizardValidationError as exc:
-            raise _http_error(422, exc.reason_code, exc) from exc
+            raise _http_error(422, exc.reason_code, exc.public_message) from exc
         except SignalWizardConflictError as exc:
-            raise _http_error(409, "SIGNAL_WIZARD_CONFLICT", exc) from exc
+            raise _http_error(409, exc.reason_code, exc.public_message) from exc
         except CorruptSignalWizardRecordError as exc:
-            raise _http_error(500, "SIGNAL_WIZARD_CORRUPT_RECORD", exc) from exc
+            raise _http_error(
+                500,
+                "SIGNAL_WIZARD_CORRUPT_RECORD",
+                "Persisted Signal Wizard evidence is unavailable.",
+            ) from exc
 
     @router.post(
         "/submit",
@@ -71,13 +75,17 @@ def build_router(
         try:
             return service.submit(bound_context, bound_command)
         except SignalWizardNotFoundError as exc:
-            raise _http_error(404, "SIGNAL_WIZARD_PREVIEW_NOT_FOUND", exc) from exc
+            raise _http_error(404, exc.reason_code, exc.public_message) from exc
         except SignalWizardValidationError as exc:
-            raise _http_error(422, exc.reason_code, exc) from exc
+            raise _http_error(422, exc.reason_code, exc.public_message) from exc
         except SignalWizardConflictError as exc:
-            raise _http_error(409, "SIGNAL_WIZARD_CONFLICT", exc) from exc
+            raise _http_error(409, exc.reason_code, exc.public_message) from exc
         except CorruptSignalWizardRecordError as exc:
-            raise _http_error(500, "SIGNAL_WIZARD_CORRUPT_RECORD", exc) from exc
+            raise _http_error(
+                500,
+                "SIGNAL_WIZARD_CORRUPT_RECORD",
+                "Persisted Signal Wizard evidence is unavailable.",
+            ) from exc
 
     return router
 
@@ -88,14 +96,7 @@ def _bind_command_context(
     *,
     operation: str,
 ) -> tuple[RequestContext, CommandT]:
-    """Construct stable trusted command correlation after authentication.
-
-    Identity authentication intentionally creates fresh HTTP request identifiers. A browser or
-    same-origin BFF cannot know those values before the upstream request is authenticated, while
-    Signal Wizard commands require durable idempotency across retries. Derive command correlation
-    only at this authenticated boundary from trusted identity plus the normalized idempotency key;
-    never accept correlation supplied by the browser as authoritative.
-    """
+    """Construct stable trusted command correlation after authentication."""
 
     identity = (
         f"signal-wizard:{context.tenant_id}:{context.actor_id}:"
@@ -114,8 +115,8 @@ def _bind_command_context(
     return bound_context, command.model_copy(update={"context": command_context})
 
 
-def _http_error(status_code: int, reason_code: str, exc: Exception) -> HTTPException:
+def _http_error(status_code: int, reason_code: str, message: str) -> HTTPException:
     return HTTPException(
         status_code=status_code,
-        detail={"reason_code": reason_code, "message": str(exc)},
+        detail={"reason_code": reason_code, "message": message},
     )

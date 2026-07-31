@@ -4,7 +4,7 @@
 
 - repository: `blakinio/freqtrade`;
 - base branch: `develop`;
-- coordinator evidence anchor: `develop@367a51b610d2a34ee5841bc0b86622bd64fc6858`;
+- coordinator evidence anchor: `develop@da86b55310a3c3575ad3168743cd1062f1387d6d`;
 - target: `repository-complete-paper-shadow`;
 - merged producers:
   - Shared contracts PR #781 -> `6e489f7e10199120424cbcd01b3e125711630243`;
@@ -19,20 +19,16 @@
 - merged Signal Wizard backend PR #825 -> `0bc35521debd33312820dfad9f010e22aa651610`;
 - merged Signal Wizard correlation blocker PR #832 -> `28fb301db2c575d610c73143e44bd68c40b46ec7`;
 - merged Signal Wizard authenticated context repair PR #846 -> `367a51b610d2a34ee5841bc0b86622bd64fc6858`;
+- merged Signal Wizard semantic/persistence hardening PR #858 -> `da86b55310a3c3575ad3168743cd1062f1387d6d`; exact head `6604dbbfa41ed52b29b33697f4b56c890bc30435` passed AI Platform CI `30616727960`, Freqtrade CI `30616729952` and security analysis `30616727733`, with zero unresolved review threads;
 - superseded competing Signal Wizard PR #844 is closed;
 - merged coordinator closure: PR #808 -> `a256dc59ad896a21f593c098bcc8c076858790d9`;
 - merged coordinator terminal checkpoint: PR #812 -> `e03c00ce9824fdf467108780387b52c58659c01b`;
-- active repository PRs include WickHunter request-only PRs #816/#842, WickHunter recovery #833, AI routing/ranking #829, Authentik #852 and coordinator governance PR #851;
-- backend branch synchronization PRs #824, #826 and #828 merged normally;
-- coordinator branch: `agent/program-closure-signal-wizard-context-repair-dispatch`, governance PR #851;
-- Signal Wizard semantic task: `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md`;
-- Signal Wizard semantic branch: `agent/closure-signal-wizard-semantic-hardening`, created from current `develop` after live overlap verification;
-- Signal Wizard semantic dispatch: `READY`;
-- Signal Wizard frontend dispatch: `WAIT_FOR_BACKEND`;
+- Signal Wizard semantic dispatch: `COMPLETED`;
+- Signal Wizard frontend dispatch: `READY`;
 - thresholds `0.006/-0.009`, `selected_model = null` and protected holdout `20260801-20260930` remain frozen;
 - paper/shadow/dry-run only; no live capital.
 
-The current snapshot and manual dispatch table below supersede the original Gate 0 dispatch state. An unchecked backlog box remains a hypothesis until code, tests, merged PRs and current CI are inspected. WickHunter operational request PR numbers may rotate without changing child-workstream ownership or dependencies.
+The current snapshot and manual dispatch table below supersede the original Gate 0 dispatch state. An unchecked backlog box remains a hypothesis until code, tests, merged PRs and current CI are inspected.
 
 ## Every unchecked P0/P1/P2 item
 
@@ -101,11 +97,11 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | P2.3 | `OOS stability` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
 | P2.3 | `drawdown contribution` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
 | P2.3 | `calibration` | **READY** | `closure-ai-routing-ranking` | Research Data PR #821 is merged. |
-| P2.4 | `feature selection` | **READY** | `closure-signal-wizard-context-hardening` | Exact backend path ownership is assigned; task must validate and preserve every approved enabled/disabled selection. |
-| P2.4 | `parameter constraints` | **READY** | `closure-signal-wizard-context-hardening` | Numeric bounds on nonnumeric values must fail closed. |
-| P2.4 | `leakage warnings` | **READY** | `closure-signal-wizard-context-hardening` | Correlation is merged; remaining deterministic bounded conflict/error behavior is assigned. |
-| P2.4 | `strategy preview` | **READY** | `closure-signal-wizard-context-hardening` | PR #846 merged authenticated context; exact command persistence, immutable draft version and feature identity remain assigned. |
-| P2.4 | `experiment submit` | **READY** | `closure-signal-wizard-context-hardening` | Full persisted actor/target/environment/execution-mode binding and exact derived version remain assigned. |
+| P2.4 | `feature selection` | **MERGED_COMPLETE** | `closure-signal-wizard-context-hardening` | PR #858 merged as `da86b55310a3c3575ad3168743cd1062f1387d6d`; exact head `6604dbbfa41ed52b29b33697f4b56c890bc30435`. |
+| P2.4 | `parameter constraints` | **MERGED_COMPLETE** | `closure-signal-wizard-context-hardening` | PR #858 fails closed for numeric bounds targeting nonnumeric values. |
+| P2.4 | `leakage warnings` | **MERGED_COMPLETE** | `closure-signal-wizard-context-hardening` | PR #858 provides bounded stable conflict/error behavior. |
+| P2.4 | `strategy preview` | **MERGED_COMPLETE** | `closure-signal-wizard-context-hardening` | PR #858 persists exact trusted preview commands and derives immutable research-draft versions. |
+| P2.4 | `experiment submit` | **MERGED_COMPLETE** | `closure-signal-wizard-context-hardening` | PR #858 binds persisted actor, target, environment, execution mode and exact derived version. |
 | P2.5 | `version history` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Implementation PR #819 and terminal PR #822 merged. |
 | P2.5 | `approvals` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Implementation PR #819 and terminal PR #822 merged. |
 | P2.5 | `deployments` | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | Paper/dry-run/shadow lifecycle evidence merged without live authority. |
@@ -124,7 +120,7 @@ The current snapshot and manual dispatch table below supersede the original Gate
 | Post-trade analysis and insight | **PROVEN_COMPLETE** | `none` | P8 deterministic diagnosis and evidence-linked insight. |
 | Bounded learning candidate without promotion | **PROVEN_COMPLETE** | `none` | P9/ASE-02; active model remains immutable. |
 | Evidence-based seeded-defect repair | **PROVEN_COMPLETE** | `none` | P12 simulation-first bounded repair. |
-| Signal Wizard research workflow | **WAIT_FOR_BACKEND** | `closure-signal-wizard-context-hardening` | Authenticated context PR #846 is merged; one semantic/persistence/error child is READY and frontend remains blocked until it merges. |
+| Signal Wizard research workflow | **READY** | `closure-ui-signal-wizard` | Backend hardening PR #858 merged as `da86b55310a3c3575ad3168743cd1062f1387d6d`; required exact-head workflows `30616727960`, `30616729952`, `30616727733` passed and unresolved review threads are zero. |
 | Strategy Catalog lifecycle workflow | **MERGED_COMPLETE** | `closure-ui-strategy-catalog` | PR #819 and terminal PR #822 merged with exact-head browser/platform/security evidence. |
 | Full closure E2E and first-failure observability | **WAIT_FOR_IMPLEMENTATION_MERGES** | `closure-integration-e2e` | Signal Wizard frontend and AI routing/ranking must merge. |
 | Backlog/roadmap/program terminal freshness | **BLOCKED** | `Agent 0` | Update only after remaining implementation and integration merges provide terminal evidence. |
@@ -149,8 +145,8 @@ Compatibility remains:
 contracts MERGED
   ├─> Signal Wizard backend MERGED through PR #825
   │     └─> authenticated context repair MERGED through PR #846
-  │            └─> semantic/persistence/error hardening READY
-  │                   └─> Signal Wizard frontend WAIT_FOR_BACKEND
+  │            └─> semantic/persistence/error hardening COMPLETED through PR #858
+  │                   └─> Signal Wizard frontend READY
   └─> Strategy Catalog COMPLETED
 
 time/leakage MERGED
@@ -179,8 +175,8 @@ Live capital/P14: excluded and unauthorized
 | Research Data | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-research-data.md` | `agent/closure-research-data-terminal` | `docs/agents/prompts/ai-program-closure/RESEARCH-DATA-AGENT-PROMPT.md` | PR #821 and terminal PR #823 merged; do not start a duplicate chat. |
 | Signal Wizard backend/API | **MERGED_REQUIRES_HARDENING** | `docs/agents/tasks/FTAI-20260730-closure-signal-wizard-backend.md` | `agent/closure-signal-wizard-unblock` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-BACKEND-AGENT-PROMPT.md` | PR #825 merged as `0bc35521debd33312820dfad9f010e22aa651610`; do not restart the original task. |
 | Signal Wizard authenticated context | **COMPLETED** | `docs/agents/tasks/FTAI-20260731-signal-wizard-context-repair.md` | `agent/closure-signal-wizard-context-repair` | — | PR #846 merged as `367a51b610d2a34ee5841bc0b86622bd64fc6858`; exact-head required CI green and zero review threads. PR #844 is superseded/closed. |
-| Signal Wizard semantic/persistence hardening | **READY** | `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md` | `agent/closure-signal-wizard-semantic-hardening` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md` | Branch exists from current develop; live Signal Wizard implementation overlap is empty. Start one worker chat. |
-| Signal Wizard frontend | **WAIT_FOR_BACKEND** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | Semantic-hardening PR must merge normally with green exact-head CI and zero unresolved review threads. |
+| Signal Wizard semantic/persistence hardening | **COMPLETED** | `docs/agents/tasks/FTAI-20260731-closure-signal-wizard-context-hardening.md` | `agent/closure-signal-wizard-semantic-hardening` | `docs/agents/prompts/ai-program-closure/SIGNAL-WIZARD-CONTEXT-HARDENING-AGENT-PROMPT.md` | PR #858 merged as `da86b55310a3c3575ad3168743cd1062f1387d6d`; exact head `6604dbbfa41ed52b29b33697f4b56c890bc30435` passed workflows `30616727960`, `30616729952`, `30616727733`; zero unresolved review threads. |
+| Signal Wizard frontend | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ui-signal-wizard.md` | `agent/closure-ui-signal-wizard-v2` | `docs/agents/prompts/ai-program-closure/UI-SIGNAL-WIZARD-AGENT-PROMPT.md` | Backend semantic hardening is merged with exact-head CI and zero unresolved review threads; resume the focused frontend PR. |
 | Strategy Catalog | **COMPLETED** | `docs/agents/tasks/FTAI-20260730-closure-ui-strategy-catalog.md` | `agent/closure-ui-strategy-catalog-terminal` | `docs/agents/prompts/ai-program-closure/UI-STRATEGY-CATALOG-AGENT-PROMPT.md` | PR #819 and terminal PR #822 merged; do not start a duplicate chat. |
 | AI routing/ranking | **READY** | `docs/agents/tasks/FTAI-20260730-closure-ai-routing-ranking.md` | `agent/closure-ai-routing-ranking` | `docs/agents/prompts/ai-program-closure/AI-ROUTING-RANKING-AGENT-PROMPT.md` | Research Data implementation and terminal checkpoints are merged. |
 | Integration/E2E | **WAIT_FOR_IMPLEMENTATION_MERGES** | `docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md` | `agent/closure-integration-e2e` | `docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md` | Remaining repository child PRs merged and develop green. |
@@ -189,16 +185,14 @@ Live capital/P14: excluded and unauthorized
 
 ## Coordinator repair ownership
 
-The coordinator repair task records the stale-count ownership decision. PR #780 merged the exact dynamic-count behavior before a standalone repair PR opened, PR #808 merged closure ownership and dispatch evidence, and PR #812 merged the terminal checkpoint without a duplicate test diff.
-
-Signal Wizard authenticated context is complete through PR #846 with a real identity-enabled login/session/CSRF regression and stable server-bound command correlation. Competing PR #844 is closed. The remaining semantic child owns only Signal Wizard backend service/router/model/repository/migration and focused tests; frozen contracts and frontend paths remain untouched.
+Signal Wizard authenticated context is complete through PR #846. Semantic/persistence/error hardening is complete through PR #858 with exact-head required CI green and zero unresolved review threads. Frozen contracts remain untouched; the frontend workstream is now READY.
 
 ## Closure acceptance
 
 - all original unchecked P0/P1/P2 items remain classified;
 - merged workstreams record exact merge commits;
 - every active implementation workstream has non-overlapping owned paths;
-- Signal Wizard frontend remains explicitly `WAIT_FOR_BACKEND` until the semantic-hardening task merges with exact-head evidence;
+- Signal Wizard frontend is explicitly `READY` after PR #858 merged with exact-head evidence;
 - final E2E waits for all remaining repository implementation merges;
 - P11 cannot be proven by fixtures;
 - P13 and live capital remain outside autonomous closure.

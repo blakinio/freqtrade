@@ -48,6 +48,12 @@ jobs:
               "def materialize_production_dataset(  # noqa: C901, PLR0915\n": (
                   "def materialize_production_dataset(\n"
               ),
+              "            *(dataset_root / Path(str(item[\"relative_path\"])) for item in dataset_manifest[\"partitions\"]),\n": (
+                  "            *(\n"
+                  "                dataset_root / Path(str(item[\"relative_path\"]))\n"
+                  "                for item in dataset_manifest[\"partitions\"]\n"
+                  "            ),\n"
+              ),
           }
           for old, new in replacements.items():
               if old not in text:

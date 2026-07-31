@@ -89,7 +89,7 @@ updated_at: 2026-08-01T00:15:00+02:00
 head: 4660b1eb19b2c09af21f46cab2916b64dec7bfaf
 branch: develop
 pr: "#874"
-status: complete
+status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
@@ -119,6 +119,7 @@ derived:
   - Repository closure evidence is complete for paper, shadow and dry-run scope.
   - No autonomous repository implementation or Integration/E2E worker remains.
   - External Cloudflare, Authentik, Vault and Synology P11 acceptance remains explicitly outside this repository fixture proof.
+  - The checkpoint contract has no terminal status enum, so ready represents a validated archive-ready handoff while frontmatter records completed.
 unknown: []
 conflicts: []
 first_failure:
@@ -156,5 +157,5 @@ validation:
     result: PASS
     evidence: Workflow security analysis completed successfully.
 blockers: []
-next_action: None for autonomous repository closure. External P11 remains owner-managed; live capital remains prohibited.
+next_action: Archive this validated repository-closure checkpoint; external P11 remains owner-managed and live capital remains prohibited.
 ```

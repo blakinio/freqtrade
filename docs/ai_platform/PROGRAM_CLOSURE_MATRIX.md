@@ -11,7 +11,7 @@
 - real protected external P11: **EXTERNAL_OWNER_ACTION**;
 - P13 scale extraction: **DEFERRED_BY_POLICY**;
 - live capital/P14: **DO_NOT_START**;
-- terminal coordinator archive PR: pending.
+- terminal coordinator archive PR: **#897**.
 
 The original Gate 0 inventory treated unchecked backlog entries as hypotheses. The terminal classification below is authoritative for this closure package and is grounded in merged source, tests, exact-head CI and durable task checkpoints.
 

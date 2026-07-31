@@ -214,9 +214,7 @@ def test_identity_enabled_signal_wizard_binds_stable_server_correlation() -> Non
     assert second_payload == first_payload
     assert first_payload["preview_hash"] == second_payload["preview_hash"]
     assert first_payload["context"]["correlation"]["request_id"] != str(DUMMY_REQUEST_ID)
-    assert first_payload["context"]["correlation"]["correlation_id"] != str(
-        DUMMY_CORRELATION_ID
-    )
+    assert first_payload["context"]["correlation"]["correlation_id"] != str(DUMMY_CORRELATION_ID)
 
     submit = SignalWizardSubmitCommand(
         context=_context(actor_id),

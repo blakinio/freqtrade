@@ -1,0 +1,169 @@
+name: Liquid20 Close Pre-Holdout Run
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - .github/workflows/liquid20-close-preholdout-20260731.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquid20-close-preholdout-20260731
+  cancel-in-progress: false
+
+jobs:
+  close:
+    name: Close eligible July 31 Liquid20 run
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file operational scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\t.github/workflows/liquid20-close-preholdout-20260731.yml'
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Refuse credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "BLOCKED forbidden environment: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Snapshot active run and restart collector
+        shell: bash
+        env:
+          HOLDOUT_START_MS: "1785542400000"
+        run: |
+          set -euo pipefail
+          [[ "${RUNNER_NAME}" == "freqtrade-synology-staging" ]]
+          [[ "$(docker inspect --format '{{.State.Running}}' liquid20-live)" == "true" ]]
+          old_run_id="$(docker exec liquid20-live python - <<'PY'
+          import json
+          from pathlib import Path
+
+          pointer = json.loads(Path('/data/live/live-state-v1.json').read_text(encoding='utf-8'))
+          run_id = pointer.get('active_run_id')
+          state = pointer.get('state')
+          if not isinstance(run_id, str) or not run_id.startswith('liquid20-20260731T000000Z-'):
+              raise SystemExit('active run is not the July 31 UTC run')
+          if not isinstance(state, dict) or state.get('run_state') != 'active':
+              raise SystemExit('active run state is invalid')
+          sources = state.get('sources')
+          if not isinstance(sources, dict):
+              raise SystemExit('active source state is missing')
+          for source in ('binance-usdm', 'bybit-linear'):
+              item = sources.get(source)
+              if not isinstance(item, dict) or int(item.get('events_written', 0)) <= 0:
+                  raise SystemExit(f'{source} has no captured events')
+          print(run_id)
+          PY
+          )"
+          printf 'OLD_RUN_ID=%s\n' "$old_run_id" >> "$GITHUB_ENV"
+          docker restart --time 30 liquid20-live >/dev/null
+          echo "Collector restarted after closing $old_run_id"
+
+      - name: Verify closed immutable candidate and resumed live collector
+        shell: bash
+        env:
+          HOLDOUT_START_MS: "1785542400000"
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 18); do
+            if [[ "$(docker inspect --format '{{.State.Running}}' liquid20-live 2>/dev/null || true)" == "true" ]]; then
+              if docker exec liquid20-live python - "$OLD_RUN_ID" "$HOLDOUT_START_MS" <<'PY'
+          import json
+          import sys
+          import time
+          from pathlib import Path
+
+          old_run_id = sys.argv[1]
+          holdout_start_ms = int(sys.argv[2])
+          root = Path('/data/live')
+          old_root = root / 'runs' / old_run_id
+          old_state = json.loads((old_root / 'run-state-v1.json').read_text(encoding='utf-8'))
+          if old_state.get('run_state') != 'completed' or old_state.get('data_mode') != 'historical':
+              raise SystemExit(1)
+          completed_at_ms = old_state.get('completed_at_ms')
+          if not isinstance(completed_at_ms, int) or completed_at_ms >= holdout_start_ms:
+              raise SystemExit(1)
+          for source in ('binance-usdm', 'bybit-linear'):
+              item = old_state.get('sources', {}).get(source, {})
+              if int(item.get('events_written', 0)) <= 0:
+                  raise SystemExit(1)
+              for suffix in ('.ndjson', '-summary.json'):
+                  path = old_root / f'{source}{suffix}'
+                  if not path.is_file() or path.is_symlink():
+                      raise SystemExit(1)
+
+          pointer = json.loads((root / 'live-state-v1.json').read_text(encoding='utf-8'))
+          new_run_id = pointer.get('active_run_id')
+          state = pointer.get('state')
+          if not isinstance(new_run_id, str) or new_run_id == old_run_id:
+              raise SystemExit(1)
+          if not isinstance(state, dict) or state.get('run_state') != 'active':
+              raise SystemExit(1)
+          now_ms = time.time_ns() // 1_000_000
+          heartbeat = state.get('collector_heartbeat_at_ms')
+          if not isinstance(heartbeat, int) or now_ms - heartbeat > 60_000:
+              raise SystemExit(1)
+          for source in ('binance-usdm', 'bybit-linear', 'okx-swap'):
+              item = state.get('sources', {}).get(source, {})
+              if item.get('configured') is not True or item.get('connected') is not True:
+                  raise SystemExit(1)
+              if int(item.get('subscription_symbol_count', 0)) <= 0:
+                  raise SystemExit(1)
+          print(json.dumps({
+              'status': 'PRE_HOLDOUT_RUN_CLOSED',
+              'closed_run_id': old_run_id,
+              'closed_at_ms': completed_at_ms,
+              'new_active_run_id': new_run_id,
+              'orders_submitted': 0,
+          }, sort_keys=True))
+          PY
+              then
+                exit 0
+              fi
+            fi
+            sleep 5
+          done
+          docker inspect liquid20-live || true
+          docker logs --tail 80 liquid20-live || true
+          echo "Liquid20 did not recover within the bounded restart window" >&2
+          exit 1

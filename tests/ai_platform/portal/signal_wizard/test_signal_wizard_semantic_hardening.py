@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from ai_platform.portal.contracts.common import CorrelationContext
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode

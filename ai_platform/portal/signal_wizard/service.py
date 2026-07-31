@@ -124,6 +124,13 @@ class SignalWizardService:
             [feature for feature in features if feature["enabled"]],
         )
         strategy_version = f"{command.strategy_id}:wizard:{request_digest[:12]}"
+        execution_metadata = {
+            "mode": command.context.execution_mode.value,
+            "use_closed_bars_only": True,
+            "execution_authority": False,
+            "promotion_authority": False,
+            "live_capital_authority": False,
+        }
         strategy_definition: dict[str, Any] = {
             "schema_version": command.requested_strategy_schema_version,
             "strategy_id": command.strategy_id,
@@ -139,12 +146,10 @@ class SignalWizardService:
                 "registry_version": registry_version,
                 "snapshot_sha256": snapshot_sha256,
             },
+            "execution": execution_metadata,
             "draft_authority": {
                 "research_only": True,
-                "use_closed_bars_only": True,
-                "execution_authority": False,
-                "promotion_authority": False,
-                "live_capital_authority": False,
+                **execution_metadata,
             },
             "provenance": command.context.provenance.model_dump(mode="json"),
         }
@@ -395,9 +400,7 @@ class SignalWizardService:
                 )
             definitions.append((selection, definition))
 
-        enabled_definitions = tuple(
-            item for item in definitions if item[0].enabled
-        )
+        enabled_definitions = tuple(item for item in definitions if item[0].enabled)
         if not enabled_definitions:
             raise SignalWizardValidationError(
                 "SIGNAL_WIZARD_NO_ENABLED_FEATURES",

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from uuid import UUID
+from typing import cast
+from uuid import UUID, uuid4
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 from ai_platform.portal.contracts.common import CorrelationContext
@@ -25,6 +27,8 @@ from ai_platform.portal.control_plane.database import (
     build_session_factory,
     create_schema,
 )
+from ai_platform.portal.identity.http import create_identity_enabled_app
+from ai_platform.portal.identity.service import IdentityService
 from ai_platform.portal.signal_wizard.service import (
     SignalWizardConflictError,
     SignalWizardNotFoundError,
@@ -36,6 +40,27 @@ from ai_platform.portal.signal_wizard.service import (
 REQUEST_ID = UUID("00000000-0000-0000-0000-000000000101")
 CORRELATION_ID = UUID("00000000-0000-0000-0000-000000000102")
 NOW = datetime(2026, 7, 30, 20, 0, tzinfo=UTC)
+
+
+class _RotatingIdentityBoundary:
+    """Minimal identity boundary that creates trusted per-request identifiers."""
+
+    def __init__(self) -> None:
+        self.last_context: RequestContext | None = None
+
+    def resolve_request(self, _request: Request) -> RequestContext:
+        self.last_context = RequestContext(
+            tenant_id="tenant-a",
+            actor_id="analyst-1",
+            actor_type=ActorType.USER,
+            permissions=(Permission.MODEL_READ, Permission.MODEL_TRAIN),
+            request_id=uuid4(),
+            correlation_id=uuid4(),
+        )
+        return self.last_context
+
+    def enforce_csrf(self, _request: Request) -> None:
+        return None
 
 
 def _context(tenant_id: str = "tenant-a", *, train: bool = True) -> RequestContext:
@@ -231,3 +256,46 @@ def test_control_plane_registers_preview_and_submit_routes() -> None:
     )
     assert submit_response.status_code == 201
     assert submit_response.json()["accepted"] is True
+
+
+def test_identity_enabled_routes_bind_trusted_per_request_correlation() -> None:
+    engine = build_engine("sqlite+pysqlite:///:memory:")
+    create_schema(engine)
+    factory = build_session_factory(engine)
+    identity = _RotatingIdentityBoundary()
+    client = TestClient(
+        create_identity_enabled_app(factory, cast(IdentityService, identity))
+    )
+
+    preview_response = client.post(
+        "/v1/signal-wizard/preview",
+        json=_preview_command(idempotency_key="preview-identity").model_dump(mode="json"),
+    )
+    assert preview_response.status_code == 200
+    assert identity.last_context is not None
+    preview_context = identity.last_context
+    preview_payload = preview_response.json()
+    assert preview_payload["context"]["correlation"] == (
+        preview_context.correlation_context().model_dump(mode="json")
+    )
+    assert preview_payload["context"]["correlation"]["request_id"] != str(REQUEST_ID)
+
+    submit = SignalWizardSubmitCommand(
+        context=_closure_context(),
+        idempotency_key="submit-identity",
+        preview_hash=preview_payload["preview_hash"],
+        experiment_name="Identity-enabled candidate",
+        expected_strategy_version=preview_payload["strategy_definition"]["version"],
+        capability=_capability(StrategyCapability.EXPERIMENT_SUBMIT),
+    )
+    submit_response = client.post(
+        "/v1/signal-wizard/submit",
+        json=submit.model_dump(mode="json"),
+    )
+    assert submit_response.status_code == 201
+    assert identity.last_context is not None
+    submit_context = identity.last_context
+    assert submit_context.request_id != preview_context.request_id
+    assert submit_response.json()["context"]["correlation"] == (
+        submit_context.correlation_context().model_dump(mode="json")
+    )

@@ -82,7 +82,12 @@ class LocalHttpCookieAdapter:
             if message.get("type") == "http.response.start":
                 message = dict(message)
                 message["headers"] = [
-                    (name, _rewrite_response_cookie(value) if name.lower() == b"set-cookie" else value)
+                    (
+                        name,
+                        _rewrite_response_cookie(value)
+                        if name.lower() == b"set-cookie"
+                        else value,
+                    )
                     for name, value in message.get("headers", [])
                 ]
             await send(message)

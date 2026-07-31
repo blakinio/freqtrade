@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import os
 from dataclasses import dataclass
+from typing import Literal
 
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
@@ -14,6 +15,9 @@ class IdentityConfigurationError(RuntimeError):
     pass
 
 
+IdentityTransportMode = Literal["secure_https", "local_http_test"]
+
+
 @dataclass(frozen=True)
 class IdentityRuntimeConfig:
     issuer: str
@@ -22,9 +26,19 @@ class IdentityRuntimeConfig:
     redirect_uri: str
     session_hmac_key: bytes
     flow_encryption_key: bytes
+    transport_mode: IdentityTransportMode = "secure_https"
+
+    @property
+    def allow_insecure_local_http(self) -> bool:
+        return self.transport_mode == "local_http_test"
 
     @classmethod
     def from_environment(cls) -> IdentityRuntimeConfig:
+        transport_mode = _transport_mode()
+        if transport_mode == "local_http_test" and os.environ.get("PORTAL_ENVIRONMENT") != "test":
+            raise IdentityConfigurationError(
+                "local_http_test identity transport requires PORTAL_ENVIRONMENT=test"
+            )
         return cls(
             issuer=_required("PORTAL_IDENTITY_ISSUER"),
             client_id=_required("PORTAL_IDENTITY_CLIENT_ID"),
@@ -34,6 +48,7 @@ class IdentityRuntimeConfig:
             flow_encryption_key=_decode_secret(
                 _required("PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64")
             ),
+            transport_mode=transport_mode,
         )
 
 
@@ -47,6 +62,7 @@ def build_identity_service(
             client_id=config.client_id,
             client_secret=config.client_secret,
             redirect_uri=config.redirect_uri,
+            allow_insecure_local_http=config.allow_insecure_local_http,
         )
     )
     crypto = IdentityCrypto(
@@ -56,6 +72,15 @@ def build_identity_service(
         )
     )
     return IdentityService(session_factory, oidc, crypto)
+
+
+def _transport_mode() -> IdentityTransportMode:
+    value = os.environ.get("PORTAL_IDENTITY_TRANSPORT_MODE", "secure_https").strip()
+    if value not in {"secure_https", "local_http_test"}:
+        raise IdentityConfigurationError(
+            "PORTAL_IDENTITY_TRANSPORT_MODE must be secure_https or local_http_test"
+        )
+    return value  # type: ignore[return-value]
 
 
 def _required(name: str) -> str:

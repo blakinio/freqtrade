@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   observe:
-    runs-on: [self-hosted, freqtrade-staging]
+    runs-on: [freqtrade-staging]
     timeout-minutes: 5
     env:
       DURABLE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801

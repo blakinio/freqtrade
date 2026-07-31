@@ -13,6 +13,7 @@ import re
 import sys
 import typing
 
+
 ACTIVE_RAW = {
     "active",
     "in_progress",
@@ -142,9 +143,7 @@ def scalar_map(text: str) -> dict[str, str]:
     return values
 
 
-def read_scalar_lines(
-    lines: collections.abc.Iterable[str], values: dict[str, str]
-) -> None:
+def read_scalar_lines(lines: collections.abc.Iterable[str], values: dict[str, str]) -> None:
     for raw in lines:
         if not raw or raw[0].isspace() or raw.lstrip().startswith("#") or ":" not in raw:
             continue
@@ -156,9 +155,7 @@ def read_scalar_lines(
 
 
 def first_list_item(text: str, key: str) -> str:
-    pattern = re.compile(
-        rf"(?ms)^{re.escape(key)}:\s*\n(?P<body>(?:[ \t]+- .*(?:\n|$))*)"
-    )
+    pattern = re.compile(rf"(?ms)^{re.escape(key)}:\s*\n(?P<body>(?:[ \t]+- .*(?:\n|$))*)")
     match = pattern.search(text)
     if not match:
         return ""
@@ -201,9 +198,7 @@ def infer_task_id(path: pathlib.Path, text: str, values: dict[str, str]) -> str:
     for key in ("task_id", "id"):
         if values.get(key):
             return values[key]
-    pattern = re.compile(
-        r"\b(?:FTAI|OTH|OTERYN|CAN|OTC2?|OTS)-[A-Z0-9][A-Z0-9-]*\b", re.I
-    )
+    pattern = re.compile(r"\b(?:FTAI|OTH|OTERYN|CAN|OTC2?|OTS)-[A-Z0-9][A-Z0-9-]*\b", re.I)
     match = pattern.search(path.stem) or pattern.search(text)
     return match.group(0) if match else path.stem
 
@@ -323,9 +318,7 @@ def task_from_file(
     )
 
 
-def load_tasks(
-    config: dict[str, object], now: datetime.datetime, stale_after: int
-) -> list[Task]:
+def load_tasks(config: dict[str, object], now: datetime.datetime, stale_after: int) -> list[Task]:
     lanes = object_map_list(config.get("lanes"), "lanes")
     if not lanes:
         raise ValueError("configuration must define at least one lane")
@@ -380,9 +373,7 @@ def task_dict(task: Task) -> dict[str, object]:
 def coordination_metrics(tasks: list[Task]) -> dict[str, int]:
     return {
         "active_tasks": sum(task.state == "RUNNING" for task in tasks),
-        "active_sessions": sum(
-            task.state == "RUNNING" and bool(task.session_id) for task in tasks
-        ),
+        "active_sessions": sum(task.state == "RUNNING" and bool(task.session_id) for task in tasks),
         "legacy_tasks": sum(task.policy_status == "LEGACY" for task in tasks),
         "session_rotations": sum(task.session_rotation_count for task in tasks),
         "task_splits": sum(
@@ -441,13 +432,9 @@ def append_lane(
 
 
 def markdown(config: dict[str, object], tasks: list[Task], stale_after: int) -> str:
-    lanes = [
-        str(lane["id"]) for lane in object_map_list(config.get("lanes"), "lanes")
-    ]
+    lanes = [str(lane["id"]) for lane in object_map_list(config.get("lanes"), "lanes")]
     rollout = object_map(config.get("rollout", {}), "rollout")
-    metrics_line = ", ".join(
-        f"{key}={value}" for key, value in coordination_metrics(tasks).items()
-    )
+    metrics_line = ", ".join(f"{key}={value}" for key, value in coordination_metrics(tasks).items())
     lines = [
         f"# Control Room — {config.get('repository', 'repository')}",
         "",

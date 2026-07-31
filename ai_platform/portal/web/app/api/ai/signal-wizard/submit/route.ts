@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import {
+  CSRF_HEADER_NAME,
   identityErrorResponse,
   requireBrowserMutation,
 } from "@/lib/identity";
 import {
+  dataMode,
   PortalApiConfigurationError,
   PortalApiResponseError,
 } from "@/lib/portal-api";
@@ -26,6 +28,56 @@ function isSubmitCommand(value: unknown): value is SignalWizardSubmitCommand {
     command.expected_strategy_version.trim().length > 0 &&
     command.capability?.capability === "experiment.submit"
   );
+}
+
+function controlPlaneUrl(): string {
+  const value = process.env.PORTAL_CONTROL_PLANE_URL;
+  if (!value) throw new PortalApiConfigurationError("PORTAL_CONTROL_PLANE_URL is required");
+  const url = new URL(value);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new PortalApiConfigurationError("PORTAL_CONTROL_PLANE_URL must use HTTP or HTTPS");
+  }
+  return url.toString().replace(/\/$/, "");
+}
+
+async function upstreamPayload(response: Response): Promise<unknown> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return { detail: `Signal Wizard backend returned non-JSON status ${response.status}` };
+  }
+}
+
+async function forwardSubmit(
+  request: NextRequest,
+  csrfToken: string,
+  command: SignalWizardSubmitCommand,
+) {
+  const cookieHeader = request.headers.get("cookie");
+  if (!cookieHeader) {
+    return NextResponse.json(
+      { detail: "Portal session is missing", code: "SESSION_MISSING" },
+      { status: 401, headers: { "cache-control": "no-store" } },
+    );
+  }
+  const response = await fetch(`${controlPlaneUrl()}/v1/signal-wizard/submit`, {
+    method: "POST",
+    cache: "no-store",
+    redirect: "manual",
+    headers: {
+      accept: "application/json",
+      cookie: cookieHeader,
+      [CSRF_HEADER_NAME]: csrfToken,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(command),
+  });
+  return NextResponse.json(await upstreamPayload(response), {
+    status: response.status,
+    headers: { "cache-control": "no-store" },
+  });
 }
 
 function errorResponse(error: unknown) {
@@ -51,13 +103,16 @@ function errorResponse(error: unknown) {
 
 export async function POST(request: NextRequest) {
   try {
-    requireBrowserMutation(request);
+    const csrfToken = requireBrowserMutation(request);
     const payload: unknown = await request.json();
     if (!isSubmitCommand(payload)) {
       return NextResponse.json(
         { detail: "Signal Wizard submit command is incomplete or invalid" },
         { status: 422, headers: { "cache-control": "no-store" } },
       );
+    }
+    if (dataMode() !== "fixture") {
+      return forwardSubmit(request, csrfToken, payload);
     }
     const result = await submitSignalWizard(request, payload);
     return NextResponse.json(result, {

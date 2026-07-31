@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TypeVar
+from uuid import NAMESPACE_URL, uuid5
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -20,6 +22,9 @@ from ai_platform.portal.signal_wizard.service import (
 )
 
 
+CommandT = TypeVar("CommandT", SignalWizardPreviewCommand, SignalWizardSubmitCommand)
+
+
 def build_router(
     service: SignalWizardService,
     context_dependency: Callable[..., RequestContext],
@@ -35,8 +40,13 @@ def build_router(
         command: SignalWizardPreviewCommand,
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardPreviewResult:
+        bound_context, bound_command = _bind_command_context(
+            context,
+            command,
+            operation="preview",
+        )
         try:
-            return service.preview(context, command)
+            return service.preview(bound_context, bound_command)
         except SignalWizardValidationError as exc:
             raise _http_error(422, exc.reason_code, exc) from exc
         except SignalWizardConflictError as exc:
@@ -53,8 +63,13 @@ def build_router(
         command: SignalWizardSubmitCommand,
         context: RequestContext = Depends(context_dependency),
     ) -> SignalWizardSubmitResult:
+        bound_context, bound_command = _bind_command_context(
+            context,
+            command,
+            operation="submit",
+        )
         try:
-            return service.submit(context, command)
+            return service.submit(bound_context, bound_command)
         except SignalWizardNotFoundError as exc:
             raise _http_error(404, "SIGNAL_WIZARD_PREVIEW_NOT_FOUND", exc) from exc
         except SignalWizardValidationError as exc:
@@ -65,6 +80,38 @@ def build_router(
             raise _http_error(500, "SIGNAL_WIZARD_CORRUPT_RECORD", exc) from exc
 
     return router
+
+
+def _bind_command_context(
+    context: RequestContext,
+    command: CommandT,
+    *,
+    operation: str,
+) -> tuple[RequestContext, CommandT]:
+    """Construct stable trusted command correlation after authentication.
+
+    Identity authentication intentionally creates fresh HTTP request identifiers. A browser or
+    same-origin BFF cannot know those values before the upstream request is authenticated, while
+    Signal Wizard commands require durable idempotency across retries. Derive command correlation
+    only at this authenticated boundary from trusted identity plus the normalized idempotency key;
+    never accept correlation supplied by the browser as authoritative.
+    """
+
+    identity = (
+        f"signal-wizard:{context.tenant_id}:{context.actor_id}:"
+        f"{operation}:{command.idempotency_key.strip()}"
+    )
+    bound_context = context.model_copy(
+        update={
+            "request_id": uuid5(NAMESPACE_URL, f"{identity}:request"),
+            "correlation_id": uuid5(NAMESPACE_URL, f"{identity}:correlation"),
+            "causation_id": None,
+        }
+    )
+    command_context = command.context.model_copy(
+        update={"correlation": bound_context.correlation_context()}
+    )
+    return bound_context, command.model_copy(update={"context": command_context})
 
 
 def _http_error(status_code: int, reason_code: str, exc: Exception) -> HTTPException:

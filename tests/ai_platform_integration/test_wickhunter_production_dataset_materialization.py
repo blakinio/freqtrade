@@ -125,7 +125,6 @@ def _market_package(root: Path) -> Path:
     return package
 
 
-
 def _accepted_events() -> tuple[SimpleNamespace, ...]:
     return tuple(
         SimpleNamespace(
@@ -258,9 +257,9 @@ def test_market_inputs_are_availability_safe(
         "spread_bps",
         "market_wide_liquidation_intensity",
     }
-    assert evidence["market_metric_policy_sha256"] == evidence[
-        "market_metric_policy"
-    ]["policy_sha256"]
+    assert (
+        evidence["market_metric_policy_sha256"] == evidence["market_metric_policy"]["policy_sha256"]
+    )
     assert universes[0].includes_symbol(SYMBOL)
     assert universes[-1].selected_at_ms < HOLDOUT_START
 
@@ -302,9 +301,7 @@ def test_materialization_binds_sources_and_verifies_partitions(
                 "market_context_count": 1,
                 "universe_snapshot_count": 1,
                 "market_metric_policy": subject._market_metric_policy(),
-                "market_metric_policy_sha256": subject._market_metric_policy()[
-                    "policy_sha256"
-                ],
+                "market_metric_policy_sha256": subject._market_metric_policy()["policy_sha256"],
             },
         ),
     )
@@ -332,9 +329,9 @@ def test_materialization_binds_sources_and_verifies_partitions(
     binding = json.loads((output / subject.BINDING_NAME).read_text(encoding="utf-8"))
     assert binding["market_evidence"]["manifest_sha256"] == "a" * 64
     assert binding["liquid20_selection_sha256"] == selection.selection_sha256
-    assert binding["market_metric_policy_sha256"] == binding[
-        "market_metric_policy"
-    ]["policy_sha256"]
+    assert (
+        binding["market_metric_policy_sha256"] == binding["market_metric_policy"]["policy_sha256"]
+    )
     assert binding["protected_holdout_accessed"] is False
 
 
@@ -372,9 +369,7 @@ def test_verifier_rejects_partition_tampering(
                 "market_context_count": 1,
                 "universe_snapshot_count": 1,
                 "market_metric_policy": subject._market_metric_policy(),
-                "market_metric_policy_sha256": subject._market_metric_policy()[
-                    "policy_sha256"
-                ],
+                "market_metric_policy_sha256": subject._market_metric_policy()["policy_sha256"],
             },
         ),
     )

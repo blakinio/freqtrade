@@ -1,0 +1,93 @@
+{
+  "schema_version": "wickhunter-portal-observability-snapshot-v1",
+  "snapshot_id": "1111111111111111111111111111111111111111111111111111111111111111",
+  "bot_instance": "wickhunter-shadow-1",
+  "mode": "shadow",
+  "health": "healthy",
+  "observed_at_ms": 1785620400000,
+  "universe_snapshot_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+  "dynamic_universe": ["BTCUSDT", "ETHUSDT"],
+  "source_freshness": [
+    {
+      "source": "binance-usdm",
+      "health": "healthy",
+      "observed_at_ms": 1785620399500,
+      "last_received_at_ms": 1785620399000,
+      "age_ms": 1000,
+      "fresh": true
+    },
+    {
+      "source": "bybit-linear",
+      "health": "healthy",
+      "observed_at_ms": 1785620399500,
+      "last_received_at_ms": 1785620399200,
+      "age_ms": 800,
+      "fresh": true
+    }
+  ],
+  "model_version": "wickhunter-lightgbm-v1",
+  "model_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+  "parameter_version": "wickhunter-parameters-v1",
+  "parameter_hash": "4444444444444444444444444444444444444444444444444444444444444444",
+  "dataset_hash": "5555555555555555555555555555555555555555555555555555555555555555",
+  "code_sha": "6666666666666666666666666666666666666666",
+  "decisions": [
+    {
+      "shadow_decision_id": "7777777777777777777777777777777777777777777777777777777777777777",
+      "status": "simulated_allowed",
+      "symbol": "BTCUSDT",
+      "side": "long",
+      "candidate_id": "8888888888888888888888888888888888888888888888888888888888888888",
+      "score_id": "9999999999999999999999999999999999999999999999999999999999999999",
+      "risk_decision_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "reason_codes": ["reversal_long", "risk_allowed"],
+      "observed_at_ms": 1785620399900
+    },
+    {
+      "shadow_decision_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "status": "rejected_by_risk",
+      "symbol": "ETHUSDT",
+      "side": "short",
+      "candidate_id": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "score_id": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "risk_decision_id": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "reason_codes": ["portfolio_heat_limit", "risk_rejected"],
+      "observed_at_ms": 1785620399950
+    }
+  ],
+  "positions": [
+    {
+      "position_id": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "trade_intent_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "symbol": "BTCUSDT",
+      "side": "long",
+      "opened_at_ms": 1785620300000,
+      "entry_price": "65100.00000000",
+      "mark_price": "65225.00000000",
+      "quantity": "0.00600000",
+      "take_profit_price": "66402.00000000",
+      "stop_loss_price": "64449.00000000",
+      "model_version": "wickhunter-lightgbm-v1",
+      "model_hash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "parameter_version": "wickhunter-parameters-v1",
+      "parameter_hash": "4444444444444444444444444444444444444444444444444444444444444444"
+    }
+  ],
+  "cumulative_realized_pnl_quote": "12.50000000",
+  "unrealized_pnl_quote": "0.75000000",
+  "simulated_equity_quote": "10013.25000000",
+  "drawdown_ratio": "0.00200000",
+  "retraining_state": "idle",
+  "validation_state": "accepted_candidate_only",
+  "model_drift": "healthy",
+  "data_drift": "healthy",
+  "circuit_breaker_active": false,
+  "circuit_breaker_reasons": [],
+  "persistence_generation": 42,
+  "runtime_state_sha256": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+  "read_only": true,
+  "trading_credentials_present": false,
+  "order_adapter_present": false,
+  "orders_submitted": 0,
+  "live_capital_authorized": false
+}

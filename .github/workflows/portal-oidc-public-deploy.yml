@@ -113,6 +113,19 @@ jobs:
             --expected-repository-sha "$IMPLEMENTATION_SHA" \
             --report "$REPORT_PATH"
 
+      - name: Verify authorization-code-only Authentik provider
+        id: verify-grants
+        if: steps.deploy.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/verify_provider_grant_types.py \
+            --repository "$GITHUB_WORKSPACE" \
+            --report "$REPORT_PATH"
+
       - name: Diagnose discovery and JWKS failure safely
         if: steps.deploy.outcome == 'failure'
         continue-on-error: true
@@ -152,7 +165,10 @@ jobs:
           import sys
 
           report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          authentik = report.get("authentik", {})
           print(f"- Status: `{report.get('status', 'unknown')}`")
+          print(f"- Grant types: `{authentik.get('grant_types', 'unknown')}`")
+          print(f"- Legacy grants disabled: `{authentik.get('legacy_grants_disabled', False)}`")
           print(f"- Identity fixture disabled: `{report.get('identity_fixture_disabled', False)}`")
           print(f"- Membership bootstrap: `{report.get('membership_bootstrap', 'unknown')}`")
           print(f"- Secret values recorded: `{report.get('secret_values_recorded', True)}`")
@@ -167,11 +183,16 @@ jobs:
         shell: bash
         env:
           DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          GRANT_TYPES_OUTCOME: ${{ steps.verify-grants.outcome }}
           REPORT_PATH: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
         run: |
           set -euo pipefail
           if [[ "$DEPLOY_OUTCOME" != "success" ]]; then
             echo "Public Portal OIDC deployment failed closed" >&2
+            exit 1
+          fi
+          if [[ "$GRANT_TYPES_OUTCOME" != "success" ]]; then
+            echo "Authentik grant-type verification failed closed" >&2
             exit 1
           fi
           python3 - "$REPORT_PATH" <<'PY'
@@ -192,4 +213,13 @@ jobs:
           for key, expected in required.items():
               if report.get(key) != expected:
                   raise SystemExit(f"deployment report invariant failed: {key}")
+          authentik = report.get("authentik")
+          if not isinstance(authentik, dict):
+              raise SystemExit("deployment report Authentik section is missing")
+          if authentik.get("grant_types") != ["authorization_code"]:
+              raise SystemExit("authorization-code grant was not proven")
+          if authentik.get("authorization_code_enabled") is not True:
+              raise SystemExit("authorization-code grant is not enabled")
+          if authentik.get("legacy_grants_disabled") is not True:
+              raise SystemExit("legacy Authentik grants are not disabled")
           PY

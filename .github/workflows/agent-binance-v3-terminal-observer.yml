@@ -1,0 +1,224 @@
+name: Agent Binance V3 Terminal Observer
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/agent-binance-v3-terminal-observer.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-binance-v3-terminal-observer
+  cancel-in-progress: false
+
+env:
+  DURABLE_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+  EXPECTED_RUN_ID: binance-spot-instrument-shadow-acceptance-20260729-v3-r1
+
+jobs:
+  observe:
+    name: Inspect Binance v3 terminal acceptance state
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout exact observer commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file observer scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\t.github/workflows/agent-binance-v3-terminal-observer.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Validate approved runner and durable root
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$DURABLE_ROOT" && -r "$DURABLE_ROOT" ]]
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Inspect exact durable run without mutation
+        id: inspect
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/binance-v3-terminal-observer"
+          mkdir -p "$evidence"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          import shutil
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path(os.environ["DURABLE_ROOT"])
+          run_id = os.environ["EXPECTED_RUN_ID"]
+          run_root = root / run_id
+          evidence = Path(os.environ["RUNNER_TEMP"]) / "binance-v3-terminal-observer"
+          pointer_path = root / "active-binance-spot-instrument-acceptance-v3.json"
+          health_path = root / "binance-v3-persistent-sampler-health.json"
+          result = {
+              "observer": "binance-v3-terminal-read-only",
+              "observed_at": datetime.now(timezone.utc).isoformat(),
+              "durable_root": str(root),
+              "run_id": run_id,
+              "run_root_name": run_root.name,
+              "pointer_present": pointer_path.is_file(),
+              "health_present": health_path.is_file(),
+              "valid": False,
+          }
+
+          def reject_symlink_tree(path: Path) -> None:
+              current = path
+              while True:
+                  if current.is_symlink():
+                      raise ValueError(f"symlink path rejected: {current}")
+                  if current == root:
+                      return
+                  if current == current.parent:
+                      raise ValueError("path is outside durable root")
+                  current = current.parent
+
+          try:
+              if not run_root.is_dir():
+                  raise FileNotFoundError(run_root)
+              reject_symlink_tree(run_root)
+              state_path = run_root / "incremental-state.json"
+              if not state_path.is_file():
+                  raise FileNotFoundError(state_path)
+              reject_symlink_tree(state_path)
+              state = json.loads(state_path.read_text(encoding="utf-8"))
+              if state.get("run_id") != run_id:
+                  raise ValueError("incremental state run_id mismatch")
+              sample_reports = sorted((run_root / "samples").glob("*/sample-report.json"))
+              result.update(
+                  {
+                      "valid": True,
+                      "state_status": state.get("status"),
+                      "request_id": state.get("request_id"),
+                      "next_sample_index": state.get("next_sample_index"),
+                      "expected_sample_count": state.get("expected_sample_count"),
+                      "completed_sample_reports": len(sample_reports),
+                      "sample_interval_seconds": state.get("sample_interval_seconds"),
+                      "window_started_ns": state.get("window_started_ns"),
+                      "last_sample_completed_ns": state.get("last_sample_completed_ns"),
+                      "ended_ns": state.get("ended_ns"),
+                  }
+              )
+              shutil.copy2(state_path, evidence / "incremental-state.json")
+
+              if health_path.is_file():
+                  reject_symlink_tree(health_path)
+                  health = json.loads(health_path.read_text(encoding="utf-8"))
+                  result["sampler_healthy"] = health.get("healthy")
+                  result["sampler_result"] = health.get("result")
+                  result["sampler_production_source_enabled"] = health.get(
+                      "production_source_enabled"
+                  )
+                  result["sampler_orders_submitted"] = health.get("orders_submitted")
+                  shutil.copy2(health_path, evidence / health_path.name)
+
+              terminal_names = [
+                  "binance-spot-instrument-acceptance-summary.json",
+                  "binance-spot-instrument-acceptance-manifest.json",
+                  "binance-spot-instrument-acceptance-report.json",
+                  "artifact-sha256.txt",
+              ]
+              terminal_present = {}
+              for name in terminal_names:
+                  source = run_root / name
+                  terminal_present[name] = source.is_file()
+                  if source.is_file():
+                      reject_symlink_tree(source)
+                      shutil.copy2(source, evidence / name)
+                      result[f"sha256:{name}"] = hashlib.sha256(source.read_bytes()).hexdigest()
+              result["terminal_files"] = terminal_present
+
+              report_path = run_root / "binance-spot-instrument-acceptance-report.json"
+              if report_path.is_file():
+                  report = json.loads(report_path.read_text(encoding="utf-8"))
+                  result["terminal_outcome"] = report.get("outcome")
+                  result["source_acceptance"] = report.get("source_acceptance")
+                  result["production_source_enabled"] = report.get(
+                      "production_source_enabled"
+                  )
+                  result["orders_submitted"] = report.get("orders_submitted")
+          except Exception as exc:
+              result["error_type"] = type(exc).__name__
+              result["error"] = str(exc)
+
+          output_path = evidence / "observer-result.json"
+          output_path.write_text(
+              json.dumps(result, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(result, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"valid={'true' if result['valid'] else 'false'}\n")
+              output.write(f"state_status={result.get('state_status', 'unknown')}\n")
+              output.write(f"outcome={result.get('terminal_outcome', 'unknown')}\n")
+          PY
+
+      - name: Upload bounded observer evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: agent-binance-v3-terminal-observer-${{ github.run_id }}
+          path: ${{ runner.temp }}/binance-v3-terminal-observer/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce valid read-only inspection
+        if: always()
+        shell: bash
+        env:
+          VALID: ${{ steps.inspect.outputs.valid }}
+        run: |
+          set -euo pipefail
+          [[ "$VALID" == "true" ]]

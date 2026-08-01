@@ -1,0 +1,161 @@
+name: Temporary WH-05 finalize
+
+on:
+  push:
+    branches:
+      - feat/wickhunter-wh05-bounded-optimizer-v1
+    paths:
+      - .github/workflows/tmp-wh05-finalize.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/wickhunter-wh05-bounded-optimizer-v1
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Apply bounded source corrections
+        shell: python
+        run: |
+          from pathlib import Path
+
+          source = Path("ai_platform/wickhunter/bounded_optimizer.py")
+          text = source.read_text(encoding="utf-8")
+          old = "    except Exception as exc:\n"
+          new = "    except RuntimeError as exc:\n"
+          if old not in text:
+              raise SystemExit("missing evaluator exception anchor")
+          text = text.replace(old, new, 1)
+          old = "    policy: BoundedOptimizerPolicy = BoundedOptimizerPolicy(),\n"
+          new = "    policy: BoundedOptimizerPolicy | None = None,\n"
+          if old not in text:
+              raise SystemExit("missing policy default anchor")
+          text = text.replace(old, new, 1)
+          old = ") -> BoundedOptimizationResult:\n    _audit_cases(cases, policy)\n"
+          new = ") -> BoundedOptimizationResult:\n    policy = policy or BoundedOptimizerPolicy()\n    _audit_cases(cases, policy)\n"
+          if old not in text:
+              raise SystemExit("missing policy initialization anchor")
+          source.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          task = Path("docs/agents/tasks/FTAI-20260801-wickhunter-wh05-bounded-optimizer-v1.md")
+          task.write_text("""---
+task_id: FTAI-20260801-wickhunter-wh05-bounded-optimizer-v1
+project_lane: freqtrade-wickhunter
+status: validating
+branch: feat/wickhunter-wh05-bounded-optimizer-v1
+base_branch: develop
+created: 2026-08-01
+updated: 2026-08-01
+related_pr: null
+depends_on:
+  - FTAI-20260801-wickhunter-wh03-baseline-strategy-v1
+owned_paths:
+  - ai_platform/wickhunter/bounded_optimizer.py
+  - tests/ai_platform_integration/test_wickhunter_bounded_optimizer.py
+  - docs/ai_platform/WICKHUNTER_BOUNDED_OPTIMIZER.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh05-bounded-optimizer-v1.md
+required_reads:
+  - docs/agents/EXECUTION_PROTOCOL.md
+  - docs/agents/CONTEXT_HANDOFF.md
+  - docs/agents/programs/FTAI_WICKHUNTER_LIQUIDATION_BOT_PROGRAM.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh03-baseline-strategy-v1.md
+  - docs/ai_platform/WICKHUNTER_BASELINE_STRATEGY.md
+---
+
+# WH-05 bounded validation optimizer
+
+## Objective
+
+Evaluate an explicit finite set of bounded WickHunter parameter candidates through the WH-03 interface, select only from validation evidence and attach descriptive test stability evidence to the final top-k without accessing the protected holdout or authorizing promotion.
+
+## Phases
+
+1. `WH05-DESIGN` — freeze finite search-space, validation objective, surrogate, split-isolation and top-k contracts.
+2. `WH05-IMPLEMENT` — deterministic bounded optimizer, trial evidence and stability report.
+3. `WH05-VALIDATE` — fresh exact-head repository validation.
+
+## Acceptance
+
+- finite caller-supplied parameter search space;
+- every candidate validated against explicit bounds;
+- deterministic seeded initial design and RBF surrogate selection;
+- maximum trial budget and deterministic tie-breaking;
+- WH-03 evaluation and exact WH-02 costs only;
+- training/validation/test isolation and protected-holdout refusal;
+- validation-only ranking;
+- test evidence produced only after selection for top-k;
+- top-k validation/test delta and slice-stability evidence;
+- no automatic promotion, profitability claim, execution, order or live-capital authority.
+
+## Context checkpoint
+
+```yaml
+checkpoint_version: 1
+policy_version: 2
+updated_at: 2026-08-01T20:27:00+02:00
+project_lane: freqtrade-wickhunter
+phase: validate
+session_id: wh05-20260801-001
+session_role: implementer
+execution_mode: chat
+execution_reason: direct GitHub implementation with exact-head repository validation
+status: validating
+branch: feat/wickhunter-wh05-bounded-optimizer-v1
+base_branch: develop
+related_pr: null
+context_pressure: high
+context_growth: stable
+decomposition_decision: phased
+decomposition_reason: search policy, surrogate, trials and stability report share one finite search-space identity
+validation_level: focused
+heavy_validation_runs: 0
+proven:
+  - WH-03 merged to develop as 03810d0c82072d642946ce1d274c86a577ec5349 after final exact-head checks passed
+  - live ownership preflight found no WH-05 branch, PR or overlapping writer
+  - the optimizer accepts only an explicit finite sequence of parameter candidates and validates each candidate against WickHunterParameterBounds
+  - candidate and search-space identities are immutable and input-order independent
+  - seeded initial trials and the fixed RBF surrogate remain inside the supplied candidate set
+  - the objective is computed from WH-03 reports and inherits exact WH-02 labels and costs
+  - validation objective combines net-return mean, slice dispersion and inactivity penalties under a versioned descriptive contract
+  - ranking uses validation objective only; test reports are produced after ranking and only for final top-k candidates
+  - protected holdout, test-based selection, model promotion, profitability claims, execution, order and live-capital authority remain disabled
+derived:
+  - WH-07 may consume only an explicitly selected terminal parameter artifact after WH-06 integration; WH-05 does not promote it
+unknown:
+  - exact-head repository CI and formatter findings
+conflicts:
+  - WH-04 runs on a separate branch and owns disjoint model paths
+first_relevant_error: null
+changed_paths:
+  - ai_platform/wickhunter/bounded_optimizer.py
+  - tests/ai_platform_integration/test_wickhunter_bounded_optimizer.py
+  - docs/ai_platform/WICKHUNTER_BOUNDED_OPTIMIZER.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh05-bounded-optimizer-v1.md
+validation:
+  - command: source-level contract review
+    result: PASS
+    evidence: finite search, validation-only selection, post-selection test evidence and fail-closed authority invariants are explicit
+blockers: []
+next_action: open the exact four-path PR, run focused and repository CI, repair only concrete failures, then perform fresh exact-head validation and merge
+```
+""", encoding="utf-8")
+
+          Path(".github/workflows/tmp-wh05-finalize.yml").unlink()
+      - name: Format owned Python paths
+        run: |
+          python -m pip install --quiet ruff==0.13.1
+          ruff format ai_platform/wickhunter/bounded_optimizer.py tests/ai_platform_integration/test_wickhunter_bounded_optimizer.py
+      - name: Commit finalized WH-05 paths
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ai_platform/wickhunter/bounded_optimizer.py tests/ai_platform_integration/test_wickhunter_bounded_optimizer.py docs/ai_platform/WICKHUNTER_BOUNDED_OPTIMIZER.md docs/agents/tasks/FTAI-20260801-wickhunter-wh05-bounded-optimizer-v1.md .github/workflows/tmp-wh05-finalize.yml
+          git commit -m "docs(wickhunter): checkpoint WH-05 implementation"
+          git push origin HEAD:feat/wickhunter-wh05-bounded-optimizer-v1

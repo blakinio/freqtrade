@@ -81,9 +81,7 @@ class BaselineSlicePolicy:
             if not value.is_finite() or value <= 0:
                 raise BaselineEvaluationError(f"{field_name} must be finite and > 0")
         if self.high_liquidity_usd <= self.medium_liquidity_usd:
-            raise BaselineEvaluationError(
-                "high_liquidity_usd must exceed medium_liquidity_usd"
-            )
+            raise BaselineEvaluationError("high_liquidity_usd must exceed medium_liquidity_usd")
         if self.trend_threshold_ratio >= Decimal("1"):
             raise BaselineEvaluationError("trend_threshold_ratio must be below 1")
 
@@ -305,13 +303,16 @@ class EvaluationSummary:
     def __post_init__(self) -> None:
         if not self.dimension or not self.value:
             raise BaselineEvaluationError("summary dimension and value must be non-empty")
-        if min(
-            self.decision_count,
-            self.selected_count,
-            self.ignored_count,
-            self.executed_label_count,
-            self.missing_entry_count,
-        ) < 0:
+        if (
+            min(
+                self.decision_count,
+                self.selected_count,
+                self.ignored_count,
+                self.executed_label_count,
+                self.missing_entry_count,
+            )
+            < 0
+        ):
             raise BaselineEvaluationError("summary counts must be non-negative")
         if self.selected_count + self.ignored_count != self.decision_count:
             raise BaselineEvaluationError("summary selected/ignored counts are inconsistent")
@@ -368,14 +369,12 @@ class BaselineEvaluationReport:
 
     def __post_init__(self) -> None:
         if self.schema_version != BASELINE_REPORT_SCHEMA_VERSION:
-            raise BaselineEvaluationError(
-                f"report schema must be {BASELINE_REPORT_SCHEMA_VERSION}"
-            )
+            raise BaselineEvaluationError(f"report schema must be {BASELINE_REPORT_SCHEMA_VERSION}")
         if self.interface_version != EVALUATION_INTERFACE_VERSION:
             raise BaselineEvaluationError(
                 f"interface version must be {EVALUATION_INTERFACE_VERSION}"
             )
-        for value, field_name in (
+        for digest, field_name in (
             (self.report_id, "report_id"),
             (self.parameter_sha256, "parameter_sha256"),
             (self.slice_policy_sha256, "slice_policy_sha256"),
@@ -385,14 +384,18 @@ class BaselineEvaluationReport:
             (self.price_path_manifest_sha256, "price_path_manifest_sha256"),
             (self.replay_policy_sha256, "replay_policy_sha256"),
         ):
-            _require_sha256(value, field=field_name)
-        for value, field_name, allow_zero in (
+            _require_sha256(digest, field=field_name)
+        for decimal_value, field_name, allow_zero in (
             (self.fee_ratio, "fee_ratio", True),
             (self.slippage_ratio, "slippage_ratio", True),
             (self.take_profit_ratio, "take_profit_ratio", False),
             (self.stop_loss_ratio, "stop_loss_ratio", False),
         ):
-            if not value.is_finite() or value < 0 or (not allow_zero and value == 0):
+            if (
+                not decimal_value.is_finite()
+                or decimal_value < 0
+                or (not allow_zero and decimal_value == 0)
+            ):
                 raise BaselineEvaluationError(f"{field_name} has an invalid value")
         if self.label_horizon_ms <= 0:
             raise BaselineEvaluationError("label_horizon_ms must be > 0")
@@ -600,16 +603,8 @@ def _summary(
     value: str,
 ) -> EvaluationSummary:
     selected = [item for item in decisions if item.status is EvaluationStatus.SELECTED]
-    executed = [
-        item
-        for item in selected
-        if item.label_outcome is not LabelOutcome.MISSING_ENTRY
-    ]
-    missing = [
-        item
-        for item in selected
-        if item.label_outcome is LabelOutcome.MISSING_ENTRY
-    ]
+    executed = [item for item in selected if item.label_outcome is not LabelOutcome.MISSING_ENTRY]
+    missing = [item for item in selected if item.label_outcome is LabelOutcome.MISSING_ENTRY]
     outcomes = tuple(
         sorted(
             (
@@ -859,7 +854,7 @@ def evaluate_deterministic_baselines(
         slippage_ratio=Decimal(str(identity["slippage_ratio"])),
         take_profit_ratio=Decimal(str(identity["take_profit_ratio"])),
         stop_loss_ratio=Decimal(str(identity["stop_loss_ratio"])),
-        label_horizon_ms=int(identity["label_horizon_ms"]),
+        label_horizon_ms=int(str(identity["label_horizon_ms"])),
         decisions=ordered_decisions,
         overall=overall,
         slices=slices,

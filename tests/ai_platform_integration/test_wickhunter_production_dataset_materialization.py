@@ -123,7 +123,7 @@ def _selection() -> AcceptedImportSelection:
     return AcceptedImportSelection(
         import_run_id="first-party-live:liquid20-20260731T000000Z-0:test",
         provider_id="first-party-live",
-        requested_start_ms=PRE_ROLL_START - 8 * 60 * 60 * 1000,
+        requested_start_ms=DECISION_START - 8 * 60 * 60 * 1000,
         requested_end_ms=DECISION_END + 60 * 60 * 1000,
         protected_holdout_start_ms=HOLDOUT_START,
         manifest_identity_sha256="1" * 64,
@@ -245,6 +245,11 @@ def test_materialization_binds_sources_and_verifies_partitions(
         "protected_holdout_start_ms": HOLDOUT_START,
     }
     selection = _selection()
+    assert selection.requested_start_ms > DECISION_START - 86_400_000
+    assert (
+        selection.requested_start_ms
+        <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS
+    )
     monkeypatch.setattr(
         subject,
         "_market_inputs",

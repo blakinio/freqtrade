@@ -518,7 +518,7 @@ def materialize_production_dataset(
         raise ProductionDatasetMaterializationError(
             "Liquid20 import and market package disagree on holdout"
         )
-    if accepted.selection.requested_start_ms > decision_start_ms - 86_400_000:
+    if accepted.selection.requested_start_ms > decision_start_ms - DEFAULT_BURST_WINDOW_MS:
         raise ProductionDatasetMaterializationError("Liquid20 import lacks required pre-roll")
     if accepted.selection.requested_end_ms < decision_end_ms:
         raise ProductionDatasetMaterializationError(

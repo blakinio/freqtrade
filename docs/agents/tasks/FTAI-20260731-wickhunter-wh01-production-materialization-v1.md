@@ -43,6 +43,14 @@ Cryptographically bind the accepted Liquid20 production import to the independen
 - the current PR changes exactly the implementation, focused tests and this task record;
 - regular exact-head workflows on bot-authored head `e985cb1ca5d180fab11cea9173ef8c5adfa1ed75` were `action_required` without jobs, so this meaningful checkpoint records the completed mypy repair and triggers normal exact-head CI.
 
+## Production repair checkpoint
+
+- request-only PR #906 independently verified both frozen inputs, all expected hashes and all disabled authority flags on trusted runner `freqtrade-synology-staging`;
+- workflow run `30688887667`, job `91339968858`, failed before publication with `Liquid20 import lacks required pre-roll`;
+- the accepted import starts about eight hours before the decision interval and fully covers it, while the WH-01 builder requires history strictly before its declared 15-minute burst window rather than a separate 24-hour liquidation interval;
+- this repair aligns the Liquid20 pre-roll bound with the production dataset request's burst window and keeps the builder's actual event-history eligibility checks unchanged;
+- no capture, backfill, holdout access, synthetic data, replay, model execution, trading credentials, orders or live capital were used.
+
 ## Acceptance
 
 - focused tests cover split geometry, availability-safe input derivation, source binding and tamper rejection;

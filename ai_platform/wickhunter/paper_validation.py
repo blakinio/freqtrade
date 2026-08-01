@@ -5,10 +5,11 @@ import json
 import os
 import shutil
 import tempfile
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -88,16 +89,18 @@ def _decimal(value: object, *, field: str) -> Decimal:
     return parsed
 
 
-def _integer(value: object, *, field: str, minimum: int = 0) -> int:
-    if isinstance(value, bool):
-        raise PaperValidationError(f"{field} must be an integer")
-    try:
-        parsed = int(str(value))
-    except ValueError as exc:
-        raise PaperValidationError(f"{field} must be an integer") from exc
-    if parsed < minimum:
-        raise PaperValidationError(f"{field} must be >= {minimum}")
-    return parsed
+def _assert_zero_authority(payload: Mapping[str, object], *, field: str) -> None:
+    unsafe = (
+        bool(payload.get("protected_holdout_accessed", False))
+        or bool(payload.get("automatic_promotion_enabled", False))
+        or bool(payload.get("trading_credentials_present", False))
+        or bool(payload.get("order_adapter_present", False))
+        or bool(payload.get("execution_enabled", False))
+        or bool(payload.get("live_capital_authorized", False))
+        or payload.get("orders_submitted", 0) != 0
+    )
+    if unsafe:
+        raise PaperValidationError(f"{field} contains forbidden authority")
 
 
 def _sha256_file(path: Path) -> str:
@@ -106,33 +109,6 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
-
-
-def _read_json(path: Path, *, field: str) -> dict[str, Any]:
-    if path.is_symlink() or not path.is_file():
-        raise PaperValidationError(f"{field} must be a regular file")
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise PaperValidationError(f"unable to read {field}") from exc
-    if not isinstance(payload, dict):
-        raise PaperValidationError(f"{field} must contain an object")
-    return payload
-
-
-def _read_jsonl(path: Path, *, field: str) -> tuple[dict[str, Any], ...]:
-    if path.is_symlink() or not path.is_file():
-        raise PaperValidationError(f"{field} must be a regular file")
-    records: list[dict[str, Any]] = []
-    try:
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            payload = json.loads(line)
-            if not isinstance(payload, dict):
-                raise PaperValidationError(f"{field} line {number} must be an object")
-            records.append(payload)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise PaperValidationError(f"unable to read {field}") from exc
-    return tuple(records)
 
 
 def _write_new(path: Path, content: bytes) -> None:
@@ -154,19 +130,31 @@ def _write_jsonl(path: Path, payloads: Iterable[object]) -> None:
     _write_new(path, content)
 
 
-def _assert_zero_authority(payload: Mapping[str, object], *, field: str) -> None:
-    if any(
-        (
-            bool(payload.get("protected_holdout_accessed", False)),
-            bool(payload.get("automatic_promotion_enabled", False)),
-            bool(payload.get("trading_credentials_present", False)),
-            bool(payload.get("order_adapter_present", False)),
-            bool(payload.get("execution_enabled", False)),
-            bool(payload.get("live_capital_authorized", False)),
-            payload.get("orders_submitted", 0) != 0,
-        )
-    ):
-        raise PaperValidationError(f"{field} contains forbidden authority")
+def _read_json(path: Path, *, field: str) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise PaperValidationError(f"{field} must be a regular file")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PaperValidationError(f"unable to read {field}") from exc
+    if not isinstance(payload, dict):
+        raise PaperValidationError(f"{field} must contain an object")
+    return payload
+
+
+def _read_jsonl(path: Path, *, field: str) -> tuple[dict[str, Any], ...]:
+    if path.is_symlink() or not path.is_file():
+        raise PaperValidationError(f"{field} must be a regular file")
+    records: list[dict[str, Any]] = []
+    try:
+        for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            payload = json.loads(line)
+            if not isinstance(payload, dict):
+                raise PaperValidationError(f"{field} line {line_number} must be an object")
+            records.append(payload)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PaperValidationError(f"unable to read {field}") from exc
+    return tuple(records)
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,16 +180,16 @@ class PaperValidationPolicy:
         if self.schema_version != POLICY_SCHEMA_VERSION:
             raise PaperValidationError("paper policy schema mismatch")
         _text(self.policy_version, field="policy_version")
-        for field_name in (
+        integer_fields = (
             "minimum_duration_ms",
             "minimum_snapshot_count",
             "maximum_snapshot_gap_ms",
             "minimum_decision_count",
             "minimum_allowed_decision_count",
             "minimum_risk_rejection_count",
-        ):
-            if getattr(self, field_name) < 1:
-                raise PaperValidationError(f"{field_name} must be >= 1")
+        )
+        if any(getattr(self, name) < 1 for name in integer_fields):
+            raise PaperValidationError("paper policy counts and durations must be >= 1")
         if not Decimal("0") <= self.minimum_fresh_source_ratio <= Decimal("1"):
             raise PaperValidationError("minimum_fresh_source_ratio must be in [0, 1]")
         if not Decimal("0") < self.maximum_drawdown_ratio < Decimal("1"):
@@ -252,26 +240,28 @@ class PaperRunRequest:
             raise PaperValidationError("request timestamps are invalid")
         if self.window_end_ms <= self.window_start_ms:
             raise PaperValidationError("paper window must be positive")
-        _text(self.bot_instance, field="bot_instance")
         if self.mode not in {BotMode.SHADOW, BotMode.PAPER}:
             raise PaperValidationError("paper request mode must be shadow or paper")
-        for value, field_name in (
+        text_fields = (
+            (self.bot_instance, "bot_instance"),
             (self.model_version, "model_version"),
             (self.parameter_version, "parameter_version"),
             (self.rollback_model_version, "rollback_model_version"),
             (self.rollback_parameter_version, "rollback_parameter_version"),
             (self.wh07_snapshot_schema, "wh07_snapshot_schema"),
             (self.wh08_consumer_version, "wh08_consumer_version"),
-        ):
+        )
+        for value, field_name in text_fields:
             _text(value, field=field_name)
-        for value, field_name in (
+        hash_fields = (
             (self.model_hash, "model_hash"),
             (self.parameter_hash, "parameter_hash"),
             (self.dataset_hash, "dataset_hash"),
             (self.rollback_model_hash, "rollback_model_hash"),
             (self.rollback_parameter_hash, "rollback_parameter_hash"),
             (self.policy_sha256, "policy_sha256"),
-        ):
+        )
+        for value, field_name in hash_fields:
             _sha256(value, field=field_name)
         _git_sha(self.code_sha, field="code_sha")
         _assert_zero_authority(asdict(self), field="paper request")
@@ -332,25 +322,25 @@ class PaperObservation:
             raise PaperValidationError("observation mode must be shadow or paper")
         if self.health not in {"healthy", "degraded", "fail_closed"}:
             raise PaperValidationError("observation health is unsupported")
-        for field_name in (
-            "source_count",
-            "fresh_source_count",
-            "decision_count",
-            "allowed_decision_count",
-            "risk_rejection_count",
-            "ignored_decision_count",
-            "position_count",
-        ):
-            if getattr(self, field_name) < 0:
-                raise PaperValidationError(f"{field_name} must be >= 0")
+        counts = (
+            self.source_count,
+            self.fresh_source_count,
+            self.decision_count,
+            self.allowed_decision_count,
+            self.risk_rejection_count,
+            self.ignored_decision_count,
+            self.position_count,
+        )
+        if any(value < 0 for value in counts):
+            raise PaperValidationError("observation counts must be >= 0")
         if self.fresh_source_count > self.source_count:
             raise PaperValidationError("fresh sources exceed all sources")
-        if (
+        decision_total = (
             self.allowed_decision_count
             + self.risk_rejection_count
             + self.ignored_decision_count
-            != self.decision_count
-        ):
+        )
+        if decision_total != self.decision_count:
             raise PaperValidationError("decision counts are inconsistent")
         for value, field_name in (
             (self.cumulative_realized_pnl_quote, "cumulative_realized_pnl_quote"),
@@ -521,6 +511,48 @@ class PaperValidationResult:
     observations: tuple[PaperObservation, ...]
 
 
+def _request_identity_payload(
+    *,
+    created_at_ms: int,
+    window_start_ms: int,
+    window_end_ms: int,
+    bot_instance: str,
+    mode: BotMode,
+    model_version: str,
+    model_hash: str,
+    parameter_version: str,
+    parameter_hash: str,
+    dataset_hash: str,
+    code_sha: str,
+    rollback_model_version: str,
+    rollback_model_hash: str,
+    rollback_parameter_version: str,
+    rollback_parameter_hash: str,
+    wh08_consumer_version: str,
+    policy_sha256: str,
+) -> dict[str, object]:
+    return {
+        "created_at_ms": created_at_ms,
+        "window_start_ms": window_start_ms,
+        "window_end_ms": window_end_ms,
+        "bot_instance": bot_instance,
+        "mode": mode.value,
+        "model_version": model_version,
+        "model_hash": model_hash,
+        "parameter_version": parameter_version,
+        "parameter_hash": parameter_hash,
+        "dataset_hash": dataset_hash,
+        "code_sha": code_sha,
+        "rollback_model_version": rollback_model_version,
+        "rollback_model_hash": rollback_model_hash,
+        "rollback_parameter_version": rollback_parameter_version,
+        "rollback_parameter_hash": rollback_parameter_hash,
+        "wh07_snapshot_schema": "wickhunter-portal-observability-snapshot-v1",
+        "wh08_consumer_version": wh08_consumer_version,
+        "policy_sha256": policy_sha256,
+    }
+
+
 def build_paper_run_request(
     *,
     created_at_ms: int,
@@ -541,29 +573,29 @@ def build_paper_run_request(
     wh08_consumer_version: str,
     policy: PaperValidationPolicy,
 ) -> PaperRunRequest:
-    payload = {
-        "created_at_ms": created_at_ms,
-        "window_start_ms": window_start_ms,
-        "window_end_ms": window_end_ms,
-        "bot_instance": bot_instance,
-        "mode": mode.value,
-        "model_version": model_version,
-        "model_hash": model_hash,
-        "parameter_version": parameter_version,
-        "parameter_hash": parameter_hash,
-        "dataset_hash": dataset_hash,
-        "code_sha": code_sha,
-        "rollback_model_version": rollback_model_version,
-        "rollback_model_hash": rollback_model_hash,
-        "rollback_parameter_version": rollback_parameter_version,
-        "rollback_parameter_hash": rollback_parameter_hash,
-        "wh07_snapshot_schema": "wickhunter-portal-observability-snapshot-v1",
-        "wh08_consumer_version": wh08_consumer_version,
-        "policy_sha256": policy.policy_sha256,
-    }
+    payload = _request_identity_payload(
+        created_at_ms=created_at_ms,
+        window_start_ms=window_start_ms,
+        window_end_ms=window_end_ms,
+        bot_instance=bot_instance,
+        mode=mode,
+        model_version=model_version,
+        model_hash=model_hash,
+        parameter_version=parameter_version,
+        parameter_hash=parameter_hash,
+        dataset_hash=dataset_hash,
+        code_sha=code_sha,
+        rollback_model_version=rollback_model_version,
+        rollback_model_hash=rollback_model_hash,
+        rollback_parameter_version=rollback_parameter_version,
+        rollback_parameter_hash=rollback_parameter_hash,
+        wh08_consumer_version=wh08_consumer_version,
+        policy_sha256=policy.policy_sha256,
+    )
+    run_id = canonical_sha256({"schema_version": REQUEST_SCHEMA_VERSION, "payload": payload})
     return PaperRunRequest(
         schema_version=REQUEST_SCHEMA_VERSION,
-        run_id=canonical_sha256({"schema_version": REQUEST_SCHEMA_VERSION, "payload": payload}),
+        run_id=run_id,
         created_at_ms=created_at_ms,
         window_start_ms=window_start_ms,
         window_end_ms=window_end_ms,
@@ -633,36 +665,31 @@ def observation_from_snapshot(snapshot: PortalObservabilitySnapshot) -> PaperObs
     )
 
 
-def _validate_request_observation(request: PaperRunRequest, observation: PaperObservation) -> None:
-    for actual, expected, field_name in (
-        (observation.bot_instance, request.bot_instance, "bot_instance"),
-        (observation.mode, request.mode, "mode"),
-        (observation.model_version, request.model_version, "model_version"),
-        (observation.model_hash, request.model_hash, "model_hash"),
-        (observation.parameter_version, request.parameter_version, "parameter_version"),
-        (observation.parameter_hash, request.parameter_hash, "parameter_hash"),
-        (observation.dataset_hash, request.dataset_hash, "dataset_hash"),
-        (observation.code_sha, request.code_sha, "code_sha"),
-    ):
+def _validate_request_observation(request: PaperRunRequest, item: PaperObservation) -> None:
+    identities = (
+        (item.bot_instance, request.bot_instance, "bot_instance"),
+        (item.mode, request.mode, "mode"),
+        (item.model_version, request.model_version, "model_version"),
+        (item.model_hash, request.model_hash, "model_hash"),
+        (item.parameter_version, request.parameter_version, "parameter_version"),
+        (item.parameter_hash, request.parameter_hash, "parameter_hash"),
+        (item.dataset_hash, request.dataset_hash, "dataset_hash"),
+        (item.code_sha, request.code_sha, "code_sha"),
+    )
+    for actual, expected, field_name in identities:
         if actual != expected:
             raise PaperValidationError(f"observation {field_name} does not match request")
-    if not request.window_start_ms <= observation.observed_at_ms <= request.window_end_ms:
+    if not request.window_start_ms <= item.observed_at_ms <= request.window_end_ms:
         raise PaperValidationError("observation falls outside the immutable request window")
 
 
-def evaluate_paper_evidence(
-    *,
+def _prepare_observations(
     request: PaperRunRequest,
-    policy: PaperValidationPolicy,
     snapshots: Sequence[PortalObservabilitySnapshot],
-    parity_evidence: Sequence[ReplayShadowParityEvidence],
-    safety_exercises: Sequence[SafetyExerciseEvidence],
-) -> PaperValidationResult:  # noqa: C901
-    if request.policy_sha256 != policy.policy_sha256:
-        raise PaperValidationError("request policy identity mismatch")
+) -> tuple[PaperObservation, ...]:
     observations = tuple(
         sorted(
-            (observation_from_snapshot(item) for item in snapshots),
+            (observation_from_snapshot(snapshot) for snapshot in snapshots),
             key=lambda item: item.observed_at_ms,
         )
     )
@@ -670,32 +697,18 @@ def evaluate_paper_evidence(
         raise PaperValidationError("paper validation requires observations")
     if len({item.snapshot_id for item in observations}) != len(observations):
         raise PaperValidationError("paper observations contain duplicate snapshot ids")
-    if any(
-        later.observed_at_ms <= earlier.observed_at_ms
-        for earlier, later in zip(observations, observations[1:], strict=False)
-    ):
+    if any(later.observed_at_ms <= earlier.observed_at_ms for earlier, later in pairwise(observations)):
         raise PaperValidationError("paper observations must be strictly increasing")
     for observation in observations:
         _validate_request_observation(request, observation)
+    return observations
 
-    gaps = tuple(
-        later.observed_at_ms - earlier.observed_at_ms
-        for earlier, later in zip(observations, observations[1:], strict=False)
-    )
-    duration_ms = observations[-1].observed_at_ms - observations[0].observed_at_ms
-    maximum_gap_ms = max(gaps, default=0)
-    source_samples = sum(item.source_count for item in observations)
-    fresh_samples = sum(item.fresh_source_count for item in observations)
-    fresh_ratio = Decimal(fresh_samples) / Decimal(source_samples) if source_samples else Decimal("0")
-    decision_count = sum(item.decision_count for item in observations)
-    allowed_count = sum(item.allowed_decision_count for item in observations)
-    rejected_count = sum(item.risk_rejection_count for item in observations)
-    ignored_count = sum(item.ignored_decision_count for item in observations)
-    position_count = max(item.position_count for item in observations)
-    max_drawdown = max(item.drawdown_ratio for item in observations)
-    min_equity = min(item.simulated_equity_quote for item in observations)
-    max_equity = max(item.simulated_equity_quote for item in observations)
 
+def _validate_parity(
+    request: PaperRunRequest,
+    snapshots: Sequence[PortalObservabilitySnapshot],
+    parity_evidence: Sequence[ReplayShadowParityEvidence],
+) -> tuple[set[str], set[str]]:
     parity_ids = {item.shadow_decision_id for item in parity_evidence}
     if len(parity_ids) != len(parity_evidence):
         raise PaperValidationError("parity evidence contains duplicate decisions")
@@ -710,74 +723,134 @@ def evaluate_paper_evidence(
             raise PaperValidationError("parity evidence does not bind an allowed decision")
         if item.dataset_hash != request.dataset_hash or item.code_sha != request.code_sha:
             raise PaperValidationError("parity evidence identity mismatch")
-        if not (item.identities_match and item.policy_match and item.execution_authority_absent):
+        accepted = item.identities_match and item.policy_match and item.execution_authority_absent
+        if not accepted:
             raise PaperValidationError("parity evidence is not accepted")
+    return allowed_ids, parity_ids
 
-    exercise_kinds = tuple(
-        sorted({item.kind for item in safety_exercises}, key=lambda item: item.value)
-    )
+
+def _validate_exercises(
+    request: PaperRunRequest,
+    observations: Sequence[PaperObservation],
+    exercises: Sequence[SafetyExerciseEvidence],
+) -> tuple[SafetyExerciseKind, ...]:
     snapshot_ids = {item.snapshot_id for item in observations}
-    for exercise in safety_exercises:
+    for exercise in exercises:
         if exercise.run_id != request.run_id:
             raise PaperValidationError("safety exercise run identity mismatch")
         if exercise.source_snapshot_id not in snapshot_ids:
             raise PaperValidationError("safety exercise snapshot identity mismatch")
+    return tuple(sorted({item.kind for item in exercises}, key=lambda item: item.value))
 
-    blockers: list[str] = []
-    if duration_ms < policy.minimum_duration_ms:
-        blockers.append("minimum_duration_not_met")
-    if len(observations) < policy.minimum_snapshot_count:
-        blockers.append("minimum_snapshot_count_not_met")
-    if maximum_gap_ms > policy.maximum_snapshot_gap_ms:
-        blockers.append("maximum_snapshot_gap_exceeded")
-    if fresh_ratio < policy.minimum_fresh_source_ratio:
-        blockers.append("fresh_source_ratio_below_policy")
-    if decision_count < policy.minimum_decision_count:
-        blockers.append("minimum_decision_count_not_met")
-    if allowed_count < policy.minimum_allowed_decision_count:
-        blockers.append("minimum_allowed_decision_count_not_met")
-    if rejected_count < policy.minimum_risk_rejection_count:
-        blockers.append("minimum_risk_rejection_count_not_met")
-    if max_drawdown > policy.maximum_drawdown_ratio:
-        blockers.append("maximum_drawdown_exceeded")
-    if not allowed_ids.issubset(parity_ids):
-        blockers.append("replay_shadow_parity_incomplete")
-    if set(policy.required_exercises) - set(exercise_kinds):
-        blockers.append("required_safety_exercises_incomplete")
 
-    summary = PaperEvidenceSummary(
+def _summarize(
+    observations: tuple[PaperObservation, ...],
+    snapshots: Sequence[PortalObservabilitySnapshot],
+    parity_count: int,
+    exercise_kinds: tuple[SafetyExerciseKind, ...],
+) -> PaperEvidenceSummary:
+    gaps = tuple(
+        later.observed_at_ms - earlier.observed_at_ms
+        for earlier, later in pairwise(observations)
+    )
+    source_samples = sum(item.source_count for item in observations)
+    fresh_samples = sum(item.fresh_source_count for item in observations)
+    fresh_ratio = (
+        Decimal(fresh_samples) / Decimal(source_samples)
+        if source_samples
+        else Decimal("0")
+    )
+    position_ids = {
+        position.position_id for snapshot in snapshots for position in snapshot.positions
+    }
+    return PaperEvidenceSummary(
         observation_start_ms=observations[0].observed_at_ms,
         observation_end_ms=observations[-1].observed_at_ms,
-        duration_ms=duration_ms,
+        duration_ms=observations[-1].observed_at_ms - observations[0].observed_at_ms,
         snapshot_count=len(observations),
-        maximum_gap_ms=maximum_gap_ms,
+        maximum_gap_ms=max(gaps, default=0),
         source_sample_count=source_samples,
         fresh_source_sample_count=fresh_samples,
         fresh_source_ratio=fresh_ratio,
-        decision_count=decision_count,
-        allowed_decision_count=allowed_count,
-        risk_rejection_count=rejected_count,
-        ignored_decision_count=ignored_count,
-        unique_position_count=position_count,
-        maximum_drawdown_ratio=max_drawdown,
-        minimum_equity_quote=min_equity,
-        maximum_equity_quote=max_equity,
-        parity_count=len(parity_evidence),
+        decision_count=sum(item.decision_count for item in observations),
+        allowed_decision_count=sum(item.allowed_decision_count for item in observations),
+        risk_rejection_count=sum(item.risk_rejection_count for item in observations),
+        ignored_decision_count=sum(item.ignored_decision_count for item in observations),
+        unique_position_count=len(position_ids),
+        maximum_drawdown_ratio=max(item.drawdown_ratio for item in observations),
+        minimum_equity_quote=min(item.simulated_equity_quote for item in observations),
+        maximum_equity_quote=max(item.simulated_equity_quote for item in observations),
+        parity_count=parity_count,
         safety_exercise_kinds=exercise_kinds,
     )
-    outcome = (
-        PaperValidationOutcome.READY_FOR_OWNER_REVIEW
-        if not blockers
-        else PaperValidationOutcome.INCOMPLETE
+
+
+def _blocker_codes(
+    policy: PaperValidationPolicy,
+    summary: PaperEvidenceSummary,
+    allowed_ids: set[str],
+    parity_ids: set[str],
+) -> tuple[str, ...]:
+    blockers: list[str] = []
+    checks = (
+        (summary.duration_ms < policy.minimum_duration_ms, "minimum_duration_not_met"),
+        (
+            summary.snapshot_count < policy.minimum_snapshot_count,
+            "minimum_snapshot_count_not_met",
+        ),
+        (
+            summary.maximum_gap_ms > policy.maximum_snapshot_gap_ms,
+            "maximum_snapshot_gap_exceeded",
+        ),
+        (
+            summary.fresh_source_ratio < policy.minimum_fresh_source_ratio,
+            "fresh_source_ratio_below_policy",
+        ),
+        (
+            summary.decision_count < policy.minimum_decision_count,
+            "minimum_decision_count_not_met",
+        ),
+        (
+            summary.allowed_decision_count < policy.minimum_allowed_decision_count,
+            "minimum_allowed_decision_count_not_met",
+        ),
+        (
+            summary.risk_rejection_count < policy.minimum_risk_rejection_count,
+            "minimum_risk_rejection_count_not_met",
+        ),
+        (
+            summary.maximum_drawdown_ratio > policy.maximum_drawdown_ratio,
+            "maximum_drawdown_exceeded",
+        ),
+        (not allowed_ids.issubset(parity_ids), "replay_shadow_parity_incomplete"),
+        (
+            bool(set(policy.required_exercises) - set(summary.safety_exercise_kinds)),
+            "required_safety_exercises_incomplete",
+        ),
     )
-    blockers_tuple = tuple(sorted(set(blockers)))
-    report_payload = {
+    blockers.extend(code for failed, code in checks if failed)
+    return tuple(sorted(set(blockers)))
+
+
+def _build_report(
+    request: PaperRunRequest,
+    policy: PaperValidationPolicy,
+    summary: PaperEvidenceSummary,
+    blockers: tuple[str, ...],
+) -> PaperValidationReport:
+    outcome = (
+        PaperValidationOutcome.INCOMPLETE
+        if blockers
+        else PaperValidationOutcome.READY_FOR_OWNER_REVIEW
+    )
+    eligible = outcome is PaperValidationOutcome.READY_FOR_OWNER_REVIEW
+    payload = {
         "run_id": request.run_id,
         "policy_sha256": policy.policy_sha256,
         "outcome": outcome.value,
         "summary": summary,
-        "blocker_codes": blockers_tuple,
-        "candidate_review_eligible": outcome is PaperValidationOutcome.READY_FOR_OWNER_REVIEW,
+        "blocker_codes": blockers,
+        "candidate_review_eligible": eligible,
         "owner_decision_required": True,
         "automatic_promotion_enabled": False,
         "protected_holdout_accessed": False,
@@ -786,17 +859,18 @@ def evaluate_paper_evidence(
         "orders_submitted": 0,
         "live_capital_authorized": False,
     }
-    report = PaperValidationReport(
+    report_id = canonical_sha256(
+        {"schema_version": REPORT_SCHEMA_VERSION, "payload": payload}
+    )
+    return PaperValidationReport(
         schema_version=REPORT_SCHEMA_VERSION,
-        report_id=canonical_sha256(
-            {"schema_version": REPORT_SCHEMA_VERSION, "payload": report_payload}
-        ),
+        report_id=report_id,
         run_id=request.run_id,
         policy_sha256=policy.policy_sha256,
         outcome=outcome,
         summary=summary,
-        blocker_codes=blockers_tuple,
-        candidate_review_eligible=outcome is PaperValidationOutcome.READY_FOR_OWNER_REVIEW,
+        blocker_codes=blockers,
+        candidate_review_eligible=eligible,
         owner_decision_required=True,
         automatic_promotion_enabled=False,
         protected_holdout_accessed=False,
@@ -805,7 +879,13 @@ def evaluate_paper_evidence(
         orders_submitted=0,
         live_capital_authorized=False,
     )
-    review_payload = {
+
+
+def _build_review(
+    request: PaperRunRequest,
+    report: PaperValidationReport,
+) -> CandidateReviewPackage:
+    payload = {
         "report_id": report.report_id,
         "run_id": request.run_id,
         "eligible_for_owner_review": report.candidate_review_eligible,
@@ -824,21 +904,40 @@ def evaluate_paper_evidence(
         "orders_submitted": 0,
         "live_capital_authorized": False,
     }
-    review = CandidateReviewPackage(
-        schema_version=REVIEW_SCHEMA_VERSION,
-        package_id=canonical_sha256(
-            {"schema_version": REVIEW_SCHEMA_VERSION, "payload": review_payload}
-        ),
-        **review_payload,
+    package_id = canonical_sha256(
+        {"schema_version": REVIEW_SCHEMA_VERSION, "payload": payload}
     )
+    return CandidateReviewPackage(
+        schema_version=REVIEW_SCHEMA_VERSION,
+        package_id=package_id,
+        **payload,
+    )
+
+
+def evaluate_paper_evidence(
+    *,
+    request: PaperRunRequest,
+    policy: PaperValidationPolicy,
+    snapshots: Sequence[PortalObservabilitySnapshot],
+    parity_evidence: Sequence[ReplayShadowParityEvidence],
+    safety_exercises: Sequence[SafetyExerciseEvidence],
+) -> PaperValidationResult:
+    if request.policy_sha256 != policy.policy_sha256:
+        raise PaperValidationError("request policy identity mismatch")
+    observations = _prepare_observations(request, snapshots)
+    allowed_ids, parity_ids = _validate_parity(request, snapshots, parity_evidence)
+    exercise_kinds = _validate_exercises(request, observations, safety_exercises)
+    summary = _summarize(observations, snapshots, len(parity_evidence), exercise_kinds)
+    blockers = _blocker_codes(policy, summary, allowed_ids, parity_ids)
+    report = _build_report(request, policy, summary, blockers)
     return PaperValidationResult(
         report=report,
-        candidate_review=review,
+        candidate_review=_build_review(request, report),
         observations=observations,
     )
 
 
-def _publish_directory(destination: Path, writer: Any) -> None:
+def _publish_directory(destination: Path, writer: Callable[[Path], None]) -> None:
     if destination.exists() or destination.is_symlink():
         raise PaperValidationError(f"refusing to overwrite {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -854,6 +953,16 @@ def _publish_directory(destination: Path, writer: Any) -> None:
 def _write_checksum_index(root: Path, names: Sequence[str]) -> None:
     content = "".join(f"{_sha256_file(root / name)}  {name}\n" for name in names)
     _write_new(root / CHECKSUM_INDEX_NAME, content.encode("utf-8"))
+
+
+def _manifest(schema: str, payload: Mapping[str, object]) -> dict[str, object]:
+    return {
+        "schema_version": schema,
+        "manifest_sha256": canonical_sha256(
+            {"schema_version": schema, "payload": payload}
+        ),
+        **payload,
+    }
 
 
 def publish_paper_run_request(
@@ -872,7 +981,7 @@ def publish_paper_run_request(
             (POLICY_NAME, _sha256_file(root / POLICY_NAME)),
             (REQUEST_NAME, _sha256_file(root / REQUEST_NAME)),
         )
-        payload = {
+        payload: dict[str, object] = {
             "run_id": request.run_id,
             "policy_sha256": policy.policy_sha256,
             "artifacts": artifacts,
@@ -883,18 +992,8 @@ def publish_paper_run_request(
             "orders_submitted": 0,
             "live_capital_authorized": False,
         }
-        manifest = {
-            "schema_version": ACTIVATION_SCHEMA_VERSION,
-            "manifest_sha256": canonical_sha256(
-                {"schema_version": ACTIVATION_SCHEMA_VERSION, "payload": payload}
-            ),
-            **payload,
-        }
-        _write_json(root / ACTIVATION_MANIFEST_NAME, manifest)
-        _write_checksum_index(
-            root,
-            (POLICY_NAME, REQUEST_NAME, ACTIVATION_MANIFEST_NAME),
-        )
+        _write_json(root / ACTIVATION_MANIFEST_NAME, _manifest(ACTIVATION_SCHEMA_VERSION, payload))
+        _write_checksum_index(root, (POLICY_NAME, REQUEST_NAME, ACTIVATION_MANIFEST_NAME))
 
     _publish_directory(destination, write)
     return verify_paper_run_request(destination)
@@ -934,12 +1033,13 @@ def publish_paper_validation_package(
             REPORT_NAME,
             REVIEW_NAME,
         )
-        artifacts = tuple((name, _sha256_file(root / name)) for name in artifact_names)
-        payload = {
+        payload: dict[str, object] = {
             "run_id": request.run_id,
             "report_id": result.report.report_id,
             "candidate_review_id": result.candidate_review.package_id,
-            "artifacts": artifacts,
+            "artifacts": tuple(
+                (name, _sha256_file(root / name)) for name in artifact_names
+            ),
             "protected_holdout_accessed": False,
             "automatic_promotion_enabled": False,
             "trading_credentials_present": False,
@@ -947,14 +1047,7 @@ def publish_paper_validation_package(
             "orders_submitted": 0,
             "live_capital_authorized": False,
         }
-        manifest = {
-            "schema_version": MANIFEST_SCHEMA_VERSION,
-            "manifest_sha256": canonical_sha256(
-                {"schema_version": MANIFEST_SCHEMA_VERSION, "payload": payload}
-            ),
-            **payload,
-        }
-        _write_json(root / MANIFEST_NAME, manifest)
+        _write_json(root / MANIFEST_NAME, _manifest(MANIFEST_SCHEMA_VERSION, payload))
         _write_checksum_index(root, (*artifact_names, MANIFEST_NAME))
 
     _publish_directory(destination, write)
@@ -995,33 +1088,37 @@ def _verify_manifest(payload: Mapping[str, Any], *, schema: str, field: str) -> 
     _assert_zero_authority(payload, field=field)
 
 
-def verify_paper_run_request(root: Path) -> dict[str, Any]:
+def _verify_root(root: Path, required: set[str], *, field: str) -> None:
     if root.is_symlink() or not root.is_dir():
-        raise PaperValidationError("activation root must be a regular directory")
-    required = {POLICY_NAME, REQUEST_NAME, ACTIVATION_MANIFEST_NAME, CHECKSUM_INDEX_NAME}
+        raise PaperValidationError(f"{field} root must be a regular directory")
     if {item.name for item in root.iterdir()} != required:
-        raise PaperValidationError("activation file set mismatch")
+        raise PaperValidationError(f"{field} file set mismatch")
     _verify_index(root, required - {CHECKSUM_INDEX_NAME})
+
+
+def verify_paper_run_request(root: Path) -> dict[str, Any]:
+    required = {POLICY_NAME, REQUEST_NAME, ACTIVATION_MANIFEST_NAME, CHECKSUM_INDEX_NAME}
+    _verify_root(root, required, field="activation")
     manifest = _read_json(root / ACTIVATION_MANIFEST_NAME, field="activation manifest")
     request = _read_json(root / REQUEST_NAME, field="request")
     policy = _read_json(root / POLICY_NAME, field="policy")
-    _verify_manifest(
-        manifest,
-        schema=ACTIVATION_SCHEMA_VERSION,
-        field="activation manifest",
-    )
+    _verify_manifest(manifest, schema=ACTIVATION_SCHEMA_VERSION, field="activation manifest")
     _assert_zero_authority(request, field="request")
+    if request.get("schema_version") != REQUEST_SCHEMA_VERSION:
+        raise PaperValidationError("request schema mismatch")
+    if policy.get("schema_version") != POLICY_SCHEMA_VERSION:
+        raise PaperValidationError("policy schema mismatch")
+    policy_sha256 = canonical_sha256(policy)
     if manifest.get("run_id") != request.get("run_id"):
         raise PaperValidationError("activation run identity mismatch")
-    if manifest.get("policy_sha256") != policy.get("policy_sha256", canonical_sha256(policy)):
-        if manifest.get("policy_sha256") != canonical_sha256(policy):
-            raise PaperValidationError("activation policy identity mismatch")
+    if manifest.get("policy_sha256") != policy_sha256:
+        raise PaperValidationError("activation policy identity mismatch")
+    if request.get("policy_sha256") != policy_sha256:
+        raise PaperValidationError("request policy identity mismatch")
     return {"run_id": request["run_id"], "verified": True}
 
 
 def verify_paper_validation_package(root: Path) -> dict[str, Any]:
-    if root.is_symlink() or not root.is_dir():
-        raise PaperValidationError("paper validation root must be a regular directory")
     required = {
         POLICY_NAME,
         REQUEST_NAME,
@@ -1033,9 +1130,7 @@ def verify_paper_validation_package(root: Path) -> dict[str, Any]:
         MANIFEST_NAME,
         CHECKSUM_INDEX_NAME,
     }
-    if {item.name for item in root.iterdir()} != required:
-        raise PaperValidationError("paper validation file set mismatch")
-    _verify_index(root, required - {CHECKSUM_INDEX_NAME})
+    _verify_root(root, required, field="paper validation")
     manifest = _read_json(root / MANIFEST_NAME, field="manifest")
     request = _read_json(root / REQUEST_NAME, field="request")
     report = _read_json(root / REPORT_NAME, field="report")
@@ -1050,7 +1145,8 @@ def verify_paper_validation_package(root: Path) -> dict[str, Any]:
         (review, "candidate review"),
     ):
         _assert_zero_authority(payload, field=field)
-    if manifest.get("run_id") != request.get("run_id") or report.get("run_id") != request.get("run_id"):
+    run_id = request.get("run_id")
+    if manifest.get("run_id") != run_id or report.get("run_id") != run_id:
         raise PaperValidationError("package run identity mismatch")
     if manifest.get("report_id") != report.get("report_id"):
         raise PaperValidationError("package report identity mismatch")
@@ -1059,7 +1155,7 @@ def verify_paper_validation_package(root: Path) -> dict[str, Any]:
     if review.get("report_id") != report.get("report_id"):
         raise PaperValidationError("candidate review report identity mismatch")
     return {
-        "run_id": request["run_id"],
+        "run_id": run_id,
         "report_id": report["report_id"],
         "candidate_review_id": review["package_id"],
         "outcome": report["outcome"],

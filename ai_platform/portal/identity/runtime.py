@@ -76,6 +76,8 @@ def build_identity_service(
 
 def _transport_mode() -> IdentityTransportMode:
     value = os.environ.get("PORTAL_IDENTITY_TRANSPORT_MODE", "secure_https").strip()
+    if value == "https":
+        value = "secure_https"
     if value not in {"secure_https", "local_http_test"}:
         raise IdentityConfigurationError(
             "PORTAL_IDENTITY_TRANSPORT_MODE must be secure_https or local_http_test"

@@ -185,7 +185,7 @@ def build_public_app() -> FastAPI:
     Base.metadata.create_all(engine)
     session_factory = build_session_factory(engine)
     config = IdentityRuntimeConfig.from_environment()
-    if config.transport_mode != "https":
+    if config.transport_mode != "secure_https":
         raise RuntimeError("public identity runtime requires HTTPS transport")
     identity_service = build_identity_service(session_factory, config)
     app = FastAPI(title="Freqtrade Portal Public Identity Session API")

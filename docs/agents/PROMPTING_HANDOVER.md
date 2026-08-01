@@ -34,6 +34,28 @@ Prompt dla agenta:
 
 Do not ask the owner for information that live Git, task records, PRs, CI, or repository documentation can resolve. Do not offer several nearly identical prompts.
 
+## Short owner invocation
+
+The repository owner may invoke a durable program or task with a short natural-language sentence instead of pasting a generated worker prompt.
+
+When a repository-owned short-invocation registry exists and the owner writes a command such as `Uruchom <program>`, `Kontynuuj <program>`, `Uruchom <program> <task>`, `Zweryfikuj <program> <task>`, or `Pokaż stan <program>`:
+
+1. locate the program's short-invocation registry and linked durable task;
+2. read the live task checkpoint, exact branch/head, PR, CI, ownership, blockers, and `next_action`;
+3. when a checkout is available, use `python tools/agents/resume.py --task <task-path>` to generate the current worker handoff, or construct the equivalent bounded prompt from the same live state;
+4. execute or dispatch only the current bounded phase;
+5. do not ask the owner to paste, reconstruct, or maintain the long prompt;
+6. do not trust static SHA, PR, status, failure, or phase text when the live checkpoint differs;
+7. persist material discoveries and state changes in the task or PR before ending the session.
+
+For WickHunter, the registry is:
+
+```text
+docs/agents/prompts/WICKHUNTER_SHORT_INVOCATIONS.md
+```
+
+The generic command `Kontynuuj WickHunter autonomicznie` resolves through the rollout coordinator task and current wave/barrier. It does not authorize background waiting, unbounded execution, protected-holdout access, credentials, orders, or live capital.
+
 ## Durable-state rule
 
 Previous chat history is context, not authority. Live Git, the active task checkpoint, PR/CI state, ownership, and durable evidence control the generated prompt.

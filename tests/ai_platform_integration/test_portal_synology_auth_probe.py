@@ -36,6 +36,11 @@ def test_deploy_disables_fixture_and_keeps_control_plane_internal() -> None:
 
     assert "PORTAL_IDENTITY_FIXTURE_MODE=disabled" in script
     assert "PORTAL_IDENTITY_TRANSPORT_MODE=https" in script
+    assert 'PORTAL_DATA_DIR = Path("/volume1/docker/freqtrade-portal-oidc/data")' in script
+    assert "PORTAL_UID = 10001" in script
+    assert "PORTAL_GID = 10001" in script
+    assert "os.getuid()" not in script
+    assert "os.getgid()" not in script
     assert "PORTAL_CONTROL_PLANE_URL=http://" in script
     assert "--publish" not in control_section
     assert "--publish" in web_section

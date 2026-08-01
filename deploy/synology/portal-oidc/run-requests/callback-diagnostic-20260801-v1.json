@@ -1,0 +1,14 @@
+{
+  "request_id": "portal-authentik-callback-diagnostic-20260801-v1",
+  "environment": "synology-staging",
+  "runner": "freqtrade-staging",
+  "implementation_sha": "cfa0eae53d6ff54f5ef39b34a00e1cf09a9f1916",
+  "since_minutes": 120,
+  "diagnostic_only": true,
+  "configuration_mutation_authorized": false,
+  "browser_acceptance_authorized": false,
+  "public_ingress_authorized": true,
+  "live_capital_authorized": false,
+  "restore_authorized": false,
+  "secret_values_in_request": false
+}

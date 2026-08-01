@@ -29,215 +29,190 @@ required_reads:
 
 # Portal Authentik public OIDC handover
 
-## Goal
-
-Complete real Portal authentication through the existing Synology Authentik deployment using public Cloudflare Tunnel HTTPS origins, Portal-owned sessions and OIDC Authorization Code plus PKCE.
-
-Required browser flow:
+## Goal and frozen contract
 
 ```text
 https://quant.molehill.cloud
   -> https://auth.molehill.cloud
   -> password plus Authentik TOTP/MFA
   -> https://quant.molehill.cloud/api/identity/callback
-  -> authenticated Portal session
+  -> Portal-owned authenticated session
 ```
-
-## Frozen public contract
 
 ```text
 Portal origin: https://quant.molehill.cloud
 Authentik origin: https://auth.molehill.cloud
-Portal callback: https://quant.molehill.cloud/api/identity/callback
+Callback: https://quant.molehill.cloud/api/identity/callback
+Flow: OIDC Authorization Code plus PKCE
 Scopes: openid profile email
-External principal identity: exact OIDC iss + sub
+Principal identity: exact iss plus sub
 ```
 
 The retired `auth.quant.molehill.cloud` hostname is forbidden.
 
 ## Inherited target evidence
 
-- Authentik 2026.5.5 server, worker and PostgreSQL were deployed on Synology.
-- Runtime secrets are target-owned in a persistent mode-`0600` environment file.
+- Authentik 2026.5.5 server, worker and PostgreSQL are deployed on Synology.
+- Target runtime secrets are stored outside GitHub in a persistent mode-`0600` file.
 - PostgreSQL has no host-published port.
-- Authentik readiness repair PR 862 merged as `6ac747a069455ddfbfa00d861008dd81fbf509cf`.
-- Request-only rerun PR 865 was consumed and closed without merge.
-- Deployment run `30625762233` produced artifact `portal-authentik-local-test-deploy-865` with healthy Authentik services, no privileged or host-network containers, no Docker socket and `live_capital_authorized=false`.
-- That artifact did not prove that an OIDC provider or application existed.
-- The owner completed `akadmin` password and TOTP setup and verified the Authentik flow over `https://auth.molehill.cloud`.
-- Cloudflare routes are recorded as:
+- Readiness repair PR 862 merged as `6ac747a069455ddfbfa00d861008dd81fbf509cf`.
+- Request-only PR 865 was consumed and closed without merge.
+- Run `30625762233` produced artifact `portal-authentik-local-test-deploy-865` proving healthy services, no privileged or host-network containers, no Docker socket and `live_capital_authorized=false`.
+- That artifact did not prove an OIDC provider or application.
+- The owner completed `akadmin` password and TOTP setup over `https://auth.molehill.cloud`.
+- Recorded Cloudflare routes:
 
 ```text
 https://quant.molehill.cloud -> http://192.168.1.2:3031
 https://auth.molehill.cloud  -> http://192.168.1.2:9000
 ```
 
-## Repository preflight
+## Replacement branch history
 
-Frozen before mutation:
+Initial frozen state:
 
 ```text
 develop: 55b63820f50976e3fcf605f1cea0810183d2b842
 PR 876 head: 23bf942330af0f6ce3c09c4526905058a8161449
 PR 876 merge base: 1060dec433a7e9d72e53ccddb6d76fe93842b187
-PR 876 divergence: 18 ahead, 34 behind develop
-review threads: 0
+PR 876 divergence: 18 ahead, 34 behind
+PR 876 review threads: 0
 ```
 
-The 13 implementation paths from PR 876 did not overlap any path changed between its merge base and the frozen `develop` head.
-
-Exact PR 876 failures were mechanical:
-
-- AI Platform CI run `30648432349`: 1035 tests passed and 71 skipped before Ruff `I001` stopped the job.
-- Freqtrade CI run `30648432361`: import ordering, Ruff modernization, security/path rules and formatting in the LAN deployer.
-- Portal Web CI `30648432355`, Portal Universal E2E `30648432447` and security `30648432363` passed.
-
-## Replacement branch
-
-The replacement branch was created from PR 876 and refreshed through merge PR 901 from exact `develop` head `55b63820f50976e3fcf605f1cea0810183d2b842`.
-
-PR 901 merged into the feature branch as:
+PR 876 functional tests passed; its failures were mechanical Ruff, pre-commit and formatting failures. The replacement branch was refreshed from frozen `develop` through PR 901, merged as:
 
 ```text
 a5c02b8c492023f0e42695ae73611c12f08de5e8
 ```
 
-The feature branch is based on current frozen `develop` and does not revert newer Portal work.
+While PR 903 was being repaired, `develop` advanced by 12 commits to:
+
+```text
+3afe281de86673902ded7625d6dade94105b5ee9
+```
+
+Those commits changed only WickHunter production materialization paths and did not overlap the Portal OIDC diff. Refresh PR 905 merged exact `develop` into the feature branch as:
+
+```text
+2ab38527de472a37ded855c93d6a26872f77df73
+```
 
 ## Implemented public HTTPS changes
 
-PR 903 adds:
+PR 903 contains:
 
-- public Authentik application slug `freqtrade-portal` and provider `Freqtrade Portal Public OIDC`;
-- confidential client with strict callback `https://quant.molehill.cloud/api/identity/callback`;
-- scopes `openid`, `profile` and `email`;
-- no client secret in the repository blueprint;
-- public identity runtime requiring `PORTAL_ENVIRONMENT=production|staging` and transport `https`;
+- public Authentik application slug `freqtrade-portal`;
+- confidential provider `Freqtrade Portal Public OIDC`;
+- strict public callback and scopes `openid`, `profile`, `email`;
+- no client secret in repository content;
+- HTTPS-only production or staging identity runtime;
 - Secure, SameSite=Lax, Path=/ `__Host-portal_session` and `__Host-portal_csrf` cookies;
 - no automatic first membership or email, domain or group promotion;
-- explicit one-time exact-principal bootstrap keyed by exact deployed issuer plus subject;
-- immutable audit action `identity.membership_bootstrapped`;
-- subject hashing instead of subject disclosure in bootstrap output;
-- target secret preservation and refusal of implicit client-secret rotation;
-- discovery and JWKS probes from inside the Portal identity container;
-- public Portal redirect probe through `https://quant.molehill.cloud`;
+- explicit exact-issuer-and-subject bootstrap with audit action `identity.membership_bootstrapped`;
+- subject hashing in bootstrap output;
+- target client-secret preservation and refusal of implicit rotation;
+- deployed provider/application query and issuer derivation;
+- discovery and JWKS validation from inside the identity container;
+- public redirect probe through `https://quant.molehill.cloud`;
 - internal-only Python control plane and one LAN-published Next.js BFF;
-- no Docker socket, privileged mode or host networking;
-- request-only trusted-runner workflow accepting exactly one frozen request file;
-- secret-free report uploaded even on failure;
-- fixture identity disabled in the public runtime;
-- explicit `live_capital_authorized=false`.
+- no Docker socket, privileged mode, host networking or control-plane host port;
+- frozen exact-one-file deployment workflow on `freqtrade-staging` and environment `synology-staging`;
+- secret-free report uploaded even after failure;
+- identity fixture disabled and `live_capital_authorized=false`.
 
-Retired from the replacement diff:
+Retired:
 
-- LAN-only Authentik blueprint and deployment workflow;
-- LAN identity runtime containing automatic local-owner membership;
+- LAN-only OIDC workflow, blueprint and automatic-membership runtime;
 - automatic Synology preview workflow and script that could overwrite port `3031` with fixture identity after unrelated web changes.
 
-## Provider slug evidence rule
+## Provider evidence rule
 
-The repository contract declares application slug `freqtrade-portal`. Deployment must not trust only the blueprint filename or a local constant. The target deployer:
+The target deployer must:
 
-1. applies the blueprint;
-2. queries the deployed provider and associated application from Authentik;
-3. reads the actual deployed application slug;
-4. derives `https://auth.molehill.cloud/application/o/<deployed-slug>/`;
-5. requires equality with the frozen issuer;
-6. fetches discovery and JWKS from inside the identity container;
-7. fails closed on any mismatch.
+1. apply the blueprint;
+2. query the deployed provider and associated application;
+3. read the actual application slug;
+4. derive `https://auth.molehill.cloud/application/o/<deployed-slug>/`;
+5. require equality with the frozen issuer;
+6. fetch discovery and JWKS inside the identity container;
+7. fail closed on any mismatch.
 
-The deployed provider and discovery document remain unproven until the implementation merges and a separate request-only deployment PR runs.
+The provider, discovery and JWKS are not yet proven because no post-merge deployment request has run.
 
 ## CI repair evidence
 
-PR 903 exact-head iterations established:
-
-- AI Platform tests passed twice with `1036 passed, 71 skipped`; initial failures were import ordering and then two deterministic formatter differences.
-- Freqtrade pre-commit passed mypy and identified only deployer import layout, two unused `noqa` directives and Ruff formatting.
-- The exact repository Ruff hooks were applied to the deployer by one isolated branch-only formatter run.
-- The temporary formatter workflow was removed immediately after its output commit.
+- AI Platform tests passed repeatedly with `1036 passed, 71 skipped`; failures were import order and deterministic formatter differences.
+- Freqtrade pre-commit passed mypy before reporting only deployer import layout, unused `noqa` directives and formatting.
+- Exact repository Ruff fixes and formatting were applied in commit `742e9b892f9b10ebfd1739135eb92b56985b9d6c`.
+- The isolated formatter workflow was removed in commit `246e81a46528fc04b0a3c33dda638abbb5ddaf49`.
 - Security analysis passed on the preceding exact head.
-- No PR comments or unresolved review threads existed at the checkpoint.
+- No PR comments or unresolved review threads existed at the last inspection.
 
-Code formatter output commit:
-
-```text
-742e9b892f9b10ebfd1739135eb92b56985b9d6c
-```
-
-Temporary formatter removal commit:
-
-```text
-246e81a46528fc04b0a3c33dda638abbb5ddaf49
-```
-
-All required workflows must still pass on the final documentation checkpoint head before merge.
+All workflows must pass again on the final head after the exact `develop` refresh and this checkpoint commit.
 
 ## Safety boundary
 
-This task does not authorize live capital, production trading, real exchange orders, withdrawals, exchange credentials in GitHub, destructive restore, database host publication, Docker socket access, privileged containers, host networking or an unauthenticated public Portal terminal state.
+No live capital, production trading, real exchange orders, withdrawals, exchange credentials in GitHub, destructive restore, database host publication, Docker socket, privileged mode, host networking or unauthenticated public terminal state is authorized.
 
 Any Freqtrade runtime remains dry-run and receives no order authority.
 
 ## Remaining gates
 
-1. Require all applicable workflows green on the exact final PR 903 head.
-2. Require zero unresolved review threads and a mergeable, up-to-date PR.
+1. Require every applicable workflow green on the exact final PR 903 head.
+2. Require PR 903 mergeable, current with `develop` and free of unresolved review threads.
 3. Merge PR 903 with `expected_head_sha`.
-4. Close superseded PR 876 without merge after PR 903 merges.
-5. Create one separate request-only PR containing exactly:
+4. Close superseded PR 876 without merge.
+5. Create a separate request-only PR containing exactly:
 
 ```text
 deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json
 ```
 
-6. Run deployment only through environment `synology-staging` and runner `freqtrade-staging`.
-7. Validate and retain the secret-free deployment artifact, then close the request PR without merge.
-8. Owner completes password plus TOTP login.
-9. Confirm missing membership fails closed.
-10. Obtain the exact target principal subject without recording it in GitHub.
-11. Run explicit exact-principal bootstrap on the target.
-12. Confirm authenticated Portal access and logout invalidation.
+6. Validate the secret-free deployment artifact and close the request PR without merge.
+7. Owner performs password plus TOTP browser acceptance.
+8. Confirm missing membership fails closed.
+9. Obtain the exact target principal subject without storing it in GitHub.
+10. Run explicit exact-principal bootstrap on the target.
+11. Confirm authenticated access and logout invalidation.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-01T09:01:00+02:00
-base_head: 55b63820f50976e3fcf605f1cea0810183d2b842
-code_head: 742e9b892f9b10ebfd1739135eb92b56985b9d6c
-checkpoint_parent: 246e81a46528fc04b0a3c33dda638abbb5ddaf49
+checkpoint_version: 4
+updated_at: 2026-08-01T09:04:00+02:00
+develop_head: 3afe281de86673902ded7625d6dade94105b5ee9
+develop_refresh_merge: 2ab38527de472a37ded855c93d6a26872f77df73
+formatted_code_head: 742e9b892f9b10ebfd1739135eb92b56985b9d6c
 branch: feat/portal-authentik-public-oidc-20260801
 pr: "#903"
 status: in_progress
 proven:
-  - PR 876 failures were mechanical static-validation failures after functional tests passed.
-  - Replacement branch is synchronized with frozen develop through merged PR 901.
-  - Public runtime contains no automatic membership grant.
-  - Public blueprint contains no client secret and uses the exact public callback.
-  - Deployment contract refuses bootstrap, restore and live-capital authorization.
-  - Control-plane publication, Docker socket, privileged mode and host networking are prohibited.
-  - Competing fixture deployment on port 3031 is retired.
-  - Deployer has repository-generated Ruff fixes and formatting.
+  - feature branch contains exact develop head 3afe281de86673902ded7625d6dade94105b5ee9
+  - incoming develop changes did not overlap Portal OIDC paths
+  - public runtime has no automatic membership grant
+  - blueprint contains no client secret and uses the exact public callback
+  - deployment contract refuses bootstrap, restore and live-capital authorization
+  - competing fixture deployment on port 3031 is retired
+  - deployer has repository-generated Ruff fixes and formatting
 derived:
-  - The actual issuer is trusted only after target provider/application query and discovery equality.
+  - actual issuer is trusted only after target provider query and discovery equality
 unknown:
-  - Final exact-head PR 903 CI result.
-  - Target public Authentik discovery and JWKS result.
-  - Exact first principal subject.
-  - Password/TOTP browser acceptance and logout result.
+  - final exact-head PR 903 CI result
+  - target public discovery and JWKS result
+  - exact first principal subject
+  - password/TOTP browser acceptance and logout result
 conflicts: []
 first_failure:
   marker: PR_903_FINAL_EXACT_HEAD_CI_PENDING
-  evidence: Final documentation checkpoint creates a new exact head requiring complete CI.
+  evidence: exact develop refresh and checkpoint require a new complete CI set
 blockers:
-  - Exact-head CI must pass before merge.
-  - Trusted-runner deployment requires merged implementation and a separate frozen request PR.
-  - Password/TOTP and exact-principal bootstrap require owner interaction on the target.
-next_action: Validate every workflow on the exact PR head, repair any concrete failure, then merge with expected_head_sha.
+  - exact-head CI must pass before merge
+  - deployment requires merged implementation and separate frozen request PR
+  - password/TOTP and exact-principal bootstrap require owner interaction
+next_action: validate every workflow on the exact PR head, repair concrete failures, then merge with expected_head_sha
 ```
 
-Terminal evidence must include these exact lines:
+Terminal evidence must include:
 
 ```text
 secret_values_recorded=false

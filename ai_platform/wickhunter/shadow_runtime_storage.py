@@ -86,7 +86,7 @@ def _atomic_write(root: Path, destination: Path, payload: object, *, prefix: str
             handle.write(canonical_json(payload) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.replace(temporary, destination)
+        temporary.replace(destination)
     except Exception:
         temporary.unlink(missing_ok=True)
         raise

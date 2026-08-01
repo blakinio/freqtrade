@@ -1,0 +1,924 @@
+name: WickHunter WH-02 Exact Replay Price Path Request
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh02-replay-price-path-request.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh02-replay-price-path-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh02-replay-price-path-request.yml
+  SOURCE_COMMIT_SHA: 6419138e170844d0eb09d9381b4435900d802ab9
+  DATASET_MATERIALIZATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df3c33238c845f5f019a384b231580
+  MARKET_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1/immutable-package
+  EXPECTED_DATASET_ID: wickhunter-wh01-production-dataset-20260731-v3-2091971608df3c33238c845f5f019a384b231580
+  EXPECTED_DATASET_MANIFEST_SHA256: b00c546666920f9cd45ed6d514c0bd161274e00231d845d0f8912f8a4552e8f
+  EXPECTED_MARKET_MANIFEST_SHA256: eaccc5ecaf7a9514086e99d719d0cb4c5ef8a9c87e3f0c30c501e1860c05fb52
+  REQUESTED_DATE: "2026-07-31"
+  REQUESTED_START_MS: "1785484861174"
+  MINIMUM_HORIZON_END_MS: "1785521459257"
+  LABEL_HORIZON_MS: "900000"
+  PROTECTED_HOLDOUT_START_MS: "1785542400000"
+  PACKAGE_ID: wickhunter-wh02-replay-price-path-20260731-v1-6419138e1708
+  INPUT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/sources/binance-usdm-aggtrades-20260731-v1
+  OUTPUT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v1-6419138e1708
+  MAX_TOTAL_ARCHIVE_BYTES: "26843545600"
+
+jobs:
+  acquire-and-materialize:
+    name: Acquire official aggTrades and materialize exact WH-02 path
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [self-hosted, Linux, X64, freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact one-file request and code identity
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SOURCE_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$SOURCE_COMMIT_SHA^{commit}"
+          git merge-base --is-ancestor "$SOURCE_COMMIT_SHA" "$BASE_SHA"
+          git merge-base --is-ancestor "$SOURCE_COMMIT_SHA" "$HEAD_SHA"
+          parent="$(git rev-parse "$HEAD_SHA^")"
+          [[ "$parent" == "$SOURCE_COMMIT_SHA" ]]
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$merge_base" == "$SOURCE_COMMIT_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh02-replay-price-path-request.yml'
+          actual="$(git diff --name-status "$SOURCE_COMMIT_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          printf 'source_commit_sha=%s\n' "$SOURCE_COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Validate trusted runner and closed safety boundary
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          umask 077
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for path in "$DATASET_MATERIALIZATION_ROOT" "$MARKET_PACKAGE_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          [[ -d /var/lib/freqtrade-staging-state && ! -L /var/lib/freqtrade-staging-state ]]
+          [[ -w /var/lib/freqtrade-staging-state ]]
+          mkdir -p "$(dirname "$INPUT_ROOT")" "$(dirname "$OUTPUT_ROOT")"
+          for path in "$(dirname "$INPUT_ROOT")" "$(dirname "$OUTPUT_ROOT")"; do
+            [[ -d "$path" && ! -L "$path" && -w "$path" ]]
+          done
+          if [[ -e "$INPUT_ROOT" ]]; then
+            [[ -d "$INPUT_ROOT" && ! -L "$INPUT_ROOT" && -w "$INPUT_ROOT" ]]
+          fi
+          if [[ -e "$OUTPUT_ROOT" ]]; then
+            [[ -d "$OUTPUT_ROOT" && ! -L "$OUTPUT_ROOT" ]]
+          fi
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Verify importer CLI and frozen source packages
+        id: frozen
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.replay_price_path --help
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.replay_price_path materialize --help
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.replay_price_path verify --help
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_dataset_materialization \
+            verify --output-root "$DATASET_MATERIALIZATION_ROOT" \
+            | tee "$RUNNER_TEMP/dataset-materialization-verification.json"
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_intersection \
+            verify --package-root "$MARKET_PACKAGE_ROOT" \
+            | tee "$RUNNER_TEMP/market-evidence-verification.json"
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/frozen-source-verification.json"
+          import json
+          import os
+          from pathlib import Path
+
+          dataset_materialization_root = Path(os.environ["DATASET_MATERIALIZATION_ROOT"])
+          dataset_root = dataset_materialization_root / "dataset"
+          market_root = Path(os.environ["MARKET_PACKAGE_ROOT"])
+          dataset_manifest = json.loads(
+              (dataset_root / "manifest.json").read_text(encoding="utf-8")
+          )
+          market_manifest = json.loads(
+              (market_root / "manifest.json").read_text(encoding="utf-8")
+          )
+          market_verification = json.loads(
+              (market_root / "verification-report.json").read_text(encoding="utf-8")
+          )
+
+          expected_dataset_id = os.environ["EXPECTED_DATASET_ID"]
+          if dataset_materialization_root.name != expected_dataset_id:
+              raise SystemExit("dataset materialization identity mismatch")
+          if dataset_manifest.get("manifest_sha256") != os.environ[
+              "EXPECTED_DATASET_MANIFEST_SHA256"
+          ]:
+              raise SystemExit("dataset manifest SHA-256 mismatch")
+          if market_manifest.get("manifest_sha256") != os.environ[
+              "EXPECTED_MARKET_MANIFEST_SHA256"
+          ]:
+              raise SystemExit("market manifest SHA-256 mismatch")
+          if market_verification.get("outcome") != "accepted":
+              raise SystemExit("market package is not independently accepted")
+          if dataset_manifest.get("total_rows") != 919:
+              raise SystemExit("dataset row count mismatch")
+          if dataset_manifest.get("earliest_decision_timestamp_ms") != int(
+              os.environ["REQUESTED_START_MS"]
+          ):
+              raise SystemExit("dataset earliest decision mismatch")
+          latest_decision = dataset_manifest.get("latest_decision_timestamp_ms")
+          if latest_decision != 1785520559257:
+              raise SystemExit("dataset latest decision mismatch")
+          if latest_decision + int(os.environ["LABEL_HORIZON_MS"]) != int(
+              os.environ["MINIMUM_HORIZON_END_MS"]
+          ):
+              raise SystemExit("requested replay horizon mismatch")
+
+          partitions = dataset_manifest.get("partitions")
+          if not isinstance(partitions, list) or not partitions:
+              raise SystemExit("dataset partitions missing")
+          latest_decisions = {}
+          observed_rows = 0
+          for partition in partitions:
+              if not isinstance(partition, dict):
+                  raise SystemExit("invalid dataset partition")
+              relative_path = partition.get("relative_path")
+              if not isinstance(relative_path, str):
+                  raise SystemExit("partition relative path missing")
+              path = dataset_root / relative_path
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit("dataset partition is not a regular file")
+              partition_rows = 0
+              with path.open(encoding="utf-8") as handle:
+                  for line in handle:
+                      if not line.strip():
+                          raise SystemExit("dataset partition contains a blank line")
+                      row = json.loads(line)
+                      symbol = str(row["symbol"]).upper()
+                      decision_ms = int(row["decision_timestamp_ms"])
+                      latest_decisions[symbol] = max(
+                          latest_decisions.get(symbol, 0), decision_ms
+                      )
+                      partition_rows += 1
+                      observed_rows += 1
+              if partition_rows != partition.get("row_count"):
+                  raise SystemExit("dataset partition row count mismatch")
+          if observed_rows != dataset_manifest["total_rows"]:
+              raise SystemExit("dataset total row count mismatch")
+          ordered_symbols = sorted(latest_decisions)
+          if len(ordered_symbols) != 20:
+              raise SystemExit(f"expected 20 symbols, got {len(ordered_symbols)}")
+          symbol_horizons = {
+              symbol: latest_decisions[symbol] + int(os.environ["LABEL_HORIZON_MS"])
+              for symbol in ordered_symbols
+          }
+          if max(symbol_horizons.values()) != int(
+              os.environ["MINIMUM_HORIZON_END_MS"]
+          ):
+              raise SystemExit("per-symbol horizon maximum mismatch")
+          runner_temp = Path(os.environ["RUNNER_TEMP"])
+          (runner_temp / "wh02-symbols.json").write_text(
+              json.dumps(ordered_symbols, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          (runner_temp / "wh02-symbol-horizons.json").write_text(
+              json.dumps(symbol_horizons, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          result = {
+              "dataset_id": expected_dataset_id,
+              "dataset_manifest_sha256": dataset_manifest["manifest_sha256"],
+              "market_manifest_sha256": market_manifest["manifest_sha256"],
+              "decision_count": dataset_manifest["total_rows"],
+              "symbol_count": len(ordered_symbols),
+              "symbols": ordered_symbols,
+              "requested_start_ms": int(os.environ["REQUESTED_START_MS"]),
+              "minimum_horizon_end_ms": int(os.environ["MINIMUM_HORIZON_END_MS"]),
+              "label_horizon_ms": int(os.environ["LABEL_HORIZON_MS"]),
+              "protected_holdout_start_ms": int(
+                  os.environ["PROTECTED_HOLDOUT_START_MS"]
+              ),
+              "protected_holdout_accessed": False,
+              "replay_authorized": False,
+              "model_execution_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          print(json.dumps(result, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"symbol_count={len(ordered_symbols)}\n")
+          PY
+
+      - name: Acquire official Binance USD-M daily aggTrades
+        id: acquire
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/aggtrades-acquisition.json"
+          import hashlib
+          import json
+          import os
+          import re
+          import ssl
+          import tempfile
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
+
+          HOST = "data.binance.vision"
+          PREFIX = "/data/futures/um/daily/aggTrades/"
+          MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+          MAX_CHECKSUM_BYTES = 4096
+          MAX_TOTAL_BYTES = int(os.environ["MAX_TOTAL_ARCHIVE_BYTES"])
+          CHECKSUM_RE = re.compile(r"^([0-9a-fA-F]{64})\s+[* ]?([^\s]+)$")
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise urllib.error.HTTPError(
+                      req.full_url, code, "redirect denied", headers, fp
+                  )
+
+          opener = urllib.request.build_opener(
+              urllib.request.ProxyHandler({}),
+              NoRedirect(),
+              urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+          )
+
+          def sha256_file(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          def validate_url(url: str) -> None:
+              parsed = urllib.parse.urlsplit(url)
+              if (
+                  parsed.scheme != "https"
+                  or parsed.hostname != HOST
+                  or parsed.port not in (None, 443)
+                  or not parsed.path.startswith(PREFIX)
+                  or parsed.query
+                  or parsed.fragment
+              ):
+                  raise SystemExit(f"unsafe public-data URL: {url}")
+
+          def download_temp(url: str, *, max_bytes: int, directory: Path) -> tuple[Path, int]:
+              validate_url(url)
+              request = urllib.request.Request(
+                  url,
+                  method="GET",
+                  headers={
+                      "Accept": "application/octet-stream",
+                      "Accept-Encoding": "identity",
+                      "User-Agent": "freqtrade-wickhunter-wh02/1",
+                  },
+              )
+              try:
+                  response = opener.open(request, timeout=180)
+              except urllib.error.HTTPError as exc:
+                  raise SystemExit(
+                      f"public-data request failed: status={exc.code} url={url}"
+                  ) from exc
+              except urllib.error.URLError as exc:
+                  raise SystemExit(f"public-data request failed: {url}: {exc.reason}") from exc
+              with response:
+                  status = getattr(response, "status", None)
+                  if status != 200:
+                      raise SystemExit(
+                          f"public-data request returned status={status} url={url}"
+                      )
+                  if response.geturl() != url:
+                      raise SystemExit(f"public-data response URL changed: {url}")
+                  content_encoding = response.headers.get("Content-Encoding")
+                  if content_encoding not in (None, "", "identity"):
+                      raise SystemExit(f"unexpected content encoding for {url}")
+                  raw_length = response.headers.get("Content-Length")
+                  if raw_length is None or not raw_length.isdigit():
+                      raise SystemExit(f"missing bounded Content-Length for {url}")
+                  expected_length = int(raw_length)
+                  if expected_length <= 0 or expected_length > max_bytes:
+                      raise SystemExit(
+                          f"content length outside bound: bytes={expected_length} url={url}"
+                      )
+                  fd, temp_name = tempfile.mkstemp(
+                      prefix=".download.", dir=directory
+                  )
+                  total = 0
+                  try:
+                      with os.fdopen(fd, "wb") as handle:
+                          while True:
+                              chunk = response.read(1024 * 1024)
+                              if not chunk:
+                                  break
+                              total += len(chunk)
+                              if total > expected_length or total > max_bytes:
+                                  raise SystemExit(f"download exceeded bound: {url}")
+                              handle.write(chunk)
+                          handle.flush()
+                          os.fsync(handle.fileno())
+                      if total != expected_length:
+                          raise SystemExit(
+                              f"download length mismatch: expected={expected_length} "
+                              f"actual={total} url={url}"
+                          )
+                      return Path(temp_name), total
+                  except BaseException:
+                      Path(temp_name).unlink(missing_ok=True)
+                      raise
+
+          def install_or_match(temp_path: Path, target: Path) -> None:
+              if target.exists() or target.is_symlink():
+                  if target.is_symlink() or not target.is_file():
+                      raise SystemExit(f"existing input is not a regular file: {target}")
+                  if sha256_file(target) != sha256_file(temp_path):
+                      raise SystemExit(f"existing immutable input differs: {target}")
+                  temp_path.unlink()
+                  return
+              temp_path.replace(target)
+
+          input_root = Path(os.environ["INPUT_ROOT"])
+          raw_root = input_root / "raw"
+          input_root.mkdir(parents=True, exist_ok=True)
+          if input_root.is_symlink() or not input_root.is_dir():
+              raise SystemExit("input root is not a regular directory")
+          raw_root.mkdir(exist_ok=True)
+          if raw_root.is_symlink() or not raw_root.is_dir():
+              raise SystemExit("raw input root is not a regular directory")
+
+          symbols = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "wh02-symbols.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if not isinstance(symbols, list) or len(symbols) != 20:
+              raise SystemExit("symbol input mismatch")
+
+          records = []
+          aggregate_bytes = 0
+          requested_date = os.environ["REQUESTED_DATE"]
+          for symbol in symbols:
+              if not isinstance(symbol, str) or not re.fullmatch(r"[A-Z0-9]{3,32}", symbol):
+                  raise SystemExit(f"invalid symbol: {symbol}")
+              filename = f"{symbol}-aggTrades-{requested_date}.zip"
+              base_url = (
+                  f"https://{HOST}{PREFIX}{symbol}/{filename}"
+              )
+              checksum_url = base_url + ".CHECKSUM"
+              checksum_target = raw_root / (filename + ".CHECKSUM")
+              checksum_temp, _ = download_temp(
+                  checksum_url,
+                  max_bytes=MAX_CHECKSUM_BYTES,
+                  directory=raw_root,
+              )
+              install_or_match(checksum_temp, checksum_target)
+              checksum_lines = [
+                  line.strip()
+                  for line in checksum_target.read_text(encoding="utf-8").splitlines()
+                  if line.strip()
+              ]
+              if len(checksum_lines) != 1:
+                  raise SystemExit(f"invalid checksum line count for {symbol}")
+              match = CHECKSUM_RE.fullmatch(checksum_lines[0])
+              if match is None or match.group(2) != filename:
+                  raise SystemExit(f"checksum identity mismatch for {symbol}")
+              claimed_sha = match.group(1).lower()
+
+              archive_target = raw_root / filename
+              if archive_target.exists() or archive_target.is_symlink():
+                  if archive_target.is_symlink() or not archive_target.is_file():
+                      raise SystemExit(f"archive is not a regular file: {archive_target}")
+                  archive_size = archive_target.stat().st_size
+                  if archive_size <= 0 or archive_size > MAX_ARCHIVE_BYTES:
+                      raise SystemExit(f"existing archive size outside bound: {symbol}")
+              else:
+                  archive_temp, archive_size = download_temp(
+                      base_url,
+                      max_bytes=MAX_ARCHIVE_BYTES,
+                      directory=raw_root,
+                  )
+                  if aggregate_bytes + archive_size > MAX_TOTAL_BYTES:
+                      archive_temp.unlink(missing_ok=True)
+                      raise SystemExit("aggregate archive size exceeds workflow bound")
+                  if sha256_file(archive_temp) != claimed_sha:
+                      archive_temp.unlink(missing_ok=True)
+                      raise SystemExit(f"downloaded archive checksum mismatch for {symbol}")
+                  archive_temp.replace(archive_target)
+              aggregate_bytes += archive_target.stat().st_size
+              if aggregate_bytes > MAX_TOTAL_BYTES:
+                  raise SystemExit("aggregate archive size exceeds workflow bound")
+              archive_sha = sha256_file(archive_target)
+              if archive_sha != claimed_sha:
+                  raise SystemExit(f"archive checksum mismatch for {symbol}")
+              records.append(
+                  {
+                      "symbol": symbol,
+                      "archive_relative_path": f"raw/{filename}",
+                      "archive_url": base_url,
+                      "archive_size_bytes": archive_target.stat().st_size,
+                      "archive_sha256": archive_sha,
+                      "checksum_relative_path": f"raw/{filename}.CHECKSUM",
+                      "checksum_url": checksum_url,
+                      "checksum_file_sha256": sha256_file(checksum_target),
+                      "checksum_claimed_sha256": claimed_sha,
+                  }
+              )
+
+          seed = {
+              "schema_version": "wickhunter-replay-source-acquisition-v1",
+              "provider_id": "binance-public-data",
+              "source": "binance-usdm",
+              "data_kind": "aggTrades",
+              "requested_date": requested_date,
+              "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+              "symbols": symbols,
+              "archive_count": len(records),
+              "total_archive_bytes": aggregate_bytes,
+              "archives": records,
+              "public_only": True,
+              "protected_holdout_accessed": False,
+              "immutable_inputs_mutated": False,
+              "replay_authorized": False,
+              "model_execution_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          canonical_seed = json.dumps(
+              seed, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+          )
+          manifest = dict(seed)
+          manifest["manifest_sha256"] = hashlib.sha256(
+              canonical_seed.encode("utf-8")
+          ).hexdigest()
+          manifest_bytes = (
+              json.dumps(
+                  manifest,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  ensure_ascii=False,
+              )
+              + "\n"
+          ).encode("utf-8")
+          manifest_path = input_root / "acquisition-manifest.json"
+          if manifest_path.exists() or manifest_path.is_symlink():
+              if manifest_path.is_symlink() or not manifest_path.is_file():
+                  raise SystemExit("existing acquisition manifest is not a regular file")
+              if manifest_path.read_bytes() != manifest_bytes:
+                  raise SystemExit("existing immutable acquisition manifest differs")
+          else:
+              with manifest_path.open("xb") as handle:
+                  handle.write(manifest_bytes)
+                  handle.flush()
+                  os.fsync(handle.fileno())
+
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"archive_count={len(records)}\n")
+              output.write(f"total_archive_bytes={aggregate_bytes}\n")
+              output.write(f"acquisition_manifest_sha256={manifest['manifest_sha256']}\n")
+          PY
+
+      - name: Build exact immutable request
+        id: request
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/replay-price-path-request-evidence.json"
+          import csv
+          import io
+          import json
+          import os
+          import zipfile
+          from pathlib import Path
+
+          from ai_platform.wickhunter.replay_price_path import load_request
+
+          runner_temp = Path(os.environ["RUNNER_TEMP"])
+          symbols = json.loads(
+              (runner_temp / "wh02-symbols.json").read_text(encoding="utf-8")
+          )
+          symbol_horizons = json.loads(
+              (runner_temp / "wh02-symbol-horizons.json").read_text(encoding="utf-8")
+          )
+          requested_date = os.environ["REQUESTED_DATE"]
+          input_root = Path(os.environ["INPUT_ROOT"])
+          first_trade_at_or_after_horizon = {}
+          for symbol in symbols:
+              archive_path = (
+                  input_root / "raw" / f"{symbol}-aggTrades-{requested_date}.zip"
+              )
+              if archive_path.is_symlink() or not archive_path.is_file():
+                  raise SystemExit(f"source archive missing for {symbol}")
+              expected_member = archive_path.name.removesuffix(".zip") + ".csv"
+              with zipfile.ZipFile(archive_path) as archive:
+                  members = [item for item in archive.infolist() if not item.is_dir()]
+                  if len(members) != 1:
+                      raise SystemExit(f"archive member count mismatch for {symbol}")
+                  member = members[0]
+                  member_path = Path(member.filename)
+                  if (
+                      member_path.is_absolute()
+                      or any(part in {"", ".", ".."} for part in member_path.parts)
+                      or member_path.name != expected_member
+                      or member.flag_bits & 0x1
+                      or member.file_size <= 0
+                      or member.file_size > 8 * 1024 * 1024 * 1024
+                      or member.compress_size <= 0
+                      or member.file_size > member.compress_size * 200
+                  ):
+                      raise SystemExit(f"unsafe archive member for {symbol}")
+                  required_horizon = int(symbol_horizons[symbol])
+                  with archive.open(member, "r") as raw:
+                      text = io.TextIOWrapper(raw, encoding="utf-8-sig", newline="")
+                      reader = csv.reader(text)
+                      for row_number, row in enumerate(reader, 1):
+                          if row_number > 25_000_000:
+                              raise SystemExit(f"archive row bound exceeded for {symbol}")
+                          if row_number == 1 and (
+                              len(row) != 7 or not row[5].strip().isdigit()
+                          ):
+                              continue
+                          if len(row) != 7 or not row[5].strip().isdigit():
+                              raise SystemExit(
+                                  f"invalid aggregate trade row for {symbol}:{row_number}"
+                              )
+                          timestamp_ms = int(row[5])
+                          if timestamp_ms >= required_horizon:
+                              first_trade_at_or_after_horizon[symbol] = timestamp_ms
+                              break
+              if symbol not in first_trade_at_or_after_horizon:
+                  raise SystemExit(f"no post-horizon aggregate trade for {symbol}")
+          requested_end_ms = max(first_trade_at_or_after_horizon.values())
+          if requested_end_ms < int(os.environ["MINIMUM_HORIZON_END_MS"]):
+              raise SystemExit("derived request end precedes the latest label horizon")
+          if requested_end_ms >= int(os.environ["PROTECTED_HOLDOUT_START_MS"]):
+              raise SystemExit("derived request end overlaps protected holdout")
+          (runner_temp / "wh02-derived-request-end.json").write_text(
+              json.dumps(
+                  {
+                      "requested_end_ms": requested_end_ms,
+                      "first_trade_at_or_after_horizon": (
+                          first_trade_at_or_after_horizon
+                      ),
+                  },
+                  sort_keys=True,
+                  separators=(",", ":"),
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          request = {
+              "schema_version": "wickhunter-replay-price-path-request-v1",
+              "package_id": os.environ["PACKAGE_ID"],
+              "dataset_id": os.environ["EXPECTED_DATASET_ID"],
+              "dataset_manifest_sha256": os.environ[
+                  "EXPECTED_DATASET_MANIFEST_SHA256"
+              ],
+              "market_manifest_sha256": os.environ[
+                  "EXPECTED_MARKET_MANIFEST_SHA256"
+              ],
+              "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+              "requested_date": requested_date,
+              "requested_start_ms": int(os.environ["REQUESTED_START_MS"]),
+              "requested_end_ms": requested_end_ms,
+              "label_horizon_ms": int(os.environ["LABEL_HORIZON_MS"]),
+              "protected_holdout_start_ms": int(
+                  os.environ["PROTECTED_HOLDOUT_START_MS"]
+              ),
+              "symbols": symbols,
+              "archives": [
+                  {
+                      "symbol": symbol,
+                      "archive_relative_path": (
+                          f"raw/{symbol}-aggTrades-{requested_date}.zip"
+                      ),
+                      "checksum_relative_path": (
+                          f"raw/{symbol}-aggTrades-{requested_date}.zip.CHECKSUM"
+                      ),
+                  }
+                  for symbol in symbols
+              ],
+              "public_only": True,
+              "protected_holdout_excluded": True,
+              "replay_authorized": False,
+              "model_execution_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          request_path = Path(os.environ["RUNNER_TEMP"]) / "replay-price-path-request.json"
+          request_path.write_text(
+              json.dumps(
+                  request,
+                  sort_keys=True,
+                  separators=(",", ":"),
+                  ensure_ascii=False,
+              )
+              + "\n",
+              encoding="utf-8",
+          )
+          parsed = load_request(request_path)
+          evidence = {
+              "package_id": parsed.package_id,
+              "request_sha256": parsed.request_sha256,
+              "dataset_id": parsed.dataset_id,
+              "dataset_manifest_sha256": parsed.dataset_manifest_sha256,
+              "market_manifest_sha256": parsed.market_manifest_sha256,
+              "source_commit_sha": parsed.source_commit_sha,
+              "symbol_count": len(parsed.symbols),
+              "requested_start_ms": parsed.requested_start_ms,
+              "requested_end_ms": parsed.requested_end_ms,
+              "label_horizon_ms": parsed.label_horizon_ms,
+              "protected_holdout_start_ms": parsed.protected_holdout_start_ms,
+              "public_only": parsed.public_only,
+              "protected_holdout_excluded": parsed.protected_holdout_excluded,
+              "replay_authorized": parsed.replay_authorized,
+              "model_execution_authorized": parsed.model_execution_authorized,
+              "performance_research_authorized": (
+                  parsed.performance_research_authorized
+              ),
+              "execution_enabled": parsed.execution_enabled,
+              "live_capital_authorized": parsed.live_capital_authorized,
+              "trading_credentials_present": parsed.trading_credentials_present,
+              "orders_submitted": parsed.orders_submitted,
+          }
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"request_sha256={parsed.request_sha256}\n")
+              output.write(f"requested_end_ms={parsed.requested_end_ms}\n")
+          PY
+
+      - name: Materialize exact replay price path
+        id: materialize
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.replay_price_path \
+            materialize \
+            --request "$RUNNER_TEMP/replay-price-path-request.json" \
+            --input-root "$INPUT_ROOT" \
+            --materialization-root "$DATASET_MATERIALIZATION_ROOT" \
+            --output-root "$OUTPUT_ROOT" \
+            | tee "$RUNNER_TEMP/replay-price-path-materialization.json"
+
+      - name: Independently verify terminal package and safety state
+        id: verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.replay_price_path \
+            verify \
+            --output-root "$OUTPUT_ROOT" \
+            --materialization-root "$DATASET_MATERIALIZATION_ROOT" \
+            --input-root "$INPUT_ROOT" \
+            | tee "$RUNNER_TEMP/replay-price-path-verification.json"
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/replay-price-path-terminal-evidence.json"
+          import json
+          import os
+          from pathlib import Path
+
+          output_root = Path(os.environ["OUTPUT_ROOT"])
+          input_root = Path(os.environ["INPUT_ROOT"])
+          request = json.loads((output_root / "request.json").read_text(encoding="utf-8"))
+          manifest = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+          report = json.loads(
+              (output_root / "verification-report.json").read_text(encoding="utf-8")
+          )
+          acquisition = json.loads(
+              (input_root / "acquisition-manifest.json").read_text(encoding="utf-8")
+          )
+          verification = json.loads(
+              (
+                  Path(os.environ["RUNNER_TEMP"])
+                  / "replay-price-path-verification.json"
+              ).read_text(encoding="utf-8")
+          )
+
+          if output_root.is_symlink() or not output_root.is_dir():
+              raise SystemExit("terminal output root is not a regular directory")
+          exact_values = {
+              "package_id": os.environ["PACKAGE_ID"],
+              "dataset_id": os.environ["EXPECTED_DATASET_ID"],
+              "dataset_manifest_sha256": os.environ[
+                  "EXPECTED_DATASET_MANIFEST_SHA256"
+              ],
+              "market_manifest_sha256": os.environ[
+                  "EXPECTED_MARKET_MANIFEST_SHA256"
+              ],
+              "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+              "requested_date": os.environ["REQUESTED_DATE"],
+              "requested_start_ms": int(os.environ["REQUESTED_START_MS"]),
+              "label_horizon_ms": int(os.environ["LABEL_HORIZON_MS"]),
+              "protected_holdout_start_ms": int(
+                  os.environ["PROTECTED_HOLDOUT_START_MS"]
+              ),
+          }
+          for key, value in exact_values.items():
+              if request.get(key) != value or manifest.get(key) != value:
+                  raise SystemExit(f"terminal binding mismatch: {key}")
+          derived_end = json.loads(
+              (
+                  Path(os.environ["RUNNER_TEMP"])
+                  / "wh02-derived-request-end.json"
+              ).read_text(encoding="utf-8")
+          )["requested_end_ms"]
+          if (
+              request.get("requested_end_ms") != derived_end
+              or manifest.get("requested_end_ms") != derived_end
+              or derived_end < int(os.environ["MINIMUM_HORIZON_END_MS"])
+              or derived_end >= int(os.environ["PROTECTED_HOLDOUT_START_MS"])
+          ):
+              raise SystemExit("terminal derived request end mismatch")
+          if report.get("outcome") != "accepted" or report.get("status") != "verified":
+              raise SystemExit("terminal report is not accepted")
+          if report.get("exact_trade_sequence_available") is not True:
+              raise SystemExit("exact trade sequence is unavailable")
+          if manifest.get("decision_count") != 919:
+              raise SystemExit("terminal decision count mismatch")
+          symbols = manifest.get("symbols")
+          if not isinstance(symbols, list) or len(symbols) != 20:
+              raise SystemExit("terminal symbol count mismatch")
+          if manifest.get("total_trade_rows", 0) <= 0:
+              raise SystemExit("terminal package has no trade rows")
+          if verification.get("decision_count") != 919:
+              raise SystemExit("independent verification decision count mismatch")
+          if verification.get("symbol_count") != 20:
+              raise SystemExit("independent verification symbol count mismatch")
+          if verification.get("total_trade_rows", 0) <= 0:
+              raise SystemExit("independent verification has no trade rows")
+          if acquisition.get("archive_count") != 20:
+              raise SystemExit("source acquisition archive count mismatch")
+          if acquisition.get("symbols") != symbols:
+              raise SystemExit("source acquisition symbol binding mismatch")
+
+          required_false = (
+              "protected_holdout_accessed",
+              "immutable_inputs_mutated",
+              "replay_authorized",
+              "model_execution_authorized",
+              "performance_research_authorized",
+              "execution_enabled",
+              "live_capital_authorized",
+              "trading_credentials_present",
+          )
+          for name, payload in (
+              ("manifest", manifest),
+              ("report", report),
+              ("independent verification", verification),
+              ("acquisition", acquisition),
+          ):
+              for key in required_false:
+                  if payload.get(key) is not False:
+                      raise SystemExit(f"unsafe terminal field: {name}.{key}")
+              if payload.get("orders_submitted") != 0:
+                  raise SystemExit(f"orders submitted in {name}")
+
+          evidence = {
+              "package_id": manifest["package_id"],
+              "immutable_path": str(output_root),
+              "request_sha256": manifest["request_sha256"],
+              "manifest_sha256": manifest["manifest_sha256"],
+              "dataset_manifest_sha256": manifest["dataset_manifest_sha256"],
+              "market_manifest_sha256": manifest["market_manifest_sha256"],
+              "source_commit_sha": manifest["source_commit_sha"],
+              "acquisition_manifest_sha256": acquisition["manifest_sha256"],
+              "archive_count": acquisition["archive_count"],
+              "total_archive_bytes": acquisition["total_archive_bytes"],
+              "decision_count": manifest["decision_count"],
+              "symbol_count": len(symbols),
+              "total_trade_rows": manifest["total_trade_rows"],
+              "maximum_entry_delay_ms": manifest["maximum_entry_delay_ms"],
+              "exact_trade_sequence_available": True,
+              "protected_holdout_accessed": False,
+              "immutable_inputs_mutated": False,
+              "replay_authorized": False,
+              "model_execution_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          print(json.dumps(evidence, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"manifest_sha256={manifest['manifest_sha256']}\n")
+              output.write(f"total_trade_rows={manifest['total_trade_rows']}\n")
+              output.write(
+                  f"maximum_entry_delay_ms={manifest['maximum_entry_delay_ms']}\n"
+              )
+          PY
+
+      - name: Publish bounded terminal summary
+        shell: bash
+        env:
+          ARCHIVE_COUNT: ${{ steps.acquire.outputs.archive_count }}
+          TOTAL_ARCHIVE_BYTES: ${{ steps.acquire.outputs.total_archive_bytes }}
+          ACQUISITION_MANIFEST_SHA256: ${{ steps.acquire.outputs.acquisition_manifest_sha256 }}
+          REQUEST_SHA256: ${{ steps.request.outputs.request_sha256 }}
+          REQUESTED_END_MS_VALUE: ${{ steps.request.outputs.requested_end_ms }}
+          MANIFEST_SHA256: ${{ steps.verify.outputs.manifest_sha256 }}
+          TOTAL_TRADE_ROWS: ${{ steps.verify.outputs.total_trade_rows }}
+          MAXIMUM_ENTRY_DELAY_MS: ${{ steps.verify.outputs.maximum_entry_delay_ms }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## WickHunter WH-02 exact replay price path"
+            echo
+            echo "- Package: \`$PACKAGE_ID\`"
+            echo "- Immutable path: \`$OUTPUT_ROOT\`"
+            echo "- Source: official public Binance USD-M daily aggTrades"
+            echo "- Archives: \`$ARCHIVE_COUNT\`"
+            echo "- Source bytes: \`$TOTAL_ARCHIVE_BYTES\`"
+            echo "- Acquisition manifest SHA-256: \`$ACQUISITION_MANIFEST_SHA256\`"
+            echo "- Request SHA-256: \`$REQUEST_SHA256\`"
+            echo "- Derived covered request end (ms): \`$REQUESTED_END_MS_VALUE\`"
+            echo "- Package manifest SHA-256: \`$MANIFEST_SHA256\`"
+            echo "- Dataset decisions: \`919\`"
+            echo "- Symbols: \`20\`"
+            echo "- Normalized trade rows: \`$TOTAL_TRADE_ROWS\`"
+            echo "- Maximum entry delay: \`$MAXIMUM_ENTRY_DELAY_MS ms\`"
+            echo "- Exact post-decision trade sequence: \`available\`"
+            echo "- Protected holdout accessed: \`false\`"
+            echo "- Replay/model/performance/trading/live-capital authority: \`false\`"
+            echo "- Orders submitted: \`0\`"
+            echo "- Runner releases immediately after this bounded job."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded metadata evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh02-replay-price-path-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/dataset-materialization-verification.json
+            ${{ runner.temp }}/market-evidence-verification.json
+            ${{ runner.temp }}/frozen-source-verification.json
+            ${{ runner.temp }}/aggtrades-acquisition.json
+            ${{ runner.temp }}/replay-price-path-request.json
+            ${{ runner.temp }}/wh02-derived-request-end.json
+            ${{ runner.temp }}/replay-price-path-request-evidence.json
+            ${{ runner.temp }}/replay-price-path-materialization.json
+            ${{ runner.temp }}/replay-price-path-verification.json
+            ${{ runner.temp }}/replay-price-path-terminal-evidence.json
+            ${{ env.INPUT_ROOT }}/acquisition-manifest.json
+            ${{ env.OUTPUT_ROOT }}/request.json
+            ${{ env.OUTPUT_ROOT }}/manifest.json
+            ${{ env.OUTPUT_ROOT }}/verification-report.json
+            ${{ env.OUTPUT_ROOT }}/artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 30

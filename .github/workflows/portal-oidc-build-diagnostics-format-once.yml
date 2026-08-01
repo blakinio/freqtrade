@@ -29,12 +29,17 @@ jobs:
 
           path = Path("tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py")
           source = path.read_text(encoding="utf-8")
-          old = '''    assert (
-              'detail = " | ".join([*lines[:2], "...", *lines[-5:]])' in source
+          old = "\n".join(
+              [
+                  "    assert (",
+                  "        'detail = \" | \".join([*lines[:2], \"...\", *lines[-5:]])' in source",
+                  "    )",
+              ]
+          ) + "\n"
+          new = (
+              "    assert 'detail = \" | \".join([*lines[:2], \"...\", *lines[-5:]])'"
+              " in source\n"
           )
-          '''
-          new = '''    assert 'detail = " | ".join([*lines[:2], "...", *lines[-5:]])' in source
-          '''
           if old in source:
               source = source.replace(old, new, 1)
           elif new not in source:

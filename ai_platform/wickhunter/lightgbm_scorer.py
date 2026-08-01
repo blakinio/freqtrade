@@ -759,22 +759,15 @@ def _model_ignore_candidate(
                 "reason_codes": reasons,
             }
         ),
-        strategy_version=candidate.strategy_version,
+        action=CandidateAction.IGNORE,
         hypothesis=candidate.hypothesis,
         symbol=candidate.symbol,
         decision_timestamp_ms=candidate.decision_timestamp_ms,
-        feature_hash=candidate.feature_hash,
-        parameter_hash=candidate.parameter_hash,
-        action=CandidateAction.IGNORE,
-        side=None,
+        decision_price=candidate.decision_price,
         reason_codes=reasons,
-        requested_risk_ratio=candidate.requested_risk_ratio,
-        requested_leverage=candidate.requested_leverage,
-        requested_dca_levels=candidate.requested_dca_levels,
-        requested_dca_spacing_ratio=candidate.requested_dca_spacing_ratio,
-        take_profit_ratio=candidate.take_profit_ratio,
-        stop_loss_ratio=candidate.stop_loss_ratio,
-        maximum_holding_ms=candidate.maximum_holding_ms,
+        feature_hash=candidate.feature_hash,
+        parameter_version=candidate.parameter_version,
+        parameter_hash=candidate.parameter_hash,
     )
 
 

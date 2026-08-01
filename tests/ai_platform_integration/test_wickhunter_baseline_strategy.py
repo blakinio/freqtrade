@@ -276,14 +276,10 @@ def test_duplicate_evidence_and_cooldown_are_explicit() -> None:
     )
 
     duplicate_ignored = [
-        item
-        for item in duplicate_report.decisions
-        if item.status is EvaluationStatus.IGNORED
+        item for item in duplicate_report.decisions if item.status is EvaluationStatus.IGNORED
     ]
     assert len(duplicate_ignored) == 2
-    assert {item.reason_codes for item in duplicate_ignored} == {
-        ("duplicate_feature_evidence",)
-    }
+    assert {item.reason_codes for item in duplicate_ignored} == {("duplicate_feature_evidence",)}
 
     first = _feature(START, input_suffix="cooldown-one")
     second = _feature(START + 60_000, input_suffix="cooldown-two")
@@ -296,14 +292,10 @@ def test_duplicate_evidence_and_cooldown_are_explicit() -> None:
         parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
     )
     cooldown_ignored = [
-        item
-        for item in cooldown_report.decisions
-        if item.status is EvaluationStatus.IGNORED
+        item for item in cooldown_report.decisions if item.status is EvaluationStatus.IGNORED
     ]
     assert len(cooldown_ignored) == 2
-    assert {item.reason_codes for item in cooldown_ignored} == {
-        ("symbol_side_cooldown_active",)
-    }
+    assert {item.reason_codes for item in cooldown_ignored} == {("symbol_side_cooldown_active",)}
 
 
 def test_input_order_does_not_change_report_identity() -> None:

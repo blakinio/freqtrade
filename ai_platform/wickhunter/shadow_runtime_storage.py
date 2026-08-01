@@ -205,11 +205,11 @@ def _state_from_payload(payload: Mapping[str, object]) -> ShadowRuntimeState:
         mode=BotMode(str(payload["mode"])),
         policy_version=str(payload["policy_version"]),
         policy_sha256=str(payload["policy_sha256"]),
-        generation=int(payload["generation"]),
+        generation=int(str(payload["generation"])),
         last_observed_at_ms=(
             None
             if payload.get("last_observed_at_ms") is None
-            else int(payload["last_observed_at_ms"])
+            else int(str(payload["last_observed_at_ms"]))
         ),
         universe_snapshot_hash=(
             None

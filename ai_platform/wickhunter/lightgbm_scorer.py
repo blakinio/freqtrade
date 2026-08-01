@@ -13,7 +13,6 @@ from ai_platform.wickhunter.baseline_strategy import (
     BASELINE_REPORT_SCHEMA_VERSION,
     DEFAULT_SLICE_POLICY,
     EVALUATION_INTERFACE_VERSION,
-    BaselineEvaluationReport,
     BaselineSlicePolicy,
     EvaluationCase,
     EvaluationDecision,
@@ -131,7 +130,7 @@ class LightGBMTrainingPolicy:
     calibration_bins: int = 10
     no_trade_confidence: Decimal = Decimal("0.60")
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != TRAINING_POLICY_SCHEMA_VERSION:
             raise LightGBMScorerError(
                 f"training policy schema must be {TRAINING_POLICY_SCHEMA_VERSION}"
@@ -160,7 +159,9 @@ class LightGBMTrainingPolicy:
                 self.validation_splits,
             )
         ):
-            raise LightGBMScorerError("training, calibration and validation splits must be disjoint")
+            raise LightGBMScorerError(
+                "training, calibration and validation splits must be disjoint"
+            )
         if allowed & set(self.forbidden_splits):
             raise LightGBMScorerError("protected splits cannot be assigned to model work")
         if self.seed < 0:
@@ -244,7 +245,7 @@ class LightGBMModelArtifact:
     live_capital_authorized: bool
     orders_submitted: int
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != MODEL_ARTIFACT_SCHEMA_VERSION:
             raise LightGBMScorerError(
                 f"model artifact schema must be {MODEL_ARTIFACT_SCHEMA_VERSION}"
@@ -598,8 +599,9 @@ def train_lightgbm_scorer(
     cases: Sequence[EvaluationCase],
     parameters: WickHunterParameters,
     parameter_bounds: WickHunterParameterBounds,
-    policy: LightGBMTrainingPolicy = LightGBMTrainingPolicy(),
+    policy: LightGBMTrainingPolicy | None = None,
 ) -> LightGBMModelArtifact:
+    policy = policy or LightGBMTrainingPolicy()
     validate_parameters(parameters, parameter_bounds)
     _audit_feature_schema()
     if not cases:

@@ -6,7 +6,7 @@ branch: feat/wickhunter-wh02-deterministic-replay-v1
 base_branch: develop
 created: 2026-08-01
 updated: 2026-08-01
-related_pr: null
+related_pr: 955
 depends_on:
   - FTAI-20260731-wickhunter-wh01-production-materialization-v1
   - FTAI-20260801-wickhunter-wh02-replay-price-path-v1
@@ -56,34 +56,39 @@ Bind the immutable WH-01 dataset and verified exact trade path into deterministi
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T18:59:35+02:00
+updated_at: 2026-08-01T19:09:31+02:00
 project_lane: freqtrade-wickhunter
 phase: validate
 session_id: wh02-20260801-001
 session_role: implementer
 execution_mode: chat
-execution_reason: direct GitHub implementation with bounded isolated test validation because local checkout DNS is unavailable
+execution_reason: direct GitHub implementation with exact-head GitHub Actions validation
 status: validating
 branch: feat/wickhunter-wh02-deterministic-replay-v1
-head: 74c8173688eebf372bf29e6f4df7d65e9df0e724
+head: da0224d2989db8a2f3162a5e16d6834be9da1597
 base_branch: develop
-related_pr: null
+related_pr: 955
 context_pressure: high
 context_growth: stable
 decomposition_decision: phased
 decomposition_reason: contract design, implementation and validation share one immutable replay output
-validation_level: focused
-heavy_validation_runs: 0
+validation_level: repository
+heavy_validation_runs: 2
 proven:
   - live ownership preflight found no existing WH-02 deterministic replay branch or overlapping writer
   - the branch was created from develop at e5601c640d9f53f878645caca356762c71dfdf06
+  - PR 955 changes exactly the four declared WH-02 owned paths
   - the replay policy freezes exact entry, costs, TP/SL ordering, timeout, excursions, split geometry and parity
   - the implementation emits deterministic long and short labels, atomic evidence and an independent verifier
+  - isolated replay validation passes all 7 focused tests
+  - both completed AI Platform CI attempts passed all 1057 repository tests
+  - the first AI CI lint findings were repaired and the second attempt passed Ruff check
+  - the second AI CI formatting diff was applied exactly
   - protected holdout, model, performance, execution, order and live-capital authority remain disabled
 derived:
   - the same pure replay_event_label function is the WH-07 replay/shadow parity seam
 unknown:
-  - exact-head repository CI result
+  - exact-head CI result after the formatting and checkpoint commits
 conflicts:
   - open readiness remediation PR 950 owns collector/runtime paths and does not overlap this task
 first_relevant_error: null
@@ -96,6 +101,12 @@ validation:
   - command: isolated Python syntax and functional replay suite
     result: PASS, 7 tests
     evidence: long TP, short SL ordering, timeout, missing entry, holdout, embargo, atomic build and tamper rejection
+  - command: AI Platform CI run 3635
+    result: 1057 tests PASS; Ruff reported 9 bounded findings
+    evidence: all findings repaired in deterministic_replay.py
+  - command: AI Platform CI run 3638
+    result: 1057 tests PASS; Ruff check PASS; Ruff format supplied one-file diff
+    evidence: formatter diff applied exactly in da0224d2989db8a2f3162a5e16d6834be9da1597
 blockers: []
-next_action: open the exact four-path PR, run focused and repository CI on its exact head, repair only proven failures, then perform fresh validation
+next_action: wait only for automatically running exact-head PR checks, inspect any concrete failure, then perform fresh validation and merge PR 955 when all required checks are green
 ```

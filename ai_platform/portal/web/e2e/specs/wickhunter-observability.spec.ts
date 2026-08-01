@@ -16,7 +16,7 @@ test.describe("WickHunter runtime observability", () => {
     await expect(page.getByTestId("source-binance-usdm")).toContainText("healthy");
     await expect(page.getByTestId("decision-ETHUSDT")).toContainText("rejected_by_risk");
     await expect(page.getByTestId("risk-rejection-count")).toContainText("1");
-    await expect(page.getByTestId("position-BTCUSDT")).toContainText("65100");
+    await expect(page.getByTestId("position-BTCUSDT")).toContainText(/65\s*100/u);
     await expect(page.getByTestId("circuit-breaker")).toContainText("nieaktywny");
     await expect(page.getByTestId("authority-boundary")).toContainText("Złożone zlecenia: 0");
 

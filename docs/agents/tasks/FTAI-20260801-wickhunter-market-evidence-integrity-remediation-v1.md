@@ -47,12 +47,12 @@ Ensure completed Portal Market Evidence v1/v2 packages are projected only after 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T15:20:00+02:00
-head: 81005a01301f4d51b7fcfcb23090c5c2099548d0
+updated_at: 2026-08-01T15:20:32+02:00
+head: 8fb1b08390f8e37b72eef88f39a7e2e7efb2c0fe
 branch: fix/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
 pr: none
-status: implementing
-phase: implement
+status: validating
+phase: validate
 session_id: codex-20260801-integrity-1
 session_role: implementer
 execution_mode: codex
@@ -69,7 +69,7 @@ context_score: 12
 decomposition_decision: phased
 validation_level: component
 heavy_validation_runs: 0
-last_completed_step: completed bounded backend and Portal Market Evidence component validation and reviewed the exact staged scope
+last_completed_step: committed the coherent remediation at 8fb1b08390f8e37b72eef88f39a7e2e7efb2c0fe after focused and component validation
 context_routes:
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md at audit commit a9272b3e
@@ -132,5 +132,5 @@ validation:
     result: PASS
     evidence: 17 passed and one Windows-only symlink skip across integrity, critical flow and UI states; Linux symlink execution is wired into exact-head CI
 blockers: []
-next_action: Commit the coherent remediation, push the exact branch, open one draft PR against develop, and inspect the required exact-head CI once.
+next_action: Push the implementation branch, open one draft PR against develop, and inspect the required exact-head CI once.
 ```

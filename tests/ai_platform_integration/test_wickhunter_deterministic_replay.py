@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-from dataclasses import replace
 from decimal import Decimal
 from pathlib import Path
 
@@ -101,9 +99,9 @@ def test_long_take_profit_uses_exact_trade_order_and_costs() -> None:
     assert label.maximum_favorable_excursion_ratio == (
         Decimal("106") - Decimal("100.100")
     ) / Decimal("100.100")
-    assert label.maximum_adverse_excursion_ratio == (
-        Decimal("100.100") - Decimal("100")
-    ) / Decimal("100.100")
+    assert label.maximum_adverse_excursion_ratio == (Decimal("100.100") - Decimal("100")) / Decimal(
+        "100.100"
+    )
     gross = Decimal("105.894") / Decimal("100.100") - Decimal("1")
     assert label.gross_return_ratio == gross
     assert label.net_return_ratio == gross - Decimal("0.001") - (

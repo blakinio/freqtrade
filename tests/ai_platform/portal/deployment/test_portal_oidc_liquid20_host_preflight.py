@@ -96,7 +96,10 @@ def test_deploy_web_uses_verified_group_and_restores_original_resolver() -> None
         )
 
     deploy = deploy_module(run)
-    original_resolver = lambda: "runner-filesystem-gid"
+
+    def original_resolver() -> str:
+        return "runner-filesystem-gid"
+
     deploy._liquidations_group_id = original_resolver
 
     def original_deploy_web(image: str, suffix: str) -> tuple[str | None, str]:

@@ -1,0 +1,47 @@
+name: Temporary WH-09 asdict patch
+
+on:
+  push:
+    branches:
+      - feat/wickhunter-wh09-paper-validation-v1
+    paths:
+      - .github/workflows/temp-wh09-asdict-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/wickhunter-wh09-paper-validation-v1
+          fetch-depth: 0
+      - name: Apply bounded source patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("ai_platform/wickhunter/paper_validation.py")
+          content = path.read_text(encoding="utf-8")
+          content = content.replace(
+              "from dataclasses import dataclass",
+              "from dataclasses import asdict, dataclass",
+          )
+          expected = content.count("_assert_zero_authority(self.__dict__")
+          if expected != 5:
+              raise SystemExit(f"expected 5 slots authority calls, found {expected}")
+          content = content.replace(
+              "_assert_zero_authority(self.__dict__",
+              "_assert_zero_authority(asdict(self)",
+          )
+          path.write_text(content, encoding="utf-8")
+          PY
+          rm .github/workflows/temp-wh09-asdict-patch.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add ai_platform/wickhunter/paper_validation.py .github/workflows/temp-wh09-asdict-patch.yml
+          git commit -m "fix(wickhunter): validate slots dataclasses safely"
+          git push origin HEAD:feat/wickhunter-wh09-paper-validation-v1

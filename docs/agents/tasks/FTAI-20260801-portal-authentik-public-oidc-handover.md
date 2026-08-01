@@ -79,23 +79,20 @@ PR 876 divergence: 18 ahead, 34 behind
 PR 876 review threads: 0
 ```
 
-PR 876 functional tests passed; its failures were mechanical Ruff, pre-commit and formatting failures. The replacement branch was refreshed from frozen `develop` through PR 901, merged as:
+PR 876 functional tests passed; its failures were mechanical Ruff, pre-commit and formatting failures. The replacement branch was synchronized through these exact merge PRs:
 
 ```text
-a5c02b8c492023f0e42695ae73611c12f08de5e8
+PR 901: develop 55b63820f50976e3fcf605f1cea0810183d2b842
+merge:  a5c02b8c492023f0e42695ae73611c12f08de5e8
+
+PR 905: develop 3afe281de86673902ded7625d6dade94105b5ee9
+merge:  2ab38527de472a37ded855c93d6a26872f77df73
+
+PR 907: develop 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
+merge:  1be877411cd83a395fed1287148f1024cbdf6cff
 ```
 
-While PR 903 was being repaired, `develop` advanced by 12 commits to:
-
-```text
-3afe281de86673902ded7625d6dade94105b5ee9
-```
-
-Those commits changed only WickHunter production materialization paths and did not overlap the Portal OIDC diff. Refresh PR 905 merged exact `develop` into the feature branch as:
-
-```text
-2ab38527de472a37ded855c93d6a26872f77df73
-```
+Incoming commits in PR 905 changed only WickHunter materialization. Incoming commits in PR 907 changed agent guidance and a separate dashboard visual proposal. Neither refresh overlapped an owned Portal OIDC path.
 
 ## Implemented public HTTPS changes
 
@@ -145,10 +142,11 @@ The provider, discovery and JWKS are not yet proven because no post-merge deploy
 - Freqtrade pre-commit passed mypy before reporting only deployer import layout, unused `noqa` directives and formatting.
 - Exact repository Ruff fixes and formatting were applied in commit `742e9b892f9b10ebfd1739135eb92b56985b9d6c`.
 - The isolated formatter workflow was removed in commit `246e81a46528fc04b0a3c33dda638abbb5ddaf49`.
-- Security analysis passed on the preceding exact head.
+- Freqtrade pre-commit and documentation build passed on head `b7944639ebb32827dfbc301183f045248900ab01` before the final non-overlapping `develop` refresh.
+- Security analysis passed on that head.
 - No PR comments or unresolved review threads existed at the last inspection.
 
-All workflows must pass again on the final head after the exact `develop` refresh and this checkpoint commit.
+All workflows must pass again on the exact final head after PR 907 and this checkpoint commit.
 
 ## Safety boundary
 
@@ -178,16 +176,16 @@ deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 4
-updated_at: 2026-08-01T09:04:00+02:00
-develop_head: 3afe281de86673902ded7625d6dade94105b5ee9
-develop_refresh_merge: 2ab38527de472a37ded855c93d6a26872f77df73
+checkpoint_version: 5
+updated_at: 2026-08-01T09:07:00+02:00
+develop_head: 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
+develop_refresh_merge: 1be877411cd83a395fed1287148f1024cbdf6cff
 formatted_code_head: 742e9b892f9b10ebfd1739135eb92b56985b9d6c
 branch: feat/portal-authentik-public-oidc-20260801
 pr: "#903"
 status: in_progress
 proven:
-  - feature branch contains exact develop head 3afe281de86673902ded7625d6dade94105b5ee9
+  - feature branch contains exact develop head 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
   - incoming develop changes did not overlap Portal OIDC paths
   - public runtime has no automatic membership grant
   - blueprint contains no client secret and uses the exact public callback

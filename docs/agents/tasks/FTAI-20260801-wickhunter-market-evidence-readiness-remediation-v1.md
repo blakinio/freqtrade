@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1
-status: waiting
+status: done
 branch: fix/FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1
 base_branch: develop
 base_sha: 4031939fd4902dda2b5e3440d4ee47821de41717
@@ -21,11 +21,11 @@ readiness and making container/deployment gates require an explicit ready lifecy
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T17:32:02+02:00
-head: f0cc3830e94428690d68019a99ffd9b3db0d3e58
+updated_at: 2026-08-01T17:49:01+02:00
+head: b9c6a4cc2f374ad4042a246d06b08ce238cac319
 branch: fix/FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1
 pr: 950
-status: validating
+status: ready
 phase: complete
 session_id: codex-20260801-wh-me-aud-004-1
 session_role: implementer
@@ -40,7 +40,7 @@ context_growth: stable
 context_score: 11
 decomposition_decision: split
 decomposition_reason: readiness has independent Python and deployment ownership and no dependency on Task A
-last_completed_step: committed and pushed coherent implementation head f0cc3830e94428690d68019a99ffd9b3db0d3e58 and opened separate draft PR 950 against develop
+last_completed_step: observed every required check passing on exact PR head b9c6a4cc2f374ad4042a246d06b08ce238cac319
 context_routes:
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md at audit commit a9272b3e
@@ -107,8 +107,8 @@ validation:
     result: BLOCKED
     evidence: Docker Desktop Linux engine pipe is unavailable; no dynamic container claim is made
   - command: PR 950 exact-head required CI observation
-    result: NOT_RUN
-    evidence: workflow runs 30706120573, 30706120574, 30706120579 and 30706120589 queued for head f0cc3830e94428690d68019a99ffd9b3db0d3e58
+    result: PASS
+    evidence: exact-head checks passed, including dedicated Market Evidence backend and deployment coverage, AI Platform CI, full Linux core matrix, pre-commit, CI Gate, Portal integration checks, and zizmor
 blockers: []
-next_action: Observe PR 950 required checks at the latest exact head and repair only a relevant failure.
+next_action: Await repository-owner review and merge decision for draft PR 950.
 ```

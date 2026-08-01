@@ -5,9 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[4]
-DIAGNOSTIC_PATH = (
-    ROOT / "deploy" / "synology" / "portal-oidc" / "diagnose_callback_failure.py"
-)
+DIAGNOSTIC_PATH = ROOT / "deploy" / "synology" / "portal-oidc" / "diagnose_callback_failure.py"
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "portal-oidc-callback-diagnostic.yml"
 SPEC = importlib.util.spec_from_file_location(
     "portal_oidc_callback_diagnostic",

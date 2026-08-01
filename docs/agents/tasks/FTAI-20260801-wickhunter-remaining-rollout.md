@@ -1,12 +1,12 @@
 ---
 task_id: FTAI-20260801-wickhunter-remaining-rollout
 project_lane: freqtrade-wickhunter
-status: active
+status: validating
 branch: docs/wickhunter-remaining-rollout-short-invocations-20260801
 base_branch: develop
 created: 2026-08-01
 updated: 2026-08-01
-related_pr: null
+related_pr: 941
 depends_on: []
 owned_paths:
   - docs/agents/plans/WICKHUNTER_REMAINING_ROLLOUT.md
@@ -91,17 +91,18 @@ WH-07 and WH-08 may perform read-only discovery before their implementation depe
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T15:23:00+02:00
+updated_at: 2026-08-01T15:34:00+02:00
 project_lane: freqtrade-wickhunter
-phase: integrate
+phase: validate
 session_id: coordinator-20260801-001
 session_role: coordinator
 execution_mode: chat
 execution_reason: repository coordination and documentation-only durable state
-status: active
+status: validating
 branch: docs/wickhunter-remaining-rollout-short-invocations-20260801
+head: 167baa1fcca34147c6639e77f2a33148ac7b7e2e
 base_branch: develop
-related_pr: null
+related_pr: 941
 context_pressure: high
 context_growth: stable
 decomposition_decision: split
@@ -113,20 +114,33 @@ proven:
   - request-only PR 935 materialized and independently verified the exact WH-02 aggregate-trade path, then closed unmerged
   - seven product packages remain
   - the repository prompting standard requires one bounded phase per worker prompt and durable checkpoint state
+  - eight task records, the rollout plan and short-invocation registry are present on PR 941
+  - the branch was synchronized with develop through internal PR 940
 derived:
   - eight durable tasks and 22 session phases are sufficient
   - at most two simultaneous code writers preserve useful parallelism without ownership collisions
 unknown:
-  - live state of every open PR and CI at the next barrier
+  - terminal exact-head CI result for PR 941
   - final owned code paths until each package performs its required ownership preflight
 conflicts:
   - WH-08 implementation must not overlap an active Portal PR
 first_relevant_error: null
 changed_paths:
+  - docs/agents/PROMPTING_HANDOVER.md
   - docs/agents/plans/WICKHUNTER_REMAINING_ROLLOUT.md
   - docs/agents/prompts/WICKHUNTER_SHORT_INVOCATIONS.md
   - docs/agents/tasks/FTAI-20260801-wickhunter-remaining-rollout.md
-validation: []
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh02-deterministic-replay-v1.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh03-baseline-strategy-v1.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh04-lightgbm-scorer-v1.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh05-bounded-optimizer-v1.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh07-shadow-runtime-v1.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh08-portal-observability-v1.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh09-paper-validation-v1.md
+validation:
+  - command: compare branch against current develop
+    result: PASS
+    evidence: only the declared eleven documentation/task paths differ after synchronization
 blockers: []
-next_action: finish the rollout documentation set, validate every checkpoint, open the coordinator PR and merge it before dispatching the first READY phase
+next_action: inspect exact-head PR 941 CI and checkpoint validation, repair only the first relevant failure, then merge normally when green
 ```

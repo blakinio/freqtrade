@@ -63,7 +63,7 @@ jobs:
             printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
             exit 1
           }
-          dataset_id="wickhunter-wh01-production-dataset-20260731-v2-${BASE_SHA:0:12}-eaccc5ec-8f5be573"
+          dataset_id="wickhunter-wh01-production-dataset-20260731-v3-${BASE_SHA:0:12}-eaccc5ec-8f5be573"
           output_root="$DATASET_STATE_ROOT/$dataset_id"
           printf 'code_sha=%s\n' "$BASE_SHA" >> "$GITHUB_OUTPUT"
           printf 'dataset_id=%s\n' "$dataset_id" >> "$GITHUB_OUTPUT"

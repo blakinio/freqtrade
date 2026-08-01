@@ -10,6 +10,7 @@ name: AI Platform WickHunter Market Evidence CI
       - ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml"
       - ".github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml"
       - "ai_platform/wickhunter/production_market_evidence*.py"
+      - "ai_platform/wickhunter/market_evidence_paths.py"
       - "ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v1.json"
       - "ai_platform/wickhunter/policies/wickhunter-production-market-evidence-wh01-policy-v2.json"
       - "ai_platform/portal/web/app/api/market/evidence/**"
@@ -26,6 +27,7 @@ name: AI Platform WickHunter Market Evidence CI
       - "docs/ai_platform/portal/MARKET_EVIDENCE_READ_MODEL.md"
       - "docs/agents/tasks/FTAI-20260730-wickhunter-production-market-evidence-capture-and-portal-v1.md"
       - "docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md"
+      - "docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md"
       - "tests/ai_platform_integration/test_wickhunter_production_market_evidence*.py"
   workflow_dispatch:
 
@@ -69,6 +71,7 @@ jobs:
             ai_platform/wickhunter/production_market_evidence_service.py \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_wh01.py \
+            ai_platform/wickhunter/market_evidence_paths.py \
             ai_platform/wickhunter/production_market_evidence_v2.py \
             ai_platform/wickhunter/production_market_evidence_service_v2.py \
             ai_platform/wickhunter/production_market_evidence_daemon_v2.py
@@ -91,6 +94,7 @@ jobs:
             ai_platform/wickhunter/production_market_evidence_service.py \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_wh01.py \
+            ai_platform/wickhunter/market_evidence_paths.py \
             ai_platform/wickhunter/production_market_evidence_v2.py \
             ai_platform/wickhunter/production_market_evidence_service_v2.py \
             ai_platform/wickhunter/production_market_evidence_daemon_v2.py \
@@ -104,6 +108,7 @@ jobs:
             ai_platform/wickhunter/production_market_evidence_service.py \
             ai_platform/wickhunter/production_market_evidence_daemon.py \
             ai_platform/wickhunter/production_market_evidence_wh01.py \
+            ai_platform/wickhunter/market_evidence_paths.py \
             ai_platform/wickhunter/production_market_evidence_v2.py \
             ai_platform/wickhunter/production_market_evidence_service_v2.py \
             ai_platform/wickhunter/production_market_evidence_daemon_v2.py \
@@ -121,6 +126,9 @@ jobs:
             --require-checkpoint
           python tools/agents/checkpoint.py \
             docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md \
+            --require-checkpoint
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md \
             --require-checkpoint
 
   portal:
@@ -168,6 +176,7 @@ jobs:
           PORTAL_E2E_IDENTITY_FIXTURE_MODE: enabled
         run: >-
           npx playwright test
+          e2e/specs/market-evidence-integrity.spec.ts
           e2e/specs/market-evidence.spec.ts
           e2e/specs/market-evidence-states.spec.ts
           --project=chromium-desktop

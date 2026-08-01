@@ -24,6 +24,10 @@ from ai_platform.research.liquidations.okx import (
     canonical_symbol_from_inst_id,
     parse_okx_instruments_response,
 )
+from ai_platform.wickhunter.market_evidence_paths import (
+    MarketEvidencePathError,
+    safe_regular_member,
+)
 from ai_platform.wickhunter.production_market_evidence import EXPECTED_SYMBOLS
 
 
@@ -97,7 +101,6 @@ class ProductionMarketEvidenceV2Error(RuntimeError):
 class _NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, *args: Any, **kwargs: Any) -> None:
         del args, kwargs
-        return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1230,17 +1233,13 @@ def verify_supplement(root: Path) -> dict[str, object]:
     for raw in artifacts:
         identity = _object(raw, field="artifact identity")
         logical_name = str(identity.get("logical_name", ""))
-        relative = Path(logical_name)
-        unsafe = relative.is_absolute() or any(part in {"", ".", ".."} for part in relative.parts)
-        if unsafe:
-            raise ProductionMarketEvidenceV2Error("artifact path is unsafe")
-        path = root / relative
-        identity_mismatch = (
-            path.is_symlink()
-            or not path.is_file()
-            or _file_hash(path) != identity.get("sha256")
-            or path.stat().st_size != identity.get("size_bytes")
-        )
+        try:
+            path = safe_regular_member(root, logical_name)
+        except MarketEvidencePathError as exc:
+            raise ProductionMarketEvidenceV2Error(str(exc)) from exc
+        identity_mismatch = _file_hash(path) != identity.get(
+            "sha256"
+        ) or path.stat().st_size != identity.get("size_bytes")
         if identity_mismatch:
             raise ProductionMarketEvidenceV2Error("supplement artifact identity mismatch")
         expected_lines.add(f"{identity['sha256']}  {logical_name}")

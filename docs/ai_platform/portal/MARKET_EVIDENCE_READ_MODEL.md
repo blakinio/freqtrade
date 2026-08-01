@@ -49,11 +49,15 @@ An active pointer may exist at:
 The reader:
 
 - resolves fixed child paths beneath the configured root;
-- rejects symlinked roots, runs and files;
+- rejects symlinked roots, runs, files and intermediate package-member directories;
 - accepts only versioned run-ID patterns;
 - bounds metadata, NDJSON, run count and response page size;
+- verifies the v1 or v2 manifest self-hash, checksum index, every declared artifact SHA-256 and byte size, package/request/binding identities, completion state, authority boundary and declared row geometry before parsing normalized rows;
+- projects normalized rows only from the immutable byte buffers that passed verification, preventing a second unverified file read;
 - reads normalized package rows, not raw exchange payloads;
 - validates all authority fields before returning a completed run.
+
+Any incomplete, corrupt, substituted, escaping or symlinked completed package fails closed as Market Evidence unavailable. The reader does not return rows from a partially verified package and does not fall back to unverified v1 or v2 content.
 
 ## API
 
@@ -280,3 +284,5 @@ identity boundary
 ```
 
 Additional component-state coverage verifies loading, empty, unavailable, stale and API-error rendering. API assertions cover pagination, query rejection, cross-tenant denial, bounded payloads and absence of host paths or secrets.
+
+Focused integrity coverage additionally verifies valid v1/v2 compatibility, manifest and artifact identity failures, missing or inconsistent checksums, normalized-row substitution, row-count mismatch, unsafe logical paths, symlink components and fail-closed no-partial-row behavior.

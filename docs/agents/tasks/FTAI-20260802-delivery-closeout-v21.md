@@ -5,7 +5,7 @@ branch: docs/agent-closeout-vertical-slice-v21-20260802
 base_branch: develop
 created: 2026-08-02
 updated: 2026-08-02
-related_pr: ""
+related_pr: "#989"
 required_reads:
   - AGENTS.md
   - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md

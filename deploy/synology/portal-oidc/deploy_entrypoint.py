@@ -13,9 +13,7 @@ from typing import Any, cast
 DEPLOYMENT_DIR = Path(__file__).resolve().parent
 BUILD_TIMEOUT_MARKER = "DeadlineExceeded: context deadline exceeded"
 REVISION_LABEL_PREFIX = "org.opencontainers.image.revision="
-IMAGE_REVISION_FORMAT = (
-    '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}'
-)
+IMAGE_REVISION_FORMAT = '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}'
 
 
 def _load_module(name: str, path: Path) -> ModuleType:
@@ -39,14 +37,8 @@ def _required_option(command: list[str], name: str) -> str:
 
 
 def _revision_from_command(command: list[str]) -> str:
-    labels = [
-        command[index + 1]
-        for index, value in enumerate(command[:-1])
-        if value == "--label"
-    ]
-    revision_labels = [
-        value for value in labels if value.startswith(REVISION_LABEL_PREFIX)
-    ]
+    labels = [command[index + 1] for index, value in enumerate(command[:-1]) if value == "--label"]
+    revision_labels = [value for value in labels if value.startswith(REVISION_LABEL_PREFIX)]
     if len(revision_labels) != 1:
         raise ValueError("docker build command must contain one revision label")
     revision = revision_labels[0].removeprefix(REVISION_LABEL_PREFIX)
@@ -78,10 +70,7 @@ def _failure_message(
     result: subprocess.CompletedProcess[str],
 ) -> str:
     rendered = " ".join(command)
-    return (
-        f"command failed ({result.returncode}): {rendered}: "
-        f"{_bounded_detail(result)}"
-    )
+    return f"command failed ({result.returncode}): {rendered}: {_bounded_detail(result)}"
 
 
 def _install_verified_build_timeout(deploy: Any) -> None:
@@ -169,9 +158,7 @@ def _install_verified_build_timeout(deploy: Any) -> None:
             and named_image
         )
         if not verified:
-            raise deployment_error(
-                "docker build timed out and exact image verification failed"
-            )
+            raise deployment_error("docker build timed out and exact image verification failed")
 
         return subprocess.CompletedProcess(
             args=command,

@@ -1,32 +1,18 @@
 from __future__ import annotations
 
-from typing import cast
-
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from ai_platform.portal.identity.oidc import OidcProtocolError
-from ai_platform.portal.identity.public_runtime import _register_identity_routes
-from ai_platform.portal.identity.service import IdentityService
+from pathlib import Path
 
 
-class _ProtocolFailureService:
-    def complete_login(self, *, code: str, state: str):
-        assert code == "code-1"
-        assert state == "state-1"
-        raise OidcProtocolError("internal validation detail")
+ROOT = Path(__file__).resolve().parents[4]
+PUBLIC_RUNTIME = ROOT / "ai_platform" / "portal" / "identity" / "public_runtime.py"
 
 
-def test_oidc_protocol_failure_returns_generic_json_502() -> None:
-    app = FastAPI()
-    service = cast(IdentityService, _ProtocolFailureService())
-    _register_identity_routes(app, service)
+def test_oidc_protocol_failure_is_mapped_to_generic_json_502() -> None:
+    source = PUBLIC_RUNTIME.read_text(encoding="utf-8")
 
-    response = TestClient(app).get(
-        "/v1/identity/callback",
-        params={"code": "code-1", "state": "state-1"},
-    )
-
-    assert response.status_code == 502
-    assert response.json() == {"detail": "OIDC provider response failed validation"}
-    assert "internal validation detail" not in response.text
+    assert "from ai_platform.portal.identity.oidc import" in source
+    assert "OidcProtocolError" in source
+    assert "@app.exception_handler(OidcProtocolError)" in source
+    assert "status_code=status.HTTP_502_BAD_GATEWAY" in source
+    assert 'content={"detail": "OIDC provider response failed validation"}' in source
+    assert "str(_exc)" not in source

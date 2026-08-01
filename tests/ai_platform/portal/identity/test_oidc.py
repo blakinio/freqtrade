@@ -174,3 +174,63 @@ def test_discovery_issuer_mismatch_is_rejected() -> None:
 
     with pytest.raises(OidcProtocolError, match="issuer mismatch"):
         client.authorization_url(state="s", nonce="n", code_challenge="c")
+
+
+def test_private_http_requires_explicit_local_test_transport() -> None:
+    with pytest.raises(ValueError, match="must use HTTPS"):
+        OidcClientConfig(
+            issuer="http://192.168.1.2:9000/application/o/portal/",
+            client_id=CLIENT_ID,
+            client_secret="secret",
+            redirect_uri="http://192.168.1.2:3031/api/identity/callback",
+        )
+
+    config = OidcClientConfig(
+        issuer="http://192.168.1.2:9000/application/o/portal/",
+        client_id=CLIENT_ID,
+        client_secret="secret",
+        redirect_uri="http://192.168.1.2:3031/api/identity/callback",
+        allow_insecure_local_http=True,
+    )
+
+    assert config.allow_insecure_local_http is True
+
+
+def test_local_http_transport_rejects_public_hosts() -> None:
+    with pytest.raises(ValueError, match="private local-test HTTP"):
+        OidcClientConfig(
+            issuer="http://identity.example.test/application/o/portal/",
+            client_id=CLIENT_ID,
+            client_secret="secret",
+            redirect_uri="http://portal.example.test/api/identity/callback",
+            allow_insecure_local_http=True,
+        )
+
+
+def test_local_http_discovery_endpoints_must_use_issuer_origin() -> None:
+    local_issuer = "http://192.168.1.2:9000/application/o/portal/"
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "issuer": local_issuer,
+                "authorization_endpoint": "http://192.168.1.3:9000/authorize",
+                "token_endpoint": f"{local_issuer}token",
+                "jwks_uri": f"{local_issuer}jwks",
+            },
+        )
+
+    client = PyJwtOidcClient(
+        OidcClientConfig(
+            issuer=local_issuer,
+            client_id=CLIENT_ID,
+            client_secret="secret",
+            redirect_uri="http://192.168.1.2:3031/api/identity/callback",
+            allow_insecure_local_http=True,
+        ),
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(OidcProtocolError, match="issuer origin"):
+        client.authorization_url(state="s", nonce="n", code_challenge="c")

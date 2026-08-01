@@ -2,46 +2,62 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEPLOY_SCRIPT = REPO_ROOT / "deploy" / "synology" / "portal" / "deploy-preview.sh"
-WORKFLOW = REPO_ROOT / ".github" / "workflows" / "portal-synology-lan-preview.yml"
+DEPLOY_SCRIPT = REPO_ROOT / "deploy" / "synology" / "portal-oidc" / "deploy.py"
+WORKFLOW = REPO_ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
+BLUEPRINT = (
+    REPO_ROOT
+    / "deploy"
+    / "synology"
+    / "portal-oidc"
+    / "blueprints"
+    / "freqtrade-portal-public.yaml"
+)
 
 
-def test_deploy_probe_requires_page_and_protected_api_boundary() -> None:
+def test_deploy_probe_requires_public_https_authorization_boundary() -> None:
     script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
 
-    assert 'fetch("http://127.0.0.1:3000/market/liquidations")' in script
-    assert 'response.status !== 401 || payload?.code !== "SESSION_MISSING"' in script
-    assert (
-        'wait_http "$bind_address" "$portal_port" "/api/market/liquidations/health"' not in script
-    )
-    assert "authenticated Liquid20 boundary" in script
+    assert 'PORTAL_ORIGIN = "https://quant.molehill.cloud"' in script
+    assert 'AUTHENTIK_ORIGIN = "https://auth.molehill.cloud"' in script
+    assert "def _probe_web_login" in script
+    assert "def _probe_public_portal" in script
+    assert "class NoRedirect" in script
+    assert 'parsed.scheme != "https"' in script
+    assert 'parsed.netloc != "auth.molehill.cloud"' in script
+    assert "public Portal login did not redirect to public Authen­tik" in script
 
 
-def test_deploy_enables_and_verifies_bounded_fixture_identity() -> None:
+def test_deploy_disables_fixture_and_keeps_control_plane_internal() -> None:
     script = DEPLOY_SCRIPT.read_text(encoding="utf-8")
+    control_section = script[
+        script.index("def _control_run_args") : script.index("def _start_control_candidate")
+    ]
+    web_section = script[script.index("def _web_run_args") : script.index("def _probe_web_login")]
 
-    assert "--env PORTAL_WEB_DATA_MODE=fixture" in script
-    assert "--env PORTAL_ENVIRONMENT=test" in script
-    assert "--env PORTAL_IDENTITY_FIXTURE_MODE=enabled" in script
-    assert "--env PORTAL_CONTROL_PLANE_URL" not in script
-    assert "wait_fixture_identity_internal" in script
-    assert "/api/identity/login?return_to=%2Fplatform%2Fadmin" in script
-    assert "login.status !== 303" in script
-    assert "session.status !== 200" in script
-    assert "admin.status !== 200" in script
-    assert "Fixture preview must not declare a control-plane URL" in script
-    assert "real Authentik/control plane remains disabled" in script
+    assert "PORTAL_IDENTITY_FIXTURE_MODE=disabled" in script
+    assert "PORTAL_IDENTITY_TRANSPORT_MODE=https" in script
+    assert "PORTAL_CONTROL_PLANE_URL=http://" in script
+    assert "--publish" not in control_section
+    assert "--publish" in web_section
+    assert '"--read-only"' in script
+    assert '"--cap-drop"' in script
+    assert "no-new-privileges:true" in script
+    assert "dst={LIQUIDATIONS_CONTAINER_ROOT},readonly" in script
+    assert '"unless-stopped"' in script
 
 
-def test_workflow_verifies_liquidations_and_fixture_identity() -> None:
+def test_workflow_and_blueprint_enforce_public_secret_free_oidc() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
+    blueprint = BLUEPRINT.read_text(encoding="utf-8")
 
-    assert "Verify LAN Liquid20 surface and fixture identity boundary" in workflow
-    assert 'response.status !== 401 || payload?.code !== "SESSION_MISSING"' in workflow
-    assert '"http://192.168.1.2:3031/market/liquidations"' in workflow
-    assert "/api/identity/login?return_to=%2Fplatform%2Fadmin" in workflow
-    assert "login.status !== 303" in workflow
-    assert "session.status !== 200" in workflow
-    assert "admin.status !== 200" in workflow
-    assert "fixture-identity-probe" in workflow
-    assert "if (!response.ok) process.exit(1);" not in workflow
+    assert "runs-on: [freqtrade-staging]" in workflow
+    assert "environment: synology-staging" in workflow
+    assert "git diff --name-status" in workflow
+    assert "public-oidc-20260801-v1.json" in workflow
+    assert '"bootstrap_membership_authorized": False' in workflow
+    assert '"secret_values_in_request": False' in workflow
+    assert '"live_capital_authorized": False' in workflow
+    assert "if: always()" in workflow
+    assert "https://quant.molehill.cloud/api/identity/callback" in blueprint
+    assert "client_secret:" not in blueprint
+    assert "PORTAL_IDENTITY_FIXTURE_MODE=enabled" not in workflow

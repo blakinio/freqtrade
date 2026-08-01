@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const SESSION_COOKIE_NAME = "__Host-portal_session";
-export const CSRF_COOKIE_NAME = "__Host-portal_csrf";
+export const SESSION_COOKIE_NAME = localHttpIdentityMode()
+  ? "portal_session"
+  : "__Host-portal_session";
+export const CSRF_COOKIE_NAME = localHttpIdentityMode() ? "portal_csrf" : "__Host-portal_csrf";
 export const CSRF_HEADER_NAME = "x-csrf-token";
 
 export const FIXTURE_STATE_COOKIE_NAME = "portal_fixture_identity_state";
@@ -69,6 +71,14 @@ export function fixtureIdentityMode(): boolean {
     process.env.PORTAL_WEB_DATA_MODE === "fixture" &&
     process.env.PORTAL_ENVIRONMENT === "test" &&
     process.env.PORTAL_IDENTITY_FIXTURE_MODE === "enabled"
+  );
+}
+
+export function localHttpIdentityMode(): boolean {
+  return (
+    process.env.PORTAL_ENVIRONMENT === "test" &&
+    process.env.PORTAL_IDENTITY_FIXTURE_MODE === "disabled" &&
+    process.env.PORTAL_IDENTITY_TRANSPORT_MODE === "local_http_test"
   );
 }
 
@@ -254,8 +264,9 @@ export function setFixtureIdentity(response: NextResponse, state: FixtureIdentit
 }
 
 export function clearIdentityCookies(response: NextResponse): void {
-  expireCookie(response, SESSION_COOKIE_NAME, true, true);
-  expireCookie(response, CSRF_COOKIE_NAME, true, false);
+  const secure = !localHttpIdentityMode();
+  expireCookie(response, SESSION_COOKIE_NAME, secure, true);
+  expireCookie(response, CSRF_COOKIE_NAME, secure, false);
   expireCookie(response, FIXTURE_SESSION_COOKIE_NAME, false, true);
   expireCookie(response, FIXTURE_CSRF_COOKIE_NAME, false, false);
   response.cookies.set(FIXTURE_STATE_COOKIE_NAME, "anonymous", {
@@ -316,10 +327,11 @@ export function safeBackendReturnLocation(location: string | null, origin: strin
 export function safeExternalAuthorizationLocation(location: string | null): string {
   if (!location) throw new PortalIdentityUpstreamError("OIDC authorization redirect is missing", 502);
   const url = new URL(location);
-  if (url.protocol !== "https:") {
-    throw new PortalIdentityUpstreamError("OIDC authorization redirect must use HTTPS", 502);
+  if (url.protocol === "https:") return url.toString();
+  if (localHttpIdentityMode() && url.protocol === "http:" && isPrivateLocalHostname(url.hostname)) {
+    return url.toString();
   }
-  return url.toString();
+  throw new PortalIdentityUpstreamError("OIDC authorization redirect must use HTTPS", 502);
 }
 
 function controlPlaneUrl(): string {
@@ -332,6 +344,14 @@ function controlPlaneUrl(): string {
     throw new PortalIdentityConfigurationError("PORTAL_CONTROL_PLANE_URL must use HTTP or HTTPS");
   }
   return url.toString().replace(/\/$/, "");
+}
+
+function isPrivateLocalHostname(hostname: string): boolean {
+  if (hostname === "localhost" || hostname.endsWith(".localhost")) return true;
+  if (hostname === "::1" || hostname.startsWith("127.")) return true;
+  if (hostname.startsWith("10.") || hostname.startsWith("192.168.")) return true;
+  const match = /^172\.(\d{1,2})\./.exec(hostname);
+  return match !== null && Number(match[1]) >= 16 && Number(match[1]) <= 31;
 }
 
 function cookieValue(header: string, name: string): string | null {

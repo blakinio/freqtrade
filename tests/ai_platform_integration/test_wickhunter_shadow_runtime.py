@@ -360,9 +360,7 @@ def test_duplicate_symbol_does_not_open_second_position() -> None:
     )
     evidence = iter((evidence_one, evidence_two))
     runtime = _runtime(evaluator=lambda _request: next(evidence))
-    first = runtime.step(
-        _tick(universe=universe, requests=(_request(universe=universe),))
-    )
+    first = runtime.step(_tick(universe=universe, requests=(_request(universe=universe),)))
     assert len(first.state.positions) == 1
     fresh_universe = DynamicUniverseSnapshot(
         schema_version=universe.schema_version,

@@ -1,246 +1,223 @@
 ---
 task_id: FTAI-20260801-portal-authentik-public-oidc-handover
-status: ready
+status: in_progress
 branch: feat/portal-authentik-public-oidc-20260801
 base_branch: develop
 created: 2026-08-01
 updated: 2026-08-01
 parent_task: FTAI-20260731-portal-local-authentik-oidc-integration
-related_pr: 876
+related_pr: 903
+supersedes_pr: 876
 owned_paths:
-  - .github/workflows/portal-oidc-local-test-deploy.yml
+  - .github/workflows/portal-oidc-public-deploy.yml
   - .github/workflows/portal-synology-lan-preview.yml
-  - ai_platform/portal/identity/local_test_runtime.py
+  - ai_platform/portal/identity/bootstrap_membership.py
   - ai_platform/portal/identity/oidc.py
+  - ai_platform/portal/identity/public_runtime.py
   - ai_platform/portal/identity/runtime.py
   - ai_platform/portal/web/lib/identity.ts
   - deploy/synology/portal/Dockerfile
   - deploy/synology/portal/deploy-preview.sh
+  - deploy/synology/portal/prove-liquidations-live.sh
   - deploy/synology/portal-oidc/
   - tests/ai_platform/portal/identity/test_oidc.py
-  - tests/ai_platform/portal/deployment/test_portal_oidc_local_deploy.py
+  - tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
+  - tests/ai_platform_integration/test_portal_synology_auth_probe.py
+  - tests/ai_platform_integration/test_liquidation_alert_notifications.py
   - docs/agents/tasks/FTAI-20260801-portal-authentik-public-oidc-handover.md
 required_reads:
   - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
   - docs/agents/tasks/FTAI-20260731-portal-local-authentik-oidc-integration.md from PR 876
-search_first:
-  - current develop head
-  - PR 876 exact head, diff, review state and failed workflow logs
-  - Authentik public OIDC discovery for the actual provider slug
 ---
 
 # Portal Authentik public OIDC handover
 
-## Goal
-
-Complete real Portal authentication through the existing Synology Authentik deployment using public Cloudflare Tunnel HTTPS origins, portal-owned sessions and OIDC Authorization Code plus PKCE.
-
-Required terminal browser flow:
+## Goal and frozen contract
 
 ```text
 https://quant.molehill.cloud
   -> https://auth.molehill.cloud
   -> password plus Authentik TOTP/MFA
   -> https://quant.molehill.cloud/api/identity/callback
-  -> authenticated Portal session
+  -> Portal-owned authenticated session
 ```
-
-## Frozen public contract
 
 ```text
 Portal origin: https://quant.molehill.cloud
 Authentik origin: https://auth.molehill.cloud
-Portal callback: https://quant.molehill.cloud/api/identity/callback
+Callback: https://quant.molehill.cloud/api/identity/callback
+Flow: OIDC Authorization Code plus PKCE
 Scopes: openid profile email
-External principal identity: exact OIDC iss + sub
+Principal identity: exact iss plus sub
 ```
 
-Do not use the retired `auth.quant.molehill.cloud` hostname. Resolve the provider slug from the deployed provider and its discovery document; do not infer it from a repository filename.
+The retired `auth.quant.molehill.cloud` hostname is forbidden.
 
-## Verified infrastructure state
+## Inherited target evidence
 
 - Authentik 2026.5.5 server, worker and PostgreSQL are deployed on Synology.
-- Runtime secrets are target-generated and stored only on Synology in a persistent `runtime.env` with mode `0600`.
+- Target secrets are stored outside GitHub in a persistent mode-`0600` file.
 - PostgreSQL has no host-published port.
-- Authentik readiness repair PR 862 merged as `6ac747a069455ddfbfa00d861008dd81fbf509cf`.
-- Request-only rerun PR 865 was consumed and closed without merge.
-- Previously recorded deployment run: `30625762233`.
-- Previously recorded artifact: `portal-authentik-local-test-deploy-865`.
-- The owner completed `akadmin` setup and TOTP/MFA enrollment.
-- The owner verified that the Authentik authentication flow renders over valid HTTPS at `auth.molehill.cloud`.
-- Cloudflare Tunnel routes:
+- Readiness repair PR 862 merged as `6ac747a069455ddfbfa00d861008dd81fbf509cf`.
+- Request-only PR 865 was consumed and closed without merge.
+- Run `30625762233` produced artifact `portal-authentik-local-test-deploy-865` proving healthy services, no privileged or host-network containers, no Docker socket and `live_capital_authorized=false`.
+- That artifact did not prove an OIDC provider or application.
+- The owner completed `akadmin` password and TOTP setup over `https://auth.molehill.cloud`.
+- Recorded Cloudflare routes:
 
 ```text
 https://quant.molehill.cloud -> http://192.168.1.2:3031
 https://auth.molehill.cloud  -> http://192.168.1.2:9000
 ```
 
-Browser reachability does not prove that the Synology identity container can complete public discovery, JWKS and token exchange. Verify container egress and Cloudflare hairpin behavior.
+## Replacement branch history
 
-## Repository checkpoint
-
-At handover creation:
+Initial frozen state:
 
 ```text
-develop: 04404b14c05586e6452ab5d9ce26920822412ed9
-PR 876 branch: feat/portal-local-authentik-oidc-20260731
+develop: 55b63820f50976e3fcf605f1cea0810183d2b842
 PR 876 head: 23bf942330af0f6ce3c09c4526905058a8161449
-PR 876 state: open, not mergeable
-PR 876 divergence before this handover: 18 ahead, 26 behind develop
-merge base: 1060dec433a7e9d72e53ccddb6d76fe93842b187
+PR 876 merge base: 1060dec433a7e9d72e53ccddb6d76fe93842b187
+PR 876 divergence: 18 ahead, 34 behind
+PR 876 review threads: 0
 ```
 
-Freeze both heads again before mutation because these values are checkpoint evidence only.
-
-PR 876 already contains most required implementation:
-
-- idempotent Authentik OIDC blueprint;
-- confidential client and target-owned secret preservation;
-- discovery, JWKS and claims validation;
-- Authorization Code plus PKCE, state and nonce;
-- Next.js BFF callback;
-- internal Python identity/session service;
-- Portal-owned sessions;
-- fixture identity disablement;
-- Synology deployment workflow and focused tests.
-
-Its contract is obsolete because it targets LAN HTTP:
+PR 876 functional tests passed; its failures were mechanical Ruff, pre-commit and formatting failures. The replacement branch was synchronized through:
 
 ```text
-Portal: http://192.168.1.2:3031
-Authentik: http://192.168.1.2:9000
-Issuer: http://192.168.1.2:9000/application/o/freqtrade-portal-local/
+PR 901: develop 55b63820f50976e3fcf605f1cea0810183d2b842
+merge:  a5c02b8c492023f0e42695ae73611c12f08de5e8
+
+PR 905: develop 3afe281de86673902ded7625d6dade94105b5ee9
+merge:  2ab38527de472a37ded855c93d6a26872f77df73
+
+PR 907: develop 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
+merge:  1be877411cd83a395fed1287148f1024cbdf6cff
 ```
 
-Adapt it to public HTTPS; do not deploy it unchanged.
+The refreshes did not overlap owned Portal OIDC paths.
 
-## Last known PR 876 CI
+## Implemented public HTTPS changes
 
-```text
-Security Analysis: success, run 30648432363
-Portal Web CI: success, run 30648432355
-Portal Universal E2E: success, run 30648432447
-AI Platform CI: failure, run 30648432349
-Freqtrade CI: failure, run 30648432361
-```
+PR 903 contains:
 
-Fetch current exact-head logs and repair the first real failures. Do not assume their cause from this checkpoint.
+- Authentik application slug `freqtrade-portal` and confidential provider `Freqtrade Portal Public OIDC`;
+- strict callback `https://quant.molehill.cloud/api/identity/callback` and scopes `openid`, `profile`, `email`;
+- no client secret in repository content;
+- HTTPS-only production or staging identity runtime;
+- Secure, SameSite=Lax, Path=/ `__Host-portal_session` and `__Host-portal_csrf` cookies;
+- no automatic first membership or email, domain or group promotion;
+- explicit exact-issuer-and-subject bootstrap with audit action `identity.membership_bootstrapped`;
+- subject hashing in bootstrap output;
+- target secret preservation and refusal of implicit client-secret rotation;
+- deployed provider/application query, issuer derivation and equality check;
+- discovery and JWKS validation from inside the identity container;
+- public redirect probe through `https://quant.molehill.cloud`;
+- internal-only Python control plane and one LAN-published Next.js BFF;
+- no Docker socket, privileged mode, host networking or control-plane host port;
+- frozen exact-one-file deployment workflow on `freqtrade-staging` and environment `synology-staging`;
+- secret-free report uploaded even on failure;
+- identity fixture disabled and `live_capital_authorized=false`.
 
-## Architecture and security invariants
+Retired:
 
-- Authentik remains the identity provider and owns password, recovery and TOTP/MFA.
-- Portal must not implement or store a separate TOTP secret.
-- Use OIDC Authorization Code plus PKCE with a confidential server-side client.
-- Next.js remains the browser BFF.
-- The internal Python service terminates OIDC, validates claims and owns Portal sessions.
-- OAuth access, refresh and ID tokens must not be exposed to browser JavaScript.
-- Portal persistence remains authoritative for principals, memberships, roles and sessions.
-- External identity is keyed only by exact `iss + sub`.
-- Email, domain and group claims must not silently grant the first membership or admin role.
-- The first membership requires an explicit, bounded and audited target-side bootstrap.
-- Public runtime transport is HTTPS only.
-- Portal session cookie remains Secure, HttpOnly, SameSite=Lax, Path=/, without Domain, and uses the `__Host-portal_session` name.
-- Apply equivalent secure treatment to the CSRF cookie.
-- `local_http_test` may remain only as a fail-closed test-only capability; it must not be the public deployment mode.
-- Do not put Cloudflare Access in front of the whole Authentik hostname before OIDC acceptance.
-- Do not create router port forwarding.
+- LAN-only OIDC workflow, blueprint and automatic-membership runtime;
+- automatic Synology preview workflow and script that could overwrite port `3031` with fixture identity after unrelated web changes.
 
-## Execution plan
+## Provider evidence rule
 
-1. Freeze current `develop`, PR 876 head, full diff, workflow results and review threads.
-2. Choose between safely refreshing PR 876 and creating a clean replacement branch from current `develop`.
-3. Prefer a clean replacement when conflict resolution could obscure or revert newer Portal work.
-4. If replaced, declare that it supersedes PR 876 and close PR 876 without merge only after equivalent functionality and tests exist.
-5. Configure:
+The target deployer must:
 
-```text
-PORTAL_EXTERNAL_URL=https://quant.molehill.cloud
-PORTAL_IDENTITY_REDIRECT_URI=https://quant.molehill.cloud/api/identity/callback
-PORTAL_IDENTITY_ISSUER=https://auth.molehill.cloud/application/o/<actual-provider-slug>/
-```
+1. apply the blueprint;
+2. query the deployed provider and associated application;
+3. read the actual application slug;
+4. derive `https://auth.molehill.cloud/application/o/<deployed-slug>/`;
+5. require equality with the frozen issuer;
+6. fetch discovery and JWKS inside the identity container;
+7. fail closed on any mismatch.
 
-6. Verify discovery returns the same exact HTTPS issuer and public authorization, token and JWKS endpoints.
-7. Keep the Authentik blueprint idempotent and preserve the target-generated client secret without printing or rotating it unnecessarily.
-8. Verify browser-to-Portal, BFF-to-identity-service and identity-service-to-public-Authentik paths.
-9. Keep the control-plane port internal and prohibit Docker socket, privileged mode and host networking.
-10. Inspect `.github/workflows/portal-synology-lan-preview.yml` and `deploy/synology/portal/deploy-preview.sh` so no later workflow overwrites TCP 3031 or re-enables fixture identity.
-11. Add or retain tests for issuer, discovery, JWKS, PKCE, state, nonce, redirect rejection, Secure cookies, CSRF, logout, no browser tokens, blueprint idempotency, secret preservation and fixture disablement.
-12. Require all applicable exact-head checks to pass and merge with `expected_head_sha`.
-13. After merge, create one separate request-only PR containing exactly one frozen deployment request file.
-14. Deploy only through GitHub Environment `synology-staging` and trusted runner `freqtrade-staging`.
-15. Preserve protected runtime env, secrets and persistent Authentik/PostgreSQL volumes.
-16. Produce a secret-free always-uploaded report and close the request PR without merge.
-17. Complete browser login, exact-principal membership bootstrap, authenticated Portal access and logout acceptance.
+Provider, discovery and JWKS remain unproven until a post-merge request-only deployment runs.
+
+## CI repair evidence
+
+- AI Platform tests repeatedly passed with `1036 passed, 71 skipped`; early failures were import order and deterministic formatting.
+- Exact repository Ruff fixes for the deployer were applied in `742e9b892f9b10ebfd1739135eb92b56985b9d6c`.
+- The temporary formatter workflow was removed in `246e81a46528fc04b0a3c33dda638abbb5ddaf49`.
+- Exact-head run `30688989518` found four deterministic integration-test failures: three tests in `test_portal_synology_auth_probe.py` and one restart-contract test still opened the intentionally deleted fixture deployment files.
+- The stale tests were migrated in `f99b2eb2cc803110aa53bd3f1e636b33e8dc7c5d` to the public OIDC deployer, public workflow and public blueprint.
+- The Liquidations proof restart assertion now matches the public deployer's persistent `unless-stopped` policy.
+- The temporary migration workflow was removed in `4025967d8a6f3925072e06d645c5f1abb880269b`.
+- AI Platform CI passed after the migration.
+- Pre-commit then identified exactly one Ruff-format line wrap; the exact formatter diff was applied in `f4eeb7ec2b10e81eefbdfedfc13317ab31e9ab1f`.
+- No behavioral change was introduced by that formatting commit.
+
+All applicable workflows must pass on the exact head containing this checkpoint before merge.
 
 ## Safety boundary
 
-This task does not authorize live capital, production trading, real exchange orders, withdrawals, exchange credentials in GitHub, destructive restore, database host publication, Docker socket access, privileged containers, host networking or an unauthenticated public Portal terminal state.
+No live capital, production trading, real exchange orders, withdrawals, exchange credentials in GitHub, destructive restore, database host publication, Docker socket, privileged mode, host networking or unauthenticated public terminal state is authorized.
 
-Any Freqtrade runtime touched by this work must remain `dry_run` and receive no order authority.
+Any Freqtrade runtime remains dry-run and receives no order authority.
 
-## Terminal acceptance
+## Remaining gates
 
-Completion requires proof that:
-
-1. `auth.molehill.cloud` remains healthy.
-2. `quant.molehill.cloud` redirects an unauthenticated browser to Authentik.
-3. Password plus Authentik TOTP/MFA succeeds.
-4. The callback returns to the exact public Portal callback.
-5. Portal creates its own secure session.
-6. Fixture identity is disabled.
-7. Missing membership fails closed.
-8. A one-time audited exact-principal bootstrap grants the intended membership.
-9. The authenticated user can open the Portal.
-10. Logout invalidates the Portal session.
-11. Required exact-head CI is green.
-12. Trusted-runner deployment evidence is captured.
-13. No workflow later restores fixture mode.
-14. No secret value is recorded.
-15. No live-capital authority is granted.
-
-The terminal report must record implementation and request PRs, exact head and merge SHAs, workflow and deployment run IDs, artifact identity and digest, container health, public endpoint results, fixture disablement, browser acceptance and membership bootstrap evidence, plus these exact lines:
+1. Require every applicable workflow green on the exact final PR 903 head.
+2. Require PR 903 mergeable, current with `develop` and free of unresolved review threads.
+3. Merge PR 903 with `expected_head_sha`.
+4. Close superseded PR 876 without merge.
+5. Create a separate request-only PR containing exactly:
 
 ```text
-secret_values_recorded=false
-live_capital_authorized=false
+deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json
 ```
+
+6. Validate the secret-free deployment artifact and close the request PR without merge.
+7. Owner performs password plus TOTP browser acceptance.
+8. Confirm missing membership fails closed.
+9. Obtain the exact target principal subject without storing it in GitHub.
+10. Run explicit exact-principal bootstrap on the target.
+11. Confirm authenticated access and logout invalidation.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-01T00:28:00+02:00
-head: 04404b14c05586e6452ab5d9ce26920822412ed9
-branch: docs/portal-authentik-public-oidc-handover-20260801
-pr: "#895"
-status: ready
+checkpoint_version: 6
+updated_at: 2026-08-01T09:19:00+02:00
+develop_head: 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
+develop_refresh_merge: 1be877411cd83a395fed1287148f1024cbdf6cff
+code_head: f4eeb7ec2b10e81eefbdfedfc13317ab31e9ab1f
+branch: feat/portal-authentik-public-oidc-20260801
+pr: "#903"
+status: in_progress
 proven:
-  - Authentik server, worker and PostgreSQL are deployed with persistent target-owned secrets.
-  - Authentik login renders over valid HTTPS at auth.molehill.cloud through Cloudflare Tunnel.
-  - Portal public hostname is quant.molehill.cloud and its BFF callback is /api/identity/callback.
-  - PR 876 contains most OIDC and Portal session implementation but uses obsolete LAN HTTP origins.
+  - branch contains develop head 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
+  - public runtime has no automatic membership grant
+  - blueprint contains no client secret and uses the exact public callback
+  - deployment contract refuses bootstrap, restore and live-capital authorization
+  - competing fixture deployment on port 3031 is retired
+  - stale fixture deployment tests are migrated to the public contract
+  - persistent restart proof matches unless-stopped deployment policy
 derived:
-  - Reusing the nearly complete Authentik integration is safer than replacing it with new Portal-local password and TOTP code.
-  - Public HTTPS removes the need to deploy local_http_test mode.
-  - A clean replacement branch may be safer than merging a heavily diverged PR 876 branch.
+  - actual issuer is trusted only after target provider query and discovery equality
 unknown:
-  - Current provider slug and public discovery output.
-  - Current causes of PR 876 CI failures.
-  - Synology container public-issuer hairpin behavior.
-  - Exact first principal iss and sub for membership bootstrap.
+  - final exact-head PR 903 CI result
+  - target public discovery and JWKS result
+  - exact first principal subject
+  - password/TOTP browser acceptance and logout result
 conflicts: []
 first_failure:
-  marker: PORTAL_OIDC_PUBLIC_HTTPS_NOT_DEPLOYED
-  evidence: Authentik public ingress works, but Portal lacks a merged and deployed public-HTTPS OIDC integration.
-rejected_hypotheses:
-  - Replace Authentik with new Portal-local authentication.
-  - Deploy PR 876 unchanged.
-  - Use auth.quant.molehill.cloud.
-  - Auto-promote the first matching email to administrator.
-validation: []
+  marker: PR_903_FINAL_EXACT_HEAD_CI_PENDING
+  evidence: this checkpoint creates the final exact head requiring complete CI
 blockers:
-  - Reconcile PR 876 with current develop and public HTTPS.
-  - Diagnose and repair exact-head CI failures.
-  - Complete trusted-runner deployment and browser acceptance.
-next_action: Freeze current develop and PR 876, implement or replace PR 876 for quant.molehill.cloud plus auth.molehill.cloud, obtain exact-head green CI, merge with expected_head_sha, execute one request-only Synology deployment and complete browser acceptance without recording secrets or authorizing live capital.
+  - exact-head CI must pass before merge
+  - deployment requires merged implementation and separate frozen request PR
+  - password/TOTP and exact-principal bootstrap require owner interaction
+next_action: validate every workflow on the exact PR head, repair any concrete failure, then merge with expected_head_sha
+```
+
+Terminal evidence must include:
+
+```text
+secret_values_recorded=false
+live_capital_authorized=false
 ```

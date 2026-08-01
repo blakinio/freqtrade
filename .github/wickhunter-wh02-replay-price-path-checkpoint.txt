@@ -1,0 +1,1 @@
+Temporary exact-head checkpoint for PR #927 after deterministic Ruff and formatting repair. This file is removed in the next commit and must not remain in the PR diff.

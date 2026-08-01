@@ -50,6 +50,23 @@ def test_frozen_request_accepts_only_current_implementation_sha(tmp_path: Path) 
         module._load_request(request_path, sha)
 
 
+def test_run_preserves_actionable_nonsensitive_error(monkeypatch) -> None:
+    def fake_run(*_args, **_kwargs):
+        return module.subprocess.CompletedProcess(
+            args=["docker", "run"],
+            returncode=125,
+            stdout="",
+            stderr=(
+                "docker: invalid mount config for type bind: source path does not exist\n"
+                "Run 'docker run --help' for more information\n"
+            ),
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    with pytest.raises(module.DeploymentError, match="source path does not exist"):
+        module._run(["docker", "run", "redacted-image"])
+
+
 def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
     blueprint = (DEPLOYMENT / "blueprints" / module.BLUEPRINT_NAME).read_text(encoding="utf-8")
 
@@ -108,6 +125,14 @@ def test_deployer_is_public_secret_free_and_hardened() -> None:
     assert module.PORTAL_ORIGIN == "https://quant.molehill.cloud"
     assert module.AUTHENTIK_ORIGIN == "https://auth.molehill.cloud"
     assert module.ISSUER == "https://auth.molehill.cloud/application/o/freqtrade-portal/"
+    assert module.PORTAL_DATA_DIR == Path("/volume1/docker/freqtrade-portal-oidc/data")
+    assert module.PORTAL_UID == 10001
+    assert module.PORTAL_GID == 10001
+    assert "os.chown(PORTAL_DATA_DIR, PORTAL_UID, PORTAL_GID)" in source
+    assert 'f"{PORTAL_UID}:{PORTAL_GID}"' in source
+    assert "os.getuid()" not in source
+    assert "os.getgid()" not in source
+    assert 'detail = " | ".join(lines[:3])' in source
     assert "0o600" in source
     assert "refusing rotation" in source
     assert '"secret_values_recorded": False' in source

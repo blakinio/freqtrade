@@ -27,7 +27,9 @@ AUTHENTIK_PROJECT = "portal-authentik-local-test"
 AUTHENTIK_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-authentik-local-test")
 PORTAL_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-oidc-public")
 PORTAL_RUNTIME_ENV = PORTAL_STATE_DIR / "runtime.env"
-PORTAL_DATA_DIR = PORTAL_STATE_DIR / "data"
+PORTAL_DATA_DIR = Path("/volume1/docker/freqtrade-portal-oidc/data")
+PORTAL_UID = 10001
+PORTAL_GID = 10001
 PORTAL_NETWORK = "portal_oidc_public"
 PORTAL_CONTAINER = "freqtrade-portal-staging"
 CONTROL_CONTAINER = "freqtrade-portal-control-plane"
@@ -69,9 +71,13 @@ def _run(
         if sensitive:
             executable = Path(command[0]).name
             raise DeploymentError(f"sensitive command failed: {executable}")
-        detail = (result.stderr or result.stdout).strip().splitlines()[-1:] or ["no output"]
+        output = result.stderr or result.stdout
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        detail = " | ".join(lines[:3]) if lines else "no output"
+        if len(detail) > 1000:
+            detail = f"{detail[:997]}..."
         rendered = " ".join(command)
-        raise DeploymentError(f"command failed ({result.returncode}): {rendered}: {detail[0]}")
+        raise DeploymentError(f"command failed ({result.returncode}): {rendered}: {detail}")
     return result
 
 
@@ -275,6 +281,8 @@ def _prepare_portal_runtime(metadata: dict[str, str]) -> None:
     }
     _write_env_atomic(PORTAL_RUNTIME_ENV, values)
     PORTAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    os.chown(PORTAL_DATA_DIR, PORTAL_UID, PORTAL_GID)
+    PORTAL_DATA_DIR.chmod(0o700)
 
 
 def _docker_image_id(image: str) -> str:
@@ -361,8 +369,6 @@ def _wait_healthy(name: str, timeout_seconds: int = 150) -> None:
 
 
 def _control_run_args(image: str, name: str) -> list[str]:
-    uid = str(os.getuid())
-    gid = str(os.getgid())
     return [
         "docker",
         "run",
@@ -385,7 +391,7 @@ def _control_run_args(image: str, name: str) -> list[str]:
         "--memory",
         "768m",
         "--user",
-        f"{uid}:{gid}",
+        f"{PORTAL_UID}:{PORTAL_GID}",
         "--env-file",
         str(PORTAL_RUNTIME_ENV),
         "--mount",

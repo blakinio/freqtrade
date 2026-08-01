@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
-status: implementing
+status: waiting
 branch: fix/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
 base_branch: develop
 base_sha: 81005a01301f4d51b7fcfcb23090c5c2099548d0
@@ -47,11 +47,11 @@ Ensure completed Portal Market Evidence v1/v2 packages are projected only after 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T15:22:00+02:00
-head: 50236c5aeefff03b29dae9549f71044bff47e4b2
+updated_at: 2026-08-01T15:23:00+02:00
+head: b52bec736f005ba62da5d69cd9c25a5150d51f5b
 branch: fix/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
 pr: 938
-status: validating
+status: ready
 phase: validate
 session_id: codex-20260801-integrity-1
 session_role: implementer
@@ -68,8 +68,9 @@ context_growth: stable
 context_score: 12
 decomposition_decision: phased
 validation_level: component
-heavy_validation_runs: 0
-last_completed_step: pushed the branch and opened draft PR 938 against exact develop base 81005a01301f4d51b7fcfcb23090c5c2099548d0
+heavy_validation_runs: 1
+heavy_validation_result: pending
+last_completed_step: verified exact PR head b52bec736f005ba62da5d69cd9c25a5150d51f5b and observed required heavy CI queued
 context_routes:
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md at audit commit a9272b3e
@@ -95,7 +96,7 @@ proven:
   - One Python safe_regular_member implementation now serves supplement and combined-package verification.
 derived: []
 unknown:
-  - Linux Portal symlink test outcome remains to be proven by exact-head CI because local Windows lacks symlink privilege.
+  - Exact-head Linux Portal symlink regression and required CI conclusions remain pending.
 conflicts: []
 rejected_hypotheses:
   - The stale validating status in the merged v2 task represents live overlapping ownership.
@@ -131,6 +132,9 @@ validation:
   - command: Bounded Portal Market Evidence Chromium component suite
     result: PASS
     evidence: 17 passed and one Windows-only symlink skip across integrity, critical flow and UI states; Linux symlink execution is wired into exact-head CI
+  - command: PR 938 exact-head heavy CI
+    result: NOT_RUN
+    evidence: Market Evidence backend, Portal and hardened-deployment jobs plus Portal Web CI were queued
 blockers: []
-next_action: Inspect the required exact-head PR 938 CI once; repair only the first relevant failure or checkpoint waiting if workflows remain pending.
+next_action: Verify required CI on the latest exact PR 938 head; repair only the first relevant failure or mark the task done when all required gates pass.
 ```

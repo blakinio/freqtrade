@@ -303,19 +303,19 @@ def _market_inputs(  # noqa: C901
     for row in source_rows:
         scheduled = _integer(row.get("scheduled_at_ms"), field="source scheduled_at_ms")
         source = str(row.get("source", ""))
-        key = (scheduled, source)
-        if key in source_by_key:
+        source_key = (scheduled, source)
+        if source_key in source_by_key:
             raise ProductionDatasetMaterializationError("duplicate source health key")
-        source_by_key[key] = row
+        source_by_key[source_key] = row
     quality_by_key: dict[tuple[int, str, str], dict[str, Any]] = {}
     for row in quality_rows:
         scheduled = _integer(row.get("scheduled_at_ms"), field="quality scheduled_at_ms")
         source = str(row.get("source", ""))
         symbol = str(row.get("canonical_symbol") or row.get("symbol") or "").upper()
-        key = (scheduled, source, symbol)
-        if key in quality_by_key:
+        quality_key = (scheduled, source, symbol)
+        if quality_key in quality_by_key:
             raise ProductionDatasetMaterializationError("duplicate market-quality key")
-        quality_by_key[key] = row
+        quality_by_key[quality_key] = row
     candles = _candle_maps(market_root, manifest=manifest)
 
     markets: list[MarketContextSnapshot] = []

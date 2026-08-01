@@ -47,7 +47,7 @@ class ShadowRuntimeState:
     dataset_hash: str | None
     code_sha: str | None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != RUNTIME_STATE_SCHEMA_VERSION:
             raise ShadowRuntimeError("runtime state schema mismatch")
         _require_text(self.bot_instance, field="bot_instance")

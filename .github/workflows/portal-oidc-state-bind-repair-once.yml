@@ -168,3 +168,5 @@ jobs:
             tests/ai_platform_integration/test_portal_synology_auth_probe.py
           git commit -m "fix(portal): use Synology host-visible OIDC state bind"
           git push origin HEAD:fix/portal-oidc-synology-state-bind-20260801
+
+# Triggered after draft PR creation so the branch-only push workflow is active.

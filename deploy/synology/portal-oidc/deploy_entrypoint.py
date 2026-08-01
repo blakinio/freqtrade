@@ -174,7 +174,7 @@ def _install_verified_build_timeout(deploy: Any) -> None:
 
 def _liquidations_probe_script(deploy: Any) -> str:
     root = str(deploy.LIQUIDATIONS_CONTAINER_ROOT)
-    return f"""
+    return rf"""
 const fs = require("node:fs");
 const path = require("node:path");
 const root = {root!r};

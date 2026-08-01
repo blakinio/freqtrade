@@ -254,7 +254,7 @@ Delivered by PR #542:
 - `model_execution_authorized = false` and no model, replay or trading authority;
 - deterministic synthetic contract tests and complete repository CI.
 
-The first real paid bulk Tardis import remains owner/provider-access dependent. WH-01 provides the accepted-import builder but does not claim a real historical dataset was purchased, imported or accepted. WH-02 cannot consume or evaluate real history until such a package passes the unchanged historical acceptance contract.
+The builder contract is now backed by the first real accepted immutable production dataset, materialized on the trusted runner by request-only PR #921 from merged code `2091971608df3c33238c845f5f019a384b231580`. Dataset `wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573` contains 154 verified partitions and 919 rows with manifest `3b0a052d13c8d3684a9bf63712ee00d5a9c09343d14e628c6611a444024b2d51`. It retains explicit train/validation/test embargoes, excludes the protected holdout, and authorizes no replay, model execution, trading, orders or live capital. The WH-02 dataset dependency is therefore satisfied, while WH-02 itself remains not started and requires a separate governed package.
 
 ### WH-02 — deterministic replay and event labels
 

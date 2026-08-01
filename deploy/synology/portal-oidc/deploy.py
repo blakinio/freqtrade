@@ -18,27 +18,34 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 REQUEST_RELATIVE_PATH = (
-    "deploy/synology/portal-oidc/run-requests/local-oidc-20260731-v1.json"
+    "deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json"
 )
-REQUEST_ID = "portal-local-authentik-oidc-20260731-v1"
+REQUEST_ID = "portal-authentik-public-oidc-20260801-v1"
 AUTHENTIK_PROJECT = "portal-authentik-local-test"
 AUTHENTIK_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-authentik-local-test")
-PORTAL_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-oidc-local-test")
+PORTAL_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-oidc-public")
 PORTAL_RUNTIME_ENV = PORTAL_STATE_DIR / "runtime.env"
 PORTAL_DATA_DIR = PORTAL_STATE_DIR / "data"
-PORTAL_NETWORK = "portal_oidc_local_test"
+PORTAL_NETWORK = "portal_oidc_public"
 PORTAL_CONTAINER = "freqtrade-portal-staging"
 CONTROL_CONTAINER = "freqtrade-portal-control-plane"
 PORTAL_BIND_ADDRESS = "192.168.1.2"
 PORTAL_PORT = 3031
-AUTHENTIK_ORIGIN = "http://192.168.1.2:9000"
-AUTHENTIK_SLUG = "freqtrade-portal-local"
-ISSUER = f"{AUTHENTIK_ORIGIN}/application/o/{AUTHENTIK_SLUG}/"
-REDIRECT_URI = f"http://{PORTAL_BIND_ADDRESS}:{PORTAL_PORT}/api/identity/callback"
-CLIENT_ID = "freqtrade-portal-local"
-BLUEPRINT_NAME = "freqtrade-portal-local.yaml"
+PORTAL_ORIGIN = "https://quant.molehill.cloud"
+AUTHENTIK_ORIGIN = "https://auth.molehill.cloud"
+APPLICATION_SLUG = "freqtrade-portal"
+ISSUER = f"{AUTHENTIK_ORIGIN}/application/o/{APPLICATION_SLUG}/"
+REDIRECT_URI = f"{PORTAL_ORIGIN}/api/identity/callback"
+CLIENT_ID = "freqtrade-portal"
+BLUEPRINT_NAME = "freqtrade-portal-public.yaml"
+AUTHENTIK_PROVIDER_NAME = "Freqtrade Portal Public OIDC"
+LIQUIDATIONS_HOST_ROOT = Path("/volume1/docker/freqtrade-liquidations/data")
+LIQUIDATIONS_CONTAINER_ROOT = "/liquid20-data"
+RUNTIME_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=64m"  # noqa: S108
+WEB_CACHE_TMPFS = "/app/.next/cache:rw,noexec,nosuid,nodev,size=96m,uid=1000,gid=1000"
 
 
 class DeploymentError(RuntimeError):
@@ -57,32 +64,36 @@ def _run(
         cwd=cwd,
         check=False,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     if check and result.returncode != 0:
         if sensitive:
-            raise DeploymentError(f"sensitive command failed: {command[0]} {command[1]}")
+            executable = Path(command[0]).name
+            raise DeploymentError(f"sensitive command failed: {executable}")
         detail = (result.stderr or result.stdout).strip().splitlines()[-1:] or ["no output"]
-        raise DeploymentError(f"command failed ({result.returncode}): {' '.join(command)}: {detail[0]}")
+        rendered = " ".join(command)
+        raise DeploymentError(
+            f"command failed ({result.returncode}): {rendered}: {detail[0]}"
+        )
     return result
 
 
 def _load_request(path: Path, expected_sha: str) -> dict[str, Any]:
-    if path.as_posix().endswith(REQUEST_RELATIVE_PATH) is False:
-        raise DeploymentError("request path does not match the frozen deployment request path")
+    if not path.as_posix().endswith(REQUEST_RELATIVE_PATH):
+        raise DeploymentError("request path does not match the frozen public deployment path")
     payload = json.loads(path.read_text(encoding="utf-8"))
     expected = {
         "request_id": REQUEST_ID,
         "environment": "synology-staging",
         "runner": "freqtrade-staging",
         "implementation_sha": expected_sha,
+        "portal_origin": PORTAL_ORIGIN,
         "authentik_origin": AUTHENTIK_ORIGIN,
-        "portal_origin": f"http://{PORTAL_BIND_ADDRESS}:{PORTAL_PORT}",
-        "identity_transport": "local_http_test",
+        "identity_transport": "https",
         "identity_fixture_mode": "disabled",
+        "bootstrap_membership_authorized": False,
         "dry_run_required": True,
-        "public_ingress_authorized": False,
+        "public_ingress_authorized": True,
         "live_capital_authorized": False,
         "restore_authorized": False,
         "secret_values_in_request": False,
@@ -100,7 +111,7 @@ def _mode(path: Path) -> int:
 
 def _assert_secret_file(path: Path) -> None:
     if not path.is_file() or _mode(path) != 0o600:
-        raise DeploymentError(f"protected runtime file must exist with mode 0600: {path}")
+        raise DeploymentError(f"protected runtime file must have mode 0600: {path}")
 
 
 def _read_env(path: Path) -> dict[str, str]:
@@ -119,7 +130,8 @@ def _read_env(path: Path) -> dict[str, str]:
 
 def _write_env_atomic(path: Path, values: dict[str, str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, temporary = tempfile.mkstemp(prefix=".runtime.", dir=path.parent, text=True)
+    fd, temporary_name = tempfile.mkstemp(prefix=".runtime.", dir=path.parent, text=True)
+    temporary = Path(temporary_name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             for name in sorted(values):
@@ -129,11 +141,11 @@ def _write_env_atomic(path: Path, values: dict[str, str]) -> None:
                 handle.write(f"{name}={value}\n")
             handle.flush()
             os.fsync(handle.fileno())
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, path)
+        temporary.chmod(0o600)
+        temporary.replace(path)
     finally:
-        if os.path.exists(temporary):
-            os.unlink(temporary)
+        if temporary.exists():
+            temporary.unlink()
     _assert_secret_file(path)
 
 
@@ -155,14 +167,14 @@ def _compose_command(repo: Path) -> list[str]:
 def _copy_and_apply_blueprint(repo: Path) -> tuple[str, str]:
     source = repo / "deploy/synology/portal-oidc/blueprints" / BLUEPRINT_NAME
     if not source.is_file():
-        raise DeploymentError("Authen­tik blueprint is missing")
+        raise DeploymentError("public Authentik blueprint is missing")
     durable_dir = AUTHENTIK_STATE_DIR / "blueprints"
     durable_dir.mkdir(parents=True, exist_ok=True)
     durable = durable_dir / BLUEPRINT_NAME
     temporary = durable.with_suffix(".tmp")
     shutil.copyfile(source, temporary)
-    os.chmod(temporary, 0o644)
-    os.replace(temporary, durable)
+    temporary.chmod(0o644)
+    temporary.replace(durable)
 
     compose = _compose_command(repo)
     worker = _run([*compose, "ps", "-q", "worker"]).stdout.strip()
@@ -172,45 +184,69 @@ def _copy_and_apply_blueprint(repo: Path) -> tuple[str, str]:
     _run(["docker", "exec", "-u", "0", worker, "mkdir", "-p", "/blueprints/custom"])
     _run(["docker", "cp", str(durable), f"{worker}:/blueprints/custom/{BLUEPRINT_NAME}"])
     _run(
-        ["docker", "exec", worker, "ak", "apply_blueprint", f"/blueprints/custom/{BLUEPRINT_NAME}"],
+        [
+            "docker",
+            "exec",
+            worker,
+            "ak",
+            "apply_blueprint",
+            f"/blueprints/custom/{BLUEPRINT_NAME}",
+        ],
         sensitive=True,
     )
     return server, worker
 
 
 def _authentik_metadata(server: str) -> dict[str, str]:
-    script = """
+    script = f"""
 import json
-from authentik.core.models import Application, User
+from authentik.core.models import Application
 from authentik.providers.oauth2.models import OAuth2Provider
-provider = OAuth2Provider.objects.get(name='Freqtrade Portal Local OIDC')
-application = Application.objects.get(slug='freqtrade-portal-local')
-user = User.objects.get(username='akadmin')
-subject = provider.get_subject(user)
-print('__PORTAL_JSON__' + json.dumps({
+provider = OAuth2Provider.objects.get(name={AUTHENTIK_PROVIDER_NAME!r})
+application = Application.objects.get(provider=provider)
+print('__PORTAL_JSON__' + json.dumps({{
     'application_pk': str(application.pk),
+    'application_slug': str(application.slug),
     'provider_pk': str(provider.pk),
     'client_id': str(provider.client_id),
     'client_secret': str(provider.client_secret),
-    'subject': str(subject),
-}, sort_keys=True))
+}}, sort_keys=True))
 """.strip()
     result = _run(
         ["docker", "exec", server, "ak", "shell", "-c", script],
         sensitive=True,
     )
     marker = next(
-        (line.removeprefix("__PORTAL_JSON__") for line in result.stdout.splitlines() if line.startswith("__PORTAL_JSON__")),
+        (
+            line.removeprefix("__PORTAL_JSON__")
+            for line in result.stdout.splitlines()
+            if line.startswith("__PORTAL_JSON__")
+        ),
         None,
     )
     if marker is None:
-        raise DeploymentError("Authen­tik metadata query did not return the expected marker")
+        raise DeploymentError("Authen­tik metadata query did not return the marker")
     payload = json.loads(marker)
-    required = {"application_pk", "provider_pk", "client_id", "client_secret", "subject"}
-    if set(payload) != required or not all(isinstance(payload[key], str) and payload[key] for key in required):
+    required = {
+        "application_pk",
+        "application_slug",
+        "provider_pk",
+        "client_id",
+        "client_secret",
+    }
+    if set(payload) != required or not all(
+        isinstance(payload[key], str) and payload[key] for key in required
+    ):
         raise DeploymentError("Authen­tik metadata query returned an invalid shape")
+    if payload["application_slug"] != APPLICATION_SLUG:
+        raise DeploymentError("deployed Authen­tik application slug differs from contract")
     if payload["client_id"] != CLIENT_ID:
-        raise DeploymentError("Authen­tik provider client ID differs from the frozen contract")
+        raise DeploymentError("deployed Authen­tik client ID differs from contract")
+    payload["issuer"] = (
+        f"{AUTHENTIK_ORIGIN}/application/o/{payload['application_slug']}/"
+    )
+    if payload["issuer"] != ISSUER:
+        raise DeploymentError("derived deployed issuer differs from frozen issuer")
     return payload
 
 
@@ -218,35 +254,38 @@ def _secret_b64() -> str:
     return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii").rstrip("=")
 
 
-def _prepare_portal_runtime(metadata: dict[str, str]) -> dict[str, str]:
+def _prepare_portal_runtime(metadata: dict[str, str]) -> None:
     existing = _read_env(PORTAL_RUNTIME_ENV)
-    if existing and existing.get("PORTAL_IDENTITY_CLIENT_SECRET") != metadata["client_secret"]:
-        raise DeploymentError("stored Portal client secret differs from Authen­tik; refusing rotation")
+    stored_secret = existing.get("PORTAL_IDENTITY_CLIENT_SECRET")
+    if stored_secret and stored_secret != metadata["client_secret"]:
+        raise DeploymentError(
+            "stored Portal client secret differs from Authen­tik; refusing rotation"
+        )
     values = {
         "PORTAL_DATABASE_URL": "sqlite+pysqlite:////state/portal.db",
-        "PORTAL_ENVIRONMENT": "test",
-        "PORTAL_IDENTITY_BOOTSTRAP_DISPLAY_NAME": "akadmin",
-        "PORTAL_IDENTITY_BOOTSTRAP_SUBJECT": metadata["subject"],
-        "PORTAL_IDENTITY_BOOTSTRAP_TENANT_ID": "tenant-local",
+        "PORTAL_ENVIRONMENT": "production",
         "PORTAL_IDENTITY_CLIENT_ID": CLIENT_ID,
         "PORTAL_IDENTITY_CLIENT_SECRET": metadata["client_secret"],
         "PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64": existing.get(
-            "PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64", _secret_b64()
+            "PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64",
+            _secret_b64(),
         ),
-        "PORTAL_IDENTITY_ISSUER": ISSUER,
+        "PORTAL_IDENTITY_ISSUER": metadata["issuer"],
         "PORTAL_IDENTITY_REDIRECT_URI": REDIRECT_URI,
         "PORTAL_IDENTITY_SESSION_HMAC_KEY_B64": existing.get(
-            "PORTAL_IDENTITY_SESSION_HMAC_KEY_B64", _secret_b64()
+            "PORTAL_IDENTITY_SESSION_HMAC_KEY_B64",
+            _secret_b64(),
         ),
-        "PORTAL_IDENTITY_TRANSPORT_MODE": "local_http_test",
+        "PORTAL_IDENTITY_TRANSPORT_MODE": "https",
     }
     _write_env_atomic(PORTAL_RUNTIME_ENV, values)
     PORTAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    return values
 
 
 def _docker_image_id(image: str) -> str:
-    return _run(["docker", "image", "inspect", "--format", "{{.Id}}", image]).stdout.strip()
+    return _run(
+        ["docker", "image", "inspect", "--format", "{{.Id}}", image]
+    ).stdout.strip()
 
 
 def _build_images(repo: Path, implementation_sha: str) -> tuple[str, str, str, str]:
@@ -284,11 +323,17 @@ def _build_images(repo: Path, implementation_sha: str) -> tuple[str, str, str, s
         ],
         cwd=repo,
     )
-    return control_image, _docker_image_id(control_image), web_image, _docker_image_id(web_image)
+    return (
+        control_image,
+        _docker_image_id(control_image),
+        web_image,
+        _docker_image_id(web_image),
+    )
 
 
 def _ensure_network() -> None:
-    if _run(["docker", "network", "inspect", PORTAL_NETWORK], check=False).returncode != 0:
+    result = _run(["docker", "network", "inspect", PORTAL_NETWORK], check=False)
+    if result.returncode != 0:
         _run(["docker", "network", "create", "--driver", "bridge", PORTAL_NETWORK])
 
 
@@ -301,10 +346,10 @@ def _remove_container(name: str) -> None:
         _run(["docker", "rm", "-f", name])
 
 
-def _wait_healthy(name: str, timeout_seconds: int = 120) -> None:
+def _wait_healthy(name: str, timeout_seconds: int = 150) -> None:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        status_value = _run(
+        state = _run(
             [
                 "docker",
                 "inspect",
@@ -314,54 +359,58 @@ def _wait_healthy(name: str, timeout_seconds: int = 120) -> None:
             ],
             check=False,
         ).stdout.strip()
-        if status_value == "healthy":
+        if state == "healthy":
             return
-        if status_value in {"exited", "dead", "unhealthy"}:
-            raise DeploymentError(f"container {name} entered state {status_value}")
+        if state in {"exited", "dead", "unhealthy"}:
+            raise DeploymentError(f"container {name} entered state {state}")
         time.sleep(2)
     raise DeploymentError(f"container {name} did not become healthy")
+
+
+def _control_run_args(image: str, name: str) -> list[str]:
+    uid = str(os.getuid())
+    gid = str(os.getgid())
+    return [
+        "docker",
+        "run",
+        "--detach",
+        "--name",
+        name,
+        "--restart",
+        "unless-stopped",
+        "--network",
+        PORTAL_NETWORK,
+        "--read-only",
+        "--tmpfs",
+        RUNTIME_TMPFS,
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--pids-limit",
+        "256",
+        "--memory",
+        "768m",
+        "--user",
+        f"{uid}:{gid}",
+        "--env-file",
+        str(PORTAL_RUNTIME_ENV),
+        "--mount",
+        f"type=bind,src={PORTAL_DATA_DIR},dst=/state,rw",
+        "--label",
+        "ai.freqtrade.identity-fixture=disabled",
+        "--label",
+        "ai.freqtrade.membership-bootstrap=explicit-only",
+        "--label",
+        "ai.freqtrade.live-capital-authorized=false",
+        image,
+    ]
 
 
 def _start_control_candidate(image: str, suffix: str) -> str:
     candidate = f"{CONTROL_CONTAINER}-candidate-{suffix}"
     _remove_container(candidate)
-    uid = str(os.getuid())
-    gid = str(os.getgid())
-    _run(
-        [
-            "docker",
-            "run",
-            "--detach",
-            "--name",
-            candidate,
-            "--restart",
-            "unless-stopped",
-            "--network",
-            PORTAL_NETWORK,
-            "--read-only",
-            "--tmpfs",
-            "/tmp:rw,noexec,nosuid,nodev,size=64m",
-            "--cap-drop",
-            "ALL",
-            "--security-opt",
-            "no-new-privileges:true",
-            "--pids-limit",
-            "256",
-            "--memory",
-            "768m",
-            "--user",
-            f"{uid}:{gid}",
-            "--env-file",
-            str(PORTAL_RUNTIME_ENV),
-            "--mount",
-            f"type=bind,src={PORTAL_DATA_DIR},dst=/state,rw",
-            "--label",
-            "ai.freqtrade.identity-fixture=disabled",
-            "--label",
-            "ai.freqtrade.live-capital-authorized=false",
-            image,
-        ]
-    )
+    _run(_control_run_args(image, candidate))
     _wait_healthy(candidate)
     return candidate
 
@@ -397,11 +446,13 @@ def _promote_control(candidate: str) -> str | None:
     return backup
 
 
-def _web_run_args(image: str, name: str, *, publish: bool) -> list[str]:
-    liquid_root = Path("/volume1/docker/freqtrade-staging/liquid20-market-data")
-    if not liquid_root.is_dir():
+def _liquidations_group_id() -> str:
+    if not LIQUIDATIONS_HOST_ROOT.is_dir():
         raise DeploymentError("canonical Liquid20 mount is unavailable")
-    liquid_gid = str(liquid_root.stat().st_gid)
+    return str(LIQUIDATIONS_HOST_ROOT.stat().st_gid)
+
+
+def _web_run_args(image: str, name: str, *, publish: bool) -> list[str]:
     args = [
         "docker",
         "run",
@@ -414,9 +465,9 @@ def _web_run_args(image: str, name: str, *, publish: bool) -> list[str]:
         PORTAL_NETWORK,
         "--read-only",
         "--tmpfs",
-        "/tmp:rw,noexec,nosuid,nodev,size=64m",
+        RUNTIME_TMPFS,
         "--tmpfs",
-        "/app/.next/cache:rw,noexec,nosuid,nodev,size=96m,uid=1000,gid=1000",
+        WEB_CACHE_TMPFS,
         "--cap-drop",
         "ALL",
         "--security-opt",
@@ -426,25 +477,30 @@ def _web_run_args(image: str, name: str, *, publish: bool) -> list[str]:
         "--memory",
         "768m",
         "--group-add",
-        liquid_gid,
+        _liquidations_group_id(),
         "--mount",
-        f"type=bind,src={liquid_root},dst=/runtime-data/liquid20,readonly",
+        (
+            f"type=bind,src={LIQUIDATIONS_HOST_ROOT},"
+            f"dst={LIQUIDATIONS_CONTAINER_ROOT},readonly"
+        ),
         "--env",
         "PORTAL_WEB_DATA_MODE=fixture",
         "--env",
-        "PORTAL_ENVIRONMENT=test",
+        "PORTAL_ENVIRONMENT=production",
         "--env",
         "PORTAL_IDENTITY_FIXTURE_MODE=disabled",
         "--env",
-        "PORTAL_IDENTITY_TRANSPORT_MODE=local_http_test",
+        "PORTAL_IDENTITY_TRANSPORT_MODE=https",
         "--env",
         f"PORTAL_IDENTITY_ISSUER={ISSUER}",
         "--env",
         f"PORTAL_CONTROL_PLANE_URL=http://{CONTROL_CONTAINER}:8000",
         "--env",
-        "PORTAL_LIQUID20_DATA_ROOT=/runtime-data/liquid20",
+        f"PORTAL_LIQUIDATIONS_DATA_ROOT={LIQUIDATIONS_CONTAINER_ROOT}",
         "--label",
         "ai.freqtrade.identity-fixture=disabled",
+        "--label",
+        "ai.freqtrade.public-origin=quant.molehill.cloud",
         "--label",
         "ai.freqtrade.live-capital-authorized=false",
     ]
@@ -464,8 +520,13 @@ def _probe_web_login(container: str) -> str:
     result = _run(["docker", "exec", container, "node", "-e", script])
     payload = json.loads(result.stdout.strip().splitlines()[-1])
     location = payload.get("location")
-    if not isinstance(location, str) or not location.startswith(f"{AUTHENTIK_ORIGIN}/"):
-        raise DeploymentError("Portal login did not redirect to local Authen­tik")
+    if not isinstance(location, str):
+        raise DeploymentError("Portal login redirect is missing")
+    parsed = urlparse(location)
+    if parsed.scheme != "https" or parsed.netloc != "auth.molehill.cloud":
+        raise DeploymentError("Portal login did not redirect to public Authen­tik")
+    if not parsed.path.startswith("/application/o/authorize"):
+        raise DeploymentError("Portal login redirect path is not the OIDC authorize endpoint")
     return location
 
 
@@ -495,55 +556,116 @@ def _deploy_web(image: str, suffix: str) -> tuple[str | None, str]:
     return backup, authorization_url
 
 
-def _http_status(url: str, *, accepted: set[int]) -> int:
-    request = urllib.request.Request(url, headers={"accept": "application/json"})
+def _discovery_from_identity_container() -> tuple[dict[str, Any], dict[str, int]]:
+    script = f"""
+import json
+import urllib.request
+issuer = {ISSUER!r}
+discovery_url = issuer.rstrip('/') + '/.well-known/openid-configuration'
+with urllib.request.urlopen(discovery_url, timeout=15) as response:
+    discovery = json.loads(response.read().decode('utf-8'))
+    discovery_status = response.status
+if discovery.get('issuer') != issuer:
+    raise SystemExit('issuer mismatch')
+for key in ('authorization_endpoint', 'token_endpoint', 'jwks_uri'):
+    value = discovery.get(key)
+    if not isinstance(value, str) or not value.startswith({AUTHENTIK_ORIGIN!r} + '/'):
+        raise SystemExit('invalid endpoint: ' + key)
+with urllib.request.urlopen(discovery['jwks_uri'], timeout=15) as response:
+    jwks = json.loads(response.read().decode('utf-8'))
+    jwks_status = response.status
+if not isinstance(jwks.get('keys'), list) or not jwks['keys']:
+    raise SystemExit('empty JWKS')
+print('__PORTAL_DISCOVERY__' + json.dumps({{
+    'discovery': discovery_status,
+    'jwks_uri': jwks_status,
+    'issuer': discovery['issuer'],
+}}, sort_keys=True))
+""".strip()
+    result = _run(
+        ["docker", "exec", CONTROL_CONTAINER, "python", "-c", script],
+        sensitive=True,
+    )
+    marker = next(
+        (
+            line.removeprefix("__PORTAL_DISCOVERY__")
+            for line in result.stdout.splitlines()
+            if line.startswith("__PORTAL_DISCOVERY__")
+        ),
+        None,
+    )
+    if marker is None:
+        raise DeploymentError("identity container discovery probe returned no marker")
+    payload = json.loads(marker)
+    if payload.get("issuer") != ISSUER:
+        raise DeploymentError("identity container observed an unexpected issuer")
+    return {"issuer": payload["issuer"]}, {
+        "discovery": int(payload["discovery"]),
+        "jwks_uri": int(payload["jwks_uri"]),
+    }
+
+
+def _no_redirect_opener() -> urllib.request.OpenerDirector:
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, request, file_pointer, code, message, headers, url):
+            return None
+
+    return urllib.request.build_opener(NoRedirect)
+
+
+def _probe_public_portal() -> tuple[int, str]:
+    url = f"{PORTAL_ORIGIN}/api/identity/login?return_to=%2F"
+    request = urllib.request.Request(url, headers={"accept": "text/html"})  # noqa: S310
+    opener = _no_redirect_opener()
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
-            status_code = response.status
+        opener.open(request, timeout=15)  # noqa: S310
     except urllib.error.HTTPError as exc:
         status_code = exc.code
-    if status_code not in accepted:
-        raise DeploymentError(f"unexpected endpoint status {status_code}: {url}")
-    return status_code
-
-
-def _discovery() -> tuple[dict[str, Any], dict[str, int]]:
-    url = f"{ISSUER.rstrip('/')}/.well-known/openid-configuration"
-    with urllib.request.urlopen(url, timeout=10) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-        discovery_status = response.status
-    if payload.get("issuer") != ISSUER:
-        raise DeploymentError("Authen­tik discovery issuer differs from the Portal issuer")
-    endpoint_statuses = {"discovery": discovery_status}
-    for key, accepted in {
-        "authorization_endpoint": {200, 302, 400},
-        "token_endpoint": {400, 401, 405},
-        "jwks_uri": {200},
-    }.items():
-        endpoint = payload.get(key)
-        if not isinstance(endpoint, str) or not endpoint.startswith(AUTHENTIK_ORIGIN):
-            raise DeploymentError(f"discovery endpoint is invalid: {key}")
-        endpoint_statuses[key] = _http_status(endpoint, accepted=accepted)
-    return payload, endpoint_statuses
+        location = exc.headers.get("location", "")
+    else:
+        raise DeploymentError("public Portal login unexpectedly did not redirect")
+    if status_code not in {302, 303, 307, 308}:
+        raise DeploymentError(f"public Portal login returned status {status_code}")
+    parsed = urlparse(location)
+    if parsed.scheme != "https" or parsed.netloc != "auth.molehill.cloud":
+        raise DeploymentError("public Portal login did not redirect to public Authen­tik")
+    return status_code, location
 
 
 def _container_status(name: str) -> dict[str, str]:
+    inspect_format = (
+        "{{.Name}}|{{.State.Status}}|"
+        "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.Config.Image}}"
+    )
     result = _run(
-        [
-            "docker",
-            "inspect",
-            "--format",
-            "{{.Name}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.Config.Image}}",
-            name,
-        ]
+        ["docker", "inspect", "--format", inspect_format, name]
     ).stdout.strip()
-    container_name, state_value, health, image = result.split("|", 3)
+    container_name, state, health, image = result.split("|", 3)
     return {
         "name": container_name.removeprefix("/"),
-        "state": state_value,
+        "state": state,
         "health": health,
         "image": image,
     }
+
+
+def _assert_container_hardening(name: str, *, published: bool) -> None:
+    payload = json.loads(_run(["docker", "inspect", name]).stdout)[0]
+    host_config = payload["HostConfig"]
+    if host_config.get("Privileged"):
+        raise DeploymentError(f"container is privileged: {name}")
+    if host_config.get("NetworkMode") == "host":
+        raise DeploymentError(f"container uses host networking: {name}")
+    if not host_config.get("ReadonlyRootfs"):
+        raise DeploymentError(f"container root filesystem is writable: {name}")
+    binds = host_config.get("Binds") or []
+    if any("/var/run/docker.sock" in value for value in binds):
+        raise DeploymentError(f"container mounts the Docker socket: {name}")
+    port_bindings = host_config.get("PortBindings") or {}
+    if published and "3000/tcp" not in port_bindings:
+        raise DeploymentError("Portal web container is not bound to the LAN origin")
+    if not published and port_bindings:
+        raise DeploymentError("identity control plane unexpectedly publishes a port")
 
 
 def _authentik_statuses(repo: Path) -> list[dict[str, str]]:
@@ -553,11 +675,11 @@ def _authentik_statuses(repo: Path) -> list[dict[str, str]]:
         container = _run([*compose, "ps", "-q", service]).stdout.strip()
         if not container:
             raise DeploymentError(f"Authen­tik service is missing: {service}")
-        status_payload = _container_status(container)
-        status_payload["service"] = service
-        if status_payload["health"] != "healthy":
+        status = _container_status(container)
+        status["service"] = service
+        if status["health"] != "healthy":
             raise DeploymentError(f"Authen­tik service is not healthy: {service}")
-        statuses.append(status_payload)
+        statuses.append(status)
     return statuses
 
 
@@ -568,7 +690,7 @@ def _write_report(path: Path, report: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def deploy(args: argparse.Namespace) -> int:
+def deploy(args: argparse.Namespace) -> int:  # noqa: C901
     repo = Path(args.repository).resolve()
     request_path = Path(args.request).resolve()
     report_path = Path(args.report).resolve()
@@ -579,9 +701,10 @@ def deploy(args: argparse.Namespace) -> int:
         "status": "failed",
         "secret_values_recorded": False,
         "live_capital_authorized": False,
-        "public_ingress_authorized": False,
+        "public_ingress_authorized": True,
         "restore_authorized": False,
         "identity_fixture_disabled": False,
+        "membership_bootstrap": "not_authorized",
         "browser_acceptance": "not_executed",
     }
     control_backup: str | None = None
@@ -594,28 +717,28 @@ def deploy(args: argparse.Namespace) -> int:
         metadata = _authentik_metadata(server)
         _prepare_portal_runtime(metadata)
         control_image, control_id, web_image, web_id = _build_images(
-            repo, args.expected_repository_sha
+            repo,
+            args.expected_repository_sha,
         )
         suffix = args.expected_repository_sha[:12]
         control_candidate = _start_control_candidate(control_image, suffix)
         control_backup = _promote_control(control_candidate)
-        discovery, endpoint_statuses = _discovery()
+        discovery, endpoint_statuses = _discovery_from_identity_container()
         web_backup, authorization_url = _deploy_web(web_image, suffix)
+        public_status, public_authorization_url = _probe_public_portal()
         authentik_statuses = _authentik_statuses(repo)
         portal_status = _container_status(PORTAL_CONTAINER)
         control_status = _container_status(CONTROL_CONTAINER)
         if portal_status["health"] != "healthy" or control_status["health"] != "healthy":
             raise DeploymentError("Portal containers are not healthy after promotion")
-        inspected_env = _run(
-            ["docker", "inspect", "--format", "{{json .Config.Env}}", PORTAL_CONTAINER]
-        ).stdout
-        if "PORTAL_IDENTITY_FIXTURE_MODE=disabled" not in inspected_env:
-            raise DeploymentError("Portal identity fixture mode is not disabled")
+        _assert_container_hardening(PORTAL_CONTAINER, published=True)
+        _assert_container_hardening(CONTROL_CONTAINER, published=False)
         report.update(
             {
                 "status": "success",
                 "authentik": {
                     "application_exists": bool(metadata["application_pk"]),
+                    "application_slug": metadata["application_slug"],
                     "provider_exists": bool(metadata["provider_pk"]),
                     "issuer": discovery["issuer"],
                     "redirect_uri": REDIRECT_URI,
@@ -624,17 +747,20 @@ def deploy(args: argparse.Namespace) -> int:
                 },
                 "endpoint_statuses": endpoint_statuses,
                 "portal": {
-                    "origin": f"http://{PORTAL_BIND_ADDRESS}:{PORTAL_PORT}",
-                    "authorization_url": authorization_url,
+                    "origin": PORTAL_ORIGIN,
+                    "internal_authorization_url": authorization_url,
+                    "public_authorization_url": public_authorization_url,
+                    "public_login_status": public_status,
                     "container": portal_status,
                     "control_plane": control_status,
                     "web_image_id": web_id,
                     "control_plane_image_id": control_id,
-                    "identity_transport": "local_http_test",
+                    "identity_transport": "https",
                 },
                 "identity_fixture_disabled": True,
-                "browser_acceptance": "ready_for_owner_mfa",
-                "next_owner_url": f"http://{PORTAL_BIND_ADDRESS}:{PORTAL_PORT}/",
+                "membership_bootstrap": "explicit_owner_action_required",
+                "browser_acceptance": "ready_for_owner_password_totp",
+                "next_owner_url": PORTAL_ORIGIN,
             }
         )
         for backup in (web_backup, control_backup):
@@ -645,7 +771,15 @@ def deploy(args: argparse.Namespace) -> int:
         report["failure"] = {"type": type(exc).__name__, "message": str(exc)}
         return_code = 1
     digest = _write_report(report_path, report)
-    print(json.dumps({"report": str(report_path), "sha256": digest, "status": report["status"]}))
+    print(
+        json.dumps(
+            {
+                "report": str(report_path),
+                "sha256": digest,
+                "status": report["status"],
+            }
+        )
+    )
     return return_code
 
 

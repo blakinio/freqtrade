@@ -1,0 +1,85 @@
+name: WickHunter WH-01 metric binding trigger
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh01-metric-binding-trigger.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh01-metric-binding-trigger-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Execute bounded repair payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path(".github/workflows/wickhunter-wh01-metric-binding-autofix.yml")
+          lines = source.read_text(encoding="utf-8").splitlines()
+          marker = "      - name: Bind canonical production metrics"
+          try:
+              marker_index = lines.index(marker)
+              run_index = next(
+                  index
+                  for index in range(marker_index + 1, len(lines))
+                  if lines[index] == "        run: |"
+              )
+          except (ValueError, StopIteration) as exc:
+              raise SystemExit("repair payload marker mismatch") from exc
+          payload: list[str] = []
+          for line in lines[run_index + 1 :]:
+              if line.startswith("          "):
+                  payload.append(line[10:])
+                  continue
+              break
+          if not payload:
+              raise SystemExit("repair payload is empty")
+          Path("/tmp/wickhunter-wh01-metric-binding-repair.sh").write_text(
+              "\n".join(payload) + "\n",
+              encoding="utf-8",
+          )
+          PY
+          bash /tmp/wickhunter-wh01-metric-binding-repair.sh
+          rm .github/workflows/wickhunter-wh01-metric-binding-trigger.yml
+
+      - name: Commit bounded repair
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/wickhunter/production_dataset_materialization.py \
+            tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py \
+            docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md \
+            .github/workflows/wickhunter-wh01-metric-binding-autofix.yml \
+            .github/workflows/wickhunter-wh01-metric-binding-trigger.yml
+          git commit -m "fix(wickhunter): bind canonical production market metrics"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            push origin "HEAD:$HEAD_BRANCH"

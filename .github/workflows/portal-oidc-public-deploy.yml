@@ -107,7 +107,7 @@ jobs:
           IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
-          python3 deploy/synology/portal-oidc/deploy.py \
+          python3 deploy/synology/portal-oidc/deploy_entrypoint.py \
             --repository "$GITHUB_WORKSPACE" \
             --request "$REQUEST_PATH" \
             --expected-repository-sha "$IMPLEMENTATION_SHA" \

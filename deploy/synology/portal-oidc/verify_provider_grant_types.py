@@ -54,21 +54,16 @@ def _run(
     )
     if check and result.returncode != 0:
         if sensitive:
-            raise GrantTypeVerificationError(
-                f"sensitive command failed: {Path(command[0]).name}"
-            )
+            raise GrantTypeVerificationError(f"sensitive command failed: {Path(command[0]).name}")
         raise GrantTypeVerificationError(
-            f"command failed ({result.returncode}): {' '.join(command)}: "
-            f"{_bounded_detail(result)}"
+            f"command failed ({result.returncode}): {' '.join(command)}: {_bounded_detail(result)}"
         )
     return result
 
 
 def _assert_secret_file(path: Path) -> None:
     if not path.is_file() or stat.S_IMODE(path.stat().st_mode) != 0o600:
-        raise GrantTypeVerificationError(
-            f"protected runtime file must have mode 0600: {path}"
-        )
+        raise GrantTypeVerificationError(f"protected runtime file must have mode 0600: {path}")
 
 
 def _compose_command(repository: Path) -> list[str]:
@@ -118,18 +113,14 @@ print({MARKER!r} + json.dumps({{
         None,
     )
     if payload_text is None:
-        raise GrantTypeVerificationError(
-            "Authentik grant-type query returned no expected marker"
-        )
+        raise GrantTypeVerificationError("Authentik grant-type query returned no expected marker")
     payload = json.loads(payload_text)
     if not isinstance(payload, dict) or set(payload) != {
         "name",
         "client_id",
         "grant_types",
     }:
-        raise GrantTypeVerificationError(
-            "Authentik grant-type query returned an invalid shape"
-        )
+        raise GrantTypeVerificationError("Authentik grant-type query returned an invalid shape")
     if payload["name"] != AUTHENTIK_PROVIDER_NAME:
         raise GrantTypeVerificationError("deployed Authentik provider name differs")
     if payload["client_id"] != CLIENT_ID:

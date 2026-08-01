@@ -57,46 +57,38 @@ This task intentionally claims only its own task record until discovery proves e
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T19:18:00+02:00
+updated_at: 2026-08-01T15:23:00+02:00
 project_lane: freqtrade-wickhunter
 phase: investigate
-session_id: wh08-ownership-20260801-001
+session_id: unclaimed
 session_role: discovery
 execution_mode: chat
-execution_reason: live Portal ownership barrier inspection before any shared-path discovery
+execution_reason: Portal ownership and integration seams must be resolved before code authorization
 status: waiting
 branch: feat/wickhunter-wh08-portal-observability-v1
 base_branch: develop
 related_pr: null
-context_pressure: low
+context_pressure: medium
 context_growth: stable
 decomposition_decision: discovery_first
 decomposition_reason: active Portal ownership and final WH-07 snapshot paths are not yet frozen
-validation_level: ownership_preflight
+validation_level: not_started
 heavy_validation_runs: 0
 proven:
-  - WH-08 depends on the frozen WH-07 PortalObservabilitySnapshot producer contract
-  - open Portal repair PR 956 is active and owns deploy/synology/portal-oidc/diagnose_discovery.py plus tests/ai_platform/portal/deployment/test_portal_oidc_public_probe_user_agent.py
-  - PR 956 is a bounded public-login probe repair and does not delegate broader Portal ownership to WH-08
-  - WH-08 currently claims only this task record and has not mutated any Portal code, API, view, deployment or test path
-  - observability must remain read-only and add no trade controls, credentials, order adapter or live-capital authority
+  - WH-08 depends on WH-07
+  - Portal paths may be owned by active non-WickHunter work
+  - observability must remain read-only and add no trade controls
 derived:
-  - exact Portal consumer paths must be selected only after PR 956 reaches a terminal state and WH-07 freezes the snapshot schema
-  - fixture-first contract work can begin after WH-07 contract freeze without requiring the continuous runtime implementation to be complete
+  - WH-08 can use a fixture after the WH-07 producer contract freezes, while WH-07 runtime hardening continues on separate paths
 unknown:
-  - final WH-07 PortalObservabilitySnapshot fields and serialized location
-  - exact Portal read-model, API, view and E2E paths available after current ownership is released
+  - final Portal-owned paths and current owner delegation
+  - final WH-07 PortalObservabilitySnapshot contract
 conflicts:
-  - active Portal PR 956 retains Portal ownership; no WH-08 implementation or shared-path claim is authorized
+  - active Portal PR ownership must be released or explicitly delegated before code mutation
 first_relevant_error: null
-changed_paths:
-  - docs/agents/tasks/FTAI-20260801-wickhunter-wh08-portal-observability-v1.md
-validation:
-  - command: live open-PR and changed-path ownership preflight
-    result: WAITING
-    evidence: PR 956 is open and owns two Portal deployment/test paths
+changed_paths: []
+validation: []
 blockers:
-  - WH-07 producer contract is not frozen
-  - Portal repair PR 956 is not terminal and ownership has not been delegated
-next_action: remain waiting; after PR 956 is terminal and WH-07 freezes PortalObservabilitySnapshot, rebase from live develop and perform exact read-only Portal seam discovery before claiming any shared path
+  - Portal ownership and WH-07 producer contract are not yet available
+next_action: after active Portal ownership is released, perform read-only WH08-DISCOVERY and claim only exact delegated paths before implementation
 ```

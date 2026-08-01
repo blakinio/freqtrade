@@ -246,10 +246,7 @@ def test_materialization_binds_sources_and_verifies_partitions(
     }
     selection = _selection()
     assert selection.requested_start_ms > DECISION_START - 86_400_000
-    assert (
-        selection.requested_start_ms
-        <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS
-    )
+    assert selection.requested_start_ms <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS
     monkeypatch.setattr(
         subject,
         "_market_inputs",

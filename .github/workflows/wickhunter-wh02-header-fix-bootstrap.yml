@@ -27,10 +27,10 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: true
 
-      - name: Apply exact parser and regression-test patch
+      - name: Apply exact parser and regression patch
         shell: bash
         run: |
           set -euo pipefail
@@ -38,12 +38,12 @@ jobs:
           from pathlib import Path
 
           module = Path("ai_platform/wickhunter/replay_price_path.py")
-          text = module.read_text(encoding="utf-8")
-          old = '''def _normalize_header(value: str) -> str:
+          module_text = module.read_text(encoding="utf-8")
+          old_normalizer = '''def _normalize_header(value: str) -> str:
               normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
               return normalized.replace("aggregate_trade_id", "agg_trade_id")
           '''
-          new = '''def _normalize_header(value: str) -> str:
+          new_normalizer = '''def _normalize_header(value: str) -> str:
               normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
               aliases = {
                   "aggregate_trade_id": "agg_trade_id",
@@ -51,12 +51,15 @@ jobs:
               }
               return aliases.get(normalized, normalized)
           '''
-          if text.count(old) != 1:
+          if module_text.count(old_normalizer) != 1:
               raise SystemExit("parser normalization anchor mismatch")
-          module.write_text(text.replace(old, new), encoding="utf-8")
+          module.write_text(
+              module_text.replace(old_normalizer, new_normalizer),
+              encoding="utf-8",
+          )
 
           tests = Path("tests/ai_platform_integration/test_wickhunter_replay_price_path.py")
-          text = tests.read_text(encoding="utf-8")
+          test_text = tests.read_text(encoding="utf-8")
           old_signature = '''    member_name: str | None = None,
               include_header: bool = True,
           ) -> tuple[Path, Path]:
@@ -66,21 +69,22 @@ jobs:
               timestamp_column: str = "timestamp",
           ) -> tuple[Path, Path]:
           '''
-          if text.count(old_signature) != 1:
+          if test_text.count(old_signature) != 1:
               raise SystemExit("archive helper signature anchor mismatch")
-          text = text.replace(old_signature, new_signature)
-          old_header = '''        lines.append(
-                  "agg_trade_id,price,quantity,first_trade_id,last_trade_id,timestamp,is_buyer_maker"
-              )
-          '''
-          new_header = '''        lines.append(
-                  "agg_trade_id,price,quantity,first_trade_id,last_trade_id,"
-                  f"{timestamp_column},is_buyer_maker"
-              )
-          '''
-          if text.count(old_header) != 1:
-              raise SystemExit("archive header anchor mismatch")
-          text = text.replace(old_header, new_header)
+          test_text = test_text.replace(old_signature, new_signature)
+
+          old_header_literal = (
+              '            "agg_trade_id,price,quantity,first_trade_id,'
+              'last_trade_id,timestamp,is_buyer_maker"\n'
+          )
+          new_header_literal = (
+              '            "agg_trade_id,price,quantity,first_trade_id,last_trade_id,"\n'
+              '            f"{timestamp_column},is_buyer_maker"\n'
+          )
+          if test_text.count(old_header_literal) != 1:
+              raise SystemExit("archive header literal anchor mismatch")
+          test_text = test_text.replace(old_header_literal, new_header_literal)
+
           anchor = '''def test_output_identity_is_deterministic(
               tmp_path: Path,
               accepted_materialization: None,
@@ -106,9 +110,9 @@ jobs:
 
 
           ''' + anchor
-          if text.count(anchor) != 1:
+          if test_text.count(anchor) != 1:
               raise SystemExit("regression insertion anchor mismatch")
-          tests.write_text(text.replace(anchor, regression), encoding="utf-8")
+          tests.write_text(test_text.replace(anchor, regression), encoding="utf-8")
 
           task = Path(
               "docs/agents/tasks/FTAI-20260801-wickhunter-wh02-binance-transact-time-header.md"
@@ -121,7 +125,7 @@ jobs:
               "`transact_time` while the importer canonicalized only `timestamp`.\n\n"
               "## Scope\n\n- Canonicalize the official `transact_time` header token to `timestamp`.\n"
               "- Preserve strict seven-column header recognition and all archive safety checks.\n"
-              "- Add an end-to-end regression test that materializes from the official header spelling.\n"
+              "- Add an end-to-end regression test using the official header spelling.\n"
               "- Do not change request geometry, data rows, authority, execution, or holdout rules.\n\n"
               "## Acceptance\n\n- The official Binance header is skipped exactly once as a header.\n"
               "- Existing canonical-header and headerless inputs remain supported.\n"
@@ -143,5 +147,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
           git diff --cached --name-status
+          test "$(git diff --cached --name-only | wc -l)" -eq 4
           git commit -m "fix(wickhunter): accept Binance transact_time header"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}

@@ -1,13 +1,14 @@
 ---
 task_id: FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1
-status: ready_for_validation
+status: validated
 branch: audit/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1
 base_branch: develop
 audited_head: 6419138e170844d0eb09d9381b4435900d802ab9
-observed_develop_head: d6cb539c1c037dcb63439994696b3add04e2a84c
+observed_develop_head: 5cffc1902479bdaffb753622925f9e92b294a9c8
 created: 2026-08-01
 updated: 2026-08-01
 task_kind: audit
+project_lane: freqtrade-wickhunter
 implementation_authorized: false
 execution_mode: codex
 owned_paths:
@@ -30,24 +31,26 @@ Primary audit artifacts:
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T13:24:00+02:00
-head: f9e52e74ae9a1389735147860eb8d45aaae06088
+updated_at: 2026-08-01T14:20:00+02:00
+head: ccbd8aa1c93e6da630c515cff4040e19713db924
 branch: audit/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1
 pr: none
 status: ready
 phase: independent_validation
-session_id: primary-auditor-20260801-1
-session_role: primary_auditor
+session_id: independent-validator-20260801-1
+session_role: independent_validator
 execution_mode: codex
+execution_reason: exact-SHA source reproduction, focused probes, CI inspection, and durable audit updates require a full checkout
 audited_head: 6419138e170844d0eb09d9381b4435900d802ab9
-observed_develop_head: d6cb539c1c037dcb63439994696b3add04e2a84c
+observed_develop_head: 5cffc1902479bdaffb753622925f9e92b294a9c8
 context_pressure: high
-context_growth: high
+context_growth: stable
+context_score: 12
 decomposition_decision: phased
-last_completed_step: primary report, structured findings and audit-only evidence artifacts prepared
+last_completed_step: independently confirmed all four HIGH findings, reconciled exact-head CI and post-freeze scope, and persisted FAIL verdict
 first_relevant_failure: WH-ME-AUD-001
 finding_counts: critical=0 high=4 medium=3 low=3 info=2
-validation_level: static_exact-head-source-review_plus_historical-ci
+validation_level: focused_plus_component
 heavy_validation_runs: 0
 evidence_index: docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/evidence-index.md
 context_routes:
@@ -62,25 +65,25 @@ owned_paths:
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/**
 proven:
   - Frozen implementation baseline is 6419138e170844d0eb09d9381b4435900d802ab9.
-  - Findings WH-ME-AUD-001 through WH-ME-AUD-004 are HIGH and statically evidenced.
-  - No CRITICAL finding or enabled authority flag was found.
-  - Audit branch changes are confined to audit-owned paths.
-  - Historical PR 836 head had successful dedicated Market Evidence CI and broad workflows.
-  - Develop advanced post-freeze to d6cb539c1c037dcb63439994696b3add04e2a84c through an observed out-of-scope Portal OIDC deployment change.
+  - WH-ME-AUD-001 through WH-ME-AUD-004 are independently CONFIRMED with HIGH severity and high confidence.
+  - Symlink escape, forged-cookie authorization and blocked-readiness behavior were dynamically reproduced.
+  - Exact-head AI Platform CI 30696775622 and Freqtrade CI 30696775642 succeeded; dedicated Market Evidence, Portal npm/Playwright and Compose exact-head workflows did not run.
+  - The requested seven-commit range ends at d6cb539c; develop then advanced by six WH-02 replay/header commits to 5cffc190. The cumulative five-file net diff leaves audit conclusions unchanged.
+  - Stale checkpoint head f9e52e74 was followed only by three audit-artifact commits ending at ccbd8aa1c.
 derived:
-  - Primary-auditor verdict is FAIL because four trust-boundary defects are HIGH severity.
+  - Independent verdict is FAIL because four distinct trust-boundary/readiness defects remain HIGH.
 unknown:
-  - Exact-head focused CI conclusions for the frozen audited SHA.
-  - Local compile, pytest, ruff, npm, Playwright and Compose results.
-  - Fresh independent-validation verdict.
+  - Exact-head dedicated Market Evidence, Portal Playwright and Compose workflow conclusions.
+  - Real Synology permissions, runtime state and production package behavior.
 conflicts:
-  - WH-ME-AUD-010: v2 durable task remains in_progress and validating although PR 836 is merged.
+  - WH-ME-AUD-010 remains an unrelated durable-state conflict: v2 task says validating although PR 836 is merged.
 first_failure:
   marker: WH-ME-AUD-001
   evidence: Portal v1 and v2 readers project normalized rows without verifying manifest self-hash, artifact hashes, sizes or checksum index.
 rejected_hypotheses:
-  - Historical green PR 836 CI is exact-head evidence for the audited develop SHA.
-  - PR 927 WH-02 replay code belongs to the functional Market Evidence audit boundary.
+  - No exact-head workflow runs exist for the audited SHA.
+  - The post-freeze OIDC mount fix supplies upstream Market Evidence authorization.
+  - Fixture-mode identity tests prove production cookie authenticity.
 changed_paths:
   - docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md
@@ -94,28 +97,33 @@ changed_paths:
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/dependency-inventory/inventory.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/handoff.txt
 validation:
-  - command: Static exact-SHA source, test, workflow and deployment review
+  - command: Frozen-SHA source, route, verifier, identity, daemon, healthcheck and workflow trace
     result: PASS
-    evidence: report.md, findings.json and evidence-index.md
-  - command: Exact-head GitHub status and workflow query
-    result: NOT_RUN
-    evidence: no status contexts or workflow runs exist for 6419138e170844d0eb09d9381b4435900d802ab9
-  - command: Focused local compile, pytest, ruff, npm, Playwright and Compose
+    evidence: report.md section 16 and findings.json independent_validation
+  - command: Exact-head GitHub Actions inspection
+    result: PASS
+    evidence: general runs 30696775622 and 30696775642 succeeded; dedicated disputed-path workflows absent
+  - command: Symlink, forged-cookie and blocked-readiness probes
+    result: PASS
+    evidence: commands.jsonl sequences 18-20
+  - command: Compile, 18 focused integration tests, Ruff, Portal npm checks/build and 10 deploy tests
+    result: PASS
+    evidence: commands.jsonl sequences 21-25
+  - command: Docker Compose
     result: BLOCKED
-    evidence: git ls-remote exit 128 because github.com DNS resolution was unavailable
+    evidence: Docker engine unavailable
+  - command: Playwright
+    result: NOT_RUN
+    evidence: fixture identity is not material to the production-cookie path; focused production server probe used instead
   - command: Audit-owned path diff check
     result: PASS
-    evidence: compare 6419138e170844d0eb09d9381b4435900d802ab9 to audit branch contains only task and evidence paths
-blockers:
-  - Exact-head CI is unavailable.
-  - Local checkout failed because github.com DNS is unavailable.
-  - Fresh independent validator has not run.
-  - Develop advanced after the audit freeze; the observed change is outside audited Market Evidence paths but must be reconciled before terminal closure.
-next_action: Start a fresh validation session for this task, compare 6419138e170844d0eb09d9381b4435900d802ab9..d6cb539c1c037dcb63439994696b3add04e2a84c for scope invalidation, reproduce WH-ME-AUD-001 through WH-ME-AUD-004, verify severity and deduplication, and append an independent verdict.
+    evidence: final diff contains only task and task-specific evidence artifacts
+blockers: []
+next_action: Repository owner should authorize a remediation task for the shared immutable-evidence verification and safe-member boundary covering WH-ME-AUD-001 and WH-ME-AUD-002.
 ```
 
 ## Primary verdict
 
 `FAIL`
 
-The task remains `ready_for_validation` until a fresh session validates the four HIGH findings, checks severity and deduplication, reconciles the post-freeze develop advance and confirms no changes outside audit-owned paths.
+Independent validation is complete. All four HIGH findings are confirmed with high confidence, post-freeze scope is reconciled as unchanged, and exact-head CI limitations are recorded. Product remediation remains unauthorized in this audit task.

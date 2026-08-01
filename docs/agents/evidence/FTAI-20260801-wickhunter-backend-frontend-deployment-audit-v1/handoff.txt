@@ -1,7 +1,7 @@
 Continue task FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1 from repository state.
 Do not rely on previous chat history.
-CHECKPOINT: /mnt/data/audit_repo/docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md
-HEAD: f9e52e74ae9a1389735147860eb8d45aaae06088
+CHECKPOINT: docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md
+HEAD: ccbd8aa1c93e6da630c515cff4040e19713db924
 BRANCH: audit/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1
 PR: none
 STATUS: ready
@@ -15,23 +15,20 @@ CONTEXT_ROUTES:
 REQUIRED_READS:
 - AGENTS.md
 - docs/agents/CONTEXT_HANDOFF.md
-SEARCH_FIRST:
-OPTIONAL_READS_ONLY_IF_BLOCKED:
 PROVEN:
 - Frozen implementation baseline is 6419138e170844d0eb09d9381b4435900d802ab9.
-- Findings WH-ME-AUD-001 through WH-ME-AUD-004 are HIGH and statically evidenced.
-- No CRITICAL finding or enabled authority flag was found.
-- Audit branch changes are confined to audit-owned paths.
-- Historical PR 836 head had successful dedicated Market Evidence CI and broad workflows.
-- Develop advanced post-freeze to d6cb539c1c037dcb63439994696b3add04e2a84c through an observed out-of-scope Portal OIDC deployment change.
+- WH-ME-AUD-001 through WH-ME-AUD-004 are independently CONFIRMED with HIGH severity and high confidence.
+- Symlink escape, forged-cookie authorization and blocked-readiness behavior were dynamically reproduced.
+- Exact-head AI Platform CI 30696775622 and Freqtrade CI 30696775642 succeeded; dedicated Market Evidence, Portal npm/Playwright and Compose exact-head workflows did not run.
+- The requested range ends at d6cb539c; six later WH-02-only commits advanced develop to 5cffc190. Both ranges leave audit conclusions unchanged.
+- Stale checkpoint head f9e52e74 was followed only by three audit-artifact commits ending at ccbd8aa1c.
 DERIVED:
-- Primary-auditor verdict is FAIL because four trust-boundary defects are HIGH severity.
+- Independent verdict is FAIL because four distinct trust-boundary/readiness defects remain HIGH.
 UNKNOWN:
-- Exact-head focused CI conclusions for the frozen audited SHA.
-- Local compile, pytest, ruff, npm, Playwright and Compose results.
-- Fresh independent-validation verdict.
+- Exact-head dedicated Market Evidence, Portal Playwright and Compose workflow conclusions.
+- Real Synology permissions, runtime state and production package behavior.
 CONFLICTS:
-- WH-ME-AUD-010: v2 durable task remains in_progress and validating although PR 836 is merged.
+- WH-ME-AUD-010 remains an unrelated durable-state conflict: v2 task says validating although PR 836 is merged.
 CHANGED_PATHS:
 - docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md
 - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md
@@ -40,33 +37,16 @@ CHANGED_PATHS:
 - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/commands.jsonl
 - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/checksums.sha256
 - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/logs/live-state.md
-- docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/playwright/README.md
-- docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/compose/static-review.md
-- docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/dependency-inventory/inventory.md
 - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/handoff.txt
 BLOCKERS:
-- Exact-head CI is unavailable.
-- Local checkout failed because github.com DNS is unavailable.
-- Fresh independent validator has not run.
-- Develop advanced after the audit freeze; the observed change is outside audited Market Evidence paths but must be reconciled before terminal closure.
 FIRST_FAILURE_MARKER: WH-ME-AUD-001
 FIRST_FAILURE_EVIDENCE: Portal v1 and v2 readers project normalized rows without verifying manifest self-hash, artifact hashes, sizes or checksum index.
 VALIDATION:
-- Static exact-SHA source, test, workflow and deployment review: PASS; evidence=report.md, findings.json and evidence-index.md
-- Exact-head GitHub status and workflow query: NOT_RUN; evidence=no status contexts or workflow runs exist for 6419138e170844d0eb09d9381b4435900d802ab9
-- Focused local compile, pytest, ruff, npm, Playwright and Compose: BLOCKED; evidence=git ls-remote exit 128 because github.com DNS resolution was unavailable
-- Audit-owned path diff check: PASS; evidence=compare 6419138e170844d0eb09d9381b4435900d802ab9 to audit branch contains only task and evidence paths
-NEXT_ACTION: Start a fresh validation session for this task, compare 6419138e170844d0eb09d9381b4435900d802ab9..d6cb539c1c037dcb63439994696b3add04e2a84c for scope invalidation, reproduce WH-ME-AUD-001 through WH-ME-AUD-004, verify severity and deduplication, and append an independent verdict.
-
-OPERATING_RULES:
-- Read every REQUIRED_READS path before executing NEXT_ACTION.
-- Search SEARCH_FIRST paths before opening large files or indexes in full.
-- Open OPTIONAL_READS_ONLY_IF_BLOCKED only when a concrete blocker requires them.
-- Treat Git, checkpoint and live PR/CI as source of truth.
-- Verify only live state that can invalidate NEXT_ACTION.
-- Do not repeat the full preflight when checkpoint and live state agree.
-- Do not rediscover PROVEN facts unless live evidence changed.
-- Preserve UNKNOWN and CONFLICT; never guess.
-- Do not paste full logs, diffs or old chat history.
-- Execute NEXT_ACTION autonomously when safe.
-- Update the checkpoint and leave exactly one next_action before handing off.
+- Frozen-SHA source, route, verifier, identity, daemon, healthcheck and workflow trace: PASS.
+- Exact-head GitHub Actions inspection: PASS with dedicated coverage gaps recorded.
+- Symlink, forged-cookie and blocked-readiness probes: PASS as reproductions.
+- Compile, 18 focused integration tests, Ruff, Portal npm checks/build and 10 deploy tests: PASS.
+- Docker Compose: BLOCKED because Docker engine is unavailable.
+- Playwright: NOT_RUN because fixture identity is not material to the production-cookie path; focused production server probe used instead.
+- Audit-owned path diff check: PASS.
+NEXT_ACTION: Repository owner should authorize a remediation task for the shared immutable-evidence verification and safe-member boundary covering WH-ME-AUD-001 and WH-ME-AUD-002.

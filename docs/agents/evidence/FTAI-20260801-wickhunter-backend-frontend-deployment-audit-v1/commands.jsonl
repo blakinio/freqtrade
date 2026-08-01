@@ -1,7 +1,7 @@
 {"sequence": 1, "command": "GitHub fetch develop HEAD", "exit_code": 0, "result": "6419138e170844d0eb09d9381b4435900d802ab9", "classification": "PROVEN"}
 {"sequence": 2, "command": "GitHub list open PRs and changed files", "exit_code": 0, "result": "#833,#926 open; #927 merged", "classification": "PROVEN"}
 {"sequence": 3, "command": "GitHub review threads #833/#926/#927", "exit_code": 0, "result": "0 threads for each", "classification": "PROVEN"}
-{"sequence": 4, "command": "GitHub status/workflow runs 6419138e170844d0eb09d9381b4435900d802ab9", "exit_code": 0, "result": "no statuses; no runs", "classification": "UNKNOWN"}
+{"sequence": 4, "command": "GitHub status/workflow runs 6419138e170844d0eb09d9381b4435900d802ab9", "exit_code": 0, "result": "initial query returned no runs; superseded by independent live query in sequence 17, which found exact-head Actions", "classification": "CONFLICT"}
 {"sequence": 5, "command": "GitHub workflow runs 5d608dd617d6a5e14ee197fc4b34b887d55bbbe2", "exit_code": 0, "result": "six relevant successes plus one skipped auxiliary workflow", "classification": "PROVEN"}
 {"sequence": 6, "command": "git ls-remote https://github.com/blakinio/freqtrade.git refs/heads/develop", "exit_code": 128, "result": "Could not resolve host: github.com", "classification": "UNKNOWN"}
 {"sequence": 7, "command": "python -m compileall ...", "exit_code": null, "result": "NOT_RUN: checkout unavailable", "classification": "UNKNOWN"}
@@ -12,3 +12,18 @@
 {"sequence": 12, "command": "docker compose config --quiet v1/v2", "exit_code": null, "result": "NOT_RUN: checkout/Docker unavailable", "classification": "UNKNOWN"}
 {"sequence": 13, "command": "static source, tests, workflows and deployment review", "exit_code": 0, "result": "completed; 12 findings", "classification": "PROVEN"}
 {"sequence": 14, "command": "GitHub fetch develop HEAD after artifact write", "exit_code": 0, "result": "d6cb539c1c037dcb63439994696b3add04e2a84c; post-freeze PR #926 change outside audited Market Evidence paths", "classification": "PROVEN"}
+{"sequence": 15, "command": "remote/local branch, worktree, process and PR preflight", "exit_code": 0, "result": "audit head ccbd8aa1c93e6da630c515cff4040e19713db924; develop d6cb539c1c037dcb63439994696b3add04e2a84c; one worktree; no concurrent writer; no audit-branch PR", "classification": "PROVEN"}
+{"sequence": 16, "command": "git log and cumulative diff 6419138e...d6cb539c", "exit_code": 0, "result": "seven commits; net diff only portal-oidc deploy.py and its test; conclusions unchanged", "classification": "PROVEN"}
+{"sequence": 17, "command": "GitHub exact-head Actions query and run/job/step inspection", "exit_code": 0, "result": "30696775622 AI Platform CI success; 30696775642 Freqtrade CI success; no dedicated Market Evidence, Portal npm/Playwright or Compose exact-head run; docs deploy 30696709213 failed fetching gh-pages", "classification": "PARTIAL"}
+{"sequence": 18, "command": "Linux intermediate-directory symlink supplement regression probe", "exit_code": 0, "result": "verify_supplement accepted out-of-root regular file; escaped_root=true", "classification": "PROVEN"}
+{"sequence": 19, "command": "production-mode Next.js forged-cookie Market Evidence probe", "exit_code": 0, "result": "anonymous status 401; arbitrary __Host-portal_session cookie status 200", "classification": "PROVEN"}
+{"sequence": 20, "command": "v1/v2 missing-request daemon, healthcheck and workflow-predicate probe", "exit_code": 0, "result": "both blocked/CAPTURE_REQUEST_UNAVAILABLE; healthy=true; healthcheck exit 0; workflow predicate passed", "classification": "PROVEN"}
+{"sequence": 21, "command": "focused Python compileall", "exit_code": 0, "result": "relevant v1/v2 collectors, services, daemons and healthchecks compiled", "classification": "PROVEN"}
+{"sequence": 22, "command": "focused Market Evidence pytest under WSL/Linux", "exit_code": 0, "result": "18 passed, 2 configuration warnings", "classification": "PROVEN"}
+{"sequence": 23, "command": "focused Ruff 0.15.21", "exit_code": 0, "result": "all checks passed", "classification": "PROVEN"}
+{"sequence": 24, "command": "npm ci; npm run typecheck; npm run lint; npm run build", "exit_code": 0, "result": "typecheck/build passed; lint zero errors and one unrelated exhaustive-deps warning", "classification": "PROVEN"}
+{"sequence": 25, "command": "pytest frozen portal OIDC deploy tests", "exit_code": 0, "result": "10 passed, 2 configuration warnings", "classification": "PROVEN"}
+{"sequence": 26, "command": "docker compose local validation", "exit_code": null, "result": "BLOCKED: Docker engine pipe unavailable", "classification": "BLOCKED"}
+{"sequence": 27, "command": "Playwright Market Evidence fixture suite", "exit_code": null, "result": "NOT_RUN: fixture identity cannot validate production cookie authenticity; focused production Next.js probe used instead", "classification": "UNKNOWN"}
+{"sequence": 28, "command": "task, issue and PR duplicate/overlap search", "exit_code": 0, "result": "no duplicate remediation or accepted risk found; explicit partial overlaps recorded", "classification": "PROVEN"}
+{"sequence": 29, "command": "pre-commit remote head recheck and compare d6cb539c...5cffc190", "exit_code": 0, "result": "develop advanced six commits; changes only WH-02 replay_price_path.py, its test and task record; no audit conclusion changed", "classification": "PROVEN"}

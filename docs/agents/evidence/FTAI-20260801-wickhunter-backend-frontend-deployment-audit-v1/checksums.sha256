@@ -1,10 +1,10 @@
-5b78c02a49cb6f7ba4b6e99439e7507686800929f16d16df3bcb07d79bb0e801  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/commands.jsonl
+7c42e047aaeb89a2399ab155c84f16a37c948a190860283c34a1dcad423b4e9d  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/commands.jsonl
 7d55112de00e369da7c645f87e24a24754762cce709bc54b336e43cf1841dd0e  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/compose/static-review.md
 db6ad8126ca596bd2ae91ad1c1cf5ecbc571f183aa2cd61e1d0e9f53718c2316  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/dependency-inventory/inventory.md
-7129707dadbe26f82333ca483127206429069a2efaaf8cb7db15110358f68406  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/evidence-index.md
-2108e1f7476f154c9050a2bff21939901b8e752c4fd0b243e6a1f27e7d2d711c  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/findings.json
-603340ec62152e1e331310d596b5119f64c34992e30d3e04a3bb7514d2347840  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/handoff.txt
-2b759398fed84e88e0ad136ba5033ee05f9c05646498de827b724ee39194efbc  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/logs/live-state.md
+3b8bf707db936f7b137e60c10303560767017d617293c4b01fcee6572f49ff52  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/evidence-index.md
+9f16e1b66c5a7670cfed6249ff0e615d098599c59af1e7865de23afaf859f955  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/findings.json
+0487f2d78f986abd73d2fe43334e7f99d0192eb5b42d8cd8c56fb60b169faf34  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/handoff.txt
+76a33d9be1d1afab78e5e498338b295f3f71099c953d2961f6daa75845a45040  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/logs/live-state.md
 ff0919a633bd212a5cc2e6c55327e384032015b01f1fbea155a5d4011f42206e  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/playwright/README.md
-4145cd9dc48ce3147b2b03ab30af47e013fb47850110c250e19504573d65a707  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md
-26940cf83f73708719521a2f93bc7eec93734ea65631074ca7fc4edf79033b0e  docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md
+dbf27cb90804d2dba566a7d6d4f4db5092c5f006e5f4f2f6b2d2e8e82a16f944  docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md
+564eafd8eae0c3f4414a4ce305d4cd305164ddd3eece729393d0dc84564e1cac  docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md

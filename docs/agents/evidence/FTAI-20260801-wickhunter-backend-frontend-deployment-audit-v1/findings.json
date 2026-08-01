@@ -2,6 +2,134 @@
   "schema_version": 1,
   "task_id": "FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1",
   "audited_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+  "independent_validation": {
+    "session_id": "independent-validator-20260801-1",
+    "verdict": "FAIL",
+    "post_freeze_scope": {
+      "range": "6419138e170844d0eb09d9381b4435900d802ab9..5cffc1902479bdaffb753622925f9e92b294a9c8",
+      "requested_range_end": "d6cb539c1c037dcb63439994696b3add04e2a84c",
+      "additional_range": "d6cb539c1c037dcb63439994696b3add04e2a84c..5cffc1902479bdaffb753622925f9e92b294a9c8",
+      "decision": "UNCHANGED",
+      "detail": "The requested seven commits repair OIDC bind-mount syntax and add its test. Six later commits change only WH-02 replay header parsing, its test and task record. No Market Evidence reader, route, identity middleware, collector, healthcheck or workflow changed; neither range alters the four findings."
+    },
+    "exact_head_ci": {
+      "verified_successes": [
+        {
+          "run_id": 30696775622,
+          "workflow": "AI Platform CI",
+          "event": "pull_request",
+          "head_sha": "6419138e170844d0eb09d9381b4435900d802ab9",
+          "coverage": "compile ai_platform/tests/ai_platform; 1039 tests passed and 71 skipped; Ruff, Ruff format, Codespell and JSON validation passed"
+        },
+        {
+          "run_id": 30696775642,
+          "workflow": "Freqtrade CI",
+          "event": "pull_request",
+          "head_sha": "6419138e170844d0eb09d9381b4435900d802ab9",
+          "coverage": "pre-commit, documentation build, Python 3.11-3.14 core matrix, distribution build and CI Gate; coverage only on Python 3.12; compatibility and online/live jobs skipped"
+        }
+      ],
+      "other_exact_head_runs": {
+        "successful": [30696709205, 30696709212, 30696709208],
+        "failed": [30696709213]
+      },
+      "not_run": [
+        "AI Platform WickHunter Market Evidence CI",
+        "Portal npm workflow",
+        "Portal Playwright/E2E workflow",
+        "Compose validation workflow"
+      ]
+    },
+    "dispositions": [
+      {
+        "id": "WH-ME-AUD-001",
+        "disposition": "CONFIRMED",
+        "classification": "immutable_evidence_integrity_verification_bypass",
+        "severity": "HIGH",
+        "confidence": "high",
+        "source_evidence": [
+          "ai_platform/portal/web/app/api/market/evidence/summary/route.ts:8-15",
+          "ai_platform/portal/web/lib/market-evidence/reader.ts:551-627",
+          "ai_platform/portal/web/lib/market-evidence/reader-v2.ts:375-433"
+        ],
+        "validation_evidence": "Frozen-SHA trace found no direct or indirect verifier before row projection. v1 checks run IDs and authority metadata; v2 checks run ID, exact sources and authority metadata. Neither verifies manifest self-hash, artifact digest/size, checksum index, request/base binding or actual row geometry.",
+        "impact": "Parseable tampering or corruption can be returned as accepted Market Evidence and influence research/operational decisions.",
+        "prerequisites": ["host writer, compromised publisher, or storage corruption affecting an evidence package"],
+        "duplicate_analysis": {
+          "relationship": "shared_root_cause",
+          "with": ["WH-ME-AUD-002"],
+          "detail": "Same trust chain, distinct consumer-side verification omission versus backend path-confinement bypass; partial overlap only with WH-ME-AUD-007."
+        },
+        "recommendation": "Run the complete read-only v1/v2 verifier before projection and fail closed on every identity, digest, size, checksum, authority or geometry mismatch."
+      },
+      {
+        "id": "WH-ME-AUD-002",
+        "disposition": "CONFIRMED",
+        "classification": "path_confinement_bypass",
+        "severity": "HIGH",
+        "confidence": "high",
+        "source_evidence": [
+          "ai_platform/wickhunter/production_market_evidence_v2.py:1203-1253",
+          "ai_platform/wickhunter/production_market_evidence_service_v2.py:105-126"
+        ],
+        "validation_evidence": "Linux probe used a symlinked intermediate parent and an out-of-root regular file with valid digest/size. verify_supplement returned accepted and escaped_root=true.",
+        "impact": "A supplement can bind and consume files outside its immutable root while reporting valid identity.",
+        "prerequisites": ["ability to supply or alter the supplement package/member layout"],
+        "duplicate_analysis": {
+          "relationship": "partial_overlap",
+          "with": ["WH-ME-AUD-001", "WH-ME-AUD-008"],
+          "detail": "Not a duplicate: v2 out-of-root traversal differs from Portal verification omission and v1 in-root symlink identity loss."
+        },
+        "recommendation": "Use the component-wise _safe_member routine in every verifier and test symlinked root, intermediate parent and final member cases."
+      },
+      {
+        "id": "WH-ME-AUD-003",
+        "disposition": "CONFIRMED",
+        "classification": "application_authentication_authorization_bypass",
+        "severity": "HIGH",
+        "confidence": "high",
+        "source_evidence": [
+          "ai_platform/portal/web/proxy.ts:27-83",
+          "ai_platform/portal/web/lib/identity.ts:118-143",
+          "ai_platform/portal/web/app/api/market/evidence/summary/route.ts:8-15",
+          "ai_platform/portal/identity/service.py:548-604"
+        ],
+        "validation_evidence": "Production Next.js probe returned 401 without a cookie and 200 with __Host-portal_session=forged-arbitrary-value. The capable identity backend is called by /api/identity/session but not by Market Evidence routes or middleware.",
+        "impact": "A direct client can bypass the documented application session, tenant and RBAC boundary for read-only public-market evidence.",
+        "prerequisites": ["reachability to the Portal origin or successful passage through any independent edge gate", "ability to send a chosen Cookie header"],
+        "duplicate_analysis": {
+          "relationship": "independent",
+          "with": [],
+          "detail": "No issue, task or PR was found that remediates Market Evidence route authorization; the post-freeze OIDC mount repair is unrelated."
+        },
+        "recommendation": "Authenticate every protected request against the session backend and enforce current tenant membership and route permission before projection."
+      },
+      {
+        "id": "WH-ME-AUD-004",
+        "disposition": "CONFIRMED",
+        "classification": "liveness_readiness_conflation",
+        "severity": "HIGH",
+        "confidence": "high",
+        "source_evidence": [
+          "ai_platform/wickhunter/production_market_evidence_daemon.py:64-98,101-137",
+          "ai_platform/wickhunter/production_market_evidence_daemon_v2.py:55-89,92-123",
+          "deploy/synology/wickhunter-market-evidence/healthcheck.py:11-29",
+          "deploy/synology/wickhunter-market-evidence-v2/healthcheck_v2.py:11-31",
+          ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml:175-200",
+          ".github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml:174-199"
+        ],
+        "validation_evidence": "For both v1 and v2, a missing request produced blocked/CAPTURE_REQUEST_UNAVAILABLE, healthy=true, healthcheck exit 0 and a passing deployment-workflow predicate.",
+        "impact": "Deployment can report ready and release the runner while capture cannot initialize.",
+        "prerequisites": ["missing, unreadable or mis-mounted immutable request before initialization"],
+        "duplicate_analysis": {
+          "relationship": "partial_overlap",
+          "with": ["WH-ME-AUD-006"],
+          "detail": "False readiness differs from crash resumability. Open PR #833 coordinates historical recovery but does not change the accepted state sets."
+        },
+        "recommendation": "Separate liveness from readiness and permit only explicit deployment-phase readiness states; exclude blocked and CAPTURE_REQUEST_UNAVAILABLE."
+      }
+    ]
+  },
   "findings": [
     {
       "id": "WH-ME-AUD-001",
@@ -261,42 +389,42 @@
     },
     {
       "id": "WH-ME-AUD-011",
-      "title": "No exact-head CI evidence exists for the audited develop SHA",
+      "title": "Exact-head general CI exists but dedicated Market Evidence assurance is absent",
       "area": "validation_assurance",
-      "classification": "UNKNOWN",
+      "classification": "PARTIAL",
       "severity": "INFO",
       "confidence": "high",
       "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
       "evidence": [
         {
           "source": "GitHub commit status and workflow-run queries for 6419138e170844d0eb09d9381b4435900d802ab9",
-          "detail": "Combined status contained no contexts and the workflow-run query returned no runs."
+          "detail": "Legacy combined status has no contexts, but Actions runs 30696775622 and 30696775642 are exact-head pull_request successes; equivalent push runs also succeeded."
         },
         {
-          "source": "local capability probe",
-          "detail": "git ls-remote failed with exit 128: Could not resolve host: github.com; therefore checkout-based focused tests could not be executed in this sandbox."
+          "source": "exact-head workflow coverage inspection",
+          "detail": "No exact-head dedicated WickHunter Market Evidence, Portal npm/Playwright or Compose workflow ran; documentation deployment run 30696709213 failed while fetching gh-pages."
         }
       ],
-      "impact": "Historical green CI proves prior heads, not the exact audited baseline after 190 subsequent commits and shared identity/deployment changes.",
-      "recommendation": "Run the dedicated Market Evidence workflow and focused local checks on the exact audited SHA or a validation branch that contains only audit artifacts.",
+      "impact": "Broad Python and core regressions were checked at the exact SHA, but the workflows that directly exercise the disputed integration, browser and deployment paths remain absent.",
+      "recommendation": "Run the dedicated Market Evidence workflow on the exact implementation SHA or a validation ref containing no product changes.",
       "related_findings": ["WH-ME-AUD-012"]
     },
     {
       "id": "WH-ME-AUD-012",
-      "title": "Independent fresh-session validation has not been executed",
+      "title": "Independent fresh-session validation completed",
       "area": "validation_assurance",
-      "classification": "UNKNOWN",
+      "classification": "RESOLVED",
       "severity": "INFO",
       "confidence": "high",
       "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
       "evidence": [
         {
           "source": "docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md",
-          "detail": "Primary audit is ready_for_validation; no separate validator session or validation verdict is recorded."
+          "detail": "Session independent-validator-20260801-1 reproduced all four HIGH findings, reconciled exact-head CI and post-freeze scope, and recorded a FAIL verdict."
         }
       ],
-      "impact": "The severity calibration and evidence chains for HIGH findings have not received the required independent re-check.",
-      "recommendation": "Rotate to a fresh validation session in the same task, confirm the exact head, reproduce the four HIGH findings and append a validator verdict without changing implementation.",
+      "impact": "The former assurance gap is closed; all four findings remain CONFIRMED/HIGH with high confidence.",
+      "recommendation": "Proceed to separately authorized remediation; do not treat independent validation as implementation approval.",
       "related_findings": ["WH-ME-AUD-011"]
     }
   ]

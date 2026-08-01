@@ -155,9 +155,7 @@ class ShadowRuntime:
         peak = max(self.state.peak_equity_quote, equity)
         drawdown = _quantize((peak - equity) / peak)
         if drawdown >= self.policy.maximum_drawdown_ratio:
-            breaker_reasons = tuple(
-                sorted({*breaker_reasons, "maximum_drawdown_exceeded"})
-            )
+            breaker_reasons = tuple(sorted({*breaker_reasons, "maximum_drawdown_exceeded"}))
 
         decision_ids = tuple(item.shadow_decision_id for item in decisions)
         combined_decision_ids = (*self.state.recent_decision_ids, *decision_ids)

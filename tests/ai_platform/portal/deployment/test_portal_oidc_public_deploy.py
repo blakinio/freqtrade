@@ -225,7 +225,7 @@ def test_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
     assert "public_ingress_authorized" in workflow
     assert "if: always()" in workflow
     assert "python3 deploy/synology/portal-oidc/deploy_entrypoint.py" in workflow
-    assert "python3 deploy/synology/portal-oidc/deploy.py \\" not in workflow
+    assert "python3 deploy/synology/portal-oidc/deploy.py" not in workflow
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in workflow
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
     assert "actions/checkout@v" not in workflow

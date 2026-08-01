@@ -39,8 +39,9 @@ Cryptographically bind the accepted Liquid20 production import to the independen
 - focused functional tests passed on the initial implementation head;
 - all reported Ruff/import/format findings were repaired mechanically;
 - the one-shot autofix removed itself from the branch;
+- the full `mypy --all-files` hook passed after disambiguating the materialization tuple keys;
 - the current PR changes exactly the implementation, focused tests and this task record;
-- a clean exact-head AI Platform, full Freqtrade and security run is in progress.
+- regular exact-head workflows on bot-authored head `e985cb1ca5d180fab11cea9173ef8c5adfa1ed75` were `action_required` without jobs, so this meaningful checkpoint records the completed mypy repair and triggers normal exact-head CI.
 
 ## Acceptance
 
@@ -49,3 +50,55 @@ Cryptographically bind the accepted Liquid20 production import to the independen
 - implementation merges normally before the trusted-runner materialization request;
 - the real materialization produces at least one partition and row;
 - final verification reports `wh01_ready=true`, `wh01_blocker=null`, `protected_holdout_accessed=false`, `model_execution_authorized=false` and `orders_submitted=0`.
+
+## Context checkpoint
+
+```yaml
+checkpoint_version: 1
+updated_at: 2026-08-01T08:36:00+02:00
+head: checkpoint commit with parent e985cb1ca5d180fab11cea9173ef8c5adfa1ed75
+branch: agent/wickhunter-wh01-production-materialization
+pr: "#899"
+status: validating
+context_routes:
+  - AGENTS.md
+  - docs/agents/CONTEXT_HANDOFF.md
+  - docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md
+  - ai_platform/wickhunter/production_dataset_materialization.py
+  - tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py
+owned_paths:
+  - ai_platform/wickhunter/production_dataset_materialization.py
+  - tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py
+  - docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md
+proven:
+  - develop remains 55b63820f50976e3fcf605f1cea0810183d2b842 and PR #899 is behind_by=0
+  - PR #899 changes exactly the three owned paths
+  - full mypy --all-files passed after source_key and quality_key disambiguation
+  - temporary autofix and mypy one-shot workflows are absent from the final diff
+  - regular workflows on e985cb1ca5d180fab11cea9173ef8c5adfa1ed75 ended action_required without jobs
+  - the only unresolved review thread is outdated and targets the removed mypy one-shot workflow
+derived:
+  - a normal user-authored checkpoint commit is required to obtain runnable exact-head CI
+unknown:
+  - exact results of the new AI Platform CI, Freqtrade CI, pre-commit and security runs
+conflicts: []
+first_failure:
+  marker: action_required
+  evidence: workflow runs 30687914521, 30687914519, 30687914516 and 30687914518 created no jobs on the bot-authored head
+rejected_hypotheses:
+  - action_required is not evidence of an implementation failure because no jobs ran
+changed_paths:
+  - docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md
+validation:
+  - command: compare develop...agent/wickhunter-wh01-production-materialization
+    result: PASS
+    evidence: ahead_by=10 behind_by=0 and exactly three owned files
+  - command: list PR #899 review threads
+    result: FAIL
+    evidence: one outdated unresolved zizmor thread remains for a deleted workflow
+  - command: fetch exact-head workflow runs for e985cb1ca5d180fab11cea9173ef8c5adfa1ed75
+    result: BLOCKED
+    evidence: four regular workflows concluded action_required without jobs
+blockers: []
+next_action: verify the new checkpoint head, resolve the outdated review thread, and drive all exact-head workflows to green
+```

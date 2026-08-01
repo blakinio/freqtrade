@@ -1,11 +1,13 @@
 ---
 task_id: FTAI-20260802-delivery-closeout-v21
-status: validating
-branch: docs/agent-closeout-vertical-slice-v21-20260802
+status: completed
+branch: develop
 base_branch: develop
 created: 2026-08-02
 updated: 2026-08-02
+completed: 2026-08-02
 related_pr: "#989"
+merge_commit: e1bc942133c6bce84b6cd40eb16e8cd7e56c3624
 required_reads:
   - AGENTS.md
   - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
@@ -17,18 +19,18 @@ search_first:
 
 # Delivery completeness and closeout v2.1
 
-## Objective
+## Terminal result
 
-Require eval-driven prompt governance, explicit trust boundaries, complete producer/consumer delivery, independent audit, real E2E and terminal related-PR state before completion.
+PR #989 merged the normative delivery-completeness and closeout contract to `develop` as `e1bc942133c6bce84b6cd40eb16e8cd7e56c3624`.
 
-## Scope
+The contract now requires prompt eval discipline, trust boundaries, explicit delivery classification, complete producer/consumer or frontend/backend integration, independent audit, real E2E, exact-head required CI, zero unresolved review threads and terminal related-PR states before substantial work may be called complete.
 
-Documentation and agent governance only. No trading, strategy, protected data, credentials, orders, live capital, deployment or runtime mutation.
+Trading, protected-data, credential, order, deployment and live-capital boundaries remain unchanged.
 
-## Acceptance
+## Validation
 
-- [x] Add the normative closeout contract.
-- [x] Require full-stack or explicit producer/consumer classification.
-- [x] Require independent audit, real E2E and exact-head CI.
-- [x] Require all related and superseded PRs to be terminal.
-- [ ] Pass required CI and merge.
+- Freqtrade CI: PASS on feature head `92683313783e506c831fefa47daec0ed19c4f249`.
+- GitHub Actions security analysis: PASS.
+- Related implementation PR #989: merged.
+- Material findings: 0.
+- Open related PRs after this closeout PR merges: 0.

@@ -30,16 +30,21 @@ jobs:
           from pathlib import Path
 
           path = Path("tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py")
-          text = path.read_text(encoding="utf-8")
-          old = """    assert (
-              selection.requested_start_ms
-              <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS
-          )
-          """
-          new = "    assert selection.requested_start_ms <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS\n"
-          if text.count(old) != 1:
+          lines = path.read_text(encoding="utf-8").splitlines()
+          expected = [
+              "    assert (",
+              "        selection.requested_start_ms",
+              "        <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS",
+              "    )",
+          ]
+          matches = [index for index in range(len(lines) - 3) if lines[index:index + 4] == expected]
+          if len(matches) != 1:
               raise SystemExit("formatter anchor mismatch")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          index = matches[0]
+          lines[index:index + 4] = [
+              "    assert selection.requested_start_ms <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS"
+          ]
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
           PY
           rm .github/workflows/wickhunter-wh01-format-autofix.yml
           git diff --check

@@ -25,7 +25,7 @@ def main() -> int:
         "portal_oidc_discovery",
         DEPLOYMENT_DIR / "diagnose_discovery.py",
     )
-    deploy._discovery_from_identity_container = lambda: discovery.deployment_probe(
+    deploy._discovery_from_identity_container = lambda: discovery.deployment_probe(  # type: ignore[attr-defined]
         deploy.DeploymentError
     )
     return int(deploy.main())

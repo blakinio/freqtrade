@@ -69,7 +69,7 @@ class ShadowRuntime:
                 raise ShadowRuntimeError("persisted runtime policy does not match")
             self.state = loaded
 
-    def step(self, tick: ShadowRuntimeTick) -> ShadowRuntimeStepResult:  # noqa: C901
+    def step(self, tick: ShadowRuntimeTick) -> ShadowRuntimeStepResult:
         if (
             self.state.last_observed_at_ms is not None
             and tick.observed_at_ms <= self.state.last_observed_at_ms

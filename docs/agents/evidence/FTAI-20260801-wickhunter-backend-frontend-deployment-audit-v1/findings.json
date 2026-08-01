@@ -1,0 +1,303 @@
+{
+  "schema_version": 1,
+  "task_id": "FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1",
+  "audited_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+  "findings": [
+    {
+      "id": "WH-ME-AUD-001",
+      "title": "Portal projects package rows without verifying the immutable evidence chain",
+      "area": "portal_bff_api",
+      "classification": "PROVEN",
+      "severity": "HIGH",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/portal/web/lib/market-evidence/reader.ts:519-604",
+          "detail": "loadCompletedRun validates run IDs, authority flags and verification.outcome, then reads NDJSON directly; it does not verify manifest self-hash, artifact SHA-256, sizes or artifact-sha256.txt."
+        },
+        {
+          "source": "ai_platform/portal/web/lib/market-evidence/reader-v2.ts:382-458",
+          "detail": "latestV2Package applies metadata predicates and directly loads normalized rows without cryptographic verification."
+        },
+        {
+          "source": "docs/ai_platform/portal/MARKET_EVIDENCE_READ_MODEL.md",
+          "detail": "The contract describes a projection of durable immutable runs, so omission of digest verification breaks the stated trust boundary."
+        }
+      ],
+      "impact": "A corrupted or substituted normalized row can be returned as accepted/healthy by the BFF while the immutable package verifier would reject it. Portal status and UI therefore do not preserve evidence integrity end to end.",
+      "recommendation": "Before projecting any completed package, execute a read-only verifier that checks manifest self-hash, every declared artifact SHA-256 and size, checksum index, run/request/binding identities, authority flags and row-count geometry. Fail closed to UNAVAILABLE.",
+      "related_findings": ["WH-ME-AUD-002", "WH-ME-AUD-007"]
+    },
+    {
+      "id": "WH-ME-AUD-002",
+      "title": "OKX supplement verifier follows intermediate-directory symlinks outside the package root",
+      "area": "backend_v2_integrity",
+      "classification": "PROVEN",
+      "severity": "HIGH",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_v2.py:1184-1237",
+          "detail": "verify_supplement rejects unsafe relative components and a symlink at the final path, but does not inspect intermediate components or prove resolved containment before hashing."
+        },
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_service_v2.py:86-124",
+          "detail": "_safe_member shows the stronger required pattern: inspect every component, resolve strictly and require containment."
+        },
+        {
+          "source": "tests/ai_platform_integration/test_wickhunter_production_market_evidence_v2.py",
+          "detail": "Focused v2 tests cover normalization, staleness, confirmed candles and exact coverage, but no intermediate-directory symlink case."
+        }
+      ],
+      "impact": "A package can reference regular files through a symlinked parent such as candles/okx-swap and pass SHA/size checks against files outside the immutable supplement root. This violates path confinement and allows package substitution.",
+      "recommendation": "Use one shared safe-member routine for every verifier and add regression tests for symlinked root, parent directory, final file and traversal to both in-root and out-of-root targets.",
+      "related_findings": ["WH-ME-AUD-001", "WH-ME-AUD-008"]
+    },
+    {
+      "id": "WH-ME-AUD-003",
+      "title": "Market Evidence API authorization accepts any production session-cookie value",
+      "area": "portal_identity_tenant_isolation",
+      "classification": "PROVEN",
+      "severity": "HIGH",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/portal/web/proxy.ts:21-43,74-84",
+          "detail": "All API routes call requireSessionPresence, then continue when a session cookie exists."
+        },
+        {
+          "source": "ai_platform/portal/web/lib/identity.ts:104-132",
+          "detail": "Outside fixture mode, requireBrowserSession only checks that __Host-portal_session exists; it does not validate signature, expiry, revocation, tenant membership or role."
+        },
+        {
+          "source": "ai_platform/portal/web/app/api/market/evidence/summary/route.ts:1-15",
+          "detail": "The Market Evidence route performs no independent session, tenant or RBAC validation."
+        },
+        {
+          "source": "ai_platform/portal/web/e2e/specs/market-evidence.spec.ts:8-96",
+          "detail": "Identity and cross-tenant tests execute only in fixture identity mode, which injects explicit states and does not exercise production cookie validation."
+        }
+      ],
+      "impact": "A direct client can supply an arbitrary cookie value and cross the application-level authentication gate for read-only Market Evidence APIs. The current data is public-market evidence, but the documented tenant/RBAC boundary is not enforced by the application.",
+      "recommendation": "Validate the opaque session against the control-plane/session store on every protected request or use a locally verifiable signed/encrypted session with expiry, revocation version, tenant and role checks. Add production-mode forged-cookie and cross-tenant tests.",
+      "related_findings": []
+    },
+    {
+      "id": "WH-ME-AUD-004",
+      "title": "Collectors and deployment checks report healthy when the immutable request is unavailable",
+      "area": "deployment_readiness",
+      "classification": "PROVEN",
+      "severity": "HIGH",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_daemon.py:55-72,104-132",
+          "detail": "Missing request returns status=blocked, while healthy is true for every status except rejected or failed."
+        },
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_daemon_v2.py:52-70,100-122",
+          "detail": "v2 repeats the same blocked-to-healthy derivation."
+        },
+        {
+          "source": "deploy/synology/wickhunter-market-evidence/healthcheck.py:10-27 and deploy/synology/wickhunter-market-evidence-v2/healthcheck_v2.py:10-29",
+          "detail": "Healthchecks validate only healthy=true and freshness."
+        },
+        {
+          "source": ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml:185-226 and v2 workflow:168-207",
+          "detail": "Deployment probes accept any result status not equal to failed or rejected, so blocked is accepted."
+        }
+      ],
+      "impact": "A missing, mis-mounted or unreadable request can produce a healthy container and a successful deployment gate while no capture can start. This is false readiness and can conceal the actual operational blocker.",
+      "recommendation": "Separate liveness from readiness. Require an explicit allowed state set tied to the deployment phase, and reject blocked/CAPTURE_REQUEST_UNAVAILABLE during initialization probes and Docker readiness.",
+      "related_findings": ["WH-ME-AUD-006"]
+    },
+    {
+      "id": "WH-ME-AUD-005",
+      "title": "Completed-candle availability is backdated to close time without enforcing observed availability in WH-01",
+      "area": "backend_temporal_integrity",
+      "classification": "DERIVED",
+      "severity": "MEDIUM",
+      "confidence": "medium",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence.py:733-819",
+          "detail": "Historical candle pages are fetched during finalization and normalized with available_at_ms equal to close_time_ms_exclusive."
+        },
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_v2.py:548-663",
+          "detail": "v2 records fetched_at_ms but still sets available_at_ms to candle close."
+        },
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_wh01.py:340-379,825-856",
+          "detail": "WH-01 selects candles only by close_time_ms_exclusive and assigns candle-derived metrics available_at_ms=decision_ms; it does not require row.available_at_ms or fetched_at_ms <= decision_ms."
+        }
+      ],
+      "impact": "The package proves that exchange history was fetched after the interval, but the materialized model treats each candle as decision-time available. This does not prove point-in-time observability and permits restated/post-hoc data to be represented as prospective evidence.",
+      "recommendation": "Define observed availability explicitly. Preserve fetched/received time, refuse any row not actually observed by the decision cutoff for prospective use, or label the dataset historical-only and prevent it from satisfying prospective WH-01 readiness.",
+      "related_findings": ["WH-ME-AUD-001"]
+    },
+    {
+      "id": "WH-ME-AUD-006",
+      "title": "Crash recovery is fail-closed but not restart-resumable at sample and finalization boundaries",
+      "area": "backend_restart_recovery",
+      "classification": "PROVEN",
+      "severity": "MEDIUM",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence.py:615-715,970-1055",
+          "detail": "An existing sample-attempt marker becomes a failed sample; an interrupted finalization marker causes terminal rejection rather than deterministic resume."
+        },
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_service.py:198-286",
+          "detail": "Partial enrichment with only one of the expected files present cannot be repaired because writes are no-overwrite."
+        },
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_v2.py:858-1000",
+          "detail": "An existing sample root causes failure; there is no staged sample commit or recovery verifier."
+        }
+      ],
+      "impact": "SIGKILL, host restart or storage interruption at a narrow write boundary can permanently reject an otherwise valid prospective run, reducing availability and requiring a new immutable request window.",
+      "recommendation": "Use per-sample staging directories plus atomic rename, verify-and-resume completed stages, and make finalization idempotently resumable without weakening no-overwrite guarantees.",
+      "related_findings": ["WH-ME-AUD-004"]
+    },
+    {
+      "id": "WH-ME-AUD-007",
+      "title": "Portal cannot classify an old completed immutable package as STALE",
+      "area": "portal_status_derivation",
+      "classification": "PROVEN",
+      "severity": "MEDIUM",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/portal/web/lib/market-evidence/reader.ts:286-343",
+          "detail": "The stale predicate includes latest.run.state !== completed even though latest is selected only from completed runs, making the predicate always false."
+        },
+        {
+          "source": "docs/ai_platform/portal/MARKET_EVIDENCE_READ_MODEL.md",
+          "detail": "STALE is documented as a first-class status and the stale threshold is configurable."
+        }
+      ],
+      "impact": "An arbitrarily old completed package remains BLOCKED, LIVE or DEGRADED and cannot surface age-based staleness, hiding operational data-age risk.",
+      "recommendation": "Define separate freshness rules for active acquisition and latest immutable evidence, derive STALE from capture/verification time, and add clock-controlled tests for completed packages.",
+      "related_findings": ["WH-ME-AUD-001"]
+    },
+    {
+      "id": "WH-ME-AUD-008",
+      "title": "v1 inner verifier resolves a path before checking whether the declared member is a symlink",
+      "area": "backend_v1_integrity",
+      "classification": "PROVEN",
+      "severity": "LOW",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence.py:893-909",
+          "detail": "_verify_file_identity resolves the declared path first and then calls is_symlink on the resolved target, so an in-root symlink is not detected."
+        },
+        {
+          "source": "ai_platform/wickhunter/production_market_evidence_service.py:70-116",
+          "detail": "The outer package service contains a stronger component-wise safe-child check."
+        }
+      ],
+      "impact": "The v1 capture verifier does not enforce its regular-file/no-symlink invariant for links whose resolved target remains inside the run root. Outer publication reduces exposure, but the inner verifier is weaker than declared.",
+      "recommendation": "Validate each unresolved path component before resolving and share the hardened safe-member implementation across v1/v2 verifiers.",
+      "related_findings": ["WH-ME-AUD-002"]
+    },
+    {
+      "id": "WH-ME-AUD-009",
+      "title": "Collector runtime base images are not digest-pinned and CI/runtime patch versions can drift",
+      "area": "supply_chain",
+      "classification": "PROVEN",
+      "severity": "LOW",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "deploy/synology/wickhunter-market-evidence/Dockerfile:1 and deploy/synology/wickhunter-market-evidence-v2/Dockerfile:1",
+          "detail": "Both collectors use python:3.13-slim-bookworm without a digest."
+        },
+        {
+          "source": ".github/workflows/ai-platform-wickhunter-market-evidence-ci.yml:53-64",
+          "detail": "CI requests Python 3.13 without a patch pin."
+        },
+        {
+          "source": "deploy/synology/portal/Dockerfile:1-15",
+          "detail": "Portal demonstrates the stronger digest-pinned base-image pattern."
+        }
+      ],
+      "impact": "A rebuild at the same repository SHA can consume a different Python base and patch level, weakening reproducibility and supply-chain attribution.",
+      "recommendation": "Pin collector bases by digest, record Python patch/package inventory in image labels or SBOM, and align the focused CI patch version with runtime.",
+      "related_findings": []
+    },
+    {
+      "id": "WH-ME-AUD-010",
+      "title": "Durable v2 task state conflicts with the merged repository state",
+      "area": "durable_state",
+      "classification": "CONFLICT",
+      "severity": "LOW",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md:1-151",
+          "detail": "Frontmatter remains status=in_progress; checkpoint remains validating and says PR #836 still needs exact-head CI and merge."
+        },
+        {
+          "source": "PR #836 / merge commit 2e0c2b57376a0a0e4d6389961588d41a0b194115",
+          "detail": "PR #836 is merged; exact head 5d608dd617d6a5e14ee197fc4b34b887d55bbbe2 had successful Market Evidence CI run 30591937630 and other successful workflows."
+        }
+      ],
+      "impact": "A new session following durable state can select obsolete next actions and misreport current readiness.",
+      "recommendation": "Repair the v2 checkpoint in a separate documentation-owned task, preserving historical evidence and recording the merged SHA and terminal workflow IDs.",
+      "related_findings": []
+    },
+    {
+      "id": "WH-ME-AUD-011",
+      "title": "No exact-head CI evidence exists for the audited develop SHA",
+      "area": "validation_assurance",
+      "classification": "UNKNOWN",
+      "severity": "INFO",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "GitHub commit status and workflow-run queries for 6419138e170844d0eb09d9381b4435900d802ab9",
+          "detail": "Combined status contained no contexts and the workflow-run query returned no runs."
+        },
+        {
+          "source": "local capability probe",
+          "detail": "git ls-remote failed with exit 128: Could not resolve host: github.com; therefore checkout-based focused tests could not be executed in this sandbox."
+        }
+      ],
+      "impact": "Historical green CI proves prior heads, not the exact audited baseline after 190 subsequent commits and shared identity/deployment changes.",
+      "recommendation": "Run the dedicated Market Evidence workflow and focused local checks on the exact audited SHA or a validation branch that contains only audit artifacts.",
+      "related_findings": ["WH-ME-AUD-012"]
+    },
+    {
+      "id": "WH-ME-AUD-012",
+      "title": "Independent fresh-session validation has not been executed",
+      "area": "validation_assurance",
+      "classification": "UNKNOWN",
+      "severity": "INFO",
+      "confidence": "high",
+      "affected_head": "6419138e170844d0eb09d9381b4435900d802ab9",
+      "evidence": [
+        {
+          "source": "docs/agents/tasks/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1.md",
+          "detail": "Primary audit is ready_for_validation; no separate validator session or validation verdict is recorded."
+        }
+      ],
+      "impact": "The severity calibration and evidence chains for HIGH findings have not received the required independent re-check.",
+      "recommendation": "Rotate to a fresh validation session in the same task, confirm the exact head, reproduce the four HIGH findings and append a validator verdict without changing implementation.",
+      "related_findings": ["WH-ME-AUD-011"]
+    }
+  ]
+}

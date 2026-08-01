@@ -1,0 +1,1017 @@
+name: WickHunter WH-02 Exact Replay Price Path Request v2
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh02-replay-price-path-request-v2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh02-replay-price-path-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh02-replay-price-path-request-v2.yml
+  SOURCE_COMMIT_SHA: 6419138e170844d0eb09d9381b4435900d802ab9
+  DATASET_MATERIALIZATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573
+  EXPECTED_DATASET_ID: wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573
+  EXPECTED_DATASET_MANIFEST_SHA256: 3b0a052d13c8d3684a9bf63712ee00d5a9c09343d14e628c6611a444024b2d51
+  EXPECTED_DATASET_MANIFEST_FILE_SHA256: dfddc58ffc7e768d53883bea85dbb860cb0397f3d6995d600c2540530d274bae
+  EXPECTED_DATASET_MATERIALIZATION_SHA256: ee4588d56918a79a690ffad965ab4e13014bfd79656880ad4c71bc728c468778
+  EXPECTED_DATASET_SOURCE_BINDING_SHA256: 9d4f30c61a9810250ff8786cca69e916e4fe19d8cdfe5d20483150af0ed159bd
+  MARKET_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1/immutable-package
+  EXPECTED_MARKET_MANIFEST_SHA256: eaccc5ecaf7a9514086e99d719d0cb4c5ef8a9c87e3f0c30c501e1860c05fb52
+  REQUESTED_DATE: "2026-07-31"
+  REQUESTED_START_MS: "1785484861174"
+  MINIMUM_HORIZON_END_MS: "1785521459257"
+  LABEL_HORIZON_MS: "900000"
+  PROTECTED_HOLDOUT_START_MS: "1785542400000"
+  PACKAGE_ID: wickhunter-wh02-replay-price-path-20260731-v2-6419138e1708
+  INPUT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/sources/binance-usdm-aggtrades-20260731-v2
+  OUTPUT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v2-6419138e1708
+  MAX_TOTAL_ARCHIVE_BYTES: "26843545600"
+
+jobs:
+  acquire-materialize-verify:
+    name: Acquire official aggTrades and verify exact WH-02 path
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact one-file scope and trusted runner
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$SOURCE_COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$SOURCE_COMMIT_SHA" "$BASE_SHA"
+          git merge-base --is-ancestor "$SOURCE_COMMIT_SHA" "$HEAD_SHA"
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$SOURCE_COMMIT_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh02-replay-price-path-request-v2.yml'
+          actual="$(git diff --name-status "$SOURCE_COMMIT_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact one-file request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Acquire, materialize, and independently verify
+        id: terminal
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONPATH=. python3 - <<'PY'
+          import csv
+          import hashlib
+          import io
+          import json
+          import os
+          import re
+          import ssl
+          import subprocess
+          import sys
+          import tempfile
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          import zipfile
+          from pathlib import Path, PurePosixPath
+
+          from ai_platform.wickhunter.replay_price_path import load_request
+
+          HOST = "data.binance.vision"
+          URL_PREFIX = "/data/futures/um/daily/aggTrades/"
+          MAX_ARCHIVE_BYTES = 2 * 1024 * 1024 * 1024
+          MAX_CHECKSUM_BYTES = 4096
+          MAX_UNCOMPRESSED_BYTES = 8 * 1024 * 1024 * 1024
+          MAX_ARCHIVE_ROWS = 25_000_000
+          MAX_COMPRESSION_RATIO = 200
+          CHECKSUM_RE = re.compile(r"^([0-9a-fA-F]{64})\s+[* ]?([^\s]+)$")
+          SYMBOL_RE = re.compile(r"^[A-Z0-9]{3,32}$")
+
+          evidence_root = Path(os.environ["RUNNER_TEMP"]) / "wh02-evidence"
+          evidence_root.mkdir(parents=True, exist_ok=True)
+
+          def canonical_bytes(payload: object) -> bytes:
+              return (
+                  json.dumps(
+                      payload,
+                      sort_keys=True,
+                      separators=(",", ":"),
+                      ensure_ascii=False,
+                  )
+                  + "\n"
+              ).encode("utf-8")
+
+          def write_json(name: str, payload: object) -> Path:
+              path = evidence_root / name
+              path.write_bytes(canonical_bytes(payload))
+              return path
+
+          def require(condition: bool, message: str) -> None:
+              if not condition:
+                  raise RuntimeError(message)
+
+          def sha256_file(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          def regular_directory(path: Path, label: str, writable: bool = False) -> None:
+              require(path.is_dir() and not path.is_symlink(), f"{label} is not a regular directory")
+              if writable:
+                  require(os.access(path, os.W_OK), f"{label} is not writable")
+
+          def run_json(name: str, arguments: list[str]) -> dict:
+              completed = subprocess.run(
+                  arguments,
+                  cwd=Path.cwd(),
+                  env={**os.environ, "PYTHONPATH": "."},
+                  text=True,
+                  stdout=subprocess.PIPE,
+                  stderr=subprocess.PIPE,
+                  check=False,
+              )
+              (evidence_root / f"{name}.stderr.txt").write_text(
+                  completed.stderr,
+                  encoding="utf-8",
+              )
+              (evidence_root / f"{name}.stdout.txt").write_text(
+                  completed.stdout,
+                  encoding="utf-8",
+              )
+              require(completed.returncode == 0, f"command failed: {name}")
+              try:
+                  payload = json.loads(completed.stdout)
+              except json.JSONDecodeError as exc:
+                  raise RuntimeError(f"command did not emit JSON: {name}") from exc
+              require(isinstance(payload, dict), f"command emitted non-object JSON: {name}")
+              write_json(f"{name}.json", payload)
+              return payload
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise urllib.error.HTTPError(
+                      req.full_url,
+                      code,
+                      "redirect denied",
+                      headers,
+                      fp,
+                  )
+
+          opener = urllib.request.build_opener(
+              urllib.request.ProxyHandler({}),
+              NoRedirect(),
+              urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+          )
+
+          def validate_public_url(url: str) -> None:
+              parsed = urllib.parse.urlsplit(url)
+              require(parsed.scheme == "https", f"non-HTTPS source URL: {url}")
+              require(parsed.hostname == HOST, f"unexpected source host: {url}")
+              require(parsed.port in (None, 443), f"unexpected source port: {url}")
+              require(parsed.path.startswith(URL_PREFIX), f"unexpected source path: {url}")
+              require(not parsed.query and not parsed.fragment, f"source URL has query or fragment: {url}")
+
+          def download_to_temp(url: str, maximum_bytes: int, directory: Path) -> tuple[Path, int]:
+              validate_public_url(url)
+              request = urllib.request.Request(
+                  url,
+                  method="GET",
+                  headers={
+                      "Accept": "application/octet-stream",
+                      "Accept-Encoding": "identity",
+                      "User-Agent": "freqtrade-wickhunter-wh02/2",
+                  },
+              )
+              try:
+                  response = opener.open(request, timeout=180)
+              except urllib.error.HTTPError as exc:
+                  raise RuntimeError(
+                      f"public-data request failed: status={exc.code} url={url}"
+                  ) from exc
+              except urllib.error.URLError as exc:
+                  raise RuntimeError(f"public-data request failed: url={url}") from exc
+              with response:
+                  require(getattr(response, "status", None) == 200, f"non-200 source response: {url}")
+                  require(response.geturl() == url, f"source response URL changed: {url}")
+                  content_encoding = response.headers.get("Content-Encoding")
+                  require(
+                      content_encoding in (None, "", "identity"),
+                      f"unexpected content encoding: {url}",
+                  )
+                  raw_length = response.headers.get("Content-Length")
+                  require(
+                      isinstance(raw_length, str) and raw_length.isdigit(),
+                      f"missing bounded Content-Length: {url}",
+                  )
+                  expected_length = int(raw_length)
+                  require(
+                      0 < expected_length <= maximum_bytes,
+                      f"source content length outside bound: bytes={expected_length} url={url}",
+                  )
+                  file_descriptor, temp_name = tempfile.mkstemp(
+                      prefix=".download.",
+                      dir=directory,
+                  )
+                  temp_path = Path(temp_name)
+                  total = 0
+                  try:
+                      with os.fdopen(file_descriptor, "wb") as handle:
+                          while True:
+                              chunk = response.read(1024 * 1024)
+                              if not chunk:
+                                  break
+                              total += len(chunk)
+                              require(
+                                  total <= expected_length and total <= maximum_bytes,
+                                  f"download exceeded bound: {url}",
+                              )
+                              handle.write(chunk)
+                          handle.flush()
+                          os.fsync(handle.fileno())
+                      require(
+                          total == expected_length,
+                          f"download length mismatch: expected={expected_length} actual={total} url={url}",
+                      )
+                      return temp_path, total
+                  except BaseException:
+                      temp_path.unlink(missing_ok=True)
+                      raise
+
+          def install_or_match(temp_path: Path, target: Path) -> None:
+              if target.exists() or target.is_symlink():
+                  require(
+                      target.is_file() and not target.is_symlink(),
+                      f"immutable input is not a regular file: {target.name}",
+                  )
+                  require(
+                      sha256_file(target) == sha256_file(temp_path),
+                      f"existing immutable input differs: {target.name}",
+                  )
+                  temp_path.unlink()
+                  return
+              temp_path.replace(target)
+
+          def safe_partition_path(dataset_root: Path, relative_path: object) -> Path:
+              require(isinstance(relative_path, str), "dataset partition path missing")
+              pure = PurePosixPath(relative_path)
+              require(
+                  not pure.is_absolute() and all(part not in {"", ".", ".."} for part in pure.parts),
+                  "unsafe dataset partition path",
+              )
+              path = dataset_root.joinpath(*pure.parts)
+              require(path.is_file() and not path.is_symlink(), "dataset partition is not a regular file")
+              return path
+
+          def main() -> dict:
+              dataset_materialization_root = Path(os.environ["DATASET_MATERIALIZATION_ROOT"])
+              market_root = Path(os.environ["MARKET_PACKAGE_ROOT"])
+              input_root = Path(os.environ["INPUT_ROOT"])
+              output_root = Path(os.environ["OUTPUT_ROOT"])
+              state_root = Path("/var/lib/freqtrade-staging-state")
+              regular_directory(state_root, "state root", writable=True)
+              regular_directory(dataset_materialization_root, "dataset materialization root")
+              regular_directory(market_root, "market package root")
+              input_root.parent.mkdir(parents=True, exist_ok=True)
+              output_root.parent.mkdir(parents=True, exist_ok=True)
+              regular_directory(input_root.parent, "input parent", writable=True)
+              regular_directory(output_root.parent, "output parent", writable=True)
+              if input_root.exists() or input_root.is_symlink():
+                  regular_directory(input_root, "input root", writable=True)
+              if output_root.exists() or output_root.is_symlink():
+                  regular_directory(output_root, "output root")
+
+              dataset_verification = run_json(
+                  "dataset-verification",
+                  [
+                      sys.executable,
+                      "-m",
+                      "ai_platform.wickhunter.production_dataset_materialization",
+                      "verify",
+                      "--output-root",
+                      str(dataset_materialization_root),
+                  ],
+              )
+              market_verification = run_json(
+                  "market-verification",
+                  [
+                      sys.executable,
+                      "-m",
+                      "ai_platform.wickhunter.production_market_evidence_intersection",
+                      "verify",
+                      "--package-root",
+                      str(market_root),
+                  ],
+              )
+
+              dataset_root = dataset_materialization_root / "dataset"
+              regular_directory(dataset_root, "dataset root")
+              dataset_manifest_path = dataset_root / "manifest.json"
+              require(
+                  dataset_manifest_path.is_file() and not dataset_manifest_path.is_symlink(),
+                  "dataset manifest is not a regular file",
+              )
+              dataset_manifest = json.loads(dataset_manifest_path.read_text(encoding="utf-8"))
+              market_manifest = json.loads((market_root / "manifest.json").read_text(encoding="utf-8"))
+              materialization_manifest = json.loads(
+                  (dataset_materialization_root / "materialization-manifest.json").read_text(
+                      encoding="utf-8"
+                  )
+              )
+              source_binding = json.loads(
+                  (dataset_materialization_root / "source-binding.json").read_text(encoding="utf-8")
+              )
+
+              require(
+                  dataset_materialization_root.name == os.environ["EXPECTED_DATASET_ID"],
+                  "dataset ID/root mismatch",
+              )
+              require(
+                  dataset_manifest.get("manifest_sha256")
+                  == os.environ["EXPECTED_DATASET_MANIFEST_SHA256"],
+                  "dataset manifest SHA-256 mismatch",
+              )
+              require(
+                  sha256_file(dataset_manifest_path)
+                  == os.environ["EXPECTED_DATASET_MANIFEST_FILE_SHA256"],
+                  "dataset manifest file SHA-256 mismatch",
+              )
+              require(
+                  materialization_manifest.get("materialization_sha256")
+                  == os.environ["EXPECTED_DATASET_MATERIALIZATION_SHA256"],
+                  "dataset materialization SHA-256 mismatch",
+              )
+              require(
+                  source_binding.get("binding_sha256")
+                  == os.environ["EXPECTED_DATASET_SOURCE_BINDING_SHA256"],
+                  "dataset source binding SHA-256 mismatch",
+              )
+              require(dataset_verification.get("outcome") == "accepted", "dataset verifier rejected root")
+              require(dataset_verification.get("wh01_ready") is True, "WH-01 dataset is not ready")
+              require(market_verification.get("outcome") == "accepted", "market verifier rejected package")
+              require(
+                  market_manifest.get("manifest_sha256")
+                  == os.environ["EXPECTED_MARKET_MANIFEST_SHA256"],
+                  "market manifest SHA-256 mismatch",
+              )
+              require(dataset_manifest.get("total_rows") == 919, "dataset row count mismatch")
+              require(
+                  dataset_manifest.get("earliest_decision_timestamp_ms")
+                  == int(os.environ["REQUESTED_START_MS"]),
+                  "dataset earliest decision mismatch",
+              )
+              latest_decision = dataset_manifest.get("latest_decision_timestamp_ms")
+              require(latest_decision == 1785520559257, "dataset latest decision mismatch")
+              require(
+                  latest_decision + int(os.environ["LABEL_HORIZON_MS"])
+                  == int(os.environ["MINIMUM_HORIZON_END_MS"]),
+                  "dataset horizon boundary mismatch",
+              )
+
+              partitions = dataset_manifest.get("partitions")
+              require(isinstance(partitions, list) and partitions, "dataset partitions missing")
+              latest_decisions: dict[str, int] = {}
+              observed_rows = 0
+              for partition in partitions:
+                  require(isinstance(partition, dict), "invalid dataset partition entry")
+                  path = safe_partition_path(dataset_root, partition.get("relative_path"))
+                  partition_rows = 0
+                  with path.open(encoding="utf-8") as handle:
+                      for line in handle:
+                          require(bool(line.strip()), "blank dataset partition line")
+                          row = json.loads(line)
+                          symbol = str(row["symbol"]).upper()
+                          require(bool(SYMBOL_RE.fullmatch(symbol)), f"invalid dataset symbol: {symbol}")
+                          decision_ms = int(row["decision_timestamp_ms"])
+                          latest_decisions[symbol] = max(latest_decisions.get(symbol, 0), decision_ms)
+                          partition_rows += 1
+                          observed_rows += 1
+                  require(
+                      partition_rows == partition.get("row_count"),
+                      "dataset partition row count mismatch",
+                  )
+              require(observed_rows == 919, "observed dataset row count mismatch")
+              symbols = sorted(latest_decisions)
+              require(len(symbols) == 20, f"expected 20 symbols, got {len(symbols)}")
+              symbol_horizons = {
+                  symbol: latest_decisions[symbol] + int(os.environ["LABEL_HORIZON_MS"])
+                  for symbol in symbols
+              }
+              require(
+                  max(symbol_horizons.values()) == int(os.environ["MINIMUM_HORIZON_END_MS"]),
+                  "per-symbol horizon maximum mismatch",
+              )
+              write_json(
+                  "frozen-source-evidence.json",
+                  {
+                      "dataset_id": dataset_materialization_root.name,
+                      "dataset_manifest_sha256": dataset_manifest["manifest_sha256"],
+                      "dataset_manifest_file_sha256": sha256_file(dataset_manifest_path),
+                      "dataset_materialization_sha256": materialization_manifest[
+                          "materialization_sha256"
+                      ],
+                      "dataset_source_binding_sha256": source_binding["binding_sha256"],
+                      "market_manifest_sha256": market_manifest["manifest_sha256"],
+                      "decision_count": observed_rows,
+                      "symbol_count": len(symbols),
+                      "symbols": symbols,
+                      "protected_holdout_accessed": False,
+                      "replay_authorized": False,
+                      "model_execution_authorized": False,
+                      "performance_research_authorized": False,
+                      "execution_enabled": False,
+                      "live_capital_authorized": False,
+                      "trading_credentials_present": False,
+                      "orders_submitted": 0,
+                  },
+              )
+
+              input_root.mkdir(parents=True, exist_ok=True)
+              regular_directory(input_root, "input root", writable=True)
+              raw_root = input_root / "raw"
+              raw_root.mkdir(exist_ok=True)
+              regular_directory(raw_root, "raw input root", writable=True)
+
+              requested_date = os.environ["REQUESTED_DATE"]
+              maximum_total_bytes = int(os.environ["MAX_TOTAL_ARCHIVE_BYTES"])
+              acquisition_records = []
+              total_archive_bytes = 0
+              expected_raw_names = set()
+              for symbol in symbols:
+                  filename = f"{symbol}-aggTrades-{requested_date}.zip"
+                  archive_url = f"https://{HOST}{URL_PREFIX}{symbol}/{filename}"
+                  checksum_url = archive_url + ".CHECKSUM"
+                  archive_path = raw_root / filename
+                  checksum_path = raw_root / (filename + ".CHECKSUM")
+                  expected_raw_names.update({archive_path.name, checksum_path.name})
+
+                  checksum_temp, _ = download_to_temp(
+                      checksum_url,
+                      MAX_CHECKSUM_BYTES,
+                      raw_root,
+                  )
+                  install_or_match(checksum_temp, checksum_path)
+                  checksum_lines = [
+                      line.strip()
+                      for line in checksum_path.read_text(encoding="utf-8").splitlines()
+                      if line.strip()
+                  ]
+                  require(len(checksum_lines) == 1, f"invalid checksum line count: {symbol}")
+                  match = CHECKSUM_RE.fullmatch(checksum_lines[0])
+                  require(match is not None, f"invalid checksum syntax: {symbol}")
+                  require(match.group(2) == filename, f"checksum filename mismatch: {symbol}")
+                  claimed_sha = match.group(1).lower()
+
+                  if archive_path.exists() or archive_path.is_symlink():
+                      require(
+                          archive_path.is_file() and not archive_path.is_symlink(),
+                          f"archive is not a regular file: {symbol}",
+                      )
+                      archive_size = archive_path.stat().st_size
+                      require(
+                          0 < archive_size <= MAX_ARCHIVE_BYTES,
+                          f"existing archive size outside bound: {symbol}",
+                      )
+                  else:
+                      archive_temp, archive_size = download_to_temp(
+                          archive_url,
+                          MAX_ARCHIVE_BYTES,
+                          raw_root,
+                      )
+                      require(
+                          total_archive_bytes + archive_size <= maximum_total_bytes,
+                          "aggregate archive size exceeds workflow bound",
+                      )
+                      require(
+                          sha256_file(archive_temp) == claimed_sha,
+                          f"downloaded archive checksum mismatch: {symbol}",
+                      )
+                      archive_temp.replace(archive_path)
+                  total_archive_bytes += archive_path.stat().st_size
+                  require(
+                      total_archive_bytes <= maximum_total_bytes,
+                      "aggregate archive size exceeds workflow bound",
+                  )
+                  archive_sha = sha256_file(archive_path)
+                  require(archive_sha == claimed_sha, f"archive checksum mismatch: {symbol}")
+                  acquisition_records.append(
+                      {
+                          "symbol": symbol,
+                          "archive_relative_path": f"raw/{filename}",
+                          "archive_url": archive_url,
+                          "archive_size_bytes": archive_path.stat().st_size,
+                          "archive_sha256": archive_sha,
+                          "checksum_relative_path": f"raw/{filename}.CHECKSUM",
+                          "checksum_url": checksum_url,
+                          "checksum_file_sha256": sha256_file(checksum_path),
+                          "checksum_claimed_sha256": claimed_sha,
+                      }
+                  )
+
+              actual_raw_names = {
+                  path.name
+                  for path in raw_root.iterdir()
+                  if path.is_file() and not path.is_symlink()
+              }
+              require(actual_raw_names == expected_raw_names, "raw input root contains unexpected files")
+              require(
+                  all(not path.is_symlink() for path in raw_root.iterdir()),
+                  "raw input root contains a symlink",
+              )
+
+              acquisition_seed = {
+                  "schema_version": "wickhunter-replay-source-acquisition-v1",
+                  "provider_id": "binance-public-data",
+                  "source": "binance-usdm",
+                  "data_kind": "aggTrades",
+                  "requested_date": requested_date,
+                  "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+                  "symbols": symbols,
+                  "archive_count": len(acquisition_records),
+                  "total_archive_bytes": total_archive_bytes,
+                  "archives": acquisition_records,
+                  "public_only": True,
+                  "protected_holdout_accessed": False,
+                  "immutable_inputs_mutated": False,
+                  "replay_authorized": False,
+                  "model_execution_authorized": False,
+                  "performance_research_authorized": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "trading_credentials_present": False,
+                  "orders_submitted": 0,
+              }
+              acquisition_manifest = dict(acquisition_seed)
+              acquisition_manifest["manifest_sha256"] = hashlib.sha256(
+                  json.dumps(
+                      acquisition_seed,
+                      sort_keys=True,
+                      separators=(",", ":"),
+                      ensure_ascii=False,
+                  ).encode("utf-8")
+              ).hexdigest()
+              acquisition_bytes = canonical_bytes(acquisition_manifest)
+              acquisition_path = input_root / "acquisition-manifest.json"
+              if acquisition_path.exists() or acquisition_path.is_symlink():
+                  require(
+                      acquisition_path.is_file() and not acquisition_path.is_symlink(),
+                      "acquisition manifest is not a regular file",
+                  )
+                  require(
+                      acquisition_path.read_bytes() == acquisition_bytes,
+                      "existing immutable acquisition manifest differs",
+                  )
+              else:
+                  with acquisition_path.open("xb") as handle:
+                      handle.write(acquisition_bytes)
+                      handle.flush()
+                      os.fsync(handle.fileno())
+              write_json("acquisition-manifest.json", acquisition_manifest)
+
+              first_trade_at_or_after_horizon: dict[str, int] = {}
+              for symbol in symbols:
+                  archive_path = raw_root / f"{symbol}-aggTrades-{requested_date}.zip"
+                  expected_member_name = archive_path.name.removesuffix(".zip") + ".csv"
+                  with zipfile.ZipFile(archive_path) as archive:
+                      members = [member for member in archive.infolist() if not member.is_dir()]
+                      require(len(members) == 1, f"archive member count mismatch: {symbol}")
+                      member = members[0]
+                      member_path = PurePosixPath(member.filename)
+                      require(
+                          not member_path.is_absolute()
+                          and all(part not in {"", ".", ".."} for part in member_path.parts),
+                          f"unsafe archive member path: {symbol}",
+                      )
+                      require(member_path.name == expected_member_name, f"archive member identity mismatch: {symbol}")
+                      require(not (member.flag_bits & 0x1), f"encrypted archive member: {symbol}")
+                      require(0 < member.file_size <= MAX_UNCOMPRESSED_BYTES, f"archive member size outside bound: {symbol}")
+                      require(member.compress_size > 0, f"archive member compressed size invalid: {symbol}")
+                      require(
+                          member.file_size <= member.compress_size * MAX_COMPRESSION_RATIO,
+                          f"archive compression ratio outside bound: {symbol}",
+                      )
+                      with archive.open(member, "r") as raw_handle:
+                          text_handle = io.TextIOWrapper(
+                              raw_handle,
+                              encoding="utf-8-sig",
+                              newline="",
+                          )
+                          reader = csv.reader(text_handle)
+                          for row_number, row in enumerate(reader, 1):
+                              require(
+                                  row_number <= MAX_ARCHIVE_ROWS,
+                                  f"archive row bound exceeded: {symbol}",
+                              )
+                              if row_number == 1 and (
+                                  len(row) != 7 or not row[5].strip().isdigit()
+                              ):
+                                  continue
+                              require(
+                                  len(row) == 7 and row[5].strip().isdigit(),
+                                  f"invalid aggregate trade row: {symbol}:{row_number}",
+                              )
+                              timestamp_ms = int(row[5])
+                              if timestamp_ms >= symbol_horizons[symbol]:
+                                  first_trade_at_or_after_horizon[symbol] = timestamp_ms
+                                  break
+                  require(
+                      symbol in first_trade_at_or_after_horizon,
+                      f"no post-horizon aggregate trade: {symbol}",
+                  )
+
+              requested_end_ms = max(first_trade_at_or_after_horizon.values())
+              require(
+                  requested_end_ms >= int(os.environ["MINIMUM_HORIZON_END_MS"]),
+                  "derived request end precedes latest horizon",
+              )
+              require(
+                  requested_end_ms < int(os.environ["PROTECTED_HOLDOUT_START_MS"]),
+                  "derived request end overlaps protected holdout",
+              )
+              write_json(
+                  "derived-request-end.json",
+                  {
+                      "requested_end_ms": requested_end_ms,
+                      "first_trade_at_or_after_horizon": first_trade_at_or_after_horizon,
+                  },
+              )
+
+              request_payload = {
+                  "schema_version": "wickhunter-replay-price-path-request-v1",
+                  "package_id": os.environ["PACKAGE_ID"],
+                  "dataset_id": os.environ["EXPECTED_DATASET_ID"],
+                  "dataset_manifest_sha256": os.environ[
+                      "EXPECTED_DATASET_MANIFEST_SHA256"
+                  ],
+                  "market_manifest_sha256": os.environ[
+                      "EXPECTED_MARKET_MANIFEST_SHA256"
+                  ],
+                  "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+                  "requested_date": requested_date,
+                  "requested_start_ms": int(os.environ["REQUESTED_START_MS"]),
+                  "requested_end_ms": requested_end_ms,
+                  "label_horizon_ms": int(os.environ["LABEL_HORIZON_MS"]),
+                  "protected_holdout_start_ms": int(
+                      os.environ["PROTECTED_HOLDOUT_START_MS"]
+                  ),
+                  "symbols": symbols,
+                  "archives": [
+                      {
+                          "symbol": symbol,
+                          "archive_relative_path": (
+                              f"raw/{symbol}-aggTrades-{requested_date}.zip"
+                          ),
+                          "checksum_relative_path": (
+                              f"raw/{symbol}-aggTrades-{requested_date}.zip.CHECKSUM"
+                          ),
+                      }
+                      for symbol in symbols
+                  ],
+                  "public_only": True,
+                  "protected_holdout_excluded": True,
+                  "replay_authorized": False,
+                  "model_execution_authorized": False,
+                  "performance_research_authorized": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "trading_credentials_present": False,
+                  "orders_submitted": 0,
+              }
+              request_bytes = canonical_bytes(request_payload)
+              request_path = evidence_root / "replay-price-path-request.json"
+              request_path.write_bytes(request_bytes)
+              parsed_request = load_request(request_path)
+              write_json(
+                  "request-evidence.json",
+                  {
+                      "package_id": parsed_request.package_id,
+                      "request_sha256": parsed_request.request_sha256,
+                      "dataset_id": parsed_request.dataset_id,
+                      "dataset_manifest_sha256": parsed_request.dataset_manifest_sha256,
+                      "market_manifest_sha256": parsed_request.market_manifest_sha256,
+                      "source_commit_sha": parsed_request.source_commit_sha,
+                      "symbol_count": len(parsed_request.symbols),
+                      "requested_start_ms": parsed_request.requested_start_ms,
+                      "requested_end_ms": parsed_request.requested_end_ms,
+                      "label_horizon_ms": parsed_request.label_horizon_ms,
+                      "protected_holdout_start_ms": parsed_request.protected_holdout_start_ms,
+                      "public_only": parsed_request.public_only,
+                      "protected_holdout_excluded": parsed_request.protected_holdout_excluded,
+                      "replay_authorized": parsed_request.replay_authorized,
+                      "model_execution_authorized": parsed_request.model_execution_authorized,
+                      "performance_research_authorized": (
+                          parsed_request.performance_research_authorized
+                      ),
+                      "execution_enabled": parsed_request.execution_enabled,
+                      "live_capital_authorized": parsed_request.live_capital_authorized,
+                      "trading_credentials_present": parsed_request.trading_credentials_present,
+                      "orders_submitted": parsed_request.orders_submitted,
+                  },
+              )
+
+              if output_root.exists() or output_root.is_symlink():
+                  regular_directory(output_root, "existing output root")
+                  existing_request = output_root / "request.json"
+                  require(
+                      existing_request.is_file() and not existing_request.is_symlink(),
+                      "existing output request is not a regular file",
+                  )
+                  require(
+                      existing_request.read_bytes() == request_bytes,
+                      "existing immutable output request differs",
+                  )
+                  materialization_result = {
+                      "status": "existing-identical-package",
+                      "output_root": str(output_root),
+                  }
+                  write_json("materialization.json", materialization_result)
+              else:
+                  materialization_result = run_json(
+                      "materialization",
+                      [
+                          sys.executable,
+                          "-m",
+                          "ai_platform.wickhunter.replay_price_path",
+                          "materialize",
+                          "--request",
+                          str(request_path),
+                          "--input-root",
+                          str(input_root),
+                          "--materialization-root",
+                          str(dataset_materialization_root),
+                          "--output-root",
+                          str(output_root),
+                      ],
+                  )
+
+              verification = run_json(
+                  "replay-price-path-verification",
+                  [
+                      sys.executable,
+                      "-m",
+                      "ai_platform.wickhunter.replay_price_path",
+                      "verify",
+                      "--output-root",
+                      str(output_root),
+                      "--materialization-root",
+                      str(dataset_materialization_root),
+                      "--input-root",
+                      str(input_root),
+                  ],
+              )
+              regular_directory(output_root, "terminal output root")
+              terminal_request = json.loads((output_root / "request.json").read_text(encoding="utf-8"))
+              terminal_manifest = json.loads((output_root / "manifest.json").read_text(encoding="utf-8"))
+              terminal_report = json.loads(
+                  (output_root / "verification-report.json").read_text(encoding="utf-8")
+              )
+
+              exact_values = {
+                  "package_id": os.environ["PACKAGE_ID"],
+                  "dataset_id": os.environ["EXPECTED_DATASET_ID"],
+                  "dataset_manifest_sha256": os.environ[
+                      "EXPECTED_DATASET_MANIFEST_SHA256"
+                  ],
+                  "market_manifest_sha256": os.environ[
+                      "EXPECTED_MARKET_MANIFEST_SHA256"
+                  ],
+                  "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+                  "requested_date": requested_date,
+                  "requested_start_ms": int(os.environ["REQUESTED_START_MS"]),
+                  "requested_end_ms": requested_end_ms,
+                  "label_horizon_ms": int(os.environ["LABEL_HORIZON_MS"]),
+                  "protected_holdout_start_ms": int(
+                      os.environ["PROTECTED_HOLDOUT_START_MS"]
+                  ),
+              }
+              for key, value in exact_values.items():
+                  require(terminal_request.get(key) == value, f"terminal request mismatch: {key}")
+                  require(terminal_manifest.get(key) == value, f"terminal manifest mismatch: {key}")
+              require(
+                  terminal_report.get("outcome") == "accepted"
+                  and terminal_report.get("status") == "verified",
+                  "terminal verification report is not accepted",
+              )
+              require(
+                  terminal_report.get("exact_trade_sequence_available") is True,
+                  "exact trade sequence is unavailable",
+              )
+              require(terminal_manifest.get("decision_count") == 919, "terminal decision count mismatch")
+              terminal_symbols = terminal_manifest.get("symbols")
+              require(
+                  isinstance(terminal_symbols, list) and terminal_symbols == symbols,
+                  "terminal symbol binding mismatch",
+              )
+              require(
+                  isinstance(terminal_manifest.get("total_trade_rows"), int)
+                  and terminal_manifest["total_trade_rows"] > 0,
+                  "terminal package has no trade rows",
+              )
+              require(verification.get("decision_count") == 919, "independent decision count mismatch")
+              require(verification.get("symbol_count") == 20, "independent symbol count mismatch")
+              require(
+                  isinstance(verification.get("total_trade_rows"), int)
+                  and verification["total_trade_rows"] > 0,
+                  "independent verification has no trade rows",
+              )
+              require(acquisition_manifest.get("archive_count") == 20, "acquisition archive count mismatch")
+
+              required_false = (
+                  "protected_holdout_accessed",
+                  "immutable_inputs_mutated",
+                  "replay_authorized",
+                  "model_execution_authorized",
+                  "performance_research_authorized",
+                  "execution_enabled",
+                  "live_capital_authorized",
+                  "trading_credentials_present",
+              )
+              for label, payload in (
+                  ("acquisition", acquisition_manifest),
+                  ("terminal manifest", terminal_manifest),
+                  ("terminal report", terminal_report),
+                  ("independent verification", verification),
+              ):
+                  for key in required_false:
+                      require(payload.get(key) is False, f"unsafe field: {label}.{key}")
+                  require(payload.get("orders_submitted") == 0, f"orders submitted: {label}")
+
+              terminal_evidence = {
+                  "package_id": terminal_manifest["package_id"],
+                  "immutable_path": str(output_root),
+                  "request_sha256": terminal_manifest["request_sha256"],
+                  "manifest_sha256": terminal_manifest["manifest_sha256"],
+                  "dataset_id": terminal_manifest["dataset_id"],
+                  "dataset_manifest_sha256": terminal_manifest[
+                      "dataset_manifest_sha256"
+                  ],
+                  "market_manifest_sha256": terminal_manifest[
+                      "market_manifest_sha256"
+                  ],
+                  "source_commit_sha": terminal_manifest["source_commit_sha"],
+                  "acquisition_manifest_sha256": acquisition_manifest[
+                      "manifest_sha256"
+                  ],
+                  "archive_count": acquisition_manifest["archive_count"],
+                  "total_archive_bytes": acquisition_manifest[
+                      "total_archive_bytes"
+                  ],
+                  "requested_end_ms": requested_end_ms,
+                  "decision_count": terminal_manifest["decision_count"],
+                  "symbol_count": len(symbols),
+                  "total_trade_rows": terminal_manifest["total_trade_rows"],
+                  "maximum_entry_delay_ms": terminal_manifest[
+                      "maximum_entry_delay_ms"
+                  ],
+                  "exact_trade_sequence_available": True,
+                  "protected_holdout_accessed": False,
+                  "immutable_inputs_mutated": False,
+                  "replay_authorized": False,
+                  "model_execution_authorized": False,
+                  "performance_research_authorized": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "trading_credentials_present": False,
+                  "orders_submitted": 0,
+              }
+              write_json("terminal-evidence.json", terminal_evidence)
+              with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                  output.write(f"package_id={terminal_evidence['package_id']}\n")
+                  output.write(f"immutable_path={terminal_evidence['immutable_path']}\n")
+                  output.write(f"request_sha256={terminal_evidence['request_sha256']}\n")
+                  output.write(f"manifest_sha256={terminal_evidence['manifest_sha256']}\n")
+                  output.write(
+                      "acquisition_manifest_sha256="
+                      f"{terminal_evidence['acquisition_manifest_sha256']}\n"
+                  )
+                  output.write(f"archive_count={terminal_evidence['archive_count']}\n")
+                  output.write(
+                      f"total_archive_bytes={terminal_evidence['total_archive_bytes']}\n"
+                  )
+                  output.write(f"requested_end_ms={terminal_evidence['requested_end_ms']}\n")
+                  output.write(f"total_trade_rows={terminal_evidence['total_trade_rows']}\n")
+                  output.write(
+                      f"maximum_entry_delay_ms={terminal_evidence['maximum_entry_delay_ms']}\n"
+                  )
+              return terminal_evidence
+
+          try:
+              result = main()
+              print(json.dumps(result, indent=2, sort_keys=True))
+          except BaseException as exc:
+              failure = {
+                  "outcome": "rejected",
+                  "error_type": type(exc).__name__,
+                  "error": str(exc),
+                  "protected_holdout_accessed": False,
+                  "replay_authorized": False,
+                  "model_execution_authorized": False,
+                  "performance_research_authorized": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "trading_credentials_present": False,
+                  "orders_submitted": 0,
+              }
+              write_json("failure.json", failure)
+              print(json.dumps(failure, indent=2, sort_keys=True), file=sys.stderr)
+              raise
+          PY
+
+      - name: Publish terminal summary
+        if: success()
+        shell: bash
+        env:
+          TERMINAL_PACKAGE_ID: ${{ steps.terminal.outputs.package_id }}
+          TERMINAL_IMMUTABLE_PATH: ${{ steps.terminal.outputs.immutable_path }}
+          TERMINAL_REQUEST_SHA256: ${{ steps.terminal.outputs.request_sha256 }}
+          TERMINAL_MANIFEST_SHA256: ${{ steps.terminal.outputs.manifest_sha256 }}
+          ACQUISITION_MANIFEST_SHA256: ${{ steps.terminal.outputs.acquisition_manifest_sha256 }}
+          ARCHIVE_COUNT: ${{ steps.terminal.outputs.archive_count }}
+          TOTAL_ARCHIVE_BYTES: ${{ steps.terminal.outputs.total_archive_bytes }}
+          REQUESTED_END_MS_VALUE: ${{ steps.terminal.outputs.requested_end_ms }}
+          TOTAL_TRADE_ROWS: ${{ steps.terminal.outputs.total_trade_rows }}
+          MAXIMUM_ENTRY_DELAY_MS: ${{ steps.terminal.outputs.maximum_entry_delay_ms }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## WickHunter WH-02 exact replay price path"
+            echo
+            echo "- Package: \`$TERMINAL_PACKAGE_ID\`"
+            echo "- Immutable path: \`$TERMINAL_IMMUTABLE_PATH\`"
+            echo "- Source: official public Binance USD-M daily aggTrades"
+            echo "- Archives: \`$ARCHIVE_COUNT\`"
+            echo "- Source bytes: \`$TOTAL_ARCHIVE_BYTES\`"
+            echo "- Acquisition manifest SHA-256: \`$ACQUISITION_MANIFEST_SHA256\`"
+            echo "- Request SHA-256: \`$TERMINAL_REQUEST_SHA256\`"
+            echo "- Derived covered request end (ms): \`$REQUESTED_END_MS_VALUE\`"
+            echo "- Package manifest SHA-256: \`$TERMINAL_MANIFEST_SHA256\`"
+            echo "- Dataset decisions: \`919\`"
+            echo "- Symbols: \`20\`"
+            echo "- Normalized trade rows: \`$TOTAL_TRADE_ROWS\`"
+            echo "- Maximum entry delay: \`$MAXIMUM_ENTRY_DELAY_MS ms\`"
+            echo "- Exact post-decision trade sequence: \`available\`"
+            echo "- Protected holdout accessed: \`false\`"
+            echo "- Replay/model/performance/trading/live-capital authority: \`false\`"
+            echo "- Orders submitted: \`0\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded metadata evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh02-replay-price-path-v2-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wh02-evidence
+            ${{ env.INPUT_ROOT }}/acquisition-manifest.json
+            ${{ env.OUTPUT_ROOT }}/request.json
+            ${{ env.OUTPUT_ROOT }}/manifest.json
+            ${{ env.OUTPUT_ROOT }}/verification-report.json
+            ${{ env.OUTPUT_ROOT }}/artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 30

@@ -99,9 +99,13 @@ def deployment_probe(error_type: type[Exception]) -> tuple[dict[str, Any], dict[
         payload = diagnose()
     except RuntimeError as exc:
         raise error_type(str(exc)) from exc
-    return {"issuer": str(payload["issuer"])}, {
-        "discovery": int(payload["discovery"]),
-        "jwks_uri": int(payload["jwks_uri"]),
+    discovery_status = payload.get("discovery")
+    jwks_status = payload.get("jwks_uri")
+    if type(discovery_status) is not int or type(jwks_status) is not int:
+        raise error_type("discovery diagnostic returned invalid HTTP status values")
+    return {"issuer": ISSUER}, {
+        "discovery": discovery_status,
+        "jwks_uri": jwks_status,
     }
 
 

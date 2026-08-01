@@ -1,8 +1,8 @@
 ---
 task_id: FTAI-20260801-wickhunter-remaining-rollout
 project_lane: freqtrade-wickhunter
-status: validating
-branch: docs/wickhunter-remaining-rollout-short-invocations-20260801
+status: ready
+branch: develop
 base_branch: develop
 created: 2026-08-01
 updated: 2026-08-01
@@ -83,7 +83,7 @@ WH-07 and WH-08 may perform read-only discovery before their implementation depe
 - every task has one current `next_action`;
 - dependencies and writable paths do not conflict;
 - short invocation routing is documented in the authoritative handover;
-- the current coordinator PR passes exact-head checks and merges normally;
+- the coordinator documentation passed exact-head checks and merged normally;
 - no product runtime, credential, order or live-capital authority changes.
 
 ## Context checkpoint
@@ -91,36 +91,38 @@ WH-07 and WH-08 may perform read-only discovery before their implementation depe
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T15:34:00+02:00
+updated_at: 2026-08-01T15:38:00+02:00
 project_lane: freqtrade-wickhunter
-phase: validate
-session_id: coordinator-20260801-001
+phase: integrate
+session_id: coordinator-20260801-002
 session_role: coordinator
 execution_mode: chat
-execution_reason: repository coordination and documentation-only durable state
-status: validating
-branch: docs/wickhunter-remaining-rollout-short-invocations-20260801
-head: 167baa1fcca34147c6639e77f2a33148ac7b7e2e
+execution_reason: live barrier coordination and task dispatch from durable repository state
+status: ready
+branch: develop
+head: 5187a2475f35cb5de31f742056ca0b1929ebbd58
 base_branch: develop
 related_pr: 941
-context_pressure: high
+context_pressure: medium
 context_growth: stable
 decomposition_decision: split
 decomposition_reason: seven packages have independent durable outputs and explicit dependency barriers
-validation_level: focused
-heavy_validation_runs: 0
+validation_level: full
+heavy_validation_runs: 1
 proven:
   - WH-00, WH-01 and WH-06 are completed
   - request-only PR 935 materialized and independently verified the exact WH-02 aggregate-trade path, then closed unmerged
   - seven product packages remain
-  - the repository prompting standard requires one bounded phase per worker prompt and durable checkpoint state
-  - eight task records, the rollout plan and short-invocation registry are present on PR 941
-  - the branch was synchronized with develop through internal PR 940
+  - eight durable tasks and 22 bounded session phases are recorded in the repository
+  - short owner invocations are registered and integrated into PROMPTING_HANDOVER.md
+  - PR 941 changed only the declared eleven documentation/task paths
+  - PR 941 exact-head Freqtrade CI and zizmor completed successfully
+  - PR 941 merged normally as 5187a2475f35cb5de31f742056ca0b1929ebbd58
 derived:
-  - eight durable tasks and 22 session phases are sufficient
   - at most two simultaneous code writers preserve useful parallelism without ownership collisions
+  - Wave 1 may combine WH-02 work with read-only WH-07 discovery
 unknown:
-  - terminal exact-head CI result for PR 941
+  - live state of open PRs, CI and ownership at the next invocation
   - final owned code paths until each package performs its required ownership preflight
 conflicts:
   - WH-08 implementation must not overlap an active Portal PR
@@ -138,9 +140,12 @@ changed_paths:
   - docs/agents/tasks/FTAI-20260801-wickhunter-wh08-portal-observability-v1.md
   - docs/agents/tasks/FTAI-20260801-wickhunter-wh09-paper-validation-v1.md
 validation:
-  - command: compare branch against current develop
+  - command: exact-head Freqtrade CI on PR 941
     result: PASS
-    evidence: only the declared eleven documentation/task paths differ after synchronization
+  - command: exact-head GitHub Actions security analysis on PR 941
+    result: PASS
+  - command: changed-path and review-thread audit
+    result: PASS
 blockers: []
-next_action: inspect exact-head PR 941 CI and checkpoint validation, repair only the first relevant failure, then merge normally when green
+next_action: run the Wave 1 barrier selection from live state and dispatch only the READY phases recorded by the package checkpoints
 ```

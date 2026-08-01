@@ -268,6 +268,13 @@ The browser never receives:
 
 ## Synology deployment
 
+Persistent v1 and v2 collectors publish distinct `live` and `ready` booleans. `live` reports that
+the daemon loop is functioning; `ready` reports that the immutable request is mounted, readable,
+valid and the collector is in an explicit operational lifecycle state. Container and deployment
+readiness require both booleans plus the compatibility `healthy=true` field. Blocked, failed,
+rejected, stale, malformed and schema-mismatched observations fail closed, while the exact blocker
+remains visible under `result.reason_code`.
+
 The persistent collector definition is in:
 
 ```text

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ai_platform.wickhunter import production_market_evidence_v2 as core
+from ai_platform.wickhunter.market_evidence_readiness import collector_health_payload
 
 
 _STOP = False
@@ -58,14 +59,22 @@ def _initialize_if_needed(
     request_path: Path,
     collector_commit: str,
 ) -> dict[str, object] | None:
-    if (durable_root / core.ACTIVE_POINTER_NAME).exists():
-        return None
     if not request_path.is_file() or request_path.is_symlink():
         return {
             "status": "blocked",
             "reason_code": "CAPTURE_REQUEST_UNAVAILABLE",
             "detail": "No immutable v2 capture request is mounted.",
         }
+    try:
+        core.load_capture_request(request_path)
+    except (core.ProductionMarketEvidenceV2Error, OSError, ValueError, json.JSONDecodeError):
+        return {
+            "status": "blocked",
+            "reason_code": "CAPTURE_REQUEST_UNAVAILABLE",
+            "detail": "The immutable v2 capture request is unreadable or invalid.",
+        }
+    if (durable_root / core.ACTIVE_POINTER_NAME).exists():
+        return None
     return core.initialize_capture(
         request_path=request_path,
         durable_root=durable_root,
@@ -86,7 +95,15 @@ def run_once(
     )
     if initialized is not None:
         return initialized
-    return core.collect_due_sample(durable_root=durable_root)
+    result = core.collect_due_sample(durable_root=durable_root)
+    if result.get("status") == "supplement_completed" and result.get("outcome") is None:
+        run_id = result.get("run_id")
+        if not isinstance(run_id, str) or not run_id:
+            raise core.ProductionMarketEvidenceV2Error("completed v2 run identity is missing")
+        return core.verify_supplement(
+            durable_root / run_id / core.SUPPLEMENT_DIR_NAME,
+        )
+    return result
 
 
 def main() -> int:
@@ -113,28 +130,26 @@ def main() -> int:
                 )
                 _atomic_health(
                     health_path,
-                    {
-                        "schema_version": 2,
-                        "observed_at_ms": observed_at_ms,
-                        "healthy": result.get("status") not in {"rejected", "failed"},
-                        "result": result,
-                        **core.AUTHORITY,
-                    },
+                    collector_health_payload(
+                        schema_version=2,
+                        observed_at_ms=observed_at_ms,
+                        result=result,
+                        authority=core.AUTHORITY,
+                    ),
                 )
             except (core.ProductionMarketEvidenceV2Error, OSError) as exc:
                 _atomic_health(
                     health_path,
-                    {
-                        "schema_version": 2,
-                        "observed_at_ms": observed_at_ms,
-                        "healthy": False,
-                        "result": {
+                    collector_health_payload(
+                        schema_version=2,
+                        observed_at_ms=observed_at_ms,
+                        result={
                             "status": "failed",
                             "reason_code": "COLLECTOR_FAIL_CLOSED",
                             "detail": f"{type(exc).__name__}: {exc}",
                         },
-                        **core.AUTHORITY,
-                    },
+                        authority=core.AUTHORITY,
+                    ),
                 )
             for _ in range(interval_seconds):
                 if _STOP:

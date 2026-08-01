@@ -2,11 +2,11 @@
 task_id: FTAI-20260801-wickhunter-wh04-lightgbm-scorer-v1
 project_lane: freqtrade-wickhunter
 status: validating
-branch: feat/wickhunter-wh04-lightgbm-scorer-v1
+branch: feat/wickhunter-wh04-lightgbm-scorer-v1-clean
 base_branch: develop
 created: 2026-08-01
 updated: 2026-08-01
-related_pr: null
+related_pr: 961
 depends_on:
   - FTAI-20260801-wickhunter-wh03-baseline-strategy-v1
 owned_paths:
@@ -51,38 +51,43 @@ Train and validate one deterministic candidate-level LightGBM scorer on the immu
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T20:18:00+02:00
+updated_at: 2026-08-01T21:42:00+02:00
 project_lane: freqtrade-wickhunter
 phase: validate
 session_id: wh04-20260801-001
 session_role: implementer
 execution_mode: chat
-execution_reason: direct GitHub implementation with deterministic local LightGBM seam verification and exact-head CI
+execution_reason: direct GitHub implementation with deterministic LightGBM seam verification and exact-head CI
 status: validating
-branch: feat/wickhunter-wh04-lightgbm-scorer-v1
+branch: feat/wickhunter-wh04-lightgbm-scorer-v1-clean
+head: d1886f4620978704886df889dba034b12c113e55
 base_branch: develop
-related_pr: null
+related_pr: 961
 context_pressure: high
 context_growth: stable
 decomposition_decision: phased
 decomposition_reason: trainer, artifact, scorer and comparison report share one frozen feature and model identity
-validation_level: focused
-heavy_validation_runs: 0
+validation_level: repository
+heavy_validation_runs: 5
 proven:
   - WH-03 merged to develop as 03810d0c82072d642946ce1d274c86a577ec5349 after final exact-head checks passed
-  - live ownership preflight found no WH-04 branch, PR or overlapping writer
+  - PR 961 changes exactly the four declared WH-04 owned paths and has no comments, reviews or unresolved threads
   - LightGBM model_to_string is reproducible with deterministic=true, force_col_wise=true, num_threads=1 and fixed seeds
   - the frozen feature schema contains only decision-time liquidation, market, source, side and hypothesis values
-  - feature names associated with labels, returns, outcomes, future/exit data, costs and excursions are refused
-  - training, calibration and validation splits are explicit and disjoint; protected holdout splits fail closed
+  - leakage-prone feature names, future data, protected holdout splits and mismatched replay identities fail closed
+  - training, calibration and validation splits are explicit and disjoint
   - candidate targets and expected-return values are bound to exact matching-side WH-02 net labels
-  - raw probabilities receive deterministic binned monotonic calibration and an explicit no-trade threshold
+  - raw probabilities receive deterministic monotonic calibration and an explicit no-trade threshold
   - model decisions and model-versus-baseline summaries use the WH-03 evaluation interface without redefining costs
   - model registry state is candidate/advisory only and all promotion, execution, order and live-capital authority remains disabled
+  - stale WickHunterCandidate reconstruction was aligned to the current contract without changing model behavior
+  - AI Platform CI run 3665 passed 1059 tests with 71 skips; Ruff, Ruff format, codespell and JSON validations passed
+  - Freqtrade CI run 4767 passed pre-commit, documentation, Python 3.11, 3.12 coverage, 3.13 and 3.14 paths
+  - security analysis run 4427 passed on d1886f4620978704886df889dba034b12c113e55
 derived:
-  - WH-05 can compare bounded parameter candidates against this immutable artifact without mutating model or replay contracts
-unknown:
-  - exact-head repository CI and formatter findings
+  - WH-05 model-aware phase may train and compare bounded candidate artifacts only through this immutable advisory interface
+  - WH-07 may consume candidate scores but cannot treat candidate promotion state as live authority
+unknown: []
 conflicts: []
 first_relevant_error: null
 changed_paths:
@@ -91,9 +96,18 @@ changed_paths:
   - docs/ai_platform/WICKHUNTER_LIGHTGBM_SCORER.md
   - docs/agents/tasks/FTAI-20260801-wickhunter-wh04-lightgbm-scorer-v1.md
 validation:
-  - command: isolated LightGBM deterministic model-string experiment
+  - command: isolated deterministic LightGBM model-string experiment
     result: PASS
     evidence: repeated fixed-seed one-thread training produced identical predictions and SHA-256 model hash
+  - command: AI Platform CI run 3665
+    result: PASS, 1059 tests and 71 skips
+    evidence: compile, tests, Ruff, formatting, codespell and JSON validations all passed
+  - command: Freqtrade CI run 4767
+    result: PASS
+    evidence: pre-commit, documentation, Python 3.11, Python 3.12 coverage, Python 3.13, Python 3.14, generated files, smoke tests and mypy passed
+  - command: GitHub Actions Security Analysis run 4427
+    result: PASS
+    evidence: exact head d1886f4620978704886df889dba034b12c113e55
 blockers: []
-next_action: open the exact four-path PR, run focused and repository CI, repair only concrete failures, then perform fresh exact-head validation and merge
+next_action: validate the checkpoint-only head and merge PR 961 with expected-head protection
 ```

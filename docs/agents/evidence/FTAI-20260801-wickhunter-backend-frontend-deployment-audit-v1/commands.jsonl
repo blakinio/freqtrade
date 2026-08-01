@@ -1,0 +1,13 @@
+{"sequence": 1, "command": "GitHub fetch develop HEAD", "exit_code": 0, "result": "6419138e170844d0eb09d9381b4435900d802ab9", "classification": "PROVEN"}
+{"sequence": 2, "command": "GitHub list open PRs and changed files", "exit_code": 0, "result": "#833,#926 open; #927 merged", "classification": "PROVEN"}
+{"sequence": 3, "command": "GitHub review threads #833/#926/#927", "exit_code": 0, "result": "0 threads for each", "classification": "PROVEN"}
+{"sequence": 4, "command": "GitHub status/workflow runs 6419138e170844d0eb09d9381b4435900d802ab9", "exit_code": 0, "result": "no statuses; no runs", "classification": "UNKNOWN"}
+{"sequence": 5, "command": "GitHub workflow runs 5d608dd617d6a5e14ee197fc4b34b887d55bbbe2", "exit_code": 0, "result": "six relevant successes plus one skipped auxiliary workflow", "classification": "PROVEN"}
+{"sequence": 6, "command": "git ls-remote https://github.com/blakinio/freqtrade.git refs/heads/develop", "exit_code": 128, "result": "Could not resolve host: github.com", "classification": "UNKNOWN"}
+{"sequence": 7, "command": "python -m compileall ...", "exit_code": null, "result": "NOT_RUN: checkout unavailable", "classification": "UNKNOWN"}
+{"sequence": 8, "command": "pytest -q focused Market Evidence tests", "exit_code": null, "result": "NOT_RUN: checkout unavailable", "classification": "UNKNOWN"}
+{"sequence": 9, "command": "ruff check / ruff format --check", "exit_code": null, "result": "NOT_RUN: checkout unavailable", "classification": "UNKNOWN"}
+{"sequence": 10, "command": "npm ci; npm run typecheck; npm run lint; npm run build", "exit_code": null, "result": "NOT_RUN: checkout unavailable", "classification": "UNKNOWN"}
+{"sequence": 11, "command": "npx playwright test market-evidence*.spec.ts", "exit_code": null, "result": "NOT_RUN: checkout/browser unavailable", "classification": "UNKNOWN"}
+{"sequence": 12, "command": "docker compose config --quiet v1/v2", "exit_code": null, "result": "NOT_RUN: checkout/Docker unavailable", "classification": "UNKNOWN"}
+{"sequence": 13, "command": "static source, tests, workflows and deployment review", "exit_code": 0, "result": "completed; 12 findings", "classification": "PROVEN"}

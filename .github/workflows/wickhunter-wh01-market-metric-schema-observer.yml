@@ -1,0 +1,197 @@
+name: WickHunter WH-01 Market Metric Schema Observer
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh01-market-metric-schema-observer.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh01-market-metric-schema-observer-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  MARKET_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1/immutable-package
+  ACCEPTED_IMPORT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-accepted-imports/wickhunter-production-live-archive-20260731-v1/accepted
+  EXPECTED_MARKET_MANIFEST_SHA256: eaccc5ecaf7a9514086e99d719d0cb4c5ef8a9c87e3f0c30c501e1860c05fb52
+  EXPECTED_SELECTION_SHA256: 8f5be573684e97140fdccb6f3228166e4c9e5165e89f0f530fe842bb1bedb0fd
+  PROTECTED_HOLDOUT_START_MS: "1785542400000"
+
+jobs:
+  observe:
+    name: Observe verified pre-holdout schemas
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out exact observer request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate one-file request and safety boundary
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$merge_base" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh01-market-metric-schema-observer.yml'
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          for path in "$MARKET_PACKAGE_ROOT" "$ACCEPTED_IMPORT_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+
+      - name: Verify frozen packages and observe record schemas
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/wh01-market-metric-schema.json"
+          from __future__ import annotations
+
+          import json
+          import os
+          from collections import Counter, defaultdict
+          from dataclasses import asdict, is_dataclass
+          from pathlib import Path
+          from typing import Any
+
+          from ai_platform.wickhunter import production_dataset_materialization as subject
+          from ai_platform.wickhunter.dataset import load_accepted_import
+          from ai_platform.wickhunter.production_market_evidence_intersection import (
+              MANIFEST_NAME,
+              QUALITY_ROWS_NAME,
+              SOURCE_ROWS_NAME,
+              verify_intersection_package,
+          )
+
+          market_root = Path(os.environ["MARKET_PACKAGE_ROOT"])
+          accepted_root = Path(os.environ["ACCEPTED_IMPORT_ROOT"])
+          verification = verify_intersection_package(market_root)
+          manifest = subject._load_json(market_root / MANIFEST_NAME, field="market manifest")
+          if manifest.get("manifest_sha256") != os.environ["EXPECTED_MARKET_MANIFEST_SHA256"]:
+              raise SystemExit("market manifest hash mismatch")
+          source_rows = subject._load_rows(market_root / SOURCE_ROWS_NAME, field="source rows")
+          quality_rows = subject._load_rows(market_root / QUALITY_ROWS_NAME, field="quality rows")
+          candle_maps = subject._candle_maps(market_root, manifest=manifest)
+          accepted = load_accepted_import(accepted_root)
+          if accepted.selection.selection_sha256 != os.environ["EXPECTED_SELECTION_SHA256"]:
+              raise SystemExit("accepted selection hash mismatch")
+          holdout = int(os.environ["PROTECTED_HOLDOUT_START_MS"])
+          if max(event.available_at_ms for event in accepted.events) >= holdout:
+              raise SystemExit("accepted import touches protected holdout")
+
+          def field_types(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
+              values: dict[str, set[str]] = defaultdict(set)
+              for row in rows:
+                  for key, value in row.items():
+                      values[key].add(type(value).__name__)
+              return {key: sorted(types) for key, types in sorted(values.items())}
+
+          def bounded_sample(row: dict[str, Any]) -> dict[str, Any]:
+              return {key: row[key] for key in sorted(row)}
+
+          candle_schema: dict[str, Any] = {}
+          for symbol, by_open in sorted(candle_maps.items()):
+              ordered = [by_open[key] for key in sorted(by_open)]
+              candle_schema[symbol] = {
+                  "row_count": len(ordered),
+                  "field_types": field_types(ordered),
+                  "first_row": bounded_sample(ordered[0]),
+                  "last_row": bounded_sample(ordered[-1]),
+              }
+
+          event_fields = sorted(
+              accepted.events[0].__dataclass_fields__
+              if is_dataclass(accepted.events[0])
+              else vars(accepted.events[0])
+          )
+          source_counts = Counter(event.source for event in accepted.events)
+          symbol_counts = Counter(event.symbol for event in accepted.events)
+          decision_start = int(manifest["capture"]["decision_start_ms"])
+          recent_counts: dict[str, int] = {}
+          for minutes in (5, 15, 30, 60, 360, 1440):
+              start = decision_start - minutes * 60 * 1000
+              recent_counts[str(minutes)] = sum(
+                  1
+                  for event in accepted.events
+                  if start <= event.available_at_ms < decision_start
+              )
+
+          first_event = accepted.events[0]
+          first_event_payload = asdict(first_event) if is_dataclass(first_event) else vars(first_event)
+          safe_event_sample = {
+              key: str(value) if key not in {"occurred_at_ms", "available_at_ms", "ingest_latency_ms"} else value
+              for key, value in sorted(first_event_payload.items())
+          }
+
+          result = {
+              "market_verification": verification,
+              "manifest_capture": manifest.get("capture"),
+              "manifest_instruments": manifest.get("instruments"),
+              "manifest_sources": manifest.get("sources"),
+              "source_rows": {
+                  "row_count": len(source_rows),
+                  "field_types": field_types(source_rows),
+                  "first_row": bounded_sample(source_rows[0]),
+              },
+              "quality_rows": {
+                  "row_count": len(quality_rows),
+                  "field_types": field_types(quality_rows),
+                  "first_row": bounded_sample(quality_rows[0]),
+                  "last_row": bounded_sample(quality_rows[-1]),
+              },
+              "candles": candle_schema,
+              "accepted_import": {
+                  "selection": asdict(accepted.selection),
+                  "event_fields": event_fields,
+                  "first_event": safe_event_sample,
+                  "source_counts": dict(sorted(source_counts.items())),
+                  "symbol_counts": dict(sorted(symbol_counts.items())),
+                  "pre_decision_event_counts_by_minutes": recent_counts,
+              },
+              "protected_holdout_accessed": False,
+              "model_execution_authorized": False,
+              "replay_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          print(json.dumps(result, indent=2, sort_keys=True, default=str))
+          PY
+
+      - name: Upload bounded schema evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh01-market-metric-schema-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wh01-market-metric-schema.json
+          if-no-files-found: error
+          retention-days: 14

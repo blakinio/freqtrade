@@ -165,9 +165,7 @@ def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  
     async def backchannel_logout(request: Request) -> BackchannelLogoutResult:
         content_type = request.headers.get("content-type", "")
         if "application/x-www-form-urlencoded" not in content_type:
-            raise IdentityAuthenticationError(
-                "back-channel logout requires form encoding"
-            )
+            raise IdentityAuthenticationError("back-channel logout requires form encoding")
         values = parse_qs(
             (await request.body()).decode("utf-8"),
             strict_parsing=True,

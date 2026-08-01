@@ -1,0 +1,136 @@
+name: Portal OIDC Build Diagnostics Repair Once
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/portal-oidc-build-diagnostics-20260801'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact repair head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Apply deterministic diagnostics repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          deploy_path = Path("deploy/synology/portal-oidc/deploy.py")
+          source = deploy_path.read_text(encoding="utf-8")
+          old = '''        output = result.stderr or result.stdout
+                  lines = [line.strip() for line in output.splitlines() if line.strip()]
+                  detail = " | ".join(lines[:3]) if lines else "no output"
+          '''
+          new = '''        lines = [
+                      line.strip()
+                      for stream in (result.stdout, result.stderr)
+                      for line in stream.splitlines()
+                      if line.strip()
+                  ]
+                  if not lines:
+                      detail = "no output"
+                  elif len(lines) <= 8:
+                      detail = " | ".join(lines)
+                  else:
+                      detail = " | ".join([*lines[:2], "...", *lines[-5:]])
+          '''
+          if old in source:
+              source = source.replace(old, new, 1)
+          elif new not in source:
+              raise SystemExit("expected deployer diagnostics block not found")
+          deploy_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py")
+          tests = test_path.read_text(encoding="utf-8")
+          tests = tests.replace(
+              '    assert \'detail = " | ".join(lines[:3])\' in source\n',
+              '    assert (\n'
+              '        \'detail = " | ".join([*lines[:2], "...", *lines[-5:]])\' in source\n'
+              '    )\n',
+          )
+          marker = "def test_run_preserves_tail_of_long_build_error"
+          if marker not in tests:
+              insertion = '''
+
+          def test_run_preserves_tail_of_long_build_error(monkeypatch) -> None:
+              build_lines = [f"# {index} intermediate build output" for index in range(20)]
+              build_lines.append("ERROR: failed to solve: required build input is missing")
+
+              def fake_run(*_args, **_kwargs):
+                  return module.subprocess.CompletedProcess(
+                      args=["docker", "build"],
+                      returncode=1,
+                      stdout="\\n".join(build_lines),
+                      stderr="",
+                  )
+
+              monkeypatch.setattr(module.subprocess, "run", fake_run)
+              with pytest.raises(module.DeploymentError, match="required build input is missing"):
+                  module._run(["docker", "build", "redacted-context"])
+          '''
+              anchor = "\n\ndef test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:\n"
+              if anchor not in tests:
+                  raise SystemExit("test insertion anchor not found")
+              tests = tests.replace(anchor, insertion + anchor, 1)
+          test_path.write_text(tests, encoding="utf-8")
+          PY
+
+      - name: Verify repaired diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          import subprocess
+          from pathlib import Path
+          from unittest import mock
+
+          path = Path("deploy/synology/portal-oidc/deploy.py")
+          spec = importlib.util.spec_from_file_location("portal_oidc_deploy", path)
+          assert spec and spec.loader
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          output = "\n".join(
+              [f"# {index} build output" for index in range(20)]
+              + ["ERROR: failed to solve: exact diagnostic marker"]
+          )
+          completed = subprocess.CompletedProcess(
+              args=["docker", "build"],
+              returncode=1,
+              stdout=output,
+              stderr="",
+          )
+          with mock.patch.object(module.subprocess, "run", return_value=completed):
+              try:
+                  module._run(["docker", "build", "redacted-context"])
+              except module.DeploymentError as exc:
+                  assert "exact diagnostic marker" in str(exc)
+              else:
+                  raise AssertionError("expected DeploymentError")
+          PY
+          git diff --check
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add deploy/synology/portal-oidc/deploy.py tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix(portal): preserve Docker build failure tail"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}

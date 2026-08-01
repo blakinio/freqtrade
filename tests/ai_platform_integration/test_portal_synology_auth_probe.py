@@ -32,9 +32,7 @@ def test_deploy_disables_fixture_and_keeps_control_plane_internal() -> None:
     control_section = script[
         script.index("def _control_run_args") : script.index("def _start_control_candidate")
     ]
-    web_section = script[
-        script.index("def _web_run_args") : script.index("def _probe_web_login")
-    ]
+    web_section = script[script.index("def _web_run_args") : script.index("def _probe_web_login")]
 
     assert "PORTAL_IDENTITY_FIXTURE_MODE=disabled" in script
     assert "PORTAL_IDENTITY_TRANSPORT_MODE=https" in script

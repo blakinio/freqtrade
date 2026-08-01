@@ -9,9 +9,7 @@ from pathlib import Path
 
 
 AUTHENTIK_PROJECT = "portal-authentik-local-test"
-AUTHENTIK_STATE_DIR = Path(
-    "/var/lib/freqtrade-staging-state/portal-authentik-local-test"
-)
+AUTHENTIK_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-authentik-local-test")
 SYNOLOGY_DOCKER_ROOT = Path("/volume1/docker")
 HOST_MOUNT_ROOT = Path("/host-volume")
 PORTAL_DATA_DIR = SYNOLOGY_DOCKER_ROOT / "freqtrade-portal-oidc/data"
@@ -65,9 +63,7 @@ def _compose_command(repo: Path) -> list[str]:
 
 
 def _helper_script() -> str:
-    mounted_data_dir = HOST_MOUNT_ROOT / PORTAL_DATA_DIR.relative_to(
-        SYNOLOGY_DOCKER_ROOT
-    )
+    mounted_data_dir = HOST_MOUNT_ROOT / PORTAL_DATA_DIR.relative_to(SYNOLOGY_DOCKER_ROOT)
     return "\n".join(
         [
             "import os",
@@ -78,14 +74,8 @@ def _helper_script() -> str:
             f"os.chown(path, {PORTAL_UID}, {PORTAL_GID})",
             "path.chmod(0o700)",
             "metadata = path.stat()",
-            (
-                f"if metadata.st_uid != {PORTAL_UID}: "
-                "raise SystemExit('portal data uid mismatch')"
-            ),
-            (
-                f"if metadata.st_gid != {PORTAL_GID}: "
-                "raise SystemExit('portal data gid mismatch')"
-            ),
+            (f"if metadata.st_uid != {PORTAL_UID}: raise SystemExit('portal data uid mismatch')"),
+            (f"if metadata.st_gid != {PORTAL_GID}: raise SystemExit('portal data gid mismatch')"),
             "if stat.S_IMODE(metadata.st_mode) != 0o700: "
             "raise SystemExit('portal data mode mismatch')",
         ]
@@ -133,9 +123,7 @@ def prepare(repo: Path) -> None:
     server = _run([*compose, "ps", "-q", "server"]).stdout.strip()
     if not server:
         raise PreparationError("Authen­tik server container is unavailable")
-    image = _run(
-        ["docker", "inspect", "--format", "{{.Config.Image}}", server]
-    ).stdout.strip()
+    image = _run(["docker", "inspect", "--format", "{{.Config.Image}}", server]).stdout.strip()
     if not image:
         raise PreparationError("Authen­tik server image is unavailable")
     _run(_helper_run_args(image))
@@ -146,9 +134,7 @@ def main() -> int:
     parser.add_argument("--repository", required=True)
     args = parser.parse_args()
     prepare(Path(args.repository).resolve())
-    print(
-        f"prepared {PORTAL_DATA_DIR} for uid={PORTAL_UID} gid={PORTAL_GID} mode=0700"
-    )
+    print(f"prepared {PORTAL_DATA_DIR} for uid={PORTAL_UID} gid={PORTAL_GID} mode=0700")
     return 0
 
 

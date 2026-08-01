@@ -8,7 +8,7 @@ updated: 2026-08-02
 completed: 2026-08-02
 related_pr: "#993"
 merge_commit: bc89cd254200132f2e38a60c8c27a420ec2099ec
-close_pr: PENDING
+close_pr: "#994"
 required_reads:
   - AGENTS.md
   - docs/agents/PROMPTING_STANDARD.md
@@ -20,7 +20,7 @@ required_reads:
 
 ## Terminal result
 
-PR #993 merged agent-governance v2.1 to `develop` as `bc89cd254200132f2e38a60c8c27a420ec2099ec`. Conflict-bound PR #985 was accurately closed as superseded after the exact audited contract blobs were restacked on current `develop`.
+PR #993 merged agent-governance v2.1 to `develop` as `bc89cd254200132f2e38a60c8c27a420ec2099ec`. Conflict-bound PR #985 was accurately closed as superseded after the exact audited contract blobs were restacked on current `develop`. PR #994 performs the terminal task update.
 
 ## Closeout
 
@@ -56,7 +56,7 @@ pull_requests:
   terminal_prs:
     - blakinio/freqtrade#985 closed_superseded
     - blakinio/freqtrade#993 merged as bc89cd254200132f2e38a60c8c27a420ec2099ec
-  close_pr: PENDING
+  close_pr: blakinio/freqtrade#994
 task_archived_or_terminal: true
 ownership_released: true
 stale_branches_reconciled: true
@@ -73,4 +73,4 @@ stale_branches_reconciled: true
 - [x] Replacement PR passed exact-head CI/security and merged.
 - [x] No material finding or unresolved review thread remains.
 
-No blocker remains. The closeout PR is the only expected non-terminal related PR until this terminal record reaches `develop`.
+No blocker remains. Until PR #994 merges, it is the sole intentionally open related PR.

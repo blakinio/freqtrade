@@ -126,22 +126,22 @@ class ReplayShadowParityEvidence:
     def __post_init__(self) -> None:
         if self.schema_version != RUNTIME_PARITY_SCHEMA_VERSION:
             raise ShadowRuntimeError("parity schema mismatch")
-        for value, field_name in (
+        for digest, field_name in (
             (self.parity_id, "parity_id"),
             (self.shadow_decision_id, "shadow_decision_id"),
             (self.label_id, "label_id"),
             (self.dataset_hash, "dataset_hash"),
         ):
-            _require_sha256(value, field=field_name)
+            _require_sha256(digest, field=field_name)
         _require_text(self.symbol, field="symbol")
         _require_git_sha(self.code_sha, field="code_sha")
         if self.decision_timestamp_ms <= 0:
             raise ShadowRuntimeError("parity decision timestamp must be > 0")
-        for value, field_name in (
+        for ratio, field_name in (
             (self.take_profit_ratio, "take_profit_ratio"),
             (self.stop_loss_ratio, "stop_loss_ratio"),
         ):
-            _require_positive(value, field=field_name)
+            _require_positive(ratio, field=field_name)
         if not (self.identities_match and self.policy_match and self.execution_authority_absent):
             raise ShadowRuntimeError("replay/shadow parity evidence is not accepted")
 

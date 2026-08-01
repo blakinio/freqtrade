@@ -99,7 +99,7 @@ def _install_public_portal_probe_user_agent() -> None:
                 method=method,
             )
 
-    urllib.request.Request = PortalPublicProbeRequest  # type: ignore[assignment]
+    urllib.request.Request = PortalPublicProbeRequest  # type: ignore[assignment,misc]
 
 
 def diagnose() -> dict[str, object]:

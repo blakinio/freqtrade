@@ -9,6 +9,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -296,7 +297,7 @@ class CandidateLabel:
     trading_credentials_present: bool
     orders_submitted: int
 
-    def __post_init__(self) -> None:  # noqa: C901
+    def __post_init__(self) -> None:
         if self.schema_version != LABEL_SCHEMA_VERSION:
             raise DeterministicReplayError(f"label schema must be {LABEL_SCHEMA_VERSION}")
         _sha256(self.label_id, field="label_id")
@@ -334,9 +335,12 @@ class CandidateLabel:
         else:
             if any(value is None for value in optional_fields):
                 raise DeterministicReplayError("executed label requires complete execution fields")
-            assert self.entry_timestamp_ms is not None
-            assert self.exit_timestamp_ms is not None
-            assert self.time_to_outcome_ms is not None
+            if (
+                self.entry_timestamp_ms is None
+                or self.exit_timestamp_ms is None
+                or self.time_to_outcome_ms is None
+            ):
+                raise DeterministicReplayError("executed label requires complete timestamps")
             if self.exit_timestamp_ms < self.entry_timestamp_ms:
                 raise DeterministicReplayError("exit cannot precede entry")
             if self.time_to_outcome_ms != self.exit_timestamp_ms - self.entry_timestamp_ms:
@@ -438,10 +442,12 @@ def _validate_split_windows(
     names = [window.split_name for window in windows]
     if len(names) != len(set(names)):
         raise DeterministicReplayError("split window names must be unique")
-    ordered = tuple(sorted(windows, key=lambda item: (item.start_ms, item.end_ms, item.split_name)))
+    ordered = tuple(
+        sorted(windows, key=lambda item: (item.start_ms, item.end_ms, item.split_name))
+    )
     if tuple(windows) != ordered:
         raise DeterministicReplayError("split windows must be chronologically sorted")
-    for previous, current in zip(windows, windows[1:], strict=False):
+    for previous, current in pairwise(windows):
         if current.start_ms - previous.end_ms < label_horizon_ms:
             raise DeterministicReplayError(
                 "adjacent split windows require purge/embargo at least label_horizon_ms"
@@ -500,7 +506,7 @@ def _excursions(
     return favorable, adverse
 
 
-def replay_event_label(
+def replay_event_label(  # noqa: C901
     *,
     decision: ReplayDecision,
     trades: Sequence[ReplayAggregateTrade],
@@ -702,7 +708,7 @@ class _DatasetRow:
     row_sha256: str
 
 
-def _load_dataset_rows(
+def _load_dataset_rows(  # noqa: C901
     dataset_root: Path,
     *,
     expected_manifest_sha256: str,
@@ -773,10 +779,14 @@ def _trade_from_json(payload: Mapping[str, object]) -> ReplayAggregateTrade:
                 payload["aggregate_trade_id"], field="aggregate_trade_id"
             ),
             price=_decimal(
-                payload["price"], field="price", minimum=Decimal("0.000000000001")
+                payload["price"],
+                field="price",
+                minimum=Decimal("0.000000000001"),
             ),
             quantity=_decimal(
-                payload["quantity"], field="quantity", minimum=Decimal("0.000000000001")
+                payload["quantity"],
+                field="quantity",
+                minimum=Decimal("0.000000000001"),
             ),
             first_trade_id=_integer(payload["first_trade_id"], field="first_trade_id"),
             last_trade_id=_integer(payload["last_trade_id"], field="last_trade_id"),
@@ -786,7 +796,9 @@ def _trade_from_json(payload: Mapping[str, object]) -> ReplayAggregateTrade:
             buyer_is_maker=payload["buyer_is_maker"] is True,
             archive_sha256=str(payload["archive_sha256"]),
             raw_row_number=_integer(
-                payload["raw_row_number"], field="raw_row_number", minimum=1
+                payload["raw_row_number"],
+                field="raw_row_number",
+                minimum=1,
             ),
         )
     except (KeyError, TypeError, ValueError) as exc:
@@ -800,7 +812,7 @@ def _trade_from_json(payload: Mapping[str, object]) -> ReplayAggregateTrade:
     return trade
 
 
-def _load_price_path(
+def _load_price_path(  # noqa: C901
     price_path_root: Path,
     *,
     expected_manifest_sha256: str,
@@ -1132,7 +1144,7 @@ def build_deterministic_replay_package(
         raise
 
 
-def verify_deterministic_replay_package(
+def verify_deterministic_replay_package(  # noqa: C901
     *,
     materialization_root: Path,
     price_path_root: Path,

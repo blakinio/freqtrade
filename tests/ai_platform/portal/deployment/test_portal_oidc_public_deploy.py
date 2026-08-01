@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+import importlib.util
+import json
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[4]
+DEPLOYMENT = ROOT / "deploy" / "synology" / "portal-oidc"
+WORKFLOW = ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
+SPEC = importlib.util.spec_from_file_location("portal_oidc_deploy", DEPLOYMENT / "deploy.py")
+assert SPEC and SPEC.loader
+module = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(module)
+
+
+def frozen_request(sha: str) -> dict[str, object]:
+    return {
+        "request_id": module.REQUEST_ID,
+        "environment": "synology-staging",
+        "runner": "freqtrade-staging",
+        "implementation_sha": sha,
+        "portal_origin": module.PORTAL_ORIGIN,
+        "authentik_origin": module.AUTHENTIK_ORIGIN,
+        "identity_transport": "https",
+        "identity_fixture_mode": "disabled",
+        "bootstrap_membership_authorized": False,
+        "dry_run_required": True,
+        "public_ingress_authorized": True,
+        "live_capital_authorized": False,
+        "restore_authorized": False,
+        "secret_values_in_request": False,
+    }
+
+
+def test_frozen_request_accepts_only_current_implementation_sha(tmp_path: Path) -> None:
+    sha = "a" * 40
+    request_path = tmp_path / module.REQUEST_RELATIVE_PATH
+    request_path.parent.mkdir(parents=True)
+    request_path.write_text(json.dumps(frozen_request(sha)), encoding="utf-8")
+
+    assert module._load_request(request_path, sha) == frozen_request(sha)
+
+    request = frozen_request(sha)
+    request["bootstrap_membership_authorized"] = True
+    request_path.write_text(json.dumps(request), encoding="utf-8")
+    with pytest.raises(module.DeploymentError, match="frozen contract"):
+        module._load_request(request_path, sha)
+
+
+def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
+    blueprint = (DEPLOYMENT / "blueprints" / module.BLUEPRINT_NAME).read_text(
+        encoding="utf-8"
+    )
+
+    assert "authentik_providers_oauth2.oauth2provider" in blueprint
+    assert "authentik_core.application" in blueprint
+    assert "client_type: confidential" in blueprint
+    assert f"client_id: {module.CLIENT_ID}" in blueprint
+    assert f"slug: {module.APPLICATION_SLUG}" in blueprint
+    assert f"url: {module.REDIRECT_URI}" in blueprint
+    assert "matching_mode: strict" in blueprint
+    assert "scope_name, openid" in blueprint
+    assert "scope_name, profile" in blueprint
+    assert "scope_name, email" in blueprint
+    assert "client_secret:" not in blueprint
+    assert "http://192.168." not in blueprint
+    assert "auth.quant.molehill.cloud" not in blueprint
+
+
+def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None:
+    runtime = (
+        ROOT / "ai_platform" / "portal" / "identity" / "public_runtime.py"
+    ).read_text(encoding="utf-8")
+    bootstrap = (
+        ROOT / "ai_platform" / "portal" / "identity" / "bootstrap_membership.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'config.transport_mode != "https"' in runtime
+    assert "_ensure_local_owner_membership" not in runtime
+    assert "create_membership" not in runtime
+    assert "secure=True" in runtime
+    assert "SESSION_COOKIE_NAME" in runtime
+    assert "CSRF_COOKIE_NAME" in runtime
+    assert "--confirm-exact-principal" in bootstrap
+    assert "identity.membership_bootstrapped" in bootstrap
+    assert "subject_sha256" in bootstrap
+    assert '"secret_values_recorded": False' in bootstrap
+    assert '"live_capital_authorized": False' in bootstrap
+
+
+def test_images_are_pinned_and_control_plane_runs_public_runtime() -> None:
+    web = (ROOT / "deploy" / "synology" / "portal" / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+    control = (DEPLOYMENT / "Dockerfile.control-plane").read_text(encoding="utf-8")
+
+    assert web.count("node:22.23.1-bookworm-slim@sha256:") == 3
+    assert "python:3.13.13-slim-bookworm@sha256:" in control
+    assert "ai_platform.portal.identity.public_runtime:app" in control
+    assert ":latest" not in web
+    assert ":latest" not in control
+    assert "USER portal" in control
+    assert "--no-access-log" in control
+
+
+def test_deployer_is_public_secret_free_and_hardened() -> None:
+    source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
+
+    assert module.PORTAL_ORIGIN == "https://quant.molehill.cloud"
+    assert module.AUTHENTIK_ORIGIN == "https://auth.molehill.cloud"
+    assert module.ISSUER == "https://auth.molehill.cloud/application/o/freqtrade-portal/"
+    assert "0o600" in source
+    assert "refusing rotation" in source
+    assert '"secret_values_recorded": False' in source
+    assert '"live_capital_authorized": False' in source
+    assert "PORTAL_IDENTITY_FIXTURE_MODE=disabled" in source
+    assert "PORTAL_IDENTITY_TRANSPORT_MODE=https" in source
+    assert "_discovery_from_identity_container" in source
+    assert "--cap-drop" in source
+    assert "no-new-privileges:true" in source
+    assert "--read-only" in source
+    assert "--privileged" not in source
+    assert "network_mode: host" not in source
+    assert "auth.quant.molehill.cloud" not in source
+
+
+def test_control_plane_is_internal_and_only_web_is_published() -> None:
+    source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
+
+    control_section = source[
+        source.index("def _control_run_args") : source.index("def _start_control_candidate")
+    ]
+    web_section = source[
+        source.index("def _web_run_args") : source.index("def _probe_web_login")
+    ]
+    assert "--publish" not in control_section
+    assert "--publish" in web_section
+    assert f"{module.PORTAL_BIND_ADDRESS}" in source
+    assert str(module.PORTAL_PORT) in source
+
+
+def test_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert "runs-on: [freqtrade-staging]" in workflow
+    assert "environment: synology-staging" in workflow
+    assert "git diff --name-status" in workflow
+    assert "public-oidc-20260801-v1.json" in workflow
+    assert "bootstrap_membership_authorized" in workflow
+    assert "secret_values_in_request" in workflow
+    assert "public_ingress_authorized" in workflow
+    assert "if: always()" in workflow
+    assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in workflow
+    assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
+    assert "actions/checkout@v" not in workflow
+    assert "actions/upload-artifact@v" not in workflow
+
+
+def test_report_contract_contains_no_secret_values() -> None:
+    source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
+    report_slice = source[source.index("report: dict[str, Any]") :]
+
+    assert "client_secret" not in report_slice
+    assert "SESSION_HMAC_KEY" not in report_slice
+    assert "FLOW_ENCRYPTION_KEY" not in report_slice
+    assert '"secret_values_recorded": False' in report_slice

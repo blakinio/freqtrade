@@ -165,6 +165,13 @@ def test_deployer_is_public_secret_free_and_hardened() -> None:
     assert "auth.quant.molehill.cloud" not in source
 
 
+def test_control_bind_mount_uses_valid_default_read_write_syntax() -> None:
+    args = module._control_run_args("image", "candidate")
+    mount_index = args.index("--mount")
+    assert args[mount_index + 1] == f"type=bind,src={module.PORTAL_DATA_DIR},dst=/state"
+    assert not args[mount_index + 1].endswith(",rw")
+
+
 def test_control_plane_is_internal_and_only_web_is_published() -> None:
     source = (DEPLOYMENT / "deploy.py").read_text(encoding="utf-8")
 

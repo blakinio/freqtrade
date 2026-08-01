@@ -139,3 +139,11 @@ validation:
 blockers: []
 next_action: drive post-sync exact-head AI Platform CI, full Freqtrade CI and security analysis to green, then merge PR #908 normally
 ```
+
+## Production metric-binding repair checkpoint
+
+- request-only PR #911 reverified the frozen Market Evidence v3 and accepted Liquid20 packages, then failed before dataset publication because the generated market snapshots lacked the nine canonical WH-00/WH-01 metric names;
+- request-only observer PR #912 confirmed the exact production candle, market-quality, source-health and accepted Liquid20 schemas and closed without merge;
+- the repair reuses the existing production WH-01 candle formulas and frozen 24-hour lookbacks, derives source-balanced spread from every verified source, and derives market-wide liquidation intensity from complete prior accepted-import burst buckets;
+- the metric policy is self-hashed and bound into both the source binding and materialization manifest;
+- no capture, backfill, synthetic production observation, protected-holdout access, replay, model execution, trading credential, order or live capital is introduced.

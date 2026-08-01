@@ -194,7 +194,11 @@ def _safe_member(root: Path, logical_name: str) -> Path:
 
 def _normalize_header(value: str) -> str:
     normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
-    return normalized.replace("aggregate_trade_id", "agg_trade_id")
+    aliases = {
+        "aggregate_trade_id": "agg_trade_id",
+        "transact_time": "timestamp",
+    }
+    return aliases.get(normalized, normalized)
 
 
 def _is_header(row: Sequence[str]) -> bool:

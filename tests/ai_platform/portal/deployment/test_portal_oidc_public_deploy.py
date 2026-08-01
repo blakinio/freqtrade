@@ -14,6 +14,13 @@ SPEC = importlib.util.spec_from_file_location("portal_oidc_deploy", DEPLOYMENT /
 assert SPEC and SPEC.loader
 module = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(module)
+DIAGNOSTIC_SPEC = importlib.util.spec_from_file_location(
+    "portal_oidc_discovery",
+    DEPLOYMENT / "diagnose_discovery.py",
+)
+assert DIAGNOSTIC_SPEC and DIAGNOSTIC_SPEC.loader
+diagnostic = importlib.util.module_from_spec(DIAGNOSTIC_SPEC)
+DIAGNOSTIC_SPEC.loader.exec_module(diagnostic)
 
 
 def frozen_request(sha: str) -> dict[str, object]:
@@ -185,6 +192,27 @@ def test_control_plane_is_internal_and_only_web_is_published() -> None:
     assert str(module.PORTAL_PORT) in source
 
 
+def test_discovery_probe_uses_explicit_machine_user_agent() -> None:
+    script = diagnostic._probe_script()
+
+    assert diagnostic.OIDC_HTTP_USER_AGENT == "Freqtrade-Portal-OIDC/1.0"
+    assert "'Accept': 'application/json'" in script
+    assert "'User-Agent': 'Freqtrade-Portal-OIDC/1.0'" in script
+    assert "urllib.request.Request(url, headers=headers)" in script
+    assert "urllib.request.urlopen(request, timeout=15)" in script
+    assert "urllib.request.urlopen(discovery_url" not in script
+    assert "urllib.request.urlopen(discovery['jwks_uri']" not in script
+
+
+def test_deployment_entrypoint_installs_repaired_discovery_probe() -> None:
+    entrypoint = (DEPLOYMENT / "deploy_entrypoint.py").read_text(encoding="utf-8")
+
+    assert 'DEPLOYMENT_DIR / "deploy.py"' in entrypoint
+    assert 'DEPLOYMENT_DIR / "diagnose_discovery.py"' in entrypoint
+    assert "deploy._discovery_from_identity_container = lambda:" in entrypoint
+    assert "discovery.deployment_probe" in entrypoint
+
+
 def test_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
@@ -196,6 +224,8 @@ def test_workflow_is_exact_one_request_secret_free_and_sha_pinned() -> None:
     assert "secret_values_in_request" in workflow
     assert "public_ingress_authorized" in workflow
     assert "if: always()" in workflow
+    assert "python3 deploy/synology/portal-oidc/deploy_entrypoint.py" in workflow
+    assert "python3 deploy/synology/portal-oidc/deploy.py" not in workflow
     assert "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0" in workflow
     assert "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a" in workflow
     assert "actions/checkout@v" not in workflow

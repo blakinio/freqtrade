@@ -4,32 +4,44 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+from typing import Any
 
 
 CONTROL_CONTAINER = "freqtrade-portal-control-plane"
 AUTHENTIK_ORIGIN = "https://auth.molehill.cloud"
 ISSUER = f"{AUTHENTIK_ORIGIN}/application/o/freqtrade-portal/"
+OIDC_HTTP_USER_AGENT = "Freqtrade-Portal-OIDC/1.0"
 MAX_DETAIL = 1000
 
 
 def _probe_script() -> str:
     return f"""
 import json
+import urllib.error
 import urllib.request
 issuer = {ISSUER!r}
+headers = {{
+    'Accept': 'application/json',
+    'User-Agent': {OIDC_HTTP_USER_AGENT!r},
+}}
+def load_json(url, phase):
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            return json.loads(response.read().decode('utf-8')), response.status
+    except urllib.error.HTTPError as exc:
+        raise SystemExit(f'{{phase}} HTTP {{exc.code}}') from exc
+    except urllib.error.URLError as exc:
+        raise SystemExit(f'{{phase}} URL error: {{exc.reason}}') from exc
 discovery_url = issuer.rstrip('/') + '/.well-known/openid-configuration'
-with urllib.request.urlopen(discovery_url, timeout=15) as response:
-    discovery = json.loads(response.read().decode('utf-8'))
-    discovery_status = response.status
+discovery, discovery_status = load_json(discovery_url, 'discovery')
 if discovery.get('issuer') != issuer:
     raise SystemExit('issuer mismatch')
 for key in ('authorization_endpoint', 'token_endpoint', 'jwks_uri'):
     value = discovery.get(key)
     if not isinstance(value, str) or not value.startswith({AUTHENTIK_ORIGIN!r} + '/'):
         raise SystemExit('invalid endpoint: ' + key)
-with urllib.request.urlopen(discovery['jwks_uri'], timeout=15) as response:
-    jwks = json.loads(response.read().decode('utf-8'))
-    jwks_status = response.status
+jwks, jwks_status = load_json(discovery['jwks_uri'], 'jwks')
 if not isinstance(jwks.get('keys'), list) or not jwks['keys']:
     raise SystemExit('empty JWKS')
 print('__PORTAL_DISCOVERY_DIAGNOSTIC__' + json.dumps({{
@@ -80,6 +92,21 @@ def diagnose() -> dict[str, object]:
     if payload.get("issuer") != ISSUER:
         raise RuntimeError("discovery diagnostic observed an unexpected issuer")
     return payload
+
+
+def deployment_probe(error_type: type[Exception]) -> tuple[dict[str, Any], dict[str, int]]:
+    try:
+        payload = diagnose()
+    except RuntimeError as exc:
+        raise error_type(str(exc)) from exc
+    discovery_status = payload.get("discovery")
+    jwks_status = payload.get("jwks_uri")
+    if type(discovery_status) is not int or type(jwks_status) is not int:
+        raise error_type("discovery diagnostic returned invalid HTTP status values")
+    return {"issuer": ISSUER}, {
+        "discovery": discovery_status,
+        "jwks_uri": jwks_status,
+    }
 
 
 def main() -> int:

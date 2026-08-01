@@ -14,6 +14,9 @@ import jwt
 from ai_platform.portal.identity.schema import OidcIdentity
 
 
+OIDC_HTTP_USER_AGENT = "Freqtrade-Portal-OIDC/1.0"
+
+
 class OidcProtocolError(RuntimeError):
     pass
 
@@ -134,7 +137,7 @@ class PyJwtOidcClient:
                     "client_secret": self.config.client_secret,
                     "code_verifier": code_verifier,
                 },
-                headers={"accept": "application/json"},
+                headers=_json_headers(),
             )
             response.raise_for_status()
             payload = response.json()
@@ -184,7 +187,7 @@ class PyJwtOidcClient:
             return self._discovery
         url = f"{self.issuer}/.well-known/openid-configuration"
         try:
-            response = self._http.get(url, headers={"accept": "application/json"})
+            response = self._http.get(url, headers=_json_headers())
             response.raise_for_status()
             payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
@@ -200,7 +203,7 @@ class PyJwtOidcClient:
         discovery = self._get_discovery()
         url = self._required_discovery_url(discovery, "jwks_uri")
         try:
-            response = self._http.get(url, headers={"accept": "application/json"})
+            response = self._http.get(url, headers=_json_headers())
             response.raise_for_status()
             payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
@@ -282,6 +285,13 @@ class PyJwtOidcClient:
         if require_nonce and claims.get("nonce") != expected_nonce:
             raise OidcProtocolError("OIDC nonce mismatch")
         return dict(claims)
+
+
+def _json_headers() -> dict[str, str]:
+    return {
+        "accept": "application/json",
+        "user-agent": OIDC_HTTP_USER_AGENT,
+    }
 
 
 def pkce_challenge(code_verifier: str) -> str:

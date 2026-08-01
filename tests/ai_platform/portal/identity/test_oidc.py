@@ -11,6 +11,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from ai_platform.portal.identity.oidc import (
+    OIDC_HTTP_USER_AGENT,
     OidcClientConfig,
     OidcProtocolError,
     PyJwtOidcClient,
@@ -46,6 +47,8 @@ def _client() -> tuple[PyJwtOidcClient, rsa.RSAPrivateKey]:
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["accept"] == "application/json"
+        assert request.headers["user-agent"] == OIDC_HTTP_USER_AGENT
         if request.url.path.endswith("/.well-known/openid-configuration"):
             return httpx.Response(200, json=discovery)
         if request.url.path.endswith("/jwks"):

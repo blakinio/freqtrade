@@ -1,0 +1,270 @@
+name: Deploy Binance V3 Persistent Acceptance Sampler
+
+"on":
+  pull_request:
+    types: [opened]
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/binance-spot-instrument-acceptance/run-requests/activate-existing-v3-run-20260731-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: binance-v3-persistent-acceptance-sampler-deploy
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: deploy/synology/binance-spot-instrument-acceptance/run-requests/activate-existing-v3-run-20260731-v1.json
+  STATE_DIR: /var/lib/freqtrade-staging-state
+  DURABLE_ROOT: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance
+  POINTER_PATH: /var/lib/freqtrade-staging-state/binance-spot-instrument-acceptance/active-binance-spot-instrument-acceptance-v3.json
+  COMPOSE_FILE: deploy/synology/binance-spot-instrument-acceptance/compose.yaml
+  COLLECTOR_UID: "1026"
+  COLLECTOR_GID: "100"
+
+jobs:
+  deploy:
+    name: Deploy persistent sampler for existing Binance v3 run
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact deployment request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file deployment request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tdeploy/synology/binance-spot-instrument-acceptance/run-requests/activate-existing-v3-run-20260731-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Validate frozen deployment authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          expected = {
+              "schema_version": 1,
+              "request_id": "binance-v3-persistent-sampler-activation-20260731-v1",
+              "target_run_id": "binance-spot-instrument-shadow-acceptance-20260729-v3-r1",
+              "minimum_existing_sample_count": 24,
+              "persistent_sampler_deployment_authorized": True,
+              "initialize_new_run": False,
+              "reset_or_delete_state": False,
+              "reuse_acceptance_request_identity": False,
+              "production_source_enabled": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+          }
+          payload = json.loads(Path(
+              "deploy/synology/binance-spot-instrument-acceptance/run-requests/"
+              "activate-existing-v3-run-20260731-v1.json"
+          ).read_text(encoding="utf-8"))
+          if payload != expected:
+              raise SystemExit("deployment request contract mismatch")
+          PY
+
+      - name: Validate runner, Docker, durable state and host mount
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" || "$RUNNER_ARCH_VALUE" == "ARM64" ]]
+          [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]]
+          [[ -d "$DURABLE_ROOT" && -w "$DURABLE_ROOT" ]]
+          [[ -f "$POINTER_PATH" && ! -L "$POINTER_PATH" ]]
+          docker version >/dev/null
+          docker compose version >/dev/null
+
+          host_state_dir="$(docker inspect \
+            --format '{{range .Mounts}}{{if eq .Destination "/var/lib/freqtrade-staging-state"}}{{.Source}}{{end}}{{end}}' \
+            freqtrade-synology-staging-runner)"
+          [[ "$host_state_dir" =~ ^/volume1/docker/[A-Za-z0-9._/-]+$ ]]
+          [[ "$host_state_dir" != *$'\n'* ]]
+          printf 'HOST_DURABLE_ROOT=%s\n' \
+            "$host_state_dir/binance-spot-instrument-acceptance" >> "$GITHUB_ENV"
+
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["DURABLE_ROOT"])
+          pointer = json.loads(
+              (root / "active-binance-spot-instrument-acceptance-v3.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          run_id = "binance-spot-instrument-shadow-acceptance-20260729-v3-r1"
+          if pointer.get("run_id") != run_id:
+              raise SystemExit("active pointer targets a different run")
+          run_root = root / run_id
+          state = json.loads((run_root / "incremental-state.json").read_text(encoding="utf-8"))
+          if state.get("run_id") != run_id or state.get("status") != "active":
+              raise SystemExit("target Binance v3 run is not active")
+          before = int(state["next_sample_index"])
+          if before < 24 or before >= int(state["expected_sample_count"]):
+              raise SystemExit("existing sample count is outside authorized bounds")
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as output:
+              output.write(f"BEFORE_SAMPLE_INDEX={before}\n")
+          PY
+
+      - name: Refuse trading credentials and proxy routing
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            BINANCE_API_KEY BINANCE_API_SECRET BINANCE_SECRET_KEY \
+            BYBIT_API_KEY BYBIT_API_SECRET \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            EXCHANGE_API_KEY EXCHANGE_API_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET \
+            HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Forbidden credential or proxy environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Hand existing state to hardened sampler identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find "$DURABLE_ROOT" -xdev -type l -print -quit | grep -q .; then
+            echo "Durable Binance acceptance root contains a forbidden symlink" >&2
+            exit 1
+          fi
+          chown -R -- "$COLLECTOR_UID:$COLLECTOR_GID" "$DURABLE_ROOT"
+          [[ "$(stat -c '%u:%g' "$DURABLE_ROOT")" == "$COLLECTOR_UID:$COLLECTOR_GID" ]]
+
+      - name: Deploy persistent sampler and release runner
+        shell: bash
+        env:
+          SAMPLER_COMMIT: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          export IMAGE_TAG="${SAMPLER_COMMIT:0:12}"
+          export PUID="$COLLECTOR_UID"
+          export PGID="$COLLECTOR_GID"
+          export BINANCE_ACCEPTANCE_STATE_DIR="$HOST_DURABLE_ROOT"
+          docker compose -f "$COMPOSE_FILE" config --quiet
+          docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans sampler
+
+      - name: Verify health and real sample advancement
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/binance-v3-persistent-sampler"
+          mkdir -p "$evidence"
+          verified=false
+          for _ in $(seq 1 100); do
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+              binance-v3-acceptance-sampler 2>/dev/null || true)"
+            if [[ "$health" == "healthy" ]]; then
+              if python3 - "$DURABLE_ROOT" "$BEFORE_SAMPLE_INDEX" "$evidence/deployment-report.json" <<'PY'
+          import json
+          import sys
+          import time
+          from pathlib import Path
+
+          root = Path(sys.argv[1])
+          before = int(sys.argv[2])
+          output = Path(sys.argv[3])
+          run_id = "binance-spot-instrument-shadow-acceptance-20260729-v3-r1"
+          health = json.loads(
+              (root / "binance-v3-persistent-sampler-health.json").read_text(
+                  encoding="utf-8"
+              )
+          )
+          if health.get("healthy") is not True:
+              raise SystemExit(1)
+          if health.get("production_source_enabled") is not False:
+              raise SystemExit(1)
+          if health.get("orders_submitted") != 0:
+              raise SystemExit(1)
+          state_path = root / run_id / "incremental-state.json"
+          report_path = root / run_id / "binance-spot-instrument-acceptance-report.json"
+          after = before
+          state_status = "completed"
+          outcome = None
+          if state_path.is_file():
+              state = json.loads(state_path.read_text(encoding="utf-8"))
+              after = int(state["next_sample_index"])
+              state_status = str(state["status"])
+          if report_path.is_file():
+              terminal = json.loads(report_path.read_text(encoding="utf-8"))
+              outcome = terminal.get("outcome")
+          if after <= before and outcome is None:
+              raise SystemExit(1)
+          payload = {
+              "schema_version": 1,
+              "verified_at_ns": time.time_ns(),
+              "container_name": "binance-v3-acceptance-sampler",
+              "run_id": run_id,
+              "before_sample_index": before,
+              "after_sample_index": after,
+              "state_status": state_status,
+              "terminal_outcome": outcome,
+              "persistent_sampler_healthy": True,
+              "source_acceptance": False if outcome is None else terminal.get("source_acceptance"),
+              "production_source_enabled": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "new_run_initialized": False,
+              "state_reset_or_deleted": False,
+          }
+          output.write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+              then
+                verified=true
+                break
+              fi
+            fi
+            sleep 10
+          done
+          if [[ "$verified" != "true" ]]; then
+            docker inspect binance-v3-acceptance-sampler || true
+            docker logs --tail 100 binance-v3-acceptance-sampler || true
+            echo "Persistent sampler did not prove real sample advancement" >&2
+            exit 1
+          fi
+          docker inspect --format '{{json .State.Health}}' binance-v3-acceptance-sampler
+
+      - name: Upload secret-free deployment evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: binance-v3-persistent-sampler-deployment-${{ github.run_id }}
+          path: ${{ runner.temp }}/binance-v3-persistent-sampler/deployment-report.json
+          if-no-files-found: error
+          retention-days: 30

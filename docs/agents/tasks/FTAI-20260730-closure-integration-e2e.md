@@ -1,14 +1,15 @@
 ---
 task_id: FTAI-20260730-closure-integration-e2e
-status: ready
+status: completed
 branch: agent/closure-integration-e2e
 base_branch: develop
 created: 2026-07-30
-updated: 2026-07-31
-related_pr: null
+updated: 2026-08-01
+related_pr: "#874"
 dependencies:
   - all repository REAL_GAP implementation PRs merged
   - PR #753, #758, #761 and #762 terminal or explicitly excluded from autonomous repository closure
+  - bounded responsive-shell repair PR #880 merged
 owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md
   - .github/workflows/ai-program-closure-e2e.yml
@@ -44,7 +45,9 @@ All repository implementation dependencies are merged and terminal:
 - Research Data PR #821 and terminal PR #823;
 - Strategy Catalog PR #819 and terminal PR #822;
 - Signal Wizard backend/context/hardening/frontend chain through PRs #825, #846, #858, #855 and terminal PR #863;
-- AI routing/ranking PR #829 and terminal PR #868.
+- AI routing/ranking PR #829 and terminal PR #868;
+- responsive overflow repair PR #880;
+- final Integration/E2E PR #874 merged as `4660b1eb19b2c09af21f46cab2916b64dec7bfaf`.
 
 Open PRs #816 and #848 are immutable operational request lanes that must never merge into `develop`. PR #833 is a disjoint WickHunter recovery coordination package. External acceptance remains separately owner-managed and cannot be claimed by repository fixtures. None overlaps the five Integration/E2E owned paths.
 
@@ -82,16 +85,17 @@ Run narrow tests first, then all repository workflows required by the changed pa
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-07-31T17:56:00+02:00
-head: 286eb3a0d8a6e7a6eafe6da6ea5228e4c1a38595
-branch: agent/closure-integration-e2e
-pr: null
+updated_at: 2026-08-01T00:15:00+02:00
+head: 4660b1eb19b2c09af21f46cab2916b64dec7bfaf
+branch: develop
+pr: "#874"
 status: ready
 context_routes:
   - AGENTS.md
   - docs/agents/CONTEXT_HANDOFF.md
   - docs/agents/tasks/FTAI-20260730-ai-program-closure-orchestration.md
   - docs/ai_platform/PROGRAM_CLOSURE_MATRIX.md
+  - docs/ai_platform/portal/E2E_TEST_ARCHITECTURE.md
 owned_paths:
   - docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md
   - .github/workflows/ai-program-closure-e2e.yml
@@ -99,36 +103,59 @@ owned_paths:
   - ai_platform/portal/web/e2e/program-closure.spec.ts
   - docs/ai_platform/PROGRAM_CLOSURE_E2E_EVIDENCE.md
 proven:
-  - Signal Wizard implementation and terminal checkpoints are merged through PRs 825, 846, 858, 855 and 863.
-  - Strategy Catalog implementation and terminal checkpoint are merged through PRs 819 and 822.
-  - Research Data implementation and terminal checkpoint are merged through PRs 821 and 823.
-  - AI routing/ranking implementation PR 829 merged as 11f5924a2c8bed093fa1486c8df05df081121443 and terminal PR 868 merged as 286eb3a0d8a6e7a6eafe6da6ea5228e4c1a38595.
-  - PR 829 exact final head passed AI Strategy Engine run 30633414223, Freqtrade CI run 30633414236 and security run 30633414280.
-  - Open PRs 816, 848 and 833 do not touch any Integration/E2E owned path.
-  - External P11 acceptance remains a separate owner-managed lane and is not a repository implementation dependency.
+  - All repository REAL_GAP implementation dependencies and terminal checkpoints are merged.
+  - PR 874 differed from develop by exactly the five declared Integration/E2E owned paths at merge time.
+  - Focused backend integration passed 3 tests and canonical regressions passed 49 tests.
+  - The dedicated exact-head closure workflow passed backend integration, canonical regressions, Ruff, desktop Chromium and the strict 390 px responsive assertion on head dbb9d47e973eb2a5f0634525cf4f7866b3d7e5e8.
+  - Full Freqtrade CI passed on exact head dbb9d47e973eb2a5f0634525cf4f7866b3d7e5e8.
+  - Portal Web CI, Portal Universal E2E, AI Platform CI and GitHub Actions Security Analysis passed on the exact head.
+  - Persisted intent, transport acknowledgement and deterministic execution proof remain separate evidence states.
+  - Browser request and source scans reject direct Freqtrade, exchange-private, Vault and secret references.
+  - Cross-tenant navigation is verified against the canonical proxy redirect and global denied page, while the protected API returns HTTP 403.
+  - Repository fixtures are labelled explicitly and external P11 acceptance remains false.
+  - Coordinator-authorized repair PR 880 removed the intrinsic table sizing defect without hiding overflow or removing the table minimum width.
+  - PR 874 had no inline review threads and merged normally as 4660b1eb19b2c09af21f46cab2916b64dec7bfaf.
 derived:
-  - Every autonomous repository implementation dependency is terminal.
-  - The final Integration/E2E worker is unblocked and may start from current develop.
-unknown:
-  - Exact implementation head, PR number and CI run IDs until the worker starts.
+  - Repository closure evidence is complete for paper, shadow and dry-run scope.
+  - No autonomous repository implementation or Integration/E2E worker remains.
+  - External Cloudflare, Authentik, Vault and Synology P11 acceptance remains explicitly outside this repository fixture proof.
+  - The checkpoint contract has no terminal status enum, so ready represents a validated archive-ready handoff while frontmatter records completed.
+unknown: []
 conflicts: []
 first_failure:
   marker: NONE
-  evidence: The prior WAIT_FOR_IMPLEMENTATION_MERGES condition is satisfied and current active PR ownership is disjoint.
+  evidence: All concrete implementation, responsive, formatting and expectation failures are resolved.
 rejected_hypotheses:
-  - An unchecked backlog box alone proves missing implementation.
-  - A downstream worker may redefine shared contracts.
-  - Repository fixtures may be described as real external acceptance.
-  - Operational WickHunter request PRs are mergeable program dependencies.
+  - Persisted command intent is authoritative execution proof.
+  - Repository fixture evidence is real protected-ingress P11 acceptance.
+  - Arbitrary sleeps are valid readiness evidence.
+  - The 547-pixel overflow may be hidden by weakening the E2E assertion.
+  - Freqtrade CI formatting failure is an unrelated repository failure.
 changed_paths:
   - docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md
+  - .github/workflows/ai-program-closure-e2e.yml
+  - tests/ai_platform_integration/test_program_closure_e2e.py
+  - ai_platform/portal/web/e2e/program-closure.spec.ts
+  - docs/ai_platform/PROGRAM_CLOSURE_E2E_EVIDENCE.md
 validation:
-  - command: terminal implementation merge audit
+  - command: AI Program Closure E2E run 30668369899
     result: PASS
-    evidence: All repository REAL_GAP child implementations and terminal checkpoints are merged through develop 286eb3a0d8a6e7a6eafe6da6ea5228e4c1a38595.
-  - command: open PR changed-path comparison
+    evidence: Backend deterministic integration, Critical Chromium journeys and Exact-head closure gate completed successfully.
+  - command: Freqtrade CI run 30668369907
     result: PASS
-    evidence: PRs 816, 848 and 833 are disjoint from the five declared Integration/E2E paths.
+    evidence: Full repository CI completed successfully.
+  - command: Portal Web CI run 30668369892
+    result: PASS
+    evidence: Typecheck, lint, production build and Chromium regression completed successfully.
+  - command: Portal Universal E2E run 30668369884
+    result: PASS
+    evidence: Universal backend and browser journeys completed successfully.
+  - command: AI Platform CI run 30668369963
+    result: PASS
+    evidence: AI Platform checks completed successfully.
+  - command: GitHub Actions Security Analysis run 30668369883
+    result: PASS
+    evidence: Workflow security analysis completed successfully.
 blockers: []
-next_action: Start docs/agents/prompts/ai-program-closure/INTEGRATION-E2E-AGENT-PROMPT.md in a new chat from current develop.
+next_action: Archive this validated repository-closure checkpoint; external P11 remains owner-managed and live capital remains prohibited.
 ```

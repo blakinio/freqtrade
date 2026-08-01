@@ -242,3 +242,23 @@ A working market-data page proves data presentation, not data acceptance, synchr
 Consequence:
 
 Future agents must use `LIQUIDATIONS_AND_AI_BOT_ARCHITECTURE.md`, preserve immutable evidence and no-lookahead rules, and follow the standard model/strategy/risk/execution lifecycle before making any trading claim.
+
+## ADR-018 — Production portal hostname is `quant.molehill.cloud`
+
+Status: `accepted`
+
+Decision:
+
+- The canonical public production hostname for the AI Trading Portal is `https://quant.molehill.cloud`.
+- The hostname belongs to the owner-controlled `molehill.cloud` zone and is intended to use the Cloudflare-protected ingress and hidden-origin model defined by ADR-011.
+- Local, test and staging addresses remain separate and must not be presented as the production origin.
+- DNS, Cloudflare Tunnel routing, TLS, OIDC redirect URIs, cookie scope and deployment configuration must use this hostname consistently when the production ingress package is activated.
+- This decision reserves the production hostname; it does not by itself claim that DNS, Tunnel, TLS, OIDC or the production deployment is already active.
+
+Reason:
+
+A single canonical production origin prevents conflicting hostnames across DNS, identity callbacks, browser sessions, security policies, deployment configuration and operational evidence.
+
+Consequence:
+
+Future production-ingress, identity and deployment work must treat `https://quant.molehill.cloud` as the target external origin or explicitly replace this ADR through a bounded architecture change.

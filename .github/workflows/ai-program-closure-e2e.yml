@@ -1,0 +1,425 @@
+name: AI Program Closure E2E
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - ".github/workflows/ai-program-closure-e2e.yml"
+      - "tests/ai_platform_integration/test_program_closure_e2e.py"
+      - "ai_platform/portal/web/e2e/program-closure.spec.ts"
+      - "docs/ai_platform/PROGRAM_CLOSURE_E2E_EVIDENCE.md"
+      - "docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md"
+      - "ai_platform/portal/contracts/**"
+      - "ai_platform/portal/control_plane/**"
+      - "ai_platform/portal/risk/**"
+      - "ai_platform/portal/simulator/**"
+      - "ai_platform/portal/operations/**"
+      - "ai_platform/portal/signal_wizard/**"
+      - "ai_platform/research/strategy_engine/**"
+      - "ai_strategy_engine/**"
+      - "ai_platform/portal/web/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  backend-integration:
+    name: Backend deterministic integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: "${{ github.workspace }}:${{ github.workspace }}/ai_strategy_engine/src"
+      PROGRAM_CLOSURE_ARTIFACT_DIR: "${{ github.workspace }}/artifacts/program-closure/backend"
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.12"
+
+      - name: Install bounded validation dependencies
+        run: |
+          python -m venv .venv-program-closure
+          . .venv-program-closure/bin/activate
+          python -m pip install --disable-pip-version-check --upgrade pip
+          python -m pip install --disable-pip-version-check \
+            -e "./ai_strategy_engine[dev]" \
+            "SQLAlchemy>=2.0.6" "fastapi>=0.115" "httpx>=0.27" \
+            "pyjwt>=2.8" "cryptography>=42" "PyYAML>=6.0"
+
+      - name: Compile owned integration and canonical layers
+        run: |
+          . .venv-program-closure/bin/activate
+          python -m compileall -q \
+            tests/ai_platform_integration/test_program_closure_e2e.py \
+            ai_platform/portal/contracts \
+            ai_platform/portal/risk \
+            ai_platform/portal/simulator \
+            ai_platform/portal/operations \
+            ai_platform/portal/signal_wizard \
+            ai_platform/research/strategy_engine
+
+      - name: Run focused closure integration
+        id: focused
+        continue-on-error: true
+        run: |
+          . .venv-program-closure/bin/activate
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_program_closure_e2e.py
+
+      - name: Run canonical regression slices
+        id: canonical
+        if: always()
+        continue-on-error: true
+        run: |
+          . .venv-program-closure/bin/activate
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_ase03_paper_shadow_integration.py
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform \
+            tests/ai_platform/portal/signal_wizard \
+            tests/ai_platform/portal/simulator \
+            tests/ai_platform/portal/operations/test_private_runtime_reconciliation.py
+
+      - name: Validate owned Python style
+        id: style
+        if: always()
+        continue-on-error: true
+        run: |
+          . .venv-program-closure/bin/activate
+          ruff check --ignore UP018 \
+            tests/ai_platform_integration/test_program_closure_e2e.py
+          ruff format --diff --check tests/ai_platform_integration/test_program_closure_e2e.py
+
+      - name: Validate durable checkpoint
+        id: checkpoint
+        if: always()
+        continue-on-error: true
+        run: |
+          . .venv-program-closure/bin/activate
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md \
+            --require-checkpoint
+
+      - name: Ensure a backend failure bundle exists
+        if: always()
+        env:
+          FOCUSED_OUTCOME: "${{ steps.focused.outcome }}"
+          CANONICAL_OUTCOME: "${{ steps.canonical.outcome }}"
+          STYLE_OUTCOME: "${{ steps.style.outcome }}"
+          CHECKPOINT_OUTCOME: "${{ steps.checkpoint.outcome }}"
+          EXACT_HEAD: "${{ github.sha }}"
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["PROGRAM_CLOSURE_ARTIFACT_DIR"])
+          root.mkdir(parents=True, exist_ok=True)
+          path = root / "program-closure-backend.json"
+          outcomes = {
+              "focused_integration": os.environ["FOCUSED_OUTCOME"],
+              "canonical_regressions": os.environ["CANONICAL_OUTCOME"],
+              "style": os.environ["STYLE_OUTCOME"],
+              "checkpoint": os.environ["CHECKPOINT_OUTCOME"],
+          }
+          if not path.exists():
+              first = next(
+                  (name for name, outcome in outcomes.items() if outcome != "success"),
+                  "test_collection_or_import",
+              )
+              path.write_text(
+                  json.dumps(
+                      {
+                          "schema_version": "1.0.0",
+                          "evidence_class": "REPOSITORY_CI",
+                          "external_p11_acceptance": False,
+                          "passed": False,
+                          "exact_head": os.environ["EXACT_HEAD"],
+                          "first_failure": {
+                              "stage": first,
+                              "reason_code": "WORKFLOW_STEP_FAILED",
+                          },
+                          "workflow_outcomes": outcomes,
+                      },
+                      indent=2,
+                      sort_keys=True,
+                  )
+                  + "\n",
+                  encoding="utf-8",
+              )
+          PY
+
+      - name: Upload backend evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ai-program-closure-backend-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/program-closure/backend
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce backend gate
+        if: always()
+        env:
+          FOCUSED_OUTCOME: "${{ steps.focused.outcome }}"
+          CANONICAL_OUTCOME: "${{ steps.canonical.outcome }}"
+          STYLE_OUTCOME: "${{ steps.style.outcome }}"
+          CHECKPOINT_OUTCOME: "${{ steps.checkpoint.outcome }}"
+        run: |
+          test "$FOCUSED_OUTCOME" = "success"
+          test "$CANONICAL_OUTCOME" = "success"
+          test "$STYLE_OUTCOME" = "success"
+          test "$CHECKPOINT_OUTCOME" = "success"
+
+  chromium-journeys:
+    name: Critical Chromium journeys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    env:
+      PORTAL_WEB_DATA_MODE: fixture
+      PORTAL_ENVIRONMENT: test
+      PORTAL_IDENTITY_FIXTURE_MODE: enabled
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Materialize owned-spec Playwright config
+        run: |
+          cat > program-closure.playwright.config.ts <<'EOF'
+          import base from "./playwright.config";
+
+          export default {
+            ...base,
+            testDir: "./e2e",
+            testMatch: "program-closure.spec.ts",
+          };
+          EOF
+
+      - name: Run desktop critical and state journeys
+        id: desktop
+        continue-on-error: true
+        run: |
+          set +e
+          npx playwright test \
+            --config=program-closure.playwright.config.ts \
+            --project=chromium-desktop \
+            --grep-invert @responsive
+          status=$?
+          if test -f artifacts/results.json; then
+            cp artifacts/results.json artifacts/program-closure-desktop-results.json
+          fi
+          exit "$status"
+
+      - name: Run 390px responsive journey
+        id: responsive
+        if: always()
+        continue-on-error: true
+        run: |
+          set +e
+          npx playwright test \
+            --config=program-closure.playwright.config.ts \
+            --project=mobile-chrome \
+            --grep @responsive
+          status=$?
+          if test -f artifacts/results.json; then
+            cp artifacts/results.json artifacts/program-closure-responsive-results.json
+          fi
+          exit "$status"
+
+      - name: Build browser first-failure bundle
+        if: always()
+        env:
+          DESKTOP_OUTCOME: "${{ steps.desktop.outcome }}"
+          RESPONSIVE_OUTCOME: "${{ steps.responsive.outcome }}"
+          EXACT_HEAD: "${{ github.sha }}"
+        run: |
+          mkdir -p artifacts/program-closure
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          const candidates = [
+            ["desktop", "artifacts/program-closure-desktop-results.json"],
+            ["responsive", "artifacts/program-closure-responsive-results.json"],
+          ];
+          function firstFailure(node, route = []) {
+            if (!node || typeof node !== "object") return null;
+            if (Array.isArray(node)) {
+              for (let index = 0; index < node.length; index += 1) {
+                const found = firstFailure(node[index], [...route, String(index)]);
+                if (found) return found;
+              }
+              return null;
+            }
+            if (
+              typeof node.status === "string" &&
+              ["failed", "timedOut", "interrupted"].includes(node.status)
+            ) {
+              return {
+                route: route.join("."),
+                status: node.status,
+                error: node.error?.message ?? node.errors?.[0]?.message ?? null,
+              };
+            }
+            for (const [key, value] of Object.entries(node)) {
+              const found = firstFailure(value, [...route, key]);
+              if (found) return found;
+            }
+            return null;
+          }
+
+          let first = null;
+          for (const [stage, filename] of candidates) {
+            if (!fs.existsSync(filename)) continue;
+            const parsed = JSON.parse(fs.readFileSync(filename, "utf8"));
+            const failure = firstFailure(parsed);
+            if (failure) {
+              first = { stage, reason_code: "PLAYWRIGHT_FAILURE", ...failure };
+              break;
+            }
+          }
+          const outcomes = {
+            desktop: process.env.DESKTOP_OUTCOME,
+            responsive: process.env.RESPONSIVE_OUTCOME,
+          };
+          const passed = Object.values(outcomes).every((value) => value === "success");
+          if (!passed && !first) {
+            first = {
+              stage: Object.entries(outcomes).find(([, value]) => value !== "success")?.[0],
+              reason_code: "PLAYWRIGHT_STEP_FAILED_BEFORE_RESULT",
+            };
+          }
+          const bundle = {
+            schema_version: "1.0.0",
+            evidence_class: "REPOSITORY_FIXTURE_BROWSER",
+            external_p11_acceptance: false,
+            exact_head: process.env.EXACT_HEAD,
+            passed,
+            first_failure: first,
+            workflow_outcomes: outcomes,
+          };
+          fs.writeFileSync(
+            path.join("artifacts", "program-closure", "browser-first-failure.json"),
+            `${JSON.stringify(bundle, null, 2)}\n`,
+          );
+          NODE
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ai-program-closure-browser-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ai_platform/portal/web/artifacts
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce browser gate
+        if: always()
+        env:
+          DESKTOP_OUTCOME: "${{ steps.desktop.outcome }}"
+          RESPONSIVE_OUTCOME: "${{ steps.responsive.outcome }}"
+        run: |
+          test "$DESKTOP_OUTCOME" = "success"
+          test "$RESPONSIVE_OUTCOME" = "success"
+
+  closure-gate:
+    name: Exact-head closure gate
+    if: always()
+    needs:
+      - backend-integration
+      - chromium-journeys
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Write exact-head workflow matrix
+        env:
+          BACKEND_RESULT: "${{ needs.backend-integration.result }}"
+          BROWSER_RESULT: "${{ needs.chromium-journeys.result }}"
+          EXACT_HEAD: "${{ github.sha }}"
+          RUN_ID: "${{ github.run_id }}"
+          RUN_ATTEMPT: "${{ github.run_attempt }}"
+        run: |
+          mkdir -p artifacts/program-closure
+          python - <<'PY'
+          from __future__ import annotations
+          import json
+          import os
+          from pathlib import Path
+
+          outcomes = {
+              "backend_integration": os.environ["BACKEND_RESULT"],
+              "chromium_journeys": os.environ["BROWSER_RESULT"],
+          }
+          passed = all(value == "success" for value in outcomes.values())
+          first = next(
+              (
+                  {"stage": name, "reason_code": "JOB_FAILED"}
+                  for name, value in outcomes.items()
+                  if value != "success"
+              ),
+              None,
+          )
+          payload = {
+              "schema_version": "1.0.0",
+              "evidence_class": "REPOSITORY_CI",
+              "external_p11_acceptance": False,
+              "exact_head": os.environ["EXACT_HEAD"],
+              "run_id": os.environ["RUN_ID"],
+              "run_attempt": os.environ["RUN_ATTEMPT"],
+              "passed": passed,
+              "first_failure": first,
+              "jobs": outcomes,
+          }
+          Path("artifacts/program-closure/exact-head-workflow-matrix.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload exact-head matrix
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ai-program-closure-matrix-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/program-closure
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Enforce exact-head matrix
+        env:
+          BACKEND_RESULT: "${{ needs.backend-integration.result }}"
+          BROWSER_RESULT: "${{ needs.chromium-journeys.result }}"
+        run: |
+          test "$BACKEND_RESULT" = "success"
+          test "$BROWSER_RESULT" = "success"

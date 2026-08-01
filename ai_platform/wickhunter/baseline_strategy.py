@@ -211,7 +211,7 @@ class EvaluationDecision:
     live_capital_authorized: bool
     orders_submitted: int
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != BASELINE_DECISION_SCHEMA_VERSION:
             raise BaselineEvaluationError(
                 f"decision schema must be {BASELINE_DECISION_SCHEMA_VERSION}"

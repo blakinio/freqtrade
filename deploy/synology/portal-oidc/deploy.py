@@ -71,9 +71,18 @@ def _run(
         if sensitive:
             executable = Path(command[0]).name
             raise DeploymentError(f"sensitive command failed: {executable}")
-        output = result.stderr or result.stdout
-        lines = [line.strip() for line in output.splitlines() if line.strip()]
-        detail = " | ".join(lines[:3]) if lines else "no output"
+        lines = [
+            line.strip()
+            for stream in (result.stdout, result.stderr)
+            for line in stream.splitlines()
+            if line.strip()
+        ]
+        if not lines:
+            detail = "no output"
+        elif len(lines) <= 8:
+            detail = " | ".join(lines)
+        else:
+            detail = " | ".join([*lines[:2], "...", *lines[-5:]])
         if len(detail) > 1000:
             detail = f"{detail[:997]}..."
         rendered = " ".join(command)

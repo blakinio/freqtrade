@@ -67,6 +67,23 @@ def test_run_preserves_actionable_nonsensitive_error(monkeypatch) -> None:
         module._run(["docker", "run", "redacted-image"])
 
 
+def test_run_preserves_tail_of_long_build_error(monkeypatch) -> None:
+    build_lines = [f"# {index} intermediate build output" for index in range(20)]
+    build_lines.append("ERROR: failed to solve: required build input is missing")
+
+    def fake_run(*_args, **_kwargs):
+        return module.subprocess.CompletedProcess(
+            args=["docker", "build"],
+            returncode=1,
+            stdout="\n".join(build_lines),
+            stderr="",
+        )
+
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    with pytest.raises(module.DeploymentError, match="required build input is missing"):
+        module._run(["docker", "build", "redacted-context"])
+
+
 def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
     blueprint = (DEPLOYMENT / "blueprints" / module.BLUEPRINT_NAME).read_text(encoding="utf-8")
 
@@ -132,7 +149,9 @@ def test_deployer_is_public_secret_free_and_hardened() -> None:
     assert 'f"{PORTAL_UID}:{PORTAL_GID}"' in source
     assert "os.getuid()" not in source
     assert "os.getgid()" not in source
-    assert 'detail = " | ".join(lines[:3])' in source
+    assert (
+        'detail = " | ".join([*lines[:2], "...", *lines[-5:]])' in source
+    )
     assert "0o600" in source
     assert "refusing rotation" in source
     assert '"secret_values_recorded": False' in source

@@ -91,6 +91,13 @@ jobs:
             fi
           done
 
+      - name: Prepare Synology host Portal state directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/prepare_host_state.py \
+            --repository "$GITHUB_WORKSPACE"
+
       - name: Apply provider and deploy public Portal OIDC
         id: deploy
         continue-on-error: true

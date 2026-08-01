@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260801-wickhunter-wh02-deterministic-replay-v1
 project_lane: freqtrade-wickhunter
-status: ready
+status: validating
 branch: feat/wickhunter-wh02-deterministic-replay-v1
 base_branch: develop
 created: 2026-08-01
@@ -56,36 +56,46 @@ Bind the immutable WH-01 dataset and verified exact trade path into deterministi
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T15:23:00+02:00
+updated_at: 2026-08-01T18:59:35+02:00
 project_lane: freqtrade-wickhunter
-phase: design
-session_id: unclaimed
+phase: validate
+session_id: wh02-20260801-001
 session_role: implementer
-execution_mode: codex
-execution_reason: multi-file implementation and deterministic test loop required
-status: ready
+execution_mode: chat
+execution_reason: direct GitHub implementation with bounded isolated test validation because local checkout DNS is unavailable
+status: validating
 branch: feat/wickhunter-wh02-deterministic-replay-v1
+head: 74c8173688eebf372bf29e6f4df7d65e9df0e724
 base_branch: develop
 related_pr: null
 context_pressure: high
 context_growth: stable
 decomposition_decision: phased
 decomposition_reason: contract design, implementation and validation share one immutable replay output
-validation_level: not_started
+validation_level: focused
 heavy_validation_runs: 0
 proven:
-  - WH-01 contains 919 verified decisions across 20 symbols
-  - exact post-decision aggregate-trade sequence is available in the immutable v4 package
-  - the protected holdout was not accessed
-  - all authority flags remained false and orders submitted remained zero
+  - live ownership preflight found no existing WH-02 deterministic replay branch or overlapping writer
+  - the branch was created from develop at e5601c640d9f53f878645caca356762c71dfdf06
+  - the replay policy freezes exact entry, costs, TP/SL ordering, timeout, excursions, split geometry and parity
+  - the implementation emits deterministic long and short labels, atomic evidence and an independent verifier
+  - protected holdout, model, performance, execution, order and live-capital authority remain disabled
 derived:
-  - WH-02 can now define exact event ordering without candle-order approximation
+  - the same pure replay_event_label function is the WH-07 replay/shadow parity seam
 unknown:
-  - final entry, fee, slippage, TP/SL, timeout and parity contracts
-conflicts: []
+  - exact-head repository CI result
+conflicts:
+  - open readiness remediation PR 950 owns collector/runtime paths and does not overlap this task
 first_relevant_error: null
-changed_paths: []
-validation: []
+changed_paths:
+  - ai_platform/wickhunter/deterministic_replay.py
+  - tests/ai_platform_integration/test_wickhunter_deterministic_replay.py
+  - docs/ai_platform/WICKHUNTER_DETERMINISTIC_REPLAY.md
+  - docs/agents/tasks/FTAI-20260801-wickhunter-wh02-deterministic-replay-v1.md
+validation:
+  - command: isolated Python syntax and functional replay suite
+    result: PASS, 7 tests
+    evidence: long TP, short SL ordering, timeout, missing entry, holdout, embargo, atomic build and tamper rejection
 blockers: []
-next_action: claim the task, verify live ownership and exact immutable inputs, then complete the bounded WH02-DESIGN contract phase before implementation
+next_action: open the exact four-path PR, run focused and repository CI on its exact head, repair only proven failures, then perform fresh validation
 ```

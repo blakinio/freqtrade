@@ -110,7 +110,7 @@ def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None
         ROOT / "ai_platform" / "portal" / "identity" / "bootstrap_membership.py"
     ).read_text(encoding="utf-8")
 
-    assert 'config.transport_mode != "https"' in runtime
+    assert 'config.transport_mode != "secure_https"' in runtime
     assert "_ensure_local_owner_membership" not in runtime
     assert "create_membership" not in runtime
     assert "secure=True" in runtime

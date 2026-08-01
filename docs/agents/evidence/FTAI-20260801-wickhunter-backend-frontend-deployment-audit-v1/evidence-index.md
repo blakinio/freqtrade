@@ -24,3 +24,4 @@ Audited head: `6419138e170844d0eb09d9381b4435900d802ab9`
 | E-018 | PROVEN | Collector Python bases are tag-only and CI Python is patch-floating. |
 | E-019 | UNKNOWN | Local checkout failed: `git ls-remote` exit 128, `Could not resolve host: github.com`. |
 | E-020 | UNKNOWN | No fresh independent validator session has run. |
+| E-021 | PROVEN | After the audit freeze, `develop` advanced to `d6cb539c1c037dcb63439994696b3add04e2a84c` through PR #926; the observed diff is outside the frozen Market Evidence audit paths and must be reconciled by the validator. |

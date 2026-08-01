@@ -51,9 +51,7 @@ def test_frozen_request_accepts_only_current_implementation_sha(tmp_path: Path) 
 
 
 def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
-    blueprint = (DEPLOYMENT / "blueprints" / module.BLUEPRINT_NAME).read_text(
-        encoding="utf-8"
-    )
+    blueprint = (DEPLOYMENT / "blueprints" / module.BLUEPRINT_NAME).read_text(encoding="utf-8")
 
     assert "authentik_providers_oauth2.oauth2provider" in blueprint
     assert "authentik_core.application" in blueprint
@@ -71,9 +69,9 @@ def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
 
 
 def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None:
-    runtime = (
-        ROOT / "ai_platform" / "portal" / "identity" / "public_runtime.py"
-    ).read_text(encoding="utf-8")
+    runtime = (ROOT / "ai_platform" / "portal" / "identity" / "public_runtime.py").read_text(
+        encoding="utf-8"
+    )
     bootstrap = (
         ROOT / "ai_platform" / "portal" / "identity" / "bootstrap_membership.py"
     ).read_text(encoding="utf-8")
@@ -92,9 +90,7 @@ def test_public_runtime_requires_https_and_has_no_automatic_membership() -> None
 
 
 def test_images_are_pinned_and_control_plane_runs_public_runtime() -> None:
-    web = (ROOT / "deploy" / "synology" / "portal" / "Dockerfile").read_text(
-        encoding="utf-8"
-    )
+    web = (ROOT / "deploy" / "synology" / "portal" / "Dockerfile").read_text(encoding="utf-8")
     control = (DEPLOYMENT / "Dockerfile.control-plane").read_text(encoding="utf-8")
 
     assert web.count("node:22.23.1-bookworm-slim@sha256:") == 3
@@ -133,9 +129,7 @@ def test_control_plane_is_internal_and_only_web_is_published() -> None:
     control_section = source[
         source.index("def _control_run_args") : source.index("def _start_control_candidate")
     ]
-    web_section = source[
-        source.index("def _web_run_args") : source.index("def _probe_web_login")
-    ]
+    web_section = source[source.index("def _web_run_args") : source.index("def _probe_web_login")]
     assert "--publish" not in control_section
     assert "--publish" in web_section
     assert f"{module.PORTAL_BIND_ADDRESS}" in source

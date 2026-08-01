@@ -1,0 +1,354 @@
+name: WickHunter WH-02 replay preflight observer
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh02-replay-preflight-observer.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh02-replay-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573
+  MARKET_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1/immutable-package
+  EXPECTED_DATASET_MANIFEST_SHA256: 3b0a052d13c8d3684a9bf63712ee00d5a9c09343d14e628c6611a444024b2d51
+  EXPECTED_CODE_SHA: 2091971608df3c33238c845f5f019a384b231580
+  LABEL_HORIZON_MS: "900000"
+
+jobs:
+  observe:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 8
+    steps:
+      - name: Check out exact observer commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact one-file observer scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$merge_base" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh02-replay-preflight-observer.yml'
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ -d "$DATASET_ROOT" && ! -L "$DATASET_ROOT" ]]
+          [[ -d "$MARKET_PACKAGE_ROOT" && ! -L "$MARKET_PACKAGE_ROOT" ]]
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+          done
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+
+      - name: Observe exact replay geometry and candidate surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/wickhunter-wh02-replay-preflight.json"
+          from __future__ import annotations
+
+          import json
+          import os
+          from collections import Counter, defaultdict
+          from decimal import Decimal
+          from pathlib import Path
+
+          from ai_platform.wickhunter.contracts import (
+              AvailableMetric,
+              CandidateAction,
+              LiquidationFeatureVector,
+              SourceLiquidationAggregate,
+              StrategyHypothesis,
+          )
+          from ai_platform.wickhunter.parameters import INITIAL_COMPATIBILITY_PRIOR
+          from ai_platform.wickhunter.production_dataset_materialization import (
+              MARKET_MANIFEST_NAME,
+              TIMEFRAME_MS,
+              _candle_maps,
+              _load_json,
+              verify_production_materialization,
+          )
+          from ai_platform.wickhunter.production_market_evidence_intersection import (
+              verify_intersection_package,
+          )
+          from ai_platform.wickhunter.scoring import DeterministicBaselineScorer
+          from ai_platform.wickhunter.strategy import generate_candidate
+
+
+          def dec(value: object) -> Decimal:
+              return Decimal(str(value))
+
+
+          def parse_metric(raw: dict[str, object]) -> AvailableMetric:
+              return AvailableMetric(
+                  name=str(raw["name"]),
+                  value=dec(raw["value"]),
+                  available_at_ms=int(raw["available_at_ms"]),
+                  source=str(raw["source"]),
+              )
+
+
+          def parse_aggregate(raw: dict[str, object]) -> SourceLiquidationAggregate:
+              return SourceLiquidationAggregate(
+                  source=str(raw["source"]),
+                  event_count=int(raw["event_count"]),
+                  total_notional_usd=dec(raw["total_notional_usd"]),
+                  liquidated_long_notional_usd=dec(raw["liquidated_long_notional_usd"]),
+                  liquidated_short_notional_usd=dec(raw["liquidated_short_notional_usd"]),
+                  maximum_event_notional_usd=dec(raw["maximum_event_notional_usd"]),
+                  maximum_ingest_latency_ms=int(raw["maximum_ingest_latency_ms"]),
+                  latest_received_at_ms=int(raw["latest_received_at_ms"]),
+              )
+
+
+          def parse_feature(raw: dict[str, object]) -> LiquidationFeatureVector:
+              previous = raw.get("time_since_previous_burst_ms")
+              return LiquidationFeatureVector(
+                  feature_schema_version=str(raw["feature_schema_version"]),
+                  symbol=str(raw["symbol"]),
+                  decision_timestamp_ms=int(raw["decision_timestamp_ms"]),
+                  decision_price=dec(raw["decision_price"]),
+                  event_count=int(raw["event_count"]),
+                  total_notional_usd=dec(raw["total_notional_usd"]),
+                  liquidated_long_notional_usd=dec(raw["liquidated_long_notional_usd"]),
+                  liquidated_short_notional_usd=dec(raw["liquidated_short_notional_usd"]),
+                  long_short_imbalance=dec(raw["long_short_imbalance"]),
+                  maximum_event_notional_usd=dec(raw["maximum_event_notional_usd"]),
+                  maximum_event_percentile=dec(raw["maximum_event_percentile"]),
+                  maximum_event_zscore=dec(raw["maximum_event_zscore"]),
+                  liquidation_burst_intensity=dec(raw["liquidation_burst_intensity"]),
+                  time_since_previous_burst_ms=(None if previous is None else int(previous)),
+                  ingest_latency_ms=int(raw["ingest_latency_ms"]),
+                  source_coverage_ratio=dec(raw["source_coverage_ratio"]),
+                  source_aggregates=tuple(
+                      parse_aggregate(item) for item in raw["source_aggregates"]  # type: ignore[index]
+                  ),
+                  market_metrics=tuple(
+                      parse_metric(item) for item in raw["market_metrics"]  # type: ignore[index]
+                  ),
+                  feature_available_at_ms=int(raw["feature_available_at_ms"]),
+                  input_event_ids=tuple(str(item) for item in raw["input_event_ids"]),  # type: ignore[index]
+                  history_id=str(raw["history_id"]),
+                  history_sha256=str(raw["history_sha256"]),
+              )
+
+
+          dataset_root = Path(os.environ["DATASET_ROOT"])
+          market_root = Path(os.environ["MARKET_PACKAGE_ROOT"])
+          horizon_ms = int(os.environ["LABEL_HORIZON_MS"])
+          terminal = verify_production_materialization(dataset_root)
+          market_verification = verify_intersection_package(market_root)
+          dataset_manifest = json.loads(
+              (dataset_root / "dataset" / "manifest.json").read_text(encoding="utf-8")
+          )
+          if dataset_manifest.get("manifest_sha256") != os.environ["EXPECTED_DATASET_MANIFEST_SHA256"]:
+              raise SystemExit("dataset manifest identity mismatch")
+          if dataset_manifest.get("code_sha") != os.environ["EXPECTED_CODE_SHA"]:
+              raise SystemExit("dataset code identity mismatch")
+          if terminal.get("wh01_ready") is not True:
+              raise SystemExit("WH-01 dataset is not ready")
+
+          rows: list[dict[str, object]] = []
+          for partition in dataset_manifest["partitions"]:
+              path = dataset_root / "dataset" / str(partition["relative_path"])
+              with path.open(encoding="utf-8") as handle:
+                  for line in handle:
+                      payload = json.loads(line)
+                      if not isinstance(payload, dict):
+                          raise SystemExit("dataset row is not an object")
+                      rows.append(payload)
+          if len(rows) != dataset_manifest["total_rows"]:
+              raise SystemExit("dataset row count mismatch")
+
+          market_manifest = _load_json(market_root / MARKET_MANIFEST_NAME, field="market manifest")
+          candles = _candle_maps(market_root, manifest=market_manifest)
+          candidate_counts: Counter[str] = Counter()
+          score_confidence: defaultdict[str, list[Decimal]] = defaultdict(list)
+          decision_offsets: list[int] = []
+          fully_post_bars: list[int] = []
+          exact_aligned_rows = 0
+          overlapping_rows = 0
+          incomplete_full_horizon_rows = 0
+          diagnostic_outcomes: Counter[str] = Counter()
+          scorer = DeterministicBaselineScorer()
+
+          for row in rows:
+              decision_ms = int(row["decision_timestamp_ms"])
+              symbol = str(row["symbol"])
+              split_name = str(row["split_name"])
+              scheduled = (decision_ms // TIMEFRAME_MS) * TIMEFRAME_MS
+              offset = decision_ms - scheduled
+              decision_offsets.append(offset)
+              if offset == 0:
+                  exact_aligned_rows += 1
+              else:
+                  overlapping_rows += 1
+              path_end = decision_ms + horizon_ms
+              fully_post = [
+                  candle
+                  for open_ms, candle in sorted(candles[symbol].items())
+                  if open_ms >= decision_ms
+                  and int(candle["close_time_ms_exclusive"]) <= path_end
+              ]
+              fully_post_bars.append(len(fully_post))
+              if not fully_post or int(fully_post[-1]["close_time_ms_exclusive"]) < path_end:
+                  incomplete_full_horizon_rows += 1
+
+              feature_raw = row["feature"]
+              if not isinstance(feature_raw, dict):
+                  raise SystemExit("feature payload is not an object")
+              feature = parse_feature(feature_raw)
+              for hypothesis in StrategyHypothesis:
+                  candidate = generate_candidate(
+                      features=feature,
+                      parameters=INITIAL_COMPATIBILITY_PRIOR,
+                      hypothesis=hypothesis,
+                  )
+                  key = f"{split_name}:{hypothesis.value}:{candidate.action.value}"
+                  candidate_counts[key] += 1
+                  if candidate.action is CandidateAction.IGNORE:
+                      continue
+                  score = scorer.score(
+                      candidate=candidate,
+                      features=feature,
+                      parameters=INITIAL_COMPATIBILITY_PRIOR,
+                  )
+                  score_confidence[f"{hypothesis.value}:{candidate.action.value}"].append(
+                      score.confidence
+                  )
+
+                  entry = candidate.decision_price
+                  if candidate.action is CandidateAction.ENTER_LONG:
+                      tp = entry * (Decimal(1) + INITIAL_COMPATIBILITY_PRIOR.take_profit_ratio)
+                      sl = entry * (Decimal(1) - INITIAL_COMPATIBILITY_PRIOR.stop_loss_ratio)
+                      touches = [
+                          (
+                              dec(candle["high"]) >= tp,
+                              dec(candle["low"]) <= sl,
+                          )
+                          for candle in fully_post
+                      ]
+                  else:
+                      tp = entry * (Decimal(1) - INITIAL_COMPATIBILITY_PRIOR.take_profit_ratio)
+                      sl = entry * (Decimal(1) + INITIAL_COMPATIBILITY_PRIOR.stop_loss_ratio)
+                      touches = [
+                          (
+                              dec(candle["low"]) <= tp,
+                              dec(candle["high"]) >= sl,
+                          )
+                          for candle in fully_post
+                      ]
+                  outcome = "diagnostic_timeout_or_incomplete"
+                  for tp_touch, sl_touch in touches:
+                      if tp_touch and sl_touch:
+                          outcome = "diagnostic_ambiguous_same_bar"
+                          break
+                      if tp_touch:
+                          outcome = "diagnostic_tp_before_sl"
+                          break
+                      if sl_touch:
+                          outcome = "diagnostic_sl_before_tp"
+                          break
+                  diagnostic_outcomes[f"{hypothesis.value}:{candidate.action.value}:{outcome}"] += 1
+
+          confidence_summary = {
+              key: {
+                  "count": len(values),
+                  "minimum": format(min(values), "f"),
+                  "maximum": format(max(values), "f"),
+                  "mean": format(sum(values, Decimal(0)) / Decimal(len(values)), "f"),
+              }
+              for key, values in sorted(score_confidence.items())
+              if values
+          }
+          result = {
+              "schema_version": "wickhunter-wh02-replay-preflight-observer-v1",
+              "dataset_id": dataset_root.name,
+              "dataset_manifest_sha256": dataset_manifest["manifest_sha256"],
+              "dataset_rows": len(rows),
+              "market_manifest_sha256": market_verification["manifest_sha256"],
+              "timeframe_ms": TIMEFRAME_MS,
+              "label_horizon_ms": horizon_ms,
+              "decision_offset_ms": {
+                  "minimum": min(decision_offsets),
+                  "maximum": max(decision_offsets),
+                  "unique_count": len(set(decision_offsets)),
+              },
+              "decision_exactly_candle_aligned_rows": exact_aligned_rows,
+              "decision_inside_open_5m_candle_rows": overlapping_rows,
+              "fully_post_decision_bars_within_horizon": {
+                  "minimum": min(fully_post_bars),
+                  "maximum": max(fully_post_bars),
+              },
+              "rows_without_exact_complete_post_decision_horizon": incomplete_full_horizon_rows,
+              "candidate_counts": dict(sorted(candidate_counts.items())),
+              "baseline_confidence": confidence_summary,
+              "non_authoritative_full_bar_diagnostics": dict(sorted(diagnostic_outcomes.items())),
+              "preflight_decision": "BLOCKED_EXACT_REPLAY_PRICE_PATH_ABSENT",
+              "blocker_detail": (
+                  "Every dataset decision occurs inside an already-open 5m candle. The immutable "
+                  "evidence cannot separate pre-decision and post-decision prices inside that candle, "
+                  "and fully post-decision completed candles do not cover the exact 15-minute horizon. "
+                  "TP-before-SL ordering, entry price, MFE, MAE and time-to-outcome therefore cannot "
+                  "be labeled exactly from the current 5m package without a prospectively defined "
+                  "higher-resolution execution-price path or an explicitly reviewed approximation."
+              ),
+              "protected_holdout_accessed": False,
+              "immutable_inputs_mutated": False,
+              "replay_authorized": False,
+              "model_execution_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          print(json.dumps(result, indent=2, sort_keys=True))
+          PY
+
+      - name: Publish bounded observer summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## WickHunter WH-02 replay preflight"
+            echo
+            echo "- Read-only immutable dataset and Market Evidence inspection only."
+            echo "- Exact label/replay authority remains disabled."
+            echo "- See the bounded JSON artifact for counts and the first truthful blocker."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded metadata-only observation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh02-replay-preflight-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-wh02-replay-preflight.json
+          if-no-files-found: error
+          retention-days: 30

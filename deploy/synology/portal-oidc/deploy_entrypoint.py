@@ -14,6 +14,8 @@ DEPLOYMENT_DIR = Path(__file__).resolve().parent
 BUILD_TIMEOUT_MARKER = "DeadlineExceeded: context deadline exceeded"
 REVISION_LABEL_PREFIX = "org.opencontainers.image.revision="
 IMAGE_REVISION_FORMAT = '{{.Id}}|{{ index .Config.Labels "org.opencontainers.image.revision" }}'
+LIQUID20_PROBE_MARKER = "__PORTAL_LIQUID20__"
+LIQUID20_HELPER_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=16m"  # noqa: S108
 
 
 def _load_module(name: str, path: Path) -> ModuleType:
@@ -170,6 +172,134 @@ def _install_verified_build_timeout(deploy: Any) -> None:
     deploy._run = guarded_run
 
 
+def _liquidations_probe_script(deploy: Any) -> str:
+    root = str(deploy.LIQUIDATIONS_CONTAINER_ROOT)
+    return rf"""
+const fs = require("node:fs");
+const path = require("node:path");
+const root = {root!r};
+const nested = path.join(root, "runs");
+const rootStat = fs.lstatSync(root);
+if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) process.exit(1);
+const runsRoot = fs.existsSync(nested) && fs.lstatSync(nested).isDirectory() ? nested : root;
+const runIds = fs.readdirSync(runsRoot, {{withFileTypes: true}})
+  .filter((entry) => entry.isDirectory() && !entry.isSymbolicLink()
+    && /^liquid20-\d{{8}}T\d{{6}}Z-\d+$/.test(entry.name))
+  .map((entry) => entry.name)
+  .sort()
+  .reverse()
+  .slice(0, 100);
+if (runIds.length === 0) process.exit(1);
+const latestRun = runIds[0];
+const directories = [root, runsRoot, ...runIds.map((runId) => path.join(runsRoot, runId))];
+const files = [
+  path.join(runsRoot, latestRun, "bybit-linear.ndjson"),
+  path.join(runsRoot, latestRun, "binance-usdm.ndjson"),
+];
+for (const optional of [
+  "bybit-linear-summary.json",
+  "binance-usdm-summary.json",
+  "multi-source-acceptance-report.json",
+]) {{
+  const candidate = path.join(runsRoot, latestRun, optional);
+  if (fs.existsSync(candidate)) files.push(candidate);
+}}
+for (const runId of runIds) {{
+  const report = path.join(runsRoot, runId, "multi-source-acceptance-report.json");
+  if (fs.existsSync(report) && !files.includes(report)) files.push(report);
+}}
+const stats = [];
+for (const directory of directories) {{
+  const stat = fs.lstatSync(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) process.exit(1);
+  if ((stat.mode & 0o050) !== 0o050) process.exit(1);
+  stats.push(stat);
+}}
+for (const file of files) {{
+  const stat = fs.lstatSync(file);
+  if (!stat.isFile() || stat.isSymbolicLink()) process.exit(1);
+  if ((stat.mode & 0o040) !== 0o040) process.exit(1);
+  stats.push(stat);
+}}
+const groupId = stats[0].gid;
+if (stats.some((stat) => stat.gid !== groupId)) process.exit(1);
+process.stdout.write({LIQUID20_PROBE_MARKER!r} + latestRun + "|" + groupId);
+""".strip()
+
+
+def _liquidations_probe_args(deploy: Any, image: str) -> list[str]:
+    return [
+        "docker",
+        "run",
+        "--rm",
+        "--network",
+        "none",
+        "--read-only",
+        "--tmpfs",
+        LIQUID20_HELPER_TMPFS,
+        "--cap-drop",
+        "ALL",
+        "--security-opt",
+        "no-new-privileges:true",
+        "--pids-limit",
+        "32",
+        "--memory",
+        "64m",
+        "--user",
+        "0:0",
+        "--mount",
+        (
+            f"type=bind,src={deploy.LIQUIDATIONS_HOST_ROOT},"
+            f"dst={deploy.LIQUIDATIONS_CONTAINER_ROOT},readonly"
+        ),
+        "--entrypoint",
+        "node",
+        image,
+        "-e",
+        _liquidations_probe_script(deploy),
+    ]
+
+
+def _docker_host_liquidations_group(deploy: Any, image: str) -> str:
+    result = cast(
+        subprocess.CompletedProcess[str],
+        deploy._run(_liquidations_probe_args(deploy, image)),
+    )
+    marker = next(
+        (
+            line.removeprefix(LIQUID20_PROBE_MARKER)
+            for line in result.stdout.splitlines()
+            if line.startswith(LIQUID20_PROBE_MARKER)
+        ),
+        None,
+    )
+    if marker is None:
+        raise deploy.DeploymentError("Liquid20 Docker-host preflight returned no marker")
+    run_id, separator, group_id = marker.partition("|")
+    if (
+        separator != "|"
+        or re.fullmatch(r"liquid20-\d{8}T\d{6}Z-\d+", run_id) is None
+        or re.fullmatch(r"\d+", group_id) is None
+    ):
+        raise deploy.DeploymentError("Liquid20 Docker-host preflight returned invalid metadata")
+    return group_id
+
+
+def _install_docker_host_liquidations_preflight(deploy: Any) -> None:
+    original_deploy_web = deploy._deploy_web
+    original_group_resolver = deploy._liquidations_group_id
+
+    def deploy_web(image: str, suffix: str) -> tuple[str | None, str]:
+        group_id = _docker_host_liquidations_group(deploy, image)
+        deploy._liquidations_group_id = lambda: group_id
+        try:
+            return cast(tuple[str | None, str], original_deploy_web(image, suffix))
+        finally:
+            deploy._liquidations_group_id = original_group_resolver
+
+    deploy._deploy_web = deploy_web
+
+
 def main() -> int:
     deploy = _load_module("portal_oidc_deploy", DEPLOYMENT_DIR / "deploy.py")
     discovery = _load_module(
@@ -180,6 +310,7 @@ def main() -> int:
         deploy.DeploymentError
     )
     _install_verified_build_timeout(deploy)
+    _install_docker_host_liquidations_preflight(deploy)
     return int(deploy.main())
 
 

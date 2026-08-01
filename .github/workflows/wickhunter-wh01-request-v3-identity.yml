@@ -1,0 +1,55 @@
+name: WickHunter WH-01 request v3 identity
+
+"on":
+  push:
+    branches:
+      - ops/wickhunter-wh01-production-materialization-20260801-v3
+    paths:
+      - ".github/workflows/wickhunter-wh01-request-v3-identity.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh01-request-v3-identity
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact request branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Assign fresh immutable v3 identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          path=.github/workflows/wickhunter-wh01-production-materialization-request.yml
+          [[ "$(grep -c 'wickhunter-wh01-production-dataset-20260731-v2-' "$path")" == "1" ]]
+          sed -i 's/wickhunter-wh01-production-dataset-20260731-v2-/wickhunter-wh01-production-dataset-20260731-v3-/' "$path"
+          [[ "$(grep -c 'wickhunter-wh01-production-dataset-20260731-v3-' "$path")" == "1" ]]
+          [[ "$(grep -c 'wickhunter-wh01-production-dataset-20260731-v2-' "$path")" == "0" ]]
+          rm .github/workflows/wickhunter-wh01-request-v3-identity.yml
+          git diff --check
+
+      - name: Commit request identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            .github/workflows/wickhunter-wh01-production-materialization-request.yml \
+            .github/workflows/wickhunter-wh01-request-v3-identity.yml
+          git commit -m "run(wickhunter): assign fresh WH-01 dataset identity v3"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            push origin HEAD:ops/wickhunter-wh01-production-materialization-20260801-v3

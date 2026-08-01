@@ -17,6 +17,8 @@ concurrency:
 env:
   WORKFLOW_PATH: .github/workflows/wickhunter-wh02-runner-boundary-preflight.yml
   SOURCE_COMMIT_SHA: 6419138e170844d0eb09d9381b4435900d802ab9
+  DATASET_PARENT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets
+  EXPECTED_DATASET_MANIFEST_SHA256: b00c546666920f9cd45ed6d514c0bd161274e00231d845d0f8912f8a4552e8f
   DATASET_MATERIALIZATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df3c33238c845f5f019a384b231580
   MARKET_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1/immutable-package
   INPUT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/sources/binance-usdm-aggtrades-20260731-v1
@@ -57,7 +59,7 @@ jobs:
             exit 1
           }
 
-      - name: Observe bounded safety predicates
+      - name: Observe bounded safety predicates and dataset candidates
         shell: bash
         env:
           RUNNER_NAME_VALUE: ${{ runner.name }}
@@ -80,7 +82,8 @@ jobs:
             printf '%s.writable=%s\n' "$label" "$([[ -w "$path" ]] && echo true || echo false)" >> "$report"
           }
           inspect_path state_root /var/lib/freqtrade-staging-state
-          inspect_path dataset_root "$DATASET_MATERIALIZATION_ROOT"
+          inspect_path dataset_parent "$DATASET_PARENT_ROOT"
+          inspect_path configured_dataset_root "$DATASET_MATERIALIZATION_ROOT"
           inspect_path market_root "$MARKET_PACKAGE_ROOT"
           mkdir_status=true
           mkdir -p "$(dirname "$INPUT_ROOT")" "$(dirname "$OUTPUT_ROOT")" || mkdir_status=false
@@ -104,6 +107,38 @@ jobs:
           done
           printf 'credential_variables_present=%s\n' "${credential_names[*]:-none}" >> "$report"
           printf 'proxy_variables_present=%s\n' "${proxy_names[*]:-none}" >> "$report"
+          PYTHONPATH=. python3 - <<'PY' >> "$report"
+          import json
+          import os
+          from pathlib import Path
+
+          parent = Path(os.environ["DATASET_PARENT_ROOT"])
+          expected = os.environ["EXPECTED_DATASET_MANIFEST_SHA256"]
+          candidates = []
+          if parent.is_dir() and not parent.is_symlink():
+              for root in sorted(parent.iterdir(), key=lambda item: item.name):
+                  if root.is_symlink() or not root.is_dir():
+                      continue
+                  manifest_path = root / "dataset" / "manifest.json"
+                  if manifest_path.is_symlink() or not manifest_path.is_file():
+                      continue
+                  try:
+                      manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                  except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                      continue
+                  candidates.append(
+                      {
+                          "directory_name": root.name,
+                          "manifest_sha256": manifest.get("manifest_sha256"),
+                          "total_rows": manifest.get("total_rows"),
+                          "matches_expected_manifest": (
+                              manifest.get("manifest_sha256") == expected
+                          ),
+                      }
+                  )
+          print("dataset_candidates=" + json.dumps(candidates, sort_keys=True, separators=(",", ":")))
+          print("matching_dataset_candidate_count=" + str(sum(item["matches_expected_manifest"] for item in candidates)))
+          PY
           cat "$report"
 
       - name: Upload bounded preflight evidence

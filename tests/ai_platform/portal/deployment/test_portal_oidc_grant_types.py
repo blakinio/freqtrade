@@ -9,16 +9,9 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[4]
-SCRIPT_PATH = (
-    ROOT / "deploy" / "synology" / "portal-oidc" / "verify_provider_grant_types.py"
-)
+SCRIPT_PATH = ROOT / "deploy" / "synology" / "portal-oidc" / "verify_provider_grant_types.py"
 BLUEPRINT_PATH = (
-    ROOT
-    / "deploy"
-    / "synology"
-    / "portal-oidc"
-    / "blueprints"
-    / "freqtrade-portal-public.yaml"
+    ROOT / "deploy" / "synology" / "portal-oidc" / "blueprints" / "freqtrade-portal-public.yaml"
 )
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "portal-oidc-public-deploy.yml"
 SPEC = importlib.util.spec_from_file_location("portal_oidc_grant_types", SCRIPT_PATH)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type {
   WickHunterObservabilityView,
@@ -17,7 +17,7 @@ function statusClass(health: WickHunterRuntimeHealth, stale: boolean): string {
   return `${styles.badge} ${styles.good}`;
 }
 
-function formatTimestamp(value: number): string {
+function timestamp(value: number): string {
   return new Intl.DateTimeFormat("pl-PL", {
     dateStyle: "medium",
     timeStyle: "medium",
@@ -25,21 +25,21 @@ function formatTimestamp(value: number): string {
   }).format(new Date(value));
 }
 
-function formatAge(value: number): string {
+function age(value: number | null): string {
+  if (value === null) return "brak";
   if (value < 1_000) return `${value} ms`;
   if (value < 60_000) return `${Math.round(value / 1_000)} s`;
   return `${Math.round(value / 60_000)} min`;
 }
 
-function formatDecimal(value: string, maximumFractionDigits = 8): string {
+function decimal(value: string, digits = 8): string {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return value;
-  return new Intl.NumberFormat("pl-PL", {
-    maximumFractionDigits,
-  }).format(parsed);
+  return Number.isFinite(parsed)
+    ? new Intl.NumberFormat("pl-PL", { maximumFractionDigits: digits }).format(parsed)
+    : value;
 }
 
-function shortIdentity(value: string | null): string {
+function identity(value: string | null): string {
   return value ? `${value.slice(0, 12)}…${value.slice(-8)}` : "brak";
 }
 
@@ -66,15 +66,17 @@ export function WickHunterObservabilityDashboard() {
   }, []);
 
   useEffect(() => {
-    void refresh();
-    const interval = window.setInterval(() => void refresh(), REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(interval);
+    const initialRefresh = window.setTimeout(() => {
+      void refresh();
+    }, 0);
+    const interval = window.setInterval(() => {
+      void refresh();
+    }, REFRESH_INTERVAL_MS);
+    return () => {
+      window.clearTimeout(initialRefresh);
+      window.clearInterval(interval);
+    };
   }, [refresh]);
-
-  const rejectedDecisions = useMemo(
-    () => view?.snapshot.decisions.filter((item) => item.status === "rejected_by_risk") ?? [],
-    [view],
-  );
 
   if (!view && loading) {
     return <main className={styles.page}>Ładowanie obserwowalności WickHunter…</main>;
@@ -95,7 +97,9 @@ export function WickHunterObservabilityDashboard() {
   }
 
   const { snapshot } = view;
-  const breakerState = snapshot.circuit_breaker_active ? "AKTYWNY" : "nieaktywny";
+  const riskRejections = snapshot.decisions.filter(
+    (decision) => decision.status === "rejected_by_risk",
+  ).length;
 
   return (
     <main className={styles.page} data-testid="wickhunter-observability">
@@ -136,29 +140,29 @@ export function WickHunterObservabilityDashboard() {
         </article>
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Snapshot</span>
-          <strong className={styles.metricValue}>{formatTimestamp(snapshot.observed_at_ms)}</strong>
-          <span className={styles.muted}>wiek {formatAge(view.snapshot_age_ms)}</span>
+          <strong className={styles.metricValue}>{timestamp(snapshot.observed_at_ms)}</strong>
+          <span className={styles.muted}>wiek {age(view.snapshot_age_ms)}</span>
         </article>
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Kapitał symulowany</span>
           <strong className={styles.metricValue}>
-            {formatDecimal(snapshot.simulated_equity_quote, 2)} quote
+            {decimal(snapshot.simulated_equity_quote, 2)} quote
           </strong>
           <span className={styles.muted}>
-            PnL: {formatDecimal(snapshot.cumulative_realized_pnl_quote, 2)} /{" "}
-            {formatDecimal(snapshot.unrealized_pnl_quote, 2)}
+            PnL: {decimal(snapshot.cumulative_realized_pnl_quote, 2)} /{" "}
+            {decimal(snapshot.unrealized_pnl_quote, 2)}
           </span>
         </article>
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Drawdown</span>
           <strong className={styles.metricValue}>
-            {formatDecimal(String(Number(snapshot.drawdown_ratio) * 100), 3)}%
+            {decimal(String(Number(snapshot.drawdown_ratio) * 100), 3)}%
           </strong>
         </article>
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Circuit breaker</span>
           <strong className={styles.metricValue} data-testid="circuit-breaker">
-            {breakerState}
+            {snapshot.circuit_breaker_active ? "AKTYWNY" : "nieaktywny"}
           </strong>
           <span className={styles.muted}>
             {snapshot.circuit_breaker_reasons.join(", ") || "brak powodów blokady"}
@@ -173,17 +177,13 @@ export function WickHunterObservabilityDashboard() {
 
       <section className={styles.panel}>
         <h2>Dynamiczny universe</h2>
-        {snapshot.dynamic_universe.length ? (
-          <ul className={styles.list} data-testid="dynamic-universe">
-            {snapshot.dynamic_universe.map((symbol) => (
-              <li className={styles.chip} key={symbol}>
-                {symbol}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className={styles.empty}>Brak instrumentów.</p>
-        )}
+        <ul className={styles.list} data-testid="dynamic-universe">
+          {snapshot.dynamic_universe.map((symbol) => (
+            <li className={styles.chip} key={symbol}>
+              {symbol}
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className={styles.panel}>
@@ -205,11 +205,11 @@ export function WickHunterObservabilityDashboard() {
                   <td>{source.source}</td>
                   <td>{source.health}</td>
                   <td>{source.fresh ? "tak" : "nie"}</td>
-                  <td>{source.age_ms === null ? "brak" : formatAge(source.age_ms)}</td>
+                  <td>{age(source.age_ms)}</td>
                   <td>
                     {source.last_received_at_ms === null
                       ? "brak"
-                      : formatTimestamp(source.last_received_at_ms)}
+                      : timestamp(source.last_received_at_ms)}
                   </td>
                 </tr>
               ))}
@@ -222,17 +222,17 @@ export function WickHunterObservabilityDashboard() {
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Model</span>
           <strong className={styles.metricValue}>{snapshot.model_version ?? "brak"}</strong>
-          <code className={styles.code}>{shortIdentity(snapshot.model_hash)}</code>
+          <code className={styles.code}>{identity(snapshot.model_hash)}</code>
         </article>
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Parametry</span>
           <strong className={styles.metricValue}>{snapshot.parameter_version ?? "brak"}</strong>
-          <code className={styles.code}>{shortIdentity(snapshot.parameter_hash)}</code>
+          <code className={styles.code}>{identity(snapshot.parameter_hash)}</code>
         </article>
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Dataset / kod</span>
-          <code className={styles.code}>{shortIdentity(snapshot.dataset_hash)}</code>
-          <code className={styles.code}>{shortIdentity(snapshot.code_sha)}</code>
+          <code className={styles.code}>{identity(snapshot.dataset_hash)}</code>
+          <code className={styles.code}>{identity(snapshot.code_sha)}</code>
         </article>
         <article className={`${styles.panel} ${styles.metric}`}>
           <span className={styles.metricLabel}>Drift</span>
@@ -262,14 +262,14 @@ export function WickHunterObservabilityDashboard() {
                   <td>{decision.status}</td>
                   <td>{decision.side ?? "—"}</td>
                   <td>{decision.reason_codes.join(", ")}</td>
-                  <td>{formatTimestamp(decision.observed_at_ms)}</td>
+                  <td>{timestamp(decision.observed_at_ms)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <p className={styles.muted} data-testid="risk-rejection-count">
-          Odrzucone przez Risk Engine: {rejectedDecisions.length}
+          Odrzucone przez Risk Engine: {riskRejections}
         </p>
       </section>
 
@@ -293,12 +293,11 @@ export function WickHunterObservabilityDashboard() {
                   <tr key={position.position_id} data-testid={`position-${position.symbol}`}>
                     <td>{position.symbol}</td>
                     <td>{position.side}</td>
-                    <td>{formatDecimal(position.entry_price)}</td>
-                    <td>{formatDecimal(position.mark_price)}</td>
-                    <td>{formatDecimal(position.quantity)}</td>
+                    <td>{decimal(position.entry_price)}</td>
+                    <td>{decimal(position.mark_price)}</td>
+                    <td>{decimal(position.quantity)}</td>
                     <td>
-                      {formatDecimal(position.take_profit_price)} /{" "}
-                      {formatDecimal(position.stop_loss_price)}
+                      {decimal(position.take_profit_price)} / {decimal(position.stop_loss_price)}
                     </td>
                   </tr>
                 ))}

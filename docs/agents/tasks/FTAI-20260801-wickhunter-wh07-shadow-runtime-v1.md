@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260801-wickhunter-wh07-shadow-runtime-v1
 project_lane: freqtrade-wickhunter
-status: waiting
+status: ready
 action_scope: discovery_only
 branch: feat/wickhunter-wh07-shadow-runtime-v1
 base_branch: develop
@@ -58,14 +58,14 @@ Deliver a continuous read-only shadow runtime that consumes accepted WickHunter 
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T19:05:56+02:00
+updated_at: 2026-08-01T15:23:00+02:00
 project_lane: freqtrade-wickhunter
-phase: contract
-session_id: wh07-discovery-20260801-001
+phase: investigate
+session_id: unclaimed
 session_role: discovery
 execution_mode: chat
-execution_reason: bounded read-only seam and ownership discovery
-status: waiting
+execution_reason: initial seam and ownership discovery does not require implementation
+status: ready
 branch: feat/wickhunter-wh07-shadow-runtime-v1
 base_branch: develop
 related_pr: null
@@ -73,38 +73,20 @@ context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
 decomposition_reason: discovery, contract, implementation and validation share one shadow-runtime deliverable
-validation_level: discovery
+validation_level: not_started
 heavy_validation_runs: 0
 proven:
-  - evaluate_shadow_decision in ai_platform/wickhunter/shadow.py is the pure candidate, scorer, trade-intent and local-risk decision seam and rejects LIVE_BLOCKED mode
-  - select_dynamic_universe in ai_platform/wickhunter/universe.py is the immutable freshness-aware dynamic-universe seam
-  - ai_platform/wickhunter/portal_risk.py is the fail-closed WH-06 Portal Risk bridge and atomic risk-evidence persistence seam
-  - production_market_evidence_daemon.py publishes an atomic collector-health.json beside the durable active-pointer state and carries all authority flags false
-  - readiness remediation PR 950 defines explicit live, ready, healthy, freshness and authority checks for collector-health.json
-  - WH-02 replay_event_label is the intended exact replay/shadow event-ordering parity seam
-  - restart-safe persistence should follow existing temporary-directory or temporary-file plus atomic-rename patterns
-  - WH-07 owned runtime, tests, documentation and task paths do not overlap PR 950
+  - WH-06 Risk Engine and TradeIntent integration is completed
+  - WH-07 implementation depends on terminal WH-02 through WH-05
+  - bounded discovery can proceed without changing runtime code
 derived:
-  - the runtime should consume collector health and immutable active evidence read-only instead of modifying collector or deployment ownership
-  - one bounded state root should persist the last accepted input identities, simulated positions, closed-position ledger, circuit-breaker state and latest observability snapshot
-  - every loop must fail closed before candidate evaluation when readiness, source freshness, universe quality, replay-policy identity or risk-policy identity is invalid
-  - PortalObservabilitySnapshot must expose stable hashes and simulated state only, with no order adapter or credentials field
+  - WH-07 must freeze the producer contract before WH-08 implementation starts
 unknown:
-  - final WH-03 baseline result contract
-  - final WH-04 scorer contract
-  - final WH-05 optimizer parameter artifact contract
-  - merged final shape of PR 950 readiness payload
-conflicts:
-  - PR 950 currently owns market-evidence readiness, daemon, workflow and deployment paths; WH-07 must consume the merged contract and must not edit those paths
+  - exact current runtime seam, storage and deployment ownership
+conflicts: []
 first_relevant_error: null
-changed_paths:
-  - docs/agents/tasks/FTAI-20260801-wickhunter-wh07-shadow-runtime-v1.md
-validation:
-  - command: read-only source and ownership discovery
-    result: PASS
-    evidence: exact pure decision, universe, risk bridge, collector health, atomic persistence and parity seams recorded
-blockers:
-  - WH-02, WH-03, WH-04 and WH-05 are not all terminal
-  - readiness remediation PR 950 is not merged
-next_action: remain waiting; after all dependencies are terminal and PR 950 settles the readiness payload, rebase from live develop and execute WH07-CONTRACT before any runtime implementation
+changed_paths: []
+validation: []
+blockers: []
+next_action: perform read-only WH07-DISCOVERY, record the exact seams and proposed ownership, then checkpoint waiting and exit without implementation
 ```

@@ -1,4 +1,4 @@
-name: WickHunter WH-01 pre-roll repair autofix
+name: WickHunter WH-01 pre-roll repair artifact
 
 "on":
   pull_request:
@@ -8,14 +8,14 @@ name: WickHunter WH-01 pre-roll repair autofix
       - ".github/workflows/wickhunter-wh01-preroll-autofix.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: wickhunter-wh01-preroll-autofix-${{ github.event.pull_request.number }}
+  group: wickhunter-wh01-preroll-artifact-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
-  repair:
+  repair-artifact:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
@@ -29,7 +29,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Apply bounded production repair
+      - name: Build bounded repair files
         shell: bash
         run: |
           set -euo pipefail
@@ -38,45 +38,8 @@ jobs:
 
           implementation = Path("ai_platform/wickhunter/production_dataset_materialization.py")
           text = implementation.read_text(encoding="utf-8")
-          old = '''    accepted = load_accepted_import(accepted_import_root.resolve(strict=True))
-              if accepted.selection.protected_holdout_start_ms != holdout_start_ms:
-                  raise ProductionDatasetMaterializationError(
-                      "Liquid20 import and market package disagree on holdout"
-                  )
-              if accepted.selection.requested_start_ms > decision_start_ms - 86_400_000:
-                  raise ProductionDatasetMaterializationError("Liquid20 import lacks required pre-roll")
-              if accepted.selection.requested_end_ms < decision_end_ms:
-                  raise ProductionDatasetMaterializationError(
-                      "Liquid20 import does not cover the decision interval"
-                  )
-              geometry = production_split_geometry(
-                  decision_start_ms=decision_start_ms,
-                  decision_end_ms=decision_end_ms,
-                  protected_holdout_start_ms=holdout_start_ms,
-              )
-              request = _dataset_request(code_sha=code_sha, geometry=geometry)
-          '''
-          new = '''    geometry = production_split_geometry(
-                  decision_start_ms=decision_start_ms,
-                  decision_end_ms=decision_end_ms,
-                  protected_holdout_start_ms=holdout_start_ms,
-              )
-              request = _dataset_request(code_sha=code_sha, geometry=geometry)
-              accepted = load_accepted_import(accepted_import_root.resolve(strict=True))
-              if accepted.selection.protected_holdout_start_ms != holdout_start_ms:
-                  raise ProductionDatasetMaterializationError(
-                      "Liquid20 import and market package disagree on holdout"
-                  )
-              if (
-                  accepted.selection.requested_start_ms
-                  > decision_start_ms - request.burst_window_ms
-              ):
-                  raise ProductionDatasetMaterializationError("Liquid20 import lacks required pre-roll")
-              if accepted.selection.requested_end_ms < decision_end_ms:
-                  raise ProductionDatasetMaterializationError(
-                      "Liquid20 import does not cover the decision interval"
-                  )
-          '''
+          old = "decision_start_ms - 86_400_000"
+          new = "decision_start_ms - DEFAULT_BURST_WINDOW_MS"
           if text.count(old) != 1:
               raise SystemExit("implementation repair anchor mismatch")
           implementation.write_text(text.replace(old, new), encoding="utf-8")
@@ -85,73 +48,59 @@ jobs:
               "tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py"
           )
           text = tests.read_text(encoding="utf-8")
-          old = '''        requested_start_ms=PRE_ROLL_START - 8 * 60 * 60 * 1000,
-          '''
-          new = '''        requested_start_ms=DECISION_START - 8 * 60 * 60 * 1000,
-          '''
+          old = "requested_start_ms=PRE_ROLL_START - 8 * 60 * 60 * 1000,"
+          new = "requested_start_ms=DECISION_START - 8 * 60 * 60 * 1000,"
           if text.count(old) != 1:
               raise SystemExit("selection fixture repair anchor mismatch")
           text = text.replace(old, new)
-          old = '''    selection = _selection()
-              monkeypatch.setattr(
-          '''
-          new = '''    selection = _selection()
-              assert selection.requested_start_ms > DECISION_START - 86_400_000
-              assert (
-                  selection.requested_start_ms
-                  <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS
-              )
-              monkeypatch.setattr(
-          '''
-          if text.count(old) != 1:
+          anchor = "    selection = _selection()\n    monkeypatch.setattr(\n"
+          replacement = (
+              "    selection = _selection()\n"
+              "    assert selection.requested_start_ms > DECISION_START - 86_400_000\n"
+              "    assert (\n"
+              "        selection.requested_start_ms\n"
+              "        <= DECISION_START - subject.DEFAULT_BURST_WINDOW_MS\n"
+              "    )\n"
+              "    monkeypatch.setattr(\n"
+          )
+          if text.count(anchor) != 1:
               raise SystemExit("regression assertion anchor mismatch")
-          tests.write_text(text.replace(old, new), encoding="utf-8")
+          tests.write_text(text.replace(anchor, replacement), encoding="utf-8")
 
           task = Path(
               "docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md"
           )
           text = task.read_text(encoding="utf-8")
           marker = "## Acceptance\n"
-          checkpoint = '''## Production repair checkpoint
-
-- request-only PR #906 independently verified both frozen inputs, all expected hashes and all disabled authority flags on trusted runner `freqtrade-synology-staging`;
-- workflow run `30688887667`, job `91339968858`, failed before publication with `Liquid20 import lacks required pre-roll`;
-- the accepted import starts about eight hours before the decision interval and fully covers it, while the WH-01 builder requires history strictly before its declared 15-minute burst window rather than a separate 24-hour liquidation interval;
-- this repair derives the Liquid20 pre-roll bound from the immutable dataset request and keeps the builder's actual event-history eligibility checks unchanged;
-- no capture, backfill, holdout access, synthetic data, replay, model execution, trading credentials, orders or live capital were used.
-
-'''
+          checkpoint = (
+              "## Production repair checkpoint\n\n"
+              "- request-only PR #906 independently verified both frozen inputs, all expected hashes and all disabled authority flags on trusted runner `freqtrade-synology-staging`;\n"
+              "- workflow run `30688887667`, job `91339968858`, failed before publication with `Liquid20 import lacks required pre-roll`;\n"
+              "- the accepted import starts about eight hours before the decision interval and fully covers it, while the WH-01 builder requires history strictly before its declared 15-minute burst window rather than a separate 24-hour liquidation interval;\n"
+              "- this repair aligns the Liquid20 pre-roll bound with the production dataset request's burst window and keeps the builder's actual event-history eligibility checks unchanged;\n"
+              "- no capture, backfill, holdout access, synthetic data, replay, model execution, trading credentials, orders or live capital were used.\n\n"
+          )
           if text.count(marker) != 1:
               raise SystemExit("task checkpoint anchor mismatch")
           task.write_text(text.replace(marker, checkpoint + marker), encoding="utf-8")
           PY
-          rm .github/workflows/wickhunter-wh01-preroll-autofix.yml
           python3 -m py_compile \
             ai_platform/wickhunter/production_dataset_materialization.py \
             tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py
-          expected=$'M\tai_platform/wickhunter/production_dataset_materialization.py\nM\tdocs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md\nM\ttests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py\nD\t.github/workflows/wickhunter-wh01-preroll-autofix.yml'
-          actual="$(git diff --name-status | sort)"
-          expected_sorted="$(printf '%s\n' "$expected" | sort)"
-          [[ "$actual" == "$expected_sorted" ]] || {
-            printf 'Unexpected repair diff:\n%s\n' "$actual" >&2
-            exit 1
-          }
+          mkdir -p "$RUNNER_TEMP/wh01-preroll-repair/ai_platform/wickhunter"
+          mkdir -p "$RUNNER_TEMP/wh01-preroll-repair/tests/ai_platform_integration"
+          mkdir -p "$RUNNER_TEMP/wh01-preroll-repair/docs/agents/tasks"
+          cp ai_platform/wickhunter/production_dataset_materialization.py \
+            "$RUNNER_TEMP/wh01-preroll-repair/ai_platform/wickhunter/"
+          cp tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py \
+            "$RUNNER_TEMP/wh01-preroll-repair/tests/ai_platform_integration/"
+          cp docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md \
+            "$RUNNER_TEMP/wh01-preroll-repair/docs/agents/tasks/"
 
-      - name: Commit repaired implementation
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            ai_platform/wickhunter/production_dataset_materialization.py \
-            tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py \
-            docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md \
-            .github/workflows/wickhunter-wh01-preroll-autofix.yml
-          git commit -m "fix(wickhunter): align Liquid20 pre-roll with dataset request"
-          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
-            push origin "HEAD:$HEAD_BRANCH"
+      - name: Upload repaired files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh01-preroll-repair-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wh01-preroll-repair
+          if-no-files-found: error
+          retention-days: 7

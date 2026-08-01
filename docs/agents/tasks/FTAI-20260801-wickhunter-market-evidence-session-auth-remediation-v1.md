@@ -26,7 +26,7 @@ updated_at: 2026-08-01T17:12:54+02:00
 head: 9450a8bda4944bed2d72c5d5d2a96567eb39bafe
 branch: fix/FTAI-20260801-wickhunter-market-evidence-session-auth-remediation-v1
 pr: 947
-status: waiting
+status: validating
 phase: complete
 session_id: codex-20260801-wh-me-aud-003-1
 session_role: implementer
@@ -106,7 +106,7 @@ validation:
     result: PASS
     evidence: optimized Next.js production build completed and emitted all four Market Evidence routes
   - command: PR 947 exact-head required CI observation
-    result: PENDING
+    result: NOT_RUN
     evidence: workflow runs 30705418423, 30705418437, 30705418439, 30705418440, 30705418464, 30705418468 and 30705418481 queued for head 9450a8bda4944bed2d72c5d5d2a96567eb39bafe
 blockers: []
 next_action: Observe PR 947 required checks at the latest exact head and repair only a relevant failure.

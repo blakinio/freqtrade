@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from decimal import Decimal
 from enum import StrEnum
+from typing import Protocol
 
 import numpy as np
 
@@ -306,7 +307,7 @@ def _audit_cases(
 
 
 def _objective(
-    report: BaselineEvaluationReport,
+    report: OptimizationReport,
     *,
     policy: BoundedOptimizerPolicy,
 ) -> ObjectiveEvidence:
@@ -670,3 +671,767 @@ def optimize_bounded_parameters(
         live_capital_authorized=False,
         orders_submitted=0,
     )
+
+
+# --- WH05 model-aware walk-forward extension ---
+
+WALK_FORWARD_SCHEMA_VERSION = "wickhunter-walk-forward-optimizer-v1"
+CANDIDATE_PACKAGE_SCHEMA_VERSION = "wickhunter-parameter-candidate-package-v1"
+PERTURBATION_SCHEMA_VERSION = "wickhunter-local-perturbation-v1"
+
+
+class OptimizationSummary(Protocol):
+    @property
+    def decision_count(self) -> int: ...
+
+    @property
+    def selected_count(self) -> int: ...
+
+    @property
+    def net_return_mean(self) -> Decimal | None: ...
+
+
+class OptimizationSlice(Protocol):
+    @property
+    def dimension(self) -> str: ...
+
+    @property
+    def net_return_mean(self) -> Decimal | None: ...
+
+
+class OptimizationReport(Protocol):
+    @property
+    def report_id(self) -> str: ...
+
+    @property
+    def overall(self) -> OptimizationSummary: ...
+
+    @property
+    def slices(self) -> Sequence[OptimizationSlice]: ...
+
+
+class ParameterScope(StrEnum):
+    GLOBAL = "global"
+    REGIME = "regime"
+    SYMBOL_CLUSTER = "symbol_cluster"
+
+
+@dataclass(frozen=True, slots=True)
+class WalkForwardFold:
+    fold_id: str
+    training_splits: tuple[str, ...]
+    calibration_splits: tuple[str, ...]
+    validation_splits: tuple[str, ...]
+    test_splits: tuple[str, ...]
+    purge_ms: int
+    embargo_ms: int
+
+    def __post_init__(self) -> None:
+        if not self.fold_id.strip():
+            raise BoundedOptimizerError("fold_id must be non-empty")
+        groups = (
+            self.training_splits,
+            self.calibration_splits,
+            self.validation_splits,
+            self.test_splits,
+        )
+        for group in groups:
+            if not group or group != tuple(sorted(set(group))):
+                raise BoundedOptimizerError(
+                    "walk-forward split groups must be non-empty and sorted"
+                )
+        all_splits = tuple(item for group in groups for item in group)
+        if len(all_splits) != len(set(all_splits)):
+            raise BoundedOptimizerError("walk-forward split groups must be disjoint")
+        if self.purge_ms < 0 or self.embargo_ms < 0:
+            raise BoundedOptimizerError("purge and embargo must be non-negative")
+
+    @property
+    def fold_sha256(self) -> str:
+        return canonical_sha256(self)
+
+
+@dataclass(frozen=True, slots=True)
+class ScopeSpec:
+    scope: ParameterScope
+    value: str
+    minimum_case_count: int = 1
+    inherited_from: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.value.strip():
+            raise BoundedOptimizerError("scope value must be non-empty")
+        if self.minimum_case_count < 1:
+            raise BoundedOptimizerError("minimum_case_count must be positive")
+        if self.scope is ParameterScope.GLOBAL and self.value != "global":
+            raise BoundedOptimizerError("global scope value must be global")
+        if self.scope is ParameterScope.GLOBAL and self.inherited_from is not None:
+            raise BoundedOptimizerError("global scope cannot inherit")
+
+
+@dataclass(frozen=True, slots=True)
+class ModelAwareReport:
+    report_id: str
+    overall: OptimizationSummary
+    slices: tuple[OptimizationSlice, ...]
+    model_hash: str
+
+    def __post_init__(self) -> None:
+        _require_sha256(self.report_id, field_name="report_id")
+        _require_sha256(self.model_hash, field_name="model_hash")
+
+
+@dataclass(frozen=True, slots=True)
+class FoldCandidateEvidence:
+    fold_id: str
+    parameter_sha256: str
+    baseline_result_id: str
+    baseline_validation_objective: Decimal
+    model_validation_report_id: str
+    model_validation_objective: Decimal
+    model_hash: str
+    model_test_report_id: str | None
+    model_test_objective: Decimal | None
+
+    def __post_init__(self) -> None:
+        if not self.fold_id.strip():
+            raise BoundedOptimizerError("fold evidence requires fold_id")
+        for digest, field_name in (
+            (self.parameter_sha256, "parameter_sha256"),
+            (self.baseline_result_id, "baseline_result_id"),
+            (self.model_validation_report_id, "model_validation_report_id"),
+            (self.model_hash, "model_hash"),
+        ):
+            _require_sha256(digest, field_name=field_name)
+        if (self.model_test_report_id is None) != (self.model_test_objective is None):
+            raise BoundedOptimizerError("test report identity and objective must align")
+        if self.model_test_report_id is not None:
+            _require_sha256(self.model_test_report_id, field_name="model_test_report_id")
+
+
+@dataclass(frozen=True, slots=True)
+class PerturbationEvidence:
+    schema_version: str
+    parameter_sha256: str
+    neighbor_parameter_sha256: str
+    normalized_distance: Decimal
+    objective_delta: Decimal
+    stable: bool
+
+    def __post_init__(self) -> None:
+        if self.schema_version != PERTURBATION_SCHEMA_VERSION:
+            raise BoundedOptimizerError("perturbation schema mismatch")
+        _require_sha256(self.parameter_sha256, field_name="parameter_sha256")
+        _require_sha256(
+            self.neighbor_parameter_sha256,
+            field_name="neighbor_parameter_sha256",
+        )
+        if not self.normalized_distance.is_finite() or self.normalized_distance < 0:
+            raise BoundedOptimizerError("normalized_distance must be finite and non-negative")
+        if not self.objective_delta.is_finite():
+            raise BoundedOptimizerError("objective_delta must be finite")
+
+
+@dataclass(frozen=True, slots=True)
+class ParameterCandidatePackage:
+    schema_version: str
+    package_id: str
+    scope: ParameterScope
+    scope_value: str
+    inherited_from: str | None
+    parameter_version: str
+    parameter_sha256: str
+    bounds_sha256: str
+    dataset_sha256: str
+    code_sha: str
+    model_hashes: tuple[str, ...]
+    fold_sha256s: tuple[str, ...]
+    seed: int
+    validation_objective: Decimal
+    test_objective: Decimal | None
+    promotion_state: str
+    protected_holdout_accessed: bool
+    automatically_promoted: bool
+    execution_enabled: bool
+    live_capital_authorized: bool
+    orders_submitted: int
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CANDIDATE_PACKAGE_SCHEMA_VERSION:
+            raise BoundedOptimizerError("candidate package schema mismatch")
+        for digest, field_name in (
+            (self.package_id, "package_id"),
+            (self.parameter_sha256, "parameter_sha256"),
+            (self.bounds_sha256, "bounds_sha256"),
+            (self.dataset_sha256, "dataset_sha256"),
+        ):
+            _require_sha256(digest, field_name=field_name)
+        if len(self.code_sha) not in {40, 64} or any(
+            char not in "0123456789abcdef" for char in self.code_sha
+        ):
+            raise BoundedOptimizerError("code_sha must be a lowercase git digest")
+        if not self.scope_value.strip() or not self.parameter_version.strip():
+            raise BoundedOptimizerError("scope and parameter identities must be non-empty")
+        if self.model_hashes != tuple(sorted(set(self.model_hashes))) or not self.model_hashes:
+            raise BoundedOptimizerError("model hashes must be non-empty, unique and sorted")
+        if self.fold_sha256s != tuple(sorted(set(self.fold_sha256s))) or not self.fold_sha256s:
+            raise BoundedOptimizerError("fold hashes must be non-empty, unique and sorted")
+        for digest in self.model_hashes:
+            _require_sha256(digest, field_name="model_hash")
+        for digest in self.fold_sha256s:
+            _require_sha256(digest, field_name="fold_sha256")
+        if self.seed < 0:
+            raise BoundedOptimizerError("seed must be non-negative")
+        if self.promotion_state != "candidate":
+            raise BoundedOptimizerError("parameter package must remain candidate-only")
+        if (
+            self.protected_holdout_accessed
+            or self.automatically_promoted
+            or self.execution_enabled
+            or self.live_capital_authorized
+            or self.orders_submitted != 0
+        ):
+            raise BoundedOptimizerError("candidate package contains unsafe authority")
+
+
+@dataclass(frozen=True, slots=True)
+class ScopedWalkForwardResult:
+    schema_version: str
+    result_id: str
+    scope: ParameterScope
+    scope_value: str
+    inherited_from: str | None
+    selected_package: ParameterCandidatePackage
+    fold_evidence: tuple[FoldCandidateEvidence, ...]
+    perturbations: tuple[PerturbationEvidence, ...]
+    conclusion: str
+    protected_holdout_accessed: bool
+    test_used_for_selection: bool
+    automatically_promoted: bool
+    execution_enabled: bool
+    live_capital_authorized: bool
+    orders_submitted: int
+
+    def __post_init__(self) -> None:
+        if self.schema_version != WALK_FORWARD_SCHEMA_VERSION:
+            raise BoundedOptimizerError("walk-forward result schema mismatch")
+        _require_sha256(self.result_id, field_name="result_id")
+        if not self.fold_evidence:
+            raise BoundedOptimizerError("walk-forward result requires fold evidence")
+        if self.conclusion != DESCRIPTIVE_CONCLUSION:
+            raise BoundedOptimizerError("walk-forward result must remain descriptive")
+        if (
+            self.protected_holdout_accessed
+            or self.test_used_for_selection
+            or self.automatically_promoted
+            or self.execution_enabled
+            or self.live_capital_authorized
+            or self.orders_submitted != 0
+        ):
+            raise BoundedOptimizerError("walk-forward result contains unsafe authority")
+
+
+ModelAwareEvaluator = Callable[..., ModelAwareReport]
+
+
+def _label_end_ms(case: EvaluationCase) -> int:
+    return max(label.label_end_ms for label in case.labels)
+
+
+def _audit_walk_forward_fold(
+    cases: Sequence[EvaluationCase],
+    fold: WalkForwardFold,
+    *,
+    forbidden_splits: tuple[str, ...],
+) -> tuple[EvaluationCase, ...]:
+    selected_names = (
+        set(fold.training_splits)
+        | set(fold.calibration_splits)
+        | set(fold.validation_splits)
+        | set(fold.test_splits)
+    )
+    if selected_names & set(forbidden_splits):
+        raise BoundedOptimizerError("protected holdout access is forbidden")
+    selected = tuple(
+        sorted(
+            (case for case in cases if case.split_name in selected_names),
+            key=lambda item: item.case_sha256,
+        )
+    )
+    groups = {
+        "training": _split_cases(selected, fold.training_splits),
+        "calibration": _split_cases(selected, fold.calibration_splits),
+        "validation": _split_cases(selected, fold.validation_splits),
+        "test": _split_cases(selected, fold.test_splits),
+    }
+    if any(not group for group in groups.values()):
+        raise BoundedOptimizerError("every walk-forward split group must be populated")
+    validation_start = min(case.feature.decision_timestamp_ms for case in groups["validation"])
+    test_start = min(case.feature.decision_timestamp_ms for case in groups["test"])
+    train_end = max(_label_end_ms(case) for case in (*groups["training"], *groups["calibration"]))
+    validation_end = max(_label_end_ms(case) for case in groups["validation"])
+    if train_end + fold.purge_ms > validation_start:
+        raise BoundedOptimizerError("walk-forward purge boundary is violated")
+    if validation_end + fold.embargo_ms > test_start:
+        raise BoundedOptimizerError("walk-forward embargo boundary is violated")
+    return selected
+
+
+def _scope_cases(
+    cases: Sequence[EvaluationCase],
+    spec: ScopeSpec,
+    *,
+    symbol_clusters: Mapping[str, str],
+    slice_policy: BaselineSlicePolicy,
+) -> tuple[EvaluationCase, ...]:
+    if spec.scope is ParameterScope.GLOBAL:
+        return tuple(cases)
+    if spec.scope is ParameterScope.SYMBOL_CLUSTER:
+        return tuple(
+            case for case in cases if symbol_clusters.get(case.feature.symbol) == spec.value
+        )
+    result: list[EvaluationCase] = []
+    for case in cases:
+        trend = case.feature.metric("trend_return_ratio")
+        if trend > slice_policy.trend_threshold_ratio:
+            regime = "uptrend"
+        elif trend < -slice_policy.trend_threshold_ratio:
+            regime = "downtrend"
+        else:
+            regime = "range"
+        if regime == spec.value:
+            result.append(case)
+    return tuple(result)
+
+
+def _scope_has_fold_coverage(
+    cases: Sequence[EvaluationCase],
+    folds: Sequence[WalkForwardFold],
+) -> bool:
+    return all(
+        _split_cases(cases, split_names)
+        for fold in folds
+        for split_names in (
+            fold.training_splits,
+            fold.calibration_splits,
+            fold.validation_splits,
+            fold.test_splits,
+        )
+    )
+
+
+def _default_model_aware_evaluator(
+    *,
+    cases: Sequence[EvaluationCase],
+    parameters: WickHunterParameters,
+    parameter_bounds: WickHunterParameterBounds,
+    training_splits: tuple[str, ...],
+    calibration_splits: tuple[str, ...],
+    target_splits: tuple[str, ...],
+    forbidden_splits: tuple[str, ...],
+    seed: int,
+    slice_policy: BaselineSlicePolicy,
+) -> ModelAwareReport:
+    from ai_platform.wickhunter.lightgbm_scorer import (
+        LightGBMTrainingPolicy,
+        evaluate_lightgbm_against_baseline,
+        train_lightgbm_scorer,
+    )
+
+    model_policy = LightGBMTrainingPolicy(
+        training_splits=training_splits,
+        calibration_splits=calibration_splits,
+        validation_splits=target_splits,
+        forbidden_splits=forbidden_splits,
+        seed=seed,
+    )
+    artifact = train_lightgbm_scorer(
+        cases=cases,
+        parameters=parameters,
+        parameter_bounds=parameter_bounds,
+        policy=model_policy,
+    )
+    comparison = evaluate_lightgbm_against_baseline(
+        artifact=artifact,
+        cases=cases,
+        parameters=parameters,
+        parameter_bounds=parameter_bounds,
+        slice_policy=slice_policy,
+    )
+    return ModelAwareReport(
+        report_id=comparison.report_id,
+        overall=comparison.model_overall,
+        slices=tuple(comparison.model_slices),
+        model_hash=artifact.model_hash,
+    )
+
+
+def _report_objective(
+    report: ModelAwareReport,
+    *,
+    policy: BoundedOptimizerPolicy,
+) -> ObjectiveEvidence:
+    return _objective(report, policy=policy)
+
+
+def _mean(values: Sequence[Decimal]) -> Decimal:
+    if not values:
+        raise BoundedOptimizerError("cannot average empty evidence")
+    return sum(values, Decimal(0)) / Decimal(len(values))
+
+
+def _perturbations(
+    candidates: Sequence[WickHunterParameters],
+    objectives: Mapping[str, Decimal],
+    *,
+    selected_hash: str,
+    maximum_delta: Decimal,
+) -> tuple[PerturbationEvidence, ...]:
+    vectors = _normalized_vectors(candidates)
+    selected = vectors[selected_hash]
+    neighbors: list[tuple[float, str]] = []
+    for parameter_hash, vector in vectors.items():
+        if parameter_hash == selected_hash or parameter_hash not in objectives:
+            continue
+        distance = float(np.linalg.norm(selected - vector))
+        neighbors.append((distance, parameter_hash))
+    if not neighbors:
+        return ()
+    distance, neighbor_hash = min(neighbors, key=lambda item: (item[0], item[1]))
+    delta = objectives[selected_hash] - objectives[neighbor_hash]
+    return (
+        PerturbationEvidence(
+            schema_version=PERTURBATION_SCHEMA_VERSION,
+            parameter_sha256=selected_hash,
+            neighbor_parameter_sha256=neighbor_hash,
+            normalized_distance=Decimal(str(distance)),
+            objective_delta=delta,
+            stable=abs(delta) <= maximum_delta,
+        ),
+    )
+
+
+def optimize_model_aware_walk_forward(  # noqa: C901
+    *,
+    cases: Sequence[EvaluationCase],
+    candidates: Sequence[WickHunterParameters],
+    parameter_bounds: WickHunterParameterBounds,
+    folds: Sequence[WalkForwardFold],
+    scopes: Sequence[ScopeSpec],
+    dataset_sha256: str,
+    code_sha: str,
+    symbol_clusters: Mapping[str, str],
+    policy: BoundedOptimizerPolicy | None = None,
+    slice_policy: BaselineSlicePolicy = DEFAULT_SLICE_POLICY,
+    model_evaluator: ModelAwareEvaluator = _default_model_aware_evaluator,
+    baseline_evaluator: EvaluationFunction = evaluate_deterministic_baselines,
+    maximum_perturbation_delta: Decimal = Decimal("0.02"),
+) -> tuple[ScopedWalkForwardResult, ...]:
+    policy = policy or BoundedOptimizerPolicy()
+    _require_sha256(dataset_sha256, field_name="dataset_sha256")
+    if len(code_sha) not in {40, 64} or any(char not in "0123456789abcdef" for char in code_sha):
+        raise BoundedOptimizerError("code_sha must be a lowercase git digest")
+    if not folds or not scopes:
+        raise BoundedOptimizerError("walk-forward folds and scopes are required")
+    if any(case.split_name in policy.forbidden_splits for case in cases):
+        raise BoundedOptimizerError("protected holdout access is forbidden")
+    ordered_candidates = tuple(sorted(candidates, key=lambda item: item.parameter_hash))
+    if not ordered_candidates:
+        raise BoundedOptimizerError("finite parameter candidates are required")
+    for candidate in ordered_candidates:
+        validate_parameters(candidate, parameter_bounds)
+    if len({candidate.parameter_hash for candidate in ordered_candidates}) != len(
+        ordered_candidates
+    ):
+        raise BoundedOptimizerError("parameter candidates must be unique")
+    fold_cases = {
+        fold.fold_id: _audit_walk_forward_fold(
+            cases,
+            fold,
+            forbidden_splits=policy.forbidden_splits,
+        )
+        for fold in folds
+    }
+    spec_by_key = {(spec.scope.value, spec.value): spec for spec in scopes}
+    global_key = (ParameterScope.GLOBAL.value, "global")
+    if global_key not in spec_by_key:
+        raise BoundedOptimizerError("global scope is required")
+    if len(spec_by_key) != len(scopes):
+        raise BoundedOptimizerError("scope specifications must be unique")
+    ordered_scopes = tuple(
+        sorted(
+            scopes,
+            key=lambda spec: (
+                0 if spec.scope is ParameterScope.GLOBAL else 1,
+                spec.scope.value,
+                spec.value,
+            ),
+        )
+    )
+    results: dict[tuple[str, str], ScopedWalkForwardResult] = {}
+
+    for spec in ordered_scopes:
+        key = (spec.scope.value, spec.value)
+        scoped = _scope_cases(
+            cases,
+            spec,
+            symbol_clusters=symbol_clusters,
+            slice_policy=slice_policy,
+        )
+        if len(scoped) < spec.minimum_case_count or not _scope_has_fold_coverage(scoped, folds):
+            if spec.inherited_from is None:
+                raise BoundedOptimizerError("sparse scope requires explicit inheritance")
+            parent_key = (
+                ParameterScope.GLOBAL.value,
+                spec.inherited_from,
+            )
+            if parent_key not in results:
+                raise BoundedOptimizerError("scope inheritance parent is unavailable")
+            parent = results[parent_key]
+            inherited_package = replace(
+                parent.selected_package,
+                package_id=canonical_sha256(
+                    {
+                        "parent_package_id": parent.selected_package.package_id,
+                        "scope": spec.scope.value,
+                        "scope_value": spec.value,
+                    }
+                ),
+                scope=spec.scope,
+                scope_value=spec.value,
+                inherited_from=spec.inherited_from,
+            )
+            results[key] = ScopedWalkForwardResult(
+                schema_version=WALK_FORWARD_SCHEMA_VERSION,
+                result_id=canonical_sha256(
+                    {
+                        "scope": spec.scope.value,
+                        "value": spec.value,
+                        "parent": parent.result_id,
+                    }
+                ),
+                scope=spec.scope,
+                scope_value=spec.value,
+                inherited_from=spec.inherited_from,
+                selected_package=inherited_package,
+                fold_evidence=parent.fold_evidence,
+                perturbations=parent.perturbations,
+                conclusion=DESCRIPTIVE_CONCLUSION,
+                protected_holdout_accessed=False,
+                test_used_for_selection=False,
+                automatically_promoted=False,
+                execution_enabled=False,
+                live_capital_authorized=False,
+                orders_submitted=0,
+            )
+            continue
+
+        scoped_hashes = {case.case_sha256 for case in scoped}
+        fold_selected_cases: dict[str, tuple[EvaluationCase, ...]] = {}
+        fold_baselines: dict[str, BoundedOptimizationResult] = {}
+        model_candidate_hashes: set[str] = set()
+
+        for fold in folds:
+            selected = tuple(
+                case for case in fold_cases[fold.fold_id] if case.case_sha256 in scoped_hashes
+            )
+            if not selected:
+                raise BoundedOptimizerError("scope removed every case from a walk-forward fold")
+            fold_selected_cases[fold.fold_id] = selected
+            fold_policy = BoundedOptimizerPolicy(
+                training_splits=tuple(sorted((*fold.training_splits, *fold.calibration_splits))),
+                validation_splits=fold.validation_splits,
+                test_splits=fold.test_splits,
+                forbidden_splits=policy.forbidden_splits,
+                seed=policy.seed,
+                initial_trials=min(policy.initial_trials, len(ordered_candidates)),
+                maximum_trials=len(ordered_candidates),
+                top_k=min(policy.top_k, len(ordered_candidates)),
+                exploration_ratio=policy.exploration_ratio,
+                stability_penalty=policy.stability_penalty,
+                inactivity_penalty=policy.inactivity_penalty,
+                surrogate_length_scale=policy.surrogate_length_scale,
+                surrogate_jitter=policy.surrogate_jitter,
+            )
+            baseline = optimize_bounded_parameters(
+                cases=selected,
+                candidates=ordered_candidates,
+                parameter_bounds=parameter_bounds,
+                policy=fold_policy,
+                slice_policy=slice_policy,
+                evaluator=baseline_evaluator,
+            )
+            fold_baselines[fold.fold_id] = baseline
+            model_candidate_hashes.update(baseline.top_parameter_sha256s)
+
+        validation_by_hash: dict[str, list[Decimal]] = {
+            parameter_hash: [] for parameter_hash in model_candidate_hashes
+        }
+        fold_validation: dict[
+            tuple[str, str],
+            tuple[str, Decimal, str, str, Decimal],
+        ] = {}
+        for parameter_hash in sorted(model_candidate_hashes):
+            candidate = next(
+                item for item in ordered_candidates if item.parameter_hash == parameter_hash
+            )
+            for fold in folds:
+                selected = fold_selected_cases[fold.fold_id]
+                baseline = fold_baselines[fold.fold_id]
+                validation_report = model_evaluator(
+                    cases=selected,
+                    parameters=candidate,
+                    parameter_bounds=parameter_bounds,
+                    training_splits=fold.training_splits,
+                    calibration_splits=fold.calibration_splits,
+                    target_splits=fold.validation_splits,
+                    forbidden_splits=policy.forbidden_splits,
+                    seed=policy.seed,
+                    slice_policy=slice_policy,
+                )
+                validation_evidence = _report_objective(
+                    validation_report,
+                    policy=policy,
+                )
+                validation_by_hash[parameter_hash].append(validation_evidence.objective_value)
+                fold_validation[(fold.fold_id, parameter_hash)] = (
+                    validation_report.report_id,
+                    validation_evidence.objective_value,
+                    validation_report.model_hash,
+                    baseline.result_id,
+                    next(
+                        trial.validation_evidence.objective_value
+                        for trial in baseline.trials
+                        if trial.parameter_sha256 == parameter_hash
+                    ),
+                )
+
+        eligible = {
+            parameter_hash: _mean(values)
+            for parameter_hash, values in validation_by_hash.items()
+            if len(values) == len(folds)
+        }
+        if not eligible:
+            raise BoundedOptimizerError("no candidate was evaluated in every walk-forward fold")
+        selected_hash = min(
+            eligible,
+            key=lambda parameter_hash: (-eligible[parameter_hash], parameter_hash),
+        )
+        selected_parameter = next(
+            item for item in ordered_candidates if item.parameter_hash == selected_hash
+        )
+        fold_evidence: list[FoldCandidateEvidence] = []
+        test_values: list[Decimal] = []
+        model_hashes: set[str] = set()
+        for fold in folds:
+            selected = fold_selected_cases[fold.fold_id]
+            test_report = model_evaluator(
+                cases=selected,
+                parameters=selected_parameter,
+                parameter_bounds=parameter_bounds,
+                training_splits=fold.training_splits,
+                calibration_splits=fold.calibration_splits,
+                target_splits=fold.test_splits,
+                forbidden_splits=policy.forbidden_splits,
+                seed=policy.seed,
+                slice_policy=slice_policy,
+            )
+            test_evidence = _report_objective(test_report, policy=policy)
+            test_values.append(test_evidence.objective_value)
+            (
+                validation_report_id,
+                validation_objective,
+                validation_model_hash,
+                baseline_id,
+                baseline_objective,
+            ) = fold_validation[(fold.fold_id, selected_hash)]
+            if test_report.model_hash != validation_model_hash:
+                raise BoundedOptimizerError("validation and test model hashes differ for one fold")
+            model_hashes.add(test_report.model_hash)
+            fold_evidence.append(
+                FoldCandidateEvidence(
+                    fold_id=fold.fold_id,
+                    parameter_sha256=selected_hash,
+                    baseline_result_id=baseline_id,
+                    baseline_validation_objective=baseline_objective,
+                    model_validation_report_id=validation_report_id,
+                    model_validation_objective=validation_objective,
+                    model_hash=test_report.model_hash,
+                    model_test_report_id=test_report.report_id,
+                    model_test_objective=test_evidence.objective_value,
+                )
+            )
+        perturbations = _perturbations(
+            ordered_candidates,
+            eligible,
+            selected_hash=selected_hash,
+            maximum_delta=maximum_perturbation_delta,
+        )
+        bounds_sha256 = canonical_sha256(parameter_bounds)
+        fold_sha256s = tuple(sorted(fold.fold_sha256 for fold in folds))
+        package_seed = {
+            "schema_version": CANDIDATE_PACKAGE_SCHEMA_VERSION,
+            "scope": spec.scope.value,
+            "scope_value": spec.value,
+            "parameter_sha256": selected_hash,
+            "bounds_sha256": bounds_sha256,
+            "dataset_sha256": dataset_sha256,
+            "code_sha": code_sha,
+            "model_hashes": tuple(sorted(model_hashes)),
+            "fold_sha256s": fold_sha256s,
+            "seed": policy.seed,
+            "validation_objective": eligible[selected_hash],
+            "test_objective": _mean(test_values),
+            "promotion_state": "candidate",
+        }
+        package = ParameterCandidatePackage(
+            schema_version=CANDIDATE_PACKAGE_SCHEMA_VERSION,
+            package_id=canonical_sha256(package_seed),
+            scope=spec.scope,
+            scope_value=spec.value,
+            inherited_from=None,
+            parameter_version=selected_parameter.parameter_version,
+            parameter_sha256=selected_hash,
+            bounds_sha256=bounds_sha256,
+            dataset_sha256=dataset_sha256,
+            code_sha=code_sha,
+            model_hashes=tuple(sorted(model_hashes)),
+            fold_sha256s=fold_sha256s,
+            seed=policy.seed,
+            validation_objective=eligible[selected_hash],
+            test_objective=_mean(test_values),
+            promotion_state="candidate",
+            protected_holdout_accessed=False,
+            automatically_promoted=False,
+            execution_enabled=False,
+            live_capital_authorized=False,
+            orders_submitted=0,
+        )
+        result_seed = {
+            "schema_version": WALK_FORWARD_SCHEMA_VERSION,
+            "scope": spec.scope.value,
+            "scope_value": spec.value,
+            "package_id": package.package_id,
+            "fold_evidence": tuple(fold_evidence),
+            "perturbations": perturbations,
+            "conclusion": DESCRIPTIVE_CONCLUSION,
+        }
+        results[key] = ScopedWalkForwardResult(
+            schema_version=WALK_FORWARD_SCHEMA_VERSION,
+            result_id=canonical_sha256(result_seed),
+            scope=spec.scope,
+            scope_value=spec.value,
+            inherited_from=None,
+            selected_package=package,
+            fold_evidence=tuple(fold_evidence),
+            perturbations=perturbations,
+            conclusion=DESCRIPTIVE_CONCLUSION,
+            protected_holdout_accessed=False,
+            test_used_for_selection=False,
+            automatically_promoted=False,
+            execution_enabled=False,
+            live_capital_authorized=False,
+            orders_submitted=0,
+        )
+
+    return tuple(results[(spec.scope.value, spec.value)] for spec in scopes)

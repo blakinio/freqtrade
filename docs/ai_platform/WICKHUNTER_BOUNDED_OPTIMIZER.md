@@ -1,44 +1,34 @@
-# WickHunter bounded validation optimizer
+# WickHunter bounded walk-forward optimizer
 
 ## Purpose
 
-WH-05 evaluates a finite, explicitly supplied set of bounded `WickHunterParameters` candidates. It uses the WH-03 deterministic evaluation interface and exact WH-02 labels. It does not create unbounded parameters, access the protected holdout, use the test split for selection, claim profitability or promote any candidate automatically.
+WH-05 evaluates a finite, explicitly supplied set of bounded `WickHunterParameters`
+candidates. The baseline phase uses the WH-03 deterministic evaluation interface and
+exact WH-02 labels. The model-aware phase trains and compares WH-04 LightGBM advisory
+artifacts through the same frozen evaluation interface.
+
+WH-05 does not create unbounded parameters, access the protected holdout, use test
+evidence for selection, claim profitability, mutate an approved parameter set, promote
+a model or authorize execution.
 
 ```text
-finite parameter candidates
-  + explicit bounds
-  + WH-03 training and validation reports
-  -> seeded bounded surrogate search
-  -> validation-only ranking
-  -> descriptive test evidence for top-k only
+finite bounded candidates
+  + purged/embargoed walk-forward folds
+  + WH-03 baseline ranking
+  + WH-04 advisory model validation
+  -> validation-only global/regime/cluster packages
+  -> descriptive test and perturbation evidence
 ```
 
-## Finite search space
+## Finite baseline search
 
-The caller supplies every allowed parameter candidate. Before optimization:
+The caller supplies every allowed candidate. Each candidate is validated against
+`WickHunterParameterBounds`; hashes must be unique and the search-space identity binds
+the sorted hashes to the bounds. A seeded initial design and deterministic radial-basis
+surrogate select trials inside that finite set. Ties are resolved by immutable parameter
+hash.
 
-- each candidate is validated against `WickHunterParameterBounds`;
-- parameter hashes must be unique;
-- the search-space identity binds the sorted parameter hashes and the bounds;
-- the number of evaluations is capped by `maximum_trials`;
-- `initial_trials` and `top_k` must fit inside the evaluated budget.
-
-The optimizer never extrapolates a new parameter value outside this explicit set.
-
-## Deterministic surrogate selection
-
-The optimizer canonically sorts candidates and converts numeric parameter fields into normalized vectors. A fixed NumPy generator chooses the initial observations. Later trials use a deterministic radial-basis surrogate:
-
-- fixed length scale and numerical jitter;
-- posterior mean and standard deviation from the observed validation objectives;
-- acquisition = mean + `exploration_ratio` × standard deviation;
-- ties resolved by immutable parameter hash.
-
-Running the same policy and immutable evidence with candidates in any input order produces the same trial sequence and result identity.
-
-## Objective
-
-The objective version is `wickhunter-validation-stability-objective-v1`. It is calculated only from a WH-03 report:
+The objective is `wickhunter-validation-stability-objective-v1`:
 
 ```text
 validation net-return mean
@@ -46,43 +36,74 @@ validation net-return mean
 - inactivity_penalty × ignored-decision ratio
 ```
 
-This is a bounded research ranking score, not a profitability claim. Costs and outcomes are inherited from WH-02 through WH-03 and are never recomputed by the optimizer.
+Costs and outcomes come from WH-02 through WH-03 and are never recomputed.
 
-## Split isolation
+## Walk-forward geometry
 
-Training, validation and test split names are explicit and disjoint.
+`WalkForwardFold` declares sorted, disjoint training, calibration, validation and test
+split names plus explicit purge and embargo durations. A fold fails closed when:
 
-- training reports are recorded for every evaluated candidate;
-- validation reports provide the only selection objective;
-- candidates are ranked exclusively by validation objective and immutable hash;
-- test reports are generated only after ranking and only for final top-k candidates;
-- test objectives cannot change rank or selection;
-- `holdout` and `protected_holdout` cases fail closed before any evaluation.
+- any required split group is empty;
+- a protected holdout split appears;
+- a training or calibration label overlaps the validation boundary after purge;
+- a validation label overlaps the test boundary after embargo.
 
-## Stability evidence
+Multiple folds are aggregated by immutable fold hash. Selection uses validation evidence
+from every fold.
 
-For each top-k candidate the result records:
+## Model-aware phase
 
-- validation and test objective;
-- validation–test delta;
-- validation and test slice dispersion;
-- rank and immutable parameter hash.
+For each fold, the baseline optimizer produces a validation-ranked candidate cohort. The
+model-aware phase then:
 
-Every non-top-k trial is forbidden from carrying test evidence.
+1. trains the deterministic WH-04 LightGBM artifact using only the fold's training and
+   calibration cases;
+2. evaluates every cohort candidate on the fold's validation cases through
+   `evaluate_lightgbm_against_baseline`;
+3. aggregates model validation objectives across all folds;
+4. selects one candidate by validation objective and immutable hash;
+5. evaluates test evidence only for that selected candidate;
+6. verifies that validation and test evaluation reproduce the same model hash for the
+   same training/calibration evidence.
+
+The default adapter calls the frozen WH-04 `LightGBMTrainingPolicy`,
+`train_lightgbm_scorer` and `evaluate_lightgbm_against_baseline` APIs. Model outputs
+remain candidate/advisory evidence.
+
+## Global, regime and symbol-cluster packages
+
+`ScopeSpec` supports:
+
+- `global`;
+- `regime` (`uptrend`, `range`, `downtrend`);
+- `symbol_cluster` using an explicit symbol-to-cluster mapping.
+
+Each eligible scope receives an independent validation-only package. A sparse scope must
+declare inheritance and reuses the broader global package instead of overfitting an
+independent parameter set.
+
+Every package records parameter version/hash, bounds hash, dataset hash, code SHA,
+model hashes, fold hashes, seed, validation objective and descriptive test objective.
+
+## Local perturbation evidence
+
+The selected parameter is compared with its nearest normalized candidate. WH-05 records
+distance, objective delta and a bounded stability decision. This is descriptive local
+sensitivity evidence; it cannot mutate selection or authorize promotion.
 
 ## Safety boundary
 
-Every result records:
+Every result and package records:
 
 ```text
-selection_source = validation_only
 protected_holdout_accessed = false
 test_used_for_selection = false
-model_promoted = false
-profitability_claimed = false
+promotion_state = candidate
+automatically_promoted = false
 execution_enabled = false
 live_capital_authorized = false
 orders_submitted = 0
 ```
 
-WH-05 contains no credentials, order adapter, automatic promotion or live-capital authority.
+WH-05 contains no credentials, exchange adapter, order submission or live-capital
+authority.

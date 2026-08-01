@@ -181,9 +181,7 @@ class ReplayPolicy:
         if self.label_horizon_ms <= 0:
             raise DeterministicReplayError("label_horizon_ms must be > 0")
         if self.maximum_entry_delay_ms >= self.label_horizon_ms:
-            raise DeterministicReplayError(
-                "maximum_entry_delay_ms must be below label_horizon_ms"
-            )
+            raise DeterministicReplayError("maximum_entry_delay_ms must be below label_horizon_ms")
         for value, field, allow_zero in (
             (self.fee_ratio, "fee_ratio", True),
             (self.slippage_ratio, "slippage_ratio", True),
@@ -442,9 +440,7 @@ def _validate_split_windows(
     names = [window.split_name for window in windows]
     if len(names) != len(set(names)):
         raise DeterministicReplayError("split window names must be unique")
-    ordered = tuple(
-        sorted(windows, key=lambda item: (item.start_ms, item.end_ms, item.split_name))
-    )
+    ordered = tuple(sorted(windows, key=lambda item: (item.start_ms, item.end_ms, item.split_name)))
     if tuple(windows) != ordered:
         raise DeterministicReplayError("split windows must be chronologically sorted")
     for previous, current in pairwise(windows):
@@ -775,9 +771,7 @@ def _trade_from_json(payload: Mapping[str, object]) -> ReplayAggregateTrade:
             schema_version=str(payload["schema_version"]),
             source=str(payload["source"]),
             symbol=str(payload["symbol"]),
-            aggregate_trade_id=_integer(
-                payload["aggregate_trade_id"], field="aggregate_trade_id"
-            ),
+            aggregate_trade_id=_integer(payload["aggregate_trade_id"], field="aggregate_trade_id"),
             price=_decimal(
                 payload["price"],
                 field="price",
@@ -790,9 +784,7 @@ def _trade_from_json(payload: Mapping[str, object]) -> ReplayAggregateTrade:
             ),
             first_trade_id=_integer(payload["first_trade_id"], field="first_trade_id"),
             last_trade_id=_integer(payload["last_trade_id"], field="last_trade_id"),
-            occurred_at_ms=_integer(
-                payload["occurred_at_ms"], field="occurred_at_ms", minimum=1
-            ),
+            occurred_at_ms=_integer(payload["occurred_at_ms"], field="occurred_at_ms", minimum=1),
             buyer_is_maker=payload["buyer_is_maker"] is True,
             archive_sha256=str(payload["archive_sha256"]),
             raw_row_number=_integer(
@@ -991,10 +983,7 @@ def _require_safe_authority(payload: Mapping[str, object]) -> None:
 
 
 def _checksum_lines(root: Path, paths: Sequence[Path]) -> list[str]:
-    return [
-        f"{sha256_file(path)}  {path.relative_to(root).as_posix()}"
-        for path in sorted(paths)
-    ]
+    return [f"{sha256_file(path)}  {path.relative_to(root).as_posix()}" for path in sorted(paths)]
 
 
 def build_deterministic_replay_package(
@@ -1185,9 +1174,7 @@ def verify_deterministic_replay_package(  # noqa: C901
         raise DeterministicReplayError("verified split geometry mismatch")
     if price_manifest.get("package_id") != request.price_path_package_id:
         raise DeterministicReplayError("verified price-path identity mismatch")
-    expected_labels = _build_labels(
-        rows=rows, trades_by_symbol=trades_by_symbol, request=request
-    )
+    expected_labels = _build_labels(rows=rows, trades_by_symbol=trades_by_symbol, request=request)
     expected_by_id = {label.label_id: label.as_json_dict() for label in expected_labels}
     if len(expected_by_id) != len(expected_labels):
         raise DeterministicReplayError("recomputed label identities are not unique")
@@ -1255,9 +1242,9 @@ def verify_deterministic_replay_package(  # noqa: C901
     actual_lines = checksum_path.read_text(encoding="utf-8").splitlines()
     if actual_lines != expected_lines:
         raise DeterministicReplayError("artifact checksum index mismatch")
-    expected_names = {
-        path.relative_to(output_root).as_posix() for path in checksum_paths
-    } | {CHECKSUM_INDEX_NAME}
+    expected_names = {path.relative_to(output_root).as_posix() for path in checksum_paths} | {
+        CHECKSUM_INDEX_NAME
+    }
     actual_names = {
         path.relative_to(output_root).as_posix()
         for path in output_root.rglob("*")

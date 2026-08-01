@@ -50,9 +50,9 @@ Cryptographically bind the accepted Liquid20 production import to the independen
 - workflow run `30688887667`, job `91339968858`, failed before publication with `Liquid20 import lacks required pre-roll`;
 - the accepted import starts about eight hours before the decision interval and fully covers it, while the WH-01 builder requires history strictly before its declared 15-minute burst window rather than a separate 24-hour liquidation interval;
 - repair PR #908 aligns the Liquid20 pre-roll bound with the production dataset request's burst window and adds an actual-like regression fixture;
-- exact-head `193292a19e8fe902b24d887beaf5031b5c2acf64` passed AI Platform CI `30689330731` and security/zizmor `30689330706`;
-- Freqtrade pre-commit job `91341131142` passed mypy and Ruff, then failed only because Ruff format shortened one regression assertion;
-- bot commit `a3c641bda235c96b486e200e615247a779b7b77d` applied exactly that formatter diff and removed the temporary workflow;
+- exact-head `8c43e24f7ddc0cf41584b8caec60d7b979fc78b2` passed AI Platform CI `30689504518`, full Freqtrade CI `30689504493` including CI Gate and full pre-commit, and security/zizmor `30689504496`;
+- `develop` then advanced by 49 commits; it was merged normally into the repair branch without force-push or conflict;
+- synced bot head `49e422eae3c73bb8da6192e47d83990e58a386fb` is based on `develop` `343bd2eda79045d7bbd6c86c2b4aa68bb8030025` and the temporary sync workflow is absent;
 - the final diff again contains only the implementation, focused test and this task record;
 - no capture, backfill, holdout access, synthetic data, replay, model execution, trading credentials, orders or live capital were used.
 
@@ -67,9 +67,9 @@ Cryptographically bind the accepted Liquid20 production import to the independen
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-01T09:18:00+02:00
-head: checkpoint commit with parent a3c641bda235c96b486e200e615247a779b7b77d
+checkpoint_version: 4
+updated_at: 2026-08-01T09:38:00+02:00
+head: checkpoint commit with parent 49e422eae3c73bb8da6192e47d83990e58a386fb
 branch: fix/wickhunter-wh01-liquid20-preroll-20260801
 pr: "#908"
 status: validating
@@ -93,24 +93,23 @@ proven:
   - WH-01 dataset history is defined strictly before decision_timestamp_ms minus burst_window_ms
   - production burst_window_ms is 900000 and minimum_history_events is 1
   - the hard-coded 86400000-millisecond Liquid20 wrapper pre-roll was not a dataset-builder requirement
-  - repair head a3c641bda235c96b486e200e615247a779b7b77d changes exactly the three owned paths and contains no temporary workflow
-  - AI Platform CI 30689330731 and security/zizmor 30689330706 passed on pre-format repair head 193292a19e8fe902b24d887beaf5031b5c2acf64
-  - pre-commit job 91341131142 passed mypy and Ruff and requested exactly one Ruff formatter change
-  - bot commit a3c641bda235c96b486e200e615247a779b7b77d applied exactly the reported formatter change
- derived:
+  - repair head 8c43e24f7ddc0cf41584b8caec60d7b979fc78b2 passed AI Platform CI 30689504518, Freqtrade CI 30689504493 and security/zizmor 30689504496
+  - current develop 343bd2eda79045d7bbd6c86c2b4aa68bb8030025 was merged normally into the repair branch
+  - synced head 49e422eae3c73bb8da6192e47d83990e58a386fb changes exactly the three owned paths and contains no temporary workflow
+derived:
   - the smallest correct wrapper bound is the declared production burst window; event-level eligibility remains enforced by the unchanged builder
 unknown:
-  - exact-head CI results for the new user-authored checkpoint head
+  - exact-head CI results for the post-sync user-authored checkpoint head
   - whether the repaired trusted-runner materialization produces non-empty partitions from the frozen real inputs
 conflicts: []
 first_failure:
-  marker: ruff-format modified one regression assertion
-  evidence: Freqtrade CI 30689330712 job 91341131142; mypy and Ruff passed before the formatting-only failure
+  marker: develop advanced after a green exact-head run
+  evidence: compare showed behind_by=49 after CI 30689504493 completed successfully
 rejected_hypotheses:
   - the frozen Liquid20 package is not corrupt or unverified
   - a new capture or backfill is not required to satisfy the builder's declared 15-minute history boundary
   - the failed attempt did not publish or overwrite an immutable dataset root
-  - the exact-head pre-commit failure was not a type, lint or functional defect
+  - the branch did not require force-push or conflict resolution to absorb current develop
 changed_paths:
   - ai_platform/wickhunter/production_dataset_materialization.py
   - tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py
@@ -122,18 +121,21 @@ validation:
   - command: trusted-runner materialization in workflow 30688887667
     result: FAIL
     evidence: first failure was the hard-coded 24-hour Liquid20 pre-roll wrapper check
-  - command: AI Platform CI 30689330731
+  - command: AI Platform CI 30689504518
     result: PASS
-    evidence: exact pre-format repair head passed tests, compile, Ruff, Ruff format and codespell
-  - command: security/zizmor 30689330706
+    evidence: repair head passed tests, compile, Ruff, Ruff format and codespell
+  - command: Freqtrade CI 30689504493
     result: PASS
-    evidence: exact pre-format repair head passed security analysis
-  - command: Freqtrade pre-commit job 91341131142
-    result: FAIL
-    evidence: only Ruff format changed one assertion; mypy and Ruff passed
+    evidence: full pre-commit, documentation, Core matrix, coverage, distributions and CI Gate passed
+  - command: security/zizmor 30689504496
+    result: PASS
+    evidence: repair head passed security analysis
+  - command: merge current develop into repair branch
+    result: PASS
+    evidence: synced head 49e422eae3c73bb8da6192e47d83990e58a386fb, no conflict, no force-push, temporary workflow absent
   - command: compare develop...fix/wickhunter-wh01-liquid20-preroll-20260801
     result: PASS
-    evidence: behind_by=0 and exactly three owned files; temporary workflows absent
+    evidence: behind_by=0 and exactly three owned files after sync
 blockers: []
-next_action: drive repair PR #908 exact-head AI Platform CI, full Freqtrade CI and security analysis to green, then merge normally
+next_action: drive post-sync exact-head AI Platform CI, full Freqtrade CI and security analysis to green, then merge PR #908 normally
 ```

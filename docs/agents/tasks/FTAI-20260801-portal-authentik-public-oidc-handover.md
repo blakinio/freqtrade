@@ -18,9 +18,12 @@ owned_paths:
   - ai_platform/portal/web/lib/identity.ts
   - deploy/synology/portal/Dockerfile
   - deploy/synology/portal/deploy-preview.sh
+  - deploy/synology/portal/prove-liquidations-live.sh
   - deploy/synology/portal-oidc/
   - tests/ai_platform/portal/identity/test_oidc.py
   - tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
+  - tests/ai_platform_integration/test_portal_synology_auth_probe.py
+  - tests/ai_platform_integration/test_liquidation_alert_notifications.py
   - docs/agents/tasks/FTAI-20260801-portal-authentik-public-oidc-handover.md
 required_reads:
   - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
@@ -53,7 +56,7 @@ The retired `auth.quant.molehill.cloud` hostname is forbidden.
 ## Inherited target evidence
 
 - Authentik 2026.5.5 server, worker and PostgreSQL are deployed on Synology.
-- Target runtime secrets are stored outside GitHub in a persistent mode-`0600` file.
+- Target secrets are stored outside GitHub in a persistent mode-`0600` file.
 - PostgreSQL has no host-published port.
 - Readiness repair PR 862 merged as `6ac747a069455ddfbfa00d861008dd81fbf509cf`.
 - Request-only PR 865 was consumed and closed without merge.
@@ -79,7 +82,7 @@ PR 876 divergence: 18 ahead, 34 behind
 PR 876 review threads: 0
 ```
 
-PR 876 functional tests passed; its failures were mechanical Ruff, pre-commit and formatting failures. The replacement branch was synchronized through these exact merge PRs:
+PR 876 functional tests passed; its failures were mechanical Ruff, pre-commit and formatting failures. The replacement branch was synchronized through:
 
 ```text
 PR 901: develop 55b63820f50976e3fcf605f1cea0810183d2b842
@@ -92,29 +95,28 @@ PR 907: develop 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
 merge:  1be877411cd83a395fed1287148f1024cbdf6cff
 ```
 
-Incoming commits in PR 905 changed only WickHunter materialization. Incoming commits in PR 907 changed agent guidance and a separate dashboard visual proposal. Neither refresh overlapped an owned Portal OIDC path.
+The refreshes did not overlap owned Portal OIDC paths.
 
 ## Implemented public HTTPS changes
 
 PR 903 contains:
 
-- public Authentik application slug `freqtrade-portal`;
-- confidential provider `Freqtrade Portal Public OIDC`;
-- strict public callback and scopes `openid`, `profile`, `email`;
+- Authentik application slug `freqtrade-portal` and confidential provider `Freqtrade Portal Public OIDC`;
+- strict callback `https://quant.molehill.cloud/api/identity/callback` and scopes `openid`, `profile`, `email`;
 - no client secret in repository content;
 - HTTPS-only production or staging identity runtime;
 - Secure, SameSite=Lax, Path=/ `__Host-portal_session` and `__Host-portal_csrf` cookies;
 - no automatic first membership or email, domain or group promotion;
 - explicit exact-issuer-and-subject bootstrap with audit action `identity.membership_bootstrapped`;
 - subject hashing in bootstrap output;
-- target client-secret preservation and refusal of implicit rotation;
-- deployed provider/application query and issuer derivation;
+- target secret preservation and refusal of implicit client-secret rotation;
+- deployed provider/application query, issuer derivation and equality check;
 - discovery and JWKS validation from inside the identity container;
 - public redirect probe through `https://quant.molehill.cloud`;
 - internal-only Python control plane and one LAN-published Next.js BFF;
 - no Docker socket, privileged mode, host networking or control-plane host port;
 - frozen exact-one-file deployment workflow on `freqtrade-staging` and environment `synology-staging`;
-- secret-free report uploaded even after failure;
+- secret-free report uploaded even on failure;
 - identity fixture disabled and `live_capital_authorized=false`.
 
 Retired:
@@ -134,19 +136,22 @@ The target deployer must:
 6. fetch discovery and JWKS inside the identity container;
 7. fail closed on any mismatch.
 
-The provider, discovery and JWKS are not yet proven because no post-merge deployment request has run.
+Provider, discovery and JWKS remain unproven until a post-merge request-only deployment runs.
 
 ## CI repair evidence
 
-- AI Platform tests passed repeatedly with `1036 passed, 71 skipped`; failures were import order and deterministic formatter differences.
-- Freqtrade pre-commit passed mypy before reporting only deployer import layout, unused `noqa` directives and formatting.
-- Exact repository Ruff fixes and formatting were applied in commit `742e9b892f9b10ebfd1739135eb92b56985b9d6c`.
-- The isolated formatter workflow was removed in commit `246e81a46528fc04b0a3c33dda638abbb5ddaf49`.
-- Freqtrade pre-commit and documentation build passed on head `b7944639ebb32827dfbc301183f045248900ab01` before the final non-overlapping `develop` refresh.
-- Security analysis passed on that head.
-- No PR comments or unresolved review threads existed at the last inspection.
+- AI Platform tests repeatedly passed with `1036 passed, 71 skipped`; early failures were import order and deterministic formatting.
+- Exact repository Ruff fixes for the deployer were applied in `742e9b892f9b10ebfd1739135eb92b56985b9d6c`.
+- The temporary formatter workflow was removed in `246e81a46528fc04b0a3c33dda638abbb5ddaf49`.
+- Exact-head run `30688989518` found four deterministic integration-test failures: three tests in `test_portal_synology_auth_probe.py` and one restart-contract test still opened the intentionally deleted fixture deployment files.
+- The stale tests were migrated in `f99b2eb2cc803110aa53bd3f1e636b33e8dc7c5d` to the public OIDC deployer, public workflow and public blueprint.
+- The Liquidations proof restart assertion now matches the public deployer's persistent `unless-stopped` policy.
+- The temporary migration workflow was removed in `4025967d8a6f3925072e06d645c5f1abb880269b`.
+- AI Platform CI passed after the migration.
+- Pre-commit then identified exactly one Ruff-format line wrap; the exact formatter diff was applied in `f4eeb7ec2b10e81eefbdfedfc13317ab31e9ab1f`.
+- No behavioral change was introduced by that formatting commit.
 
-All workflows must pass again on the exact final head after PR 907 and this checkpoint commit.
+All applicable workflows must pass on the exact head containing this checkpoint before merge.
 
 ## Safety boundary
 
@@ -176,22 +181,22 @@ deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 5
-updated_at: 2026-08-01T09:07:00+02:00
+checkpoint_version: 6
+updated_at: 2026-08-01T09:19:00+02:00
 develop_head: 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
 develop_refresh_merge: 1be877411cd83a395fed1287148f1024cbdf6cff
-formatted_code_head: 742e9b892f9b10ebfd1739135eb92b56985b9d6c
+code_head: f4eeb7ec2b10e81eefbdfedfc13317ab31e9ab1f
 branch: feat/portal-authentik-public-oidc-20260801
 pr: "#903"
 status: in_progress
 proven:
-  - feature branch contains exact develop head 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
-  - incoming develop changes did not overlap Portal OIDC paths
+  - branch contains develop head 8f5a49fcdbb9421ec30d12643638e8182e91c4f9
   - public runtime has no automatic membership grant
   - blueprint contains no client secret and uses the exact public callback
   - deployment contract refuses bootstrap, restore and live-capital authorization
   - competing fixture deployment on port 3031 is retired
-  - deployer has repository-generated Ruff fixes and formatting
+  - stale fixture deployment tests are migrated to the public contract
+  - persistent restart proof matches unless-stopped deployment policy
 derived:
   - actual issuer is trusted only after target provider query and discovery equality
 unknown:
@@ -202,12 +207,12 @@ unknown:
 conflicts: []
 first_failure:
   marker: PR_903_FINAL_EXACT_HEAD_CI_PENDING
-  evidence: exact develop refresh and checkpoint require a new complete CI set
+  evidence: this checkpoint creates the final exact head requiring complete CI
 blockers:
   - exact-head CI must pass before merge
   - deployment requires merged implementation and separate frozen request PR
   - password/TOTP and exact-principal bootstrap require owner interaction
-next_action: validate every workflow on the exact PR head, repair concrete failures, then merge with expected_head_sha
+next_action: validate every workflow on the exact PR head, repair any concrete failure, then merge with expected_head_sha
 ```
 
 Terminal evidence must include:

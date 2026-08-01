@@ -1,0 +1,191 @@
+name: Portal OIDC Callback Diagnostic
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/portal-oidc/run-requests/callback-diagnostic-20260801-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-oidc-callback-diagnostic-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/callback-diagnostic-20260801-v1.json
+
+jobs:
+  diagnose:
+    name: Diagnose Portal OIDC callback failure
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file frozen diagnostic request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected_path="deploy/synology/portal-oidc/run-requests/"
+          expected_path+="callback-diagnostic-20260801-v1.json"
+          expected=$'A\t'"$expected_path"
+          actual="$(git diff --name-status "$BASE_SHA...$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Callback diagnostic must add exactly one frozen request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+          python3 - "$REQUEST_PATH" "$BASE_SHA" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          base_sha = sys.argv[2]
+          request = json.loads(path.read_text(encoding="utf-8"))
+          expected = {
+              "request_id": "portal-authentik-callback-diagnostic-20260801-v1",
+              "environment": "synology-staging",
+              "runner": "freqtrade-staging",
+              "implementation_sha": base_sha,
+              "since_minutes": 120,
+              "diagnostic_only": True,
+              "configuration_mutation_authorized": False,
+              "browser_acceptance_authorized": False,
+              "public_ingress_authorized": True,
+              "live_capital_authorized": False,
+              "restore_authorized": False,
+              "secret_values_in_request": False,
+          }
+          if request != expected:
+              raise SystemExit("frozen callback diagnostic request does not match contract")
+          PY
+
+      - name: Refuse trading and live-capital credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Collect sanitized callback failure evidence
+        id: diagnostic
+        continue-on-error: true
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/portal-oidc-callback-diagnostic-report.json
+          IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/diagnose_callback_failure.py \
+            --repository "$GITHUB_WORKSPACE" \
+            --request "$REQUEST_PATH" \
+            --expected-repository-sha "$IMPLEMENTATION_SHA" \
+            --report "$REPORT_PATH"
+
+      - name: Upload secret-free callback diagnostic report
+        id: upload-report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-oidc-callback-diagnostic-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/portal-oidc-callback-diagnostic-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish callback diagnostic evidence summary
+        if: always()
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/portal-oidc-callback-diagnostic-report.json
+          ARTIFACT_ID: ${{ steps.upload-report.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload-report.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Portal OIDC callback diagnostic"
+            echo
+            echo "- Artifact ID: \`${ARTIFACT_ID:-unavailable}\`"
+            echo "- Artifact digest: \`${ARTIFACT_DIGEST:-unavailable}\`"
+            if [[ -f "$REPORT_PATH" ]]; then
+              python3 - "$REPORT_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          callback = report.get("callback") or {}
+          latest = callback.get("latest_exception") or {}
+          print(f"- Status: `{report.get('status', 'unknown')}`")
+          print(f"- Callback HTTP 500 count: `{callback.get('callback_500_count', 0)}`")
+          print(f"- Latest exception type: `{latest.get('type', 'unavailable')}`")
+          print(f"- Diagnostic only: `{report.get('diagnostic_only', False)}`")
+          print(f"- Secret values recorded: `{report.get('secret_values_recorded', True)}`")
+          print(f"- Live capital authorized: `{report.get('live_capital_authorized', True)}`")
+          PY
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce callback diagnostic result
+        if: always()
+        shell: bash
+        env:
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+          REPORT_PATH: ${{ runner.temp }}/portal-oidc-callback-diagnostic-report.json
+        run: |
+          set -euo pipefail
+          if [[ "$DIAGNOSTIC_OUTCOME" != "success" ]]; then
+            echo "Portal OIDC callback diagnostic failed closed" >&2
+            exit 1
+          fi
+          python3 - "$REPORT_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          required = {
+              "status": "success",
+              "diagnostic_only": True,
+              "configuration_mutation_authorized": False,
+              "browser_acceptance_authorized": False,
+              "public_ingress_authorized": True,
+              "restore_authorized": False,
+              "secret_values_recorded": False,
+              "live_capital_authorized": False,
+          }
+          for key, expected in required.items():
+              if report.get(key) != expected:
+                  raise SystemExit(f"callback diagnostic report invariant failed: {key}")
+          callback = report.get("callback") or {}
+          if callback.get("callback_500_count", 0) < 1:
+              raise SystemExit("callback diagnostic did not observe an HTTP 500")
+          if not callback.get("latest_exception"):
+              raise SystemExit("callback diagnostic did not capture a sanitized exception")
+          PY

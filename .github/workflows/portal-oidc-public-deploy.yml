@@ -1,0 +1,180 @@
+name: Portal Public Authentik OIDC Deploy
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - develop
+    paths:
+      - "deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-public-authentik-oidc-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  REQUEST_PATH: deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json
+
+jobs:
+  deploy:
+    name: Deploy public Portal OIDC on Synology
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact-one-file frozen request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tdeploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json'
+          actual="$(git diff --name-status "$BASE_SHA...$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Public OIDC deployment must add exactly one frozen request file" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+          python3 - "$REQUEST_PATH" "$BASE_SHA" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          base_sha = sys.argv[2]
+          request = json.loads(path.read_text(encoding="utf-8"))
+          expected = {
+              "implementation_sha": base_sha,
+              "portal_origin": "https://quant.molehill.cloud",
+              "authentik_origin": "https://auth.molehill.cloud",
+              "identity_transport": "https",
+              "identity_fixture_mode": "disabled",
+              "bootstrap_membership_authorized": False,
+              "public_ingress_authorized": True,
+              "live_capital_authorized": False,
+              "restore_authorized": False,
+              "secret_values_in_request": False,
+          }
+          for key, value in expected.items():
+              if request.get(key) != value:
+                  raise SystemExit(f"frozen request invariant failed: {key}")
+          PY
+
+      - name: Refuse trading and live-capital credential environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            if [[ -n "${!name:-}" ]]; then
+              echo "Recognized trading credential environment is present: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Apply provider and deploy public Portal OIDC
+        id: deploy
+        continue-on-error: true
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+          IMPLEMENTATION_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/deploy.py \
+            --repository "$GITHUB_WORKSPACE" \
+            --request "$REQUEST_PATH" \
+            --expected-repository-sha "$IMPLEMENTATION_SHA" \
+            --report "$REPORT_PATH"
+
+      - name: Upload secret-free deployment report
+        id: upload-report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-public-authentik-oidc-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish deployment evidence summary
+        if: always()
+        shell: bash
+        env:
+          REPORT_PATH: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+          ARTIFACT_ID: ${{ steps.upload-report.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload-report.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          {
+            echo "### Portal public Authentik OIDC deployment"
+            echo
+            echo "- Artifact ID: \`${ARTIFACT_ID:-unavailable}\`"
+            echo "- Artifact digest: \`${ARTIFACT_DIGEST:-unavailable}\`"
+            if [[ -f "$REPORT_PATH" ]]; then
+              python3 - "$REPORT_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          print(f"- Status: `{report.get('status', 'unknown')}`")
+          print(f"- Identity fixture disabled: `{report.get('identity_fixture_disabled', False)}`")
+          print(f"- Membership bootstrap: `{report.get('membership_bootstrap', 'unknown')}`")
+          print(f"- Secret values recorded: `{report.get('secret_values_recorded', True)}`")
+          print(f"- Live capital authorized: `{report.get('live_capital_authorized', True)}`")
+          print(f"- Browser acceptance: `{report.get('browser_acceptance', 'unknown')}`")
+          PY
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Enforce deployment result
+        if: always()
+        shell: bash
+        env:
+          DEPLOY_OUTCOME: ${{ steps.deploy.outcome }}
+          REPORT_PATH: ${{ runner.temp }}/portal-public-authentik-oidc-report.json
+        run: |
+          set -euo pipefail
+          if [[ "$DEPLOY_OUTCOME" != "success" ]]; then
+            echo "Public Portal OIDC deployment failed closed" >&2
+            exit 1
+          fi
+          python3 - "$REPORT_PATH" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          report = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+          required = {
+              "status": "success",
+              "identity_fixture_disabled": True,
+              "secret_values_recorded": False,
+              "live_capital_authorized": False,
+              "public_ingress_authorized": True,
+              "restore_authorized": False,
+              "membership_bootstrap": "explicit_owner_action_required",
+          }
+          for key, expected in required.items():
+              if report.get(key) != expected:
+                  raise SystemExit(f"deployment report invariant failed: {key}")
+          PY

@@ -94,7 +94,7 @@ class PyJwtOidcClient:
 
     @property
     def issuer(self) -> str:
-        return self.config.issuer.rstrip("/")
+        return self.config.issuer
 
     def authorization_url(
         self,
@@ -185,14 +185,14 @@ class PyJwtOidcClient:
     def _get_discovery(self) -> dict[str, Any]:
         if self._discovery is not None:
             return self._discovery
-        url = f"{self.issuer}/.well-known/openid-configuration"
+        url = f"{self.issuer.rstrip('/')}/.well-known/openid-configuration"
         try:
             response = self._http.get(url, headers=_json_headers())
             response.raise_for_status()
             payload = response.json()
         except (httpx.HTTPError, ValueError) as exc:
             raise OidcProviderUnavailable("OIDC discovery failed") from exc
-        if payload.get("issuer", "").rstrip("/") != self.issuer:
+        if payload.get("issuer", "").rstrip("/") != self.issuer.rstrip("/"):
             raise OidcProtocolError("OIDC discovery issuer mismatch")
         self._discovery = payload
         return payload

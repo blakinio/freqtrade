@@ -1,0 +1,73 @@
+name: WickHunter WH-02 v3 Constants Bootstrap
+
+"on":
+  pull_request:
+    types: [synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh02-v3-constants-bootstrap.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh02-v3-constants-bootstrap-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'ops/wickhunter-wh02-replay-price-path-request-v3'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out exact request branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ops/wickhunter-wh02-replay-price-path-request-v3
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Patch exact immutable acquisition constants
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              ".github/workflows/wickhunter-wh02-replay-price-path-request-v3.yml"
+          )
+          text = path.read_text(encoding="utf-8")
+          replacements = {
+              "EXPECTED_ACQUISITION_MANIFEST_SHA256: 8b97f528839e30835543d7a0875ffc1401dee489c477220492b57eda730adc17":
+                  "EXPECTED_ACQUISITION_MANIFEST_SHA256: 58f155da7381a0ec53559319520f04a45ab011c3ecc6a258a146230a2931148b",
+              'EXPECTED_TOTAL_ARCHIVE_BYTES: "51217010"':
+                  'EXPECTED_TOTAL_ARCHIVE_BYTES: "51219834"',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f"exact constants anchor mismatch: {old}")
+              text = text.replace(old, new)
+          path.write_text(text, encoding="utf-8")
+          PY
+          rm .github/workflows/wickhunter-wh02-v3-constants-bootstrap.yml
+          git diff --check
+          expected=$'M\t.github/workflows/wickhunter-wh02-replay-price-path-request-v3.yml\nD\t.github/workflows/wickhunter-wh02-v3-constants-bootstrap.yml'
+          actual="$(git diff --name-status)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Unexpected bootstrap diff:\n%s\n' "$actual" >&2
+            exit 1
+          }
+
+      - name: Commit corrected request and remove bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "ops(wickhunter): correct immutable acquisition binding"
+          git push origin HEAD:ops/wickhunter-wh02-replay-price-path-request-v3

@@ -4,6 +4,7 @@ status: ready_for_validation
 branch: audit/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1
 base_branch: develop
 audited_head: 6419138e170844d0eb09d9381b4435900d802ab9
+observed_develop_head: d6cb539c1c037dcb63439994696b3add04e2a84c
 created: 2026-08-01
 updated: 2026-08-01
 task_kind: audit
@@ -32,6 +33,7 @@ session_id: primary-auditor-20260801-1
 session_role: primary_auditor
 execution_mode: codex
 audited_head: 6419138e170844d0eb09d9381b4435900d802ab9
+observed_develop_head: d6cb539c1c037dcb63439994696b3add04e2a84c
 status: ready_for_validation
 context_pressure: high
 context_growth: high
@@ -51,11 +53,12 @@ blockers:
   - exact-head CI is unavailable
   - local checkout failed because github.com DNS is unavailable
   - fresh independent validator has not run
-next_action: Start a fresh validation session for this task, confirm audited_head, reproduce WH-ME-AUD-001 through WH-ME-AUD-004, and append an independent verdict.
+  - develop advanced after the audit freeze to d6cb539c1c037dcb63439994696b3add04e2a84c; the observed change is outside the audited Market Evidence paths but must be reconciled by the validator
+next_action: Start a fresh validation session for this task, compare 6419138e170844d0eb09d9381b4435900d802ab9..d6cb539c1c037dcb63439994696b3add04e2a84c for scope invalidation, reproduce WH-ME-AUD-001 through WH-ME-AUD-004, and append an independent verdict.
 ```
 
 ## Primary verdict
 
 `FAIL`
 
-The task must remain `ready_for_validation` until a fresh session validates the four HIGH findings, checks severity/deduplication and confirms no changes outside audit-owned paths.
+The task must remain `ready_for_validation` until a fresh session validates the four HIGH findings, checks severity/deduplication, reconciles the post-freeze develop advance and confirms no changes outside audit-owned paths.

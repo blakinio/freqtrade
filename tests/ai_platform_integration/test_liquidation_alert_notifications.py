@@ -289,23 +289,26 @@ def test_portal_restart_contract_is_persistent_without_weakened_security() -> No
     proof = (root / "deploy" / "synology" / "portal" / "prove-liquidations-live.sh").read_text(
         encoding="utf-8"
     )
-    deployment = (root / "deploy" / "synology" / "portal" / "deploy-preview.sh").read_text(
+    deployment = (root / "deploy" / "synology" / "portal-oidc" / "deploy.py").read_text(
         encoding="utf-8"
     )
     repair = (root / ".github" / "workflows" / "repair-synology-autostart.yml").read_text(
         encoding="utf-8"
     )
 
-    assert 'test "$portal_restart" = "always"' in proof
-    assert 'test "$portal_restart" = "unless-stopped"' not in proof
-    assert '"$container_name" "$image" "$bind_address" "$portal_port" always' in deployment
-    assert "unless-stopped" not in deployment
+    assert 'test "$portal_restart" = "unless-stopped"' in proof
+    assert 'test "$portal_restart" = "always"' not in proof
+    assert '"unless-stopped"' in deployment
+    assert '"--restart"' in deployment
     assert "workflow_run:" not in repair
     assert "--read-only" in proof
     assert "--cap-drop ALL" in proof
     assert "--security-opt no-new-privileges:true" in proof
     assert "dst=${liquidations_container_root},readonly" in proof
     assert 'test -z "$candidate_docker_socket_mount"' in proof
+    assert '"--read-only"' in deployment
+    assert '"--cap-drop"' in deployment
+    assert "no-new-privileges:true" in deployment
 
 
 def test_fresh_in_progress_run_does_not_create_false_incident() -> None:

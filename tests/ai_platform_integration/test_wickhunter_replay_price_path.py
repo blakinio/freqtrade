@@ -99,6 +99,7 @@ def _write_archive(
     checksum_override: str | None = None,
     member_name: str | None = None,
     include_header: bool = True,
+    timestamp_column: str = "timestamp",
 ) -> tuple[Path, Path]:
     archive, checksum = _archive_paths(input_root)
     archive.parent.mkdir(parents=True, exist_ok=True)
@@ -108,7 +109,8 @@ def _write_archive(
     lines: list[str] = []
     if include_header:
         lines.append(
-            "agg_trade_id,price,quantity,first_trade_id,last_trade_id,timestamp,is_buyer_maker"
+            "agg_trade_id,price,quantity,first_trade_id,last_trade_id,"
+            f"{timestamp_column},is_buyer_maker"
         )
     for index, timestamp in enumerate(timestamps, 1):
         lines.append(f"{index},100.5,2.0,{index},{index},{timestamp},false")
@@ -206,6 +208,25 @@ def test_builds_and_independently_verifies_exact_trade_path(
         )
         == result
     )
+
+
+def test_accepts_binance_public_data_transact_time_header(
+    tmp_path: Path,
+    accepted_materialization: None,
+) -> None:
+    materialization, manifest_sha256 = _materialization_root(tmp_path)
+    input_root = tmp_path / "input"
+    _write_archive(input_root, timestamp_column="transact_time")
+
+    result = subject.build_replay_price_path_package(
+        input_root=input_root,
+        materialization_root=materialization,
+        output_root=tmp_path / "output",
+        request=_request(manifest_sha256),
+    )
+
+    assert result["outcome"] == "accepted"
+    assert result["exact_trade_sequence_available"] is True
 
 
 def test_output_identity_is_deterministic(

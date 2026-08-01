@@ -92,9 +92,7 @@ class PortalObservabilitySnapshot:
         _require_positive(self.simulated_equity_quote, field="simulated_equity_quote")
         if not Decimal("0") <= self.drawdown_ratio <= Decimal("1"):
             raise ShadowRuntimeError("drawdown_ratio must be in [0, 1]")
-        if self.circuit_breaker_reasons != tuple(
-            sorted(set(self.circuit_breaker_reasons))
-        ):
+        if self.circuit_breaker_reasons != tuple(sorted(set(self.circuit_breaker_reasons))):
             raise ShadowRuntimeError("circuit breaker reasons must be unique and sorted")
         _require_sha256(self.runtime_state_sha256, field="runtime_state_sha256")
         if (
@@ -144,11 +142,7 @@ class ReplayShadowParityEvidence:
             (self.stop_loss_ratio, "stop_loss_ratio"),
         ):
             _require_positive(value, field=field_name)
-        if not (
-            self.identities_match
-            and self.policy_match
-            and self.execution_authority_absent
-        ):
+        if not (self.identities_match and self.policy_match and self.execution_authority_absent):
             raise ShadowRuntimeError("replay/shadow parity evidence is not accepted")
 
 

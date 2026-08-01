@@ -189,7 +189,9 @@ jobs:
             deploy/synology/portal-oidc/deploy.py \
             tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py \
             tests/ai_platform_integration/test_portal_synology_auth_probe.py
-          pytest -q tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
+          pytest -q \
+            --confcutdir=tests/ai_platform/portal/deployment \
+            tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
           git diff --check
 
       - name: Commit repair

@@ -52,7 +52,9 @@ def test_owner_bootstrap_request_is_exact_and_frozen(tmp_path: Path) -> None:
         bootstrap._load_request(request_path, sha)
 
 
-def test_exact_owner_lookup_accepts_only_active_akadmin_uuid(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_exact_owner_lookup_accepts_only_active_akadmin_uuid(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     subject = "12345678-1234-4234-9234-1234567890ab"
     output = {
         "username": bootstrap.TARGET_USERNAME,

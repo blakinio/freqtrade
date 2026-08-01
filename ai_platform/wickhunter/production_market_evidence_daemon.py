@@ -9,10 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from ai_platform.wickhunter import production_market_evidence as core
+from ai_platform.wickhunter.market_evidence_readiness import collector_health_payload
 from ai_platform.wickhunter.production_market_evidence_service import (
+    PACKAGE_DIR_NAME,
     MarketEvidencePublicationError,
     collect_due_sample,
     initialize_capture,
+    verify_immutable_package,
 )
 
 
@@ -67,13 +70,27 @@ def _initialize_if_needed(
     request_path: Path,
     collector_commit: str,
 ) -> dict[str, object] | None:
-    if _active_pointer(durable_root).exists():
-        return None
     if not request_path.is_file() or request_path.is_symlink():
         return {
             "status": "blocked",
             "reason_code": "CAPTURE_REQUEST_UNAVAILABLE",
             "detail": "No immutable capture request is mounted.",
+        }
+    try:
+        request = core.load_capture_request(request_path)
+    except (core.ProductionMarketEvidenceError, OSError, ValueError, json.JSONDecodeError):
+        return {
+            "status": "blocked",
+            "reason_code": "CAPTURE_REQUEST_UNAVAILABLE",
+            "detail": "The immutable capture request is unreadable or invalid.",
+        }
+    if _active_pointer(durable_root).exists():
+        return None
+    run_root = durable_root / str(request["run_id"])
+    if run_root.exists():
+        return {
+            "status": "published",
+            **verify_immutable_package(run_root / PACKAGE_DIR_NAME),
         }
     return initialize_capture(
         request_path=request_path,
@@ -121,19 +138,20 @@ def main() -> int:
                 )
                 _atomic_health(
                     health_path,
-                    {
-                        "schema_version": 1,
-                        "observed_at_ms": observed_at_ms,
-                        "healthy": result.get("status") not in {"rejected", "failed"},
-                        "result": result,
-                        "execution_enabled": False,
-                        "orders_submitted": 0,
-                        "trading_credentials_present": False,
-                        "model_execution_authorized": False,
-                        "replay_authorized": False,
-                        "performance_research_authorized": False,
-                        "live_capital_authorized": False,
-                    },
+                    collector_health_payload(
+                        schema_version=1,
+                        observed_at_ms=observed_at_ms,
+                        result=result,
+                        authority={
+                            "execution_enabled": False,
+                            "orders_submitted": 0,
+                            "trading_credentials_present": False,
+                            "model_execution_authorized": False,
+                            "replay_authorized": False,
+                            "performance_research_authorized": False,
+                            "live_capital_authorized": False,
+                        },
+                    ),
                 )
             except (
                 core.ProductionMarketEvidenceError,
@@ -142,23 +160,24 @@ def main() -> int:
             ) as exc:
                 _atomic_health(
                     health_path,
-                    {
-                        "schema_version": 1,
-                        "observed_at_ms": observed_at_ms,
-                        "healthy": False,
-                        "result": {
+                    collector_health_payload(
+                        schema_version=1,
+                        observed_at_ms=observed_at_ms,
+                        result={
                             "status": "failed",
                             "reason_code": "COLLECTOR_FAIL_CLOSED",
                             "detail": f"{type(exc).__name__}: {exc}",
                         },
-                        "execution_enabled": False,
-                        "orders_submitted": 0,
-                        "trading_credentials_present": False,
-                        "model_execution_authorized": False,
-                        "replay_authorized": False,
-                        "performance_research_authorized": False,
-                        "live_capital_authorized": False,
-                    },
+                        authority={
+                            "execution_enabled": False,
+                            "orders_submitted": 0,
+                            "trading_credentials_present": False,
+                            "model_execution_authorized": False,
+                            "replay_authorized": False,
+                            "performance_research_authorized": False,
+                            "live_capital_authorized": False,
+                        },
+                    ),
                 )
             for _ in range(interval_seconds):
                 if _STOP:

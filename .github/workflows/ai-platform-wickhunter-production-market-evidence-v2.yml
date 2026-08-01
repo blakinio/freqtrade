@@ -172,18 +172,10 @@ jobs:
             running="$(docker inspect --format '{{.State.Running}}' \
               wickhunter-market-evidence-v2 2>/dev/null || true)"
             if [[ "$running" == "true" && -f "$DURABLE_ROOT/collector-health.json" ]]; then
-              if python3 - "$DURABLE_ROOT/collector-health.json" <<'PY'
-          import json
-          import pathlib
-          import sys
-
-          payload = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-          result = payload.get("result")
-          if payload.get("healthy") is not True or not isinstance(result, dict):
-              raise SystemExit(1)
-          if result.get("status") in {"failed", "rejected"}:
-              raise SystemExit(1)
-          PY
+              if PYTHONPATH=. python3 -m ai_platform.wickhunter.market_evidence_readiness \
+                --health-file "$DURABLE_ROOT/collector-health.json" \
+                --schema-version 2 \
+                --max-age-seconds 600
               then
                 docker inspect --format '{{json .State.Health}}' \
                   wickhunter-market-evidence-v2

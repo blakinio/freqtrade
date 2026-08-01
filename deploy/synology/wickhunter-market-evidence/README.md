@@ -84,7 +84,20 @@ docker logs --tail 100 wickhunter-market-evidence
 cat /volume1/docker/freqtrade-staging-state/wickhunter-production-market-evidence/collector-health.json
 ```
 
-A healthy container proves only that the daemon recently completed a controlled loop. Read the `result` field to distinguish:
+A collector health payload separates process liveness from operational readiness:
+
+- `live=true` means the daemon loop completed and wrote a fresh atomic observation;
+- `ready=true` means the mounted immutable request is valid and the lifecycle result is in the
+  explicit ready-state allowlist;
+- `healthy` remains a compatibility readiness field and always equals `ready`;
+- `blocked` means the loop is alive but cannot perform its configured capture duty;
+- `failed` means a collector operation failed closed.
+
+Docker/Compose health and deployment gates require a fresh `live=true`, `ready=true`,
+`healthy=true` payload, a matching schema version, zero authority and an explicitly allowed result.
+`blocked/CAPTURE_REQUEST_UNAVAILABLE` is never ready. A fresh file alone is not readiness.
+
+Read the `result` field to distinguish:
 
 - initialized;
 - sampled;

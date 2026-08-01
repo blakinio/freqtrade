@@ -1,0 +1,47 @@
+name: WickHunter WH-01 sync develop
+
+"on":
+  push:
+    branches:
+      - fix/wickhunter-wh01-liquid20-preroll-20260801
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh01-sync-develop
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Merge current develop without rewriting history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --no-tags origin develop
+          git merge --no-ff origin/develop -m "Merge current develop into WH-01 pre-roll repair"
+          rm .github/workflows/wickhunter-wh01-sync-develop.yml
+          git add .github/workflows/wickhunter-wh01-sync-develop.yml
+          git commit -m "ci(wickhunter): remove temporary develop sync"
+
+      - name: Push fast-forward repair branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            push origin HEAD:fix/wickhunter-wh01-liquid20-preroll-20260801

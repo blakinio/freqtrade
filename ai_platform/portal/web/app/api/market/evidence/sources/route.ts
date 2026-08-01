@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import type { LiquidationHealthSource, LiquidationSourceHealth } from "@/lib/liquidations";
 import type { LiquidationSourceOverlay, MarketEvidenceSource } from "@/lib/market-evidence";
 
 import { liquidationReadModel } from "../../liquidations/_shared";
-import { marketEvidenceReadModel, safeMarketEvidenceError } from "../_shared";
+import {
+  marketEvidenceReadModel,
+  requireMarketEvidenceAuthorization,
+  safeMarketEvidenceError,
+} from "../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,8 +27,9 @@ function overlay(
   };
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    await requireMarketEvidenceAuthorization(request);
     const overlays: LiquidationSourceOverlay[] = [];
     try {
       const health = await liquidationReadModel().health();

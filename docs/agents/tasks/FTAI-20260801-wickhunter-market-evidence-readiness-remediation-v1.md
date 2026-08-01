@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1
-status: in_progress
+status: waiting
 branch: fix/FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1
 base_branch: develop
 base_sha: 4031939fd4902dda2b5e3440d4ee47821de41717
@@ -9,6 +9,7 @@ implementation_authorized: true
 authorized_findings:
   - WH-ME-AUD-004
 execution_mode: codex
+related_pr: 950
 ---
 
 # WickHunter Market Evidence readiness remediation
@@ -20,12 +21,12 @@ readiness and making container/deployment gates require an explicit ready lifecy
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T17:28:01+02:00
-head: 4031939fd4902dda2b5e3440d4ee47821de41717
+updated_at: 2026-08-01T17:32:02+02:00
+head: f0cc3830e94428690d68019a99ffd9b3db0d3e58
 branch: fix/FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1
-pr: none
+pr: 950
 status: validating
-phase: validate
+phase: complete
 session_id: codex-20260801-wh-me-aud-004-1
 session_role: implementer
 execution_mode: codex
@@ -39,7 +40,7 @@ context_growth: stable
 context_score: 11
 decomposition_decision: split
 decomposition_reason: readiness has independent Python and deployment ownership and no dependency on Task A
-last_completed_step: implemented one v1/v2 readiness contract and passed focused, component, workflow, healthcheck, Ruff, compile, YAML, and static Compose validation
+last_completed_step: committed and pushed coherent implementation head f0cc3830e94428690d68019a99ffd9b3db0d3e58 and opened separate draft PR 950 against develop
 context_routes:
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-readiness-remediation-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md at audit commit a9272b3e
@@ -105,6 +106,9 @@ validation:
   - command: Docker runtime validation
     result: BLOCKED
     evidence: Docker Desktop Linux engine pipe is unavailable; no dynamic container claim is made
+  - command: PR 950 exact-head required CI observation
+    result: NOT_RUN
+    evidence: workflow runs 30706120573, 30706120574, 30706120579 and 30706120589 queued for head f0cc3830e94428690d68019a99ffd9b3db0d3e58
 blockers: []
-next_action: Validate the checkpoint, create one coherent Task B commit, push it, and open the separate draft PR.
+next_action: Observe PR 950 required checks at the latest exact head and repair only a relevant failure.
 ```

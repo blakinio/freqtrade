@@ -12,7 +12,7 @@ from ai_platform.portal.control_plane.database import (
     build_engine,
     build_session_factory,
 )
-from ai_platform.portal.identity.oidc import OidcProviderUnavailable
+from ai_platform.portal.identity.oidc import OidcProtocolError, OidcProviderUnavailable
 from ai_platform.portal.identity.runtime import IdentityRuntimeConfig, build_identity_service
 from ai_platform.portal.identity.schema import BackchannelLogoutResult, PortalSessionView
 from ai_platform.portal.identity.service import (
@@ -89,6 +89,16 @@ def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  
         return JSONResponse(
             status_code=status.HTTP_502_BAD_GATEWAY,
             content={"detail": "OIDC provider is unavailable"},
+        )
+
+    @app.exception_handler(OidcProtocolError)
+    async def protocol_error_handler(
+        _request: Request,
+        _exc: OidcProtocolError,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"detail": "OIDC provider response failed validation"},
         )
 
     @app.middleware("http")

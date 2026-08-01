@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
-status: waiting
+status: done
 branch: fix/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
 base_branch: develop
 base_sha: 81005a01301f4d51b7fcfcb23090c5c2099548d0
@@ -47,12 +47,12 @@ Ensure completed Portal Market Evidence v1/v2 packages are projected only after 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T15:40:00+02:00
-head: 6ec6991a1f31db9214b2955555bf97b70e0774b7
+updated_at: 2026-08-01T16:00:00+02:00
+head: 15a040a64079686904a98647221aa796945e246f
 branch: fix/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
 pr: 938
 status: ready
-phase: validate
+phase: complete
 session_id: codex-20260801-integrity-1
 session_role: implementer
 execution_mode: codex
@@ -69,8 +69,8 @@ context_score: 12
 decomposition_decision: phased
 validation_level: component
 heavy_validation_runs: 3
-heavy_validation_result: product_gates_passed_precommit_line_ending_repaired_locally
-last_completed_step: normalized the non-addressed verification report after all product gates passed and pre-commit identified its mixed line endings
+heavy_validation_result: pass
+last_completed_step: verified every required exact-head PR check on 15a040a64079686904a98647221aa796945e246f and closed the task
 context_routes:
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md at audit commit a9272b3e
@@ -95,8 +95,7 @@ proven:
   - Portal v1/v2 verification now completes against immutable buffered bytes before normalized rows are parsed or projected.
   - One Python safe_regular_member implementation now serves supplement and combined-package verification.
 derived: []
-unknown:
-  - Required CI conclusions remain pending on the forthcoming repaired exact head.
+unknown: []
 conflicts: []
 rejected_hypotheses:
   - The stale validating status in the merged v2 task represents live overlapping ownership.
@@ -142,12 +141,12 @@ validation:
   - command: npx.cmd playwright test --project=chromium-desktop e2e/specs/market-evidence-integrity.spec.ts e2e/specs/market-evidence.spec.ts
     result: PASS
     evidence: 13 passed and one Windows-only symlink skip; both CI-failing Market Evidence journeys passed
-  - command: PR 938 exact-head heavy CI at 6ec6991a1f31db9214b2955555bf97b70e0774b7
-    result: FAIL
-    evidence: all AI Platform, Market Evidence, Portal Web, Universal E2E, security and closure jobs passed; repository pre-commit alone failed because verification-report.json retained mixed line endings, which is now normalized to LF
   - command: isolated pre-commit run on verification-report.json and the task checkpoint
     result: PASS
     evidence: mixed-line-ending, EOF, whitespace, codespell and all applicable repository hooks passed
+  - command: PR 938 exact-head heavy CI at 15a040a64079686904a98647221aa796945e246f
+    result: PASS
+    evidence: AI Platform, Market Evidence backend and Portal, Portal Web, Universal E2E, security, exact-head closure, pre-commit, documentation, Python 3.11-3.14 core tests, distribution build and repository CI Gate all passed; only explicitly non-applicable jobs were skipped
 blockers: []
-next_action: Commit and push the verification-report line-ending normalization, then verify all required CI on the new exact PR 938 head.
+next_action: Owner reviews PR 938 and decides whether to merge; this task does not authorize merge or deployment.
 ```

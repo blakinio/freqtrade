@@ -1,0 +1,147 @@
+name: WickHunter WH-02 Header Fix Bootstrap
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh02-header-fix-bootstrap.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh02-header-fix-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'fix/wickhunter-wh02-binance-transact-time-header'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out exact head branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply exact parser and regression-test patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          module = Path("ai_platform/wickhunter/replay_price_path.py")
+          text = module.read_text(encoding="utf-8")
+          old = '''def _normalize_header(value: str) -> str:
+              normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+              return normalized.replace("aggregate_trade_id", "agg_trade_id")
+          '''
+          new = '''def _normalize_header(value: str) -> str:
+              normalized = re.sub(r"[^a-z0-9]+", "_", value.strip().lower()).strip("_")
+              aliases = {
+                  "aggregate_trade_id": "agg_trade_id",
+                  "transact_time": "timestamp",
+              }
+              return aliases.get(normalized, normalized)
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("parser normalization anchor mismatch")
+          module.write_text(text.replace(old, new), encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_wickhunter_replay_price_path.py")
+          text = tests.read_text(encoding="utf-8")
+          old_signature = '''    member_name: str | None = None,
+              include_header: bool = True,
+          ) -> tuple[Path, Path]:
+          '''
+          new_signature = '''    member_name: str | None = None,
+              include_header: bool = True,
+              timestamp_column: str = "timestamp",
+          ) -> tuple[Path, Path]:
+          '''
+          if text.count(old_signature) != 1:
+              raise SystemExit("archive helper signature anchor mismatch")
+          text = text.replace(old_signature, new_signature)
+          old_header = '''        lines.append(
+                  "agg_trade_id,price,quantity,first_trade_id,last_trade_id,timestamp,is_buyer_maker"
+              )
+          '''
+          new_header = '''        lines.append(
+                  "agg_trade_id,price,quantity,first_trade_id,last_trade_id,"
+                  f"{timestamp_column},is_buyer_maker"
+              )
+          '''
+          if text.count(old_header) != 1:
+              raise SystemExit("archive header anchor mismatch")
+          text = text.replace(old_header, new_header)
+          anchor = '''def test_output_identity_is_deterministic(
+              tmp_path: Path,
+              accepted_materialization: None,
+          ) -> None:
+          '''
+          regression = '''def test_accepts_binance_public_data_transact_time_header(
+              tmp_path: Path,
+              accepted_materialization: None,
+          ) -> None:
+              materialization, manifest_sha256 = _materialization_root(tmp_path)
+              input_root = tmp_path / "input"
+              _write_archive(input_root, timestamp_column="transact_time")
+
+              result = subject.build_replay_price_path_package(
+                  input_root=input_root,
+                  materialization_root=materialization,
+                  output_root=tmp_path / "output",
+                  request=_request(manifest_sha256),
+              )
+
+              assert result["outcome"] == "accepted"
+              assert result["exact_trade_sequence_available"] is True
+
+
+          ''' + anchor
+          if text.count(anchor) != 1:
+              raise SystemExit("regression insertion anchor mismatch")
+          tests.write_text(text.replace(anchor, regression), encoding="utf-8")
+
+          task = Path(
+              "docs/agents/tasks/FTAI-20260801-wickhunter-wh02-binance-transact-time-header.md"
+          )
+          task.write_text(
+              """# FTAI-20260801 — WickHunter WH-02 Binance `transact_time` header\n\n"
+              "## Status\n\nCompleted by the implementation PR.\n\n"
+              "## Trigger\n\nThe trusted WH-02 materialization run parsed the official Binance USD-M "
+              "daily `aggTrades` archive header as data because the provider uses "
+              "`transact_time` while the importer canonicalized only `timestamp`.\n\n"
+              "## Scope\n\n- Canonicalize the official `transact_time` header token to `timestamp`.\n"
+              "- Preserve strict seven-column header recognition and all archive safety checks.\n"
+              "- Add an end-to-end regression test that materializes from the official header spelling.\n"
+              "- Do not change request geometry, data rows, authority, execution, or holdout rules.\n\n"
+              "## Acceptance\n\n- The official Binance header is skipped exactly once as a header.\n"
+              "- Existing canonical-header and headerless inputs remain supported.\n"
+              "- Focused tests and repository CI pass.\n"
+              "- Replay/model/performance/trading/live-capital authority remains false; orders remain zero.\n",
+              encoding="utf-8",
+          )
+          PY
+          python -m compileall -q ai_platform/wickhunter/replay_price_path.py \
+            tests/ai_platform_integration/test_wickhunter_replay_price_path.py
+          rm .github/workflows/wickhunter-wh02-header-fix-bootstrap.yml
+          git diff --check
+
+      - name: Commit exact fix and remove bootstrap
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --name-status
+          git commit -m "fix(wickhunter): accept Binance transact_time header"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}

@@ -30,6 +30,7 @@ from ai_platform.wickhunter.lightgbm_scorer import (
 from ai_platform.wickhunter.parameters import (
     DEFAULT_RESEARCH_BOUNDS,
     INITIAL_COMPATIBILITY_PRIOR,
+    WickHunterParameters,
 )
 from ai_platform.wickhunter.strategy import SignalMemory, generate_candidate
 
@@ -44,7 +45,7 @@ PRICE_PATH_SHA = "e" * 64
 CODE_SHA = "f" * 40
 
 
-def _parameters():
+def _parameters() -> WickHunterParameters:
     return replace(
         INITIAL_COMPATIBILITY_PRIOR,
         parameter_version="wickhunter-lightgbm-test-v1",

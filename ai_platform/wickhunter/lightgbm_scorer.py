@@ -28,6 +28,8 @@ from ai_platform.wickhunter.baseline_strategy import (
 from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
 from ai_platform.wickhunter.contracts import (
     CandidateAction,
+    CandidateScore,
+    LiquidationFeatureVector,
     ModelPromotionState,
     StrategyHypothesis,
     TradeDirection,
@@ -78,7 +80,9 @@ FEATURE_NAMES = (
 FORBIDDEN_FEATURE_TOKENS = (
     "label",
     "outcome",
-    "return",
+    "net_return",
+    "gross_return",
+    "future_return",
     "profit",
     "future",
     "exit",
@@ -97,7 +101,7 @@ class LightGBMScorerError(RuntimeError):
 def _decimal(value: object, *, field_name: str) -> Decimal:
     try:
         parsed = Decimal(str(value))
-    except Exception as exc:  # pragma: no cover - Decimal normalizes known scalar inputs
+    except (ArithmeticError, TypeError, ValueError) as exc:
         raise LightGBMScorerError(f"{field_name} must be decimal-compatible") from exc
     if not parsed.is_finite():
         raise LightGBMScorerError(f"{field_name} must be finite")
@@ -376,9 +380,9 @@ class LightGBMAdvisoryScorer:
         self,
         *,
         candidate: WickHunterCandidate,
-        features,
+        features: LiquidationFeatureVector,
         parameters: WickHunterParameters,
-    ):
+    ) -> CandidateScore:
         if candidate.feature_hash != features.feature_hash:
             raise LightGBMScorerError("candidate and feature identities do not match")
         if parameters.parameter_hash != self.artifact.parameter_sha256:
@@ -433,7 +437,11 @@ def _audit_case(case: EvaluationCase, policy: LightGBMTrainingPolicy) -> None:
         raise LightGBMScorerError("market metric became available after the decision timestamp")
 
 
-def _feature_values(*, features, candidate: WickHunterCandidate) -> tuple[Decimal, ...]:
+def _feature_values(
+    *,
+    features: LiquidationFeatureVector,
+    candidate: WickHunterCandidate,
+) -> tuple[Decimal, ...]:
     if candidate.side is None:
         raise LightGBMScorerError("model feature extraction requires a directional candidate")
     vwap = features.metric("vwap")

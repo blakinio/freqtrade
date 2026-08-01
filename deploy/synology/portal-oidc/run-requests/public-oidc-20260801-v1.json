@@ -1,5 +1,5 @@
 {
-  "request_id": "portal-authentik-public-oidc-20260801-v2",
+  "request_id": "portal-authentik-public-oidc-20260801-v1",
   "environment": "synology-staging",
   "runner": "freqtrade-staging",
   "implementation_sha": "8802d99476ad5d59e3e7a72cc99b4a10e0147a62",

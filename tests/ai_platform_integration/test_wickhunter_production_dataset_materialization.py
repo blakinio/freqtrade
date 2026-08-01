@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -95,7 +96,12 @@ def _market_package(root: Path) -> Path:
             "symbol": SYMBOL,
             "open_time_ms": timestamp,
             "close_time_ms_exclusive": timestamp + subject.TIMEFRAME_MS,
+            "open": "100",
+            "high": "101",
+            "low": "99",
             "close": "100",
+            "base_volume": "10",
+            "quote_volume": "1000",
         }
         for timestamp in range(PRE_ROLL_START, DECISION_END, subject.TIMEFRAME_MS)
     ]
@@ -117,6 +123,21 @@ def _market_package(root: Path) -> Path:
         },
     )
     return package
+
+
+
+def _accepted_events() -> tuple[SimpleNamespace, ...]:
+    return tuple(
+        SimpleNamespace(
+            available_at_ms=timestamp,
+            notional_usd=Decimal("1000"),
+        )
+        for timestamp in range(
+            DECISION_START - 8 * 60 * 60 * 1000,
+            DECISION_END + subject.TIMEFRAME_MS,
+            subject.TIMEFRAME_MS,
+        )
+    )
 
 
 def _selection() -> AcceptedImportSelection:
@@ -213,7 +234,11 @@ def test_market_inputs_are_availability_safe(
         },
     )
 
-    markets, universes, evidence = subject._market_inputs(package)
+    markets, universes, evidence = subject._market_inputs(
+        package,
+        accepted_events=_accepted_events(),
+        liquidation_history_start_ms=DECISION_START - 8 * 60 * 60 * 1000,
+    )
 
     assert len(markets) == 120
     assert len(universes) == 120
@@ -222,6 +247,20 @@ def test_market_inputs_are_availability_safe(
     assert first.completed_candle_close_ms == DECISION_START
     assert first.decision_timestamp_ms == DECISION_START + 1_002
     assert all(metric.available_at_ms <= first.decision_timestamp_ms for metric in first.metrics)
+    assert {metric.name for metric in first.metrics} == {
+        "quote_volume_24h_usd",
+        "vwap",
+        "vwma",
+        "atr_ratio",
+        "volatility_ratio",
+        "wick_ratio",
+        "trend_return_ratio",
+        "spread_bps",
+        "market_wide_liquidation_intensity",
+    }
+    assert evidence["market_metric_policy_sha256"] == evidence[
+        "market_metric_policy"
+    ]["policy_sha256"]
     assert universes[0].includes_symbol(SYMBOL)
     assert universes[-1].selected_at_ms < HOLDOUT_START
 
@@ -250,7 +289,7 @@ def test_materialization_binds_sources_and_verifies_partitions(
     monkeypatch.setattr(
         subject,
         "_market_inputs",
-        lambda _: (
+        lambda *_args, **_kwargs: (
             (SimpleNamespace(),),
             (SimpleNamespace(),),
             {
@@ -262,13 +301,20 @@ def test_materialization_binds_sources_and_verifies_partitions(
                 "market_manifest": manifest,
                 "market_context_count": 1,
                 "universe_snapshot_count": 1,
+                "market_metric_policy": subject._market_metric_policy(),
+                "market_metric_policy_sha256": subject._market_metric_policy()[
+                    "policy_sha256"
+                ],
             },
         ),
     )
     monkeypatch.setattr(
         subject,
         "load_accepted_import",
-        lambda _: SimpleNamespace(selection=selection),
+        lambda _: SimpleNamespace(
+            selection=selection,
+            events=_accepted_events(),
+        ),
     )
     monkeypatch.setattr(subject, "build_wickhunter_dataset", _fake_dataset_builder)
 
@@ -286,6 +332,9 @@ def test_materialization_binds_sources_and_verifies_partitions(
     binding = json.loads((output / subject.BINDING_NAME).read_text(encoding="utf-8"))
     assert binding["market_evidence"]["manifest_sha256"] == "a" * 64
     assert binding["liquid20_selection_sha256"] == selection.selection_sha256
+    assert binding["market_metric_policy_sha256"] == binding[
+        "market_metric_policy"
+    ]["policy_sha256"]
     assert binding["protected_holdout_accessed"] is False
 
 
@@ -310,7 +359,7 @@ def test_verifier_rejects_partition_tampering(
     monkeypatch.setattr(
         subject,
         "_market_inputs",
-        lambda _: (
+        lambda *_args, **_kwargs: (
             (SimpleNamespace(),),
             (SimpleNamespace(),),
             {
@@ -322,13 +371,20 @@ def test_verifier_rejects_partition_tampering(
                 "market_manifest": manifest,
                 "market_context_count": 1,
                 "universe_snapshot_count": 1,
+                "market_metric_policy": subject._market_metric_policy(),
+                "market_metric_policy_sha256": subject._market_metric_policy()[
+                    "policy_sha256"
+                ],
             },
         ),
     )
     monkeypatch.setattr(
         subject,
         "load_accepted_import",
-        lambda _: SimpleNamespace(selection=_selection()),
+        lambda _: SimpleNamespace(
+            selection=_selection(),
+            events=_accepted_events(),
+        ),
     )
     monkeypatch.setattr(subject, "build_wickhunter_dataset", _fake_dataset_builder)
     output = tmp_path / "materialized"

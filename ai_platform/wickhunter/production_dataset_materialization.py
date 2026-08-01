@@ -34,6 +34,11 @@ from ai_platform.wickhunter.production_market_evidence_intersection import (
 from ai_platform.wickhunter.production_market_evidence_intersection import (
     MANIFEST_NAME as MARKET_MANIFEST_NAME,
 )
+from ai_platform.wickhunter.production_market_evidence_wh01 import (
+    MetricLookbacks,
+    WickHunterInputAdapterError,
+    _source_metrics,
+)
 from ai_platform.wickhunter.universe import (
     DynamicUniverseSnapshot,
     UniverseInstrumentDecision,
@@ -56,6 +61,22 @@ DEFAULT_MAXIMUM_SOURCE_AGE_MS = 60 * 60 * 1000
 DEFAULT_LABEL_HORIZON_MS = 15 * 60 * 1000
 DEFAULT_EMBARGO_MS = 30 * 60 * 1000
 PRIMARY_CANDLE_SOURCE = "binance-usdm"
+PRODUCTION_METRIC_POLICY_VERSION = (
+    "wickhunter-production-market-evidence-v3-wh01-metric-binding-v1"
+)
+PRODUCTION_METRIC_LOOKBACKS = MetricLookbacks(
+    quote_volume_rows=288,
+    vwap_rows=288,
+    vwma_rows=288,
+    atr_rows=14,
+    volatility_rows=287,
+    wick_rows=288,
+    trend_rows=288,
+)
+PRODUCTION_SPREAD_AGGREGATION = "source_balanced_mean_require_all"
+PRODUCTION_LIQUIDATION_INTENSITY_POLICY = (
+    "current_burst_over_mean_complete_prior_bursts_since_accepted_import_start"
+)
 
 
 class ProductionDatasetMaterializationError(RuntimeError):
@@ -139,6 +160,79 @@ def _decimal(value: object, *, field: str, positive: bool = False) -> Decimal:
     if not parsed.is_finite() or (positive and parsed <= 0):
         raise ProductionDatasetMaterializationError(f"{field} has an invalid value")
     return parsed
+
+
+def _mean(values: Sequence[Decimal], *, field: str) -> Decimal:
+    if not values:
+        raise ProductionDatasetMaterializationError(f"{field} has no values")
+    return sum(values, Decimal(0)) / Decimal(len(values))
+
+
+def _market_metric_policy() -> dict[str, object]:
+    payload: dict[str, object] = {
+        "policy_version": PRODUCTION_METRIC_POLICY_VERSION,
+        "timeframe": "5m",
+        "primary_candle_source": PRIMARY_CANDLE_SOURCE,
+        "metric_lookback_rows": asdict(PRODUCTION_METRIC_LOOKBACKS),
+        "spread_aggregation": PRODUCTION_SPREAD_AGGREGATION,
+        "liquidation_intensity": PRODUCTION_LIQUIDATION_INTENSITY_POLICY,
+        "burst_window_ms": DEFAULT_BURST_WINDOW_MS,
+    }
+    payload["policy_sha256"] = canonical_sha256(payload)
+    return payload
+
+
+def _market_wide_liquidation_intensity(
+    events: Sequence[Any],
+    *,
+    decision_timestamp_ms: int,
+    history_start_ms: int,
+) -> Decimal:
+    current_start_ms = decision_timestamp_ms - DEFAULT_BURST_WINDOW_MS
+    complete_bucket_count = (
+        current_start_ms - history_start_ms
+    ) // DEFAULT_BURST_WINDOW_MS
+    if complete_bucket_count < 1:
+        raise ProductionDatasetMaterializationError(
+            "market-wide liquidation intensity lacks a complete history bucket"
+        )
+    aligned_history_start_ms = (
+        current_start_ms - complete_bucket_count * DEFAULT_BURST_WINDOW_MS
+    )
+    current_notional = Decimal(0)
+    history_buckets = [Decimal(0) for _ in range(complete_bucket_count)]
+    for event in events:
+        available_at_ms = _integer(
+            getattr(event, "available_at_ms", None),
+            field="liquidation available_at_ms",
+        )
+        if available_at_ms > decision_timestamp_ms:
+            continue
+        notional = _decimal(
+            getattr(event, "notional_usd", None),
+            field="liquidation notional_usd",
+        )
+        if notional < 0:
+            raise ProductionDatasetMaterializationError(
+                "liquidation notional_usd must be non-negative"
+            )
+        if current_start_ms <= available_at_ms <= decision_timestamp_ms:
+            current_notional += notional
+        elif aligned_history_start_ms <= available_at_ms < current_start_ms:
+            bucket_index = (
+                available_at_ms - aligned_history_start_ms
+            ) // DEFAULT_BURST_WINDOW_MS
+            if 0 <= bucket_index < complete_bucket_count:
+                history_buckets[bucket_index] += notional
+    baseline = _mean(
+        history_buckets,
+        field="market-wide liquidation burst history",
+    )
+    if baseline <= 0:
+        raise ProductionDatasetMaterializationError(
+            "market-wide liquidation intensity lacks positive history"
+        )
+    return current_notional / baseline
 
 
 def _safe_member(root: Path, logical_name: str) -> Path:
@@ -279,6 +373,9 @@ def _candle_maps(  # noqa: C901
 
 def _market_inputs(  # noqa: C901
     market_root: Path,
+    *,
+    accepted_events: Sequence[Any],
+    liquidation_history_start_ms: int,
 ) -> tuple[
     tuple[MarketContextSnapshot, ...],
     tuple[DynamicUniverseSnapshot, ...],
@@ -286,8 +383,8 @@ def _market_inputs(  # noqa: C901
 ]:
     verification = verify_intersection_package(market_root)
     manifest = _load_json(market_root / MARKET_MANIFEST_NAME, field="market manifest")
-    pre_roll_start_ms, decision_start_ms, decision_end_ms, holdout_start_ms = _market_geometry(
-        manifest
+    pre_roll_start_ms, decision_start_ms, decision_end_ms, holdout_start_ms = (
+        _market_geometry(manifest)
     )
     del pre_roll_start_ms
     sources = manifest.get("sources")
@@ -296,27 +393,48 @@ def _market_inputs(  # noqa: C901
         raise ProductionDatasetMaterializationError("market sources are missing")
     if not isinstance(symbols, list) or not symbols:
         raise ProductionDatasetMaterializationError("market instruments are missing")
+    if not accepted_events:
+        raise ProductionDatasetMaterializationError(
+            "accepted Liquid20 import contains no events"
+        )
 
     source_rows = _load_rows(market_root / SOURCE_ROWS_NAME, field="source rows")
     quality_rows = _load_rows(market_root / QUALITY_ROWS_NAME, field="quality rows")
     source_by_key: dict[tuple[int, str], dict[str, Any]] = {}
     for row in source_rows:
-        scheduled = _integer(row.get("scheduled_at_ms"), field="source scheduled_at_ms")
+        scheduled = _integer(
+            row.get("scheduled_at_ms"),
+            field="source scheduled_at_ms",
+        )
         source = str(row.get("source", ""))
         source_key = (scheduled, source)
         if source_key in source_by_key:
-            raise ProductionDatasetMaterializationError("duplicate source health key")
+            raise ProductionDatasetMaterializationError(
+                "duplicate source health key"
+            )
         source_by_key[source_key] = row
     quality_by_key: dict[tuple[int, str, str], dict[str, Any]] = {}
     for row in quality_rows:
-        scheduled = _integer(row.get("scheduled_at_ms"), field="quality scheduled_at_ms")
+        scheduled = _integer(
+            row.get("scheduled_at_ms"),
+            field="quality scheduled_at_ms",
+        )
         source = str(row.get("source", ""))
-        symbol = str(row.get("canonical_symbol") or row.get("symbol") or "").upper()
+        symbol = str(
+            row.get("canonical_symbol") or row.get("symbol") or ""
+        ).upper()
         quality_key = (scheduled, source, symbol)
         if quality_key in quality_by_key:
-            raise ProductionDatasetMaterializationError("duplicate market-quality key")
+            raise ProductionDatasetMaterializationError(
+                "duplicate market-quality key"
+            )
         quality_by_key[quality_key] = row
     candles = _candle_maps(market_root, manifest=manifest)
+    ordered_candles = {
+        symbol: [by_open[key] for key in sorted(by_open)]
+        for symbol, by_open in candles.items()
+    }
+    metric_policy = _market_metric_policy()
 
     markets: list[MarketContextSnapshot] = []
     universes: list[DynamicUniverseSnapshot] = []
@@ -330,7 +448,10 @@ def _market_inputs(  # noqa: C901
                 raise ProductionDatasetMaterializationError(
                     "source health coverage is incomplete"
                 ) from exc
-            available = _integer(row.get("available_at_ms"), field="source available_at_ms")
+            available = _integer(
+                row.get("available_at_ms"),
+                field="source available_at_ms",
+            )
             availability_values.append(available)
             if (
                 row.get("healthy") is True
@@ -344,13 +465,18 @@ def _market_inputs(  # noqa: C901
             records: list[dict[str, Any]] = []
             for source in sources:
                 try:
-                    row = quality_by_key[(scheduled, str(source), str(symbol))]
+                    row = quality_by_key[
+                        (scheduled, str(source), str(symbol))
+                    ]
                 except KeyError as exc:
                     raise ProductionDatasetMaterializationError(
                         "market-quality coverage is incomplete"
                     ) from exc
                 availability_values.append(
-                    _integer(row.get("available_at_ms"), field="quality available_at_ms")
+                    _integer(
+                        row.get("available_at_ms"),
+                        field="quality available_at_ms",
+                    )
                 )
                 records.append(row)
             quality_for_symbol[str(symbol)] = records
@@ -359,6 +485,11 @@ def _market_inputs(  # noqa: C901
             raise ProductionDatasetMaterializationError(
                 "market availability crosses protected holdout"
             )
+        liquidation_intensity = _market_wide_liquidation_intensity(
+            accepted_events,
+            decision_timestamp_ms=decision_timestamp_ms,
+            history_start_ms=liquidation_history_start_ms,
+        )
 
         decisions: list[UniverseInstrumentDecision] = []
         for symbol in sorted(str(value) for value in symbols):
@@ -366,7 +497,10 @@ def _market_inputs(  # noqa: C901
             reasons: list[str] = []
             if healthy_sources != set(str(source) for source in sources):
                 reasons.append("source_health_incomplete")
-            if any(record.get("market_available") is not True for record in records):
+            if any(
+                record.get("market_available") is not True
+                for record in records
+            ):
                 reasons.append("market_quality_unavailable")
             candle = candles[symbol].get(scheduled - TIMEFRAME_MS)
             if candle is None:
@@ -377,39 +511,98 @@ def _market_inputs(  # noqa: C901
                     canonical_instrument_id=f"perpetual:{symbol}",
                     canonical_symbol=symbol,
                     included=included,
-                    reason_codes=("eligible",) if included else tuple(sorted(set(reasons))),
+                    reason_codes=(
+                        ("eligible",)
+                        if included
+                        else tuple(sorted(set(reasons)))
+                    ),
                 )
             )
             if not included:
                 continue
-            metrics: list[AvailableMetric] = []
-            for record in sorted(records, key=lambda item: str(item["source"])):
-                source = str(record["source"])
-                available_at_ms = _integer(
+            try:
+                candle_metrics = _source_metrics(
+                    ordered_candles[symbol],
+                    scheduled,
+                    PRODUCTION_METRIC_LOOKBACKS,
+                )
+            except WickHunterInputAdapterError as exc:
+                raise ProductionDatasetMaterializationError(
+                    f"unable to derive canonical WH-01 candle metrics: {exc}"
+                ) from exc
+            quality_available_at_ms = max(
+                _integer(
                     record.get("available_at_ms"),
                     field="quality available_at_ms",
                 )
-                for name, field in (
-                    (f"{source}.last_price", "last_price"),
-                    (f"{source}.spread_bps", "spread_bps"),
-                    (f"{source}.quote_volume_24h_usd", "quote_volume_24h_usd"),
-                ):
-                    metrics.append(
-                        AvailableMetric(
-                            name=name,
-                            value=_decimal(record.get(field), field=f"{source}.{field}"),
-                            available_at_ms=available_at_ms,
-                            source=source,
-                        )
+                for record in records
+            )
+            spread_bps = _mean(
+                [
+                    _decimal(
+                        record.get("spread_bps"),
+                        field=f"{record.get('source')}.spread_bps",
                     )
-            candle = candles[symbol][scheduled - TIMEFRAME_MS]
+                    for record in records
+                ],
+                field="source-balanced spread_bps",
+            )
+            metric_values = {
+                name: candle_metrics[name]
+                for name in (
+                    "quote_volume_24h_usd",
+                    "vwap",
+                    "vwma",
+                    "atr_ratio",
+                    "volatility_ratio",
+                    "wick_ratio",
+                    "trend_return_ratio",
+                )
+            }
+            metric_values["spread_bps"] = spread_bps
+            metric_values["market_wide_liquidation_intensity"] = (
+                liquidation_intensity
+            )
+            metrics: list[AvailableMetric] = []
+            for name, value in sorted(metric_values.items()):
+                if name == "spread_bps":
+                    available_at_ms = quality_available_at_ms
+                    source_name = (
+                        "market_quality:"
+                        + "+".join(
+                            sorted(str(source) for source in sources)
+                        )
+                        + ":source_balanced_mean"
+                    )
+                elif name == "market_wide_liquidation_intensity":
+                    available_at_ms = decision_timestamp_ms
+                    source_name = (
+                        "accepted_liquidation_archive:market_wide:"
+                        + PRODUCTION_METRIC_POLICY_VERSION
+                    )
+                else:
+                    available_at_ms = scheduled
+                    source_name = (
+                        f"completed_candle:{PRIMARY_CANDLE_SOURCE}:"
+                        f"{PRODUCTION_METRIC_POLICY_VERSION}"
+                    )
+                if available_at_ms > decision_timestamp_ms:
+                    raise ProductionDatasetMaterializationError(
+                        "derived market metric is unavailable at decision time"
+                    )
+                metrics.append(
+                    AvailableMetric(
+                        name=name,
+                        value=value,
+                        available_at_ms=available_at_ms,
+                        source=source_name,
+                    )
+                )
             markets.append(
                 MarketContextSnapshot(
                     symbol=symbol,
                     decision_timestamp_ms=decision_timestamp_ms,
-                    decision_price=_decimal(
-                        candle.get("close"), field="decision candle close", positive=True
-                    ),
+                    decision_price=candle_metrics["decision_price"],
                     completed_candle_close_ms=scheduled,
                     metrics=tuple(metrics),
                 )
@@ -417,16 +610,24 @@ def _market_inputs(  # noqa: C901
         universes.append(
             DynamicUniverseSnapshot(
                 schema_version="wickhunter-dynamic-universe-v1",
-                policy_version="market-evidence-v3-observed-eligibility-v1",
+                policy_version=(
+                    "market-evidence-v3-observed-eligibility-v1"
+                ),
                 selected_at_ms=decision_timestamp_ms,
                 decisions=tuple(decisions),
             )
         )
     if not markets or not universes:
-        raise ProductionDatasetMaterializationError("market evidence produced no eligible inputs")
-    market_keys = {(item.decision_timestamp_ms, item.symbol) for item in markets}
+        raise ProductionDatasetMaterializationError(
+            "market evidence produced no eligible inputs"
+        )
+    market_keys = {
+        (item.decision_timestamp_ms, item.symbol) for item in markets
+    }
     if len(market_keys) != len(markets):
-        raise ProductionDatasetMaterializationError("market context keys are not unique")
+        raise ProductionDatasetMaterializationError(
+            "market context keys are not unique"
+        )
     return (
         tuple(markets),
         tuple(universes),
@@ -435,6 +636,8 @@ def _market_inputs(  # noqa: C901
             "market_manifest": manifest,
             "market_context_count": len(markets),
             "universe_snapshot_count": len(universes),
+            "market_metric_policy": metric_policy,
+            "market_metric_policy_sha256": metric_policy["policy_sha256"],
         },
     )
 
@@ -508,12 +711,16 @@ def materialize_production_dataset(
         return verify_production_materialization(output_root)
     if len(code_sha) != 40 or any(character not in "0123456789abcdef" for character in code_sha):
         raise ProductionDatasetMaterializationError("code_sha must be a lowercase Git SHA")
-    markets, universes, market_evidence = _market_inputs(market_package_root.resolve(strict=True))
+    accepted = load_accepted_import(accepted_import_root.resolve(strict=True))
+    markets, universes, market_evidence = _market_inputs(
+        market_package_root.resolve(strict=True),
+        accepted_events=accepted.events,
+        liquidation_history_start_ms=accepted.selection.requested_start_ms,
+    )
     market_manifest = market_evidence["market_manifest"]
     if not isinstance(market_manifest, dict):
         raise ProductionDatasetMaterializationError("market manifest is unavailable")
     _, decision_start_ms, decision_end_ms, holdout_start_ms = _market_geometry(market_manifest)
-    accepted = load_accepted_import(accepted_import_root.resolve(strict=True))
     if accepted.selection.protected_holdout_start_ms != holdout_start_ms:
         raise ProductionDatasetMaterializationError(
             "Liquid20 import and market package disagree on holdout"
@@ -561,6 +768,10 @@ def materialize_production_dataset(
             "split_geometry": asdict(geometry),
             "split_geometry_sha256": geometry.geometry_sha256,
             "dataset_request_sha256": request.request_sha256,
+            "market_metric_policy": market_evidence["market_metric_policy"],
+            "market_metric_policy_sha256": market_evidence[
+                "market_metric_policy_sha256"
+            ],
             "dataset_manifest_sha256": dataset_manifest["manifest_sha256"],
             "dataset_manifest_file_sha256": artifacts.manifest_file_sha256,
             "code_sha": code_sha,
@@ -586,6 +797,9 @@ def materialize_production_dataset(
             "split_geometry_sha256": geometry.geometry_sha256,
             "market_context_count": market_evidence["market_context_count"],
             "universe_snapshot_count": market_evidence["universe_snapshot_count"],
+            "market_metric_policy_sha256": market_evidence[
+                "market_metric_policy_sha256"
+            ],
             "total_rows": dataset_manifest["total_rows"],
             "earliest_decision_timestamp_ms": dataset_manifest["earliest_decision_timestamp_ms"],
             "latest_decision_timestamp_ms": dataset_manifest["latest_decision_timestamp_ms"],
@@ -682,6 +896,30 @@ def verify_production_materialization(output_root: Path) -> dict[str, object]:  
         raise ProductionDatasetMaterializationError("unexpected nested binding identity")
     if materialization.get("source_binding_sha256") != binding_hash:
         raise ProductionDatasetMaterializationError("materialization source binding mismatch")
+    metric_policy = binding.get("market_metric_policy")
+    metric_policy_sha256 = binding.get("market_metric_policy_sha256")
+    if not isinstance(metric_policy, dict) or not isinstance(
+        metric_policy_sha256, str
+    ):
+        raise ProductionDatasetMaterializationError(
+            "market metric policy binding is missing"
+        )
+    policy_seed = dict(metric_policy)
+    claimed_policy_sha256 = policy_seed.pop("policy_sha256", None)
+    if (
+        claimed_policy_sha256 != metric_policy_sha256
+        or canonical_sha256(policy_seed) != metric_policy_sha256
+    ):
+        raise ProductionDatasetMaterializationError(
+            "market metric policy hash mismatch"
+        )
+    if (
+        materialization.get("market_metric_policy_sha256")
+        != metric_policy_sha256
+    ):
+        raise ProductionDatasetMaterializationError(
+            "materialization metric policy mismatch"
+        )
     for payload, field in (
         (binding, "source binding"),
         (materialization, "materialization manifest"),

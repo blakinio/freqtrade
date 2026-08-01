@@ -5,7 +5,7 @@ branch: docs/agent-governance-v2-1-restack-20260802
 base_branch: develop
 created: 2026-08-01
 updated: 2026-08-02
-related_pr: "PENDING"
+related_pr: "#993"
 required_reads:
   - AGENTS.md
   - docs/agents/PROMPTING_STANDARD.md
@@ -38,19 +38,19 @@ Documentation and governance only. Protected holdout, credentials, orders, live 
 - [x] Closeout requires fresh audit, real E2E when applicable, final exact-head CI, resolved reviews, terminal related PRs, terminal task state, and released ownership.
 - [x] Autonomous programmes continue through completed and archived tasks until a real stop.
 - [ ] Replacement PR exact-head CI and review gates pass.
-- [ ] Replacement PR merges, superseded PR #985 closes, and this task reaches terminal status.
+- [ ] Replacement PR merges and this task reaches terminal status.
 
 ## Context checkpoint
 
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-02T00:30:00+02:00
-head: aecdc4235e41ebe9dd6de24ed5828bd2da2254ff
+updated_at: 2026-08-02T00:32:00+02:00
+head: dc87179cf8c24028b80303348203a17d1b7cf4ad
 branch: docs/agent-governance-v2-1-restack-20260802
-pr: PENDING
+pr: "#993"
 status: validating
-phase: replacement_pr
+phase: replacement_pr_ci
 session_id: chat-20260801-governance-v2-1-restack
 session_role: coordinator
 execution_mode: chat
@@ -71,19 +71,19 @@ owned_paths:
   - docs/agents/tasks/FTAI-20260801-agent-governance-v2-1.md
 proven:
   - The seven governance contract blobs are bit-for-bit identical to the green, audited PR #985 versions.
-  - The replacement commit is based directly on current develop commit 8f23bbc7e09c1c1c0906e32adc2b5af137ec07d7.
-  - Only seven governance contracts plus this task are changed; no trading, strategy, workflow, credential, protected-data, order, or deployment code is modified.
+  - The replacement commit is based directly on develop commit 8f23bbc7e09c1c1c0906e32adc2b5af137ec07d7.
+  - PR #993 changes exactly seven governance contracts plus this task and no trading/runtime/workflow code.
   - Fresh content and cross-reference audit found no material finding.
   - Runtime E2E is NOT_APPLICABLE_WITH_REASON because only governance documentation changes; path, content, lifecycle, CI, review, and PR-state validation remain required.
+  - PR #985 is superseded because GitHub rejected its stale branch merge with HTTP 409 despite green checks.
 derived:
-  - A clean replacement PR is safer than resolving the stale-base conflict inside PR #985.
+  - Clean restack PR #993 is the authoritative feature PR.
 unknown:
-  - Replacement PR number and its exact-head workflow results.
-conflicts:
-  - PR #985 cannot merge because its old branch conflicts with current develop.
+  - Exact-head workflow and ready-state results for PR #993.
+conflicts: []
 first_failure:
   marker: stale-base-merge-conflict
-  evidence: GitHub rejected merge of PR #985 with HTTP 409 despite green exact-head checks.
+  evidence: PR #985 could not merge; the exact audited blobs were restacked on current develop in PR #993.
 rejected_hypotheses:
   - force merge the conflicting PR
   - manually recreate the seven contract files
@@ -100,10 +100,13 @@ changed_paths:
 validation:
   - command: exact blob-SHA restack on current develop
     result: PASS
-    evidence: seven contract blob SHAs match the audited PR #985 branch exactly
+    evidence: seven contract blob SHAs match audited PR #985 exactly
+  - command: replacement PR changed-path audit
+    result: PASS
+    evidence: PR #993 contains exactly eight authorized governance/task paths
   - command: runtime E2E applicability review
     result: PASS
     evidence: NOT_APPLICABLE_WITH_REASON — governance documentation only
 blockers: []
-next_action: open the replacement PR, bind its number to this task, close PR 985 as superseded, and verify exact-head checks
+next_action: verify exact-head required checks and fresh review for PR 993, then merge and terminally close this task
 ```

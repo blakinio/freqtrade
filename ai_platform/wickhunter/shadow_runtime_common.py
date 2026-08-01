@@ -7,6 +7,7 @@ from enum import StrEnum
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import SourceHealth
 
+
 RUNTIME_STATE_SCHEMA_VERSION = "wickhunter-shadow-runtime-state-v1"
 RUNTIME_SNAPSHOT_SCHEMA_VERSION = "wickhunter-portal-observability-snapshot-v1"
 RUNTIME_PARITY_SCHEMA_VERSION = "wickhunter-replay-shadow-parity-v1"

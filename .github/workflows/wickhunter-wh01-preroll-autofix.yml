@@ -1,24 +1,19 @@
-name: WickHunter WH-01 pre-roll repair artifact
+name: WickHunter WH-01 pre-roll repair autofix
 
 "on":
-  pull_request:
-    types: [opened, reopened, synchronize]
-    branches: [develop]
-    paths:
-      - ".github/workflows/wickhunter-wh01-preroll-autofix.yml"
+  push:
+    branches:
+      - fix/wickhunter-wh01-liquid20-preroll-20260801
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: wickhunter-wh01-preroll-artifact-${{ github.event.pull_request.number }}
+  group: wickhunter-wh01-preroll-autofix
   cancel-in-progress: false
 
 jobs:
-  repair-artifact:
-    if: >-
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.base.ref == 'develop'
+  repair:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -27,9 +22,9 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
 
-      - name: Build bounded repair files
+      - name: Apply bounded production repair
         shell: bash
         run: |
           set -euo pipefail
@@ -84,23 +79,26 @@ jobs:
               raise SystemExit("task checkpoint anchor mismatch")
           task.write_text(text.replace(marker, checkpoint + marker), encoding="utf-8")
           PY
+          rm .github/workflows/wickhunter-wh01-preroll-autofix.yml
           python3 -m py_compile \
             ai_platform/wickhunter/production_dataset_materialization.py \
             tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py
-          mkdir -p "$RUNNER_TEMP/wh01-preroll-repair/ai_platform/wickhunter"
-          mkdir -p "$RUNNER_TEMP/wh01-preroll-repair/tests/ai_platform_integration"
-          mkdir -p "$RUNNER_TEMP/wh01-preroll-repair/docs/agents/tasks"
-          cp ai_platform/wickhunter/production_dataset_materialization.py \
-            "$RUNNER_TEMP/wh01-preroll-repair/ai_platform/wickhunter/"
-          cp tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py \
-            "$RUNNER_TEMP/wh01-preroll-repair/tests/ai_platform_integration/"
-          cp docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md \
-            "$RUNNER_TEMP/wh01-preroll-repair/docs/agents/tasks/"
+          git diff --check
 
-      - name: Upload repaired files
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: wickhunter-wh01-preroll-repair-${{ github.event.pull_request.number }}
-          path: ${{ runner.temp }}/wh01-preroll-repair
-          if-no-files-found: error
-          retention-days: 7
+      - name: Commit repaired implementation
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            ai_platform/wickhunter/production_dataset_materialization.py \
+            tests/ai_platform_integration/test_wickhunter_production_dataset_materialization.py \
+            docs/agents/tasks/FTAI-20260731-wickhunter-wh01-production-materialization-v1.md \
+            .github/workflows/wickhunter-wh01-preroll-autofix.yml
+          git commit -m "fix(wickhunter): align Liquid20 pre-roll with dataset request"
+          auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth" \
+            push origin HEAD:fix/wickhunter-wh01-liquid20-preroll-20260801

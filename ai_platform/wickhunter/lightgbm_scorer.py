@@ -148,8 +148,8 @@ class LightGBMTrainingPolicy:
                 raise LightGBMScorerError("split groups must be non-empty, unique and sorted")
             if any(not item.strip() for item in group):
                 raise LightGBMScorerError("split names must be non-empty")
-        allowed = set(self.training_splits) | set(self.calibration_splits) | set(
-            self.validation_splits
+        allowed = (
+            set(self.training_splits) | set(self.calibration_splits) | set(self.validation_splits)
         )
         if len(allowed) != sum(
             len(group)
@@ -202,9 +202,7 @@ class CalibrationCurve:
 
     def apply(self, raw_probability: Decimal) -> Decimal:
         bounded = max(Decimal("0"), min(Decimal("1"), raw_probability))
-        for upper_bound, probability in zip(
-            self.upper_bounds, self.probabilities, strict=True
-        ):
+        for upper_bound, probability in zip(self.upper_bounds, self.probabilities, strict=True):
             if bounded <= upper_bound:
                 return probability
         return self.probabilities[-1]
@@ -262,9 +260,10 @@ class LightGBMModelArtifact:
             raise LightGBMScorerError("feature schema version mismatch")
         if self.feature_names != FEATURE_NAMES:
             raise LightGBMScorerError("feature names do not match the frozen schema")
-        if canonical_sha256(
-            {"version": self.feature_schema_version, "names": self.feature_names}
-        ) != self.feature_schema_sha256:
+        if (
+            canonical_sha256({"version": self.feature_schema_version, "names": self.feature_names})
+            != self.feature_schema_sha256
+        ):
             raise LightGBMScorerError("feature schema hash mismatch")
         for digest, field_name in (
             (self.dataset_manifest_sha256, "dataset_manifest_sha256"),
@@ -285,12 +284,15 @@ class LightGBMModelArtifact:
                 _require_sha256(digest, field_name=field_name)
         if self.training_example_count != self.positive_example_count + self.negative_example_count:
             raise LightGBMScorerError("training class counts are inconsistent")
-        if min(
-            self.training_example_count,
-            self.calibration_example_count,
-            self.positive_example_count,
-            self.negative_example_count,
-        ) < 1:
+        if (
+            min(
+                self.training_example_count,
+                self.calibration_example_count,
+                self.positive_example_count,
+                self.negative_example_count,
+            )
+            < 1
+        ):
             raise LightGBMScorerError("model artifact requires non-empty training classes")
         if (
             self.protected_holdout_accessed
@@ -392,9 +394,7 @@ class LightGBMAdvisoryScorer:
         matrix = np.asarray([[float(value) for value in values]], dtype=np.float64)
         prediction = self._booster.predict(matrix, num_iteration=self._booster.current_iteration())
         raw_probability = _decimal(prediction[0], field_name="raw_probability")
-        confidence = self.artifact.calibration.apply(raw_probability).quantize(
-            Decimal("0.000001")
-        )
+        confidence = self.artifact.calibration.apply(raw_probability).quantize(Decimal("0.000001"))
         expected_return = (
             confidence * self.artifact.positive_return_mean
             + (Decimal("1") - confidence) * self.artifact.negative_return_mean
@@ -403,9 +403,9 @@ class LightGBMAdvisoryScorer:
         if confidence < threshold:
             risk_multiplier = Decimal("0")
         else:
-            risk_multiplier = (
-                (confidence - threshold) / (Decimal("1") - threshold)
-            ).quantize(Decimal("0.000001"))
+            risk_multiplier = ((confidence - threshold) / (Decimal("1") - threshold)).quantize(
+                Decimal("0.000001")
+            )
         return validated_external_model_score(
             candidate=candidate,
             feature_hash=features.feature_hash,
@@ -449,9 +449,7 @@ def _feature_values(
     vwma = features.metric("vwma")
     side_sign = Decimal("1") if candidate.side is TradeDirection.LONG else Decimal("-1")
     hypothesis_sign = (
-        Decimal("1")
-        if candidate.hypothesis is StrategyHypothesis.CONTINUATION
-        else Decimal("-1")
+        Decimal("1") if candidate.hypothesis is StrategyHypothesis.CONTINUATION else Decimal("-1")
     )
     previous_burst = (
         Decimal("-1")
@@ -617,9 +615,7 @@ def train_lightgbm_scorer(
     )
     if not training_cases or not calibration_cases:
         raise LightGBMScorerError("training and calibration splits must both be populated")
-    training_examples = _candidate_examples(
-        training_cases, parameters=parameters, policy=policy
-    )
+    training_examples = _candidate_examples(training_cases, parameters=parameters, policy=policy)
     calibration_examples = _candidate_examples(
         calibration_cases, parameters=parameters, policy=policy
     )
@@ -665,9 +661,7 @@ def train_lightgbm_scorer(
         [[float(value) for value in example.feature_values] for example in calibration_examples],
         dtype=np.float64,
     )
-    raw_calibration = booster.predict(
-        calibration_matrix, num_iteration=booster.current_iteration()
-    )
+    raw_calibration = booster.predict(calibration_matrix, num_iteration=booster.current_iteration())
     calibration = _fit_calibration(
         tuple(float(item) for item in raw_calibration),
         tuple(example.target for example in calibration_examples),
@@ -703,17 +697,13 @@ def train_lightgbm_scorer(
         parameter_version=parameters.parameter_version,
         parameter_sha256=parameters.parameter_hash,
         training_case_sha256s=tuple(sorted(case.case_sha256 for case in training_cases)),
-        calibration_case_sha256s=tuple(
-            sorted(case.case_sha256 for case in calibration_cases)
-        ),
+        calibration_case_sha256s=tuple(sorted(case.case_sha256 for case in calibration_cases)),
         training_example_count=len(training_examples),
         calibration_example_count=len(calibration_examples),
         positive_example_count=len(positive_returns),
         negative_example_count=len(negative_returns),
-        positive_return_mean=sum(positive_returns, Decimal(0))
-        / Decimal(len(positive_returns)),
-        negative_return_mean=sum(negative_returns, Decimal(0))
-        / Decimal(len(negative_returns)),
+        positive_return_mean=sum(positive_returns, Decimal(0)) / Decimal(len(positive_returns)),
+        negative_return_mean=sum(negative_returns, Decimal(0)) / Decimal(len(negative_returns)),
         calibration=calibration,
         protected_holdout_accessed=False,
         automatic_promotion_enabled=False,

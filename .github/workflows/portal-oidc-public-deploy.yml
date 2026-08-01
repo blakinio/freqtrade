@@ -113,6 +113,14 @@ jobs:
             --expected-repository-sha "$IMPLEMENTATION_SHA" \
             --report "$REPORT_PATH"
 
+      - name: Diagnose discovery and JWKS failure safely
+        if: steps.deploy.outcome == 'failure'
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 deploy/synology/portal-oidc/diagnose_discovery.py
+
       - name: Upload secret-free deployment report
         id: upload-report
         if: always()

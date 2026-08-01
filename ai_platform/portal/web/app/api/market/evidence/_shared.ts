@@ -1,6 +1,10 @@
 import { resolve } from "node:path";
 
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+
+import { identityErrorResponse } from "@/lib/identity";
+import { authorizeMarketEvidenceRequest } from "@/lib/market-evidence/authorization";
 
 import {
   MarketEvidenceDataUnavailableError,
@@ -48,6 +52,10 @@ export function marketEvidenceReadModel(): MarketEvidenceReadModel {
     singletonKey = key;
   }
   return singleton;
+}
+
+export async function requireMarketEvidenceAuthorization(request: NextRequest): Promise<void> {
+  await authorizeMarketEvidenceRequest(request);
 }
 
 function integerParameter(value: string | null, name: string): number | undefined {
@@ -127,6 +135,8 @@ export function marketEvidencePagination(searchParams: URLSearchParams): {
 }
 
 export function safeMarketEvidenceError(error: unknown): NextResponse {
+  const identityResponse = identityErrorResponse(error);
+  if (identityResponse) return identityResponse;
   if (error instanceof MarketEvidenceQueryError) {
     return NextResponse.json(
       { detail: error.message, code: "MARKET_EVIDENCE_QUERY_INVALID" },

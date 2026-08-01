@@ -1,12 +1,17 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
-import { marketEvidenceReadModel, safeMarketEvidenceError } from "../_shared";
+import {
+  marketEvidenceReadModel,
+  requireMarketEvidenceAuthorization,
+  safeMarketEvidenceError,
+} from "../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    await requireMarketEvidenceAuthorization(request);
     return NextResponse.json(await marketEvidenceReadModel().summary(), {
       headers: { "cache-control": "no-store" },
     });

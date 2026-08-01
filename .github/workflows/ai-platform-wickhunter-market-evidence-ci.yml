@@ -28,6 +28,7 @@ name: AI Platform WickHunter Market Evidence CI
       - "docs/agents/tasks/FTAI-20260730-wickhunter-production-market-evidence-capture-and-portal-v1.md"
       - "docs/agents/tasks/FTAI-20260731-wickhunter-okx-market-evidence-v2.md"
       - "docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md"
+      - "docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-session-auth-remediation-v1.md"
       - "tests/ai_platform_integration/test_wickhunter_production_market_evidence*.py"
   workflow_dispatch:
 
@@ -130,6 +131,9 @@ jobs:
           python tools/agents/checkpoint.py \
             docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md \
             --require-checkpoint
+          python tools/agents/checkpoint.py \
+            docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-session-auth-remediation-v1.md \
+            --require-checkpoint
 
   portal:
     name: Portal API, UI and critical browser flow
@@ -180,6 +184,11 @@ jobs:
           e2e/specs/market-evidence.spec.ts
           e2e/specs/market-evidence-states.spec.ts
           --project=chromium-desktop
+
+      - name: Run production-mode Market Evidence session tests
+        env:
+          CI: "true"
+        run: npm run test:market-evidence-auth
 
       - name: Upload browser evidence on failure
         if: failure()

@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from pathlib import Path
@@ -274,7 +274,7 @@ class PaperRunRequest:
         ):
             _sha256(value, field=field_name)
         _git_sha(self.code_sha, field="code_sha")
-        _assert_zero_authority(self.__dict__, field="paper request")
+        _assert_zero_authority(asdict(self), field="paper request")
 
 
 @dataclass(frozen=True, slots=True)
@@ -365,7 +365,7 @@ class PaperObservation:
             raise PaperValidationError("drawdown_ratio must be in [0, 1]")
         if self.circuit_breaker_reasons != tuple(sorted(set(self.circuit_breaker_reasons))):
             raise PaperValidationError("breaker reasons must be unique and sorted")
-        _assert_zero_authority(self.__dict__, field="paper observation")
+        _assert_zero_authority(asdict(self), field="paper observation")
         if not self.read_only:
             raise PaperValidationError("paper observation must be read-only")
 
@@ -410,7 +410,7 @@ class SafetyExerciseEvidence:
             raise PaperValidationError("exercise expected reason is absent")
         if not self.passed or not self.state_recovered:
             raise PaperValidationError("safety exercise did not pass and recover")
-        _assert_zero_authority(self.__dict__, field="safety exercise")
+        _assert_zero_authority(asdict(self), field="safety exercise")
         if not self.read_only:
             raise PaperValidationError("safety exercise must be read-only")
 
@@ -471,7 +471,7 @@ class PaperValidationReport:
             raise PaperValidationError("report eligibility does not match outcome")
         if not self.owner_decision_required:
             raise PaperValidationError("owner decision must remain required")
-        _assert_zero_authority(self.__dict__, field="paper report")
+        _assert_zero_authority(asdict(self), field="paper report")
 
 
 @dataclass(frozen=True, slots=True)
@@ -511,7 +511,7 @@ class CandidateReviewPackage:
             _sha256(value, field=field_name)
         if not self.owner_decision_required:
             raise PaperValidationError("candidate package requires an owner decision")
-        _assert_zero_authority(self.__dict__, field="candidate review")
+        _assert_zero_authority(asdict(self), field="candidate review")
 
 
 @dataclass(frozen=True, slots=True)

@@ -12,6 +12,13 @@ The page is available at:
 
 The same existing Portal identity, RBAC and tenant-isolation boundary applies to the page and every API route.
 
+Every API route validates the opaque session with the private identity backend before reading evidence.
+The authoritative session must resolve to the tenant configured by
+`PORTAL_MARKET_EVIDENCE_TENANT_ID` and a current role granting `audit.read` (`analyst`,
+`model_reviewer` or `admin`). Invalid, expired, revoked or membership-version-invalid sessions
+return 401; a wrong tenant or missing permission returns 403; identity backend failures return 503.
+Production has no cookie-presence or fixture fallback.
+
 ## Data boundary
 
 The server reads the configured durable root:

@@ -20,9 +20,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-REQUEST_RELATIVE_PATH = (
-    "deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json"
-)
+
+REQUEST_RELATIVE_PATH = "deploy/synology/portal-oidc/run-requests/public-oidc-20260801-v1.json"
 REQUEST_ID = "portal-authentik-public-oidc-20260801-v1"
 AUTHENTIK_PROJECT = "portal-authentik-local-test"
 AUTHENTIK_STATE_DIR = Path("/var/lib/freqtrade-staging-state/portal-authentik-local-test")
@@ -72,9 +71,7 @@ def _run(
             raise DeploymentError(f"sensitive command failed: {executable}")
         detail = (result.stderr or result.stdout).strip().splitlines()[-1:] or ["no output"]
         rendered = " ".join(command)
-        raise DeploymentError(
-            f"command failed ({result.returncode}): {rendered}: {detail[0]}"
-        )
+        raise DeploymentError(f"command failed ({result.returncode}): {rendered}: {detail[0]}")
     return result
 
 
@@ -242,9 +239,7 @@ print('__PORTAL_JSON__' + json.dumps({{
         raise DeploymentError("deployed Authen­tik application slug differs from contract")
     if payload["client_id"] != CLIENT_ID:
         raise DeploymentError("deployed Authen­tik client ID differs from contract")
-    payload["issuer"] = (
-        f"{AUTHENTIK_ORIGIN}/application/o/{payload['application_slug']}/"
-    )
+    payload["issuer"] = f"{AUTHENTIK_ORIGIN}/application/o/{payload['application_slug']}/"
     if payload["issuer"] != ISSUER:
         raise DeploymentError("derived deployed issuer differs from frozen issuer")
     return payload
@@ -283,9 +278,7 @@ def _prepare_portal_runtime(metadata: dict[str, str]) -> None:
 
 
 def _docker_image_id(image: str) -> str:
-    return _run(
-        ["docker", "image", "inspect", "--format", "{{.Id}}", image]
-    ).stdout.strip()
+    return _run(["docker", "image", "inspect", "--format", "{{.Id}}", image]).stdout.strip()
 
 
 def _build_images(repo: Path, implementation_sha: str) -> tuple[str, str, str, str]:
@@ -479,10 +472,7 @@ def _web_run_args(image: str, name: str, *, publish: bool) -> list[str]:
         "--group-add",
         _liquidations_group_id(),
         "--mount",
-        (
-            f"type=bind,src={LIQUIDATIONS_HOST_ROOT},"
-            f"dst={LIQUIDATIONS_CONTAINER_ROOT},readonly"
-        ),
+        (f"type=bind,src={LIQUIDATIONS_HOST_ROOT},dst={LIQUIDATIONS_CONTAINER_ROOT},readonly"),
         "--env",
         "PORTAL_WEB_DATA_MODE=fixture",
         "--env",
@@ -618,7 +608,7 @@ def _probe_public_portal() -> tuple[int, str]:
     request = urllib.request.Request(url, headers={"accept": "text/html"})  # noqa: S310
     opener = _no_redirect_opener()
     try:
-        opener.open(request, timeout=15)  # noqa: S310
+        opener.open(request, timeout=15)
     except urllib.error.HTTPError as exc:
         status_code = exc.code
         location = exc.headers.get("location", "")
@@ -637,9 +627,7 @@ def _container_status(name: str) -> dict[str, str]:
         "{{.Name}}|{{.State.Status}}|"
         "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.Config.Image}}"
     )
-    result = _run(
-        ["docker", "inspect", "--format", inspect_format, name]
-    ).stdout.strip()
+    result = _run(["docker", "inspect", "--format", inspect_format, name]).stdout.strip()
     container_name, state, health, image = result.split("|", 3)
     return {
         "name": container_name.removeprefix("/"),
@@ -690,7 +678,7 @@ def _write_report(path: Path, report: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def deploy(args: argparse.Namespace) -> int:  # noqa: C901
+def deploy(args: argparse.Namespace) -> int:
     repo = Path(args.repository).resolve()
     request_path = Path(args.request).resolve()
     report_path = Path(args.report).resolve()

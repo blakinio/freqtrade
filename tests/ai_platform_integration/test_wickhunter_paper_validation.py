@@ -38,6 +38,7 @@ from ai_platform.wickhunter.shadow_runtime import (
     SimulatedPosition,
 )
 
+
 MODEL_HASH = "1" * 64
 PARAMETER_HASH = "2" * 64
 DATASET_HASH = "3" * 64
@@ -52,7 +53,7 @@ def _policy(**overrides: object) -> PaperValidationPolicy:
         "minimum_duration_ms": 3_000,
         "minimum_snapshot_count": 4,
         "maximum_snapshot_gap_ms": 1_500,
-        "minimum_fresh_source_ratio": Decimal("1"),
+        "minimum_fresh_source_ratio": Decimal(1),
         "minimum_decision_count": 8,
         "minimum_allowed_decision_count": 4,
         "minimum_risk_rejection_count": 4,
@@ -143,11 +144,11 @@ def _snapshot(observed_at_ms: int, generation: int) -> PortalObservabilitySnapsh
                 symbol="BTCUSDT",
                 side=TradeDirection.LONG,
                 opened_at_ms=observed_at_ms,
-                entry_price=Decimal("100"),
-                mark_price=Decimal("101"),
-                quantity=Decimal("1"),
-                take_profit_price=Decimal("102"),
-                stop_loss_price=Decimal("99"),
+                entry_price=Decimal(100),
+                mark_price=Decimal(101),
+                quantity=Decimal(1),
+                take_profit_price=Decimal(102),
+                stop_loss_price=Decimal(99),
                 model_version="wickhunter-lightgbm-v1",
                 model_hash=MODEL_HASH,
                 parameter_version="wickhunter-parameters-v1",
@@ -155,8 +156,8 @@ def _snapshot(observed_at_ms: int, generation: int) -> PortalObservabilitySnapsh
             ),
         ),
         cumulative_realized_pnl_quote=Decimal(generation),
-        unrealized_pnl_quote=Decimal("1"),
-        simulated_equity_quote=Decimal("10000") + Decimal(generation),
+        unrealized_pnl_quote=Decimal(1),
+        simulated_equity_quote=Decimal(10000) + Decimal(generation),
         drawdown_ratio=Decimal("0.01"),
         retraining_state="idle",
         validation_state="candidate_only",
@@ -223,8 +224,7 @@ def _accepted_inputs():
     policy = _policy()
     request = _request(policy)
     snapshots = tuple(
-        _snapshot(value, index)
-        for index, value in enumerate((1_000, 2_000, 3_000, 4_000), 1)
+        _snapshot(value, index) for index, value in enumerate((1_000, 2_000, 3_000, 4_000), 1)
     )
     parity = tuple(_parity(snapshot) for snapshot in snapshots)
     exercises = _exercises(request.run_id, snapshots[-1].snapshot_id)

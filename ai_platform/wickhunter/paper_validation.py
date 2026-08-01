@@ -20,6 +20,7 @@ from ai_platform.wickhunter.shadow_runtime import (
     ReplayShadowParityEvidence,
 )
 
+
 POLICY_SCHEMA_VERSION = "wickhunter-paper-validation-policy-v1"
 REQUEST_SCHEMA_VERSION = "wickhunter-paper-run-request-v1"
 ACTIVATION_SCHEMA_VERSION = "wickhunter-paper-activation-manifest-v1"
@@ -190,9 +191,9 @@ class PaperValidationPolicy:
         )
         if any(getattr(self, name) < 1 for name in integer_fields):
             raise PaperValidationError("paper policy counts and durations must be >= 1")
-        if not Decimal("0") <= self.minimum_fresh_source_ratio <= Decimal("1"):
+        if not Decimal(0) <= self.minimum_fresh_source_ratio <= Decimal(1):
             raise PaperValidationError("minimum_fresh_source_ratio must be in [0, 1]")
-        if not Decimal("0") < self.maximum_drawdown_ratio < Decimal("1"):
+        if not Decimal(0) < self.maximum_drawdown_ratio < Decimal(1):
             raise PaperValidationError("maximum_drawdown_ratio must be in (0, 1)")
         expected = tuple(sorted(set(self.required_exercises), key=lambda item: item.value))
         if self.required_exercises != expected:
@@ -336,9 +337,7 @@ class PaperObservation:
         if self.fresh_source_count > self.source_count:
             raise PaperValidationError("fresh sources exceed all sources")
         decision_total = (
-            self.allowed_decision_count
-            + self.risk_rejection_count
-            + self.ignored_decision_count
+            self.allowed_decision_count + self.risk_rejection_count + self.ignored_decision_count
         )
         if decision_total != self.decision_count:
             raise PaperValidationError("decision counts are inconsistent")
@@ -351,7 +350,7 @@ class PaperObservation:
             _decimal(value, field=field_name)
         if self.simulated_equity_quote <= 0:
             raise PaperValidationError("simulated equity must be positive")
-        if not Decimal("0") <= self.drawdown_ratio <= Decimal("1"):
+        if not Decimal(0) <= self.drawdown_ratio <= Decimal(1):
             raise PaperValidationError("drawdown_ratio must be in [0, 1]")
         if self.circuit_breaker_reasons != tuple(sorted(set(self.circuit_breaker_reasons))):
             raise PaperValidationError("breaker reasons must be unique and sorted")
@@ -697,7 +696,9 @@ def _prepare_observations(
         raise PaperValidationError("paper validation requires observations")
     if len({item.snapshot_id for item in observations}) != len(observations):
         raise PaperValidationError("paper observations contain duplicate snapshot ids")
-    if any(later.observed_at_ms <= earlier.observed_at_ms for earlier, later in pairwise(observations)):
+    if any(
+        later.observed_at_ms <= earlier.observed_at_ms for earlier, later in pairwise(observations)
+    ):
         raise PaperValidationError("paper observations must be strictly increasing")
     for observation in observations:
         _validate_request_observation(request, observation)
@@ -750,16 +751,11 @@ def _summarize(
     exercise_kinds: tuple[SafetyExerciseKind, ...],
 ) -> PaperEvidenceSummary:
     gaps = tuple(
-        later.observed_at_ms - earlier.observed_at_ms
-        for earlier, later in pairwise(observations)
+        later.observed_at_ms - earlier.observed_at_ms for earlier, later in pairwise(observations)
     )
     source_samples = sum(item.source_count for item in observations)
     fresh_samples = sum(item.fresh_source_count for item in observations)
-    fresh_ratio = (
-        Decimal(fresh_samples) / Decimal(source_samples)
-        if source_samples
-        else Decimal("0")
-    )
+    fresh_ratio = Decimal(fresh_samples) / Decimal(source_samples) if source_samples else Decimal(0)
     position_ids = {
         position.position_id for snapshot in snapshots for position in snapshot.positions
     }
@@ -859,9 +855,7 @@ def _build_report(
         "orders_submitted": 0,
         "live_capital_authorized": False,
     }
-    report_id = canonical_sha256(
-        {"schema_version": REPORT_SCHEMA_VERSION, "payload": payload}
-    )
+    report_id = canonical_sha256({"schema_version": REPORT_SCHEMA_VERSION, "payload": payload})
     return PaperValidationReport(
         schema_version=REPORT_SCHEMA_VERSION,
         report_id=report_id,
@@ -904,9 +898,7 @@ def _build_review(
         "orders_submitted": 0,
         "live_capital_authorized": False,
     }
-    package_id = canonical_sha256(
-        {"schema_version": REVIEW_SCHEMA_VERSION, "payload": payload}
-    )
+    package_id = canonical_sha256({"schema_version": REVIEW_SCHEMA_VERSION, "payload": payload})
     return CandidateReviewPackage(
         schema_version=REVIEW_SCHEMA_VERSION,
         package_id=package_id,
@@ -958,9 +950,7 @@ def _write_checksum_index(root: Path, names: Sequence[str]) -> None:
 def _manifest(schema: str, payload: Mapping[str, object]) -> dict[str, object]:
     return {
         "schema_version": schema,
-        "manifest_sha256": canonical_sha256(
-            {"schema_version": schema, "payload": payload}
-        ),
+        "manifest_sha256": canonical_sha256({"schema_version": schema, "payload": payload}),
         **payload,
     }
 
@@ -1037,9 +1027,7 @@ def publish_paper_validation_package(
             "run_id": request.run_id,
             "report_id": result.report.report_id,
             "candidate_review_id": result.candidate_review.package_id,
-            "artifacts": tuple(
-                (name, _sha256_file(root / name)) for name in artifact_names
-            ),
+            "artifacts": tuple((name, _sha256_file(root / name)) for name in artifact_names),
             "protected_holdout_accessed": False,
             "automatic_promotion_enabled": False,
             "trading_credentials_present": False,

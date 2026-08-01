@@ -11,8 +11,8 @@ import tempfile
 import zipfile
 from bisect import bisect_left
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass
-from datetime import date, datetime, time, timezone
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, time
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -257,7 +257,7 @@ class ReplayPricePathRequest:
     trading_credentials_present: bool
     orders_submitted: int
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: C901
         if self.schema_version != REQUEST_SCHEMA_VERSION:
             raise ReplayPricePathError(f"schema_version must be {REQUEST_SCHEMA_VERSION}")
         for value, field in (
@@ -272,9 +272,7 @@ class ReplayPricePathRequest:
             requested_day = date.fromisoformat(self.requested_date)
         except ValueError as exc:
             raise ReplayPricePathError("requested_date must be ISO YYYY-MM-DD") from exc
-        day_start = int(
-            datetime.combine(requested_day, time.min, tzinfo=timezone.utc).timestamp() * 1000
-        )
+        day_start = int(datetime.combine(requested_day, time.min, tzinfo=UTC).timestamp() * 1000)
         day_end = day_start + 86_400_000
         if self.requested_start_ms < day_start or self.requested_end_ms > day_end:
             raise ReplayPricePathError("requested interval must remain within requested UTC date")
@@ -575,7 +573,7 @@ def _read_checksum(path: Path, archive_name: str) -> tuple[str, str]:
     return _sha256(digest, field="checksum digest"), sha256_file(path)
 
 
-def _parse_archive(
+def _parse_archive(  # noqa: C901
     *,
     input_root: Path,
     descriptor: ReplayArchiveInput,
@@ -700,7 +698,7 @@ def _parse_archive(
     return selected, evidence
 
 
-def _load_dataset_decisions(
+def _load_dataset_decisions(  # noqa: C901
     dataset_root: Path,
     *,
     expected_manifest_sha256: str,
@@ -982,7 +980,7 @@ def _trade_from_json(payload: Mapping[str, object]) -> ReplayAggregateTrade:
     return trade
 
 
-def verify_replay_price_path_package(
+def verify_replay_price_path_package(  # noqa: C901
     *,
     output_root: Path,
     materialization_root: Path,
@@ -1009,7 +1007,11 @@ def verify_replay_price_path_package(
     symbols = manifest_payload.get("symbols")
     partitions = manifest_payload.get("partitions")
     archives = manifest_payload.get("archive_evidence")
-    if not isinstance(symbols, list) or not isinstance(partitions, list) or not isinstance(archives, list):
+    if (
+        not isinstance(symbols, list)
+        or not isinstance(partitions, list)
+        or not isinstance(archives, list)
+    ):
         raise ReplayPricePathError("price-path manifest lists are invalid")
 
     materialization_root = materialization_root.resolve(strict=True)

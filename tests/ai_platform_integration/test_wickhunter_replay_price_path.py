@@ -108,8 +108,7 @@ def _write_archive(
     lines: list[str] = []
     if include_header:
         lines.append(
-            "agg_trade_id,price,quantity,first_trade_id,last_trade_id,"
-            "timestamp,is_buyer_maker"
+            "agg_trade_id,price,quantity,first_trade_id,last_trade_id,timestamp,is_buyer_maker"
         )
     for index, timestamp in enumerate(timestamps, 1):
         lines.append(f"{index},100.5,2.0,{index},{index},{timestamp},false")
@@ -121,7 +120,7 @@ def _write_archive(
 
 
 def _request(manifest_sha256: str) -> subject.ReplayPricePathRequest:
-    archive, checksum = _archive_paths(Path("."))
+    archive, checksum = _archive_paths(Path())
     return subject.ReplayPricePathRequest(
         schema_version=subject.REQUEST_SCHEMA_VERSION,
         package_id="wickhunter-replay-price-path-test-v1",
@@ -190,17 +189,23 @@ def test_builds_and_independently_verifies_exact_trade_path(
     assert manifest["request_sha256"] == request.request_sha256
     assert manifest["replay_authorized"] is False
     assert manifest["orders_submitted"] == 0
-    assert subject.verify_replay_price_path_package(
-        output_root=output,
-        materialization_root=materialization,
-        input_root=input_root,
-    ) == result
-    assert subject.build_replay_price_path_package(
-        input_root=input_root,
-        materialization_root=materialization,
-        output_root=output,
-        request=request,
-    ) == result
+    assert (
+        subject.verify_replay_price_path_package(
+            output_root=output,
+            materialization_root=materialization,
+            input_root=input_root,
+        )
+        == result
+    )
+    assert (
+        subject.build_replay_price_path_package(
+            input_root=input_root,
+            materialization_root=materialization,
+            output_root=output,
+            request=request,
+        )
+        == result
+    )
 
 
 def test_output_identity_is_deterministic(

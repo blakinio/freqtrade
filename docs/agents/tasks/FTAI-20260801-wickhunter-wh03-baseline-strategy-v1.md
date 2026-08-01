@@ -1,12 +1,12 @@
 ---
 task_id: FTAI-20260801-wickhunter-wh03-baseline-strategy-v1
 project_lane: freqtrade-wickhunter
-status: validating
+status: completed
 branch: feat/wickhunter-wh03-baseline-strategy-v1
 base_branch: develop
 created: 2026-08-01
 updated: 2026-08-01
-related_pr: null
+related_pr: 958
 depends_on:
   - FTAI-20260801-wickhunter-wh02-deterministic-replay-v1
 owned_paths:
@@ -52,39 +52,41 @@ Deliver complete reversal and continuation baselines on the accepted WH-02 repla
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T19:39:00+02:00
+updated_at: 2026-08-01T20:02:00+02:00
 project_lane: freqtrade-wickhunter
-phase: validate
+phase: terminal
 session_id: wh03-20260801-001
 session_role: implementer
 execution_mode: chat
 execution_reason: direct GitHub implementation with exact-head repository validation
-status: validating
+status: completed
 branch: feat/wickhunter-wh03-baseline-strategy-v1
-head: acbb9114f4a10b0122398f1710cf7db8cbabc96d
+head: 970975036ff6730fa4560c873796dfa73179f360
 base_branch: develop
-related_pr: null
+related_pr: 958
 context_pressure: high
 context_growth: stable
 decomposition_decision: phased
 decomposition_reason: implementation and validation share one baseline contract and report
-validation_level: focused
-heavy_validation_runs: 0
+validation_level: repository
+heavy_validation_runs: 2
 proven:
   - WH-02 merged as 0e986fab05a38b4a2bc1232c8c0821be1367b0cb after all required checks passed
   - live ownership preflight found no WH-03 branch, PR or overlapping writer
-  - the WH-03 branch was created from live develop after WH-02 and Portal PR 956 merged
+  - PR 958 changes exactly the four declared WH-03 owned paths
   - EvaluationCase requires exact long and short WH-02 labels bound to one immutable row
   - reversal and continuation use the existing deterministic strategy and independent memory
   - duplicate evidence, symbol-side-hypothesis cooldown and all strategy rejection reasons remain explicit
   - selected decisions copy WH-02 outcomes, costs, returns, excursions and duration without recomputation
   - the shared v1 interface owns evaluation cases, decisions, summaries, record-factory protocol and report schema for WH-04 and WH-05
   - overall and split, side, symbol, liquidity, source, regime and hypothesis summaries are deterministic
+  - the first validation run passed 1062 tests and exposed only one bounded Ruff complexity annotation plus pre-commit typing and formatting findings
+  - the repaired exact head 970975036ff6730fa4560c873796dfa73179f360 passed AI Platform CI run 3650 and Freqtrade CI run 4752
+  - Python 3.11, 3.12 with coverage, 3.13 and 3.14, mypy, Ruff, Ruff format, pre-commit, documentation, distribution build and zizmor all passed
   - protected holdout, model promotion, profitability claims, execution, order and live-capital authority remain disabled
 derived:
   - WH-04 can provide advisory score_id and model_version through build_evaluation_decision without redefining cost or summary logic
-unknown:
-  - exact-head repository CI and formatter result
+unknown: []
 conflicts: []
 first_relevant_error: null
 changed_paths:
@@ -93,9 +95,15 @@ changed_paths:
   - docs/ai_platform/WICKHUNTER_BASELINE_STRATEGY.md
   - docs/agents/tasks/FTAI-20260801-wickhunter-wh03-baseline-strategy-v1.md
 validation:
-  - command: Python AST parse for implementation and focused tests
+  - command: AI Platform CI run 3650
     result: PASS
-    evidence: baseline module and five focused test groups parse successfully
+    evidence: compile, 1062 tests, Ruff, formatter, codespell and contract checks
+  - command: Freqtrade CI run 4752
+    result: PASS
+    evidence: pre-commit, docs, Python 3.11/3.12/3.13/3.14, coverage, mypy, smoke tests and distributions
+  - command: GitHub Actions Security Analysis run 4412
+    result: PASS
+    evidence: zizmor completed successfully
 blockers: []
-next_action: open the exact four-path PR, run focused and repository CI, repair only concrete failures, then perform fresh exact-head validation and merge
+next_action: validate the checkpoint-only final PR head, audit reviews and exact four-path scope, then squash-merge PR 958 with expected-head protection
 ```

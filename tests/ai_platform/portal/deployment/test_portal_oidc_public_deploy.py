@@ -149,9 +149,7 @@ def test_deployer_is_public_secret_free_and_hardened() -> None:
     assert 'f"{PORTAL_UID}:{PORTAL_GID}"' in source
     assert "os.getuid()" not in source
     assert "os.getgid()" not in source
-    assert (
-        'detail = " | ".join([*lines[:2], "...", *lines[-5:]])' in source
-    )
+    assert 'detail = " | ".join([*lines[:2], "...", *lines[-5:]])' in source
     assert "0o600" in source
     assert "refusing rotation" in source
     assert '"secret_values_recorded": False' in source

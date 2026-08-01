@@ -24,15 +24,11 @@ SENSITIVE_PAIR = re.compile(
     r"(?i)(?P<prefix>(?:[?&]|\b)(?:code|state|client_secret|access_token|"
     r"refresh_token|id_token)\s*[:=]\s*[\"']?)(?P<value>[^&\s,\"';]+)"
 )
-SENSITIVE_HEADER = re.compile(
-    r"(?i)\b(?P<name>authorization|cookie|set-cookie)\s*:\s*.*$"
-)
+SENSITIVE_HEADER = re.compile(r"(?i)\b(?P<name>authorization|cookie|set-cookie)\s*:\s*.*$")
 BEARER = re.compile(r"(?i)\bbearer\s+\S+")
 JWT = re.compile(r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b")
 LONG_TOKEN = re.compile(r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{24,}(?![A-Za-z0-9_-])")
-FRAME = re.compile(
-    r'File "(?P<path>[^"]+)", line (?P<line>\d+), in (?P<function>[A-Za-z0-9_<>]+)'
-)
+FRAME = re.compile(r'File "(?P<path>[^"]+)", line (?P<line>\d+), in (?P<function>[A-Za-z0-9_<>]+)')
 EXCEPTION = re.compile(
     r"(?P<type>(?:[A-Za-z_][\w]*\.)*[A-Za-z_][\w]*(?:Error|Exception))"
     r":\s*(?P<message>.*)$"
@@ -118,8 +114,7 @@ def _container_state(name: str) -> dict[str, str]:
             "docker",
             "inspect",
             "--format",
-            "{{.State.Status}}|"
-            "{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}",
+            "{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}",
             name,
         ]
     )
@@ -149,8 +144,7 @@ def _logs(name: str, since_minutes: int) -> str:
 def _extract_callback_failure(logs: str) -> dict[str, Any]:
     lines = logs.splitlines()
     callback_500_count = sum(
-        "/v1/identity/callback?" in line
-        and re.search(r"\s500(?:\s|$)", line) is not None
+        "/v1/identity/callback?" in line and re.search(r"\s500(?:\s|$)", line) is not None
         for line in lines
     )
     exceptions: list[dict[str, str]] = []
@@ -191,7 +185,7 @@ def _extract_callback_failure(logs: str) -> dict[str, Any]:
 
 
 def _database_snapshot() -> dict[str, Any]:
-    code = r'''
+    code = r"""
 import json
 import os
 from sqlalchemy import func, select
@@ -233,7 +227,7 @@ with factory() as session:
         "latest_audit_reason": latest_audit.reason if latest_audit else None,
     }
 print("__PORTAL_CALLBACK_DIAGNOSTIC__" + json.dumps(payload, sort_keys=True))
-'''.strip()
+""".strip()
     result = _run(["docker", "exec", CONTROL_CONTAINER, "python", "-c", code])
     marker = next(
         (

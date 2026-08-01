@@ -1,0 +1,57 @@
+name: Portal OIDC Build Diagnostics Format Once
+
+on:
+  pull_request:
+    types: [synchronize]
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'fix/portal-oidc-build-diagnostics-20260801'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact repair head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Apply exact Ruff formatting diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py")
+          source = path.read_text(encoding="utf-8")
+          old = '''    assert (
+              'detail = " | ".join([*lines[:2], "...", *lines[-5:]])' in source
+          )
+          '''
+          new = '''    assert 'detail = " | ".join([*lines[:2], "...", *lines[-5:]])' in source
+          '''
+          if old in source:
+              source = source.replace(old, new, 1)
+          elif new not in source:
+              raise SystemExit("expected Ruff formatting target not found")
+          path.write_text(source, encoding="utf-8")
+          PY
+          git diff --check
+
+      - name: Commit exact format
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "style(portal): format build diagnostics assertion"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}

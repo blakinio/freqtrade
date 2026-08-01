@@ -404,7 +404,7 @@ def _control_run_args(image: str, name: str) -> list[str]:
         "--env-file",
         str(PORTAL_RUNTIME_ENV),
         "--mount",
-        f"type=bind,src={PORTAL_DATA_DIR},dst=/state,rw",
+        f"type=bind,src={PORTAL_DATA_DIR},dst=/state",
         "--label",
         "ai.freqtrade.identity-fixture=disabled",
         "--label",

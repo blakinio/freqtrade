@@ -13,6 +13,10 @@ from typing import Any
 from ai_platform.wickhunter import production_market_evidence as v1_core
 from ai_platform.wickhunter import production_market_evidence_service as v1_service
 from ai_platform.wickhunter import production_market_evidence_v2 as v2
+from ai_platform.wickhunter.market_evidence_paths import (
+    MarketEvidencePathError,
+    safe_regular_member,
+)
 
 
 PACKAGE_DIR_NAME = "immutable-package"
@@ -103,27 +107,10 @@ def _write_json(path: Path, value: object) -> None:
 
 
 def _safe_member(root: Path, logical_name: str) -> Path:
-    relative = Path(logical_name)
-    unsafe = (
-        not logical_name
-        or relative.is_absolute()
-        or any(part in {"", ".", ".."} for part in relative.parts)
-    )
-    if unsafe:
-        raise MarketEvidenceV2PublicationError("artifact path must remain relative")
-    resolved_root = root.resolve(strict=True)
-    current = root
-    for part in relative.parts:
-        current = current / part
-        if current.is_symlink():
-            raise MarketEvidenceV2PublicationError("artifact path traverses a symlink")
     try:
-        current.resolve(strict=True).relative_to(resolved_root)
-    except (FileNotFoundError, ValueError) as exc:
-        raise MarketEvidenceV2PublicationError("artifact path escapes its immutable root") from exc
-    if not current.is_file():
-        raise MarketEvidenceV2PublicationError("artifact member is not a regular file")
-    return current
+        return safe_regular_member(root, logical_name)
+    except MarketEvidencePathError as exc:
+        raise MarketEvidenceV2PublicationError(str(exc)) from exc
 
 
 def _identity(path: Path, *, root: Path) -> dict[str, object]:

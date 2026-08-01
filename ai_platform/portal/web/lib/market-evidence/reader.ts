@@ -15,14 +15,18 @@ import {
   type MarketEvidenceSummary,
   MARKET_EVIDENCE_SOURCES,
 } from "./contracts";
+import {
+  MarketEvidenceIntegrityError,
+  parseVerifiedNdjson,
+  type VerifiedMarketEvidencePackage,
+  verifyMarketEvidencePackage,
+} from "./integrity";
 
 const RUN_ID_PATTERN = /^wickhunter-production-market-evidence-\d{8}-v\d+-r\d+$/;
 const SYMBOL_PATTERN = /^[A-Z0-9]{2,24}$/;
 const ACTIVE_POINTER_NAME = "active-wickhunter-production-market-evidence-v1.json";
 const PACKAGE_DIR_NAME = "immutable-package";
 const MAX_METADATA_BYTES = 8 * 1024 * 1024;
-const MAX_NDJSON_BYTES = 32 * 1024 * 1024;
-const MAX_NDJSON_LINES = 20_000;
 const MAX_RUNS = 50;
 const MAX_PAGE_SIZE = 100;
 
@@ -142,47 +146,10 @@ async function readJsonObject(path: string, field: string): Promise<Record<strin
   }
 }
 
-async function readNdjson(path: string, field: string): Promise<Record<string, unknown>[]> {
-  if (!(await regularFile(path))) return [];
-  const metadata = await stat(path);
-  if (metadata.size > MAX_NDJSON_BYTES) {
-    throw new MarketEvidenceDataUnavailableError(`${field} exceeded the bounded size limit`);
-  }
-  const text = await readFile(path, "utf8");
-  const lines = text.split(/\r?\n/u).filter((line) => line.trim().length > 0);
-  if (lines.length > MAX_NDJSON_LINES) {
-    throw new MarketEvidenceDataUnavailableError(`${field} exceeded the bounded row limit`);
-  }
-  return lines.map((line, index) => {
-    try {
-      const record = recordOrNull(JSON.parse(line));
-      if (!record) throw new Error("not an object");
-      return record;
-    } catch (error) {
-      void error;
-      throw new MarketEvidenceDataUnavailableError(`${field} row ${index + 1} is invalid`);
-    }
-  });
-}
-
 function sourceDisplayName(source: MarketEvidenceSource): string {
   if (source === "binance-usdm") return "Binance USD-M";
   if (source === "bybit-linear") return "Bybit Linear";
   return "OKX Swap";
-}
-
-function authorityIsSafe(value: unknown): boolean {
-  const record = recordOrNull(value);
-  return Boolean(
-    record &&
-      record.execution_enabled === false &&
-      record.orders_submitted === 0 &&
-      record.trading_credentials_present === false &&
-      record.model_execution_authorized === false &&
-      record.replay_authorized === false &&
-      record.performance_research_authorized === false &&
-      record.live_capital_authorized === false,
-  );
 }
 
 function validateInstrumentQuery(query: MarketEvidenceInstrumentQuery): Required<
@@ -543,39 +510,44 @@ export class MarketEvidenceReadModel {
       .slice(0, MAX_RUNS);
     const snapshots: RunSnapshot[] = [];
     for (const runId of runIds) {
-      snapshots.push(await this.loadRun(runsRoot, runId));
+      const snapshot = await this.loadRun(runsRoot, runId);
+      if (snapshot) snapshots.push(snapshot);
     }
     return snapshots.sort((left, right) => right.updatedAtMs - left.updatedAtMs || right.run.run_id.localeCompare(left.run.run_id));
   }
 
-  private async loadRun(runsRoot: string, runId: string): Promise<RunSnapshot> {
+  private async loadRun(runsRoot: string, runId: string): Promise<RunSnapshot | null> {
     const runRoot = fixedChild(runsRoot, runId);
     if (!(await regularDirectory(runRoot))) {
       throw new MarketEvidenceDataUnavailableError("market evidence run is not a regular directory");
     }
     const packageRoot = fixedChild(runRoot, PACKAGE_DIR_NAME);
     if (await regularDirectory(packageRoot)) {
-      return this.loadCompletedRun(runId, packageRoot);
+      try {
+        const verified = await verifyMarketEvidencePackage({
+          dataRoot: this.dataRoot,
+          packageRoot,
+          runId,
+        });
+        if (verified.version !== 1) return null;
+        return this.loadCompletedRun(runId, verified);
+      } catch (error) {
+        if (error instanceof MarketEvidenceIntegrityError) {
+          throw new MarketEvidenceDataUnavailableError(
+            "immutable market evidence package failed integrity verification",
+          );
+        }
+        throw error;
+      }
     }
     return this.loadActiveRun(runId, runRoot);
   }
 
-  private async loadCompletedRun(runId: string, packageRoot: string): Promise<RunSnapshot> {
-    const manifest = await readJsonObject(fixedChild(packageRoot, "manifest.json"), "market evidence manifest");
-    const state = await readJsonObject(fixedChild(packageRoot, "run-state.json"), "market evidence run state");
-    const verification = await readJsonObject(
-      fixedChild(packageRoot, "verification-report.json"),
-      "market evidence verification report",
-    );
-    if (!manifest || !state || !verification) {
-      throw new MarketEvidenceDataUnavailableError("immutable market evidence metadata is incomplete");
-    }
-    if (manifest.run_id !== runId || state.run_id !== runId || verification.run_id !== runId) {
-      throw new MarketEvidenceDataUnavailableError("immutable market evidence run identity mismatch");
-    }
-    if (!authorityIsSafe(manifest.authorities) || !authorityIsSafe(verification)) {
-      throw new MarketEvidenceDataUnavailableError("market evidence authority boundary is invalid");
-    }
+  private async loadCompletedRun(
+    runId: string,
+    verified: VerifiedMarketEvidencePackage,
+  ): Promise<RunSnapshot> {
+    const { manifest, state, verification, packageRoot } = verified;
     const recordCounts = recordOrNull(manifest.record_counts);
     const capture = recordOrNull(manifest.capture);
     const wh01 = recordOrNull(manifest.wh01);
@@ -612,16 +584,19 @@ export class MarketEvidenceReadModel {
       updatedAtMs,
       manifest,
       state,
-      qualityRows: await readNdjson(
-        fixedChild(packageRoot, "market-quality-observations.ndjson"),
+      qualityRows: parseVerifiedNdjson(
+        verified,
+        "market-quality-observations.ndjson",
         "market quality observations",
       ),
-      instrumentRows: await readNdjson(
-        fixedChild(packageRoot, "instrument-snapshots.ndjson"),
+      instrumentRows: parseVerifiedNdjson(
+        verified,
+        "instrument-snapshots.ndjson",
         "instrument snapshots",
       ),
-      sourceRows: await readNdjson(
-        fixedChild(packageRoot, "source-snapshots.ndjson"),
+      sourceRows: parseVerifiedNdjson(
+        verified,
+        "source-snapshots.ndjson",
         "source snapshots",
       ),
     };

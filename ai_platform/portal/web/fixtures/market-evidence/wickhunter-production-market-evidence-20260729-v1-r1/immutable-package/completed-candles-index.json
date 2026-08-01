@@ -1,0 +1,10 @@
+[
+  {"normalized_file":{"logical_name":"candles/bybit-linear/BTCUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"bybit-linear","symbol":"BTCUSDT"},
+  {"normalized_file":{"logical_name":"candles/bybit-linear/ETHUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"bybit-linear","symbol":"ETHUSDT"},
+  {"normalized_file":{"logical_name":"candles/bybit-linear/SOLUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"bybit-linear","symbol":"SOLUSDT"},
+  {"normalized_file":{"logical_name":"candles/bybit-linear/XRPUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"bybit-linear","symbol":"XRPUSDT"},
+  {"normalized_file":{"logical_name":"candles/binance-usdm/BTCUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"binance-usdm","symbol":"BTCUSDT"},
+  {"normalized_file":{"logical_name":"candles/binance-usdm/ETHUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"binance-usdm","symbol":"ETHUSDT"},
+  {"normalized_file":{"logical_name":"candles/binance-usdm/SOLUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"binance-usdm","symbol":"SOLUSDT"},
+  {"normalized_file":{"logical_name":"candles/binance-usdm/XRPUSDT-5m.ndjson","sha256":"0000000000000000000000000000000000000000000000000000000000000000","size_bytes":3},"record_count":432,"source":"binance-usdm","symbol":"XRPUSDT"}
+]

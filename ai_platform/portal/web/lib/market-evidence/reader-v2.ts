@@ -1,4 +1,4 @@
-import { lstat, readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 
 import {
@@ -12,6 +12,12 @@ import {
   type MarketEvidenceSummary,
   MARKET_EVIDENCE_SOURCES,
 } from "./contracts";
+import {
+  MarketEvidenceIntegrityError,
+  parseVerifiedNdjson,
+  type VerifiedMarketEvidencePackage,
+  verifyMarketEvidencePackage,
+} from "./integrity";
 import {
   type LiquidationSourceOverlay,
   MarketEvidenceDataUnavailableError,
@@ -28,11 +34,7 @@ export {
 } from "./reader";
 
 const RUN_ID_PATTERN = /^wickhunter-production-market-evidence-\d{8}-v\d+-r\d+$/;
-const MAX_METADATA_BYTES = 8 * 1024 * 1024;
-const MAX_NDJSON_BYTES = 64 * 1024 * 1024;
-const MAX_NDJSON_LINES = 30_000;
 const MAX_PAGE_SIZE = 100;
-const EXPECTED_V2_SOURCES = ["bybit-linear", "binance-usdm", "okx-swap"] as const;
 
 interface VerifiedV2Package {
   runId: string;
@@ -90,76 +92,6 @@ async function regularDirectory(path: string): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-async function regularFile(path: string): Promise<boolean> {
-  try {
-    const entry = await lstat(path);
-    return entry.isFile() && !entry.isSymbolicLink();
-  } catch {
-    return false;
-  }
-}
-
-async function readJsonObject(path: string, field: string): Promise<Record<string, unknown> | null> {
-  if (!(await regularFile(path))) return null;
-  const metadata = await stat(path);
-  if (metadata.size > MAX_METADATA_BYTES) {
-    throw new MarketEvidenceDataUnavailableError(`${field} exceeded the bounded size limit`);
-  }
-  try {
-    const parsed: unknown = JSON.parse(await readFile(path, "utf8"));
-    const record = recordOrNull(parsed);
-    if (!record) throw new Error("not an object");
-    return record;
-  } catch {
-    throw new MarketEvidenceDataUnavailableError(`${field} is invalid JSON`);
-  }
-}
-
-async function readNdjson(path: string, field: string): Promise<Record<string, unknown>[]> {
-  if (!(await regularFile(path))) return [];
-  const metadata = await stat(path);
-  if (metadata.size > MAX_NDJSON_BYTES) {
-    throw new MarketEvidenceDataUnavailableError(`${field} exceeded the bounded size limit`);
-  }
-  const lines = (await readFile(path, "utf8"))
-    .split(/\r?\n/u)
-    .filter((line) => line.trim().length > 0);
-  if (lines.length > MAX_NDJSON_LINES) {
-    throw new MarketEvidenceDataUnavailableError(`${field} exceeded the bounded row limit`);
-  }
-  return lines.map((line, index) => {
-    try {
-      const parsed = recordOrNull(JSON.parse(line));
-      if (!parsed) throw new Error("not an object");
-      return parsed;
-    } catch {
-      throw new MarketEvidenceDataUnavailableError(`${field} row ${index + 1} is invalid`);
-    }
-  });
-}
-
-function authorityIsSafe(value: unknown): boolean {
-  const record = recordOrNull(value);
-  return Boolean(
-    record &&
-      record.execution_enabled === false &&
-      record.orders_submitted === 0 &&
-      record.trading_credentials_present === false &&
-      record.model_execution_authorized === false &&
-      record.replay_authorized === false &&
-      record.performance_research_authorized === false &&
-      record.live_capital_authorized === false,
-  );
-}
-
-function exactV2Sources(value: unknown): boolean {
-  return (
-    Array.isArray(value) &&
-    value.length === EXPECTED_V2_SOURCES.length &&
-    EXPECTED_V2_SOURCES.every((source, index) => value[index] === source)
-  );
 }
 
 function numeric(value: string | null): number {
@@ -384,23 +316,23 @@ export class MarketEvidenceReadModel {
       if (!entry.isDirectory() || entry.isSymbolicLink() || !RUN_ID_PATTERN.test(entry.name)) continue;
       const packageRoot = fixedChild(runsRoot, entry.name, "immutable-package");
       if (!(await regularDirectory(packageRoot))) continue;
-      const manifest = await readJsonObject(fixedChild(packageRoot, "manifest.json"), "v2 manifest");
-      const verification = await readJsonObject(
-        fixedChild(packageRoot, "verification-report.json"),
-        "v2 verification",
-      );
-      if (
-        !manifest ||
-        !verification ||
-        manifest.run_id !== entry.name ||
-        verification.run_id !== entry.name ||
-        !exactV2Sources(manifest.sources) ||
-        verification.outcome !== "accepted" ||
-        !authorityIsSafe(manifest.authorities) ||
-        !authorityIsSafe(verification)
-      ) {
-        continue;
+      let verified: VerifiedMarketEvidencePackage;
+      try {
+        verified = await verifyMarketEvidencePackage({
+          dataRoot: this.dataRoot,
+          packageRoot,
+          runId: entry.name,
+        });
+      } catch (error) {
+        if (error instanceof MarketEvidenceIntegrityError) {
+          throw new MarketEvidenceDataUnavailableError(
+            "immutable v2 market evidence package failed integrity verification",
+          );
+        }
+        throw error;
       }
+      if (verified.version !== 2) continue;
+      const { manifest } = verified;
       const capture = recordOrNull(manifest.capture);
       const recordCounts = recordOrNull(manifest.record_counts);
       const captureEndMs = nonNegativeInteger(capture?.decision_end_ms);
@@ -413,16 +345,19 @@ export class MarketEvidenceReadModel {
           ? manifest.gaps.length
           : nonNegativeInteger(recordCounts?.gap_count),
         manifest,
-        qualityRows: await readNdjson(
-          fixedChild(packageRoot, "market-quality-observations.ndjson"),
+        qualityRows: parseVerifiedNdjson(
+          verified,
+          "market-quality-observations.ndjson",
           "v2 market quality",
         ),
-        instrumentRows: await readNdjson(
-          fixedChild(packageRoot, "instrument-snapshots.ndjson"),
+        instrumentRows: parseVerifiedNdjson(
+          verified,
+          "instrument-snapshots.ndjson",
           "v2 instrument history",
         ),
-        sourceRows: await readNdjson(
-          fixedChild(packageRoot, "source-snapshots.ndjson"),
+        sourceRows: parseVerifiedNdjson(
+          verified,
+          "source-snapshots.ndjson",
           "v2 source snapshots",
         ),
       });

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -7,6 +8,87 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from ai_platform.wickhunter import production_market_evidence_v2 as subject
+
+
+def _file_identity(path: Path, *, logical_name: str) -> dict[str, object]:
+    return {
+        "logical_name": logical_name,
+        "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "size_bytes": path.stat().st_size,
+    }
+
+
+def _write_minimal_supplement(
+    root: Path,
+    *,
+    identity: dict[str, object] | None = None,
+) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    if identity is None:
+        artifact = root / "payload.ndjson"
+        artifact.write_text("{}\n", encoding="utf-8")
+        identity = _file_identity(artifact, logical_name="payload.ndjson")
+    manifest: dict[str, object] = {
+        "schema_version": 2,
+        "artifact_type": "WickHunterProductionMarketEvidenceOkxSupplement",
+        "contract_id": subject.CONTRACT_ID,
+        "request_id": "wickhunter-production-market-evidence-20260731-v2",
+        "run_id": "wickhunter-production-market-evidence-20260731-v2-r1",
+        "base_v1_run_id": "wickhunter-production-market-evidence-20260730-v1-r1",
+        "collector_commit": "a" * 40,
+        "source": subject.OKX_SOURCE,
+        "symbols": list(subject.EXPECTED_SYMBOLS),
+        "capture": {},
+        "record_counts": {
+            "market_quality_observations": subject.EXPECTED_SAMPLES * len(subject.EXPECTED_SYMBOLS),
+            "instrument_snapshots": subject.EXPECTED_SAMPLES * len(subject.EXPECTED_SYMBOLS),
+            "source_health_snapshots": subject.EXPECTED_SAMPLES,
+            "completed_candles": subject.EXPECTED_CANDLES * len(subject.EXPECTED_SYMBOLS),
+        },
+        "gaps": [],
+        "artifacts": [identity],
+        "base_package_bound": False,
+        "merge_blocker": "BASE_V1_PACKAGE_NOT_BOUND",
+        **subject.AUTHORITY,
+    }
+    manifest["manifest_sha256"] = subject._canonical_hash(manifest)
+    manifest_path = root / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    manifest_identity = _file_identity(manifest_path, logical_name="manifest.json")
+    checksum_lines = sorted(
+        [
+            f"{identity['sha256']}  {identity['logical_name']}",
+            f"{manifest_identity['sha256']}  manifest.json",
+        ]
+    )
+    (root / "artifact-sha256.txt").write_text(
+        "\n".join(checksum_lines) + "\n",
+        encoding="utf-8",
+    )
+    (root / "verification-report.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "outcome": "accepted",
+                "run_id": manifest["run_id"],
+                "manifest_sha256": manifest["manifest_sha256"],
+                "artifact_count": 1,
+                "base_package_bound": False,
+                "merge_blocker": "BASE_V1_PACKAGE_NOT_BOUND",
+                **subject.AUTHORITY,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    return root
+
+
+def _symlink_or_skip(link: Path, target: Path, *, target_is_directory: bool = False) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as exc:
+        pytest.skip(f"symlinks are unavailable in this environment: {exc}")
 
 
 def _request_payload(durable_root: Path) -> dict[str, object]:
@@ -291,3 +373,84 @@ def test_collect_due_sample_persists_one_verified_okx_sample(
     assert (sample_root / "market-snapshot.json").is_file()
     assert (sample_root / "instrument-snapshot.json").is_file()
     assert (sample_root / "source-health.json").is_file()
+
+
+def test_verify_supplement_accepts_regular_member(tmp_path: Path) -> None:
+    root = _write_minimal_supplement(tmp_path / "supplement")
+
+    result = subject.verify_supplement(root)
+
+    assert result["outcome"] == "accepted"
+
+
+@pytest.mark.parametrize("logical_name", ["/absolute.ndjson", "../outside.ndjson"])
+def test_verify_supplement_rejects_absolute_and_traversing_members(
+    tmp_path: Path,
+    logical_name: str,
+) -> None:
+    outside = tmp_path / "outside.ndjson"
+    outside.write_text("{}\n", encoding="utf-8")
+    identity = _file_identity(outside, logical_name=logical_name)
+    root = _write_minimal_supplement(tmp_path / "supplement", identity=identity)
+
+    with pytest.raises(subject.ProductionMarketEvidenceV2Error, match="artifact path"):
+        subject.verify_supplement(root)
+
+
+def test_verify_supplement_rejects_final_file_symlink(tmp_path: Path) -> None:
+    root = tmp_path / "supplement"
+    root.mkdir()
+    target = root / "target.ndjson"
+    target.write_text("{}\n", encoding="utf-8")
+    link = root / "payload.ndjson"
+    _symlink_or_skip(link, target)
+    identity = _file_identity(target, logical_name="payload.ndjson")
+    _write_minimal_supplement(root, identity=identity)
+
+    with pytest.raises(subject.ProductionMarketEvidenceV2Error, match="symlink"):
+        subject.verify_supplement(root)
+
+
+@pytest.mark.parametrize("target_outside_root", [False, True])
+def test_verify_supplement_rejects_symlinked_intermediate_parent(
+    tmp_path: Path,
+    target_outside_root: bool,
+) -> None:
+    root = tmp_path / "supplement"
+    root.mkdir()
+    target_dir = (tmp_path / "outside") if target_outside_root else (root / "inside")
+    target_dir.mkdir()
+    target = target_dir / "payload.ndjson"
+    target.write_text("{}\n", encoding="utf-8")
+    _symlink_or_skip(root / "linked", target_dir, target_is_directory=True)
+    identity = _file_identity(target, logical_name="linked/payload.ndjson")
+    _write_minimal_supplement(root, identity=identity)
+
+    with pytest.raises(subject.ProductionMarketEvidenceV2Error, match="symlink"):
+        subject.verify_supplement(root)
+
+
+def test_verify_supplement_rejects_missing_member(tmp_path: Path) -> None:
+    identity = {
+        "logical_name": "missing.ndjson",
+        "sha256": hashlib.sha256(b"{}\n").hexdigest(),
+        "size_bytes": 3,
+    }
+    root = _write_minimal_supplement(tmp_path / "supplement", identity=identity)
+
+    with pytest.raises(subject.ProductionMarketEvidenceV2Error, match=r"missing|identity"):
+        subject.verify_supplement(root)
+
+
+def test_verify_supplement_rejects_non_regular_member(tmp_path: Path) -> None:
+    root = tmp_path / "supplement"
+    (root / "directory").mkdir(parents=True)
+    identity = {
+        "logical_name": "directory",
+        "sha256": hashlib.sha256(b"").hexdigest(),
+        "size_bytes": 0,
+    }
+    _write_minimal_supplement(root, identity=identity)
+
+    with pytest.raises(subject.ProductionMarketEvidenceV2Error, match=r"regular|identity"):
+        subject.verify_supplement(root)

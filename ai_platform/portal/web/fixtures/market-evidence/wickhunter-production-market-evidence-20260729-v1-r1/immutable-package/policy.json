@@ -1,0 +1,5 @@
+{
+  "minimum_pre_roll_ms": 86400000,
+  "pre_roll_ms": 86400000,
+  "schema_version": 1
+}

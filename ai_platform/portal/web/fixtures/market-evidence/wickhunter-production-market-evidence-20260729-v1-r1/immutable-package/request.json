@@ -1,0 +1,6 @@
+{
+  "run_id": "wickhunter-production-market-evidence-20260729-v1-r1",
+  "schema_version": 1,
+  "sources": ["bybit-linear", "binance-usdm"],
+  "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]
+}

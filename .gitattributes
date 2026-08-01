@@ -1,3 +1,6 @@
 *.py    eol=lf
 *.sh    eol=lf
 *.ps1   eol=crlf
+
+# Immutable evidence fixtures are byte-addressed by their package manifests.
+ai_platform/portal/web/fixtures/market-evidence/** -text

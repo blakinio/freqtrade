@@ -6,7 +6,7 @@ base_branch: develop
 base_sha: 81005a01301f4d51b7fcfcb23090c5c2099548d0
 created: 2026-08-01
 updated: 2026-08-01
-related_pr: null
+related_pr: 938
 task_kind: implementation
 implementation_authorized: true
 authorized_findings: WH-ME-AUD-001, WH-ME-AUD-002
@@ -47,8 +47,8 @@ Ensure completed Portal Market Evidence v1/v2 packages are projected only after 
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T15:23:00+02:00
-head: b52bec736f005ba62da5d69cd9c25a5150d51f5b
+updated_at: 2026-08-01T15:32:00+02:00
+head: 64254396284bbc1583b0ab5d43cb23d0149d6153
 branch: fix/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1
 pr: 938
 status: ready
@@ -68,9 +68,9 @@ context_growth: stable
 context_score: 12
 decomposition_decision: phased
 validation_level: component
-heavy_validation_runs: 1
-heavy_validation_result: pending
-last_completed_step: verified exact PR head b52bec736f005ba62da5d69cd9c25a5150d51f5b and observed required heavy CI queued
+heavy_validation_runs: 2
+heavy_validation_result: failed_then_repaired_locally
+last_completed_step: repaired Linux fixture byte-identity failure and passed focused Portal integrity and journey tests locally
 context_routes:
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md at audit commit a9272b3e
@@ -96,11 +96,12 @@ proven:
   - One Python safe_regular_member implementation now serves supplement and combined-package verification.
 derived: []
 unknown:
-  - Exact-head Linux Portal symlink regression and required CI conclusions remain pending.
+  - Required CI conclusions remain pending on the forthcoming repaired exact head.
 conflicts: []
 rejected_hypotheses:
   - The stale validating status in the merged v2 task represents live overlapping ownership.
 changed_paths:
+  - .gitattributes
   - .github/workflows/ai-platform-wickhunter-market-evidence-ci.yml
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-integrity-remediation-v1.md
   - ai_platform/portal/web/lib/market-evidence/**
@@ -133,8 +134,14 @@ validation:
     result: PASS
     evidence: 17 passed and one Windows-only symlink skip across integrity, critical flow and UI states; Linux symlink execution is wired into exact-head CI
   - command: PR 938 exact-head heavy CI
-    result: NOT_RUN
-    evidence: Market Evidence backend, Portal and hardened-deployment jobs plus Portal Web CI were queued
+    result: FAIL
+    evidence: head 64254396284bbc1583b0ab5d43cb23d0149d6153 passed backend, security, exact-head closure, lint and build gates but three Portal jobs rejected the checked-in fixture with 503 because Git LF normalization changed four manifest-addressed artifact byte identities on Linux
+  - command: staged-index immutable fixture identity audit
+    result: PASS
+    evidence: every manifest-declared artifact in the staged Git index matches its declared SHA-256 and size after marking Market Evidence fixtures as byte-preserved data
+  - command: npx.cmd playwright test --project=chromium-desktop e2e/specs/market-evidence-integrity.spec.ts e2e/specs/market-evidence.spec.ts
+    result: PASS
+    evidence: 13 passed and one Windows-only symlink skip; both CI-failing Market Evidence journeys passed
 blockers: []
-next_action: Verify required CI on the latest exact PR 938 head; repair only the first relevant failure or mark the task done when all required gates pass.
+next_action: Commit and push the byte-preservation repair, then verify all required CI on the new exact PR 938 head.
 ```

@@ -1,0 +1,16 @@
+{
+  "request_id": "portal-authentik-owner-membership-bootstrap-20260801-v1",
+  "environment": "synology-staging",
+  "runner": "freqtrade-staging",
+  "implementation_sha": "443da5866e9b4a9d3442f266be1fe406405ed333",
+  "target_username": "akadmin",
+  "target_tenant_id": "tenant-local",
+  "target_role": "admin",
+  "subject_mode": "user_uuid",
+  "bootstrap_membership_authorized": true,
+  "browser_acceptance_authorized": false,
+  "public_ingress_authorized": true,
+  "live_capital_authorized": false,
+  "restore_authorized": false,
+  "secret_values_in_request": false
+}

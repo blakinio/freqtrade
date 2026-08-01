@@ -1,10 +1,10 @@
 ---
 task_id: FTAI-20260801-portal-authentik-public-oidc-handover
 status: waiting
-branch: docs/portal-oidc-final-checkpoint-20260801
+branch: docs/portal-oidc-exact-issuer-checkpoint-20260802
 base_branch: develop
 created: 2026-08-01
-updated: 2026-08-01
+updated: 2026-08-02
 parent_task: FTAI-20260731-portal-local-authentik-oidc-integration
 related_pr: 903
 supersedes_pr: 876
@@ -37,6 +37,7 @@ https://quant.molehill.cloud
 ```text
 Portal origin: https://quant.molehill.cloud
 Authentik origin: https://auth.molehill.cloud
+Issuer: https://auth.molehill.cloud/application/o/freqtrade-portal/
 Callback: https://quant.molehill.cloud/api/identity/callback
 Flow: OIDC Authorization Code plus PKCE
 Scopes: openid profile email
@@ -46,36 +47,39 @@ Owner tenant: tenant-local
 Owner role: admin
 ```
 
-The retired `auth.quant.molehill.cloud` hostname is forbidden.
+The retired `auth.quant.molehill.cloud` hostname is forbidden. The issuer is an exact OIDC identifier; its final `/` is significant and must not be normalized away.
 
 ## Completed implementation
 
-The public Authentik OIDC implementation, target deployment repairs and exact-owner bootstrap mechanism are merged on `develop`.
+The public Authentik OIDC implementation, exact-owner bootstrap, Authentik 2026.5 grant repair and exact issuer repair are merged on `develop`.
 
 Key merge commits:
 
 ```text
 public OIDC machine identity and deploy repairs: f4ae0eb9d7297b62fe90b2f15c1623d054b219e7
 exact-owner membership bootstrap:              443da5866e9b4a9d3442f266be1fe406405ed333
+authorization-code grant repair:               0fb4a30ac739ca1396c1477b08a812158ab568cd
+exact trailing-slash issuer repair:             8f23bbc7e09c1c1c0906e32adc2b5af137ec07d7
 ```
 
 The implementation provides:
 
 - Authentik confidential OIDC provider and application for slug `freqtrade-portal`;
-- strict public callback and exact issuer equality;
+- exact discovery issuer equality and exact JWT issuer validation;
 - Authorization Code plus PKCE;
+- provider grant types restricted to exactly `authorization_code`;
 - Secure `__Host-` Portal cookies;
 - no automatic first membership or email/domain/group promotion;
 - no client secret, OIDC subject, password or TOTP value in GitHub;
 - target-side exact `akadmin` `user_uuid` lookup;
 - subject transfer to the control plane over stdin;
-- only the subject SHA-256 retained in the secret-free report;
+- only the subject SHA-256 retained in the owner-bootstrap report;
 - exact `tenant-local` / `admin` membership verification;
 - required `identity.membership_bootstrapped` audit event;
 - no Docker socket, privileged mode, host networking or control-plane host port;
 - no exchange credentials, order authority, withdrawals, restore or live capital.
 
-## Public deployment evidence
+## Initial public deployment evidence
 
 Request-only PR `#957` was consumed and closed without merge.
 
@@ -120,53 +124,130 @@ Proven by the trusted Synology runner:
 
 - exact active Authentik username `akadmin` resolved in `user_uuid` subject mode;
 - exact OIDC subject was not written to GitHub;
-- a new active membership was created for `tenant-local` with role `admin`;
+- an active membership exists for `tenant-local` with role `admin`;
 - the principal and membership were re-read from the Portal database;
 - `identity.membership_bootstrapped` audit evidence is present;
 - secret values recorded is false;
 - live capital authorized is false.
 
+## Authentik 2026.5 grant repair
+
+The first owner browser attempt reached Authentik but `/authorize` returned `invalid_request`. Authentik 2026.5 required an explicit provider grant configuration, while the existing provider had an empty `grant_types` set.
+
+Implementation PR `#969` merged as `0fb4a30ac739ca1396c1477b08a812158ab568cd`. Request-only PR `#970` was consumed and closed without merge.
+
+```text
+workflow run:     30717518354
+implementation:   0fb4a30ac739ca1396c1477b08a812158ab568cd
+artifact ID:      8824028586
+artifact digest:  sha256:581961c62dcc85e3303530ba75a2cd8db9734a3758e8c32052a91694604c259c
+report SHA-256:   dfaab11fca5f275eb558922511806162fc17fc62593d9bfe916cf3f007a96bf2
+```
+
+Proven on target:
+
+- provider grant types equal exactly `authorization_code`;
+- legacy and unrelated grants are disabled;
+- discovery and JWKS return HTTP 200;
+- public login returns an Authentik redirect;
+- existing owner membership remains unchanged.
+
+## Callback HTTP 500 diagnosis and exact issuer repair
+
+After the grant repair, the owner completed password and TOTP and Authentik issued a valid authorization code. The Portal callback returned an HTML-backed HTTP 500. A one-time sanitized diagnostic was implemented and merged, then request-only PR `#984` was consumed and closed without merge.
+
+```text
+diagnostic workflow run:     30720540543
+diagnostic artifact ID:      8824712608
+diagnostic artifact digest:  sha256:de6786e44b8f966320ddb08187adebe6a243531025ae4f2430310c363ed85374
+confirmed exception:         jwt.exceptions.InvalidIssuerError
+Portal boundary:             OidcProtocolError: OIDC JWT validation failed
+session count after failure: 0
+```
+
+The root cause was exact OIDC issuer handling. Authentik published and signed the ID token with issuer:
+
+```text
+https://auth.molehill.cloud/application/o/freqtrade-portal/
+```
+
+The Portal client removed the final `/` before PyJWT validation. Because OIDC issuer comparison is exact, PyJWT rejected the otherwise valid ID token.
+
+Implementation PR `#986` preserved the configured issuer byte-for-byte for discovery comparison, JWT validation and principal identity, while trimming only when joining the discovery URL. It added regression coverage for an Authentik-style trailing-slash issuer and merged as `8f23bbc7e09c1c1c0906e32adc2b5af137ec07d7` after all required checks passed.
+
+Request-only rollout PR `#991` was consumed and closed without merge.
+
+```text
+workflow run:     30721323788
+implementation:   8f23bbc7e09c1c1c0906e32adc2b5af137ec07d7
+artifact ID:      8825156338
+artifact digest:  sha256:529a3f3b1e29dd3fe2e00a1a83ab63c13a7d8c0a3f021eb2638e801444ae91ff
+report SHA-256:   6099c1541c7376a0b6342ffe4ace22f0588ff69d7f2eab1dac94c61e637ff6ec
+```
+
+Proven by the trusted Synology runner after the repair:
+
+- control-plane image `local/freqtrade-portal-control-plane:8f23bbc7e09c` is running and healthy;
+- web image `local/freqtrade-portal-web:8f23bbc7e09c` is running and healthy;
+- Authentik PostgreSQL, server and worker are running and healthy;
+- issuer equals the exact trailing-slash contract;
+- discovery HTTP 200;
+- JWKS HTTP 200;
+- public login HTTP 307;
+- provider grant types equal exactly `authorization_code`;
+- legacy grants remain disabled;
+- identity fixture remains disabled;
+- no membership bootstrap or mutation was authorized;
+- secret values recorded is false;
+- live capital authorized is false.
+
 ## Remaining owner acceptance
 
-All backend, deployment and membership work is complete. The task is `waiting` only because the final acceptance requires the owner to enter private interactive credentials that are not available to automation.
+All code, provider configuration, deployment and owner membership work is complete. The task remains `waiting` only because final acceptance requires private browser interaction unavailable to automation.
 
-The owner must perform exactly these browser actions:
+The previous callback URL, authorization code and state are consumed and must not be reused. The owner must perform a completely fresh flow:
 
-1. Open `https://quant.molehill.cloud`.
-2. Log in as `akadmin` using the owner password and Authentik TOTP.
-3. Confirm the authenticated Portal loads for `tenant-local` with admin access.
-4. Log out.
-5. Confirm the previous Portal session no longer grants authenticated access.
+1. Close all previous callback and Authentik tabs.
+2. Open a new private/incognito browser window.
+3. Open `https://quant.molehill.cloud` from the root URL.
+4. Log in as `akadmin` using the owner password and a current Authentik TOTP.
+5. Confirm the authenticated Portal loads for `tenant-local` with admin access.
+6. Log out.
+7. Confirm the previous Portal session no longer grants authenticated access.
 
-No password, TOTP seed, TOTP code or session cookie may be posted to GitHub or chat.
+No password, TOTP seed, TOTP code, authorization code, state value, JWT or session cookie may be posted to GitHub or chat.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 7
-updated_at: 2026-08-01T21:32:00+02:00
-develop_head: 443da5866e9b4a9d3442f266be1fe406405ed333
+checkpoint_version: 9
+updated_at: 2026-08-02T00:49:00+02:00
+implementation_head: 8f23bbc7e09c1c1c0906e32adc2b5af137ec07d7
 status: waiting
 proven:
   - public Portal and Authentik deployment is healthy
+  - Authentik provider grants equal exactly authorization_code
   - discovery and JWKS return HTTP 200
   - public login redirects to the exact Authentik application
+  - exact trailing-slash issuer is preserved for JWT validation
+  - callback InvalidIssuerError root cause is fixed and deployed
+  - Portal web and control-plane images run implementation 8f23bbc7e09c
   - identity fixture is disabled
   - exact akadmin user_uuid was resolved target-side without GitHub disclosure
   - tenant-local admin membership is active
   - identity.membership_bootstrapped audit evidence is present
-  - request PRs 957 and 964 were closed without merge
+  - request PRs 957, 964, 970, 984 and 991 were closed without merge
   - secret_values_recorded=false
   - live_capital_authorized=false
 unknown:
-  - password and TOTP browser acceptance result
+  - fresh password and TOTP browser acceptance result after exact issuer rollout
   - authenticated Portal page acceptance result
   - logout session invalidation result
 conflicts: []
 first_failure: null
 blockers:
   - explicit owner browser interaction with password and TOTP
-next_action: owner logs in at https://quant.molehill.cloud, confirms admin access, logs out and confirms session invalidation
+next_action: owner starts a fresh incognito flow at https://quant.molehill.cloud, confirms tenant-local admin access, logs out and confirms session invalidation
 ```
 
 Terminal safety evidence:

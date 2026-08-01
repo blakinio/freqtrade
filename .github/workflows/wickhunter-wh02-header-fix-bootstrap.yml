@@ -114,7 +114,7 @@ jobs:
               "docs/agents/tasks/FTAI-20260801-wickhunter-wh02-binance-transact-time-header.md"
           )
           task.write_text(
-              """# FTAI-20260801 — WickHunter WH-02 Binance `transact_time` header\n\n"
+              "# FTAI-20260801 — WickHunter WH-02 Binance `transact_time` header\n\n"
               "## Status\n\nCompleted by the implementation PR.\n\n"
               "## Trigger\n\nThe trusted WH-02 materialization run parsed the official Binance USD-M "
               "daily `aggTrades` archive header as data because the provider uses "

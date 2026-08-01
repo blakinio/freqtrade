@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260801-wickhunter-market-evidence-session-auth-remediation-v1
-status: in_progress
+status: waiting
 branch: fix/FTAI-20260801-wickhunter-market-evidence-session-auth-remediation-v1
 base_branch: develop
 base_sha: f1eb18095a728c14e1a27cd2b36352584245f917
@@ -9,6 +9,7 @@ implementation_authorized: true
 authorized_findings:
   - WH-ME-AUD-003
 execution_mode: codex
+related_pr: 947
 ---
 
 # WickHunter Market Evidence session authorization remediation
@@ -21,12 +22,12 @@ and read permission. The boundary must fail closed without exposing session mate
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-01T17:09:59+02:00
-head: f1eb18095a728c14e1a27cd2b36352584245f917
+updated_at: 2026-08-01T17:12:54+02:00
+head: 9450a8bda4944bed2d72c5d5d2a96567eb39bafe
 branch: fix/FTAI-20260801-wickhunter-market-evidence-session-auth-remediation-v1
-pr: none
-status: validating
-phase: validate
+pr: 947
+status: waiting
+phase: complete
 session_id: codex-20260801-wh-me-aud-003-1
 session_role: implementer
 execution_mode: codex
@@ -40,7 +41,7 @@ context_growth: stable
 context_score: 11
 decomposition_decision: split
 decomposition_reason: audit findings have independent ownership, acceptance criteria, branches, and PRs
-last_completed_step: implemented the shared authoritative Market Evidence session guard and passed focused production, fixture, type, lint, and build validation
+last_completed_step: committed and pushed coherent implementation head 9450a8bda4944bed2d72c5d5d2a96567eb39bafe and opened draft PR 947 against develop
 context_routes:
   - docs/agents/tasks/FTAI-20260801-wickhunter-market-evidence-session-auth-remediation-v1.md
   - docs/agents/evidence/FTAI-20260801-wickhunter-backend-frontend-deployment-audit-v1/report.md at audit commit a9272b3e
@@ -104,6 +105,9 @@ validation:
   - command: npm run build
     result: PASS
     evidence: optimized Next.js production build completed and emitted all four Market Evidence routes
+  - command: PR 947 exact-head required CI observation
+    result: PENDING
+    evidence: workflow runs 30705418423, 30705418437, 30705418439, 30705418440, 30705418464, 30705418468 and 30705418481 queued for head 9450a8bda4944bed2d72c5d5d2a96567eb39bafe
 blockers: []
-next_action: Validate the checkpoint, create one coherent Task A commit, push it, and open the draft PR.
+next_action: Observe PR 947 required checks at the latest exact head and repair only a relevant failure.
 ```

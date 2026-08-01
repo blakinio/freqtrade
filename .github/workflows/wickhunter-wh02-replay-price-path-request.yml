@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: wickhunter-wh02-replay-price-path-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   WORKFLOW_PATH: .github/workflows/wickhunter-wh02-replay-price-path-request.yml
@@ -38,7 +38,7 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
-    runs-on: [self-hosted, Linux, X64, freqtrade-staging]
+    runs-on: [freqtrade-staging]
     environment: synology-staging
     timeout-minutes: 90
 
@@ -63,8 +63,6 @@ jobs:
           git cat-file -e "$SOURCE_COMMIT_SHA^{commit}"
           git merge-base --is-ancestor "$SOURCE_COMMIT_SHA" "$BASE_SHA"
           git merge-base --is-ancestor "$SOURCE_COMMIT_SHA" "$HEAD_SHA"
-          parent="$(git rev-parse "$HEAD_SHA^")"
-          [[ "$parent" == "$SOURCE_COMMIT_SHA" ]]
           merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
           [[ "$merge_base" == "$SOURCE_COMMIT_SHA" ]]
           expected=$'A\t.github/workflows/wickhunter-wh02-replay-price-path-request.yml'

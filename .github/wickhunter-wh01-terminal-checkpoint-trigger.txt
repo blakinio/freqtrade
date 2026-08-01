@@ -1,0 +1,1 @@
+Trigger the bounded terminal WH-01 documentation checkpoint. This control PR must close without merge.

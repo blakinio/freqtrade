@@ -1,0 +1,170 @@
+name: Portal OIDC State Bind Repair Once
+
+on:
+  push:
+    branches:
+      - fix/portal-oidc-synology-state-bind-20260801
+    paths:
+      - .github/workflows/portal-oidc-state-bind-repair-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/portal-oidc-synology-state-bind-20260801
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Apply host-visible state and diagnostics repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          deploy = Path("deploy/synology/portal-oidc/deploy.py")
+          source = deploy.read_text(encoding="utf-8")
+
+          replacements = {
+              'PORTAL_DATA_DIR = PORTAL_STATE_DIR / "data"\n': (
+                  'PORTAL_DATA_DIR = Path("/volume1/docker/freqtrade-portal-oidc/data")\n'
+                  'PORTAL_UID = 10001\n'
+                  'PORTAL_GID = 10001\n'
+              ),
+              '''        detail = (result.stderr or result.stdout).strip().splitlines()[-1:] or ["no output"]
+                  rendered = " ".join(command)
+                  raise DeploymentError(f"command failed ({result.returncode}): {rendered}: {detail[0]}")
+          ''': '''        output = result.stderr or result.stdout
+                  lines = [line.strip() for line in output.splitlines() if line.strip()]
+                  detail = " | ".join(lines[:3]) if lines else "no output"
+                  if len(detail) > 1000:
+                      detail = f"{detail[:997]}..."
+                  rendered = " ".join(command)
+                  raise DeploymentError(f"command failed ({result.returncode}): {rendered}: {detail}")
+          ''',
+              '''    _write_env_atomic(PORTAL_RUNTIME_ENV, values)
+                  PORTAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+          ''': '''    _write_env_atomic(PORTAL_RUNTIME_ENV, values)
+                  PORTAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+                  os.chown(PORTAL_DATA_DIR, PORTAL_UID, PORTAL_GID)
+                  PORTAL_DATA_DIR.chmod(0o700)
+          ''',
+              '''def _control_run_args(image: str, name: str) -> list[str]:
+                  uid = str(os.getuid())
+                  gid = str(os.getgid())
+                  return [
+          ''': '''def _control_run_args(image: str, name: str) -> list[str]:
+                  return [
+          ''',
+              '        f"{uid}:{gid}",\n': '        f"{PORTAL_UID}:{PORTAL_GID}",\n',
+          }
+          for old, new in replacements.items():
+              if source.count(old) != 1:
+                  raise SystemExit(f"deploy replacement did not match exactly once: {old[:80]!r}")
+              source = source.replace(old, new)
+          deploy.write_text(source, encoding="utf-8")
+
+          tests = Path("tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py")
+          test_source = tests.read_text(encoding="utf-8")
+          anchor = '''def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
+          '''
+          diagnostic_test = '''def test_run_preserves_actionable_nonsensitive_error(monkeypatch) -> None:
+              def fake_run(*_args, **_kwargs):
+                  return module.subprocess.CompletedProcess(
+                      args=["docker", "run"],
+                      returncode=125,
+                      stdout="",
+                      stderr=(
+                          "docker: invalid mount config for type bind: source path does not exist\\n"
+                          "Run 'docker run --help' for more information\\n"
+                      ),
+                  )
+
+              monkeypatch.setattr(module.subprocess, "run", fake_run)
+              with pytest.raises(module.DeploymentError, match="source path does not exist"):
+                  module._run(["docker", "run", "redacted-image"])
+
+
+          def test_blueprint_has_exact_public_provider_scopes_and_redirect() -> None:
+          '''
+          if test_source.count(anchor) != 1:
+              raise SystemExit("diagnostic test insertion anchor did not match exactly once")
+          test_source = test_source.replace(anchor, diagnostic_test)
+
+          hardening_anchor = '''    assert module.ISSUER == "https://auth.molehill.cloud/application/o/freqtrade-portal/"
+              assert "0o600" in source
+          '''
+          hardening_replacement = '''    assert module.ISSUER == "https://auth.molehill.cloud/application/o/freqtrade-portal/"
+              assert module.PORTAL_DATA_DIR == Path("/volume1/docker/freqtrade-portal-oidc/data")
+              assert module.PORTAL_UID == 10001
+              assert module.PORTAL_GID == 10001
+              assert "os.chown(PORTAL_DATA_DIR, PORTAL_UID, PORTAL_GID)" in source
+              assert 'f"{PORTAL_UID}:{PORTAL_GID}"' in source
+              assert "os.getuid()" not in source
+              assert "os.getgid()" not in source
+              assert 'detail = " | ".join(lines[:3])' in source
+              assert "0o600" in source
+          '''
+          if test_source.count(hardening_anchor) != 1:
+              raise SystemExit("hardening test anchor did not match exactly once")
+          tests.write_text(
+              test_source.replace(hardening_anchor, hardening_replacement),
+              encoding="utf-8",
+          )
+
+          integration = Path("tests/ai_platform_integration/test_portal_synology_auth_probe.py")
+          integration_source = integration.read_text(encoding="utf-8")
+          integration_anchor = '''    assert "PORTAL_IDENTITY_TRANSPORT_MODE=https" in script
+              assert "PORTAL_CONTROL_PLANE_URL=http://" in script
+          '''
+          integration_replacement = '''    assert "PORTAL_IDENTITY_TRANSPORT_MODE=https" in script
+              assert 'PORTAL_DATA_DIR = Path("/volume1/docker/freqtrade-portal-oidc/data")' in script
+              assert "PORTAL_UID = 10001" in script
+              assert "PORTAL_GID = 10001" in script
+              assert "os.getuid()" not in script
+              assert "os.getgid()" not in script
+              assert "PORTAL_CONTROL_PLANE_URL=http://" in script
+          '''
+          if integration_source.count(integration_anchor) != 1:
+              raise SystemExit("integration test anchor did not match exactly once")
+          integration.write_text(
+              integration_source.replace(integration_anchor, integration_replacement),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Apply exact repository formatting and focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff==0.15.21 pytest==8.4.2
+          ruff check --fix \
+            deploy/synology/portal-oidc/deploy.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py \
+            tests/ai_platform_integration/test_portal_synology_auth_probe.py
+          ruff format \
+            deploy/synology/portal-oidc/deploy.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py \
+            tests/ai_platform_integration/test_portal_synology_auth_probe.py
+          pytest -q tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py
+          git diff --check
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            deploy/synology/portal-oidc/deploy.py \
+            tests/ai_platform/portal/deployment/test_portal_oidc_public_deploy.py \
+            tests/ai_platform_integration/test_portal_synology_auth_probe.py
+          git commit -m "fix(portal): use Synology host-visible OIDC state bind"
+          git push origin HEAD:fix/portal-oidc-synology-state-bind-20260801

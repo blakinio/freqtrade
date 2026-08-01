@@ -218,9 +218,7 @@ def _state_from_payload(payload: Mapping[str, object]) -> ShadowRuntimeState:
         ),
         positions=tuple(sorted(positions, key=lambda item: item.position_id)),
         closed_positions=tuple(sorted(closed, key=lambda item: item.closed_position_id)),
-        cumulative_realized_pnl_quote=Decimal(
-            str(payload["cumulative_realized_pnl_quote"])
-        ),
+        cumulative_realized_pnl_quote=Decimal(str(payload["cumulative_realized_pnl_quote"])),
         peak_equity_quote=Decimal(str(payload["peak_equity_quote"])),
         drawdown_ratio=Decimal(str(payload["drawdown_ratio"])),
         recent_decision_ids=tuple(str(item) for item in recent_raw),
@@ -229,14 +227,10 @@ def _state_from_payload(payload: Mapping[str, object]) -> ShadowRuntimeState:
         ),
         model_hash=None if payload.get("model_hash") is None else str(payload["model_hash"]),
         parameter_version=(
-            None
-            if payload.get("parameter_version") is None
-            else str(payload["parameter_version"])
+            None if payload.get("parameter_version") is None else str(payload["parameter_version"])
         ),
         parameter_hash=(
-            None
-            if payload.get("parameter_hash") is None
-            else str(payload["parameter_hash"])
+            None if payload.get("parameter_hash") is None else str(payload["parameter_hash"])
         ),
         dataset_hash=(
             None if payload.get("dataset_hash") is None else str(payload["dataset_hash"])

@@ -59,7 +59,7 @@ No trade buttons may be added to the liquidation page.
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-01T23:44:00+02:00
+updated_at: 2026-08-01T23:47:00+02:00
 project_lane: freqtrade-wickhunter
 phase: validate
 session_id: wh08-20260801-002
@@ -68,7 +68,7 @@ execution_mode: chat
 execution_reason: bounded read-only Portal consumer uses new non-conflicting paths and exact-head GitHub validation
 status: validating
 branch: feat/wickhunter-wh08-portal-observability-v1
-head: 4474639982efa00a2f02cd0488fa1ea6bcc3d97a
+head: ba16c44f35f486d6db619d44a10ac6c740d6235a
 base_branch: develop
 related_pr: 979
 context_pressure: high
@@ -78,9 +78,8 @@ decomposition_reason: reader, authenticated API, read-only dashboard, fixture an
 validation_level: focused
 heavy_validation_runs: 0
 proven:
-  - WH-07 PortalObservabilitySnapshot v1 is frozen on exact candidate head 6cee3b0f1c2b3e294d7bdd45fa93494e53ad1a7f
-  - WH-07 exact-head AI Platform CI and security analysis pass
-  - the WH-08 branch was synchronized normally with develop at 3900ac6043a5f5f4a9abd4e349ab4693e4ec78ed
+  - WH-07 merged to develop as bde362801d18ca2abf2615f4d1233b9b0f8f618a after exact-head AI Platform CI, Freqtrade CI and security analysis passed
+  - the WH-08 branch was synchronized normally with terminal WH-07 as ba16c44f35f486d6db619d44a10ac6c740d6235a
   - open Portal PR 976 changes only an OIDC diagnostic workflow, deployment script and deployment test
   - PR 979 changes exactly the eleven declared WH-08 paths
   - the snapshot reader rejects symlinks, oversized or malformed content, unsupported mode, incomplete identities and every execution-authority flag

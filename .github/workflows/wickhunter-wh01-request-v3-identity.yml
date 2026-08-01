@@ -1,11 +1,12 @@
 name: WickHunter WH-01 request v3 identity
 
 "on":
-  push:
+  pull_request:
+    types: [opened, reopened, synchronize]
     branches:
       - ops/wickhunter-wh01-production-materialization-20260801-v3
     paths:
-      - ".github/workflows/wickhunter-wh01-request-v3-identity.yml"
+      - ".github/wickhunter-wh01-request-v3-trigger.txt"
 
 permissions:
   contents: write
@@ -16,15 +17,18 @@ concurrency:
 
 jobs:
   update:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'ops/wickhunter-wh01-production-materialization-20260801-v3'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Check out exact request branch
+      - name: Check out exact request base branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ops/wickhunter-wh01-production-materialization-20260801-v3
 
       - name: Assign fresh immutable v3 identity
         shell: bash

@@ -1,0 +1,114 @@
+name: WickHunter WH-02 Runner Boundary Preflight
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh02-runner-boundary-preflight.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh02-runner-boundary-preflight-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh02-runner-boundary-preflight.yml
+  SOURCE_COMMIT_SHA: 6419138e170844d0eb09d9381b4435900d802ab9
+  DATASET_MATERIALIZATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df3c33238c845f5f019a384b231580
+  MARKET_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1/immutable-package
+  INPUT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/sources/binance-usdm-aggtrades-20260731-v1
+  OUTPUT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v1-6419138e1708
+
+jobs:
+  preflight:
+    name: Observe runner boundary without network or materialization
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out exact observer commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact observer scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$SOURCE_COMMIT_SHA" ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$SOURCE_COMMIT_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh02-runner-boundary-preflight.yml'
+          actual="$(git diff --name-status "$SOURCE_COMMIT_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'unexpected observer scope\n%s\n' "$actual" >&2
+            exit 1
+          }
+
+      - name: Observe bounded safety predicates
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          umask 077
+          report="$RUNNER_TEMP/wh02-runner-boundary-preflight.txt"
+          : > "$report"
+          printf 'runner_name_match=%s\n' "$([[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]] && echo true || echo false)" >> "$report"
+          printf 'runner_os_match=%s\n' "$([[ "$RUNNER_OS_VALUE" == "Linux" ]] && echo true || echo false)" >> "$report"
+          printf 'runner_arch_match=%s\n' "$([[ "$RUNNER_ARCH_VALUE" == "X64" ]] && echo true || echo false)" >> "$report"
+          inspect_path() {
+            local label="$1"
+            local path="$2"
+            printf '%s.exists=%s\n' "$label" "$([[ -e "$path" ]] && echo true || echo false)" >> "$report"
+            printf '%s.directory=%s\n' "$label" "$([[ -d "$path" ]] && echo true || echo false)" >> "$report"
+            printf '%s.symlink=%s\n' "$label" "$([[ -L "$path" ]] && echo true || echo false)" >> "$report"
+            printf '%s.writable=%s\n' "$label" "$([[ -w "$path" ]] && echo true || echo false)" >> "$report"
+          }
+          inspect_path state_root /var/lib/freqtrade-staging-state
+          inspect_path dataset_root "$DATASET_MATERIALIZATION_ROOT"
+          inspect_path market_root "$MARKET_PACKAGE_ROOT"
+          mkdir_status=true
+          mkdir -p "$(dirname "$INPUT_ROOT")" "$(dirname "$OUTPUT_ROOT")" || mkdir_status=false
+          printf 'parent_mkdir=%s\n' "$mkdir_status" >> "$report"
+          inspect_path input_parent "$(dirname "$INPUT_ROOT")"
+          inspect_path output_parent "$(dirname "$OUTPUT_ROOT")"
+          inspect_path input_root "$INPUT_ROOT"
+          inspect_path output_root "$OUTPUT_ROOT"
+          credential_names=()
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || credential_names+=("$name")
+          done
+          proxy_names=()
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || proxy_names+=("$name")
+          done
+          printf 'credential_variables_present=%s\n' "${credential_names[*]:-none}" >> "$report"
+          printf 'proxy_variables_present=%s\n' "${proxy_names[*]:-none}" >> "$report"
+          cat "$report"
+
+      - name: Upload bounded preflight evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh02-runner-boundary-preflight-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wh02-runner-boundary-preflight.txt
+          if-no-files-found: error
+          retention-days: 7

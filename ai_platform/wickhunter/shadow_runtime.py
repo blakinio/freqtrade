@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from ai_platform.wickhunter.shadow_runtime_common import (
-    PositionCloseReason,
     RUNTIME_PARITY_SCHEMA_VERSION,
     RUNTIME_SNAPSHOT_SCHEMA_VERSION,
     RUNTIME_STATE_SCHEMA_VERSION,
     RUNTIME_STORE_SCHEMA_VERSION,
+    PositionCloseReason,
     RuntimeHealth,
     RuntimeSourceStatus,
     ShadowRuntimeError,

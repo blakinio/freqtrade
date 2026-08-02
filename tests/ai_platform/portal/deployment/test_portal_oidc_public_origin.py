@@ -6,30 +6,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 PUBLIC_ORIGIN_PATH = ROOT / "ai_platform" / "portal" / "web" / "lib" / "public-origin.ts"
 CALLBACK_ROUTE_PATH = (
-    ROOT
-    / "ai_platform"
-    / "portal"
-    / "web"
-    / "app"
-    / "api"
-    / "identity"
-    / "callback"
-    / "route.ts"
+    ROOT / "ai_platform" / "portal" / "web" / "app" / "api" / "identity" / "callback" / "route.ts"
 )
 LOGIN_ROUTE_PATH = (
-    ROOT
-    / "ai_platform"
-    / "portal"
-    / "web"
-    / "app"
-    / "api"
-    / "identity"
-    / "login"
-    / "route.ts"
+    ROOT / "ai_platform" / "portal" / "web" / "app" / "api" / "identity" / "login" / "route.ts"
 )
-VERIFIER_PATH = (
-    ROOT / "deploy" / "synology" / "portal-oidc" / "verify_provider_grant_types.py"
-)
+VERIFIER_PATH = ROOT / "deploy" / "synology" / "portal-oidc" / "verify_provider_grant_types.py"
 
 
 def test_production_redirect_origin_is_not_derived_from_container_request() -> None:
@@ -47,8 +29,7 @@ def test_production_redirect_origin_is_not_derived_from_container_request() -> N
         'safeBackendReturnLocation(upstream.headers.get("location"), redirectOrigin)'
     )
     forbidden_redirect = (
-        'safeBackendReturnLocation(upstream.headers.get("location"), '
-        "request.nextUrl.origin)"
+        'safeBackendReturnLocation(upstream.headers.get("location"), request.nextUrl.origin)'
     )
     assert 'import { portalPublicOrigin } from "@/lib/public-origin";' in callback
     assert "const redirectOrigin = portalPublicOrigin(request.nextUrl.origin);" in callback

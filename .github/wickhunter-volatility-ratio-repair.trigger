@@ -1,0 +1,5 @@
+request=wickhunter-production-volatility-ratio-v1
+source_diagnostic_pr=1076
+execution_enabled=false
+live_capital_authorized=false
+orders_submitted=0

@@ -127,7 +127,7 @@ def _snapshot(observed_at_ms: int, generation: int) -> PortalObservabilitySnapsh
             ),
             RuntimeDecisionSummary(
                 shadow_decision_id=rejected_id,
-                status=ShadowStatus.REJECTED_BY_RISK,
+                status=ShadowStatus.SIMULATED_REJECTED,
                 symbol="BTCUSDT",
                 side=TradeDirection.SHORT,
                 candidate_id=canonical_sha256({"candidate-rejected": observed_at_ms}),

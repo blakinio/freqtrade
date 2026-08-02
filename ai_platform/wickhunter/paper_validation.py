@@ -341,13 +341,13 @@ class PaperObservation:
         )
         if decision_total != self.decision_count:
             raise PaperValidationError("decision counts are inconsistent")
-        for value, field_name in (
+        for decimal_value, field_name in (
             (self.cumulative_realized_pnl_quote, "cumulative_realized_pnl_quote"),
             (self.unrealized_pnl_quote, "unrealized_pnl_quote"),
             (self.simulated_equity_quote, "simulated_equity_quote"),
             (self.drawdown_ratio, "drawdown_ratio"),
         ):
-            _decimal(value, field=field_name)
+            _decimal(decimal_value, field=field_name)
         if self.simulated_equity_quote <= 0:
             raise PaperValidationError("simulated equity must be positive")
         if not Decimal(0) <= self.drawdown_ratio <= Decimal(1):
@@ -645,8 +645,8 @@ def observation_from_snapshot(snapshot: PortalObservabilitySnapshot) -> PaperObs
         fresh_source_count=sum(item.fresh for item in snapshot.source_freshness),
         decision_count=len(snapshot.decisions),
         allowed_decision_count=counts[ShadowStatus.SIMULATED_ALLOWED],
-        risk_rejection_count=counts[ShadowStatus.REJECTED_BY_RISK],
-        ignored_decision_count=counts[ShadowStatus.IGNORED],
+        risk_rejection_count=counts[ShadowStatus.SIMULATED_REJECTED],
+        ignored_decision_count=counts[ShadowStatus.NO_CANDIDATE],
         position_count=len(snapshot.positions),
         cumulative_realized_pnl_quote=snapshot.cumulative_realized_pnl_quote,
         unrealized_pnl_quote=snapshot.unrealized_pnl_quote,
@@ -902,7 +902,23 @@ def _build_review(
     return CandidateReviewPackage(
         schema_version=REVIEW_SCHEMA_VERSION,
         package_id=package_id,
-        **payload,
+        report_id=report.report_id,
+        run_id=request.run_id,
+        eligible_for_owner_review=report.candidate_review_eligible,
+        model_version=request.model_version,
+        model_hash=request.model_hash,
+        parameter_version=request.parameter_version,
+        parameter_hash=request.parameter_hash,
+        rollback_model_version=request.rollback_model_version,
+        rollback_model_hash=request.rollback_model_hash,
+        rollback_parameter_version=request.rollback_parameter_version,
+        rollback_parameter_hash=request.rollback_parameter_hash,
+        owner_decision_required=True,
+        automatic_promotion_enabled=False,
+        trading_credentials_present=False,
+        execution_enabled=False,
+        orders_submitted=0,
+        live_capital_authorized=False,
     )
 
 

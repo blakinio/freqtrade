@@ -1,0 +1,106 @@
+name: WickHunter staging OpenMP runtime repair
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-staging-libgomp-repair-20260802.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-staging-libgomp-repair-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Install and verify libgomp on staging runner
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact maintenance boundary
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-staging-libgomp-repair-20260802.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact maintenance request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Install system OpenMP runtime when absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! ldconfig -p 2>/dev/null | grep -Fq 'libgomp.so.1'; then
+            if [[ "$(id -u)" -eq 0 ]]; then
+              apt-get update
+              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgomp1
+            elif command -v sudo >/dev/null 2>&1 && sudo -n true; then
+              sudo apt-get update
+              sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgomp1
+            else
+              echo "runner cannot install missing libgomp1 without privileged package access" >&2
+              exit 1
+            fi
+          fi
+          ldconfig -p | grep -F 'libgomp.so.1'
+          python3 - <<'PY'
+          import ctypes
+
+          ctypes.CDLL("libgomp.so.1")
+          print("libgomp.so.1 load verified")
+          PY
+
+      - name: Publish maintenance summary
+        shell: bash
+        run: |
+          {
+            echo "## WickHunter staging OpenMP repair"
+            echo
+            echo "- Runner: \`freqtrade-synology-staging\`"
+            echo "- Library: \`libgomp.so.1\`"
+            echo "- Dynamic load: \`verified\`"
+            echo "- Product code/data/credentials/execution: \`untouched\`"
+          } >> "$GITHUB_STEP_SUMMARY"

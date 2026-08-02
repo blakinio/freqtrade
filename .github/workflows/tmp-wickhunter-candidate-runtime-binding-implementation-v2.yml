@@ -1,0 +1,138 @@
+name: Temporary WickHunter candidate runtime binding implementation v2
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - feat/wickhunter-candidate-runtime-binding-v1
+    paths:
+      - ".tmp/wickhunter-candidate-runtime-binding-implementation-v2.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-candidate-runtime-binding-implementation-v2
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'chore/trigger-wickhunter-candidate-runtime-binding-implementation-v2'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-candidate-runtime-binding-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Apply typed loaders and collection repair
+        shell: python
+        run: |
+          from pathlib import Path
+
+          workflow_path = Path(
+              ".github/workflows/tmp-wickhunter-candidate-runtime-binding-implementation.yml"
+          )
+          workflow = workflow_path.read_text(encoding="utf-8")
+          start_marker = (
+              "      - name: Expose typed verified inputs\n"
+              "        shell: python\n"
+              "        run: |\n"
+          )
+          end_marker = "\n      - name: Validate focused implementation\n"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in workflow[start:end].splitlines()
+          ) + "\n"
+          exec(compile(script, "candidate-runtime-binding-typed-loaders", "exec"))
+
+          test_path = Path(
+              "tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py"
+          )
+          tests = test_path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  '    ("request", "message"),\n',
+                  '    ("shadow_request", "message"),\n',
+              ),
+              (
+                  "    request: ShadowDecisionRequest,\n"
+                  "    message: str,\n"
+                  ") -> None:\n"
+                  "    binding = _binding(tmp_path, monkeypatch)\n\n"
+                  "    with pytest.raises(runtime_binding.CandidateRuntimeBindingError, match=message):\n"
+                  "        binding.bind_request(request)\n",
+                  "    shadow_request: ShadowDecisionRequest,\n"
+                  "    message: str,\n"
+                  ") -> None:\n"
+                  "    binding = _binding(tmp_path, monkeypatch)\n\n"
+                  "    with pytest.raises(runtime_binding.CandidateRuntimeBindingError, match=message):\n"
+                  "        binding.bind_request(shadow_request)\n",
+              ),
+          )
+          for old, new in replacements:
+              if tests.count(old) != 1:
+                  raise SystemExit(f"collection repair target mismatch: {old!r}")
+              tests = tests.replace(old, new)
+          test_path.write_text(tests, encoding="utf-8")
+
+      - name: Validate focused implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            ai_platform/wickhunter/candidate_activation.py
+            ai_platform/wickhunter/candidate_runtime_binding.py
+            ai_platform/wickhunter/paper_validation.py
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+          )
+          ruff check --fix "${paths[@]}"
+          ruff format "${paths[@]}"
+          ruff check "${paths[@]}"
+          ruff format --check "${paths[@]}"
+          mypy "${paths[@]}"
+          pytest -q \
+            tests/ai_platform_integration/test_wickhunter_candidate_activation.py \
+            tests/ai_platform_integration/test_wickhunter_paper_validation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+
+      - name: Commit validated implementation and remove helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/tmp-wickhunter-candidate-runtime-binding-implementation.yml \
+            .github/workflows/tmp-wickhunter-candidate-runtime-binding-implementation-v2.yml
+          git add \
+            ai_platform/wickhunter/candidate_activation.py \
+            ai_platform/wickhunter/candidate_runtime_binding.py \
+            ai_platform/wickhunter/paper_validation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py \
+            docs/ai_platform/WICKHUNTER_CANDIDATE_RUNTIME_BINDING.md \
+            docs/agents/tasks/FTAI-20260802-wickhunter-candidate-runtime-binding-v1.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat(wickhunter): bind verified candidate to paper runtime"
+          git push origin HEAD:feat/wickhunter-candidate-runtime-binding-v1

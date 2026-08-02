@@ -99,7 +99,7 @@ def test_source_metrics_volatility_ratio_is_return_standard_deviation() -> None:
     )
     returns = tuple(
         current / previous - Decimal(1)
-        for previous, current in zip(closes, closes[1:], strict=True)
+        for previous, current in zip(closes[:-1], closes[1:], strict=True)
     )
     return_mean = sum(returns, Decimal(0)) / Decimal(len(returns))
     expected = (

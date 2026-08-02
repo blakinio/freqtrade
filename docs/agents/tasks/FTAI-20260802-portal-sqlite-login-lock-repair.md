@@ -74,6 +74,8 @@ The secret-free deployment report proves:
 - no membership bootstrap, restore, trading, withdrawal or live-capital action;
 - no secret values recorded.
 
+At 2026-08-02 22:49 CEST the owner confirmed that the deployed Portal login works. This completes the remaining owner-only interactive acceptance without recording credentials, TOTP values or other secrets.
+
 ## Safety
 
 No credentials, membership or production data were changed outside the existing bounded deployment contract. Failed OIDC exchange still leaves the state consumed and requires a fresh login, preserving fail-closed replay protection.
@@ -81,8 +83,8 @@ No credentials, membership or production data were changed outside the existing 
 ## Terminal checkpoint
 
 ```yaml
-checkpoint_version: 4
-updated_at: 2026-08-02T21:16:00+02:00
+checkpoint_version: 5
+updated_at: 2026-08-02T22:49:00+02:00
 status: completed
 proven:
   - public login HTTP 500 was caused by sqlite database locking
@@ -95,12 +97,9 @@ proven:
   - public login now returns HTTP 307 to Authentik instead of HTTP 500
   - public callback redirect to https://quant.molehill.cloud/portal is verified
   - request-only PR 1073 closed without merge
-remaining_owner_acceptance:
-  - open a fresh private browser session at https://quant.molehill.cloud
-  - authenticate with the owner's password and current Authentik TOTP
-  - confirm Portal loads the expected tenant-local administrator access
-  - log out and confirm the old session no longer authenticates
-next_action: owner-only interactive password and TOTP acceptance; no further autonomous repair action is pending
+  - owner confirmed successful interactive Portal login at 2026-08-02T22:49:00+02:00
+remaining_owner_acceptance: []
+next_action: none; repair, deployment and owner acceptance are terminally complete
 blockers: []
 ```
 

@@ -1,0 +1,122 @@
+name: WickHunter current trusted-state inventory
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-current-state-inventory-20260802.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact read-only request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-current-state-inventory-20260802.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "${{ runner.name }}" == "freqtrade-synology-staging" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]]
+          done
+
+      - name: Inspect bounded state metadata only
+        shell: python
+        run: |
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path("/var/lib/freqtrade-staging-state")
+          if not root.is_dir() or root.is_symlink():
+              raise SystemExit("trusted state root unavailable")
+          allowed_tokens = (
+              "wickhunter",
+              "liquidation",
+              "market",
+              "portal",
+              "shadow",
+              "universe",
+          )
+          excluded_tokens = (
+              "secret",
+              "credential",
+              "token",
+              "password",
+              "private",
+              "key",
+          )
+          records = []
+          root_parts = len(root.parts)
+          for current, directories, files in os.walk(root):
+              path = Path(current)
+              depth = len(path.parts) - root_parts
+              directories[:] = sorted(
+                  item
+                  for item in directories
+                  if not any(token in item.lower() for token in excluded_tokens)
+              )
+              if depth > 3:
+                  directories[:] = []
+                  continue
+              relative = path.relative_to(root)
+              lowered = str(relative).lower()
+              if relative == Path(".") or any(token in lowered for token in allowed_tokens):
+                  stat = path.stat()
+                  records.append(
+                      {
+                          "path": str(relative),
+                          "type": "directory",
+                          "mtime_ms": stat.st_mtime_ns // 1_000_000,
+                          "entry_count": len(directories) + len(files),
+                      }
+                  )
+              if depth <= 3:
+                  for name in sorted(files):
+                      lowered_name = name.lower()
+                      if any(token in lowered_name for token in excluded_tokens):
+                          continue
+                      candidate = path / name
+                      relative_file = candidate.relative_to(root)
+                      lowered_file = str(relative_file).lower()
+                      if not any(token in lowered_file for token in allowed_tokens):
+                          continue
+                      if candidate.is_symlink() or not candidate.is_file():
+                          continue
+                      stat = candidate.stat()
+                      records.append(
+                          {
+                              "path": str(relative_file),
+                              "type": "file",
+                              "mtime_ms": stat.st_mtime_ns // 1_000_000,
+                              "size_bytes": stat.st_size,
+                          }
+                      )
+          records.sort(key=lambda item: (item["path"], item["type"]))
+          print(json.dumps({"record_count": len(records), "records": records}, indent=2))

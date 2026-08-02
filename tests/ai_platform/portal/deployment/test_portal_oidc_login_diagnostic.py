@@ -22,7 +22,7 @@ def test_extractor_keeps_only_sanitized_login_exception_evidence() -> None:
         "Traceback (most recent call last):\n"
         '  File "/app/ai_platform/portal/identity/service.py", line 104, in begin_login\n'
         "    session.commit()\n"
-        "  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", "
+        '  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", '
         "line 952, in do_execute\n"
         "sqlalchemy.exc.OperationalError: database is locked state=secret-state\n"
     )

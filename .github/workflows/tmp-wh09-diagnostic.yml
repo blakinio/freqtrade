@@ -2,7 +2,7 @@ name: Temporary WH-09 first-failure diagnostic
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, synchronize, reopened]
     branches:
       - feat/wickhunter-wh09-paper-validation-v1
 

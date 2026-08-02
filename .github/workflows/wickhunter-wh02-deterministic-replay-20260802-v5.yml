@@ -1,0 +1,298 @@
+name: WickHunter WH-02 deterministic replay labels v5
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh02-deterministic-replay-20260802-v5.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh02-deterministic-replay-v5-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh02-deterministic-replay-20260802-v5.yml
+  DATASET_MATERIALIZATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
+  DATASET_ID: wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
+  DATASET_MANIFEST_SHA256: fbf6c4fc35ad012db010eda29a6110c114669d972a1cc14533d9cda733cd23a1
+  MARKET_MANIFEST_SHA256: eaccc5ecaf7a9514086e99d719d0cb4c5ef8a9c87e3f0c30c501e1860c05fb52
+  SPLIT_GEOMETRY_SHA256: cb861e99fc7d2d9b9fd22aa86d4e890595d2765445c5a46b0d0911104ef7cc8b
+  PRICE_PATH_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v6-h180s-626087ca45d6
+  PRICE_PATH_PACKAGE_ID: wickhunter-wh02-replay-price-path-20260731-v6-h180s-626087ca45d6
+  PRICE_PATH_MANIFEST_SHA256: 38dc7eb800cb3e462909addfd6dfd1ac971a8f433d9d424e3ab4c2f3d0133970
+  REPLAY_STATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages
+  PROTECTED_HOLDOUT_START_MS: "1785542400000"
+
+jobs:
+  materialize-and-verify:
+    name: Materialize corrected exact 180-second WH-02 labels
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate immutable request boundary
+        id: identity
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh02-deterministic-replay-20260802-v5.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact one-file request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+          done
+          for path in "$DATASET_MATERIALIZATION_ROOT" "$PRICE_PATH_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          mkdir -p "$REPLAY_STATE_ROOT"
+          [[ -d "$REPLAY_STATE_ROOT" && ! -L "$REPLAY_STATE_ROOT" && -w "$REPLAY_STATE_ROOT" ]]
+          package_id="wickhunter-wh02-deterministic-replay-20260802-v5-${BASE_SHA:0:12}"
+          output_root="$REPLAY_STATE_ROOT/$package_id"
+          [[ ! -e "$output_root" ]]
+          printf 'source_commit_sha=%s\n' "$BASE_SHA" >> "$GITHUB_OUTPUT"
+          printf 'package_id=%s\n' "$package_id" >> "$GITHUB_OUTPUT"
+          printf 'output_root=%s\n' "$output_root" >> "$GITHUB_OUTPUT"
+
+      - name: Materialize and independently verify corrected replay
+        id: replay
+        shell: bash
+        env:
+          SOURCE_COMMIT_SHA: ${{ steps.identity.outputs.source_commit_sha }}
+          PACKAGE_ID: ${{ steps.identity.outputs.package_id }}
+          OUTPUT_ROOT: ${{ steps.identity.outputs.output_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONPATH=. python3 - <<'PY'
+          import json
+          import os
+          from decimal import Decimal
+          from pathlib import Path
+
+          from ai_platform.wickhunter.contracts import TradeDirection
+          from ai_platform.wickhunter.deterministic_replay import (
+              POLICY_SCHEMA_VERSION,
+              REQUEST_SCHEMA_VERSION,
+              ReplayPolicy,
+              ReplayRequest,
+              ReplaySplitWindow,
+              build_deterministic_replay_package,
+              verify_deterministic_replay_package,
+          )
+          from ai_platform.wickhunter.production_dataset_materialization import verify_production_materialization
+          from ai_platform.wickhunter.replay_price_path import verify_replay_price_path_package
+
+          materialization_root = Path(os.environ["DATASET_MATERIALIZATION_ROOT"])
+          price_path_root = Path(os.environ["PRICE_PATH_ROOT"])
+          output_root = Path(os.environ["OUTPUT_ROOT"])
+
+          dataset_verification = verify_production_materialization(materialization_root)
+          price_verification = verify_replay_price_path_package(
+              output_root=price_path_root,
+              materialization_root=materialization_root,
+          )
+          price_manifest = json.loads((price_path_root / "manifest.json").read_text(encoding="utf-8"))
+          if dataset_verification.get("outcome") != "accepted":
+              raise RuntimeError("WH-01 materialization is not accepted")
+          if price_verification.get("outcome") != "accepted":
+              raise RuntimeError("WH-02 price path is not accepted")
+          if dataset_verification.get("dataset_manifest_sha256") != os.environ["DATASET_MANIFEST_SHA256"]:
+              raise RuntimeError("WH-01 manifest identity mismatch")
+          price_manifest_sha256 = price_manifest.get("manifest_sha256")
+          if price_manifest_sha256 != os.environ["PRICE_PATH_MANIFEST_SHA256"]:
+              raise RuntimeError("price-path manifest identity mismatch")
+          if price_verification.get("manifest_sha256") != price_manifest_sha256:
+              raise RuntimeError("price-path verifier identity mismatch")
+          if price_manifest.get("package_id") != os.environ["PRICE_PATH_PACKAGE_ID"]:
+              raise RuntimeError("price-path package identity mismatch")
+          if price_manifest.get("dataset_manifest_sha256") != os.environ["DATASET_MANIFEST_SHA256"]:
+              raise RuntimeError("price-path dataset binding mismatch")
+          if price_manifest.get("label_horizon_ms") != 180_000:
+              raise RuntimeError("price-path horizon mismatch")
+          maximum_entry_delay_ms = price_verification.get("maximum_entry_delay_ms")
+          if isinstance(maximum_entry_delay_ms, bool) or not isinstance(maximum_entry_delay_ms, int) or not 0 <= maximum_entry_delay_ms <= 20_000:
+              raise RuntimeError("verified maximum entry delay is outside policy")
+
+          policy = ReplayPolicy(
+              schema_version=POLICY_SCHEMA_VERSION,
+              policy_version="wickhunter-production-replay-policy-v4-h180s",
+              entry_delay_ms=0,
+              maximum_entry_delay_ms=20_000,
+              fee_ratio=Decimal("0.001"),
+              slippage_ratio=Decimal("0.001"),
+              take_profit_ratio=Decimal("0.085"),
+              stop_loss_ratio=Decimal("0.05"),
+              label_horizon_ms=180_000,
+              protected_holdout_start_ms=int(os.environ["PROTECTED_HOLDOUT_START_MS"]),
+          )
+          request = ReplayRequest(
+              schema_version=REQUEST_SCHEMA_VERSION,
+              package_id=os.environ["PACKAGE_ID"],
+              dataset_id=os.environ["DATASET_ID"],
+              dataset_manifest_sha256=os.environ["DATASET_MANIFEST_SHA256"],
+              market_manifest_sha256=os.environ["MARKET_MANIFEST_SHA256"],
+              price_path_package_id=os.environ["PRICE_PATH_PACKAGE_ID"],
+              price_path_manifest_sha256=str(price_manifest_sha256),
+              source_commit_sha=os.environ["SOURCE_COMMIT_SHA"],
+              split_geometry_sha256=os.environ["SPLIT_GEOMETRY_SHA256"],
+              split_windows=(
+                  ReplaySplitWindow("train", 1_785_484_800_000, 1_785_506_400_000),
+                  ReplaySplitWindow("validation", 1_785_508_200_000, 1_785_515_400_000),
+                  ReplaySplitWindow("test", 1_785_517_200_000, 1_785_520_800_000),
+              ),
+              sides=(TradeDirection.LONG, TradeDirection.SHORT),
+              policy=policy,
+              protected_holdout_excluded=True,
+              immutable_inputs_mutated=False,
+              model_execution_authorized=False,
+              performance_research_authorized=False,
+              execution_enabled=False,
+              live_capital_authorized=False,
+              trading_credentials_present=False,
+              orders_submitted=0,
+          )
+          materialized = build_deterministic_replay_package(
+              materialization_root=materialization_root,
+              price_path_root=price_path_root,
+              output_root=output_root,
+              request=request,
+          )
+          verified = verify_deterministic_replay_package(
+              materialization_root=materialization_root,
+              price_path_root=price_path_root,
+              output_root=output_root,
+          )
+          if materialized != verified:
+              raise RuntimeError("materialization and independent verification differ")
+          if verified.get("outcome") != "accepted" or verified.get("status") != "verified":
+              raise RuntimeError("deterministic replay was not accepted")
+          if verified.get("decision_count") != 919 or verified.get("label_count") != 1838:
+              raise RuntimeError("deterministic replay row count mismatch")
+          for field in (
+              "protected_holdout_accessed",
+              "immutable_inputs_mutated",
+              "model_execution_authorized",
+              "performance_research_authorized",
+              "execution_enabled",
+              "live_capital_authorized",
+              "trading_credentials_present",
+          ):
+              if verified.get(field) is not False:
+                  raise RuntimeError(f"unsafe replay authority: {field}")
+          if verified.get("orders_submitted") != 0:
+              raise RuntimeError("replay submitted orders")
+
+          terminal = {
+              "package_id": os.environ["PACKAGE_ID"],
+              "immutable_path": str(output_root),
+              "request_sha256": request.request_sha256,
+              "policy_sha256": policy.policy_sha256,
+              "manifest_sha256": verified["manifest_sha256"],
+              "dataset_manifest_sha256": os.environ["DATASET_MANIFEST_SHA256"],
+              "price_path_manifest_sha256": price_manifest_sha256,
+              "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+              "label_horizon_ms": policy.label_horizon_ms,
+              "maximum_entry_delay_ms": maximum_entry_delay_ms,
+              "minimum_split_margin_ms": 240_743,
+              "minimum_remaining_split_buffer_ms": 60_743,
+              "decision_count": verified["decision_count"],
+              "label_count": verified["label_count"],
+              "outcome_counts": verified["outcome_counts"],
+              "protected_holdout_accessed": False,
+              "immutable_inputs_mutated": False,
+              "model_execution_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          evidence = Path(os.environ["RUNNER_TEMP"]) / "wickhunter-wh02-replay-v5-evidence.json"
+          evidence.write_text(json.dumps(terminal, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8")
+          print(json.dumps(terminal, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              for key in (
+                  "package_id", "immutable_path", "request_sha256", "policy_sha256",
+                  "manifest_sha256", "price_path_manifest_sha256", "decision_count", "label_count",
+              ):
+                  handle.write(f"{key}={terminal[key]}\n")
+          PY
+
+      - name: Publish terminal summary
+        shell: bash
+        env:
+          PACKAGE_ID_VALUE: ${{ steps.replay.outputs.package_id }}
+          IMMUTABLE_PATH_VALUE: ${{ steps.replay.outputs.immutable_path }}
+          REQUEST_SHA256_VALUE: ${{ steps.replay.outputs.request_sha256 }}
+          POLICY_SHA256_VALUE: ${{ steps.replay.outputs.policy_sha256 }}
+          MANIFEST_SHA256_VALUE: ${{ steps.replay.outputs.manifest_sha256 }}
+          PRICE_PATH_MANIFEST_VALUE: ${{ steps.replay.outputs.price_path_manifest_sha256 }}
+          DECISION_COUNT_VALUE: ${{ steps.replay.outputs.decision_count }}
+          LABEL_COUNT_VALUE: ${{ steps.replay.outputs.label_count }}
+        run: |
+          {
+            echo "## WickHunter WH-02 deterministic replay v5"
+            echo
+            echo "- Package: \`$PACKAGE_ID_VALUE\`"
+            echo "- Immutable path: \`$IMMUTABLE_PATH_VALUE\`"
+            echo "- Request: \`$REQUEST_SHA256_VALUE\`"
+            echo "- Policy: \`$POLICY_SHA256_VALUE\`"
+            echo "- Replay manifest: \`$MANIFEST_SHA256_VALUE\`"
+            echo "- Price-path manifest: \`$PRICE_PATH_MANIFEST_VALUE\`"
+            echo "- Horizon / minimum split buffer: \`180000 / 60743 ms\`"
+            echo "- Decisions / labels: \`$DECISION_COUNT_VALUE / $LABEL_COUNT_VALUE\`"
+            echo "- Holdout/credentials/orders/execution/live capital: \`absent\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh02-deterministic-replay-v5-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wickhunter-wh02-replay-v5-evidence.json
+            ${{ steps.identity.outputs.output_root }}/request.json
+            ${{ steps.identity.outputs.output_root }}/policy.json
+            ${{ steps.identity.outputs.output_root }}/manifest.json
+            ${{ steps.identity.outputs.output_root }}/verification-report.json
+            ${{ steps.identity.outputs.output_root }}/artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 30

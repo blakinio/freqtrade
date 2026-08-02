@@ -375,6 +375,53 @@ def _request(
     )
 
 
+def test_build_labels_passes_only_the_exact_replay_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    decision_timestamp_ms = START + 10_000
+    trades = (
+        _trade(1, START, "99"),
+        _trade(2, decision_timestamp_ms, "100"),
+        _trade(3, decision_timestamp_ms + 5_000, "101"),
+        _trade(4, decision_timestamp_ms + 10_000, "102"),
+        _trade(5, decision_timestamp_ms + 10_000, "103"),
+        _trade(6, decision_timestamp_ms + 11_000, "104"),
+    )
+    request = _request("1" * 64, PRICE_PATH_HASH)
+    observed_windows: list[tuple[subject.ReplayAggregateTrade, ...]] = []
+    original = subject.replay_event_label
+
+    def observe_window(
+        *,
+        decision: subject.ReplayDecision,
+        trades: tuple[subject.ReplayAggregateTrade, ...],
+        policy: subject.ReplayPolicy,
+    ) -> subject.CandidateLabel:
+        observed_windows.append(tuple(trades))
+        return original(decision=decision, trades=trades, policy=policy)
+
+    monkeypatch.setattr(subject, "replay_event_label", observe_window)
+    labels = subject._build_labels(
+        rows=(
+            subject._DatasetRow(
+                split_name="train",
+                symbol=SYMBOL,
+                decision_timestamp_ms=decision_timestamp_ms,
+                row_sha256="2" * 64,
+            ),
+        ),
+        trades_by_symbol={SYMBOL: trades},
+        request=request,
+    )
+
+    assert len(labels) == 2
+    assert len(observed_windows) == 2
+    for window in observed_windows:
+        assert tuple(item.aggregate_trade_id for item in window) == (2, 3, 4, 5)
+        assert window[0].occurred_at_ms == decision_timestamp_ms
+        assert window[-1].occurred_at_ms == decision_timestamp_ms + 10_000
+
+
 def test_builds_verifies_reproduces_and_rejects_tampering(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

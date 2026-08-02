@@ -1,14 +1,14 @@
 ---
 task_id: FTAI-20260802-wickhunter-deterministic-replay-window-index-v1
 repository: blakinio/freqtrade
-status: implementing
-phase: implementation
+status: validating
+phase: validation
 owner: autonomous-agent
 created_at: 2026-08-02
 updated_at: 2026-08-02
 related_pr: null
 blocked_by: []
-next_action: implement one-time symbol path validation and exact replay-window slicing; validate semantic parity and exact-head CI
+next_action: complete exact-head CI; audit semantic parity and merge only on an unchanged green SHA
 ---
 
 # WickHunter deterministic replay window index v1

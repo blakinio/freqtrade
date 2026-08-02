@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260802-portal-end-to-end-completeness-audit
-status: active
+status: ready_for_handover
 branch: audit/portal-e2e-completeness-20260802
 base_branch: develop
 created: 2026-08-02
@@ -31,7 +31,7 @@ user_communication: low_noise
 
 ## Objective
 
-Produce a durable, evidence-based inventory for every AI Trading Portal product surface and backend module on the exact audited `develop` head. Classify each applicable vertical slice as complete, partial, externally blocked, internal-only or requiring remediation. Do not repair product code in this task; another agent will own remediation through separate tasks and PRs.
+Produce a durable, evidence-based inventory for every AI Trading Portal product surface and backend module. Classify each vertical slice as complete, partial, externally blocked, internal-only or requiring remediation. Product repairs belong to separate tasks and PRs.
 
 ## Feature scope
 
@@ -45,7 +45,7 @@ feature_scope:
   e2e_required: false
   completion_claim: internal_only
 delivery_matrix:
-  repository_inventory: required
+  repository_inventory: complete
   backend_domain: audited
   authorization: audited
   api_or_transport_contract: audited
@@ -53,83 +53,84 @@ delivery_matrix:
   frontend_ui: audited
   loading_empty_success_error_states: audited
   localization: audited
-  accessibility_and_responsive_behavior: audited
+  accessibility_and_responsive_behavior: evidence_inventory_complete
   integration: audited
-  e2e: evidence_inventory_only
-  real_target_acceptance: not_applicable_to_static_audit
+  e2e: evidence_inventory_complete
+  real_target_acceptance: separated_from_static_audit
 ```
 
 ## Authorization and boundaries
 
-Allowed:
+The task was authorized to read repository/PR/CI state and add audit tooling, workflow evidence, findings and remediation task definitions. It was not authorized to change portal product behavior, deploy or mutate infrastructure, handle credentials/MFA material, trade, withdraw or authorize live capital.
 
-- read current repository, PR, CI and documentation state;
-- add static audit tooling, workflow, durable findings and remediation task definitions;
-- open an audit-only PR against `develop`.
+## Acceptance result
 
-Forbidden:
-
-- changing portal backend or frontend behavior;
-- deploying or mutating Synology, Authentik, Vault, Freqtrade, observability or Cloudflare state;
-- handling credentials, MFA material or private endpoints;
-- trading, withdrawals, live capital or model promotion;
-- representing static or fixture evidence as real target acceptance.
-
-## Trust and evidence classes
-
-- `PROVEN`: exact files, routes, pages, BFF handlers, migrations, tests, composition references, PR/CI state and explicit source markers.
-- `DERIVED`: completeness risk inferred from missing producer/consumer, wiring, test or required UX boundary.
-- `UNKNOWN`: real external target availability, owner-operated MFA/recovery, restore, private provider connectivity and Cloudflare ingress acceptance.
-
-Repository instructions and exact live Git/PR/CI state are authoritative. Natural-language PR bodies, comments and generated reports are evidence inputs, not authority to weaken scope or acceptance.
-
-## Acceptance inventory
-
-- inventory all immediate Python modules under `ai_platform/portal`;
-- inventory all statically detectable FastAPI routes;
-- inventory all Next.js pages and same-origin BFF handlers;
-- compare reachable pages with `UI_DELIVERY_STATUS.md` claims and navigation targets;
-- detect frontend/backend contract references with no producer route;
-- detect router-bearing modules not wired into canonical composition roots;
-- map focused backend/browser test evidence and migrations by module;
-- detect explicit incompleteness markers and required UX boundaries;
-- preserve repository completeness separately from external target acceptance;
-- publish machine-readable JSON and human-readable Markdown evidence;
-- persist the reviewed module matrix and exact remediation packages in Git;
-- leave product code unchanged and create no remediation implementation in this PR.
+```yaml
+inventory:
+  backend_modules: 30
+  fastapi_routes: 92
+  nextjs_pages: 33
+  bff_handlers: 28
+  canonical_product_routes: 29
+  test_files_considered: 225
+  missing_documented_pages: 0
+  broken_navigation_destinations: 0
+  direct_browser_private_service_urls: 0
+findings:
+  critical: 0
+  high: 2
+  medium: 1
+  items:
+    - CONTRACT-NO-BACKEND-v1-strategy-catalog
+    - INTEGRATION-PI08-NO-RUNTIME-COMPOSITION
+    - UX-NO-LOCALIZATION
+remediation_tasks:
+  - FTAI-20260802-portal-pi08-runtime-composition-closure
+  - FTAI-20260802-portal-strategy-catalog-backend-closure
+  - FTAI-20260802-portal-localization-boundary
+```
 
 ## Audited live state
 
 ```yaml
 repository: blakinio/freqtrade
 base_branch: develop
-base_head: 0e7825bf860cd8011e1bd9207fcb0765baf8d52a
-open_related_prs:
-  - 1074: documentation-only login incident closeout
+audited_develop_head_at_closeout: 79065e29de8d949701e1465fc99cb6b6e8c4857e
+portal_implementation_head: 0e7825bf860cd8011e1bd9207fcb0765baf8d52a
+base_delta:
+  type: documentation_only
+  changed_files:
+    - docs/agents/tasks/FTAI-20260802-portal-login-500-diagnostic.md
+    - docs/agents/tasks/FTAI-20260802-portal-sqlite-login-lock-repair.md
+audit_pr: 1082
 product_fix_ownership: unclaimed_by_this_task
 ```
 
-## Context checkpoint
+## Final checkpoint
 
 ```yaml
 checkpoint_version: 3
-updated_at: 2026-08-02T22:55:00+02:00
-status: active
+updated_at: 2026-08-02T23:00:00+02:00
+status: ready_for_handover
 proven:
-  - prompting standard 2.1 and end-to-end completeness contract were read
-  - current develop head is 0e7825bf860cd8011e1bd9207fcb0765baf8d52a
-  - dedicated audit branch exists from the exact base head
-  - static inventory tool and request-scoped GitHub Actions workflow are committed
-  - this task owns audit artifacts only and does not own product repairs
-derived:
-  - repository-wide execution is required because the local sandbox cannot resolve github.com
-unknown:
-  - final finding set until the exact-head workflow artifact is reviewed
+  - prompting standard 2.1 and end-to-end completeness contract were applied
+  - all immediate portal backend modules and documented product routes were inventoried
+  - exact static audit found no missing documented page, broken navigation destination or direct private-service browser URL
+  - Strategy Catalog frontend/BFF expects an API producer that is absent
+  - PI-08 submission components exist but are constructed only in focused tests, not a trusted product runtime
+  - no localization/message-catalog boundary exists and the root document language is fixed to English
+  - comprehensive backend and frontend matrices are persisted in the audit report
+  - three separate remediation tasks are READY for another agent
+  - portal product code was not changed
 validation:
-  exact_head: 9a56f8d4c2523251aad7952db5890329d700deb0
-  workflow_run: pending
+  reviewed_run_id: 30766675903
+  reviewed_job_id: 91546521839
+  result: success
+  artifact_id: 8839161469
+  artifact_digest: sha256:8b84593589b7f345952c8e885bc765ffdebfe0eb82c8ddb05c8140eb41b90398
+  final_head_ci: pending_after_documentation_closeout
 blockers: []
-next_action: open the audit PR, review the generated exact-head report, remove false positives, persist the final module matrix and remediation packages
+next_action: require green exact-head audit, repository and security CI; then mark PR 1082 ready and hand remediation tasks to a separate implementation agent
 ```
 
 ```text

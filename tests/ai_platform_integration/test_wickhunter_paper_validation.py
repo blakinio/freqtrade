@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import replace
 from decimal import Decimal
 
 import pytest
 
-from ai_platform.wickhunter.canonical import canonical_sha256
+from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
 from ai_platform.wickhunter.contracts import (
     BotMode,
     DriftState,
@@ -48,6 +49,52 @@ ROLLBACK_PARAMETER_HASH = "6" * 64
 BOT_INSTANCE = "wickhunter-paper-1"
 
 
+def _write_canonical_json(path, payload: dict[str, object]) -> None:
+    path.write_text(canonical_json(payload) + "\n", encoding="utf-8")
+
+
+def _refresh_derived_identity(
+    payload: dict[str, object],
+    identity_field: str,
+) -> None:
+    body = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"schema_version", identity_field}
+    }
+    payload[identity_field] = canonical_sha256(
+        {"schema_version": payload["schema_version"], "payload": body}
+    )
+
+
+def _refresh_manifest_and_checksums(destination, manifest_name: str) -> None:
+    manifest_path = destination / manifest_name
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    artifact_names = [item[0] for item in manifest["artifacts"]]
+    manifest["artifacts"] = [
+        [name, hashlib.sha256((destination / name).read_bytes()).hexdigest()]
+        for name in artifact_names
+    ]
+    manifest_body = {
+        key: value
+        for key, value in manifest.items()
+        if key not in {"schema_version", "manifest_sha256"}
+    }
+    manifest["manifest_sha256"] = canonical_sha256(
+        {"schema_version": manifest["schema_version"], "payload": manifest_body}
+    )
+    _write_canonical_json(manifest_path, manifest)
+    indexed_names = [*artifact_names, manifest_name]
+    checksum_text = "".join(
+        f"{hashlib.sha256((destination / name).read_bytes()).hexdigest()}  {name}\n"
+        for name in indexed_names
+    )
+    (destination / "artifact-sha256.txt").write_text(
+        checksum_text,
+        encoding="utf-8",
+    )
+
+
 def _policy(**overrides: object) -> PaperValidationPolicy:
     return PaperValidationPolicy(**overrides)  # type: ignore[arg-type]
 
@@ -57,9 +104,7 @@ def _request(policy: PaperValidationPolicy, *, window_end_ms: int | None = None)
         created_at_ms=100,
         window_start_ms=1_000,
         window_end_ms=(
-            window_end_ms
-            if window_end_ms is not None
-            else 1_000 + policy.minimum_duration_ms
+            window_end_ms if window_end_ms is not None else 1_000 + policy.minimum_duration_ms
         ),
         bot_instance=BOT_INSTANCE,
         mode=BotMode.PAPER,
@@ -165,16 +210,28 @@ def _snapshot(observed_at_ms: int, generation: int) -> PortalObservabilitySnapsh
 
 def _parity(snapshot: PortalObservabilitySnapshot) -> ReplayShadowParityEvidence:
     decision = snapshot.decisions[0]
+    schema_version = "wickhunter-replay-shadow-parity-v1"
+    label_id = canonical_sha256({"label": snapshot.observed_at_ms})
+    payload = {
+        "shadow_decision_id": decision.shadow_decision_id,
+        "label_id": label_id,
+        "symbol": "BTCUSDT",
+        "side": TradeDirection.LONG.value,
+        "decision_timestamp_ms": snapshot.observed_at_ms,
+        "dataset_hash": DATASET_HASH,
+        "code_sha": CODE_SHA,
+        "take_profit_ratio": Decimal("0.02"),
+        "stop_loss_ratio": Decimal("0.01"),
+        "label_outcome": LabelOutcome.TAKE_PROFIT.value,
+        "identities_match": True,
+        "policy_match": True,
+        "execution_authority_absent": True,
+    }
     return ReplayShadowParityEvidence(
-        schema_version="wickhunter-replay-shadow-parity-v1",
-        parity_id=canonical_sha256(
-            {
-                "shadow_decision_id": decision.shadow_decision_id,
-                "snapshot_id": snapshot.snapshot_id,
-            }
-        ),
+        schema_version=schema_version,
+        parity_id=canonical_sha256({"schema_version": schema_version, "payload": payload}),
         shadow_decision_id=decision.shadow_decision_id,
-        label_id=canonical_sha256({"label": snapshot.observed_at_ms}),
+        label_id=label_id,
         symbol="BTCUSDT",
         side=TradeDirection.LONG,
         decision_timestamp_ms=snapshot.observed_at_ms,
@@ -219,17 +276,14 @@ def _exercises(
 
 def _accepted_inputs():
     policy = _policy()
-    interval_ms = (
-        policy.minimum_duration_ms + policy.minimum_snapshot_count - 2
-    ) // (policy.minimum_snapshot_count - 1)
+    interval_ms = (policy.minimum_duration_ms + policy.minimum_snapshot_count - 2) // (
+        policy.minimum_snapshot_count - 1
+    )
     observed_at_values = tuple(
         1_000 + interval_ms * index for index in range(policy.minimum_snapshot_count)
     )
     request = _request(policy, window_end_ms=observed_at_values[-1])
-    snapshots = tuple(
-        _snapshot(value, index)
-        for index, value in enumerate(observed_at_values, 1)
-    )
+    snapshots = tuple(_snapshot(value, index) for index, value in enumerate(observed_at_values, 1))
     parity = tuple(_parity(snapshot) for snapshot in snapshots)
     exercises = _exercises(
         request.run_id,
@@ -260,9 +314,7 @@ def test_default_policy_requires_real_sustained_window() -> None:
             {
                 "required_exercises": tuple(
                     item
-                    for item in sorted(
-                        SafetyExerciseKind, key=lambda value: value.value
-                    )
+                    for item in sorted(SafetyExerciseKind, key=lambda value: value.value)
                     if item is not SafetyExerciseKind.STALE_SOURCE
                 )
             },
@@ -293,6 +345,29 @@ def test_activation_window_cannot_be_shorter_than_policy() -> None:
     policy = _policy()
     with pytest.raises(PaperValidationError, match="shorter than policy"):
         _request(policy, window_end_ms=5_000)
+
+
+def test_activation_rejects_coordinated_weak_policy_rewrite(tmp_path) -> None:
+    policy = _policy()
+    request = _request(policy)
+    destination = tmp_path / "activation-rewrite"
+    publish_paper_run_request(destination, request=request, policy=policy)
+    policy_payload = json.loads((destination / "policy.json").read_text(encoding="utf-8"))
+    policy_payload["minimum_duration_ms"] = 1
+    _write_canonical_json(destination / "policy.json", policy_payload)
+    policy_sha256 = canonical_sha256(policy_payload)
+    request_payload = json.loads((destination / "request.json").read_text(encoding="utf-8"))
+    request_payload["policy_sha256"] = policy_sha256
+    _refresh_derived_identity(request_payload, "run_id")
+    _write_canonical_json(destination / "request.json", request_payload)
+    manifest_path = destination / "activation-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["run_id"] = request_payload["run_id"]
+    manifest["policy_sha256"] = policy_sha256
+    _write_canonical_json(manifest_path, manifest)
+    _refresh_manifest_and_checksums(destination, "activation-manifest.json")
+    with pytest.raises(PaperValidationError, match="minimum_duration_ms"):
+        verify_paper_run_request(destination)
 
 
 def test_sustained_paper_evidence_creates_owner_review_package() -> None:
@@ -388,6 +463,40 @@ def test_package_is_immutable_and_tamper_evident(tmp_path) -> None:
     report["outcome"] = "ready_for_owner_review_modified"
     (destination / "report.json").write_text(json.dumps(report), encoding="utf-8")
     with pytest.raises(PaperValidationError, match="checksum"):
+        verify_paper_validation_package(destination)
+
+
+def test_package_rejects_coordinated_report_rewrite(tmp_path) -> None:
+    policy, request, snapshots, parity, exercises = _accepted_inputs()
+    destination = tmp_path / "paper-validation-rewrite"
+    publish_paper_validation_package(
+        destination,
+        request=request,
+        policy=policy,
+        snapshots=snapshots,
+        parity_evidence=parity,
+        safety_exercises=exercises,
+    )
+    report_path = destination / "report.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    report["outcome"] = "incomplete"
+    report["blocker_codes"] = ["forged_blocker"]
+    report["candidate_review_eligible"] = False
+    _refresh_derived_identity(report, "report_id")
+    _write_canonical_json(report_path, report)
+    review_path = destination / "candidate-review.json"
+    review = json.loads(review_path.read_text(encoding="utf-8"))
+    review["report_id"] = report["report_id"]
+    review["eligible_for_owner_review"] = False
+    _refresh_derived_identity(review, "package_id")
+    _write_canonical_json(review_path, review)
+    manifest_path = destination / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["report_id"] = report["report_id"]
+    manifest["candidate_review_id"] = review["package_id"]
+    _write_canonical_json(manifest_path, manifest)
+    _refresh_manifest_and_checksums(destination, "manifest.json")
+    with pytest.raises(PaperValidationError, match="report semantics mismatch"):
         verify_paper_validation_package(destination)
 
 

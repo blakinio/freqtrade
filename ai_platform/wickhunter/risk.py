@@ -132,6 +132,7 @@ class WickHunterRiskContext:
     dca_timing_condition_met: bool
     spread_bps: Decimal
     quote_volume_usd: Decimal
+    candidate_paper_validation_authorized: bool = False
 
     def __post_init__(self) -> None:
         if self.evaluated_at_ms <= 0:
@@ -202,7 +203,15 @@ def evaluate_trade_intent(  # noqa: C901
         reasons.add(RiskReason.SCORE_EVIDENCE_MISMATCH)
 
     if score.kind is ScoreKind.SUPERVISED_MODEL:
-        if score.promotion_state is not ModelPromotionState.APPROVED:
+        candidate_paper_authorized = (
+            score.promotion_state is ModelPromotionState.CANDIDATE
+            and intent.mode in {BotMode.SHADOW, BotMode.PAPER}
+            and context.candidate_paper_validation_authorized
+        )
+        if (
+            score.promotion_state is not ModelPromotionState.APPROVED
+            and not candidate_paper_authorized
+        ):
             reasons.add(RiskReason.MODEL_NOT_APPROVED)
         if context.model_drift is not DriftState.HEALTHY:
             reasons.add(RiskReason.MODEL_DRIFT_BLOCK)

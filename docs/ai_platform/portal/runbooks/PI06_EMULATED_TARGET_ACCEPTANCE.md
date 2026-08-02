@@ -86,3 +86,7 @@ real Synology target acceptance: not proven
 ```
 
 Real PI-06 target acceptance additionally requires the exact OIDC callback, logout-all, back-channel and membership revocation, generic recovery behavior, encrypted backup creation and isolated restore.
+
+## 6. Current-code revalidation
+
+The 2026-08-02 revalidation reruns the isolated real-container Authentik checks and Chromium MFA fail-closed policy E2E on current `develop` after the public Portal SQLite login-lock repair. It changes no runtime configuration and does not claim that an owner password or a current TOTP code was exercised automatically.

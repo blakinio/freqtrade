@@ -452,11 +452,11 @@ def _source_metrics(
     with localcontext() as context:
         context.prec = 28
         return_std = variance.sqrt()
-    absolute_mean = _mean(
-        [abs(value) for value in returns],
-        field="absolute returns",
-    )
-    volatility_ratio = Decimal(0) if absolute_mean == 0 else return_std / absolute_mean
+    # Keep volatility on the same dimensionless return-ratio scale used by
+    # WickHunterParameters.minimum_volatility/maximum_volatility. Dividing by
+    # mean absolute return produces a coefficient-like value near one and makes
+    # the frozen decimal research bounds structurally unreachable.
+    volatility_ratio = return_std
 
     wick_values: list[Decimal] = []
     for row in wick_rows:

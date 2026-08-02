@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from decimal import Decimal
 from pathlib import Path
 
@@ -71,6 +72,42 @@ def test_source_metrics_do_not_read_future_candle() -> None:
     )
     assert values["decision_price"] == Decimal("100")
     assert values["quote_volume_24h_usd"] == Decimal("288000")
+
+
+def test_source_metrics_volatility_ratio_is_return_standard_deviation() -> None:
+    start_ms = 1_000_000
+    closes = (Decimal("100"), Decimal("101"), Decimal("99"), Decimal("102"))
+    candles = _candles(start_ms=start_ms, count=len(closes))
+    for row, close in zip(candles, closes, strict=True):
+        row["open"] = str(close)
+        row["high"] = str(close + Decimal("1"))
+        row["low"] = str(close - Decimal("1"))
+        row["close"] = str(close)
+        row["quote_volume"] = str(close * Decimal("10"))
+
+    values = _source_metrics(
+        candles,
+        start_ms + len(closes) * TIMEFRAME_MS,
+        MetricLookbacks(
+            quote_volume_rows=1,
+            vwap_rows=1,
+            vwma_rows=1,
+            atr_rows=1,
+            volatility_rows=3,
+            wick_rows=1,
+            trend_rows=1,
+        ),
+    )
+    returns = tuple(
+        current / previous - Decimal(1) for previous, current in itertools.pairwise(closes)
+    )
+    return_mean = sum(returns, Decimal(0)) / Decimal(len(returns))
+    expected = (
+        sum(((value - return_mean) ** 2 for value in returns), Decimal(0)) / Decimal(len(returns))
+    ).sqrt()
+
+    assert values["volatility_ratio"] == expected
+    assert values["volatility_ratio"] < Decimal("0.50")
 
 
 def test_instrument_history_is_selected_as_of_decision_time() -> None:

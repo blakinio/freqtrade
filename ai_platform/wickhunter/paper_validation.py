@@ -681,7 +681,7 @@ def observation_from_snapshot(snapshot: PortalObservabilitySnapshot) -> PaperObs
         raise PaperValidationError("paper snapshot requires a parameter identity")
     if snapshot.dataset_hash is None or snapshot.code_sha is None:
         raise PaperValidationError("paper snapshot requires dataset and code identity")
-    decision_ids = {status: [] for status in ShadowStatus}
+    decision_ids: dict[ShadowStatus, list[str]] = {status: [] for status in ShadowStatus}
     for decision in snapshot.decisions:
         decision_ids[decision.status].append(decision.shadow_decision_id)
     return PaperObservation(

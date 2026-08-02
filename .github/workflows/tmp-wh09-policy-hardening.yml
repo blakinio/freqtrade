@@ -1,0 +1,411 @@
+name: Temporary WH-09 policy hardening
+
+on:
+  push:
+    branches:
+      - feat/wickhunter-wh09-paper-validation-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wh09-policy-hardening
+  cancel-in-progress: false
+
+jobs:
+  harden:
+    if: ${{ !contains(github.event.head_commit.message, 'harden terminal policy') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-wh09-paper-validation-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Apply bounded policy hardening
+        shell: python
+        run: |
+          from pathlib import Path
+
+          implementation = Path("ai_platform/wickhunter/paper_validation.py")
+          tests = Path("tests/ai_platform_integration/test_wickhunter_paper_validation.py")
+          source = implementation.read_text(encoding="utf-8")
+          test_source = tests.read_text(encoding="utf-8")
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one {label}, found {count}")
+              return text.replace(old, new)
+
+          enum_old = '''class SafetyExerciseKind(StrEnum):
+              CIRCUIT_BREAKER = "circuit_breaker"
+              MODEL_DRIFT = "model_drift"
+              RESTART_RECOVERY = "restart_recovery"
+              STALE_SOURCE = "stale_source"
+
+
+          def _text'''
+          enum_new = '''class SafetyExerciseKind(StrEnum):
+              CIRCUIT_BREAKER = "circuit_breaker"
+              MODEL_DRIFT = "model_drift"
+              RESTART_RECOVERY = "restart_recovery"
+              STALE_SOURCE = "stale_source"
+
+
+          MINIMUM_TERMINAL_DURATION_MS = 86_400_000
+          MINIMUM_TERMINAL_SNAPSHOT_COUNT = 96
+          MAXIMUM_TERMINAL_SNAPSHOT_GAP_MS = 1_800_000
+          MINIMUM_TERMINAL_FRESH_SOURCE_RATIO = Decimal("0.99")
+          MAXIMUM_TERMINAL_DRAWDOWN_RATIO = Decimal("0.20")
+          REQUIRED_SAFETY_EXERCISES = tuple(sorted(SafetyExerciseKind, key=lambda item: item.value))
+
+
+          def _text'''
+          source = replace_once(source, enum_old, enum_new, "terminal policy constants insertion")
+
+          defaults_old = '''    minimum_duration_ms: int = 86_400_000
+              minimum_snapshot_count: int = 96
+              maximum_snapshot_gap_ms: int = 1_800_000
+              minimum_fresh_source_ratio: Decimal = Decimal("0.99")
+              minimum_decision_count: int = 1
+              minimum_allowed_decision_count: int = 1
+              minimum_risk_rejection_count: int = 1
+              maximum_drawdown_ratio: Decimal = Decimal("0.20")
+              required_exercises: tuple[SafetyExerciseKind, ...] = (
+                  SafetyExerciseKind.CIRCUIT_BREAKER,
+                  SafetyExerciseKind.MODEL_DRIFT,
+                  SafetyExerciseKind.RESTART_RECOVERY,
+                  SafetyExerciseKind.STALE_SOURCE,
+              )'''
+          defaults_new = '''    minimum_duration_ms: int = MINIMUM_TERMINAL_DURATION_MS
+              minimum_snapshot_count: int = MINIMUM_TERMINAL_SNAPSHOT_COUNT
+              maximum_snapshot_gap_ms: int = MAXIMUM_TERMINAL_SNAPSHOT_GAP_MS
+              minimum_fresh_source_ratio: Decimal = MINIMUM_TERMINAL_FRESH_SOURCE_RATIO
+              minimum_decision_count: int = 1
+              minimum_allowed_decision_count: int = 1
+              minimum_risk_rejection_count: int = 1
+              maximum_drawdown_ratio: Decimal = MAXIMUM_TERMINAL_DRAWDOWN_RATIO
+              required_exercises: tuple[SafetyExerciseKind, ...] = REQUIRED_SAFETY_EXERCISES'''
+          source = replace_once(source, defaults_old, defaults_new, "policy defaults")
+
+          validation_old = '''        integer_fields = (
+                  "minimum_duration_ms",
+                  "minimum_snapshot_count",
+                  "maximum_snapshot_gap_ms",
+                  "minimum_decision_count",
+                  "minimum_allowed_decision_count",
+                  "minimum_risk_rejection_count",
+              )
+              if any(getattr(self, name) < 1 for name in integer_fields):
+                  raise PaperValidationError("paper policy counts and durations must be >= 1")
+              if not Decimal(0) <= self.minimum_fresh_source_ratio <= Decimal(1):
+                  raise PaperValidationError("minimum_fresh_source_ratio must be in [0, 1]")
+              if not Decimal(0) < self.maximum_drawdown_ratio < Decimal(1):
+                  raise PaperValidationError("maximum_drawdown_ratio must be in (0, 1)")
+              expected = tuple(sorted(set(self.required_exercises), key=lambda item: item.value))
+              if self.required_exercises != expected:
+                  raise PaperValidationError("required_exercises must be unique and sorted")'''
+          validation_new = '''        if self.minimum_duration_ms < MINIMUM_TERMINAL_DURATION_MS:
+                  raise PaperValidationError("minimum_duration_ms cannot weaken the terminal floor")
+              if self.minimum_snapshot_count < MINIMUM_TERMINAL_SNAPSHOT_COUNT:
+                  raise PaperValidationError("minimum_snapshot_count cannot weaken the terminal floor")
+              if not 1 <= self.maximum_snapshot_gap_ms <= MAXIMUM_TERMINAL_SNAPSHOT_GAP_MS:
+                  raise PaperValidationError("maximum_snapshot_gap_ms cannot weaken the terminal ceiling")
+              integer_fields = (
+                  "minimum_decision_count",
+                  "minimum_allowed_decision_count",
+                  "minimum_risk_rejection_count",
+              )
+              if any(getattr(self, name) < 1 for name in integer_fields):
+                  raise PaperValidationError("paper policy decision counts must be >= 1")
+              if not MINIMUM_TERMINAL_FRESH_SOURCE_RATIO <= self.minimum_fresh_source_ratio <= Decimal(1):
+                  raise PaperValidationError(
+                      "minimum_fresh_source_ratio cannot weaken the terminal floor"
+                  )
+              if not Decimal(0) < self.maximum_drawdown_ratio <= MAXIMUM_TERMINAL_DRAWDOWN_RATIO:
+                  raise PaperValidationError("maximum_drawdown_ratio cannot weaken the terminal ceiling")
+              if self.required_exercises != REQUIRED_SAFETY_EXERCISES:
+                  raise PaperValidationError("required_exercises must contain the complete canonical set")
+              maximum_covered_duration = (
+                  self.minimum_snapshot_count - 1
+              ) * self.maximum_snapshot_gap_ms
+              if maximum_covered_duration < self.minimum_duration_ms:
+                  raise PaperValidationError("paper policy duration and cadence are infeasible")'''
+          source = replace_once(source, validation_old, validation_new, "policy validation")
+
+          helper_marker = '''def _request_identity_payload(
+          '''
+          helper = '''def _assert_request_matches_policy(
+              request: PaperRunRequest,
+              policy: PaperValidationPolicy,
+              *,
+              field: str,
+          ) -> None:
+              if request.policy_sha256 != policy.policy_sha256:
+                  raise PaperValidationError(f"{field} policy identity mismatch")
+              if request.window_end_ms - request.window_start_ms < policy.minimum_duration_ms:
+                  raise PaperValidationError(f"{field} window is shorter than policy")
+
+
+          def _request_identity_payload(
+          '''
+          source = replace_once(source, helper_marker, helper, "request policy helper")
+
+          build_old = ''') -> PaperRunRequest:
+              payload = _request_identity_payload(
+          '''
+          build_new = ''') -> PaperRunRequest:
+              if window_end_ms - window_start_ms < policy.minimum_duration_ms:
+                  raise PaperValidationError("paper request window is shorter than policy")
+              payload = _request_identity_payload(
+          '''
+          source = replace_once(source, build_old, build_new, "request window guard")
+
+          evaluate_old = '''    if request.policy_sha256 != policy.policy_sha256:
+                  raise PaperValidationError("request policy identity mismatch")
+              observations = _prepare_observations(request, snapshots)
+          '''
+          evaluate_new = '''    _assert_request_matches_policy(request, policy, field="request")
+              observations = _prepare_observations(request, snapshots)
+          '''
+          source = replace_once(source, evaluate_old, evaluate_new, "evaluation policy binding")
+
+          publish_old = '''    if request.policy_sha256 != policy.policy_sha256:
+                  raise PaperValidationError("activation policy identity mismatch")
+
+              def write(root: Path) -> None:
+          '''
+          publish_new = '''    _assert_request_matches_policy(request, policy, field="activation")
+
+              def write(root: Path) -> None:
+          '''
+          source = replace_once(source, publish_old, publish_new, "activation policy binding")
+
+          policy_helper_old = '''def _policy(**overrides: object) -> PaperValidationPolicy:
+              values: dict[str, object] = {
+                  "minimum_duration_ms": 3_000,
+                  "minimum_snapshot_count": 4,
+                  "maximum_snapshot_gap_ms": 1_500,
+                  "minimum_fresh_source_ratio": Decimal(1),
+                  "minimum_decision_count": 8,
+                  "minimum_allowed_decision_count": 4,
+                  "minimum_risk_rejection_count": 4,
+                  "maximum_drawdown_ratio": Decimal("0.20"),
+              }
+              values.update(overrides)
+              return PaperValidationPolicy(**values)  # type: ignore[arg-type]
+
+
+          def _request(policy: PaperValidationPolicy):
+          '''
+          policy_helper_new = '''def _policy(**overrides: object) -> PaperValidationPolicy:
+              return PaperValidationPolicy(**overrides)  # type: ignore[arg-type]
+
+
+          def _request(policy: PaperValidationPolicy, *, window_end_ms: int | None = None):
+          '''
+          test_source = replace_once(
+              test_source, policy_helper_old, policy_helper_new, "test policy helper"
+          )
+
+          test_source = replace_once(
+              test_source,
+              '''        window_end_ms=5_000,
+          ''',
+              '''        window_end_ms=(
+                      window_end_ms
+                      if window_end_ms is not None
+                      else 1_000 + policy.minimum_duration_ms
+                  ),
+          ''',
+              "request helper window",
+          )
+
+          exercises_old = '''def _exercises(run_id: str, snapshot_id: str) -> tuple[SafetyExerciseEvidence, ...]:
+          '''
+          exercises_new = '''def _exercises(
+              run_id: str,
+              snapshot_id: str,
+              observed_at_ms: int,
+          ) -> tuple[SafetyExerciseEvidence, ...]:
+          '''
+          test_source = replace_once(test_source, exercises_old, exercises_new, "exercise helper")
+          test_source = replace_once(
+              test_source,
+              '''            observed_at_ms=4_000 + index,
+          ''',
+              '''            observed_at_ms=observed_at_ms,
+          ''',
+              "exercise timestamp",
+          )
+
+          accepted_old = '''def _accepted_inputs():
+              policy = _policy()
+              request = _request(policy)
+              snapshots = tuple(
+                  _snapshot(value, index) for index, value in enumerate((1_000, 2_000, 3_000, 4_000), 1)
+              )
+              parity = tuple(_parity(snapshot) for snapshot in snapshots)
+              exercises = _exercises(request.run_id, snapshots[-1].snapshot_id)
+              return policy, request, snapshots, parity, exercises
+          '''
+          accepted_new = '''def _accepted_inputs():
+              policy = _policy()
+              interval_ms = (
+                  policy.minimum_duration_ms + policy.minimum_snapshot_count - 2
+              ) // (policy.minimum_snapshot_count - 1)
+              observed_at_values = tuple(
+                  1_000 + interval_ms * index for index in range(policy.minimum_snapshot_count)
+              )
+              request = _request(policy, window_end_ms=observed_at_values[-1])
+              snapshots = tuple(
+                  _snapshot(value, index)
+                  for index, value in enumerate(observed_at_values, 1)
+              )
+              parity = tuple(_parity(snapshot) for snapshot in snapshots)
+              exercises = _exercises(
+                  request.run_id,
+                  snapshots[-1].snapshot_id,
+                  snapshots[-1].observed_at_ms,
+              )
+              return policy, request, snapshots, parity, exercises
+          '''
+          test_source = replace_once(test_source, accepted_old, accepted_new, "accepted inputs")
+
+          default_test_marker = '''def test_activation_package_is_immutable_and_verified(tmp_path) -> None:
+          '''
+          weakening_test = '''@pytest.mark.parametrize(
+              ("overrides", "message"),
+              (
+                  ({"minimum_duration_ms": 86_399_999}, "minimum_duration_ms"),
+                  ({"minimum_snapshot_count": 95}, "minimum_snapshot_count"),
+                  ({"maximum_snapshot_gap_ms": 1_800_001}, "maximum_snapshot_gap_ms"),
+                  (
+                      {"minimum_fresh_source_ratio": Decimal("0.98")},
+                      "minimum_fresh_source_ratio",
+                  ),
+                  ({"maximum_drawdown_ratio": Decimal("0.21")}, "maximum_drawdown_ratio"),
+                  (
+                      {
+                          "required_exercises": tuple(
+                              item
+                              for item in sorted(SafetyExerciseKind, key=lambda value: value.value)
+                              if item is not SafetyExerciseKind.STALE_SOURCE
+                          )
+                      },
+                      "required_exercises",
+                  ),
+              ),
+          )
+          def test_terminal_policy_cannot_be_weakened(
+              overrides: dict[str, object],
+              message: str,
+          ) -> None:
+              with pytest.raises(PaperValidationError, match=message):
+                  PaperValidationPolicy(**overrides)  # type: ignore[arg-type]
+
+
+          def test_activation_package_is_immutable_and_verified(tmp_path) -> None:
+          '''
+          test_source = replace_once(
+              test_source, default_test_marker, weakening_test, "policy weakening test insertion"
+          )
+
+          activation_end_marker = '''    with pytest.raises(PaperValidationError, match="overwrite"):
+                  publish_paper_run_request(destination, request=request, policy=policy)
+
+
+          def test_sustained_paper_evidence_creates_owner_review_package() -> None:
+          '''
+          activation_end_new = '''    with pytest.raises(PaperValidationError, match="overwrite"):
+                  publish_paper_run_request(destination, request=request, policy=policy)
+
+
+          def test_activation_window_cannot_be_shorter_than_policy() -> None:
+              policy = _policy()
+              with pytest.raises(PaperValidationError, match="shorter than policy"):
+                  _request(policy, window_end_ms=5_000)
+
+
+          def test_sustained_paper_evidence_creates_owner_review_package() -> None:
+          '''
+          test_source = replace_once(
+              test_source, activation_end_marker, activation_end_new, "short window test insertion"
+          )
+
+          test_source = replace_once(
+              test_source,
+              '''    assert result.report.summary.snapshot_count == 4
+              assert result.report.summary.parity_count == 4
+          ''',
+              '''    assert result.report.summary.snapshot_count == policy.minimum_snapshot_count
+              assert result.report.summary.parity_count == policy.minimum_snapshot_count
+          ''',
+              "accepted summary assertions",
+          )
+
+          insufficient_old = '''def test_insufficient_window_remains_incomplete() -> None:
+              policy, _old_request, snapshots, parity, _old_exercises = _accepted_inputs()
+              policy = replace(policy, minimum_duration_ms=10_000)
+              request = _request(policy)
+              result = evaluate_paper_evidence(
+                  request=request,
+                  policy=policy,
+                  snapshots=snapshots,
+                  parity_evidence=parity,
+                  safety_exercises=_exercises(request.run_id, snapshots[-1].snapshot_id),
+              )
+              assert result.report.outcome is PaperValidationOutcome.INCOMPLETE
+              assert "minimum_duration_not_met" in result.report.blocker_codes
+              assert not result.candidate_review.eligible_for_owner_review
+          '''
+          insufficient_new = '''def test_insufficient_window_remains_incomplete() -> None:
+              policy, request, snapshots, parity, _old_exercises = _accepted_inputs()
+              short_snapshots = snapshots[:-1]
+              result = evaluate_paper_evidence(
+                  request=request,
+                  policy=policy,
+                  snapshots=short_snapshots,
+                  parity_evidence=parity[:-1],
+                  safety_exercises=_exercises(
+                      request.run_id,
+                      short_snapshots[-1].snapshot_id,
+                      short_snapshots[-1].observed_at_ms,
+                  ),
+              )
+              assert result.report.outcome is PaperValidationOutcome.INCOMPLETE
+              assert "minimum_duration_not_met" in result.report.blocker_codes
+              assert "minimum_snapshot_count_not_met" in result.report.blocker_codes
+              assert not result.candidate_review.eligible_for_owner_review
+          '''
+          test_source = replace_once(
+              test_source, insufficient_old, insufficient_new, "insufficient window test"
+          )
+
+          live_old = '''            window_end_ms=5_000,
+                  bot_instance=BOT_INSTANCE,
+                  mode=BotMode.LIVE_BLOCKED,
+          '''
+          live_new = '''            window_end_ms=1_000 + policy.minimum_duration_ms,
+                  bot_instance=BOT_INSTANCE,
+                  mode=BotMode.LIVE_BLOCKED,
+          '''
+          test_source = replace_once(test_source, live_old, live_new, "live request window")
+
+          implementation.write_text(source, encoding="utf-8")
+          tests.write_text(test_source, encoding="utf-8")
+
+      - name: Commit hardening and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/tmp-wh09-policy-hardening.yml
+          git add ai_platform/wickhunter/paper_validation.py tests/ai_platform_integration/test_wickhunter_paper_validation.py
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(wickhunter): harden terminal policy"
+          git push origin HEAD:feat/wickhunter-wh09-paper-validation-v1

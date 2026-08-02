@@ -8,7 +8,7 @@ updated: 2026-08-02
 completed: 2026-08-02
 related_pr: "#996"
 merge_commit: "dd75561f18da818df0537eaed54e415623321c27"
-closeout_pr: "pending"
+closeout_pr: "#997"
 owned_paths: []
 required_reads:
   - AGENTS.md
@@ -22,7 +22,7 @@ required_reads:
 
 ## Terminal result
 
-PR #996 merged the automatically loaded root bootstrap to `develop` as `dd75561f18da818df0537eaed54e415623321c27`.
+PR #996 merged the automatically loaded root bootstrap to `develop` as `dd75561f18da818df0537eaed54e415623321c27`. PR #997 records terminal evidence and releases active ownership.
 
 ## Closeout
 
@@ -56,10 +56,10 @@ pull_requests:
   unresolved_review_threads: 0
   terminal_prs:
     - blakinio/freqtrade#996 merged as dd75561f18da818df0537eaed54e415623321c27
-  closeout_pr: pending
+  closeout_pr: blakinio/freqtrade#997
 task_archived_or_terminal: true
 ownership_released: true
 stale_branches_reconciled: true
 ```
 
-No material finding or blocker remains. The closeout PR is the sole intentionally open related PR until it merges.
+No material finding or blocker remains. PR #997 is the sole intentionally open related PR and becomes terminal when merged.

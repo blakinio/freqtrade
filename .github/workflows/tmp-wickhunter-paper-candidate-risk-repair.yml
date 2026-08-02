@@ -3,8 +3,7 @@ name: Temporary WickHunter paper candidate risk repair
 "on":
   pull_request:
     types: [opened, reopened, synchronize]
-    branches:
-      - fix/wickhunter-paper-candidate-risk-gate-v1
+    branches: [develop]
 
 permissions:
   contents: write
@@ -15,7 +14,7 @@ concurrency:
 
 jobs:
   repair:
-    if: ${{ github.event.pull_request.head.ref == 'chore/trigger-wickhunter-paper-candidate-risk-repair' }}
+    if: ${{ github.event.pull_request.head.ref == 'fix/wickhunter-paper-candidate-risk-gate-v1' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Check out feature branch

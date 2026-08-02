@@ -1,12 +1,12 @@
 ---
 task_id: FTAI-20260802-wickhunter-candidate-runtime-binding-v1
 project_lane: freqtrade-wickhunter
-status: validating
+status: done
 branch: feat/wickhunter-candidate-runtime-binding-v1
 base_branch: develop
 created: 2026-08-02
 updated: 2026-08-02
-related_pr: null
+related_pr: 1043
 depends_on:
   - FTAI-20260802-wickhunter-candidate-paper-activation-v1
   - FTAI-20260801-wickhunter-wh07-shadow-runtime-v1
@@ -35,19 +35,30 @@ Bind an independently verified candidate package and immutable WH-09 activation 
 - the seam installs the verified scorer and enables only the candidate PAPER risk exception;
 - credentials, private exchange access, order adapter, execution, orders, automatic promotion and live capital remain absent.
 
-## Checkpoint
+## Terminal checkpoint
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-02T15:20:00+02:00
-phase: validation
-status: validating
+updated_at: 2026-08-02T15:55:00+02:00
+phase: done
+status: done
 branch: feat/wickhunter-candidate-runtime-binding-v1
 base_branch: develop
-head_sha_before_checkpoint: d385ba1338002bcd60f6adcdcbcbd6ecb2372c17
+related_pr: 1043
+validated_head_sha: 65e3f9f4fadbe6995e4919670ba96f44de35e22b
+merge_sha: 09d3d2e6d237e557d57d04cb48657a40f2e0b7f0
+validation_level: exact_head_repository_ci_and_independent_diff_audit
 proven:
-  - exact candidate activation boundary merged as d385ba1338002bcd60f6adcdcbcbd6ecb2372c17
-  - WH-07 read-only SHADOW/PAPER runtime is already merged
-  - risk engine candidate PAPER authorization remains default-off and preserves all other vetoes
-next_action: complete exact-head repository CI; audit the final diff and merge only on an unchanged green SHA
+  - typed candidate loading reconstructs the exact WH-04 artifact after full package verification
+  - typed activation loading reconstructs the exact WH-09 request and policy while preserving the compatibility verifier API
+  - model, selected parameters, rollback identities, dataset, code, bot, mode, policy and activation window fail closed on mismatch
+  - only the verified advisory scorer and the existing default-off candidate PAPER authorization bit are installed
+  - focused validation passed ruff, formatting, mypy and candidate activation, PAPER validation and runtime-binding tests
+  - exact-head AI Platform CI, security analysis, pre-commit, documentation, Python 3.11 through 3.14, coverage, build, ruff and mypy passed
+  - final compare contained exactly six declared product, test and documentation paths and no temporary workflow
+  - independent final diff audit found no material defect and no unresolved review thread
+  - PR 1043 was squash-merged as 09d3d2e6d237e557d57d04cb48657a40f2e0b7f0
+  - protected holdout, automatic promotion, trading credentials, order adapter, execution, orders and live capital remain absent or false
+blockers: []
+next_action: continue the existing request-only WH-02 replay materialization; after terminal verified evidence, close PR 1026 without merge and resume the queued candidate and activation operations
 ```

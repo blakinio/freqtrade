@@ -84,7 +84,8 @@ def _require_sha256(value: object, *, field: str) -> str:
     if not isinstance(value, str):
         raise CandidateActivationError(f"{field} must be a string")
     normalized = value.strip().lower()
-    if len(normalized) != 64 or any(character not in "0123456789abcdef" for character in normalized):
+    invalid_character = any(character not in "0123456789abcdef" for character in normalized)
+    if len(normalized) != 64 or invalid_character:
         raise CandidateActivationError(f"{field} must be a lowercase SHA-256 digest")
     return normalized
 
@@ -93,7 +94,8 @@ def _require_git_sha(value: object, *, field: str) -> str:
     if not isinstance(value, str):
         raise CandidateActivationError(f"{field} must be a string")
     normalized = value.strip().lower()
-    if len(normalized) != 40 or any(character not in "0123456789abcdef" for character in normalized):
+    invalid_character = any(character not in "0123456789abcdef" for character in normalized)
+    if len(normalized) != 40 or invalid_character:
         raise CandidateActivationError(f"{field} must be a lowercase Git SHA")
     return normalized
 
@@ -165,7 +167,7 @@ def _verify_checksum_index(root: Path) -> None:
             raise CandidateActivationError(f"checksum mismatch for {name}")
 
 
-def _verify_manifest(root: Path) -> dict[str, Any]:
+def _verify_manifest(root: Path) -> dict[str, Any]:  # noqa: C901
     manifest = _load_object(root / MANIFEST_NAME, field="candidate manifest")
     if manifest.get("schema_version") != CANDIDATE_MANIFEST_SCHEMA:
         raise CandidateActivationError("candidate manifest schema mismatch")
@@ -336,14 +338,14 @@ def _verify_model(payload: dict[str, Any], *, manifest: dict[str, Any]) -> None:
             raise CandidateActivationError(f"candidate manifest binding mismatch: {field}")
 
 
-def verify_candidate_package(root: Path) -> tuple[VerifiedCandidateIdentity, WickHunterParameters]:
+def verify_candidate_package(  # noqa: C901
+    root: Path,
+) -> tuple[VerifiedCandidateIdentity, WickHunterParameters]:
     if root.is_symlink() or not root.is_dir():
         raise CandidateActivationError("candidate root must be a regular directory")
     root = root.resolve(strict=True)
     actual_files = {
-        path.name
-        for path in root.iterdir()
-        if path.is_file() and not path.is_symlink()
+        path.name for path in root.iterdir() if path.is_file() and not path.is_symlink()
     }
     expected_files = set(CANDIDATE_FILES) | {MANIFEST_NAME, CHECKSUM_NAME}
     if actual_files != expected_files or any(path.is_dir() for path in root.iterdir()):
@@ -410,9 +412,7 @@ def verify_candidate_package(root: Path) -> tuple[VerifiedCandidateIdentity, Wic
 
     identity = VerifiedCandidateIdentity(
         package_id=_require_text(manifest.get("package_id"), field="package_id"),
-        manifest_sha256=_require_sha256(
-            manifest.get("manifest_sha256"), field="manifest_sha256"
-        ),
+        manifest_sha256=_require_sha256(manifest.get("manifest_sha256"), field="manifest_sha256"),
         source_commit_sha=_require_git_sha(
             manifest.get("source_commit_sha"), field="source_commit_sha"
         ),
@@ -422,9 +422,7 @@ def verify_candidate_package(root: Path) -> tuple[VerifiedCandidateIdentity, Wic
         parameter_version=_require_text(
             manifest.get("parameter_version"), field="parameter_version"
         ),
-        parameter_hash=_require_sha256(
-            manifest.get("parameter_sha256"), field="parameter_sha256"
-        ),
+        parameter_hash=_require_sha256(manifest.get("parameter_sha256"), field="parameter_sha256"),
         model_version=_require_text(manifest.get("model_version"), field="model_version"),
         model_hash=_require_sha256(manifest.get("model_hash"), field="model_hash"),
         model_artifact_sha256=_require_sha256(

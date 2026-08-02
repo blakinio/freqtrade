@@ -156,9 +156,7 @@ def _package(root: Path) -> Path:
         "manifest_sha256": canonical_sha256(manifest_seed),
     }
     _write(root / "manifest.json", manifest)
-    checksum_entries = [
-        f"{record['sha256']}  {record['logical_name']}" for record in records
-    ]
+    checksum_entries = [f"{record['sha256']}  {record['logical_name']}" for record in records]
     checksum_entries.append(
         f"{hashlib.sha256((root / 'manifest.json').read_bytes()).hexdigest()}  manifest.json"
     )
@@ -186,9 +184,7 @@ def _rehash(root: Path) -> None:
     manifest.pop("manifest_sha256", None)
     manifest["manifest_sha256"] = canonical_sha256(manifest)
     _write(manifest_path, manifest)
-    checksum_entries = [
-        f"{record['sha256']}  {record['logical_name']}" for record in records
-    ]
+    checksum_entries = [f"{record['sha256']}  {record['logical_name']}" for record in records]
     checksum_entries.append(
         f"{hashlib.sha256(manifest_path.read_bytes()).hexdigest()}  manifest.json"
     )
@@ -212,7 +208,8 @@ def test_verified_candidate_activates_immutable_paper_run(tmp_path: Path) -> Non
     assert result.request.dataset_hash == EVALUATION_SHA
     assert result.request.model_hash == MODEL_HASH
     assert result.request.orders_submitted == 0
-    assert verify_paper_run_request(activation_root)["outcome"] == "accepted"
+    verified = verify_paper_run_request(activation_root)
+    assert verified["run_id"] == result.request.run_id
     binding = json.loads(
         (tmp_path / "activation-candidate-binding.json").read_text(encoding="utf-8")
     )

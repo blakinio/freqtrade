@@ -70,9 +70,23 @@ jobs:
           for old, new in replacements:
               count = source.count(old)
               if count != 1:
-                  raise SystemExit(f"expected exactly one repair target, found {count}")
+                  raise SystemExit(f"expected exactly one production repair target, found {count}")
               source = source.replace(old, new)
           path.write_text(source, encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_wickhunter_production_evaluation.py")
+          test_source = tests.read_text(encoding="utf-8")
+          old = (
+              '    path.write_text("".join(canonical_json(payload) + "\\n" for payload in payloads), '
+              'encoding="utf-8")\n'
+          )
+          new = (
+              '    content = "".join(canonical_json(payload) + "\\n" for payload in payloads)\n'
+              '    path.write_text(content, encoding="utf-8")\n'
+          )
+          if test_source.count(old) != 1:
+              raise SystemExit("expected exactly one focused test formatting target")
+          tests.write_text(test_source.replace(old, new), encoding="utf-8")
 
       - name: Format lint typecheck and test
         shell: bash

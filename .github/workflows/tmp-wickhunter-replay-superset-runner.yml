@@ -1,0 +1,212 @@
+name: Temporary WickHunter replay superset runner
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - fix/wickhunter-replay-price-path-superset-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-replay-superset-runner
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: ${{ github.event.pull_request.head.ref == 'chore/trigger-wickhunter-replay-superset-repair' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-replay-price-path-superset-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Apply bounded contract repair and focused coverage tests
+        shell: python
+        run: |
+          from pathlib import Path
+
+          implementation = Path("ai_platform/wickhunter/deterministic_replay.py")
+          source = implementation.read_text(encoding="utf-8")
+          old = (
+              '    if price_manifest.get("label_horizon_ms") != request.policy.label_horizon_ms:\n'
+              '        raise DeterministicReplayError("price-path horizon does not match replay policy")\n'
+          )
+          new = (
+              '    price_path_horizon = price_manifest.get("label_horizon_ms")\n'
+              '    if (\n'
+              '        isinstance(price_path_horizon, bool)\n'
+              '        or not isinstance(price_path_horizon, int)\n'
+              '        or price_path_horizon < request.policy.label_horizon_ms\n'
+              '    ):\n'
+              '        raise DeterministicReplayError(\n'
+              '            "price-path horizon does not cover replay policy"\n'
+              '        )\n'
+          )
+          if source.count(old) != 1:
+              raise SystemExit("expected exactly one replay horizon equality guard")
+          implementation.write_text(source.replace(old, new), encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_wickhunter_deterministic_replay.py")
+          test_source = tests.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  'def _price_path(root: Path, dataset_manifest_sha256: str) -> tuple[Path, str]:\n',
+                  'def _price_path(\n'
+                  '    root: Path,\n'
+                  '    dataset_manifest_sha256: str,\n'
+                  '    *,\n'
+                  '    label_horizon_ms: int = 10_000,\n'
+                  ') -> tuple[Path, str]:\n',
+              ),
+              (
+                  '        "label_horizon_ms": 10_000,\n',
+                  '        "label_horizon_ms": label_horizon_ms,\n',
+              ),
+              (
+                  'def _request(\n'
+                  '    dataset_manifest_sha256: str,\n'
+                  '    price_path_manifest_sha256: str,\n'
+                  ') -> subject.ReplayRequest:\n',
+                  'def _request(\n'
+                  '    dataset_manifest_sha256: str,\n'
+                  '    price_path_manifest_sha256: str,\n'
+                  '    *,\n'
+                  '    label_horizon_ms: int = 10_000,\n'
+                  ') -> subject.ReplayRequest:\n',
+              ),
+              (
+                  '        policy=_policy(),\n'
+                  '        protected_holdout_excluded=True,\n',
+                  '        policy=_policy(label_horizon_ms=label_horizon_ms),\n'
+                  '        protected_holdout_excluded=True,\n',
+              ),
+          )
+          for old_text, new_text in replacements:
+              if test_source.count(old_text) != 1:
+                  raise SystemExit(f"expected exactly one focused test target: {old_text!r}")
+              test_source = test_source.replace(old_text, new_text)
+
+          addition = r'''
+
+
+def test_longer_price_path_horizon_covers_shorter_replay_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    materialization, dataset_manifest_sha256 = _materialization(tmp_path)
+    price_root, price_manifest_sha256 = _price_path(
+        tmp_path,
+        dataset_manifest_sha256,
+        label_horizon_ms=10_000,
+    )
+    request = _request(
+        dataset_manifest_sha256,
+        price_manifest_sha256,
+        label_horizon_ms=5_000,
+    )
+    monkeypatch.setattr(
+        subject,
+        "verify_production_materialization",
+        lambda _: {"wh01_ready": True},
+    )
+    monkeypatch.setattr(
+        subject,
+        "verify_replay_price_path_package",
+        lambda **_: {"outcome": "accepted"},
+    )
+
+    result = subject.build_deterministic_replay_package(
+        materialization_root=materialization,
+        price_path_root=price_root,
+        output_root=tmp_path / "shorter-replay-output",
+        request=request,
+    )
+
+    assert result["outcome"] == "accepted"
+    assert result["decision_count"] == 1
+    assert result["label_count"] == 2
+
+
+def test_shorter_price_path_horizon_cannot_cover_longer_replay_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    materialization, dataset_manifest_sha256 = _materialization(tmp_path)
+    price_root, price_manifest_sha256 = _price_path(
+        tmp_path,
+        dataset_manifest_sha256,
+        label_horizon_ms=5_000,
+    )
+    request = _request(
+        dataset_manifest_sha256,
+        price_manifest_sha256,
+        label_horizon_ms=10_000,
+    )
+    monkeypatch.setattr(
+        subject,
+        "verify_production_materialization",
+        lambda _: {"wh01_ready": True},
+    )
+    monkeypatch.setattr(
+        subject,
+        "verify_replay_price_path_package",
+        lambda **_: {"outcome": "accepted"},
+    )
+
+    with pytest.raises(subject.DeterministicReplayError, match="does not cover"):
+        subject.build_deterministic_replay_package(
+            materialization_root=materialization,
+            price_path_root=price_root,
+            output_root=tmp_path / "longer-replay-output",
+            request=request,
+        )
+'''
+          if "test_longer_price_path_horizon_covers_shorter_replay_policy" in test_source:
+              raise SystemExit("focused horizon coverage tests already exist")
+          tests.write_text(test_source.rstrip() + addition + "\n", encoding="utf-8")
+
+      - name: Format lint typecheck and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check --fix ai_platform/wickhunter/deterministic_replay.py tests/ai_platform_integration/test_wickhunter_deterministic_replay.py
+          ruff format ai_platform/wickhunter/deterministic_replay.py tests/ai_platform_integration/test_wickhunter_deterministic_replay.py
+          ruff check ai_platform/wickhunter/deterministic_replay.py tests/ai_platform_integration/test_wickhunter_deterministic_replay.py
+          ruff format --check ai_platform/wickhunter/deterministic_replay.py tests/ai_platform_integration/test_wickhunter_deterministic_replay.py
+          mypy ai_platform/wickhunter/deterministic_replay.py
+          pytest -q tests/ai_platform_integration/test_wickhunter_deterministic_replay.py
+
+      - name: Commit product repair and remove temporary files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/tmp-wickhunter-replay-superset-repair.yml \
+            .github/workflows/tmp-wickhunter-replay-superset-runner.yml \
+            .github/tmp-wickhunter-replay-superset-trigger.txt
+          git add ai_platform/wickhunter/deterministic_replay.py tests/ai_platform_integration/test_wickhunter_deterministic_replay.py
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(wickhunter): allow replay within price-path coverage"
+          git push origin HEAD:fix/wickhunter-replay-price-path-superset-v1

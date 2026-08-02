@@ -37,6 +37,20 @@ jobs:
           python tools/portal_audit/completeness_audit.py
           --head "${{ github.event.pull_request.head.sha || github.sha }}"
 
+      - name: Print bounded composition evidence
+        run: |
+          echo "== PI-08 composition references =="
+          grep -R -n -E \
+            "PrivateSubmissionExecutionAdapter|PrivateDryRunApprovedIntentSubmitter|execution_submitter=" \
+            ai_platform/portal deploy tests \
+            --exclude-dir=.git \
+            | head -n 200 || true
+          echo "== Strategy catalog producer/consumer references =="
+          grep -R -n -E "/v1/strategy-catalog|strategy-catalog" \
+            ai_platform/portal tests \
+            --exclude-dir=.git \
+            | head -n 250 || true
+
       - name: Print bounded report
         run: cat artifacts/portal-completeness-audit.md
 

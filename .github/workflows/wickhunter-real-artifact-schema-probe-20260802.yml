@@ -1,0 +1,232 @@
+name: WickHunter accepted artifact schema probe
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-real-artifact-schema-probe-20260802.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-real-artifact-schema-probe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-real-artifact-schema-probe-20260802.yml
+  DATASET_MATERIALIZATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573
+  PRICE_PATH_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v4-5cffc1902479
+  EXPECTED_DATASET_MANIFEST_SHA256: 3b0a052d13c8d3684a9bf63712ee00d5a9c09343d14e628c6611a444024b2d51
+  EXPECTED_PRICE_PATH_MANIFEST_SHA256: 55ea6b7d3d58f86af1b56934ec3e0b138743f9d3ef9888c1c9ca533b812edc4c
+
+jobs:
+  inspect:
+    name: Inspect accepted WickHunter artifact schemas
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact read-only request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          expected=$'A\t.github/workflows/wickhunter-real-artifact-schema-probe-20260802.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact one-file request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Verify roots and emit bounded schema metadata
+        id: probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONPATH=. python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path, PurePosixPath
+
+          from ai_platform.wickhunter.production_dataset_materialization import (
+              verify_production_materialization,
+          )
+          from ai_platform.wickhunter.replay_price_path import (
+              verify_replay_price_path_package,
+          )
+
+          dataset_materialization = Path(os.environ["DATASET_MATERIALIZATION_ROOT"])
+          dataset_root = dataset_materialization / "dataset"
+          price_path_root = Path(os.environ["PRICE_PATH_ROOT"])
+          evidence_root = Path(os.environ["RUNNER_TEMP"]) / "wickhunter-schema-probe"
+          evidence_root.mkdir(parents=True, exist_ok=False)
+
+          def require(condition: bool, message: str) -> None:
+              if not condition:
+                  raise RuntimeError(message)
+
+          def load_object(path: Path) -> dict:
+              require(path.is_file() and not path.is_symlink(), f"invalid file: {path}")
+              payload = json.loads(path.read_text(encoding="utf-8"))
+              require(isinstance(payload, dict), f"non-object JSON: {path}")
+              return payload
+
+          def safe_member(root: Path, relative: object) -> Path:
+              require(isinstance(relative, str), "relative path missing")
+              pure = PurePosixPath(relative)
+              require(
+                  not pure.is_absolute()
+                  and all(part not in {"", ".", ".."} for part in pure.parts),
+                  "unsafe relative path",
+              )
+              path = root.joinpath(*pure.parts)
+              require(path.is_file() and not path.is_symlink(), "partition is not a regular file")
+              return path
+
+          dataset_verification = verify_production_materialization(dataset_materialization)
+          price_verification = verify_replay_price_path_package(
+              output_root=price_path_root,
+              materialization_root=dataset_materialization,
+          )
+          require(dataset_verification.get("outcome") == "accepted", "dataset verification rejected")
+          require(price_verification.get("outcome") == "accepted", "price-path verification rejected")
+
+          dataset_manifest = load_object(dataset_root / "manifest.json")
+          price_manifest = load_object(price_path_root / "manifest.json")
+          materialization_manifest = load_object(dataset_materialization / "materialization-manifest.json")
+          materialization_request = load_object(dataset_materialization / "request.json")
+
+          require(
+              dataset_manifest.get("manifest_sha256")
+              == os.environ["EXPECTED_DATASET_MANIFEST_SHA256"],
+              "dataset manifest identity mismatch",
+          )
+          require(
+              price_manifest.get("manifest_sha256")
+              == os.environ["EXPECTED_PRICE_PATH_MANIFEST_SHA256"],
+              "price-path manifest identity mismatch",
+          )
+
+          partitions = dataset_manifest.get("partitions")
+          require(isinstance(partitions, list) and partitions, "dataset partitions missing")
+          first_partition = partitions[0]
+          require(isinstance(first_partition, dict), "invalid dataset partition")
+          first_path = safe_member(dataset_root, first_partition.get("relative_path"))
+          first_line = next(
+              (line for line in first_path.read_text(encoding="utf-8").splitlines() if line.strip()),
+              None,
+          )
+          require(first_line is not None, "first dataset partition is empty")
+          first_row = json.loads(first_line)
+          require(isinstance(first_row, dict), "first dataset row is not an object")
+
+          def selected(payload: dict) -> dict:
+              return {
+                  key: payload[key]
+                  for key in sorted(payload)
+                  if any(token in key.lower() for token in ("split", "window", "purge", "embargo"))
+              }
+
+          row_shape = {
+              "top_level_keys": sorted(first_row),
+              "nested_object_keys": {
+                  key: sorted(value)
+                  for key, value in first_row.items()
+                  if isinstance(value, dict)
+              },
+              "nested_list_object_keys": {
+                  key: sorted(value[0])
+                  for key, value in first_row.items()
+                  if isinstance(value, list) and value and isinstance(value[0], dict)
+              },
+          }
+          output = {
+              "dataset": {
+                  "manifest_sha256": dataset_manifest["manifest_sha256"],
+                  "total_rows": dataset_manifest.get("total_rows"),
+                  "partition_count": len(partitions),
+                  "manifest_keys": sorted(dataset_manifest),
+                  "split_fields": selected(dataset_manifest),
+                  "first_partition_keys": sorted(first_partition),
+                  "first_row_shape": row_shape,
+              },
+              "materialization": {
+                  "manifest_keys": sorted(materialization_manifest),
+                  "manifest_split_fields": selected(materialization_manifest),
+                  "request_keys": sorted(materialization_request),
+                  "request_split_fields": selected(materialization_request),
+              },
+              "price_path": {
+                  "manifest_sha256": price_manifest["manifest_sha256"],
+                  "manifest_keys": sorted(price_manifest),
+                  "split_fields": selected(price_manifest),
+                  "partition_keys": sorted(price_manifest["partitions"][0]),
+              },
+              "authority": {
+                  "protected_holdout_accessed": False,
+                  "immutable_inputs_mutated": False,
+                  "model_execution_authorized": False,
+                  "performance_research_authorized": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "trading_credentials_present": False,
+                  "orders_submitted": 0,
+              },
+          }
+          output_path = evidence_root / "schema-metadata.json"
+          output_path.write_text(
+              json.dumps(output, sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(output, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload bounded metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wickhunter-real-artifact-schema-probe-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-schema-probe/schema-metadata.json
+          if-no-files-found: error
+          retention-days: 14

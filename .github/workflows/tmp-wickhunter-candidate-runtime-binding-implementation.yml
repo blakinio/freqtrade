@@ -44,14 +44,13 @@ jobs:
           uv pip install -e ft_client/
           uv pip install -e .
 
-      - name: Expose typed verified inputs
+      - name: Expose typed inputs and bind rollback identities
         shell: python
         run: |
           from pathlib import Path
 
           candidate_path = Path("ai_platform/wickhunter/candidate_activation.py")
           candidate = candidate_path.read_text(encoding="utf-8")
-
           result_anchor = '''@dataclass(frozen=True, slots=True)
           class CandidateActivationResult:
           '''
@@ -141,6 +140,147 @@ jobs:
           if paper.count(old_paper_return) != 1:
               raise SystemExit("paper request verifier return target mismatch")
           paper_path.write_text(paper.replace(old_paper_return, new_paper_return), encoding="utf-8")
+
+          binding_path = Path("ai_platform/wickhunter/candidate_runtime_binding.py")
+          binding = binding_path.read_text(encoding="utf-8")
+          payload_anchor = '''        "dataset_hash": request.dataset_hash,
+              "code_sha": request.code_sha,
+              "policy_sha256": policy.policy_sha256,
+          '''
+          payload_replacement = '''        "dataset_hash": request.dataset_hash,
+              "code_sha": request.code_sha,
+              "rollback_model_version": request.rollback_model_version,
+              "rollback_model_hash": request.rollback_model_hash,
+              "rollback_parameter_version": request.rollback_parameter_version,
+              "rollback_parameter_hash": request.rollback_parameter_hash,
+              "policy_sha256": policy.policy_sha256,
+          '''
+          if binding.count(payload_anchor) != 1:
+              raise SystemExit("runtime binding payload anchor mismatch")
+          binding = binding.replace(payload_anchor, payload_replacement)
+
+          identity_anchor = '''            (self.identity.source_commit_sha, self.request.code_sha, "code_sha"),
+              (
+                  self.identity.model_artifact_sha256,
+          '''
+          identity_replacement = '''            (self.identity.source_commit_sha, self.request.code_sha, "code_sha"),
+              (
+                  self.identity.rollback_model_version,
+                  self.request.rollback_model_version,
+                  "rollback_model_version",
+              ),
+              (
+                  self.identity.rollback_model_hash,
+                  self.request.rollback_model_hash,
+                  "rollback_model_hash",
+              ),
+              (
+                  self.identity.rollback_parameter_version,
+                  self.request.rollback_parameter_version,
+                  "rollback_parameter_version",
+              ),
+              (
+                  self.identity.rollback_parameter_hash,
+                  self.request.rollback_parameter_hash,
+                  "rollback_parameter_hash",
+              ),
+              (
+                  self.identity.model_artifact_sha256,
+          '''
+          if binding.count(identity_anchor) != 1:
+              raise SystemExit("runtime binding identity anchor mismatch")
+          binding_path.write_text(
+              binding.replace(identity_anchor, identity_replacement),
+              encoding="utf-8",
+          )
+
+          tests_path = Path(
+              "tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py"
+          )
+          tests = tests_path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  '''    *,
+              model_hash: str | None = None,
+          ) -> Path:
+          ''',
+                  '''    *,
+              model_hash: str | None = None,
+              rollback_model_hash: str | None = None,
+          ) -> Path:
+          ''',
+              ),
+              (
+                  '''        rollback_model_hash=identity.rollback_model_hash,
+          ''',
+                  '''        rollback_model_hash=(
+              rollback_model_hash or identity.rollback_model_hash
+          ),
+          ''',
+              ),
+              (
+                  '''    *,
+              activation_model_hash: str | None = None,
+          ) -> runtime_binding.CandidatePaperRuntimeBinding:
+          ''',
+                  '''    *,
+              activation_model_hash: str | None = None,
+              activation_rollback_model_hash: str | None = None,
+          ) -> runtime_binding.CandidatePaperRuntimeBinding:
+          ''',
+              ),
+              (
+                  '''            model_hash=activation_model_hash,
+              ),
+          ''',
+                  '''            model_hash=activation_model_hash,
+              rollback_model_hash=activation_rollback_model_hash,
+              ),
+          ''',
+              ),
+              ('("request", "message")', '("shadow_request", "message")'),
+              ('    request: ShadowDecisionRequest,\n', '    shadow_request: ShadowDecisionRequest,\n'),
+              ('        binding.bind_request(request)\n', '        binding.bind_request(shadow_request)\n'),
+          )
+          for old, new in replacements:
+              if tests.count(old) != 1:
+                  raise SystemExit(f"test replacement anchor mismatch: {old!r}")
+              tests = tests.replace(old, new)
+
+          test_anchor = '''def test_binding_rejects_activation_identity_mismatch(
+              tmp_path: Path,
+              monkeypatch: pytest.MonkeyPatch,
+          ) -> None:
+              with pytest.raises(
+                  runtime_binding.CandidateRuntimeBindingError,
+                  match="model_hash",
+              ):
+                  _binding(tmp_path, monkeypatch, activation_model_hash="e" * 64)
+
+
+          '''
+          rollback_test = '''def test_binding_rejects_activation_rollback_identity_mismatch(
+              tmp_path: Path,
+              monkeypatch: pytest.MonkeyPatch,
+          ) -> None:
+              with pytest.raises(
+                  runtime_binding.CandidateRuntimeBindingError,
+                  match="rollback_model_hash",
+              ):
+                  _binding(
+                      tmp_path,
+                      monkeypatch,
+                      activation_rollback_model_hash="7" * 64,
+                  )
+
+
+          '''
+          if tests.count(test_anchor) != 1:
+              raise SystemExit("rollback test insertion anchor mismatch")
+          tests_path.write_text(
+              tests.replace(test_anchor, test_anchor + rollback_test),
+              encoding="utf-8",
+          )
 
           task_path = Path(
               "docs/agents/tasks/FTAI-20260802-wickhunter-candidate-runtime-binding-v1.md"

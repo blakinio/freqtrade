@@ -1,38 +1,65 @@
 ---
 task_id: FTAI-20260802-root-agent-bootstrap-v21
-status: validating
-branch: docs/root-agent-bootstrap-v21-20260802
+status: completed
+branch: develop
 base_branch: develop
 created: 2026-08-02
 updated: 2026-08-02
+completed: 2026-08-02
 related_pr: "#996"
+merge_commit: "dd75561f18da818df0537eaed54e415623321c27"
+closeout_pr: "pending"
+owned_paths: []
 required_reads:
   - AGENTS.md
   - AGENTS.override.md
   - docs/agents/AGENTS.md
   - docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
   - docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
-search_first:
-  - mandatory Codex bootstrap
-  - short-command contract
-  - delivery completeness
 ---
 
 # Root agent bootstrap v2.1
 
-## Objective
+## Terminal result
 
-Provide an automatically loaded repository-root bootstrap that forces every Codex agent to load the full local governance stack and makes the short autonomous command sufficient.
+PR #996 merged the automatically loaded root bootstrap to `develop` as `dd75561f18da818df0537eaed54e415623321c27`.
 
-## Scope
+## Closeout
 
-Documentation and agent governance only. No strategy, model, exchange, live capital, order, protected data, credential, deployment or runtime mutation.
+```yaml
+implementation_complete: true
+outcome_verified: true
+scope:
+  type: documentation
+  runtime_or_trading_paths_changed: 0
+audit:
+  result: PASS
+  validator: fresh-final-pr-review
+  findings_open_material: 0
+  evidence:
+    - PR 996 changed only AGENTS.override.md and this task record
+    - root bootstrap requires the root and nested instructions plus delivery and autonomous continuation contracts
+    - no unresolved review threads
+    - trading, credential, capital, deployment and repository safety remain authoritative
+e2e:
+  result: NOT_APPLICABLE_WITH_REASON
+  evidence:
+    - governance documentation only; no executable trading or portal behaviour changed
+    - automatic root instruction path, referenced files, PR outcome and CI were verified
+final_ci:
+  head: ac0d8964fedd2934e39d5e83ceb99b6f81fe3d60
+  result: PASS
+  checks:
+    - Freqtrade CI 4864
+    - GitHub Actions Security Analysis 4519
+pull_requests:
+  unresolved_review_threads: 0
+  terminal_prs:
+    - blakinio/freqtrade#996 merged as dd75561f18da818df0537eaed54e415623321c27
+  closeout_pr: pending
+task_archived_or_terminal: true
+ownership_released: true
+stale_branches_reconciled: true
+```
 
-## Acceptance
-
-- [x] Add root `AGENTS.override.md` without weakening trading or repository safety.
-- [x] Require root/nested instructions, closeout and autonomous continuation contracts.
-- [x] Define the Polish short autonomous command as sufficient when the programme is discoverable.
-- [x] Require full applicable vertical slice, independent audit, E2E, exact-head CI and terminal PR/task state.
-- [ ] Pass required CI and merge.
-- [ ] Terminally close this task after merge.
+No material finding or blocker remains. The closeout PR is the sole intentionally open related PR until it merges.

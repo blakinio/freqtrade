@@ -1710,7 +1710,9 @@ def _verify_root(root: Path, required: set[str], *, field: str) -> None:
     _verify_index(root, required - {CHECKSUM_INDEX_NAME})
 
 
-def verify_paper_run_request(root: Path) -> dict[str, Any]:
+def load_verified_paper_run_request(
+    root: Path,
+) -> tuple[PaperRunRequest, PaperValidationPolicy]:
     required = {POLICY_NAME, REQUEST_NAME, ACTIVATION_MANIFEST_NAME, CHECKSUM_INDEX_NAME}
     _verify_root(root, required, field="activation")
     manifest = _read_json(root / ACTIVATION_MANIFEST_NAME, field="activation manifest")
@@ -1751,6 +1753,11 @@ def verify_paper_run_request(root: Path) -> dict[str, Any]:
         raise PaperValidationError("activation run identity mismatch")
     if manifest.get("policy_sha256") != policy.policy_sha256:
         raise PaperValidationError("activation policy identity mismatch")
+    return request, policy
+
+
+def verify_paper_run_request(root: Path) -> dict[str, Any]:
+    request, _policy = load_verified_paper_run_request(root)
     return {"run_id": request.run_id, "verified": True}
 
 

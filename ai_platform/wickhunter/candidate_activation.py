@@ -73,6 +73,13 @@ class VerifiedCandidateIdentity:
 
 
 @dataclass(frozen=True, slots=True)
+class VerifiedCandidatePackage:
+    identity: VerifiedCandidateIdentity
+    parameters: WickHunterParameters
+    model_artifact: LightGBMModelArtifact
+
+
+@dataclass(frozen=True, slots=True)
 class CandidateActivationResult:
     identity: VerifiedCandidateIdentity
     parameters: WickHunterParameters
@@ -497,9 +504,9 @@ def _verify_model(payload: dict[str, Any], *, manifest: dict[str, Any]) -> Light
     return artifact
 
 
-def verify_candidate_package(  # noqa: C901
+def load_verified_candidate_package(  # noqa: C901
     root: Path,
-) -> tuple[VerifiedCandidateIdentity, WickHunterParameters]:
+) -> VerifiedCandidatePackage:
     if root.is_symlink() or not root.is_dir():
         raise CandidateActivationError("candidate root must be a regular directory")
     root = root.resolve(strict=True)
@@ -523,7 +530,7 @@ def verify_candidate_package(  # noqa: C901
         raise CandidateActivationError("parameter hash does not match candidate manifest")
 
     model_payload = _load_object(root / "model-artifact.json", field="model artifact")
-    _verify_model(model_payload, manifest=manifest)
+    model_artifact = _verify_model(model_payload, manifest=manifest)
 
     evaluation = _load_object(root / "evaluation-identity.json", field="evaluation identity")
     _require_zero_authority(evaluation, field="evaluation identity")
@@ -609,7 +616,18 @@ def verify_candidate_package(  # noqa: C901
         ),
         candidate_root=root,
     )
-    return identity, parameters
+    return VerifiedCandidatePackage(
+        identity=identity,
+        parameters=parameters,
+        model_artifact=model_artifact,
+    )
+
+
+def verify_candidate_package(
+    root: Path,
+) -> tuple[VerifiedCandidateIdentity, WickHunterParameters]:
+    package = load_verified_candidate_package(root)
+    return package.identity, package.parameters
 
 
 def _activation_binding(

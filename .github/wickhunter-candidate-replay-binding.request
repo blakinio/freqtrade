@@ -1,0 +1,3 @@
+# WickHunter candidate replay binding
+
+Bind the retained candidate materialization request to the deterministic WH-02 v4 immutable destination and remove the temporary helper.

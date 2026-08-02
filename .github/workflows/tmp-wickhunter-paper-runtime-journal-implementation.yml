@@ -1,0 +1,507 @@
+name: Temporary WickHunter paper runtime journal implementation
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - feat/wickhunter-paper-runtime-journal-v1
+    paths:
+      - ".tmp/wickhunter-paper-runtime-journal-implementation.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-paper-runtime-journal-implementation
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'chore/trigger-wickhunter-paper-runtime-journal-implementation'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-paper-runtime-journal-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Complete observation-native validation and journal hardening
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(source: str, old: str, new: str, label: str) -> str:
+              if source.count(old) != 1:
+                  raise SystemExit(f"{label} anchor mismatch: {source.count(old)}")
+              return source.replace(old, new)
+
+          paper_path = Path("ai_platform/wickhunter/paper_validation.py")
+          paper = paper_path.read_text(encoding="utf-8")
+          old_parity = '''def _validate_parity(
+              request: PaperRunRequest,
+              snapshots: Sequence[PortalObservabilitySnapshot],
+              parity_evidence: Sequence[ReplayShadowParityEvidence],
+          ) -> tuple[set[str], set[str]]:
+              parity_ids = {item.shadow_decision_id for item in parity_evidence}
+              if len(parity_ids) != len(parity_evidence):
+                  raise PaperValidationError("parity evidence contains duplicate decisions")
+              allowed_ids = {
+                  decision.shadow_decision_id
+                  for snapshot in snapshots
+                  for decision in snapshot.decisions
+                  if decision.status is ShadowStatus.SIMULATED_ALLOWED
+              }
+              for item in parity_evidence:
+                  if item.shadow_decision_id not in allowed_ids:
+                      raise PaperValidationError("parity evidence does not bind an allowed decision")
+                  if item.dataset_hash != request.dataset_hash or item.code_sha != request.code_sha:
+                      raise PaperValidationError("parity evidence identity mismatch")
+                  accepted = item.identities_match and item.policy_match and item.execution_authority_absent
+                  if not accepted:
+                      raise PaperValidationError("parity evidence is not accepted")
+              return allowed_ids, parity_ids
+          '''
+          new_parity = '''def _validate_parity_ids(
+              request: PaperRunRequest,
+              allowed_ids: set[str],
+              parity_evidence: Sequence[ReplayShadowParityEvidence],
+          ) -> set[str]:
+              parity_ids = {item.shadow_decision_id for item in parity_evidence}
+              if len(parity_ids) != len(parity_evidence):
+                  raise PaperValidationError("parity evidence contains duplicate decisions")
+              for item in parity_evidence:
+                  if item.shadow_decision_id not in allowed_ids:
+                      raise PaperValidationError("parity evidence does not bind an allowed decision")
+                  if item.dataset_hash != request.dataset_hash or item.code_sha != request.code_sha:
+                      raise PaperValidationError("parity evidence identity mismatch")
+                  accepted = item.identities_match and item.policy_match and item.execution_authority_absent
+                  if not accepted:
+                      raise PaperValidationError("parity evidence is not accepted")
+              return parity_ids
+
+
+          def _validate_parity(
+              request: PaperRunRequest,
+              snapshots: Sequence[PortalObservabilitySnapshot],
+              parity_evidence: Sequence[ReplayShadowParityEvidence],
+          ) -> tuple[set[str], set[str]]:
+              allowed_ids = {
+                  decision.shadow_decision_id
+                  for snapshot in snapshots
+                  for decision in snapshot.decisions
+                  if decision.status is ShadowStatus.SIMULATED_ALLOWED
+              }
+              return allowed_ids, _validate_parity_ids(request, allowed_ids, parity_evidence)
+          '''
+          if "def _validate_parity_ids(" not in paper:
+              paper = replace_once(paper, old_parity, new_parity, "parity validation")
+
+          old_evaluate = '''def evaluate_paper_evidence(
+              *,
+              request: PaperRunRequest,
+              policy: PaperValidationPolicy,
+              snapshots: Sequence[PortalObservabilitySnapshot],
+              parity_evidence: Sequence[ReplayShadowParityEvidence],
+              safety_exercises: Sequence[SafetyExerciseEvidence],
+          ) -> PaperValidationResult:
+              _assert_request_matches_policy(request, policy, field="request")
+              observations = _prepare_observations(request, snapshots)
+              allowed_ids, parity_ids = _validate_parity(request, snapshots, parity_evidence)
+              exercise_kinds = _validate_exercises(request, observations, safety_exercises)
+              summary = _summarize(observations, len(parity_evidence), exercise_kinds)
+              blockers = _blocker_codes(policy, summary, allowed_ids, parity_ids)
+              report = _build_report(request, policy, summary, blockers)
+              return PaperValidationResult(
+                  report=report,
+                  candidate_review=_build_review(request, report),
+                  observations=observations,
+              )
+          '''
+          new_evaluate = '''def _prepare_existing_observations(
+              request: PaperRunRequest,
+              observations: Sequence[PaperObservation],
+          ) -> tuple[PaperObservation, ...]:
+              prepared = tuple(sorted(observations, key=lambda item: item.observed_at_ms))
+              if not prepared:
+                  raise PaperValidationError("paper validation requires observations")
+              if len({item.snapshot_id for item in prepared}) != len(prepared):
+                  raise PaperValidationError("paper observations contain duplicate snapshot ids")
+              if any(
+                  later.observed_at_ms <= earlier.observed_at_ms
+                  for earlier, later in pairwise(prepared)
+              ):
+                  raise PaperValidationError("paper observations must be strictly increasing")
+              for observation in prepared:
+                  _validate_request_observation(request, observation)
+              return prepared
+
+
+          def evaluate_paper_observations(
+              *,
+              request: PaperRunRequest,
+              policy: PaperValidationPolicy,
+              observations: Sequence[PaperObservation],
+              parity_evidence: Sequence[ReplayShadowParityEvidence],
+              safety_exercises: Sequence[SafetyExerciseEvidence],
+          ) -> PaperValidationResult:
+              _assert_request_matches_policy(request, policy, field="request")
+              prepared = _prepare_existing_observations(request, observations)
+              allowed_ids = {
+                  decision_id
+                  for observation in prepared
+                  for decision_id in observation.allowed_decision_ids
+              }
+              parity_ids = _validate_parity_ids(request, allowed_ids, parity_evidence)
+              exercise_kinds = _validate_exercises(request, prepared, safety_exercises)
+              summary = _summarize(prepared, len(parity_evidence), exercise_kinds)
+              blockers = _blocker_codes(policy, summary, allowed_ids, parity_ids)
+              report = _build_report(request, policy, summary, blockers)
+              return PaperValidationResult(
+                  report=report,
+                  candidate_review=_build_review(request, report),
+                  observations=prepared,
+              )
+
+
+          def evaluate_paper_evidence(
+              *,
+              request: PaperRunRequest,
+              policy: PaperValidationPolicy,
+              snapshots: Sequence[PortalObservabilitySnapshot],
+              parity_evidence: Sequence[ReplayShadowParityEvidence],
+              safety_exercises: Sequence[SafetyExerciseEvidence],
+          ) -> PaperValidationResult:
+              observations = _prepare_observations(request, snapshots)
+              return evaluate_paper_observations(
+                  request=request,
+                  policy=policy,
+                  observations=observations,
+                  parity_evidence=parity_evidence,
+                  safety_exercises=safety_exercises,
+              )
+          '''
+          if "def evaluate_paper_observations(" not in paper:
+              paper = replace_once(paper, old_evaluate, new_evaluate, "observation evaluation")
+
+          publish_anchor = '''def _verify_index(root: Path, expected_files: set[str]) -> None:
+          '''
+          observation_publish = '''def publish_paper_observation_package(
+              destination: Path,
+              *,
+              request: PaperRunRequest,
+              policy: PaperValidationPolicy,
+              observations: Sequence[PaperObservation],
+              parity_evidence: Sequence[ReplayShadowParityEvidence],
+              safety_exercises: Sequence[SafetyExerciseEvidence],
+          ) -> PaperValidationResult:
+              result = evaluate_paper_observations(
+                  request=request,
+                  policy=policy,
+                  observations=observations,
+                  parity_evidence=parity_evidence,
+                  safety_exercises=safety_exercises,
+              )
+
+              def write(root: Path) -> None:
+                  _write_json(root / POLICY_NAME, policy)
+                  _write_json(root / REQUEST_NAME, request)
+                  _write_jsonl(root / OBSERVATIONS_NAME, result.observations)
+                  _write_jsonl(root / PARITY_NAME, parity_evidence)
+                  _write_jsonl(root / EXERCISES_NAME, safety_exercises)
+                  _write_json(root / REPORT_NAME, result.report)
+                  _write_json(root / REVIEW_NAME, result.candidate_review)
+                  artifact_names = (
+                      POLICY_NAME,
+                      REQUEST_NAME,
+                      OBSERVATIONS_NAME,
+                      PARITY_NAME,
+                      EXERCISES_NAME,
+                      REPORT_NAME,
+                      REVIEW_NAME,
+                  )
+                  payload: dict[str, object] = {
+                      "run_id": request.run_id,
+                      "report_id": result.report.report_id,
+                      "candidate_review_id": result.candidate_review.package_id,
+                      "artifacts": tuple(
+                          (name, _sha256_file(root / name)) for name in artifact_names
+                      ),
+                      "protected_holdout_accessed": False,
+                      "automatic_promotion_enabled": False,
+                      "trading_credentials_present": False,
+                      "execution_enabled": False,
+                      "orders_submitted": 0,
+                      "live_capital_authorized": False,
+                  }
+                  _write_json(
+                      root / MANIFEST_NAME,
+                      _manifest(MANIFEST_SCHEMA_VERSION, payload),
+                  )
+                  _write_checksum_index(root, (*artifact_names, MANIFEST_NAME))
+
+              _publish_directory(destination, write)
+              verify_paper_validation_package(destination)
+              return result
+
+
+          '''
+          if "def publish_paper_observation_package(" not in paper:
+              paper = replace_once(
+                  paper,
+                  publish_anchor,
+                  observation_publish + publish_anchor,
+                  "observation publication",
+              )
+          paper_path.write_text(paper, encoding="utf-8")
+
+          service_path = Path(
+              "ai_platform/wickhunter/candidate_paper_runtime_service.py"
+          )
+          service = service_path.read_text(encoding="utf-8")
+          service = service.replace(
+              "from collections.abc import Sequence\n",
+              "from collections.abc import Callable, Sequence\n",
+          )
+          service = service.replace(
+              "from ai_platform.wickhunter.shadow_runtime import (\n",
+              "from ai_platform.wickhunter.shadow import (\n"
+              "    ShadowDecisionRequest,\n"
+              "    evaluate_shadow_decision,\n"
+              ")\n"
+              "from ai_platform.wickhunter.shadow_runtime import (\n",
+          )
+          service = service.replace(
+              "class CandidatePaperRuntimeJournal:\n"
+              "    root: Path\n"
+              "    binding: CandidatePaperRuntimeBinding\n",
+              "class CandidatePaperRuntimeJournal:\n"
+              "    root: Path\n"
+              "    binding: CandidatePaperRuntimeBinding\n"
+              "    runtime_policy: ShadowRuntimePolicy\n",
+          )
+          service = service.replace(
+              '            "policy_sha256": self.binding.policy.policy_sha256,\n',
+              '            "policy_sha256": self.binding.policy.policy_sha256,\n'
+              '            "runtime_policy_version": self.runtime_policy.policy_version,\n'
+              '            "runtime_policy_sha256": self.runtime_policy.policy_sha256,\n',
+          )
+          service = service.replace(
+              "    def _artifact_paths(self, generation_root: Path) -> tuple[str, ...]:\n",
+              "    def _artifact_paths(self) -> tuple[str, ...]:\n",
+          )
+          service = service.replace("self._artifact_paths(generation_root)", "self._artifact_paths()")
+          service = service.replace("self._artifact_paths(temporary)", "self._artifact_paths()")
+          service = service.replace(
+              "        index_path = generation_root / CHECKSUM_NAME\n"
+              "        entries: dict[str, str] = {}\n",
+              "        index_path = generation_root / CHECKSUM_NAME\n"
+              "        if index_path.is_symlink() or not index_path.is_file():\n"
+              "            raise CandidatePaperRuntimeServiceError(\n"
+              "                \"generation checksum index is invalid\"\n"
+              "            )\n"
+              "        entries: dict[str, str] = {}\n",
+          )
+          service = service.replace(
+              "        expected_artifacts = {*self._artifact_paths(), MANIFEST_NAME}\n"
+              "        if set(entries) != expected_artifacts:\n",
+              "        expected_artifacts = {*self._artifact_paths(), MANIFEST_NAME}\n"
+              "        if set(entries) != expected_artifacts:\n",
+          )
+          service = service.replace(
+              "        for name, digest in entries.items():\n"
+              "            path = generation_root / name\n",
+              "        manifest_artifacts = manifest.get(\"artifacts\")\n"
+              "        expected_manifest_artifacts = [\n"
+              "            [name, entries[name]] for name in self._artifact_paths()\n"
+              "        ]\n"
+              "        if manifest_artifacts != expected_manifest_artifacts:\n"
+              "            raise CandidatePaperRuntimeServiceError(\n"
+              "                \"generation manifest artifact map mismatch\"\n"
+              "            )\n"
+              "        for name, digest in entries.items():\n"
+              "            path = generation_root / name\n",
+          )
+          service = service.replace(
+              "        if not decision_ids or len(decision_ids) != len(set(decision_ids)):\n"
+              "            raise CandidatePaperRuntimeServiceError(\n"
+              "                \"generation decision identities are invalid\"\n"
+              "            )\n",
+              "        if len(decision_ids) != len(set(decision_ids)) or any(\n"
+              "            len(value) != 64 for value in decision_ids\n"
+              "        ):\n"
+              "            raise CandidatePaperRuntimeServiceError(\n"
+              "                \"generation decision identities are invalid\"\n"
+              "            )\n",
+          )
+          service = service.replace(
+              '                    "run_id": self.binding.request.run_id,\n'
+              '                    "runtime_state_sha256": result.state.state_sha256,\n',
+              '                    "run_id": self.binding.request.run_id,\n'
+              '                    "runtime_policy_sha256": self.runtime_policy.policy_sha256,\n'
+              '                    "runtime_state_sha256": result.state.state_sha256,\n',
+          )
+          service = service.replace(
+              "        runtime_policy: ShadowRuntimePolicy,\n"
+              "        journal_root: Path,\n"
+              "    ) -> None:\n",
+              "        runtime_policy: ShadowRuntimePolicy,\n"
+              "        journal_root: Path,\n"
+              "        decision_evaluator: Callable[\n"
+              "            [ShadowDecisionRequest], ShadowDecisionEvidence\n"
+              "        ] = evaluate_shadow_decision,\n"
+              "    ) -> None:\n",
+          )
+          service = service.replace(
+              "        self.journal = CandidatePaperRuntimeJournal(journal_root, binding)\n",
+              "        self.journal = CandidatePaperRuntimeJournal(\n"
+              "            journal_root, binding, runtime_policy\n"
+              "        )\n",
+          )
+          service = service.replace(
+              "            policy=runtime_policy,\n"
+              "            store=None,\n",
+              "            policy=runtime_policy,\n"
+              "            store=None,\n"
+              "            decision_evaluator=decision_evaluator,\n",
+          )
+          service = service.replace(
+              "            expected = (\n"
+              "                binding.request.model_version,\n",
+              "            runtime_expected = (\n"
+              "                binding.request.bot_instance,\n"
+              "                binding.request.mode,\n"
+              "                runtime_policy.policy_sha256,\n"
+              "            )\n"
+              "            runtime_actual = (\n"
+              "                recovered.bot_instance,\n"
+              "                recovered.mode,\n"
+              "                recovered.policy_sha256,\n"
+              "            )\n"
+              "            if runtime_actual != runtime_expected:\n"
+              "                raise CandidatePaperRuntimeServiceError(\n"
+              "                    \"recovered runtime policy or instance does not match\"\n"
+              "                )\n"
+              "            expected = (\n"
+              "                binding.request.model_version,\n",
+          )
+          service_path.write_text(service, encoding="utf-8")
+
+          test_path = Path(
+              "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py"
+          )
+          tests = test_path.read_text(encoding="utf-8")
+          tests = tests.replace(
+              "from ai_platform.wickhunter.candidate_paper_runtime_service import (\n",
+              "from ai_platform.wickhunter.candidate_paper_runtime_service import (\n",
+          )
+          tests = tests.replace(
+              "from ai_platform.wickhunter.canonical import canonical_sha256\n",
+              "from ai_platform.wickhunter.candidate_runtime_binding import (\n"
+              "    CandidatePaperRuntimeBinding,\n"
+              ")\n"
+              "from ai_platform.wickhunter.canonical import canonical_sha256\n",
+          )
+          tests = tests.replace(
+              "from ai_platform.wickhunter.shadow_runtime import (\n",
+              "from ai_platform.wickhunter.shadow import ShadowDecisionRequest\n"
+              "from ai_platform.wickhunter.shadow_runtime import (\n",
+          )
+          tests = tests.replace("def _binding() -> object:\n", "def _binding() -> CandidatePaperRuntimeBinding:\n")
+          tests = tests.replace(
+              "    return binding\n\n\ndef _universe",
+              "    return cast(CandidatePaperRuntimeBinding, binding)\n\n\ndef _universe",
+          )
+          tests = tests.replace("def _request(observed_at_ms: int, universe: DynamicUniverseSnapshot) -> object:\n", "def _request(\n    observed_at_ms: int,\n    universe: DynamicUniverseSnapshot,\n) -> ShadowDecisionRequest:\n")
+          tests = tests.replace(
+              "    return SimpleNamespace(\n"
+              "        mode=BotMode.PAPER,\n",
+              "    return cast(\n"
+              "        ShadowDecisionRequest,\n"
+              "        SimpleNamespace(\n"
+              "            mode=BotMode.PAPER,\n",
+          )
+          tests = tests.replace(
+              "        ),\n"
+              "    )\n\n\ndef _tick",
+              "            ),\n"
+              "        ),\n"
+              "    )\n\n\ndef _tick",
+              1,
+          )
+          tests = tests.replace("        decision_requests=cast(tuple, requests),\n", "        decision_requests=requests,\n")
+          tests = tests.replace("def _evaluator(request: object) -> ShadowDecisionEvidence:\n", "def _evaluator(request: ShadowDecisionRequest) -> ShadowDecisionEvidence:\n")
+          tests = tests.replace(
+              "        binding=cast(object, _binding()),\n",
+              "        binding=_binding(),\n",
+          )
+          tests = tests.replace(
+              "        decision_evaluator=cast(object, _evaluator),\n",
+              "        decision_evaluator=_evaluator,\n",
+          )
+          test_path.write_text(tests, encoding="utf-8")
+
+          task_path = Path(
+              "docs/agents/tasks/FTAI-20260802-wickhunter-candidate-paper-runtime-journal-v1.md"
+          )
+          task = task_path.read_text(encoding="utf-8")
+          task = task.replace("status: implementing", "status: validating")
+          task = task.replace("phase: implementation", "phase: validation")
+          task = task.replace(
+              "next_action: complete the observation-native WH-09 publication path; validate atomic journal recovery, tamper rejection and exact-head CI",
+              "next_action: complete focused and exact-head CI; audit the stacked diff and merge after the runtime-binding dependency",
+          )
+          task_path.write_text(task, encoding="utf-8")
+
+      - name: Validate focused implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            ai_platform/wickhunter/paper_validation.py
+            ai_platform/wickhunter/candidate_paper_runtime_service.py
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py
+          )
+          ruff check --fix "${paths[@]}"
+          ruff format "${paths[@]}"
+          ruff check "${paths[@]}"
+          ruff format --check "${paths[@]}"
+          mypy "${paths[@]}"
+          pytest -q \
+            tests/ai_platform_integration/test_wickhunter_paper_validation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py
+
+      - name: Commit validated implementation and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/tmp-wickhunter-paper-runtime-journal-implementation.yml
+          git add \
+            ai_platform/wickhunter/paper_validation.py \
+            ai_platform/wickhunter/candidate_paper_runtime_service.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
+            docs/ai_platform/WICKHUNTER_CANDIDATE_PAPER_RUNTIME_SERVICE.md \
+            docs/agents/tasks/FTAI-20260802-wickhunter-candidate-paper-runtime-journal-v1.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat(wickhunter): add restart-safe candidate paper runtime"
+          git push origin HEAD:feat/wickhunter-paper-runtime-journal-v1

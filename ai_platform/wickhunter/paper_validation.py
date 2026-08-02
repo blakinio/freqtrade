@@ -767,20 +767,14 @@ def _prepare_observations(
     return observations
 
 
-def _validate_parity(
+def _validate_parity_ids(
     request: PaperRunRequest,
-    snapshots: Sequence[PortalObservabilitySnapshot],
+    allowed_ids: set[str],
     parity_evidence: Sequence[ReplayShadowParityEvidence],
-) -> tuple[set[str], set[str]]:
+) -> set[str]:
     parity_ids = {item.shadow_decision_id for item in parity_evidence}
     if len(parity_ids) != len(parity_evidence):
         raise PaperValidationError("parity evidence contains duplicate decisions")
-    allowed_ids = {
-        decision.shadow_decision_id
-        for snapshot in snapshots
-        for decision in snapshot.decisions
-        if decision.status is ShadowStatus.SIMULATED_ALLOWED
-    }
     for item in parity_evidence:
         if item.shadow_decision_id not in allowed_ids:
             raise PaperValidationError("parity evidence does not bind an allowed decision")
@@ -789,7 +783,21 @@ def _validate_parity(
         accepted = item.identities_match and item.policy_match and item.execution_authority_absent
         if not accepted:
             raise PaperValidationError("parity evidence is not accepted")
-    return allowed_ids, parity_ids
+    return parity_ids
+
+
+def _validate_parity(
+    request: PaperRunRequest,
+    snapshots: Sequence[PortalObservabilitySnapshot],
+    parity_evidence: Sequence[ReplayShadowParityEvidence],
+) -> tuple[set[str], set[str]]:
+    allowed_ids = {
+        decision.shadow_decision_id
+        for snapshot in snapshots
+        for decision in snapshot.decisions
+        if decision.status is ShadowStatus.SIMULATED_ALLOWED
+    }
+    return allowed_ids, _validate_parity_ids(request, allowed_ids, parity_evidence)
 
 
 def _validate_exercises(
@@ -983,6 +991,47 @@ def _build_review(
     )
 
 
+def _prepare_existing_observations(
+    request: PaperRunRequest,
+    observations: Sequence[PaperObservation],
+) -> tuple[PaperObservation, ...]:
+    prepared = tuple(sorted(observations, key=lambda item: item.observed_at_ms))
+    if not prepared:
+        raise PaperValidationError("paper validation requires observations")
+    if len({item.snapshot_id for item in prepared}) != len(prepared):
+        raise PaperValidationError("paper observations contain duplicate snapshot ids")
+    if any(later.observed_at_ms <= earlier.observed_at_ms for earlier, later in pairwise(prepared)):
+        raise PaperValidationError("paper observations must be strictly increasing")
+    for observation in prepared:
+        _validate_request_observation(request, observation)
+    return prepared
+
+
+def evaluate_paper_observations(
+    *,
+    request: PaperRunRequest,
+    policy: PaperValidationPolicy,
+    observations: Sequence[PaperObservation],
+    parity_evidence: Sequence[ReplayShadowParityEvidence],
+    safety_exercises: Sequence[SafetyExerciseEvidence],
+) -> PaperValidationResult:
+    _assert_request_matches_policy(request, policy, field="request")
+    prepared = _prepare_existing_observations(request, observations)
+    allowed_ids = {
+        decision_id for observation in prepared for decision_id in observation.allowed_decision_ids
+    }
+    parity_ids = _validate_parity_ids(request, allowed_ids, parity_evidence)
+    exercise_kinds = _validate_exercises(request, prepared, safety_exercises)
+    summary = _summarize(prepared, len(parity_evidence), exercise_kinds)
+    blockers = _blocker_codes(policy, summary, allowed_ids, parity_ids)
+    report = _build_report(request, policy, summary, blockers)
+    return PaperValidationResult(
+        report=report,
+        candidate_review=_build_review(request, report),
+        observations=prepared,
+    )
+
+
 def evaluate_paper_evidence(
     *,
     request: PaperRunRequest,
@@ -991,17 +1040,13 @@ def evaluate_paper_evidence(
     parity_evidence: Sequence[ReplayShadowParityEvidence],
     safety_exercises: Sequence[SafetyExerciseEvidence],
 ) -> PaperValidationResult:
-    _assert_request_matches_policy(request, policy, field="request")
     observations = _prepare_observations(request, snapshots)
-    allowed_ids, parity_ids = _validate_parity(request, snapshots, parity_evidence)
-    exercise_kinds = _validate_exercises(request, observations, safety_exercises)
-    summary = _summarize(observations, len(parity_evidence), exercise_kinds)
-    blockers = _blocker_codes(policy, summary, allowed_ids, parity_ids)
-    report = _build_report(request, policy, summary, blockers)
-    return PaperValidationResult(
-        report=report,
-        candidate_review=_build_review(request, report),
+    return evaluate_paper_observations(
+        request=request,
+        policy=policy,
         observations=observations,
+        parity_evidence=parity_evidence,
+        safety_exercises=safety_exercises,
     )
 
 
@@ -1111,6 +1156,63 @@ def publish_paper_validation_package(
             "live_capital_authorized": False,
         }
         _write_json(root / MANIFEST_NAME, _manifest(MANIFEST_SCHEMA_VERSION, payload))
+        _write_checksum_index(root, (*artifact_names, MANIFEST_NAME))
+
+    _publish_directory(destination, write)
+    verify_paper_validation_package(destination)
+    return result
+
+
+def publish_paper_observation_package(
+    destination: Path,
+    *,
+    request: PaperRunRequest,
+    policy: PaperValidationPolicy,
+    observations: Sequence[PaperObservation],
+    parity_evidence: Sequence[ReplayShadowParityEvidence],
+    safety_exercises: Sequence[SafetyExerciseEvidence],
+) -> PaperValidationResult:
+    result = evaluate_paper_observations(
+        request=request,
+        policy=policy,
+        observations=observations,
+        parity_evidence=parity_evidence,
+        safety_exercises=safety_exercises,
+    )
+
+    def write(root: Path) -> None:
+        _write_json(root / POLICY_NAME, policy)
+        _write_json(root / REQUEST_NAME, request)
+        _write_jsonl(root / OBSERVATIONS_NAME, result.observations)
+        _write_jsonl(root / PARITY_NAME, parity_evidence)
+        _write_jsonl(root / EXERCISES_NAME, safety_exercises)
+        _write_json(root / REPORT_NAME, result.report)
+        _write_json(root / REVIEW_NAME, result.candidate_review)
+        artifact_names = (
+            POLICY_NAME,
+            REQUEST_NAME,
+            OBSERVATIONS_NAME,
+            PARITY_NAME,
+            EXERCISES_NAME,
+            REPORT_NAME,
+            REVIEW_NAME,
+        )
+        payload: dict[str, object] = {
+            "run_id": request.run_id,
+            "report_id": result.report.report_id,
+            "candidate_review_id": result.candidate_review.package_id,
+            "artifacts": tuple((name, _sha256_file(root / name)) for name in artifact_names),
+            "protected_holdout_accessed": False,
+            "automatic_promotion_enabled": False,
+            "trading_credentials_present": False,
+            "execution_enabled": False,
+            "orders_submitted": 0,
+            "live_capital_authorized": False,
+        }
+        _write_json(
+            root / MANIFEST_NAME,
+            _manifest(MANIFEST_SCHEMA_VERSION, payload),
+        )
         _write_checksum_index(root, (*artifact_names, MANIFEST_NAME))
 
     _publish_directory(destination, write)

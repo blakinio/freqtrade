@@ -68,6 +68,7 @@ jobs:
           pre-commit run --all-files
           set -e
           pre-commit run --all-files
+          rm -rf artifacts
 
           allowed='^(tools/portal_audit/(deep_inventory|classified_matrices|navigation_matrix)\.py|\.github/workflows/portal-completeness-audit\.yml|docs/ai_platform/portal/AUDIT_2026-08-0(2_END_TO_END_COMPLETENESS|3_LEFT_NAVIGATION_COMPLETENESS)\.md|docs/agents/tasks/FTAI-20260802-portal-end-to-end-completeness-audit\.md|\.github/portal-nav-update\.(part[1-5]|chunk0[0-6])|\.github/workflows/portal-nav-audit-apply\.yml)$'
           unexpected=$(git status --short | cut -c4- | grep -Ev "$allowed" || true)
@@ -97,6 +98,7 @@ jobs:
           for path in "${files[@]}"; do
             blob_sha=$(jq -Rs '{content: ., encoding: "utf-8"}' < "$path" \
               | gh api --method POST "repos/$REPOSITORY/git/blobs" --input - --jq '.sha')
+            echo "blob[$path]=$blob_sha"
             entries=$(jq -c \
               --arg path "$path" \
               --arg sha "$blob_sha" \
@@ -131,12 +133,14 @@ jobs:
             --argjson tree "$entries" \
             '{base_tree: $base, tree: $tree}' \
             | gh api --method POST "repos/$REPOSITORY/git/trees" --input - --jq '.sha')
+          echo "created_tree=$tree_sha"
           commit_sha=$(jq -n \
             --arg message 'audit(portal): classify every left-navigation module' \
             --arg tree "$tree_sha" \
             --arg parent "$parent_sha" \
             '{message: $message, tree: $tree, parents: [$parent]}' \
             | gh api --method POST "repos/$REPOSITORY/git/commits" --input - --jq '.sha')
+          echo "created_commit=$commit_sha"
           jq -n --arg sha "$commit_sha" '{sha: $sha, force: false}' \
             | gh api --method PATCH "repos/$REPOSITORY/git/refs/heads/$BRANCH" --input - >/dev/null
           echo "published_commit=$commit_sha"

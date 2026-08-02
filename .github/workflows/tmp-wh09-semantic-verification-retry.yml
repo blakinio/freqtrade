@@ -166,7 +166,7 @@ jobs:
           parity_identity = [
               "    expected_parity_id = canonical_sha256(",
               "        {",
-              '            "schema_version": RUNTIME_PARITY_SCHEMA_VERSION,',
+              '            "schema_version": parity.schema_version,',
               '            "payload": {',
               '                "shadow_decision_id": parity.shadow_decision_id,',
               '                "label_id": parity.label_id,',

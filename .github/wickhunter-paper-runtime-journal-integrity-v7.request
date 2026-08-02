@@ -1,0 +1,3 @@
+# WickHunter paper runtime journal integrity v7
+
+Apply exact integrity hardening to the feature branch, validate it, and remove every temporary journal-integrity workflow.

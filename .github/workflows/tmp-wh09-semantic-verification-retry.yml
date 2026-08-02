@@ -59,60 +59,71 @@ jobs:
 
           implementation = Path("ai_platform/wickhunter/paper_validation.py")
           source = implementation.read_text(encoding="utf-8")
-          start = source.index("def _request_from_payload(")
-          end = source.index("\n\ndef _observation_from_payload(", start)
-          lines = source[start:end].splitlines()
 
-          verifier_start = next(
-              (
-                  index
-                  for index, line in enumerate(lines)
-                  if line.strip() == "_verify_derived_identity("
-              ),
-              None,
-          )
-          if verifier_start is None:
-              raise SystemExit("generic request identity verifier not found")
-          verifier_end = next(
-              (
-                  index
-                  for index in range(verifier_start + 1, len(lines))
-                  if lines[index].strip() == ")"
-              ),
-              None,
-          )
-          if verifier_end is None:
-              raise SystemExit("generic request identity verifier end not found")
-          del lines[verifier_start : verifier_end + 1]
+          def replace_custom_identity(
+              source_text: str,
+              *,
+              function_start: str,
+              function_end: str,
+              constructor: str,
+              object_name: str,
+              error_text: str,
+              identity_lines: list[str],
+              label: str,
+          ) -> str:
+              start = source_text.index(function_start)
+              end = source_text.index(function_end, start)
+              lines = source_text[start:end].splitlines()
+              verifier_start = next(
+                  (
+                      index
+                      for index, line in enumerate(lines)
+                      if line.strip() == "_verify_derived_identity("
+                  ),
+                  None,
+              )
+              if verifier_start is None:
+                  raise SystemExit(f"generic {label} identity verifier not found")
+              verifier_end = next(
+                  (
+                      index
+                      for index in range(verifier_start + 1, len(lines))
+                      if lines[index].strip() == ")"
+                  ),
+                  None,
+              )
+              if verifier_end is None:
+                  raise SystemExit(f"generic {label} identity verifier end not found")
+              del lines[verifier_start : verifier_end + 1]
+              constructor_index = next(
+                  (
+                      index
+                      for index, line in enumerate(lines)
+                      if f"return {constructor}(" in line
+                  ),
+                  None,
+              )
+              if constructor_index is None:
+                  raise SystemExit(f"{label} constructor return not found")
+              lines[constructor_index] = lines[constructor_index].replace(
+                  f"return {constructor}(",
+                  f"{object_name} = {constructor}(",
+                  1,
+              )
+              error_index = next(
+                  (
+                      index
+                      for index, line in enumerate(lines)
+                      if error_text in line
+                  ),
+                  None,
+              )
+              if error_index is None:
+                  raise SystemExit(f"{label} parser error boundary not found")
+              lines[error_index + 1 : error_index + 1] = identity_lines
+              return source_text[:start] + "\n".join(lines) + source_text[end:]
 
-          constructor_index = next(
-              (
-                  index
-                  for index, line in enumerate(lines)
-                  if "return PaperRunRequest(" in line
-              ),
-              None,
-          )
-          if constructor_index is None:
-              raise SystemExit("request constructor return not found")
-          lines[constructor_index] = lines[constructor_index].replace(
-              "return PaperRunRequest(",
-              "request = PaperRunRequest(",
-              1,
-          )
-
-          error_index = next(
-              (
-                  index
-                  for index, line in enumerate(lines)
-                  if 'raise PaperValidationError("request payload is invalid") from exc'
-                  in line
-              ),
-              None,
-          )
-          if error_index is None:
-              raise SystemExit("request parser error boundary not found")
-          identity_check = [
+          request_identity = [
               "    expected_run_id = canonical_sha256(",
               "        {",
               '            "schema_version": REQUEST_SCHEMA_VERSION,',
@@ -141,12 +152,53 @@ jobs:
               '        raise PaperValidationError("request derived identity mismatch")',
               "    return request",
           ]
-          lines[error_index + 1 : error_index + 1] = identity_check
-          updated_section = "\n".join(lines)
-          implementation.write_text(
-              source[:start] + updated_section + source[end:],
-              encoding="utf-8",
+          source = replace_custom_identity(
+              source,
+              function_start="def _request_from_payload(",
+              function_end="\n\ndef _observation_from_payload(",
+              constructor="PaperRunRequest",
+              object_name="request",
+              error_text='raise PaperValidationError("request payload is invalid") from exc',
+              identity_lines=request_identity,
+              label="request",
           )
+
+          parity_identity = [
+              "    expected_parity_id = canonical_sha256(",
+              "        {",
+              '            "schema_version": RUNTIME_PARITY_SCHEMA_VERSION,',
+              '            "payload": {',
+              '                "shadow_decision_id": parity.shadow_decision_id,',
+              '                "label_id": parity.label_id,',
+              '                "symbol": parity.symbol,',
+              '                "side": parity.side.value,',
+              '                "decision_timestamp_ms": parity.decision_timestamp_ms,',
+              '                "dataset_hash": parity.dataset_hash,',
+              '                "code_sha": parity.code_sha,',
+              '                "take_profit_ratio": parity.take_profit_ratio,',
+              '                "stop_loss_ratio": parity.stop_loss_ratio,',
+              '                "label_outcome": parity.label_outcome.value,',
+              '                "identities_match": parity.identities_match,',
+              '                "policy_match": parity.policy_match,',
+              '                "execution_authority_absent": parity.execution_authority_absent,',
+              "            },",
+              "        }",
+              "    )",
+              "    if parity.parity_id != expected_parity_id:",
+              '        raise PaperValidationError("parity derived identity mismatch")',
+              "    return parity",
+          ]
+          source = replace_custom_identity(
+              source,
+              function_start="def _parity_from_payload(",
+              function_end="\n\ndef _exercise_from_payload(",
+              constructor="ReplayShadowParityEvidence",
+              object_name="parity",
+              error_text='raise PaperValidationError("parity payload is invalid") from exc',
+              identity_lines=parity_identity,
+              label="parity",
+          )
+          implementation.write_text(source, encoding="utf-8")
 
       - name: Format and lint exact files
         shell: bash
@@ -170,6 +222,7 @@ jobs:
           set -euo pipefail
           git rm .github/workflows/tmp-wh09-semantic-verification.yml
           git rm .github/workflows/tmp-wh09-semantic-verification-retry.yml
+          git rm .github/workflows/tmp-wh09-diagnostic.yml
           git add ai_platform/wickhunter/paper_validation.py tests/ai_platform_integration/test_wickhunter_paper_validation.py
           git diff --cached --check
           git config user.name "github-actions[bot]"

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Event
-from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import pytest
@@ -332,7 +332,6 @@ def test_open_redirect_is_rejected(
     )
 
     assert response.status_code == 422
-
 
 
 def test_file_sqlite_engine_uses_bounded_busy_timeout(tmp_path: Path) -> None:

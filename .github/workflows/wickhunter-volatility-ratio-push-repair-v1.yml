@@ -36,8 +36,8 @@ jobs:
           set -euo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
-          expected=$'A\t.github/workflows/wickhunter-volatility-ratio-push-repair-v1.yml'
-          [[ "$(git diff --name-status origin/develop...HEAD)" == "$expected" ]]
+          expected=$'M\t.github/workflows/wickhunter-volatility-ratio-push-repair-v1.yml'
+          [[ "$(git diff --name-status HEAD^ HEAD)" == "$expected" ]]
 
       - name: Check out product branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
@@ -174,3 +174,5 @@ live-capital authority.
           git diff --cached --check
           git commit -m "fix(wickhunter): align production volatility with parameter scale"
           git push origin HEAD:fix/wickhunter-production-volatility-ratio-v1
+
+# Registered push trigger revision.

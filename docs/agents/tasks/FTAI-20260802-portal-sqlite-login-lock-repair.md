@@ -1,6 +1,6 @@
 ---
 task_id: FTAI-20260802-portal-sqlite-login-lock-repair
-status: active
+status: completed
 branch: fix/portal-sqlite-login-lock-20260802
 base_branch: develop
 created: 2026-08-02
@@ -17,7 +17,7 @@ owned_paths:
 
 ## Proven incident
 
-Trusted Synology diagnostic run `30757559104` captured the current public login failure as:
+Trusted Synology diagnostic run `30757559104` captured the public login failure as:
 
 ```text
 sqlite3.OperationalError: database is locked
@@ -26,7 +26,7 @@ public_runtime.login
   -> IdentityRepository.store_login_flow
 ```
 
-Artifact ID `8836409790`, artifact digest
+Diagnostic artifact ID `8836409790`, artifact digest
 `sha256:6ef6d3e0a20396432b9d5c2b4c9314854b6f3e75bddf16b5f0038a7dd1c0f2ac`,
 report SHA-256
 `1fc83ea8676dc18c0e0b5d9955b55b6e1287c59b3554adcd09c6f720d86f29df`.
@@ -44,27 +44,63 @@ report SHA-256
 - prove a concurrent login can persist while callback exchange is deliberately blocked;
 - preserve one-time state consumption, issuer validation, MFA enforcement and session behavior.
 
+## Delivery evidence
+
+Implementation PR `#1072` merged as commit
+`0e7825bf860cd8011e1bd9207fcb0765baf8d52a` after successful exact-head validation:
+
+- Freqtrade CI run `30758092154`;
+- AI Platform CI run `30758092163`;
+- AI Program Closure E2E run `30758092150`;
+- AI Strategy Engine run `30758092151`;
+- zizmor security analysis run `30758092153`;
+- full AI suite: `1080 passed`, `71 skipped` before final exact-head rerun;
+- Python 3.11, 3.12, 3.13 and 3.14 matrix and CI Gate passed.
+
+Request-only deployment PR `#1073` executed on the trusted Synology runner and closed without merge. Deployment run `30758715633` produced artifact `8837000925` with digest
+`sha256:c678adf8766dbdac633ea9f6e6385e45c4c64662be3afb618a952672cb5ca411`.
+
+The secret-free deployment report proves:
+
+- status `success`;
+- public login status `307` and redirect to the Authentik authorization endpoint;
+- public callback redirect verified as `https://quant.molehill.cloud/portal`;
+- Portal web and control-plane containers running and healthy on implementation `0e7825bf860c`;
+- Authentik PostgreSQL, server and worker running and healthy;
+- discovery and JWKS returned `200`;
+- provider grant types exactly `["authorization_code"]`;
+- legacy grants disabled;
+- identity fixture disabled;
+- no membership bootstrap, restore, trading, withdrawal or live-capital action;
+- no secret values recorded.
+
 ## Safety
 
-No Authentik configuration, credentials, membership, production data, restore, trading, withdrawal or live-capital authority. Failed OIDC exchange leaves the state consumed and requires a fresh login, preserving fail-closed replay protection.
+No credentials, membership or production data were changed outside the existing bounded deployment contract. Failed OIDC exchange still leaves the state consumed and requires a fresh login, preserving fail-closed replay protection.
 
-## Checkpoint
+## Terminal checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-02T19:08:00+02:00
-status: active
+checkpoint_version: 4
+updated_at: 2026-08-02T21:16:00+02:00
+status: completed
 proven:
-  - public login HTTP 500 is caused by sqlite database locking
-  - the lock occurs while storing a new login flow
-  - deployed containers are healthy and Authentik is not the immediate failure source
-  - bounded transaction split and concurrency regression are implemented
-  - focused behavior passed inside the full AI test suite
-  - exact Ruff 0.15.21 fixes are applied
-  - all temporary implementation workflows and scripts are removed from the final diff
-validation:
-  exact_head: pending
-next_action: complete fresh exact-head CI, merge, deploy and repeat public login acceptance
+  - public login HTTP 500 was caused by sqlite database locking
+  - the transaction holding the writer lock across OIDC network I/O was removed
+  - a bounded 30-second SQLite busy timeout is configured
+  - concurrency regression proves a second login persists during a blocked callback exchange
+  - all implementation, security, repository and E2E gates passed
+  - implementation PR 1072 merged as 0e7825bf860cd8011e1bd9207fcb0765baf8d52a
+  - trusted Synology deployment run 30758715633 succeeded
+  - public login now returns HTTP 307 to Authentik instead of HTTP 500
+  - public callback redirect to https://quant.molehill.cloud/portal is verified
+  - request-only PR 1073 closed without merge
+remaining_owner_acceptance:
+  - open a fresh private browser session at https://quant.molehill.cloud
+  - authenticate with the owner's password and current Authentik TOTP
+  - confirm Portal loads the expected tenant-local administrator access
+  - log out and confirm the old session no longer authenticates
+next_action: owner-only interactive password and TOTP acceptance; no further autonomous repair action is pending
 blockers: []
 ```
 

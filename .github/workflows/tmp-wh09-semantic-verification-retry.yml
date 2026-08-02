@@ -61,60 +61,92 @@ jobs:
           source = implementation.read_text(encoding="utf-8")
           start = source.index("def _request_from_payload(")
           end = source.index("\n\ndef _observation_from_payload(", start)
-          section = source[start:end]
-          generic_identity = '''    _verify_derived_identity(
-              payload,
-              schema=REQUEST_SCHEMA_VERSION,
-              identity_field="run_id",
-              field="request",
+          lines = source[start:end].splitlines()
+
+          verifier_start = next(
+              (
+                  index
+                  for index, line in enumerate(lines)
+                  if line.strip() == "_verify_derived_identity("
+              ),
+              None,
           )
-          '''
-          if section.count(generic_identity) != 1:
+          if verifier_start is None:
               raise SystemExit("generic request identity verifier not found")
-          section = section.replace(generic_identity, "")
-          if section.count("        return PaperRunRequest(\n") != 1:
-              raise SystemExit("request constructor return not found")
-          section = section.replace(
-              "        return PaperRunRequest(\n",
-              "        request = PaperRunRequest(\n",
+          verifier_end = next(
+              (
+                  index
+                  for index in range(verifier_start + 1, len(lines))
+                  if lines[index].strip() == ")"
+              ),
+              None,
           )
-          old_tail = '''    except (TypeError, ValueError) as exc:
-              raise PaperValidationError("request payload is invalid") from exc
-          '''
-          new_tail = '''    except (TypeError, ValueError) as exc:
-              raise PaperValidationError("request payload is invalid") from exc
-              expected_run_id = canonical_sha256(
-                  {
-                      "schema_version": REQUEST_SCHEMA_VERSION,
-                      "payload": _request_identity_payload(
-                          created_at_ms=request.created_at_ms,
-                          window_start_ms=request.window_start_ms,
-                          window_end_ms=request.window_end_ms,
-                          bot_instance=request.bot_instance,
-                          mode=request.mode,
-                          model_version=request.model_version,
-                          model_hash=request.model_hash,
-                          parameter_version=request.parameter_version,
-                          parameter_hash=request.parameter_hash,
-                          dataset_hash=request.dataset_hash,
-                          code_sha=request.code_sha,
-                          rollback_model_version=request.rollback_model_version,
-                          rollback_model_hash=request.rollback_model_hash,
-                          rollback_parameter_version=request.rollback_parameter_version,
-                          rollback_parameter_hash=request.rollback_parameter_hash,
-                          wh08_consumer_version=request.wh08_consumer_version,
-                          policy_sha256=request.policy_sha256,
-                      ),
-                  }
-              )
-              if request.run_id != expected_run_id:
-                  raise PaperValidationError("request derived identity mismatch")
-              return request
-          '''
-          if section.count(old_tail) != 1:
-              raise SystemExit("request parser tail not found")
-          section = section.replace(old_tail, new_tail)
-          implementation.write_text(source[:start] + section + source[end:], encoding="utf-8")
+          if verifier_end is None:
+              raise SystemExit("generic request identity verifier end not found")
+          del lines[verifier_start : verifier_end + 1]
+
+          constructor_index = next(
+              (
+                  index
+                  for index, line in enumerate(lines)
+                  if "return PaperRunRequest(" in line
+              ),
+              None,
+          )
+          if constructor_index is None:
+              raise SystemExit("request constructor return not found")
+          lines[constructor_index] = lines[constructor_index].replace(
+              "return PaperRunRequest(",
+              "request = PaperRunRequest(",
+              1,
+          )
+
+          error_index = next(
+              (
+                  index
+                  for index, line in enumerate(lines)
+                  if 'raise PaperValidationError("request payload is invalid") from exc'
+                  in line
+              ),
+              None,
+          )
+          if error_index is None:
+              raise SystemExit("request parser error boundary not found")
+          identity_check = [
+              "    expected_run_id = canonical_sha256(",
+              "        {",
+              '            "schema_version": REQUEST_SCHEMA_VERSION,',
+              '            "payload": _request_identity_payload(',
+              "                created_at_ms=request.created_at_ms,",
+              "                window_start_ms=request.window_start_ms,",
+              "                window_end_ms=request.window_end_ms,",
+              "                bot_instance=request.bot_instance,",
+              "                mode=request.mode,",
+              "                model_version=request.model_version,",
+              "                model_hash=request.model_hash,",
+              "                parameter_version=request.parameter_version,",
+              "                parameter_hash=request.parameter_hash,",
+              "                dataset_hash=request.dataset_hash,",
+              "                code_sha=request.code_sha,",
+              "                rollback_model_version=request.rollback_model_version,",
+              "                rollback_model_hash=request.rollback_model_hash,",
+              "                rollback_parameter_version=request.rollback_parameter_version,",
+              "                rollback_parameter_hash=request.rollback_parameter_hash,",
+              "                wh08_consumer_version=request.wh08_consumer_version,",
+              "                policy_sha256=request.policy_sha256,",
+              "            ),",
+              "        }",
+              "    )",
+              "    if request.run_id != expected_run_id:",
+              '        raise PaperValidationError("request derived identity mismatch")',
+              "    return request",
+          ]
+          lines[error_index + 1 : error_index + 1] = identity_check
+          updated_section = "\n".join(lines)
+          implementation.write_text(
+              source[:start] + updated_section + source[end:],
+              encoding="utf-8",
+          )
 
       - name: Format and lint exact files
         shell: bash

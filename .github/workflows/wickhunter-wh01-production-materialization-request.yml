@@ -1,0 +1,362 @@
+name: WickHunter WH-01 Production Materialization
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh01-production-materialization-request.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh01-production-materialization-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh01-production-materialization-request.yml
+  MARKET_PACKAGE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v3-20260731/wickhunter-production-market-evidence-20260731-v3-r1/immutable-package
+  ACCEPTED_IMPORT_ROOT: /var/lib/freqtrade-staging-state/wickhunter-accepted-imports/wickhunter-production-live-archive-20260731-v1/accepted
+  DATASET_STATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets
+  EXPECTED_MARKET_RUN: wickhunter-production-market-evidence-20260731-v3-r1
+  EXPECTED_MARKET_MANIFEST_SHA256: eaccc5ecaf7a9514086e99d719d0cb4c5ef8a9c87e3f0c30c501e1860c05fb52
+  EXPECTED_MARKET_BINDING_SHA256: 1fb30be289a19c327de0cd894103e1e4d69794bd439d5e65a0f3f2716edfb1a9
+  EXPECTED_MARKET_LINEAGE_SHA256: 62e084e45a83af3598ac888a33ebabd213f61a247d814581b75b2e700cb924d1
+  EXPECTED_IMPORT_RUN: first-party-live:liquid20-20260731T000000Z-0:b9617c6006b6c4b9
+  EXPECTED_SELECTION_SHA256: 8f5be573684e97140fdccb6f3228166e4c9e5165e89f0f530fe842bb1bedb0fd
+  PROTECTED_HOLDOUT_START_MS: "1785542400000"
+
+jobs:
+  materialize:
+    name: Materialize and independently verify WH-01
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out exact request commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request scope and code identity
+        id: identity
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$merge_base" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh01-production-materialization-request.yml'
+          actual="$(git diff --name-status "$merge_base" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          dataset_id="wickhunter-wh01-production-dataset-20260731-v3-${BASE_SHA:0:12}-eaccc5ec-8f5be573"
+          output_root="$DATASET_STATE_ROOT/$dataset_id"
+          printf 'code_sha=%s\n' "$BASE_SHA" >> "$GITHUB_OUTPUT"
+          printf 'dataset_id=%s\n' "$dataset_id" >> "$GITHUB_OUTPUT"
+          printf 'output_root=%s\n' "$output_root" >> "$GITHUB_OUTPUT"
+
+      - name: Validate trusted runner and safety boundary
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          for path in "$MARKET_PACKAGE_ROOT" "$ACCEPTED_IMPORT_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          [[ -d /var/lib/freqtrade-staging-state && -w /var/lib/freqtrade-staging-state ]]
+          mkdir -p "$DATASET_STATE_ROOT"
+          [[ -d "$DATASET_STATE_ROOT" && ! -L "$DATASET_STATE_ROOT" && -w "$DATASET_STATE_ROOT" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+          done
+
+      - name: Verify current materializer CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_dataset_materialization --help
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_dataset_materialization materialize --help
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_dataset_materialization verify --help
+
+      - name: Independently verify frozen source packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_market_evidence_intersection \
+            verify --package-root "$MARKET_PACKAGE_ROOT" \
+            | tee "$RUNNER_TEMP/market-evidence-verification.json"
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/frozen-source-verification.json"
+          import json
+          import os
+          from pathlib import Path
+
+          from ai_platform.wickhunter.dataset import load_accepted_import
+
+          market_root = Path(os.environ["MARKET_PACKAGE_ROOT"])
+          manifest = json.loads((market_root / "manifest.json").read_text(encoding="utf-8"))
+          verification = json.loads((market_root / "verification-report.json").read_text(encoding="utf-8"))
+          binding = json.loads((market_root / "source-package-binding.json").read_text(encoding="utf-8"))
+          lineage = json.loads((market_root / "geometry-intersection-lineage.json").read_text(encoding="utf-8"))
+          expected = {
+              "run_id": os.environ["EXPECTED_MARKET_RUN"],
+              "manifest_sha256": os.environ["EXPECTED_MARKET_MANIFEST_SHA256"],
+          }
+          for key, value in expected.items():
+              if manifest.get(key) != value:
+                  raise SystemExit(f"market manifest mismatch: {key}")
+          if binding.get("binding_sha256") != os.environ["EXPECTED_MARKET_BINDING_SHA256"]:
+              raise SystemExit("market binding hash mismatch")
+          if lineage.get("lineage_sha256") != os.environ["EXPECTED_MARKET_LINEAGE_SHA256"]:
+              raise SystemExit("market lineage hash mismatch")
+          if verification.get("outcome") != "accepted":
+              raise SystemExit("market package is not independently accepted")
+          holdout = int(os.environ["PROTECTED_HOLDOUT_START_MS"])
+          if int(manifest.get("protected_holdout_start_ms", 0)) != holdout:
+              raise SystemExit("market holdout mismatch")
+          authorities = manifest.get("authorities")
+          required_authorities = {
+              "execution_enabled": False,
+              "trading_credentials_present": False,
+              "model_execution_authorized": False,
+              "replay_authorized": False,
+              "performance_research_authorized": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }
+          if not isinstance(authorities, dict):
+              raise SystemExit("market authorities missing")
+          for key, value in required_authorities.items():
+              if authorities.get(key) != value:
+                  raise SystemExit(f"unsafe market authority: {key}")
+
+          accepted = load_accepted_import(Path(os.environ["ACCEPTED_IMPORT_ROOT"]))
+          selection = accepted.selection
+          if selection.import_run_id != os.environ["EXPECTED_IMPORT_RUN"]:
+              raise SystemExit("accepted import run mismatch")
+          if selection.selection_sha256 != os.environ["EXPECTED_SELECTION_SHA256"]:
+              raise SystemExit("accepted selection hash mismatch")
+          if selection.protected_holdout_start_ms != holdout:
+              raise SystemExit("accepted import holdout mismatch")
+          if selection.accepted_records != 40226 or len(accepted.events) != 40226:
+              raise SystemExit("accepted import record count mismatch")
+          if max(event.available_at_ms for event in accepted.events) >= holdout:
+              raise SystemExit("accepted import touches protected holdout")
+          print(json.dumps({
+              "market_run_id": manifest["run_id"],
+              "market_manifest_sha256": manifest["manifest_sha256"],
+              "market_binding_sha256": binding["binding_sha256"],
+              "market_lineage_sha256": lineage["lineage_sha256"],
+              "import_run_id": selection.import_run_id,
+              "selection_sha256": selection.selection_sha256,
+              "accepted_records": selection.accepted_records,
+              "requested_start_ms": selection.requested_start_ms,
+              "requested_end_ms": selection.requested_end_ms,
+              "protected_holdout_accessed": False,
+              **required_authorities,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Materialize once or verify identical immutable package
+        id: materialize
+        shell: bash
+        env:
+          CODE_SHA: ${{ steps.identity.outputs.code_sha }}
+          OUTPUT_ROOT: ${{ steps.identity.outputs.output_root }}
+        run: |
+          set -euo pipefail
+          if [[ -e "$OUTPUT_ROOT" ]]; then
+            [[ -d "$OUTPUT_ROOT" && ! -L "$OUTPUT_ROOT" ]] || {
+              echo "existing output identity is not a regular directory" >&2
+              exit 1
+            }
+            echo "existing=true" >> "$GITHUB_OUTPUT"
+            PYTHONPATH=. python3 -m ai_platform.wickhunter.production_dataset_materialization \
+              verify --output-root "$OUTPUT_ROOT" \
+              | tee "$RUNNER_TEMP/wh01-materialization.json"
+          else
+            echo "existing=false" >> "$GITHUB_OUTPUT"
+            PYTHONPATH=. python3 -m ai_platform.wickhunter.production_dataset_materialization \
+              materialize \
+              --output-root "$OUTPUT_ROOT" \
+              --market-package-root "$MARKET_PACKAGE_ROOT" \
+              --accepted-import-root "$ACCEPTED_IMPORT_ROOT" \
+              --code-sha "$CODE_SHA" \
+              | tee "$RUNNER_TEMP/wh01-materialization.json"
+          fi
+
+      - name: Independently verify terminal dataset and safety state
+        id: verify
+        shell: bash
+        env:
+          CODE_SHA: ${{ steps.identity.outputs.code_sha }}
+          DATASET_ID: ${{ steps.identity.outputs.dataset_id }}
+          OUTPUT_ROOT: ${{ steps.identity.outputs.output_root }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 -m ai_platform.wickhunter.production_dataset_materialization \
+            verify --output-root "$OUTPUT_ROOT" \
+            | tee "$RUNNER_TEMP/wh01-verification.json"
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/wh01-terminal-evidence.json"
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          binding = json.loads((root / "source-binding.json").read_text(encoding="utf-8"))
+          materialization = json.loads((root / "materialization-manifest.json").read_text(encoding="utf-8"))
+          verification = json.loads((root / "verification-report.json").read_text(encoding="utf-8"))
+          dataset = json.loads((root / "dataset" / "manifest.json").read_text(encoding="utf-8"))
+
+          if materialization.get("wh01_ready") is not True or materialization.get("wh01_blocker") is not None:
+              raise SystemExit("WH-01 terminal state mismatch")
+          if verification.get("wh01_ready") is not True:
+              raise SystemExit("independent verifier is not ready")
+          if dataset.get("code_sha") != os.environ["CODE_SHA"]:
+              raise SystemExit("dataset code SHA mismatch")
+          market = binding.get("market_evidence", {})
+          if market.get("manifest_sha256") != os.environ["EXPECTED_MARKET_MANIFEST_SHA256"]:
+              raise SystemExit("bound market manifest mismatch")
+          if market.get("binding_sha256") != os.environ["EXPECTED_MARKET_BINDING_SHA256"]:
+              raise SystemExit("bound market binding mismatch")
+          if market.get("lineage_sha256") != os.environ["EXPECTED_MARKET_LINEAGE_SHA256"]:
+              raise SystemExit("bound market lineage mismatch")
+          if binding.get("liquid20_selection_sha256") != os.environ["EXPECTED_SELECTION_SHA256"]:
+              raise SystemExit("bound Liquid20 selection mismatch")
+
+          partitions = dataset.get("partitions")
+          total_rows = dataset.get("total_rows")
+          if not isinstance(partitions, list) or not partitions:
+              raise SystemExit("dataset has no partitions")
+          if not isinstance(total_rows, int) or total_rows <= 0:
+              raise SystemExit("dataset has no rows")
+          windows = binding.get("split_geometry", {}).get("windows")
+          if not isinstance(windows, list) or [window.get("name") for window in windows] != ["train", "validation", "test"]:
+              raise SystemExit("split geometry mismatch")
+          holdout = int(os.environ["PROTECTED_HOLDOUT_START_MS"])
+          previous_end = None
+          for window in windows:
+              start = int(window["start_ms"])
+              end = int(window["end_ms"])
+              if start >= end or end > holdout:
+                  raise SystemExit("unsafe split boundary")
+              if previous_end is not None and start - previous_end < 30 * 60 * 1000:
+                  raise SystemExit("split embargo is shorter than 30 minutes")
+              previous_end = end
+
+          required_safety = {
+              "protected_holdout_accessed": False,
+              "immutable_inputs_mutated": False,
+              "model_execution_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }
+          for name, payload in (("source binding", binding), ("materialization", materialization)):
+              for key, value in required_safety.items():
+                  if payload.get(key) != value:
+                      raise SystemExit(f"{name} unsafe field: {key}")
+
+          result = {
+              "dataset_id": os.environ["DATASET_ID"],
+              "immutable_path": str(root),
+              "exact_code_sha": os.environ["CODE_SHA"],
+              "market_manifest_sha256": os.environ["EXPECTED_MARKET_MANIFEST_SHA256"],
+              "market_binding_sha256": os.environ["EXPECTED_MARKET_BINDING_SHA256"],
+              "market_lineage_sha256": os.environ["EXPECTED_MARKET_LINEAGE_SHA256"],
+              "liquid20_selection_sha256": os.environ["EXPECTED_SELECTION_SHA256"],
+              "split_geometry_sha256": dataset["split_geometry_sha256"],
+              "dataset_request_sha256": dataset["dataset_request_sha256"],
+              "dataset_manifest_sha256": dataset["manifest_sha256"],
+              "source_binding_sha256": binding["binding_sha256"],
+              "materialization_sha256": materialization["materialization_sha256"],
+              "partition_count": len(partitions),
+              "total_rows": total_rows,
+              "earliest_decision_timestamp_ms": dataset["earliest_decision_timestamp_ms"],
+              "latest_decision_timestamp_ms": dataset["latest_decision_timestamp_ms"],
+              "split_windows": windows,
+              "wh01_ready": True,
+              "wh01_blocker": None,
+              "protected_holdout_accessed": False,
+              "model_execution_authorized": False,
+              "replay_authorized": False,
+              "performance_research_authorized": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          print(json.dumps(result, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"dataset_id={result['dataset_id']}\n")
+              output.write(f"partition_count={result['partition_count']}\n")
+              output.write(f"total_rows={result['total_rows']}\n")
+          PY
+
+      - name: Publish bounded evidence summary
+        shell: bash
+        env:
+          DATASET_ID: ${{ steps.verify.outputs.dataset_id }}
+          OUTPUT_ROOT: ${{ steps.identity.outputs.output_root }}
+          PARTITION_COUNT: ${{ steps.verify.outputs.partition_count }}
+          TOTAL_ROWS: ${{ steps.verify.outputs.total_rows }}
+          EXISTING_PACKAGE: ${{ steps.materialize.outputs.existing }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## WickHunter WH-01 production materialization"
+            echo
+            echo "- Dataset: \`$DATASET_ID\`"
+            echo "- Immutable path: \`$OUTPUT_ROOT\`"
+            echo "- Existing identical package verified: \`$EXISTING_PACKAGE\`"
+            echo "- Partitions: \`$PARTITION_COUNT\`"
+            echo "- Rows: \`$TOTAL_ROWS\`"
+            echo "- WH-01: \`ready\`"
+            echo "- Protected holdout accessed: \`false\`"
+            echo "- Trading/model/replay/performance/live-capital authority: \`false\`"
+            echo "- Orders submitted: \`0\`"
+            echo "- Runner releases immediately after this bounded job."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded metadata evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh01-production-materialization-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/market-evidence-verification.json
+            ${{ runner.temp }}/frozen-source-verification.json
+            ${{ runner.temp }}/wh01-materialization.json
+            ${{ runner.temp }}/wh01-verification.json
+            ${{ runner.temp }}/wh01-terminal-evidence.json
+            ${{ steps.identity.outputs.output_root }}/source-binding.json
+            ${{ steps.identity.outputs.output_root }}/materialization-manifest.json
+            ${{ steps.identity.outputs.output_root }}/verification-report.json
+            ${{ steps.identity.outputs.output_root }}/artifact-sha256.txt
+            ${{ steps.identity.outputs.output_root }}/dataset/manifest.json
+          if-no-files-found: error
+          retention-days: 30

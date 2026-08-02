@@ -1,0 +1,374 @@
+name: Temporary Portal SQLite Login Lock Repair
+
+on:
+  push:
+    branches:
+      - fix/portal-sqlite-login-lock-20260802
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/portal-sqlite-login-lock-20260802
+          fetch-depth: 0
+
+      - name: Apply exact repair and regression coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service_path = Path("ai_platform/portal/identity/service.py")
+          service = service_path.read_text(encoding="utf-8")
+          start = service.index("    def complete_login(self, *, code: str, state: str) -> CompletedLogin:\n")
+          end = service.index("    def resolve_request(self, request: Request) -> RequestContext:\n", start)
+          replacement = '''    def complete_login(self, *, code: str, state: str) -> CompletedLogin:
+              if not code or not state:
+                  raise IdentityAuthenticationError("OIDC callback requires code and state")
+              now = self._now()
+              with self._session_factory() as session:
+                  repository = IdentityRepository(session)
+                  try:
+                      flow = repository.consume_login_flow(self._crypto.hash_token(state), now)
+                  except IdentityNotFoundError as exc:
+                      raise IdentityAuthenticationError(str(exc)) from exc
+                  verifier_ciphertext = flow.verifier_ciphertext
+                  nonce = flow.nonce
+                  requested_tenant_id = flow.requested_tenant_id
+                  return_to = flow.return_to
+                  session.commit()
+
+              verifier = self._crypto.decrypt(verifier_ciphertext)
+              identity = self._oidc.exchange_code(
+                  code=code,
+                  code_verifier=verifier,
+                  expected_nonce=nonce,
+              )
+              if identity.issuer.rstrip("/") != self._oidc.issuer.rstrip("/"):
+                  raise IdentityAuthenticationError("OIDC issuer mismatch")
+
+              with self._session_factory() as session:
+                  repository = IdentityRepository(session)
+                  principal = repository.get_principal_by_external_identity(
+                      identity.issuer,
+                      identity.subject,
+                  )
+                  if principal is None:
+                      principal = repository.create_principal(
+                          principal_id=str(uuid4()),
+                          issuer=identity.issuer,
+                          subject=identity.subject,
+                          display_name=identity.display_name,
+                          email=identity.email,
+                          now=now,
+                      )
+                      self._audit(
+                          repository,
+                          action="identity.principal_created",
+                          actor_id=principal.principal_id,
+                          principal_id=principal.principal_id,
+                          result="success",
+                          now=now,
+                      )
+                  else:
+                      repository.update_principal_attributes(
+                          principal,
+                          display_name=identity.display_name,
+                          email=identity.email,
+                          now=now,
+                      )
+                  if principal.status != PrincipalStatus.ACTIVE.value:
+                      raise IdentityAuthenticationError("portal principal is disabled")
+
+                  memberships = repository.list_memberships_for_principal(principal.principal_id, now)
+                  membership = self._select_membership(
+                      memberships,
+                      requested_tenant_id=requested_tenant_id,
+                  )
+                  permissions = permissions_for_roles(self._role_names(membership))
+                  privileged = self._requires_mfa(permissions)
+                  if privileged and not identity.mfa_satisfied:
+                      self._audit(
+                          repository,
+                          action="identity.login_denied",
+                          actor_id=principal.principal_id,
+                          principal_id=principal.principal_id,
+                          tenant_id=membership.tenant_id,
+                          membership_id=membership.membership_id,
+                          result="denied",
+                          reason="mfa_required",
+                          now=now,
+                      )
+                      session.commit()
+                      raise IdentityAuthenticationError("MFA is required for this membership")
+
+                  session_token = self._crypto.random_token()
+                  csrf_token = self._crypto.random_token()
+                  idle_timeout, absolute_timeout = self._session_timeouts(privileged)
+                  session_row = repository.create_session(
+                      session_id_hash=self._crypto.hash_token(session_token),
+                      csrf_token_hash=self._crypto.hash_token(csrf_token),
+                      principal_id=principal.principal_id,
+                      membership_id=membership.membership_id,
+                      membership_version=membership.membership_version,
+                      idp_session_id=identity.idp_session_id,
+                      authentication_time=identity.authentication_time,
+                      mfa_satisfied=identity.mfa_satisfied,
+                      created_at=now,
+                      idle_expires_at=now + idle_timeout,
+                      absolute_expires_at=now + absolute_timeout,
+                  )
+                  self._audit(
+                      repository,
+                      action="identity.login_succeeded",
+                      actor_id=principal.principal_id,
+                      principal_id=principal.principal_id,
+                      tenant_id=membership.tenant_id,
+                      membership_id=membership.membership_id,
+                      result="success",
+                      now=now,
+                  )
+                  session.commit()
+                  return CompletedLogin(
+                      return_to=return_to,
+                      session=session_view(session_row, membership),
+                      session_token=session_token,
+                      csrf_token=csrf_token,
+                  )
+
+'''
+          service_path.write_text(service[:start] + replacement + service[end:], encoding="utf-8")
+
+          database_path = Path("ai_platform/portal/control_plane/database.py")
+          database = database_path.read_text(encoding="utf-8")
+          database = database.replace(
+              "SessionFactory = Callable[[], Session]\n",
+              "SessionFactory = Callable[[], Session]\nSQLITE_BUSY_TIMEOUT_SECONDS = 30.0\n",
+              1,
+          )
+          database = database.replace(
+              "    return create_engine(database_url, pool_pre_ping=True)\n",
+              "    if database_url.startswith(\"sqlite\"):\n"
+              "        return create_engine(\n"
+              "            database_url,\n"
+              "            connect_args={\"timeout\": SQLITE_BUSY_TIMEOUT_SECONDS},\n"
+              "            pool_pre_ping=True,\n"
+              "        )\n"
+              "    return create_engine(database_url, pool_pre_ping=True)\n",
+              1,
+          )
+          database_path.write_text(database, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform/portal/identity/test_identity_lifecycle.py")
+          tests = test_path.read_text(encoding="utf-8")
+          tests = tests.replace(
+              "from dataclasses import dataclass\n",
+              "from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError\n"
+              "from dataclasses import dataclass\n"
+              "from pathlib import Path\n"
+              "from threading import Event\n",
+              1,
+          )
+          marker = "\n\n@pytest.fixture\ndef session_factory() -> SessionFactory:\n"
+          blocking_client = '''
+
+class BlockingOidcClient(FakeOidcClient):
+    def __init__(self, clock: MutableClock):
+        super().__init__(clock)
+        self.exchange_started = Event()
+        self.release_exchange = Event()
+
+    def exchange_code(
+        self,
+        *,
+        code: str,
+        code_verifier: str,
+        expected_nonce: str,
+    ) -> OidcIdentity:
+        assert code == "valid-code"
+        assert len(code_verifier) >= 43
+        assert expected_nonce
+        self.exchange_started.set()
+        assert self.release_exchange.wait(timeout=5)
+        return OidcIdentity(
+            issuer=self.issuer,
+            subject=self.subject,
+            display_name="Portal User",
+            email="portal@example.test",
+            idp_session_id=self.sid,
+            authentication_time=self.clock(),
+            mfa_satisfied=self.mfa,
+            authentication_methods=("webauthn",),
+        )
+'''
+          if marker not in tests:
+              raise SystemExit("identity test fixture marker not found")
+          tests = tests.replace(marker, blocking_client + marker, 1)
+          tests += '''
+
+
+def test_file_sqlite_engine_uses_bounded_busy_timeout(tmp_path: Path) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'identity.db'}")
+    try:
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA busy_timeout").scalar_one() == 30_000
+    finally:
+        engine.dispose()
+
+
+def test_oidc_exchange_does_not_hold_sqlite_writer_lock(
+    tmp_path: Path,
+    clock: MutableClock,
+) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'identity.db'}")
+    create_schema(engine)
+    session_factory = build_session_factory(engine)
+    oidc = BlockingOidcClient(clock)
+    crypto = IdentityCrypto(
+        IdentitySecrets(
+            session_hmac_key=b"s" * 32,
+            flow_encryption_key=b"f" * 32,
+        )
+    )
+    service = IdentityService(session_factory, oidc, crypto, clock=clock)
+    principal = service.bootstrap_principal(
+        issuer=oidc.issuer,
+        subject=oidc.subject,
+        display_name="Portal User",
+        email="portal@example.test",
+    )
+    service.bootstrap_membership(
+        principal_id=principal.principal_id,
+        tenant_id="tenant-a",
+        roles=(RoleName.ADMIN,),
+    )
+    first = service.begin_login(requested_tenant_id="tenant-a", return_to="/first")
+    first_state = parse_qs(urlparse(first.authorization_url).query)["state"][0]
+
+    blocked = False
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        callback = executor.submit(
+            service.complete_login,
+            code="valid-code",
+            state=first_state,
+        )
+        assert oidc.exchange_started.wait(timeout=5)
+        competing_login = executor.submit(
+            service.begin_login,
+            requested_tenant_id="tenant-a",
+            return_to="/second",
+        )
+        try:
+            second = competing_login.result(timeout=1)
+        except FutureTimeoutError:
+            blocked = True
+        finally:
+            oidc.release_exchange.set()
+        completed = callback.result(timeout=5)
+        if blocked:
+            second = competing_login.result(timeout=5)
+
+    try:
+        assert not blocked
+        assert completed.return_to == "/first"
+        assert second.authorization_url.startswith("https://identity.example.test/authorize?")
+    finally:
+        engine.dispose()
+'''
+          test_path.write_text(tests, encoding="utf-8")
+
+          task_path = Path("docs/agents/tasks/FTAI-20260802-portal-sqlite-login-lock-repair.md")
+          task_path.write_text(
+              '''---
+          task_id: FTAI-20260802-portal-sqlite-login-lock-repair
+          status: active
+          branch: fix/portal-sqlite-login-lock-20260802
+          base_branch: develop
+          created: 2026-08-02
+          updated: 2026-08-02
+          parent_task: FTAI-20260802-portal-login-500-diagnostic
+          owned_paths:
+            - ai_platform/portal/identity/service.py
+            - ai_platform/portal/control_plane/database.py
+            - tests/ai_platform/portal/identity/test_identity_lifecycle.py
+            - docs/agents/tasks/FTAI-20260802-portal-sqlite-login-lock-repair.md
+          ---
+
+          # Portal SQLite login lock repair
+
+          ## Proven incident
+
+          Trusted Synology diagnostic run `30757559104` captured the current public login failure as:
+
+          ```text
+          sqlite3.OperationalError: database is locked
+          public_runtime.login
+            -> IdentityService.begin_login
+            -> IdentityRepository.store_login_flow
+          ```
+
+          Artifact ID `8836409790`, artifact digest
+          `sha256:6ef6d3e0a20396432b9d5c2b4c9314854b6f3e75bddf16b5f0038a7dd1c0f2ac`,
+          report SHA-256
+          `1fc83ea8676dc18c0e0b5d9955b55b6e1287c59b3554adcd09c6f720d86f29df`.
+
+          ## Root cause
+
+          `complete_login()` marked the one-time OIDC flow consumed and flushed that write, then retained the same SQLite write transaction while performing external OIDC token exchange. A concurrent `begin_login()` could exhaust SQLite's default busy wait while trying to store a new flow.
+
+          ## Repair
+
+          - commit one-time flow consumption before external OIDC network I/O;
+          - copy only the bounded flow values needed after the transaction closes;
+          - perform principal, membership, session and audit writes in a fresh transaction after successful OIDC exchange;
+          - configure a 30-second SQLite DB-API busy timeout for brief residual write collisions;
+          - prove a concurrent login can persist while callback exchange is deliberately blocked;
+          - preserve one-time state consumption, issuer validation, MFA enforcement and session behavior.
+
+          ## Safety
+
+          No Authentik configuration, credentials, membership, production data, restore, trading, withdrawal or live-capital authority. Failed OIDC exchange leaves the state consumed and requires a fresh login, preserving fail-closed replay protection.
+
+          ## Checkpoint
+
+          ```yaml
+          checkpoint_version: 1
+          updated_at: 2026-08-02T18:55:00+02:00
+          status: active
+          proven:
+            - public login HTTP 500 is caused by sqlite database locking
+            - the lock occurs while storing a new login flow
+            - deployed containers are healthy and Authentik is not the immediate failure source
+          next_action: validate the bounded transaction split and SQLite busy-timeout regression, merge, deploy and repeat public login acceptance
+          blockers: []
+          ```
+
+          ```text
+          secret_values_recorded=false
+          live_capital_authorized=false
+          ```
+          ''',
+              encoding="utf-8",
+          )
+          PY
+
+          rm .github/workflows/temp-portal-sqlite-login-lock-repair.yml
+
+      - name: Commit repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(portal): release sqlite lock before OIDC exchange"
+          git push origin HEAD:fix/portal-sqlite-login-lock-20260802

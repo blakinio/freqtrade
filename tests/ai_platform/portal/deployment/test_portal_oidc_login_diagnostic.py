@@ -17,14 +17,15 @@ SPEC.loader.exec_module(diagnostic)
 
 
 def test_extractor_keeps_only_sanitized_login_exception_evidence() -> None:
-    logs = """
-INFO: "GET /v1/identity/login?return_to=%2F HTTP/1.1" 500
-Traceback (most recent call last):
-  File "/app/ai_platform/portal/identity/service.py", line 104, in begin_login
-    session.commit()
-  File "/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py", line 952, in do_execute
-sqlalchemy.exc.OperationalError: database is locked state=secret-state
-"""
+    logs = (
+        'INFO: "GET /v1/identity/login?return_to=%2F HTTP/1.1" 500\n'
+        "Traceback (most recent call last):\n"
+        '  File "/app/ai_platform/portal/identity/service.py", line 104, in begin_login\n'
+        "    session.commit()\n"
+        "  File \"/usr/local/lib/python3.12/site-packages/sqlalchemy/engine/default.py\", "
+        "line 952, in do_execute\n"
+        "sqlalchemy.exc.OperationalError: database is locked state=secret-state\n"
+    )
 
     payload = diagnostic._extract_login_failure(logs)
 

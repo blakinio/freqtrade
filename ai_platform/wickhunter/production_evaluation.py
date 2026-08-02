@@ -305,9 +305,7 @@ def _label(payload: Mapping[str, object]) -> CandidateLabel:
             split_geometry_sha256=_text(
                 payload["split_geometry_sha256"], field="split_geometry_sha256"
             ),
-            dataset_row_sha256=_text(
-                payload["dataset_row_sha256"], field="dataset_row_sha256"
-            ),
+            dataset_row_sha256=_text(payload["dataset_row_sha256"], field="dataset_row_sha256"),
             price_path_manifest_sha256=_text(
                 payload["price_path_manifest_sha256"], field="price_path_manifest_sha256"
             ),
@@ -331,7 +329,9 @@ def _label(payload: Mapping[str, object]) -> CandidateLabel:
                 if payload.get("entry_trade_sha256") is None
                 else _text(payload["entry_trade_sha256"], field="entry_trade_sha256")
             ),
-            raw_entry_price=_optional_decimal(payload.get("raw_entry_price"), field="raw_entry_price"),
+            raw_entry_price=_optional_decimal(
+                payload.get("raw_entry_price"), field="raw_entry_price"
+            ),
             executed_entry_price=_optional_decimal(
                 payload.get("executed_entry_price"), field="executed_entry_price"
             ),
@@ -382,7 +382,9 @@ def _label(payload: Mapping[str, object]) -> CandidateLabel:
             execution_enabled=payload.get("execution_enabled") is True,
             live_capital_authorized=payload.get("live_capital_authorized") is True,
             trading_credentials_present=payload.get("trading_credentials_present") is True,
-            orders_submitted=_integer(payload.get("orders_submitted", -1), field="orders_submitted"),
+            orders_submitted=_integer(
+                payload.get("orders_submitted", -1), field="orders_submitted"
+            ),
         )
     except (KeyError, TypeError, ValueError) as exc:
         if isinstance(exc, ProductionEvaluationError):
@@ -431,7 +433,10 @@ def _load_dataset_rows(dataset_root: Path, manifest: Mapping[str, object]) -> di
     return rows
 
 
-def _load_labels(replay_root: Path, manifest: Mapping[str, object]) -> dict[str, tuple[CandidateLabel, ...]]:
+def _load_labels(  # noqa: C901
+    replay_root: Path,
+    manifest: Mapping[str, object],
+) -> dict[str, tuple[CandidateLabel, ...]]:
     partitions = manifest.get("partitions")
     if not isinstance(partitions, list) or not partitions:
         raise ProductionEvaluationError("replay partitions are missing")

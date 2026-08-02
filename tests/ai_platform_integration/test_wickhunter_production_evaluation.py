@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from ai_platform.research.liquidations.historical.manifests import sha256_file
+from ai_platform.wickhunter.baseline_strategy import BaselineEvaluationError
 from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
 from ai_platform.wickhunter.contracts import (
     AvailableMetric,
@@ -18,6 +19,7 @@ from ai_platform.wickhunter.dataset import DATASET_SCHEMA_VERSION, DatasetRow
 from ai_platform.wickhunter.deterministic_replay import (
     LABEL_SCHEMA_VERSION,
     CandidateLabel,
+    DeterministicReplayError,
     LabelOutcome,
 )
 from ai_platform.wickhunter.production_evaluation import (
@@ -176,7 +178,8 @@ def _write_json(path: Path, payload: object) -> None:
 
 def _write_jsonl(path: Path, payloads: tuple[dict[str, object], ...]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(canonical_json(payload) + "\n" for payload in payloads), encoding="utf-8")
+    content = "".join(canonical_json(payload) + "\n" for payload in payloads)
+    path.write_text(content, encoding="utf-8")
 
 
 def _roots(tmp_path: Path, *, labels: tuple[CandidateLabel, ...] | None = None):
@@ -275,7 +278,7 @@ def test_missing_directional_label_is_rejected(tmp_path, monkeypatch) -> None:
         labels=(_label(row, TradeDirection.LONG),),
     )
 
-    with pytest.raises(ValueError, match="one long and one short"):
+    with pytest.raises(BaselineEvaluationError, match="one long and one short"):
         load_verified_evaluation_dataset(
             materialization_root=materialization_root,
             price_path_root=price_path_root,
@@ -295,7 +298,7 @@ def test_dataset_row_identity_tampering_is_rejected(tmp_path, monkeypatch) -> No
     manifest["partitions"][0]["sha256"] = sha256_file(partition)
     _write_json(manifest_path, manifest)
 
-    with pytest.raises(ProductionEvaluationError, match="dataset row identity mismatch"):
+    with pytest.raises(ProductionEvaluationError, match="invalid dataset row"):
         load_verified_evaluation_dataset(
             materialization_root=materialization_root,
             price_path_root=price_path_root,
@@ -315,7 +318,7 @@ def test_unsafe_label_authority_is_rejected(tmp_path, monkeypatch) -> None:
     manifest["partitions"][0]["sha256"] = sha256_file(partition)
     _write_json(manifest_path, manifest)
 
-    with pytest.raises(ValueError, match="unsafe authority"):
+    with pytest.raises(DeterministicReplayError, match="unsafe authority"):
         load_verified_evaluation_dataset(
             materialization_root=materialization_root,
             price_path_root=price_path_root,

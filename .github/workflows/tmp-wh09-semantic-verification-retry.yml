@@ -50,7 +50,7 @@ jobs:
           workflow = Path(".github/workflows/tmp-wh09-semantic-verification.yml")
           text = workflow.read_text(encoding="utf-8")
           match = re.search(
-              r'base64\.b64decode\(\\"([A-Za-z0-9+/=]+)\\"\)',
+              r'base64\.b64decode\("([A-Za-z0-9+/=]+)"\)',
               text,
           )
           if match is None:

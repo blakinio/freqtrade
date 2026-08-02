@@ -55,7 +55,7 @@ def backend_routes() -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     pattern = re.compile(
         r"@(?P<object>app|router)\.(?P<method>get|post|put|patch|delete)\(\s*"
-        r"[\#'](?P<path>[^\#']+)",
+        r"[\"'](?P<path>[^\"']+)",
         re.MULTILINE,
     )
     for path in sorted(PORTAL.rglob("*.py")):

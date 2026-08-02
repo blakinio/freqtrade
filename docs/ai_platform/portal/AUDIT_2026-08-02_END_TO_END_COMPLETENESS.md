@@ -31,9 +31,9 @@ The repository contains substantial contracts, durable domain services, security
 ## Backend module completeness totals
 
 - `COMPLETE`: 6
-- `PARTIAL`: 10
+- `PARTIAL`: 8
 - `MISSING`: 0
-- `DISCONNECTED`: 12
+- `DISCONNECTED`: 14
 - `FIXTURE_ONLY`: 1
 - `EXTERNAL_ACCEPTANCE_REQUIRED`: 1
 - `BLOCKED`: 0
@@ -42,8 +42,8 @@ The repository contains substantial contracts, durable domain services, security
 ## Finding totals
 
 - `CRITICAL`: 0
-- `HIGH`: 13
-- `MEDIUM`: 3
+- `HIGH`: 14
+- `MEDIUM`: 5
 - `LOW`: 0
 
 ## Confirmed findings
@@ -66,6 +66,22 @@ The repository contains substantial contracts, durable domain services, security
 | #1099 | `HIGH` | Runtime lifecycle/outbox | `DISCONNECTED` |
 | #1100 | `HIGH` | PI-07 credential broker | `DISCONNECTED` |
 | #1101 | `MEDIUM` | Status documentation | `PARTIAL` |
+| #1102 | `HIGH` | AI intelligence/learning/model lifecycle | `DISCONNECTED` |
+| #1103 | `MEDIUM` | Administration workflows | `PARTIAL` |
+| #1104 | `MEDIUM` | Notification delivery/rules | `PARTIAL` |
+
+
+## Left-navigation completeness
+
+A dedicated 1:1 audit covers all 28 items rendered by `ai_platform/portal/web/components/app-shell.tsx` against the documented product capabilities, frontend implementation, API/BFF boundary, backend producer, persistence/provider composition and test evidence.
+
+- `COMPLETE`: 0
+- `PARTIAL`: 9
+- `MISSING`: 1
+- `DISCONNECTED`: 15
+- `EXTERNAL_ACCEPTANCE_REQUIRED`: 3
+
+No left-navigation item is fully end-to-end `COMPLETE` on the audited production-labelled deployment while #1089 and #1098 remain open. The complete row-level evidence is generated as `portal-navigation-completeness-matrix.json` and `.md`; the durable summary is `AUDIT_2026-08-03_LEFT_NAVIGATION_COMPLETENESS.md`.
 
 ## Evidence classification
 
@@ -115,6 +131,7 @@ The `Portal Completeness Audit` workflow on the final PR head generates and uplo
 - `portal-backend-matrix.md` — all 30 backend modules and all 92 FastAPI route declarations with status and linked Issue/boundary;
 - `portal-frontend-bff-matrix.md` — all 33 pages and all 28 same-origin BFF handlers with status and linked Issue/boundary;
 - `portal-runtime-test-deployment-matrix.md` — runtime composition roots, fixture/mock/provider boundaries, test inventory, workflow map and deployment/external acceptance classification;
+- `portal-navigation-completeness-matrix.json` and `.md` — all 28 canonical left-navigation items with frontend, API/BFF, backend, persistence/provider, test and overall status;
 - `portal-deep-inventory.json` and `.md` — exact file-level inventory;
 - `portal-completeness-audit.json` and `.md` — bounded drift/finding checks;
 - `portal-audit-source.tar.gz` plus SHA-256 — secret-excluding exact-head source snapshot.
@@ -123,7 +140,8 @@ The generators are versioned in the PR:
 
 - `tools/portal_audit/completeness_audit.py`;
 - `tools/portal_audit/deep_inventory.py`;
-- `tools/portal_audit/classified_matrices.py`.
+- `tools/portal_audit/classified_matrices.py`;
+- `tools/portal_audit/navigation_matrix.py`.
 
 ## Product-behavior statement
 

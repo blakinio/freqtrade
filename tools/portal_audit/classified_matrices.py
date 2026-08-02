@@ -38,12 +38,12 @@ execution_submission|DISCONNECTED|#1086|PI-08 submission/reconciliation classes 
 feature_registry|COMPLETE|—|read-only immutable registry is registered and tested
 grid_control|DISCONNECTED|#1096|in-memory policy store, unavailable capability provider and no operable canonical UI
 identity|EXTERNAL_ACCEPTANCE_REQUIRED|owner-managed|repository identity path exists; real users/MFA/recovery/restore require owner target
-intelligence|PARTIAL|#1098|durable read models exist; browser-to-real-backend journey is absent
-learning|PARTIAL|#1098|durable history exists; browser API-mode closure is absent
-model_control|PARTIAL|#1098|durable immutable model controls exist; browser API-mode closure is absent
+intelligence|DISCONNECTED|#1102|durable readers exist but the trusted product producer is simulator/test-only
+learning|DISCONNECTED|#1102|durable history exists but the trusted product producer is simulator/test-only
+model_control|PARTIAL|#1098, #1102|durable controls exist but registration/promotion/rollback are not product routes or UI actions
 observability|DISCONNECTED|#1094|canonical app injects unavailable source; Loki source is test-only
 operations|DISCONNECTED|#1092|durable mirror exists but no product collector/reconciliation loop refreshes it
-product|PARTIAL|#1085, #1096, #1098|generic durable APIs exist but specialized producer/authority and API-mode UI gaps remain
+product|PARTIAL|#1085, #1096, #1098, #1104|generic durable APIs exist but specialized producers, notification delivery and API-mode UI gaps remain
 quality_agent|COMPLETE|—|bounded deterministic validation component; no user route required
 risk|PARTIAL|#1086|deterministic evaluation is complete; approved submission is not composed
 security|COMPLETE|—|tenant/capability helpers and negative tests are present
@@ -51,7 +51,7 @@ signal_control|DISCONNECTED|#1095|in-memory state, unavailable verifier and no o
 signal_wizard|PARTIAL|#1098|durable advisory evidence exists; browser API-mode closure is absent
 simulator|COMPLETE|—|clearly bounded deterministic non-live simulator
 strategy_lab|PARTIAL|#1098|durable research evidence exists; browser API-mode closure is absent
-telemetry|PARTIAL|#1098|durable telemetry/model-health exists; browser API-mode closure is absent
+telemetry|PARTIAL|#1098, #1102|durable telemetry exists but complete registered-model and trusted producer lifecycle is absent
 valuation|DISCONNECTED|#1093|canonical app injects unavailable source; HTTP valuation source is test-only
 """)
 
@@ -72,6 +72,14 @@ PAGE_RULES = parse_rules("""
 /bots|PARTIAL|#1092, #1093, #1098|fleet renders but authoritative runtime/valuation and API-mode E2E are incomplete
 /operations/runtime-health|PARTIAL|#1092, #1094, #1098|read model exists; live source loops and API-mode E2E are incomplete
 /login|EXTERNAL_ACCEPTANCE_REQUIRED|owner-managed|repository identity path exists; real target recovery/restore remains external
+/ai|DISCONNECTED|#1098, #1102|read APIs exist but trusted intelligence/learning producers and model lifecycle actions are not composed
+/ai/trade-analysis|DISCONNECTED|#1098, #1102|read view exists but production analyses are simulator/test-only
+/ai/insights|DISCONNECTED|#1098, #1102|read view exists but producer and acknowledge/dismiss/create-experiment actions are incomplete
+/ai/model-health|PARTIAL|#1098, #1102|telemetry reads exist but complete registered-model and trusted producer lifecycle is missing
+/ai/experiments|PARTIAL|#1098, #1102|strategy lab is durable but API-mode proof and promotion handoff are incomplete
+/ai/learning|DISCONNECTED|#1098, #1102|history reader exists but product learning producer is simulator/test-only
+/platform/notifications|PARTIAL|#1098, #1104|in-app subset exists but full channels, rules and delivery lifecycle are incomplete
+/platform/admin|PARTIAL|#1098, #1102, #1103|permission-gated overview exists but documented administration actions are absent
 """)
 
 BFF_RULES = parse_rules("""
@@ -84,6 +92,7 @@ BFF_RULES = parse_rules("""
 /api/bots/{}/desired-state|DISCONNECTED|#1099|desired state persists but no outbox consumer executes/reconciles runtime
 /api/grid-bots|PARTIAL|#1096|generic grid authority conflicts with disconnected canonical BM-05 workflow
 /api/signals|PARTIAL|#1095|generic advisory evidence is distinct from disconnected signed BM-04 control
+/api/notifications/preferences|PARTIAL|#1098, #1104|preference mutation exists but channel delivery and full rule lifecycle are incomplete
 """)
 
 ROUTE_RULES = tuple(
@@ -105,6 +114,14 @@ ROUTE_RULES = tuple(
 /v1/performance|DISCONNECTED|#1092|reader exists but no authoritative collection/reconciliation loop
 /v1/runtime-states|DISCONNECTED|#1092|reader exists but no authoritative collection/reconciliation loop
 /v1/execution-activity|DISCONNECTED|#1092|reader exists but no authoritative collection/reconciliation loop
+/v1/trade-analysis|DISCONNECTED|#1102|reader exists but trusted product producer is simulator/test-only
+/v1/insights|DISCONNECTED|#1102|reader exists but trusted product producer and action lifecycle are incomplete
+/v1/learning/history|DISCONNECTED|#1102|reader exists but trusted product producer is simulator/test-only
+/v1/models|PARTIAL|#1102|list route exists but registration/promotion/rollback are not product routes
+/v1/model-health|PARTIAL|#1102|health route exists but complete registered-model producer lifecycle is missing
+/v1/notifications|PARTIAL|#1104|in-app derivation exists but delivery channels and receipts are incomplete
+/v1/notifications/preferences|PARTIAL|#1104|preference route covers only the in-app subset
+/v1/admin/overview|PARTIAL|#1103|read-only overview exists but documented administration workflows are absent
 /v1/terminal|DISCONNECTED|#1086|approved submission is not composed
 /v1/bot-management/dashboard|PARTIAL|#1092, #1093, #1094|upstream authoritative sources are disconnected
 /v1/bot-management/catalog|COMPLETE|—|immutable approved catalog is constructed

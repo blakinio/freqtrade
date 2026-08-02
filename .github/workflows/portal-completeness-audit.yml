@@ -36,6 +36,7 @@ jobs:
           tools/portal_audit/completeness_audit.py
           tools/portal_audit/deep_inventory.py
           tools/portal_audit/classified_matrices.py
+          tools/portal_audit/navigation_matrix.py
 
       - name: Generate portal completeness reports
         run: |
@@ -43,6 +44,7 @@ jobs:
             --head "${{ github.event.pull_request.head.sha || github.sha }}"
           python tools/portal_audit/deep_inventory.py
           python tools/portal_audit/classified_matrices.py
+          python tools/portal_audit/navigation_matrix.py
 
       - name: Print bounded composition evidence
         run: |
@@ -106,6 +108,7 @@ jobs:
           sed -n '1,220p' artifacts/portal-backend-matrix.md
           sed -n '1,180p' artifacts/portal-frontend-bff-matrix.md
           sed -n '1,180p' artifacts/portal-runtime-test-deployment-matrix.md
+          sed -n '1,240p' artifacts/portal-navigation-completeness-matrix.md
 
       - name: Upload audit evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -119,6 +122,8 @@ jobs:
             artifacts/portal-backend-matrix.md
             artifacts/portal-frontend-bff-matrix.md
             artifacts/portal-runtime-test-deployment-matrix.md
+            artifacts/portal-navigation-completeness-matrix.json
+            artifacts/portal-navigation-completeness-matrix.md
             artifacts/portal-audit-source.tar.gz
             artifacts/portal-audit-source.sha256
           if-no-files-found: error

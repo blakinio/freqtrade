@@ -5,7 +5,7 @@ on:
     branches:
       - feat/wickhunter-wh09-paper-validation-v1
   pull_request:
-    types: [opened]
+    types: [opened, synchronize, reopened]
     branches:
       - feat/wickhunter-wh09-paper-validation-v1
 
@@ -93,17 +93,20 @@ jobs:
                   raise SystemExit(f"expected exactly one {label}, found {count}")
               source = source.replace(old, new)
 
-          status_replacements = {
+          implementation_status_replacements = {
               "ShadowStatus.REJECTED_BY_RISK": "ShadowStatus.SIMULATED_REJECTED",
               "ShadowStatus.IGNORED": "ShadowStatus.NO_CANDIDATE",
           }
-          for old, new in status_replacements.items():
+          for old, new in implementation_status_replacements.items():
               if old not in source:
                   raise SystemExit(f"missing implementation status reference: {old}")
               source = source.replace(old, new)
 
           test_source = tests.read_text(encoding="utf-8")
-          for old, new in status_replacements.items():
+          test_status_replacements = {
+              "ShadowStatus.REJECTED_BY_RISK": "ShadowStatus.SIMULATED_REJECTED",
+          }
+          for old, new in test_status_replacements.items():
               if old not in test_source:
                   raise SystemExit(f"missing test status reference: {old}")
               test_source = test_source.replace(old, new)

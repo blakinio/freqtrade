@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+
 PORTAL = Path("ai_platform/portal")
 WEB = PORTAL / "web"
 STATUS = Path("docs/ai_platform/portal/UI_DELIVERY_STATUS.md")
@@ -152,9 +153,7 @@ def backend_inventory(root: Path, tests: list[Path]) -> list[dict[str, Any]]:
     wiring = "\n".join(read_text(root / path) for path in COMPOSITION)
     result: list[dict[str, Any]] = []
     directories = sorted(
-        path
-        for path in portal.iterdir()
-        if path.is_dir() and path.name not in SKIP_MODULES
+        path for path in portal.iterdir() if path.is_dir() and path.name not in SKIP_MODULES
     )
     for directory in directories:
         python_files = matching_files(directory, "*.py")
@@ -173,19 +172,14 @@ def backend_inventory(root: Path, tests: list[Path]) -> list[dict[str, Any]]:
                 "name": name,
                 "python_files": paths,
                 "routers": [
-                    path
-                    for path in paths
-                    if path.endswith("router.py") or path.endswith("api.py")
+                    path for path in paths if path.endswith("router.py") or path.endswith("api.py")
                 ],
                 "persistence": [
                     path
                     for path in paths
                     if path.endswith(("repository.py", "store.py", "database.py"))
                 ],
-                "migrations": [
-                    relative(root, path)
-                    for path in matching_files(directory, "*.sql")
-                ],
+                "migrations": [relative(root, path) for path in matching_files(directory, "*.sql")],
                 "tests": mapped_tests,
                 "wired": f"ai_platform.portal.{name}." in wiring,
             }
@@ -197,8 +191,7 @@ def web_inventory(root: Path) -> dict[str, Any]:
     """Inventory pages, BFF handlers, API references and navigation targets."""
     app = root / WEB / "app"
     pages = {
-        next_route(app, path): relative(root, path)
-        for path in matching_files(app, "page.tsx")
+        next_route(app, path): relative(root, path) for path in matching_files(app, "page.tsx")
     }
     handlers = {
         next_route(app, path): relative(root, path)
@@ -227,9 +220,7 @@ def web_inventory(root: Path) -> dict[str, Any]:
             )
             contains_url = "http://" in lowered or "https://" in lowered
             if names_private_service and contains_url:
-                private_references.append(
-                    f"{location}:{line_number}: {line.strip()[:180]}"
-                )
+                private_references.append(f"{location}:{line_number}: {line.strip()[:180]}")
     locale_files = [
         relative(root, path)
         for path in source
@@ -242,12 +233,8 @@ def web_inventory(root: Path) -> dict[str, Any]:
     return {
         "page_routes": dict(sorted(pages.items())),
         "bff_routes": dict(sorted(handlers.items())),
-        "v1_refs": {
-            key: sorted(value) for key, value in sorted(api_references.items())
-        },
-        "navigation": {
-            key: sorted(value) for key, value in sorted(navigation.items())
-        },
+        "v1_refs": {key: sorted(value) for key, value in sorted(api_references.items())},
+        "navigation": {key: sorted(value) for key, value in sorted(navigation.items())},
         "private_refs": private_references,
         "locale_files": locale_files,
     }
@@ -283,13 +270,9 @@ def pi08_evidence(root: Path) -> tuple[list[str], list[str]]:
                 )
             )
             if construction:
-                wiring.append(
-                    f"{relative(root, source)}:{line_number}: {stripped[:180]}"
-                )
+                wiring.append(f"{relative(root, source)}:{line_number}: {stripped[:180]}")
             if "ORDER_SUBMISSION_NOT_IMPLEMENTED" in stripped:
-                boundaries.append(
-                    f"{relative(root, source)}:{line_number}: {stripped[:180]}"
-                )
+                boundaries.append(f"{relative(root, source)}:{line_number}: {stripped[:180]}")
     return wiring, boundaries
 
 
@@ -476,8 +459,7 @@ def markdown(data: dict[str, Any]) -> str:
     for product_route, status in sorted(data["documented_routes"].items()):
         page = pages.get(product_route, "MISSING")
         lines.append(
-            f"| `{product_route}` | {status['surface']} | "
-            f"{status['delivery']} | `{page}` |"
+            f"| `{product_route}` | {status['surface']} | {status['delivery']} | `{page}` |"
         )
     return "\n".join(lines) + "\n"
 
@@ -521,9 +503,7 @@ def main() -> int:
             "test_files": len(tests),
             "finding_count": len(findings),
             "by_severity": {
-                severity: sum(
-                    1 for finding in findings if finding.severity == severity
-                )
+                severity: sum(1 for finding in findings if finding.severity == severity)
                 for severity in SEVERITY
             },
         },
@@ -544,9 +524,7 @@ def main() -> int:
     output_markdown.write_text(markdown(data), encoding="utf-8")
     print(json.dumps(data["summary"], sort_keys=True))
     for finding in findings:
-        print(
-            f"::{finding.severity}::{finding.identifier}::{finding.title}"
-        )
+        print(f"::{finding.severity}::{finding.identifier}::{finding.title}")
     return 0
 
 

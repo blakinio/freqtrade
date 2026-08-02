@@ -1,220 +1,130 @@
-# AI Trading Portal — end-to-end completeness audit
+# AI Trading Portal end-to-end completeness audit — terminal report
 
 ## Audit identity
 
-```yaml
-audited_repository: blakinio/freqtrade
-audited_product_branch: develop
-audited_develop_head_at_closeout: 79065e29de8d949701e1465fc99cb6b6e8c4857e
-audited_portal_implementation_head: 0e7825bf860cd8011e1bd9207fcb0765baf8d52a
-audit_branch: audit/portal-e2e-completeness-20260802
-audit_pr: 1082
-prompting_standard_version: 2.1
-audit_date: 2026-08-02
-audit_type: static_repository_and_delivery_matrix
-```
+- Repository: `blakinio/freqtrade`
+- Audited `develop_sha`: `626087ca45d67eb908d6c1f1f419f13cbd49f596`
+- Canonical audit PR: #1082
+- Audit branch content head at this report generation: `7f27eae7fd79fbab9334bbf8680afe884cda5f44`
+- Exact final `audit_head_sha`: recorded in PR #1082 metadata and the exact-head Portal Completeness Audit artifact because a Git commit cannot contain its own resulting SHA.
+- Reference exact-head evidence before this report generation: workflow run `30768808200`, artifact `8839831815`.
+- Scope: AI Trading Portal only; no other repository and no product implementation changes.
 
-The only `develop` change after the implementation head was the documentation-only login incident closeout in commit `79065e29de8d949701e1465fc99cb6b6e8c4857e`. It changed two task records and no portal backend, frontend, tests, migrations or deployment implementation. The final audit workflow ran against the current PR merge base containing that closeout.
+## Conclusion
 
-The audit branch adds only audit tooling, workflow evidence, this report and remediation task records. Portal backend/frontend behavior is unchanged.
+**The AI Trading Portal is not complete end to end.**
 
-## Method and evidence boundary
+The repository contains substantial contracts, durable domain services, security boundaries and focused tests, but the product runtime and deployment do not compose several implemented adapters/providers. The deployed portal is fixture-backed, critical bot-management modules use process-memory stores or permanently unavailable providers, Strategy Catalog has no backend producer, and browser closure is fixture-only.
 
-The audit compared:
+## Inventory totals
 
-- every immediate Python module under `ai_platform/portal`;
-- statically detectable FastAPI routes and canonical composition roots;
-- every Next.js `page.tsx` route and same-origin BFF `route.ts` handler;
-- frontend `/v1/*` producer expectations;
-- `UI_DELIVERY_STATUS.md` delivery claims;
-- migrations and focused Python/browser test ownership;
-- explicit incomplete/default-fail-closed boundaries;
-- current portal program, PR, CI and deployment documentation.
+- Backend modules: **30**
+- FastAPI route declarations: **92**
+- Frontend pages: **33**
+- Same-origin BFF handlers: **28**
+- Canonical navigation items: **28**
+- Test files: **225**
+  - unit/component: 73
+  - contract: 9
+  - integration/API: 98
+  - persistence/recovery: 15
+  - browser E2E: 30
 
-Evidence classes:
+## Backend module completeness totals
 
-- `PROVEN` — exact repository files, routes, references, tests, migrations and workflow output;
-- `DERIVED` — completeness risk inferred from missing producer, consumer or product composition;
-- `UNKNOWN` — real external target behavior not exercised by this static audit.
+- `COMPLETE`: 6
+- `PARTIAL`: 10
+- `MISSING`: 0
+- `DISCONNECTED`: 12
+- `FIXTURE_ONLY`: 1
+- `EXTERNAL_ACCEPTANCE_REQUIRED`: 1
+- `BLOCKED`: 0
+- `NOT_APPLICABLE`: 0
 
-Static or fixture evidence is not accepted as proof of real Authentik, Vault, private Freqtrade, Loki/Tempo/Prometheus, Synology recovery or Cloudflare acceptance.
+## Finding totals
 
-## Executive conclusion
+- `CRITICAL`: 0
+- `HIGH`: 13
+- `MEDIUM`: 3
+- `LOW`: 0
 
-**The portal is not fully complete end to end.** Most repository-side product surfaces exist and are covered by substantial tests, but two integration gaps prevent a full completion claim:
+## Confirmed findings
 
-1. Strategy Catalog has a frontend, BFF and fixture E2E, but its API-mode backend producer is absent.
-2. PI-08 private dry-run submission components exist and are tested in isolation, but no trusted product runtime assembles or injects them; canonical defaults remain fail-closed.
-
-A third gap concerns product localization: the application is fixed to English and has no message-catalog boundary. This requires either implementation or an explicit owner decision that the portal is English-only.
-
-Inventory result:
-
-| Inventory | Count |
-|---|---:|
-| Backend modules | 30 |
-| Statically detected FastAPI routes | 92 |
-| Next.js pages | 33 |
-| Same-origin BFF handlers | 28 |
-| Canonical documented product routes | 29 |
-| Focused/backend/browser test files considered | 225 |
-| Missing documented pages | 0 |
-| Broken detected navigation destinations | 0 |
-| Direct browser references to private Freqtrade/Vault/Loki URLs | 0 |
-| Actionable findings | 3: 2 high, 1 medium |
-
-## New actionable findings
-
-### F-01 — HIGH — Strategy Catalog API producer is missing
-
-`ai_platform/portal/web/lib/strategy-catalog-api.ts` calls:
-
-- `GET /v1/strategy-catalog`;
-- `GET /v1/strategy-catalog/{strategy_version}`;
-- `POST /v1/strategy-catalog/{strategy_version}/rollback`.
-
-No matching FastAPI route exists among the detected backend routes. The BFF and browser surface can pass fixture-mode tests, but API mode cannot complete the vertical slice. The current `integrated` delivery claim is therefore too strong.
-
-Remediation task: `FTAI-20260802-portal-strategy-catalog-backend-closure`.
-
-### F-02 — HIGH — PI-08 components are not composed into a product runtime
-
-The repository contains:
-
-- `PrivateDryRunApprovedIntentSubmitter`;
-- `PrivateSubmissionExecutionAdapter`;
-- durable private submission, transport and reconciliation components;
-- focused tests for these components.
-
-Exact-head search found construction only in focused tests. No product code instantiates either PI-08 composition component or injects `execution_submitter=`. The canonical defaults in `execution/adapter.py` and `risk/terminal.py` still return `ORDER_SUBMISSION_NOT_IMPLEMENTED` unless an external caller supplies overrides.
-
-This is safe fail-closed behavior, but it means the server-side PI-08 vertical slice is a component library rather than a completed product runtime.
-
-Remediation task: `FTAI-20260802-portal-pi08-runtime-composition-closure`.
-
-### F-03 — MEDIUM — Localization boundary is absent
-
-No locale, translation or message-catalog infrastructure was detected. `web/app/layout.tsx` fixes the document language to English. Under prompting standard 2.1, localization is part of a user-facing vertical slice unless explicitly declared not applicable.
-
-Remediation/decision task: `FTAI-20260802-portal-localization-boundary`.
-
-## Backend module matrix
-
-Status vocabulary:
-
-- `COMPLETE_REPO` — repository-side implementation, wiring and focused evidence are present for its declared bounded scope;
-- `NEEDS_REMEDIATION` — a required producer or product composition is missing;
-- `PARTIAL_REPO` — intentionally bounded implementation remains incomplete for a wider user workflow;
-- `TARGET_BLOCKED` — repository implementation exists but real provider/target acceptance is still external;
-- `INTERNAL_ONLY` — supporting module with no independent user-facing completion claim.
-
-| Backend module | Backend status | Frontend/consumer status | Conclusion and required action |
+| Issue | Severity | Module | Status |
 |---|---|---|---|
-| `bot_builder` | COMPLETE_REPO | `/bots/new` integrated | Complete for dry-run creation; real execution still depends on PI-08 target/runtime closure. |
-| `bot_catalog` | COMPLETE_REPO | Used by bot creation/management | Complete for bot template/catalog contracts; distinct from the incomplete Strategy Catalog surface. |
-| `bot_operations` | COMPLETE_REPO | Bot detail lifecycle/command controls integrated | Repository-complete with reconciliation semantics; real private target remains external. |
-| `contracts` | INTERNAL_ONLY | Shared across BFF/backend | Broad versioned contract coverage exists. Keep drift tests mandatory. |
-| `control_plane` | NEEDS_REMEDIATION | Most BFF surfaces integrated | Missing Strategy Catalog producer and trusted PI-08 runtime composition prevent full closure. |
-| `credentials` | COMPLETE_REPO / TARGET_BLOCKED | Exchange metadata hides secrets | Vault broker contracts exist; real initialization, enrollment and restore acceptance remain external. |
-| `dashboard` | COMPLETE_REPO | `/` integrated | Server-owned read model complete; source-specific unavailable/partial states are intentional. |
-| `deploy` | TARGET_BLOCKED | No direct product page | Repository deployment policies exist; Cloudflare and remaining real-target acceptance remain external. |
-| `events` | INTERNAL_ONLY | Feeds audit/operations | Outbox/inbox foundation and tests exist; no independent UI required. |
-| `exchange_connections` | COMPLETE_REPO / TARGET_BLOCKED | `/platform/exchanges` integrated metadata/lifecycle | Repository flow complete without browser secrets; real Vault/exchange enrollment remains external. |
-| `execution` | NEEDS_REMEDIATION | Terminal/bot operations consume execution contracts | Lifecycle/private reads exist, but approved-intent default is still unimplemented without PI-08 composition. |
-| `execution_submission` | NEEDS_REMEDIATION | No direct browser consumer by design | Components and tests exist; add trusted server runtime assembly and API-mode evidence. |
-| `feature_registry` | COMPLETE_REPO | Strategy/research consumers | Complete for its research-only bounded role. |
-| `grid_control` | PARTIAL_REPO | `/bots/grid` partially integrated | Persisted dry-run control exists; exposure-increasing activation depends on completed PI-08 composition/target evidence. |
-| `identity` | COMPLETE_REPO / TARGET_BLOCKED | Login/session/logout BFF present | Repository/deployment login path and owner interactive login are accepted; recovery and restore remain external. |
-| `intelligence` | COMPLETE_REPO | Trade analysis/insights integrated | Complete for persisted read-model scope. |
-| `learning` | COMPLETE_REPO | Experiments/learning history integrated | Complete for aggregate history; no autonomous promotion authority. |
-| `model_control` | COMPLETE_REPO | AI overview/model reads integrated | Complete for immutable registry/control scope; model promotion boundaries remain unchanged. |
-| `observability` | COMPLETE_REPO / TARGET_BLOCKED | Execution logs/runtime health consume it | Contracts/redaction/runtime service exist; real Loki/Tempo/Prometheus connectivity remains deployment-owned. |
-| `operations` | COMPLETE_REPO / TARGET_BLOCKED | Positions/orders/trades/logs/risk/audit integrated | Repository mirrors and states exist; currentness depends on trusted runtime/telemetry sources. |
-| `product` | PARTIAL_REPO | Notifications/profile/admin partly integrated | In-app and overview capabilities exist; external channels and broader recovery administration remain open. |
-| `quality_agent` | INTERNAL_ONLY | CI/audit consumer | Supporting validation module; no product page required. |
-| `risk` | NEEDS_REMEDIATION | `/terminal` risk-intent UI exists | Deterministic evaluation is complete; approved submission remains blocked in canonical composition until F-02 is fixed. |
-| `security` | COMPLETE_REPO | Cross-cutting authorization/session enforcement | Repository policy and negative-path evidence are substantial; remaining recovery/restore acceptance is external. |
-| `signal_control` | COMPLETE_REPO | Signal logs/control integrated | Complete for tenant-scoped advisory/operational evidence. |
-| `signal_wizard` | COMPLETE_REPO | `/bots/signals` integrated | Complete for advisory control; intentionally no independent execution authority. |
-| `simulator` | INTERNAL_ONLY | E2E/quality consumer | Deterministic simulation evidence exists; not a standalone user page. |
-| `strategy_lab` | COMPLETE_REPO | AI experiments/research routes | Complete for research experiments; not a substitute for F-01 Strategy Catalog lifecycle API. |
-| `telemetry` | COMPLETE_REPO / TARGET_BLOCKED | Model health/runtime views integrated | Repository ingestion/read models complete; real source availability remains target-owned. |
-| `valuation` | COMPLETE_REPO / TARGET_BLOCKED | Dashboard/performance consume it | Correct stale/unavailable semantics exist; real attributable currentness depends on private runtime evidence. |
+| #1085 | `HIGH` | Strategy Catalog | `DISCONNECTED` |
+| #1086 | `HIGH` | PI-08 submission | `DISCONNECTED` |
+| #1087 | `MEDIUM` | Localization | `MISSING` |
+| #1089 | `HIGH` | Deployment composition | `FIXTURE_ONLY` |
+| #1090 | `HIGH` | Create Bot | `DISCONNECTED` |
+| #1091 | `HIGH` | BM-07 activation | `DISCONNECTED` |
+| #1092 | `HIGH` | PI-01 runtime reads | `DISCONNECTED` |
+| #1093 | `HIGH` | PI-02 valuation | `DISCONNECTED` |
+| #1094 | `HIGH` | PI-04 observability | `DISCONNECTED` |
+| #1095 | `HIGH` | BM-04 signals | `DISCONNECTED` |
+| #1096 | `HIGH` | BM-05 grid | `DISCONNECTED` |
+| #1097 | `HIGH` | BM-06 exchanges | `DISCONNECTED` |
+| #1098 | `MEDIUM` | API-mode browser E2E | `FIXTURE_ONLY` |
+| #1099 | `HIGH` | Runtime lifecycle/outbox | `DISCONNECTED` |
+| #1100 | `HIGH` | PI-07 credential broker | `DISCONNECTED` |
+| #1101 | `MEDIUM` | Status documentation | `PARTIAL` |
 
-## Frontend product-surface matrix
+## Evidence classification
 
-| Product route | Frontend | Backend/BFF | Status | Required action |
-|---|---|---|---|---|
-| `/` | Present | Dashboard read API present | COMPLETE_REPO | None beyond real source acceptance. |
-| `/performance` | Present | Performance/valuation APIs present | COMPLETE_REPO / TARGET_BLOCKED | Validate real valuation source. |
-| `/positions` | Present | Operational API present | COMPLETE_REPO / TARGET_BLOCKED | Validate real private runtime mirror. |
-| `/orders` | Present | Operational API present | COMPLETE_REPO / TARGET_BLOCKED | Validate reconciliation against real target. |
-| `/trades` | Present | Operational API present | COMPLETE_REPO / TARGET_BLOCKED | Validate real target evidence. |
-| `/market/liquidations` | Present | Bounded read-only evidence | COMPLETE_REPO | Preserve `trading_authorized=false`. |
-| `/terminal` | Present | Risk endpoint present; real submitter not composed | NEEDS_REMEDIATION | Complete F-02. |
-| `/bots` | Present | Fleet/read composition present | COMPLETE_REPO | None beyond source acceptance. |
-| `/bots/detail/[botId]` | Present | Lifecycle/commands present | COMPLETE_REPO / TARGET_BLOCKED | Real command target acceptance remains external. |
-| `/bots/new` | Present | Protected dry-run creation present | COMPLETE_REPO | None. |
-| `/bots/signals` | Present | Advisory backend present | COMPLETE_REPO | None. |
-| `/bots/strategies` | Present | BFF present; backend producer absent | NEEDS_REMEDIATION | Complete F-01. |
-| `/bots/grid` | Present | Persisted bounded backend present | PARTIAL_REPO | Finish exposure-increasing activation after F-02. |
-| `/platform/exchanges` | Present | Metadata/lifecycle API present | COMPLETE_REPO / TARGET_BLOCKED | Real Vault/exchange enrollment acceptance. |
-| `/ai` | Present | Model/intelligence/learning reads present | COMPLETE_REPO | None. |
-| `/ai/trade-analysis` | Present | TradeAnalysis API present | COMPLETE_REPO | None. |
-| `/ai/insights` | Present | TradeInsight API present | COMPLETE_REPO | None. |
-| `/ai/model-health` | Present | Telemetry/model-health API present | COMPLETE_REPO / TARGET_BLOCKED | Validate real telemetry source. |
-| `/ai/experiments` | Present | Learning/strategy-lab evidence present | COMPLETE_REPO | None for bounded scope. |
-| `/ai/learning` | Present | Learning history API present | COMPLETE_REPO | None. |
-| `/operations/execution-logs` | Present | Repository observability present | PARTIAL_REPO / TARGET_BLOCKED | Connect and accept real observability target. |
-| `/operations/signal-logs` | Present | Signal evidence API present | COMPLETE_REPO | None. |
-| `/operations/risk-events` | Present | Risk evidence API present | COMPLETE_REPO | None. |
-| `/operations/runtime-health` | Present | Runtime state/evidence APIs present | COMPLETE_REPO / TARGET_BLOCKED | Validate real target freshness. |
-| `/operations/audit` | Present | Permission-gated audit API present | COMPLETE_REPO | None. |
-| `/platform/notifications` | Present | In-app preferences/entries present | PARTIAL_REPO | External email/webhook/push remains PI-05. |
-| `/login` and `/api/identity/*` | Present | Repository/BFF identity and owner login accepted | COMPLETE_REPO / PARTIAL_TARGET | Recovery/restore and protected-ingress closure remain. |
-| `/platform/profile` | Present | Session/security read and logout controls present | PARTIAL_REPO / TARGET_BLOCKED | Real enrollment/recovery acceptance. |
-| `/platform/admin` | Present | RBAC overview present | PARTIAL_REPO / TARGET_BLOCKED | Broader membership/recovery administration. |
+- Static analysis: every portal Python module, FastAPI route, Next.js page, BFF handler, migration, workflow and status-bearing document in the exact source snapshot.
+- Unit/component tests: prove isolated contract and service behavior.
+- Integration/API tests: prove injected FastAPI/database paths, not necessarily canonical product composition.
+- Browser E2E: fixture identity/data unless explicitly documented otherwise; not API-mode product proof.
+- Simulator/emulator: deterministic non-live evidence only.
+- Deployment-package validation: proves repository packaging, not owner-managed Synology/Auth/Cloudflare/Vault acceptance.
+- Real protected target acceptance: not performed and not claimed.
 
-## Existing hard boundaries, not newly discovered code defects
+## Security boundary audit
 
-| Boundary | Current classification |
-|---|---|
-| Authentik/Synology login and owner TOTP/logout | ACCEPTED; recorded by the merged incident closeout |
-| Identity recovery and backup/restore | TARGET_BLOCKED / owner-operated |
-| Real Loki/Tempo/Prometheus connectivity and dashboards | TARGET_BLOCKED |
-| External email/webhook/push delivery | DEFERRED PI-05 provider/privacy decision |
-| Real Vault initialization, credential enrollment and restore | TARGET_BLOCKED |
-| Real private Freqtrade target, TLS and reconciliation acceptance | TARGET_BLOCKED after F-02 repository repair |
-| Protected Cloudflare staging acceptance | P11 TARGET_BLOCKED |
-| Live-small readiness | P14 BLOCKED and separately owner-approved |
+| Boundary | Result | Evidence / qualification |
+|---|---|---|
+| same-origin browser boundary | `COMPLETE` repository-side | BFF/session/CSRF helpers and no browser-to-Freqtrade/Vault path found |
+| tenant isolation / capabilities | `COMPLETE` in audited durable services and routers | negative tests and RequestContext enforcement; disconnected runtime providers must preserve it |
+| secret handling | `COMPLETE` component contracts; runtime `DISCONNECTED` | opaque refs/withdrawal-disabled checks exist; PI-07 composition missing #1100 |
+| deterministic risk | `PARTIAL` | risk decisions fail closed; PI-08 submission unavailable #1086 |
+| immutable attribution/audit | `PARTIAL` | durable audit/outbox exist; publisher/runtime reconciliation missing #1099 |
+| dry-run/live-capital boundary | `COMPLETE` for repository audit | no live operation or authorization performed; P14 remains blocked |
+| deployment privacy | `PARTIAL` | intended private topology documented; full product control plane not deployed #1089 |
 
-## Remediation order
+## Areas checked without a product finding
 
-1. **F-02 PI-08 runtime composition** — prerequisite for truthful terminal/private submission and grid activation claims.
-2. **F-01 Strategy Catalog backend closure** — required because the current integrated UI is fixture-capable but API-incomplete.
-3. **F-03 localization decision/implementation** — required by the current completion standard unless formally declared not applicable.
-4. Execute real target acceptance packages separately; do not mix them with repository fixes or claim completion from fixture evidence.
+- Versioned contract definitions and extra-field rejection.
+- Immutable built-in bot catalog and compatibility decisions.
+- Core durable bot CRUD/revision/audit/outbox transaction semantics.
+- Feature Registry read-only registry and replay resolution.
+- Deterministic simulator and quality-agent boundaries.
+- Core permission/tenant helper behavior.
+- Local market-evidence, liquidation and WickHunter readers enforce bounded same-origin file/package integrity; live-source acceptance remains external.
 
-## Final audit workflow evidence
+## External blockers and acceptance gates
 
-```yaml
-run_id: 30766675903
-job_id: 91546521839
-result: success
-audited_pr_head: 09a6be82fc702c75d3bb9c808e26c931a9ed6c8b
-merge_base_develop_head: 79065e29de8d949701e1465fc99cb6b6e8c4857e
-artifact_id: 8839161469
-artifact_digest: sha256:8b84593589b7f345952c8e885bc765ffdebfe0eb82c8ddb05c8140eb41b90398
-finding_summary:
-  critical: 0
-  high: 2
-  medium: 1
-```
+- Real Authentik users, MFA enrollment, recovery and backup/restore.
+- Real Vault initialization, unseal, AppRole rotation and restore.
+- Real Cloudflare protected ingress/DNS.
+- Real Synology candidate deployment after #1089.
+- Real private dry-run Freqtrade acceptance after #1092, #1099, #1100, #1086 and #1091.
+- P14 live-small/live capital remains `BLOCKED` and unauthorised.
 
-A subsequent documentation-only closeout commit may change the audit PR head. The dedicated audit workflow and normal repository/security CI must remain green on that final head before merge or handover.
+## Audit artifacts
 
-```text
-secret_values_recorded=false
-live_capital_authorized=false
-product_code_changed=false
-```
+- `AUDIT_2026-08-02_BACKEND_MATRIX.md` — 30 modules and all 92 FastAPI route declarations.
+- `AUDIT_2026-08-02_FRONTEND_BFF_MATRIX.md` — navigation, all 33 pages and all 28 BFF handlers.
+- `AUDIT_2026-08-02_RUNTIME_TEST_DEPLOYMENT_MATRIX.md` — composition roots, fixture/mock boundaries, test/workflow/deployment map.
+- `tools/portal_audit/completeness_audit.py` — bounded original audit checks.
+- `tools/portal_audit/deep_inventory.py` — deterministic full inventory.
+- Workflow artifacts: basic report/JSON, deep inventory report/JSON and exact-head source snapshot.
+
+## Product-behavior statement
+
+`secret_values_recorded=false`
+
+`live_capital_authorized=false`
+
+`product_code_changed=false`
+
+The audit PR contains documentation, inventory tooling and audit-only workflow changes only. It does not implement any finding.

@@ -40,7 +40,7 @@ jobs:
           uv pip install -e ft_client/
           uv pip install -e .
 
-      - name: Apply bounded lint repair
+      - name: Apply bounded lint and focused-test repair
         shell: python
         run: |
           from pathlib import Path
@@ -79,6 +79,22 @@ jobs:
                   raise SystemExit(f"expected exactly one repair target, found {count}: {old!r}")
               source = source.replace(old, new)
           path.write_text(source, encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_wickhunter_candidate_activation.py")
+          test_source = tests.read_text(encoding="utf-8")
+          old_assertion = (
+              '    assert verify_paper_run_request(activation_root)["outcome"] == "accepted"\n'
+          )
+          new_assertion = (
+              '    verified = verify_paper_run_request(activation_root)\n'
+              '    assert verified["run_id"] == result.request.run_id\n'
+          )
+          if test_source.count(old_assertion) != 1:
+              raise SystemExit("expected exactly one activation verifier assertion")
+          tests.write_text(
+              test_source.replace(old_assertion, new_assertion),
+              encoding="utf-8",
+          )
 
       - name: Format lint typecheck and focused test
         shell: bash

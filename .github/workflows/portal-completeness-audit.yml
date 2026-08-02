@@ -1,0 +1,51 @@
+name: Portal Completeness Audit
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/**"
+      - "tests/ai_platform/portal/**"
+      - "tests/ai_platform_integration/**"
+      - "docs/ai_platform/portal/**"
+      - "docs/agents/tasks/FTAI-*-portal-*-audit.md"
+      - "tools/portal_audit/**"
+      - ".github/workflows/portal-completeness-audit.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static-completeness-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Validate audit tool
+        run: python -m py_compile tools/portal_audit/completeness_audit.py
+
+      - name: Generate portal completeness report
+        run: >-
+          python tools/portal_audit/completeness_audit.py
+          --head "${{ github.event.pull_request.head.sha || github.sha }}"
+
+      - name: Print bounded report
+        run: cat artifacts/portal-completeness-audit.md
+
+      - name: Upload audit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-completeness-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/portal-completeness-audit.json
+            artifacts/portal-completeness-audit.md
+          if-no-files-found: error
+          retention-days: 30

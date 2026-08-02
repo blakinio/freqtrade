@@ -8,7 +8,7 @@ updated: 2026-08-02
 completed: 2026-08-02
 related_pr: "#1013"
 merge_commit: "4706c867d82e9bf50033b1382b79a56d705961a2"
-closeout_pr: "pending"
+closeout_pr: "#1015"
 owned_paths: []
 ---
 
@@ -16,7 +16,7 @@ owned_paths: []
 
 ## Terminal result
 
-PR #1013 merged the mandatory GitHub-only execution contract, root bootstrap routing, local agent routing, and gated autonomous merge/auto-merge authority to `develop` as `4706c867d82e9bf50033b1382b79a56d705961a2`.
+PR #1013 merged the mandatory GitHub-only execution contract, root bootstrap routing, local agent routing, and gated autonomous merge/auto-merge authority to `develop` as `4706c867d82e9bf50033b1382b79a56d705961a2`. PR #1015 closes this terminal record and releases ownership.
 
 ## Closeout
 
@@ -47,7 +47,7 @@ final_ci:
 pull_requests:
   terminal_prs:
     - blakinio/freqtrade#1013 merged as 4706c867d82e9bf50033b1382b79a56d705961a2
-  closeout_pr: pending
+  closeout_pr: blakinio/freqtrade#1015
   unresolved_review_threads: 0
 task_terminal: true
 ownership_released: true

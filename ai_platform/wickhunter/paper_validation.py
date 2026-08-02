@@ -181,23 +181,41 @@ class PaperValidationPolicy:
         if self.schema_version != POLICY_SCHEMA_VERSION:
             raise PaperValidationError("paper policy schema mismatch")
         _text(self.policy_version, field="policy_version")
-        integer_fields = (
-            "minimum_duration_ms",
-            "minimum_snapshot_count",
-            "maximum_snapshot_gap_ms",
+        if self.minimum_duration_ms < 86_400_000:
+            raise PaperValidationError("minimum_duration_ms cannot weaken the terminal floor")
+        if self.minimum_snapshot_count < 96:
+            raise PaperValidationError("minimum_snapshot_count cannot weaken the terminal floor")
+        if not 1 <= self.maximum_snapshot_gap_ms <= 1_800_000:
+            raise PaperValidationError(
+                "maximum_snapshot_gap_ms cannot weaken the terminal ceiling"
+            )
+        decision_count_fields = (
             "minimum_decision_count",
             "minimum_allowed_decision_count",
             "minimum_risk_rejection_count",
         )
-        if any(getattr(self, name) < 1 for name in integer_fields):
-            raise PaperValidationError("paper policy counts and durations must be >= 1")
-        if not Decimal(0) <= self.minimum_fresh_source_ratio <= Decimal(1):
-            raise PaperValidationError("minimum_fresh_source_ratio must be in [0, 1]")
-        if not Decimal(0) < self.maximum_drawdown_ratio < Decimal(1):
-            raise PaperValidationError("maximum_drawdown_ratio must be in (0, 1)")
-        expected = tuple(sorted(set(self.required_exercises), key=lambda item: item.value))
-        if self.required_exercises != expected:
-            raise PaperValidationError("required_exercises must be unique and sorted")
+        if any(getattr(self, name) < 1 for name in decision_count_fields):
+            raise PaperValidationError("paper policy decision counts must be >= 1")
+        if not Decimal("0.99") <= self.minimum_fresh_source_ratio <= Decimal(1):
+            raise PaperValidationError(
+                "minimum_fresh_source_ratio cannot weaken the terminal floor"
+            )
+        if not Decimal(0) < self.maximum_drawdown_ratio <= Decimal("0.20"):
+            raise PaperValidationError(
+                "maximum_drawdown_ratio cannot weaken the terminal ceiling"
+            )
+        expected_exercises = tuple(
+            sorted(SafetyExerciseKind, key=lambda item: item.value)
+        )
+        if self.required_exercises != expected_exercises:
+            raise PaperValidationError(
+                "required_exercises must contain the complete canonical set"
+            )
+        maximum_covered_duration = (
+            self.minimum_snapshot_count - 1
+        ) * self.maximum_snapshot_gap_ms
+        if maximum_covered_duration < self.minimum_duration_ms:
+            raise PaperValidationError("paper policy duration and cadence are infeasible")
 
     @property
     def policy_sha256(self) -> str:
@@ -510,8 +528,19 @@ class PaperValidationResult:
     observations: tuple[PaperObservation, ...]
 
 
-def _request_identity_payload(
+def _assert_request_matches_policy(
+    request: PaperRunRequest,
+    policy: PaperValidationPolicy,
     *,
+    field: str,
+) -> None:
+    if request.policy_sha256 != policy.policy_sha256:
+        raise PaperValidationError(f"{field} policy identity mismatch")
+    if request.window_end_ms - request.window_start_ms < policy.minimum_duration_ms:
+        raise PaperValidationError(f"{field} window is shorter than policy")
+
+
+def _request_identity_payload(    *,
     created_at_ms: int,
     window_start_ms: int,
     window_end_ms: int,
@@ -572,6 +601,8 @@ def build_paper_run_request(
     wh08_consumer_version: str,
     policy: PaperValidationPolicy,
 ) -> PaperRunRequest:
+    if window_end_ms - window_start_ms < policy.minimum_duration_ms:
+        raise PaperValidationError("paper request window is shorter than policy")
     payload = _request_identity_payload(
         created_at_ms=created_at_ms,
         window_start_ms=window_start_ms,
@@ -930,8 +961,7 @@ def evaluate_paper_evidence(
     parity_evidence: Sequence[ReplayShadowParityEvidence],
     safety_exercises: Sequence[SafetyExerciseEvidence],
 ) -> PaperValidationResult:
-    if request.policy_sha256 != policy.policy_sha256:
-        raise PaperValidationError("request policy identity mismatch")
+    _assert_request_matches_policy(request, policy, field="request")
     observations = _prepare_observations(request, snapshots)
     allowed_ids, parity_ids = _validate_parity(request, snapshots, parity_evidence)
     exercise_kinds = _validate_exercises(request, observations, safety_exercises)
@@ -977,8 +1007,7 @@ def publish_paper_run_request(
     request: PaperRunRequest,
     policy: PaperValidationPolicy,
 ) -> dict[str, Any]:
-    if request.policy_sha256 != policy.policy_sha256:
-        raise PaperValidationError("activation policy identity mismatch")
+    _assert_request_matches_policy(request, policy, field="activation")
 
     def write(root: Path) -> None:
         _write_json(root / POLICY_NAME, policy)

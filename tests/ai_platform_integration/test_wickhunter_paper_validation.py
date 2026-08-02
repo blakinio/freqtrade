@@ -49,25 +49,17 @@ BOT_INSTANCE = "wickhunter-paper-1"
 
 
 def _policy(**overrides: object) -> PaperValidationPolicy:
-    values: dict[str, object] = {
-        "minimum_duration_ms": 3_000,
-        "minimum_snapshot_count": 4,
-        "maximum_snapshot_gap_ms": 1_500,
-        "minimum_fresh_source_ratio": Decimal(1),
-        "minimum_decision_count": 8,
-        "minimum_allowed_decision_count": 4,
-        "minimum_risk_rejection_count": 4,
-        "maximum_drawdown_ratio": Decimal("0.20"),
-    }
-    values.update(overrides)
-    return PaperValidationPolicy(**values)  # type: ignore[arg-type]
+    return PaperValidationPolicy(**overrides)  # type: ignore[arg-type]
 
-
-def _request(policy: PaperValidationPolicy):
+def _request(policy: PaperValidationPolicy, *, window_end_ms: int | None = None):
     return build_paper_run_request(
         created_at_ms=100,
         window_start_ms=1_000,
-        window_end_ms=5_000,
+        window_end_ms=(
+            window_end_ms
+            if window_end_ms is not None
+            else 1_000 + policy.minimum_duration_ms
+        ),
         bot_instance=BOT_INSTANCE,
         mode=BotMode.PAPER,
         model_version="wickhunter-lightgbm-v1",
@@ -196,7 +188,11 @@ def _parity(snapshot: PortalObservabilitySnapshot) -> ReplayShadowParityEvidence
     )
 
 
-def _exercises(run_id: str, snapshot_id: str) -> tuple[SafetyExerciseEvidence, ...]:
+def _exercises(
+    run_id: str,
+    snapshot_id: str,
+    observed_at_ms: int,
+) -> tuple[SafetyExerciseEvidence, ...]:
     reasons = {
         SafetyExerciseKind.CIRCUIT_BREAKER: "maximum_drawdown_exceeded",
         SafetyExerciseKind.MODEL_DRIFT: "model_drift_not_healthy",
@@ -209,32 +205,74 @@ def _exercises(run_id: str, snapshot_id: str) -> tuple[SafetyExerciseEvidence, .
             exercise_id=canonical_sha256({"exercise": kind.value, "run_id": run_id}),
             run_id=run_id,
             kind=kind,
-            observed_at_ms=4_000 + index,
+            observed_at_ms=observed_at_ms,
             source_snapshot_id=snapshot_id,
             expected_reason=reasons[kind],
             observed_reasons=(reasons[kind],),
             passed=True,
             state_recovered=True,
         )
-        for index, kind in enumerate(sorted(SafetyExerciseKind, key=lambda item: item.value), 1)
+        for kind in sorted(SafetyExerciseKind, key=lambda item: item.value)
     )
-
 
 def _accepted_inputs():
     policy = _policy()
-    request = _request(policy)
+    interval_ms = (
+        policy.minimum_duration_ms + policy.minimum_snapshot_count - 2
+    ) // (policy.minimum_snapshot_count - 1)
+    observed_at_values = tuple(
+        1_000 + interval_ms * index for index in range(policy.minimum_snapshot_count)
+    )
+    request = _request(policy, window_end_ms=observed_at_values[-1])
     snapshots = tuple(
-        _snapshot(value, index) for index, value in enumerate((1_000, 2_000, 3_000, 4_000), 1)
+        _snapshot(value, index)
+        for index, value in enumerate(observed_at_values, 1)
     )
     parity = tuple(_parity(snapshot) for snapshot in snapshots)
-    exercises = _exercises(request.run_id, snapshots[-1].snapshot_id)
+    exercises = _exercises(
+        request.run_id,
+        snapshots[-1].snapshot_id,
+        snapshots[-1].observed_at_ms,
+    )
     return policy, request, snapshots, parity, exercises
-
 
 def test_default_policy_requires_real_sustained_window() -> None:
     policy = PaperValidationPolicy()
     assert policy.minimum_duration_ms == 86_400_000
     assert policy.minimum_snapshot_count == 96
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    (
+        ({"minimum_duration_ms": 86_399_999}, "minimum_duration_ms"),
+        ({"minimum_snapshot_count": 95}, "minimum_snapshot_count"),
+        ({"maximum_snapshot_gap_ms": 1_800_001}, "maximum_snapshot_gap_ms"),
+        (
+            {"minimum_fresh_source_ratio": Decimal("0.98")},
+            "minimum_fresh_source_ratio",
+        ),
+        ({"maximum_drawdown_ratio": Decimal("0.21")}, "maximum_drawdown_ratio"),
+        (
+            {
+                "required_exercises": tuple(
+                    item
+                    for item in sorted(
+                        SafetyExerciseKind, key=lambda value: value.value
+                    )
+                    if item is not SafetyExerciseKind.STALE_SOURCE
+                )
+            },
+            "required_exercises",
+        ),
+    ),
+)
+def test_terminal_policy_cannot_be_weakened(
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    with pytest.raises(PaperValidationError, match=message):
+        PaperValidationPolicy(**overrides)  # type: ignore[arg-type]
 
 
 def test_activation_package_is_immutable_and_verified(tmp_path) -> None:
@@ -246,6 +284,12 @@ def test_activation_package_is_immutable_and_verified(tmp_path) -> None:
     assert verify_paper_run_request(destination)["verified"] is True
     with pytest.raises(PaperValidationError, match="overwrite"):
         publish_paper_run_request(destination, request=request, policy=policy)
+
+
+def test_activation_window_cannot_be_shorter_than_policy() -> None:
+    policy = _policy()
+    with pytest.raises(PaperValidationError, match="shorter than policy"):
+        _request(policy, window_end_ms=5_000)
 
 
 def test_sustained_paper_evidence_creates_owner_review_package() -> None:
@@ -264,25 +308,28 @@ def test_sustained_paper_evidence_creates_owner_review_package() -> None:
     assert not result.candidate_review.automatic_promotion_enabled
     assert result.candidate_review.orders_submitted == 0
     assert not result.candidate_review.live_capital_authorized
-    assert result.report.summary.snapshot_count == 4
-    assert result.report.summary.parity_count == 4
+    assert result.report.summary.snapshot_count == policy.minimum_snapshot_count
+    assert result.report.summary.parity_count == policy.minimum_snapshot_count
 
 
 def test_insufficient_window_remains_incomplete() -> None:
-    policy, _old_request, snapshots, parity, _old_exercises = _accepted_inputs()
-    policy = replace(policy, minimum_duration_ms=10_000)
-    request = _request(policy)
+    policy, request, snapshots, parity, _old_exercises = _accepted_inputs()
+    short_snapshots = snapshots[:-1]
     result = evaluate_paper_evidence(
         request=request,
         policy=policy,
-        snapshots=snapshots,
-        parity_evidence=parity,
-        safety_exercises=_exercises(request.run_id, snapshots[-1].snapshot_id),
+        snapshots=short_snapshots,
+        parity_evidence=parity[:-1],
+        safety_exercises=_exercises(
+            request.run_id,
+            short_snapshots[-1].snapshot_id,
+            short_snapshots[-1].observed_at_ms,
+        ),
     )
     assert result.report.outcome is PaperValidationOutcome.INCOMPLETE
     assert "minimum_duration_not_met" in result.report.blocker_codes
+    assert "minimum_snapshot_count_not_met" in result.report.blocker_codes
     assert not result.candidate_review.eligible_for_owner_review
-
 
 def test_identity_mismatch_is_rejected() -> None:
     policy, request, snapshots, parity, exercises = _accepted_inputs()
@@ -346,7 +393,7 @@ def test_live_request_is_forbidden() -> None:
         build_paper_run_request(
             created_at_ms=100,
             window_start_ms=1_000,
-            window_end_ms=5_000,
+            window_end_ms=1_000 + policy.minimum_duration_ms,
             bot_instance=BOT_INSTANCE,
             mode=BotMode.LIVE_BLOCKED,
             model_version="wickhunter-lightgbm-v1",

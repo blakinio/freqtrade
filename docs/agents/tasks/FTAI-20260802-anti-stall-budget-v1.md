@@ -8,7 +8,7 @@ updated: 2026-08-02
 completed: 2026-08-02
 related_pr: "#1000"
 merge_commit: "a65081562b3b97ade84335dab0e8393b5e6fe75b"
-closeout_pr: "pending"
+closeout_pr: "#1002"
 owned_paths: []
 ---
 
@@ -47,6 +47,7 @@ final_ci:
 pull_requests:
   terminal_prs:
     - blakinio/freqtrade#1000 merged as a65081562b3b97ade84335dab0e8393b5e6fe75b
+  closeout_pr: blakinio/freqtrade#1002
   unresolved_review_threads: 0
 task_terminal: true
 ownership_released: true
@@ -64,4 +65,4 @@ max_repair_cycles_per_gate: 3
 max_context_reconstruction_attempts: 1
 ```
 
-No material finding or blocker remains. The closeout PR is the sole related PR until it merges.
+No material finding or blocker remains. PR #1002 is the sole related PR and becomes terminal when merged.

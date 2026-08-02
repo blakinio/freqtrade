@@ -56,6 +56,10 @@ def _binding_payload(
         "model_hash": request.model_hash,
         "parameter_version": request.parameter_version,
         "parameter_hash": request.parameter_hash,
+        "rollback_model_version": request.rollback_model_version,
+        "rollback_model_hash": request.rollback_model_hash,
+        "rollback_parameter_version": request.rollback_parameter_version,
+        "rollback_parameter_hash": request.rollback_parameter_hash,
         "dataset_hash": request.dataset_hash,
         "code_sha": request.code_sha,
         "policy_sha256": policy.policy_sha256,
@@ -102,6 +106,26 @@ class CandidatePaperRuntimeBinding:
                 "parameter_hash",
             ),
             (
+                self.identity.rollback_model_version,
+                self.request.rollback_model_version,
+                "rollback model_version",
+            ),
+            (
+                self.identity.rollback_model_hash,
+                self.request.rollback_model_hash,
+                "rollback model_hash",
+            ),
+            (
+                self.identity.rollback_parameter_version,
+                self.request.rollback_parameter_version,
+                "rollback parameter_version",
+            ),
+            (
+                self.identity.rollback_parameter_hash,
+                self.request.rollback_parameter_hash,
+                "rollback parameter_hash",
+            ),
+            (
                 self.identity.evaluation_sha256,
                 self.request.dataset_hash,
                 "dataset_hash",
@@ -145,9 +169,7 @@ class CandidatePaperRuntimeBinding:
         )
         for actual, expected, field in bindings:
             if actual != expected:
-                raise CandidateRuntimeBindingError(
-                    f"candidate runtime identity mismatch: {field}"
-                )
+                raise CandidateRuntimeBindingError(f"candidate runtime identity mismatch: {field}")
         if self.scorer.artifact != self.model_artifact:
             raise CandidateRuntimeBindingError("candidate runtime scorer artifact mismatch")
         expected_binding_id = canonical_sha256(
@@ -169,9 +191,7 @@ class CandidatePaperRuntimeBinding:
                 "shadow request bot instance does not match activation"
             )
         if request.parameters != self.parameters:
-            raise CandidateRuntimeBindingError(
-                "shadow request parameters do not match activation"
-            )
+            raise CandidateRuntimeBindingError("shadow request parameters do not match activation")
         if request.parameter_bounds != DEFAULT_RESEARCH_BOUNDS:
             raise CandidateRuntimeBindingError(
                 "shadow request parameter bounds are not the frozen research bounds"
@@ -186,17 +206,11 @@ class CandidatePaperRuntimeBinding:
             )
         decision_timestamp_ms = request.market.decision_timestamp_ms
         evaluated_at_ms = request.risk_context.evaluated_at_ms
-        if not (
-            self.request.window_start_ms
-            <= decision_timestamp_ms
-            < self.request.window_end_ms
-        ):
+        if not (self.request.window_start_ms <= decision_timestamp_ms < self.request.window_end_ms):
             raise CandidateRuntimeBindingError(
                 "shadow request decision is outside the activation window"
             )
-        if not (
-            decision_timestamp_ms <= evaluated_at_ms < self.request.window_end_ms
-        ):
+        if not (decision_timestamp_ms <= evaluated_at_ms < self.request.window_end_ms):
             raise CandidateRuntimeBindingError(
                 "shadow request risk evaluation is outside the activation window"
             )

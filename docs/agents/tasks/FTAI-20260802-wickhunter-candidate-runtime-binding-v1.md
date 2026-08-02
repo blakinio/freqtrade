@@ -1,7 +1,7 @@
 ---
 task_id: FTAI-20260802-wickhunter-candidate-runtime-binding-v1
 project_lane: freqtrade-wickhunter
-status: implementing
+status: validating
 branch: feat/wickhunter-candidate-runtime-binding-v1
 base_branch: develop
 created: 2026-08-02
@@ -40,8 +40,8 @@ Bind an independently verified candidate package and immutable WH-09 activation 
 ```yaml
 checkpoint_version: 1
 updated_at: 2026-08-02T15:20:00+02:00
-phase: implementation
-status: implementing
+phase: validation
+status: validating
 branch: feat/wickhunter-candidate-runtime-binding-v1
 base_branch: develop
 head_sha_before_checkpoint: d385ba1338002bcd60f6adcdcbcbd6ecb2372c17
@@ -49,5 +49,5 @@ proven:
   - exact candidate activation boundary merged as d385ba1338002bcd60f6adcdcbcbd6ecb2372c17
   - WH-07 read-only SHADOW/PAPER runtime is already merged
   - risk engine candidate PAPER authorization remains default-off and preserves all other vetoes
-next_action: expose typed verified loaders; validate the runtime binding with focused tests and exact-head repository CI
+next_action: complete exact-head repository CI; audit the final diff and merge only on an unchanged green SHA
 ```

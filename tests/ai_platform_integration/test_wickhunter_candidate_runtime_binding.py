@@ -86,6 +86,7 @@ def _activation(
     identity: VerifiedCandidateIdentity,
     *,
     model_hash: str | None = None,
+    rollback_model_hash: str | None = None,
 ) -> Path:
     policy = PaperValidationPolicy()
     request = build_paper_run_request(
@@ -101,7 +102,7 @@ def _activation(
         dataset_hash=identity.evaluation_sha256,
         code_sha=identity.source_commit_sha,
         rollback_model_version=identity.rollback_model_version,
-        rollback_model_hash=identity.rollback_model_hash,
+        rollback_model_hash=(rollback_model_hash or identity.rollback_model_hash),
         rollback_parameter_version=identity.rollback_parameter_version,
         rollback_parameter_hash=identity.rollback_parameter_hash,
         wh08_consumer_version="wickhunter-portal-consumer-v1",
@@ -179,6 +180,7 @@ def _binding(
     monkeypatch: pytest.MonkeyPatch,
     *,
     activation_model_hash: str | None = None,
+    activation_rollback_model_hash: str | None = None,
 ) -> runtime_binding.CandidatePaperRuntimeBinding:
     identity = _identity(tmp_path)
     artifact = _artifact(identity)
@@ -207,6 +209,7 @@ def _binding(
             tmp_path,
             identity,
             model_hash=activation_model_hash,
+            rollback_model_hash=activation_rollback_model_hash,
         ),
     )
 
@@ -238,8 +241,23 @@ def test_binding_rejects_activation_identity_mismatch(
         _binding(tmp_path, monkeypatch, activation_model_hash="e" * 64)
 
 
+def test_binding_rejects_rollback_identity_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(
+        runtime_binding.CandidateRuntimeBindingError,
+        match="rollback model_hash",
+    ):
+        _binding(
+            tmp_path,
+            monkeypatch,
+            activation_rollback_model_hash="e" * 64,
+        )
+
+
 @pytest.mark.parametrize(
-    ("request", "message"),
+    ("shadow_request", "message"),
     (
         (
             _shadow_request(dataset_hash="f" * 64),
@@ -248,9 +266,7 @@ def test_binding_rejects_activation_identity_mismatch(
         (
             _shadow_request(
                 decision_timestamp_ms=CREATED_AT_MS + WINDOW_DURATION_MS,
-                risk_context=_risk_context(
-                    evaluated_at_ms=CREATED_AT_MS + WINDOW_DURATION_MS
-                ),
+                risk_context=_risk_context(evaluated_at_ms=CREATED_AT_MS + WINDOW_DURATION_MS),
             ),
             "outside the activation window",
         ),
@@ -263,13 +279,13 @@ def test_binding_rejects_activation_identity_mismatch(
 def test_binding_rejects_unbound_or_pre_authorized_requests(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    request: ShadowDecisionRequest,
+    shadow_request: ShadowDecisionRequest,
     message: str,
 ) -> None:
     binding = _binding(tmp_path, monkeypatch)
 
     with pytest.raises(runtime_binding.CandidateRuntimeBindingError, match=message):
-        binding.bind_request(request)
+        binding.bind_request(shadow_request)
 
 
 def test_binding_rejects_non_frozen_parameter_bounds(

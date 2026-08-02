@@ -1,0 +1,136 @@
+name: WickHunter replay boundary probe
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-replay-boundary-probe-20260802.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-replay-boundary-probe-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  DATASET_MATERIALIZATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573
+
+jobs:
+  inspect:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact read-only request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-replay-boundary-probe-20260802.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "${{ runner.name }}" == "freqtrade-synology-staging" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]]
+          done
+
+      - name: Verify dataset and inspect decision margins
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 - <<'PY'
+          import json
+          import os
+          from collections import Counter, defaultdict
+          from pathlib import Path
+
+          from ai_platform.wickhunter.production_dataset_materialization import (
+              verify_production_materialization,
+          )
+
+          root = Path(os.environ["DATASET_MATERIALIZATION_ROOT"])
+          verification = verify_production_materialization(root)
+          if verification.get("outcome") != "accepted":
+              raise RuntimeError("dataset is not accepted")
+          dataset_root = root / "dataset"
+          manifest = json.loads((dataset_root / "manifest.json").read_text(encoding="utf-8"))
+          windows = {
+              "train": (1_785_484_800_000, 1_785_506_400_000),
+              "validation": (1_785_508_200_000, 1_785_515_400_000),
+              "test": (1_785_517_200_000, 1_785_520_800_000),
+          }
+          margins = []
+          by_split = defaultdict(list)
+          rows = 0
+          for partition in manifest["partitions"]:
+              path = dataset_root / partition["relative_path"]
+              for line in path.read_text(encoding="utf-8").splitlines():
+                  payload = json.loads(line)
+                  split = payload["split_name"]
+                  timestamp = int(payload["decision_timestamp_ms"])
+                  start_ms, end_ms = windows[split]
+                  if not start_ms <= timestamp < end_ms:
+                      raise RuntimeError("decision outside declared window")
+                  margin = end_ms - timestamp
+                  margins.append(margin)
+                  by_split[split].append(margin)
+                  rows += 1
+          if rows != 919:
+              raise RuntimeError(f"unexpected row count: {rows}")
+          horizons = (900_000, 600_000, 300_000, 120_000, 60_000, 30_000, 20_000, 10_000, 1_000)
+          output = {
+              "row_count": rows,
+              "minimum_margin_ms": min(margins),
+              "maximum_margin_ms": max(margins),
+              "minimum_margin_by_split_ms": {
+                  split: min(values) for split, values in sorted(by_split.items())
+              },
+              "eligible_rows_by_horizon_ms": {
+                  str(horizon): sum(margin >= horizon for margin in margins)
+                  for horizon in horizons
+              },
+              "ineligible_rows_by_horizon_ms": {
+                  str(horizon): sum(margin < horizon for margin in margins)
+                  for horizon in horizons
+              },
+              "margin_bucket_counts_ms": dict(
+                  sorted(
+                      Counter(
+                          min(
+                              (1_000, 10_000, 20_000, 30_000, 60_000, 120_000, 300_000, 600_000, 900_000),
+                              key=lambda boundary: abs(margin - boundary),
+                          )
+                          for margin in margins
+                      ).items()
+                  )
+              ),
+              "authority": {
+                  "protected_holdout_accessed": False,
+                  "immutable_inputs_mutated": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "trading_credentials_present": False,
+                  "orders_submitted": 0,
+              },
+          }
+          print(json.dumps(output, indent=2, sort_keys=True))
+          PY

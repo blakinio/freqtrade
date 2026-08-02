@@ -1,0 +1,333 @@
+name: Temporary WickHunter candidate runtime binding implementation v3
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - feat/wickhunter-candidate-runtime-binding-v1
+    paths:
+      - ".tmp/wickhunter-candidate-runtime-binding-implementation-v3.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-candidate-runtime-binding-implementation-v3
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'chore/trigger-wickhunter-candidate-runtime-binding-implementation-v3'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-candidate-runtime-binding-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Apply exact missing runtime binding pieces
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if text.count(old) != 1:
+                  raise SystemExit(f"{label} target mismatch: {text.count(old)}")
+              return text.replace(old, new)
+
+          candidate_path = Path("ai_platform/wickhunter/candidate_activation.py")
+          candidate = candidate_path.read_text(encoding="utf-8")
+          if "class VerifiedCandidatePackage:" not in candidate:
+              candidate = replace_once(
+                  candidate,
+                  "@dataclass(frozen=True, slots=True)\nclass CandidateActivationResult:\n",
+                  "@dataclass(frozen=True, slots=True)\n"
+                  "class VerifiedCandidatePackage:\n"
+                  "    identity: VerifiedCandidateIdentity\n"
+                  "    parameters: WickHunterParameters\n"
+                  "    model_artifact: LightGBMModelArtifact\n\n\n"
+                  "@dataclass(frozen=True, slots=True)\n"
+                  "class CandidateActivationResult:\n",
+                  "verified candidate package dataclass",
+              )
+          if "def load_verified_candidate_package(" not in candidate:
+              candidate = replace_once(
+                  candidate,
+                  "def verify_candidate_package(  # noqa: C901\n"
+                  "    root: Path,\n"
+                  ") -> tuple[VerifiedCandidateIdentity, WickHunterParameters]:\n",
+                  "def load_verified_candidate_package(  # noqa: C901\n"
+                  "    root: Path,\n"
+                  ") -> VerifiedCandidatePackage:\n",
+                  "typed candidate loader signature",
+              )
+              candidate = replace_once(
+                  candidate,
+                  "    _verify_model(model_payload, manifest=manifest)\n",
+                  "    model_artifact = _verify_model(model_payload, manifest=manifest)\n",
+                  "typed candidate model result",
+              )
+              candidate = replace_once(
+                  candidate,
+                  "    return identity, parameters\n\n\n"
+                  "def _activation_binding(\n",
+                  "    return VerifiedCandidatePackage(\n"
+                  "        identity=identity,\n"
+                  "        parameters=parameters,\n"
+                  "        model_artifact=model_artifact,\n"
+                  "    )\n\n\n"
+                  "def verify_candidate_package(\n"
+                  "    root: Path,\n"
+                  ") -> tuple[VerifiedCandidateIdentity, WickHunterParameters]:\n"
+                  "    package = load_verified_candidate_package(root)\n"
+                  "    return package.identity, package.parameters\n\n\n"
+                  "def _activation_binding(\n",
+                  "typed candidate loader return",
+              )
+          candidate_path.write_text(candidate, encoding="utf-8")
+
+          paper_path = Path("ai_platform/wickhunter/paper_validation.py")
+          paper = paper_path.read_text(encoding="utf-8")
+          if "def load_verified_paper_run_request(" not in paper:
+              paper = replace_once(
+                  paper,
+                  "def verify_paper_run_request(root: Path) -> dict[str, Any]:\n",
+                  "def load_verified_paper_run_request(\n"
+                  "    root: Path,\n"
+                  ") -> tuple[PaperRunRequest, PaperValidationPolicy]:\n",
+                  "typed paper loader signature",
+              )
+              paper = replace_once(
+                  paper,
+                  "    return {\"run_id\": request.run_id, \"verified\": True}\n\n\n"
+                  "def verify_paper_validation_package(root: Path) -> dict[str, Any]:  # noqa: C901\n",
+                  "    return request, policy\n\n\n"
+                  "def verify_paper_run_request(root: Path) -> dict[str, Any]:\n"
+                  "    request, _policy = load_verified_paper_run_request(root)\n"
+                  "    return {\"run_id\": request.run_id, \"verified\": True}\n\n\n"
+                  "def verify_paper_validation_package(root: Path) -> dict[str, Any]:  # noqa: C901\n",
+                  "typed paper loader return",
+              )
+          paper_path.write_text(paper, encoding="utf-8")
+
+          binding_path = Path("ai_platform/wickhunter/candidate_runtime_binding.py")
+          binding = binding_path.read_text(encoding="utf-8")
+          if '"rollback_model_version": request.rollback_model_version' not in binding:
+              binding = replace_once(
+                  binding,
+                  '        "parameter_version": request.parameter_version,\n'
+                  '        "parameter_hash": request.parameter_hash,\n',
+                  '        "parameter_version": request.parameter_version,\n'
+                  '        "parameter_hash": request.parameter_hash,\n'
+                  '        "rollback_model_version": request.rollback_model_version,\n'
+                  '        "rollback_model_hash": request.rollback_model_hash,\n'
+                  '        "rollback_parameter_version": request.rollback_parameter_version,\n'
+                  '        "rollback_parameter_hash": request.rollback_parameter_hash,\n',
+                  "runtime rollback payload",
+              )
+          if '"rollback model_version"' not in binding:
+              binding = replace_once(
+                  binding,
+                  "            (\n"
+                  "                self.identity.parameter_hash,\n"
+                  "                self.request.parameter_hash,\n"
+                  '                "parameter_hash",\n'
+                  "            ),\n"
+                  "            (\n"
+                  "                self.identity.evaluation_sha256,\n",
+                  "            (\n"
+                  "                self.identity.parameter_hash,\n"
+                  "                self.request.parameter_hash,\n"
+                  '                "parameter_hash",\n'
+                  "            ),\n"
+                  "            (\n"
+                  "                self.identity.rollback_model_version,\n"
+                  "                self.request.rollback_model_version,\n"
+                  '                "rollback model_version",\n'
+                  "            ),\n"
+                  "            (\n"
+                  "                self.identity.rollback_model_hash,\n"
+                  "                self.request.rollback_model_hash,\n"
+                  '                "rollback model_hash",\n'
+                  "            ),\n"
+                  "            (\n"
+                  "                self.identity.rollback_parameter_version,\n"
+                  "                self.request.rollback_parameter_version,\n"
+                  '                "rollback parameter_version",\n'
+                  "            ),\n"
+                  "            (\n"
+                  "                self.identity.rollback_parameter_hash,\n"
+                  "                self.request.rollback_parameter_hash,\n"
+                  '                "rollback parameter_hash",\n'
+                  "            ),\n"
+                  "            (\n"
+                  "                self.identity.evaluation_sha256,\n",
+                  "runtime rollback identity checks",
+              )
+          binding_path.write_text(binding, encoding="utf-8")
+
+          test_path = Path(
+              "tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py"
+          )
+          tests = test_path.read_text(encoding="utf-8")
+          if "rollback_model_hash: str | None = None" not in tests:
+              tests = replace_once(
+                  tests,
+                  "    *,\n"
+                  "    model_hash: str | None = None,\n"
+                  ") -> Path:\n",
+                  "    *,\n"
+                  "    model_hash: str | None = None,\n"
+                  "    rollback_model_hash: str | None = None,\n"
+                  ") -> Path:\n",
+                  "activation rollback override",
+              )
+              tests = replace_once(
+                  tests,
+                  "        rollback_model_hash=identity.rollback_model_hash,\n",
+                  "        rollback_model_hash=(\n"
+                  "            rollback_model_hash or identity.rollback_model_hash\n"
+                  "        ),\n",
+                  "activation rollback argument",
+              )
+          if "activation_rollback_model_hash: str | None = None" not in tests:
+              tests = replace_once(
+                  tests,
+                  "    *,\n"
+                  "    activation_model_hash: str | None = None,\n"
+                  ") -> runtime_binding.CandidatePaperRuntimeBinding:\n",
+                  "    *,\n"
+                  "    activation_model_hash: str | None = None,\n"
+                  "    activation_rollback_model_hash: str | None = None,\n"
+                  ") -> runtime_binding.CandidatePaperRuntimeBinding:\n",
+                  "binding rollback override",
+              )
+              tests = replace_once(
+                  tests,
+                  "            model_hash=activation_model_hash,\n"
+                  "        ),\n",
+                  "            model_hash=activation_model_hash,\n"
+                  "            rollback_model_hash=activation_rollback_model_hash,\n"
+                  "        ),\n",
+                  "binding rollback argument",
+              )
+          if '("shadow_request", "message")' not in tests:
+              tests = replace_once(
+                  tests,
+                  '("request", "message"),\n',
+                  '("shadow_request", "message"),\n',
+                  "pytest parameter name",
+              )
+              tests = replace_once(
+                  tests,
+                  "    request: ShadowDecisionRequest,\n"
+                  "    message: str,\n"
+                  ") -> None:\n"
+                  "    binding = _binding(tmp_path, monkeypatch)\n\n"
+                  "    with pytest.raises(runtime_binding.CandidateRuntimeBindingError, match=message):\n"
+                  "        binding.bind_request(request)\n",
+                  "    shadow_request: ShadowDecisionRequest,\n"
+                  "    message: str,\n"
+                  ") -> None:\n"
+                  "    binding = _binding(tmp_path, monkeypatch)\n\n"
+                  "    with pytest.raises(runtime_binding.CandidateRuntimeBindingError, match=message):\n"
+                  "        binding.bind_request(shadow_request)\n",
+                  "pytest request parameter body",
+              )
+          if "test_binding_rejects_rollback_identity_mismatch" not in tests:
+              anchor = "\n\n@pytest.mark.parametrize(\n"
+              rollback_test = '''
+
+          def test_binding_rejects_rollback_identity_mismatch(
+              tmp_path: Path,
+              monkeypatch: pytest.MonkeyPatch,
+          ) -> None:
+              with pytest.raises(
+                  runtime_binding.CandidateRuntimeBindingError,
+                  match="rollback model_hash",
+              ):
+                  _binding(
+                      tmp_path,
+                      monkeypatch,
+                      activation_rollback_model_hash="e" * 64,
+                  )
+          '''
+              tests = replace_once(
+                  tests,
+                  anchor,
+                  rollback_test + anchor,
+                  "rollback mismatch test",
+              )
+          test_path.write_text(tests, encoding="utf-8")
+
+          task_path = Path(
+              "docs/agents/tasks/FTAI-20260802-wickhunter-candidate-runtime-binding-v1.md"
+          )
+          task = task_path.read_text(encoding="utf-8")
+          task = task.replace("status: implementing", "status: validating")
+          task = task.replace("phase: implementation", "phase: validation")
+          task = task.replace(
+              "next_action: expose typed verified loaders; validate the runtime binding with focused tests and exact-head repository CI",
+              "next_action: complete exact-head repository CI; audit the final diff and merge only on an unchanged green SHA",
+          )
+          task_path.write_text(task, encoding="utf-8")
+
+      - name: Validate focused implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            ai_platform/wickhunter/candidate_activation.py
+            ai_platform/wickhunter/candidate_runtime_binding.py
+            ai_platform/wickhunter/paper_validation.py
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+          )
+          ruff check --fix "${paths[@]}"
+          ruff format "${paths[@]}"
+          ruff check "${paths[@]}"
+          ruff format --check "${paths[@]}"
+          mypy "${paths[@]}"
+          pytest -q \
+            tests/ai_platform_integration/test_wickhunter_candidate_activation.py \
+            tests/ai_platform_integration/test_wickhunter_paper_validation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+
+      - name: Commit validated implementation and remove helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/tmp-wickhunter-candidate-runtime-binding-implementation.yml \
+            .github/workflows/tmp-wickhunter-candidate-runtime-binding-implementation-v2.yml \
+            .github/workflows/tmp-wickhunter-candidate-runtime-binding-implementation-v3.yml
+          git add \
+            ai_platform/wickhunter/candidate_activation.py \
+            ai_platform/wickhunter/candidate_runtime_binding.py \
+            ai_platform/wickhunter/paper_validation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py \
+            docs/ai_platform/WICKHUNTER_CANDIDATE_RUNTIME_BINDING.md \
+            docs/agents/tasks/FTAI-20260802-wickhunter-candidate-runtime-binding-v1.md
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "feat(wickhunter): bind verified candidate to paper runtime"
+          git push origin HEAD:feat/wickhunter-candidate-runtime-binding-v1

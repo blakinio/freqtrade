@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,15 @@ from ai_platform.wickhunter.candidate_activation import (
     verify_candidate_package,
 )
 from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
+from ai_platform.wickhunter.lightgbm_scorer import (
+    FEATURE_NAMES,
+    FEATURE_SCHEMA_VERSION,
+    MODEL_ARTIFACT_SCHEMA_VERSION,
+    MODEL_KIND,
+    CalibrationCurve,
+    LightGBMModelArtifact,
+    LightGBMTrainingPolicy,
+)
 from ai_platform.wickhunter.paper_validation import (
     PaperRunRequest,
     PaperValidationPolicy,
@@ -46,26 +56,49 @@ def _package(root: Path) -> Path:
     parameter_payload = json.loads(canonical_json(parameters))
     parameter_payload["parameter_sha256"] = parameters.parameter_hash
 
-    model_base = {
-        "schema_version": "wickhunter-lightgbm-model-artifact-v1",
-        "model_kind": "lightgbm_binary_classifier",
-        "model_version": "wickhunter-lightgbm-test",
-        "model_hash": MODEL_HASH,
-        "model_text": "model-text",
-        "parameter_version": parameters.parameter_version,
-        "parameter_sha256": parameters.parameter_hash,
-        "protected_holdout_accessed": False,
-        "automatic_promotion_enabled": False,
-        "execution_enabled": False,
-        "live_capital_authorized": False,
-        "orders_submitted": 0,
-    }
-    model_payload = {
-        **model_base,
-        "artifact_sha256": canonical_sha256(model_base),
-        "promotion_state": "candidate",
-        "advisory_only": True,
-    }
+    training_policy = LightGBMTrainingPolicy()
+    calibration = CalibrationCurve(
+        schema_version="wickhunter-probability-calibration-v1",
+        upper_bounds=(Decimal("0.5"), Decimal("1")),
+        probabilities=(Decimal("0.4"), Decimal("0.7")),
+    )
+    artifact = LightGBMModelArtifact(
+        schema_version=MODEL_ARTIFACT_SCHEMA_VERSION,
+        model_kind=MODEL_KIND,
+        model_version="wickhunter-lightgbm-test",
+        model_hash=MODEL_HASH,
+        model_text="model-text",
+        feature_schema_version=FEATURE_SCHEMA_VERSION,
+        feature_schema_sha256=canonical_sha256(
+            {"version": FEATURE_SCHEMA_VERSION, "names": FEATURE_NAMES}
+        ),
+        feature_names=FEATURE_NAMES,
+        training_policy=training_policy,
+        dataset_id="wickhunter-test-dataset",
+        dataset_manifest_sha256="1" * 64,
+        market_manifest_sha256="2" * 64,
+        split_geometry_sha256="3" * 64,
+        price_path_manifest_sha256="4" * 64,
+        replay_policy_version="wickhunter-replay-test-v1",
+        replay_policy_sha256="5" * 64,
+        parameter_version=parameters.parameter_version,
+        parameter_sha256=parameters.parameter_hash,
+        training_case_sha256s=("6" * 64,),
+        calibration_case_sha256s=("7" * 64,),
+        training_example_count=2,
+        calibration_example_count=1,
+        positive_example_count=1,
+        negative_example_count=1,
+        positive_return_mean=Decimal("0.01"),
+        negative_return_mean=Decimal("-0.01"),
+        calibration=calibration,
+        protected_holdout_accessed=False,
+        automatic_promotion_enabled=False,
+        execution_enabled=False,
+        live_capital_authorized=False,
+        orders_submitted=0,
+    )
+    model_payload = artifact.as_registry_record()
     payloads = {
         "evaluation-identity.json": {
             "evaluation_sha256": EVALUATION_SHA,
@@ -298,7 +331,37 @@ def test_coordinated_model_text_tampering_is_rejected(tmp_path: Path) -> None:
     _write(model_path, model)
     _rehash(root)
 
-    with pytest.raises(CandidateActivationError, match="model text"):
+    with pytest.raises(
+        CandidateActivationError,
+        match="model artifact semantic validation failed",
+    ):
+        verify_candidate_package(root)
+
+
+def test_coordinated_model_schema_tampering_is_rejected(tmp_path: Path) -> None:
+    root = _package(tmp_path / "candidate")
+    model_path = root / "model-artifact.json"
+    model = json.loads(model_path.read_text(encoding="utf-8"))
+    model["feature_names"] = [*model["feature_names"], "future_return"]
+    model["feature_schema_sha256"] = canonical_sha256(
+        {
+            "version": model["feature_schema_version"],
+            "names": model["feature_names"],
+        }
+    )
+    base = {
+        key: value
+        for key, value in model.items()
+        if key not in {"artifact_sha256", "promotion_state", "advisory_only"}
+    }
+    model["artifact_sha256"] = canonical_sha256(base)
+    _write(model_path, model)
+    _rehash(root)
+
+    with pytest.raises(
+        CandidateActivationError,
+        match="model artifact semantic validation failed",
+    ):
         verify_candidate_package(root)
 
 

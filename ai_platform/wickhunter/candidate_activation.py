@@ -10,6 +10,12 @@ from typing import Any
 
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import BotMode
+from ai_platform.wickhunter.lightgbm_scorer import (
+    CalibrationCurve,
+    LightGBMModelArtifact,
+    LightGBMScorerError,
+    LightGBMTrainingPolicy,
+)
 from ai_platform.wickhunter.paper_validation import (
     PaperRunRequest,
     PaperValidationError,
@@ -286,59 +292,209 @@ def _parameters(payload: dict[str, Any]) -> WickHunterParameters:
     return parameters
 
 
-def _verify_model(payload: dict[str, Any], *, manifest: dict[str, Any]) -> None:
-    required = {
-        "schema_version",
-        "model_kind",
-        "model_version",
-        "model_hash",
-        "model_text",
-        "parameter_version",
-        "parameter_sha256",
+def _list(value: object, *, field: str) -> list[Any]:
+    if not isinstance(value, list):
+        raise CandidateActivationError(f"{field} must be a list")
+    return value
+
+
+def _text_tuple(value: object, *, field: str) -> tuple[str, ...]:
+    return tuple(_require_text(item, field=field) for item in _list(value, field=field))
+
+
+def _decimal_tuple(value: object, *, field: str) -> tuple[Decimal, ...]:
+    return tuple(_decimal(item, field=field) for item in _list(value, field=field))
+
+
+def _integer(value: object, *, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise CandidateActivationError(f"{field} must be an integer")
+    return value
+
+
+def _boolean(value: object, *, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise CandidateActivationError(f"{field} must be boolean")
+    return value
+
+
+def _training_policy(value: object) -> LightGBMTrainingPolicy:
+    if not isinstance(value, dict):
+        raise CandidateActivationError("model training policy must be an object")
+    expected = {item.name for item in fields(LightGBMTrainingPolicy)}
+    if set(value) != expected:
+        raise CandidateActivationError("model training policy field set mismatch")
+    return LightGBMTrainingPolicy(
+        schema_version=_require_text(value["schema_version"], field="training schema"),
+        policy_version=_require_text(value["policy_version"], field="training policy"),
+        training_splits=_text_tuple(value["training_splits"], field="training splits"),
+        calibration_splits=_text_tuple(value["calibration_splits"], field="calibration splits"),
+        validation_splits=_text_tuple(value["validation_splits"], field="validation splits"),
+        forbidden_splits=_text_tuple(value["forbidden_splits"], field="forbidden splits"),
+        seed=_integer(value["seed"], field="training seed"),
+        num_boost_round=_integer(value["num_boost_round"], field="num_boost_round"),
+        num_leaves=_integer(value["num_leaves"], field="num_leaves"),
+        min_data_in_leaf=_integer(value["min_data_in_leaf"], field="min_data_in_leaf"),
+        learning_rate=_decimal(value["learning_rate"], field="learning_rate"),
+        calibration_bins=_integer(value["calibration_bins"], field="calibration_bins"),
+        no_trade_confidence=_decimal(value["no_trade_confidence"], field="no_trade_confidence"),
+    )
+
+
+def _calibration(value: object) -> CalibrationCurve:
+    if not isinstance(value, dict):
+        raise CandidateActivationError("model calibration must be an object")
+    expected = {item.name for item in fields(CalibrationCurve)}
+    if set(value) != expected:
+        raise CandidateActivationError("model calibration field set mismatch")
+    return CalibrationCurve(
+        schema_version=_require_text(value["schema_version"], field="calibration schema"),
+        upper_bounds=_decimal_tuple(value["upper_bounds"], field="calibration upper bounds"),
+        probabilities=_decimal_tuple(value["probabilities"], field="calibration probabilities"),
+    )
+
+
+def _model_artifact(payload: dict[str, Any]) -> LightGBMModelArtifact:
+    artifact_fields = {item.name for item in fields(LightGBMModelArtifact)}
+    expected = artifact_fields | {
         "artifact_sha256",
         "promotion_state",
         "advisory_only",
-        "protected_holdout_accessed",
-        "automatic_promotion_enabled",
-        "execution_enabled",
-        "live_capital_authorized",
-        "orders_submitted",
     }
-    if not required.issubset(payload):
-        raise CandidateActivationError("model artifact is missing required fields")
-    _require_zero_authority(payload, field="model artifact")
-    if payload.get("promotion_state") != "candidate" or payload.get("advisory_only") is not True:
-        raise CandidateActivationError("model artifact must remain advisory candidate evidence")
-    model_text = _require_text(payload.get("model_text"), field="model_text")
-    model_hash = _require_sha256(payload.get("model_hash"), field="model_hash")
-    if hashlib.sha256(model_text.encode("utf-8")).hexdigest() != model_hash:
-        raise CandidateActivationError("model text does not match model hash")
-    artifact_sha = _require_sha256(payload.get("artifact_sha256"), field="artifact_sha256")
-    base = {
-        key: value
-        for key, value in payload.items()
-        if key not in {"artifact_sha256", "promotion_state", "advisory_only"}
-    }
-    if canonical_sha256(base) != artifact_sha:
+    if set(payload) != expected:
+        raise CandidateActivationError("model artifact field set mismatch")
+    if payload.get("promotion_state") != "candidate":
+        raise CandidateActivationError("model artifact must remain a candidate")
+    if payload.get("advisory_only") is not True:
+        raise CandidateActivationError("model artifact must remain advisory-only")
+    claimed = _require_sha256(payload.get("artifact_sha256"), field="artifact_sha256")
+    try:
+        artifact = LightGBMModelArtifact(
+            schema_version=_require_text(payload["schema_version"], field="model schema"),
+            model_kind=_require_text(payload["model_kind"], field="model_kind"),
+            model_version=_require_text(payload["model_version"], field="model_version"),
+            model_hash=_require_sha256(payload["model_hash"], field="model_hash"),
+            model_text=_require_text(payload["model_text"], field="model_text"),
+            feature_schema_version=_require_text(
+                payload["feature_schema_version"],
+                field="feature_schema_version",
+            ),
+            feature_schema_sha256=_require_sha256(
+                payload["feature_schema_sha256"],
+                field="feature_schema_sha256",
+            ),
+            feature_names=_text_tuple(payload["feature_names"], field="feature_names"),
+            training_policy=_training_policy(payload["training_policy"]),
+            dataset_id=_require_text(payload["dataset_id"], field="dataset_id"),
+            dataset_manifest_sha256=_require_sha256(
+                payload["dataset_manifest_sha256"],
+                field="dataset_manifest_sha256",
+            ),
+            market_manifest_sha256=_require_sha256(
+                payload["market_manifest_sha256"],
+                field="market_manifest_sha256",
+            ),
+            split_geometry_sha256=_require_sha256(
+                payload["split_geometry_sha256"],
+                field="split_geometry_sha256",
+            ),
+            price_path_manifest_sha256=_require_sha256(
+                payload["price_path_manifest_sha256"],
+                field="price_path_manifest_sha256",
+            ),
+            replay_policy_version=_require_text(
+                payload["replay_policy_version"],
+                field="replay_policy_version",
+            ),
+            replay_policy_sha256=_require_sha256(
+                payload["replay_policy_sha256"],
+                field="replay_policy_sha256",
+            ),
+            parameter_version=_require_text(
+                payload["parameter_version"], field="parameter_version"
+            ),
+            parameter_sha256=_require_sha256(payload["parameter_sha256"], field="parameter_sha256"),
+            training_case_sha256s=_text_tuple(
+                payload["training_case_sha256s"],
+                field="training_case_sha256s",
+            ),
+            calibration_case_sha256s=_text_tuple(
+                payload["calibration_case_sha256s"],
+                field="calibration_case_sha256s",
+            ),
+            training_example_count=_integer(
+                payload["training_example_count"],
+                field="training_example_count",
+            ),
+            calibration_example_count=_integer(
+                payload["calibration_example_count"],
+                field="calibration_example_count",
+            ),
+            positive_example_count=_integer(
+                payload["positive_example_count"],
+                field="positive_example_count",
+            ),
+            negative_example_count=_integer(
+                payload["negative_example_count"],
+                field="negative_example_count",
+            ),
+            positive_return_mean=_decimal(
+                payload["positive_return_mean"],
+                field="positive_return_mean",
+            ),
+            negative_return_mean=_decimal(
+                payload["negative_return_mean"],
+                field="negative_return_mean",
+            ),
+            calibration=_calibration(payload["calibration"]),
+            protected_holdout_accessed=_boolean(
+                payload["protected_holdout_accessed"],
+                field="protected_holdout_accessed",
+            ),
+            automatic_promotion_enabled=_boolean(
+                payload["automatic_promotion_enabled"],
+                field="automatic_promotion_enabled",
+            ),
+            execution_enabled=_boolean(payload["execution_enabled"], field="execution_enabled"),
+            live_capital_authorized=_boolean(
+                payload["live_capital_authorized"],
+                field="live_capital_authorized",
+            ),
+            orders_submitted=_integer(payload["orders_submitted"], field="orders_submitted"),
+        )
+    except (LightGBMScorerError, TypeError, ValueError) as exc:
+        raise CandidateActivationError("model artifact semantic validation failed") from exc
+    if artifact.artifact_sha256 != claimed:
         raise CandidateActivationError("model artifact identity mismatch")
+    return artifact
+
+
+def _verify_model(payload: dict[str, Any], *, manifest: dict[str, Any]) -> LightGBMModelArtifact:
+    _require_zero_authority(payload, field="model artifact")
+    artifact = _model_artifact(payload)
     bindings = (
-        (payload.get("model_version"), manifest.get("model_version"), "model_version"),
-        (model_hash, manifest.get("model_hash"), "model_hash"),
-        (artifact_sha, manifest.get("model_artifact_sha256"), "model_artifact_sha256"),
+        (artifact.model_version, manifest.get("model_version"), "model_version"),
+        (artifact.model_hash, manifest.get("model_hash"), "model_hash"),
         (
-            payload.get("parameter_version"),
+            artifact.artifact_sha256,
+            manifest.get("model_artifact_sha256"),
+            "model_artifact_sha256",
+        ),
+        (
+            artifact.parameter_version,
             manifest.get("parameter_version"),
             "model parameter_version",
         ),
         (
-            payload.get("parameter_sha256"),
+            artifact.parameter_sha256,
             manifest.get("parameter_sha256"),
             "model parameter_sha256",
         ),
     )
-    for actual, expected, field in bindings:
-        if actual != expected:
+    for actual, expected_value, field in bindings:
+        if actual != expected_value:
             raise CandidateActivationError(f"candidate manifest binding mismatch: {field}")
+    return artifact
 
 
 def verify_candidate_package(  # noqa: C901

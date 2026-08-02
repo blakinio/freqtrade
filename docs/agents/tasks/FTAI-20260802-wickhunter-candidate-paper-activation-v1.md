@@ -36,18 +36,20 @@ Add the missing fail-closed boundary that independently verifies the real candid
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-02T14:18:00+02:00
+updated_at: 2026-08-02T14:55:00+02:00
 phase: validation
 status: validating
 branch: feat/wickhunter-candidate-paper-activation-v1
 base_branch: develop
-head_sha_before_checkpoint: 8c08d78b1b32b45b294d0775a3cda373eeac0a83
+head_sha_before_checkpoint: 7d3d02f5fb6b0e007df2a23c0cd0bb4bf679ba98
 proven:
   - WH-09 immutable paper request and package verifier are merged
   - production EvaluationCase loader is merged
   - exact package/checksum/manifest/model/parameter/rollback verification is implemented
+  - activation is resumable after interruption between request and binding publication
   - coordinated model and authority tampering is rejected
   - focused pytest, Ruff, formatting and mypy passed on the product implementation
   - feature diff contains exactly four declared product, test and documentation paths
-next_action: run exact-head AI Platform, security and full repository CI; audit the final diff and merge only on unchanged green SHA
+  - AI Platform and security passed on the recovery implementation
+next_action: complete a non-cancelled exact-head repository matrix; audit the final diff and merge only on unchanged green SHA
 ```

@@ -73,6 +73,7 @@ def test_callback_probe_script_passes_node_syntax_check(tmp_path: Path) -> None:
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node.js is unavailable for verifier syntax validation")
+    assert node is not None
 
     script = verifier._callback_probe_script()
     probe = tmp_path / "portal-public-origin-probe.js"

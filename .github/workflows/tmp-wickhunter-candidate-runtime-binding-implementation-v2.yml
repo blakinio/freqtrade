@@ -44,7 +44,7 @@ jobs:
           uv pip install -e ft_client/
           uv pip install -e .
 
-      - name: Apply typed loaders and collection repair
+      - name: Apply current bounded implementation
         shell: python
         run: |
           from pathlib import Path
@@ -53,49 +53,19 @@ jobs:
               ".github/workflows/tmp-wickhunter-candidate-runtime-binding-implementation.yml"
           )
           workflow = workflow_path.read_text(encoding="utf-8")
-          start_marker = (
-              "      - name: Expose typed verified inputs\n"
-              "        shell: python\n"
-              "        run: |\n"
+          start_marker = "        shell: python\n        run: |\n"
+          implementation_name = "      - name: Expose typed inputs and bind rollback identities\n"
+          named_start = workflow.index(implementation_name) + len(implementation_name)
+          start = workflow.index(start_marker, named_start) + len(start_marker)
+          end = workflow.index(
+              "\n      - name: Validate focused implementation\n",
+              start,
           )
-          end_marker = "\n      - name: Validate focused implementation\n"
-          start = workflow.index(start_marker) + len(start_marker)
-          end = workflow.index(end_marker, start)
           script = "\n".join(
               line[10:] if line.startswith("          ") else line
               for line in workflow[start:end].splitlines()
           ) + "\n"
-          exec(compile(script, "candidate-runtime-binding-typed-loaders", "exec"))
-
-          test_path = Path(
-              "tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py"
-          )
-          tests = test_path.read_text(encoding="utf-8")
-          replacements = (
-              (
-                  '    ("request", "message"),\n',
-                  '    ("shadow_request", "message"),\n',
-              ),
-              (
-                  "    request: ShadowDecisionRequest,\n"
-                  "    message: str,\n"
-                  ") -> None:\n"
-                  "    binding = _binding(tmp_path, monkeypatch)\n\n"
-                  "    with pytest.raises(runtime_binding.CandidateRuntimeBindingError, match=message):\n"
-                  "        binding.bind_request(request)\n",
-                  "    shadow_request: ShadowDecisionRequest,\n"
-                  "    message: str,\n"
-                  ") -> None:\n"
-                  "    binding = _binding(tmp_path, monkeypatch)\n\n"
-                  "    with pytest.raises(runtime_binding.CandidateRuntimeBindingError, match=message):\n"
-                  "        binding.bind_request(shadow_request)\n",
-              ),
-          )
-          for old, new in replacements:
-              if tests.count(old) != 1:
-                  raise SystemExit(f"collection repair target mismatch: {old!r}")
-              tests = tests.replace(old, new)
-          test_path.write_text(tests, encoding="utf-8")
+          exec(compile(script, "candidate-runtime-binding-current-implementation", "exec"))
 
       - name: Validate focused implementation
         shell: bash

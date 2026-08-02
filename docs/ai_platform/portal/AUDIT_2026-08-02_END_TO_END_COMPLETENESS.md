@@ -5,9 +5,7 @@
 - Repository: `blakinio/freqtrade`
 - Audited `develop_sha`: `626087ca45d67eb908d6c1f1f419f13cbd49f596`
 - Canonical audit PR: #1082
-- Audit branch content head at this report generation: `7f27eae7fd79fbab9334bbf8680afe884cda5f44`
 - Exact final `audit_head_sha`: recorded in PR #1082 metadata and the exact-head Portal Completeness Audit artifact because a Git commit cannot contain its own resulting SHA.
-- Reference exact-head evidence before this report generation: workflow run `30768808200`, artifact `8839831815`.
 - Scope: AI Trading Portal only; no other repository and no product implementation changes.
 
 ## Conclusion
@@ -110,14 +108,22 @@ The repository contains substantial contracts, durable domain services, security
 - Real private dry-run Freqtrade acceptance after #1092, #1099, #1100, #1086 and #1091.
 - P14 live-small/live capital remains `BLOCKED` and unauthorised.
 
-## Audit artifacts
+## Exact-head audit artifacts
 
-- `AUDIT_2026-08-02_BACKEND_MATRIX.md` — 30 modules and all 92 FastAPI route declarations.
-- `AUDIT_2026-08-02_FRONTEND_BFF_MATRIX.md` — navigation, all 33 pages and all 28 BFF handlers.
-- `AUDIT_2026-08-02_RUNTIME_TEST_DEPLOYMENT_MATRIX.md` — composition roots, fixture/mock boundaries, test/workflow/deployment map.
-- `tools/portal_audit/completeness_audit.py` — bounded original audit checks.
-- `tools/portal_audit/deep_inventory.py` — deterministic full inventory.
-- Workflow artifacts: basic report/JSON, deep inventory report/JSON and exact-head source snapshot.
+The `Portal Completeness Audit` workflow on the final PR head generates and uploads:
+
+- `portal-backend-matrix.md` — all 30 backend modules and all 92 FastAPI route declarations with status and linked Issue/boundary;
+- `portal-frontend-bff-matrix.md` — all 33 pages and all 28 same-origin BFF handlers with status and linked Issue/boundary;
+- `portal-runtime-test-deployment-matrix.md` — runtime composition roots, fixture/mock/provider boundaries, test inventory, workflow map and deployment/external acceptance classification;
+- `portal-deep-inventory.json` and `.md` — exact file-level inventory;
+- `portal-completeness-audit.json` and `.md` — bounded drift/finding checks;
+- `portal-audit-source.tar.gz` plus SHA-256 — secret-excluding exact-head source snapshot.
+
+The generators are versioned in the PR:
+
+- `tools/portal_audit/completeness_audit.py`;
+- `tools/portal_audit/deep_inventory.py`;
+- `tools/portal_audit/classified_matrices.py`.
 
 ## Product-behavior statement
 

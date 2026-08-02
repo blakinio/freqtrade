@@ -25,9 +25,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/portal-nav-update.part{1..5} | tr -d '\n' | base64 -d > /tmp/portal-nav-update.tgz
+          cat .github/portal-nav-update.chunk{00..06} | tr -d '\n' | base64 -d > /tmp/portal-nav-update.tgz
+          echo 'd25fc4da8d31a1b3f891f2d1e73022d37af9b352425ce216313ab336e901b6fb  /tmp/portal-nav-update.tgz' | sha256sum -c -
           tar -xzf /tmp/portal-nav-update.tgz
-          rm .github/portal-nav-update.part{1..5}
+          rm -f .github/portal-nav-update.part{1..5}
+          rm .github/portal-nav-update.chunk{00..06}
           rm .github/workflows/portal-nav-audit-apply.yml
 
           python -m py_compile \
@@ -67,7 +69,7 @@ jobs:
           set -e
           pre-commit run --all-files
 
-          allowed='^(tools/portal_audit/(deep_inventory|classified_matrices|navigation_matrix)\.py|\.github/workflows/portal-completeness-audit\.yml|docs/ai_platform/portal/AUDIT_2026-08-0(2_END_TO_END_COMPLETENESS|3_LEFT_NAVIGATION_COMPLETENESS)\.md|docs/agents/tasks/FTAI-20260802-portal-end-to-end-completeness-audit\.md|\.github/portal-nav-update\.part[1-5]|\.github/workflows/portal-nav-audit-apply\.yml)$'
+          allowed='^(tools/portal_audit/(deep_inventory|classified_matrices|navigation_matrix)\.py|\.github/workflows/portal-completeness-audit\.yml|docs/ai_platform/portal/AUDIT_2026-08-0(2_END_TO_END_COMPLETENESS|3_LEFT_NAVIGATION_COMPLETENESS)\.md|docs/agents/tasks/FTAI-20260802-portal-end-to-end-completeness-audit\.md|\.github/portal-nav-update\.(part[1-5]|chunk0[0-6])|\.github/workflows/portal-nav-audit-apply\.yml)$'
           unexpected=$(git status --short | cut -c4- | grep -Ev "$allowed" || true)
           test -z "$unexpected" || { echo 'Unexpected paths:'; echo "$unexpected"; exit 1; }
 

@@ -6,7 +6,7 @@ branch: feat/wickhunter-candidate-paper-activation-v1
 base_branch: develop
 created: 2026-08-02
 updated: 2026-08-02
-related_pr: null
+related_pr: 1028
 depends_on:
   - FTAI-20260802-wickhunter-production-evaluation-loader-v1
   - FTAI-20260801-wickhunter-wh09-paper-validation-v1
@@ -36,14 +36,18 @@ Add the missing fail-closed boundary that independently verifies the real candid
 
 ```yaml
 checkpoint_version: 1
-updated_at: 2026-08-02T14:05:00+02:00
+updated_at: 2026-08-02T14:18:00+02:00
 phase: validation
 status: validating
 branch: feat/wickhunter-candidate-paper-activation-v1
 base_branch: develop
+head_sha_before_checkpoint: 8c08d78b1b32b45b294d0775a3cda373eeac0a83
 proven:
   - WH-09 immutable paper request and package verifier are merged
   - production EvaluationCase loader is merged
-  - candidate materialization operation is queued after exact replay evidence
-next_action: run focused tests, Ruff, mypy and exact-head repository CI; repair findings; merge only on unchanged green SHA
+  - exact package/checksum/manifest/model/parameter/rollback verification is implemented
+  - coordinated model and authority tampering is rejected
+  - focused pytest, Ruff, formatting and mypy passed on the product implementation
+  - feature diff contains exactly four declared product, test and documentation paths
+next_action: run exact-head AI Platform, security and full repository CI; audit the final diff and merge only on unchanged green SHA
 ```

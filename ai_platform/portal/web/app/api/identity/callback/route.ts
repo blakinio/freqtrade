@@ -11,6 +11,7 @@ import {
   safeReturnTo,
   setFixtureIdentity,
 } from "@/lib/identity";
+import { portalPublicOrigin } from "@/lib/public-origin";
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,9 +24,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const redirectOrigin = portalPublicOrigin(request.nextUrl.origin);
     if (fixtureIdentityMode()) {
       const returnTo = safeReturnTo(request.nextUrl.searchParams.get("return_to"));
-      const response = NextResponse.redirect(new URL(returnTo, request.url), 303);
+      const response = NextResponse.redirect(new URL(returnTo, redirectOrigin), 303);
       setFixtureIdentity(response, "authenticated");
       response.headers.set("cache-control", "no-store");
       return response;
@@ -42,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     const response = NextResponse.redirect(
-      safeBackendReturnLocation(upstream.headers.get("location"), request.nextUrl.origin),
+      safeBackendReturnLocation(upstream.headers.get("location"), redirectOrigin),
       303,
     );
     copySetCookieHeaders(upstream, response);

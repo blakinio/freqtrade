@@ -73,12 +73,70 @@ jobs:
           unexpected=$(git status --short | cut -c4- | grep -Ev "$allowed" || true)
           test -z "$unexpected" || { echo 'Unexpected paths:'; echo "$unexpected"; exit 1; }
 
-      - name: Commit audit-only update
+      - name: Publish exact validated tree through GitHub API
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: audit/portal-e2e-completeness-20260802
         run: |
           set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'audit(portal): classify every left-navigation module'
-          git push origin HEAD:audit/portal-e2e-completeness-20260802
+          parent_sha=$(gh api "repos/$REPOSITORY/git/ref/heads/$BRANCH" --jq '.object.sha')
+          base_tree=$(gh api "repos/$REPOSITORY/git/commits/$parent_sha" --jq '.tree.sha')
+          entries='[]'
+
+          files=(
+            tools/portal_audit/deep_inventory.py
+            tools/portal_audit/classified_matrices.py
+            tools/portal_audit/navigation_matrix.py
+            .github/workflows/portal-completeness-audit.yml
+            docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md
+            docs/ai_platform/portal/AUDIT_2026-08-03_LEFT_NAVIGATION_COMPLETENESS.md
+            docs/agents/tasks/FTAI-20260802-portal-end-to-end-completeness-audit.md
+          )
+          for path in "${files[@]}"; do
+            blob_sha=$(jq -Rs '{content: ., encoding: "utf-8"}' < "$path" \
+              | gh api --method POST "repos/$REPOSITORY/git/blobs" --input - --jq '.sha')
+            entries=$(jq -c \
+              --arg path "$path" \
+              --arg sha "$blob_sha" \
+              '. + [{path: $path, mode: "100644", type: "blob", sha: $sha}]' \
+              <<< "$entries")
+          done
+
+          removals=(
+            .github/portal-nav-update.part1
+            .github/portal-nav-update.part2
+            .github/portal-nav-update.part3
+            .github/portal-nav-update.part4
+            .github/portal-nav-update.part5
+            .github/portal-nav-update.chunk00
+            .github/portal-nav-update.chunk01
+            .github/portal-nav-update.chunk02
+            .github/portal-nav-update.chunk03
+            .github/portal-nav-update.chunk04
+            .github/portal-nav-update.chunk05
+            .github/portal-nav-update.chunk06
+            .github/workflows/portal-nav-audit-apply.yml
+          )
+          for path in "${removals[@]}"; do
+            entries=$(jq -c \
+              --arg path "$path" \
+              '. + [{path: $path, mode: "100644", type: "blob", sha: null}]' \
+              <<< "$entries")
+          done
+
+          tree_sha=$(jq -n \
+            --arg base "$base_tree" \
+            --argjson tree "$entries" \
+            '{base_tree: $base, tree: $tree}' \
+            | gh api --method POST "repos/$REPOSITORY/git/trees" --input - --jq '.sha')
+          commit_sha=$(jq -n \
+            --arg message 'audit(portal): classify every left-navigation module' \
+            --arg tree "$tree_sha" \
+            --arg parent "$parent_sha" \
+            '{message: $message, tree: $tree, parents: [$parent]}' \
+            | gh api --method POST "repos/$REPOSITORY/git/commits" --input - --jq '.sha')
+          jq -n --arg sha "$commit_sha" '{sha: $sha, force: false}' \
+            | gh api --method PATCH "repos/$REPOSITORY/git/refs/heads/$BRANCH" --input - >/dev/null
+          echo "published_commit=$commit_sha"

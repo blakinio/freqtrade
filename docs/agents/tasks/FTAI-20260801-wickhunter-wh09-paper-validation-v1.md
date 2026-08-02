@@ -55,34 +55,37 @@ Produce sustained shadow/paper evidence, replay-to-runtime reconciliation, rollb
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-02T10:43:00+02:00
+updated_at: 2026-08-02T12:25:00+02:00
 project_lane: freqtrade-wickhunter
 phase: validate
-session_id: wh09-20260802-002
+session_id: wh09-20260802-003
 session_role: implementer
 execution_mode: chat
-execution_reason: autonomous continuation of WH-09 implementation, CI repair and closeout
+execution_reason: autonomous completion of WH-09 implementation, semantic hardening and exact-head closeout
 status: validating
 branch: feat/wickhunter-wh09-paper-validation-v1
-head: 85a9f08fb241eae31a551a6039899880f177343d
+head: 91e30abb874ebe723195263801c97856fb38de3b
 base_branch: develop
 related_pr: 983
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
 decomposition_reason: merge the bounded implementation independently from the later real 24-hour observation and evidence analysis
-validation_level: exact_head_pending
-heavy_validation_runs: 1
+validation_level: owner_checkpoint_exact_head_pending
+heavy_validation_runs: 2
 proven:
   - WH-07 merged as bde362801d18ca2abf2615f4d1233b9b0f8f618a after exact-head checks passed
   - WH-08 merged as cfa0eae53d6ff54f5ef39b34a00e1cf09a9f1916 after Portal, E2E, repository and security checks passed
-  - PR 983 contains only the four declared WH-09 implementation, test and documentation paths
-  - commit 85a9f08fb241eae31a551a6039899880f177343d repaired the ShadowStatus contract and the two WH-09 typing failures
-  - the temporary repair workflow removed itself and request-only trigger PR 999 was closed without merge
-  - the default evidence policy still requires at least 24 hours and 96 snapshots and must not be shortened for terminal claims
+  - PR 983 contains exactly the four declared WH-09 implementation, test and documentation paths
+  - the default terminal policy cannot be weakened below 24 hours, 96 snapshots, 99 percent fresh-source coverage, the canonical safety-exercise set or the drawdown ceiling
+  - activation requests are bound to their policy identity and cannot declare a shorter window
+  - published evidence verification reconstructs request, observations, parity, exercises, report and candidate review instead of trusting rewritten manifests or checksums alone
+  - request and replay-shadow parity identities are recomputed through their canonical domain payloads
+  - final self-removing validation run 30743603723 passed Ruff, formatting and all focused WH-09 tests
+  - all temporary workflows were removed and helper PRs 999, 1001, 1003, 1005, 1006, 1007, 1008, 1009 and 1011 were closed without merge
   - activation, evidence evaluation and candidate review remain read-only with zero credentials, orders, execution and live-capital authority
 derived:
-  - implementation and synthetic contract validation may merge after exact-head CI and independent diff audit pass
+  - implementation and synthetic contract validation may merge after owner-authored exact-head repository CI and independent diff audit pass
   - terminal sustained evidence remains incomplete until a real immutable activation request and observation window satisfy the declared policy
 unknown:
   - exact production model, parameter, dataset and rollback identities selected for the immutable activation request
@@ -97,10 +100,13 @@ changed_paths:
 validation:
   - command: original PR exact-head Freqtrade CI
     result: FAIL — WH-09 enum aliases and typing errors identified; unrelated Telegram age-string boundary also observed
-  - command: bounded self-removing repair workflow
-    result: PASS — implementation and test contract repaired at 85a9f08fb241eae31a551a6039899880f177343d
+  - command: bounded self-removing repair and hardening workflows
+    result: PASS — enum, typing, terminal-policy and formatting defects repaired without leaving workflow files
+  - command: final semantic verification run 30743603723
+    result: PASS
+    evidence: Ruff check and format passed; all focused WH-09 tests passed; temporary workflows removed
 blockers:
-  - exact-head focused and repository CI must pass
+  - owner-authored exact-head AI Platform, Freqtrade and security workflows must pass
   - independent final diff audit must report zero material findings
-next_action: run exact-head CI and independent audit, merge PR 983 if green, then publish or request the immutable WH09-ACTIVATE package with exact production and rollback identities
+next_action: run owner-authored exact-head CI and independent audit, merge PR 983 if green, then publish the immutable WH09-ACTIVATE package using exact production and rollback identities
 ```

@@ -51,6 +51,30 @@ jobs:
             --exclude-dir=.git \
             | head -n 250 || true
 
+      - name: Build exact-head audit source snapshot
+        run: |
+          tar \
+            --exclude='ai_platform/portal/web/node_modules' \
+            --exclude='**/__pycache__' \
+            --exclude='*.pyc' \
+            -czf artifacts/portal-audit-source.tar.gz \
+            AGENTS.md \
+            docs/agents/CONTEXT_HANDOFF.md \
+            docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md \
+            docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md \
+            docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md \
+            docs/agents/GITHUB_ONLY_EXECUTION.md \
+            docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md \
+            docs/ai_platform/ARCHITECTURE.md \
+            docs/ai_platform/ROADMAP.md \
+            docs/ai_platform/portal \
+            ai_platform/portal \
+            tests/ai_platform/portal \
+            tests/ai_platform_integration \
+            .github/workflows \
+            tools/portal_audit
+          sha256sum artifacts/portal-audit-source.tar.gz > artifacts/portal-audit-source.sha256
+
       - name: Print bounded report
         run: cat artifacts/portal-completeness-audit.md
 
@@ -61,5 +85,7 @@ jobs:
           path: |
             artifacts/portal-completeness-audit.json
             artifacts/portal-completeness-audit.md
+            artifacts/portal-audit-source.tar.gz
+            artifacts/portal-audit-source.sha256
           if-no-files-found: error
           retention-days: 30

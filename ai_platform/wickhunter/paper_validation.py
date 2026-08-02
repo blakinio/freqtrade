@@ -540,7 +540,8 @@ def _assert_request_matches_policy(
         raise PaperValidationError(f"{field} window is shorter than policy")
 
 
-def _request_identity_payload(    *,
+def _request_identity_payload(
+    *,
     created_at_ms: int,
     window_start_ms: int,
     window_end_ms: int,

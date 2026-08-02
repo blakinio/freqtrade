@@ -51,6 +51,7 @@ BOT_INSTANCE = "wickhunter-paper-1"
 def _policy(**overrides: object) -> PaperValidationPolicy:
     return PaperValidationPolicy(**overrides)  # type: ignore[arg-type]
 
+
 def _request(policy: PaperValidationPolicy, *, window_end_ms: int | None = None):
     return build_paper_run_request(
         created_at_ms=100,
@@ -215,6 +216,7 @@ def _exercises(
         for kind in sorted(SafetyExerciseKind, key=lambda item: item.value)
     )
 
+
 def _accepted_inputs():
     policy = _policy()
     interval_ms = (
@@ -235,6 +237,7 @@ def _accepted_inputs():
         snapshots[-1].observed_at_ms,
     )
     return policy, request, snapshots, parity, exercises
+
 
 def test_default_policy_requires_real_sustained_window() -> None:
     policy = PaperValidationPolicy()
@@ -330,6 +333,7 @@ def test_insufficient_window_remains_incomplete() -> None:
     assert "minimum_duration_not_met" in result.report.blocker_codes
     assert "minimum_snapshot_count_not_met" in result.report.blocker_codes
     assert not result.candidate_review.eligible_for_owner_review
+
 
 def test_identity_mismatch_is_rejected() -> None:
     policy, request, snapshots, parity, exercises = _accepted_inputs()

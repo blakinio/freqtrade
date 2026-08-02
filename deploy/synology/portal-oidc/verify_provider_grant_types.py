@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,12 @@ AUTHENTIK_PROVIDER_NAME = "Freqtrade Portal Public OIDC"
 CLIENT_ID = "freqtrade-portal"
 EXPECTED_GRANT_TYPES = ["authorization_code"]
 MARKER = "__PORTAL_GRANTS__"
+CALLBACK_MARKER = "__PORTAL_PUBLIC_CALLBACK__"
+PORTAL_CONTAINER = "freqtrade-portal-staging"
+PORTAL_ORIGIN = "https://quant.molehill.cloud"
+CALLBACK_RETURN_TO = "/portal"
+RUNTIME_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=64m"  # noqa: S108
+WEB_CACHE_TMPFS = "/app/.next/cache:rw,noexec,nosuid,nodev,size=96m,uid=1000,gid=1000"
 MAX_DETAIL = 1000
 
 
@@ -132,6 +139,110 @@ print({MARKER!r} + json.dumps({{
     return payload
 
 
+def _container_image(name: str) -> str:
+    result = _run(["docker", "inspect", "--format", "{{.Config.Image}}", name])
+    image = result.stdout.strip()
+    if not image:
+        raise GrantTypeVerificationError("Portal web container image is unavailable")
+    return image
+
+
+def _callback_probe_script() -> str:
+    target = (
+        "http://127.0.0.1:3000/api/identity/callback"
+        f"?code=public-origin-probe&state=public-origin-probe&return_to={CALLBACK_RETURN_TO}"
+    )
+    return (
+        f"fetch({target!r},{{redirect:'manual'}}).then(async r=>{{"
+        f"console.log({CALLBACK_MARKER!r}+JSON.stringify({{status:r.status,"
+        "location:r.headers.get('location')}}));"
+        "if(r.status!==303)process.exit(2)"
+        "}).catch(e=>{console.error(String(e));process.exit(3)})"
+    )
+
+
+def _probe_public_callback_redirect(image: str) -> str:
+    name = f"freqtrade-portal-public-origin-probe-{os.getpid()}"
+    _run(["docker", "rm", "-f", name], check=False)
+    _run(
+        [
+            "docker",
+            "run",
+            "--detach",
+            "--name",
+            name,
+            "--network",
+            "none",
+            "--read-only",
+            "--tmpfs",
+            RUNTIME_TMPFS,
+            "--tmpfs",
+            WEB_CACHE_TMPFS,
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges:true",
+            "--pids-limit",
+            "128",
+            "--memory",
+            "512m",
+            "--env",
+            "PORTAL_WEB_DATA_MODE=fixture",
+            "--env",
+            "PORTAL_ENVIRONMENT=test",
+            "--env",
+            "PORTAL_IDENTITY_FIXTURE_MODE=enabled",
+            "--env",
+            "PORTAL_IDENTITY_TRANSPORT_MODE=https",
+            "--env",
+            f"PORTAL_PUBLIC_ORIGIN={PORTAL_ORIGIN}",
+            image,
+        ]
+    )
+    try:
+        deadline = time.monotonic() + 90
+        last_result: subprocess.CompletedProcess[str] | None = None
+        while time.monotonic() < deadline:
+            result = _run(
+                ["docker", "exec", name, "node", "-e", _callback_probe_script()],
+                check=False,
+            )
+            last_result = result
+            if result.returncode == 0:
+                payload_text = next(
+                    (
+                        line.removeprefix(CALLBACK_MARKER)
+                        for line in result.stdout.splitlines()
+                        if line.startswith(CALLBACK_MARKER)
+                    ),
+                    None,
+                )
+                if payload_text is None:
+                    raise GrantTypeVerificationError(
+                        "Portal public callback probe returned no expected marker"
+                    )
+                payload = json.loads(payload_text)
+                expected_location = f"{PORTAL_ORIGIN}{CALLBACK_RETURN_TO}"
+                if payload != {"status": 303, "location": expected_location}:
+                    raise GrantTypeVerificationError(
+                        "Portal callback did not redirect to the public Portal origin"
+                    )
+                return expected_location
+            state = _run(
+                ["docker", "inspect", "--format", "{{.State.Status}}", name],
+                check=False,
+            ).stdout.strip()
+            if state in {"exited", "dead"}:
+                raise GrantTypeVerificationError(
+                    "Portal public callback probe container stopped unexpectedly"
+                )
+            time.sleep(2)
+        detail = _bounded_detail(last_result) if last_result is not None else "no probe result"
+        raise GrantTypeVerificationError(f"Portal public callback probe timed out: {detail}")
+    finally:
+        _run(["docker", "rm", "-f", name], check=False)
+
+
 def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary_name = tempfile.mkstemp(prefix=".grant-types.", dir=path.parent, text=True)
@@ -149,7 +260,11 @@ def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
             temporary.unlink()
 
 
-def _augment_report(report_path: Path, provider: dict[str, Any]) -> dict[str, Any]:
+def _augment_report(
+    report_path: Path,
+    provider: dict[str, Any],
+    callback_location: str,
+) -> dict[str, Any]:
     report = json.loads(report_path.read_text(encoding="utf-8"))
     if not isinstance(report, dict) or report.get("status") != "success":
         raise GrantTypeVerificationError(
@@ -158,9 +273,14 @@ def _augment_report(report_path: Path, provider: dict[str, Any]) -> dict[str, An
     authentik = report.get("authentik")
     if not isinstance(authentik, dict):
         raise GrantTypeVerificationError("deployment report Authentik section is missing")
+    portal = report.get("portal")
+    if not isinstance(portal, dict):
+        raise GrantTypeVerificationError("deployment report Portal section is missing")
     authentik["grant_types"] = provider["grant_types"]
     authentik["authorization_code_enabled"] = True
     authentik["legacy_grants_disabled"] = True
+    portal["public_callback_redirect_location"] = callback_location
+    portal["public_callback_redirect_verified"] = True
     report["secret_values_recorded"] = False
     report["live_capital_authorized"] = False
     _write_json_atomic(report_path, report)
@@ -169,7 +289,8 @@ def _augment_report(report_path: Path, provider: dict[str, Any]) -> dict[str, An
 
 def run(*, repository: Path, report_path: Path) -> dict[str, Any]:
     provider = _query_grant_types(_server_container(repository))
-    return _augment_report(report_path, provider)
+    callback_location = _probe_public_callback_redirect(_container_image(PORTAL_CONTAINER))
+    return _augment_report(report_path, provider, callback_location)
 
 
 def main() -> int:
@@ -190,6 +311,9 @@ def main() -> int:
             {
                 "status": report["status"],
                 "grant_types": report["authentik"]["grant_types"],
+                "public_callback_redirect_verified": report["portal"][
+                    "public_callback_redirect_verified"
+                ],
                 "secret_values_recorded": False,
                 "live_capital_authorized": False,
             },

@@ -18,7 +18,7 @@ env:
   WORKFLOW_PATH: .github/workflows/wickhunter-candidate-materialization-20260802-v1.yml
   DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573
   PRICE_PATH_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v5-h180s-5cffc1902479
-  REPLAY_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages/wickhunter-wh02-deterministic-replay-20260802-v3-4369af03fa56
+  REPLAY_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages/wickhunter-wh02-deterministic-replay-20260802-v4-eac7fe2e1cb3
   CANDIDATE_STATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-candidate-materialization/packages
 
 jobs:

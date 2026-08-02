@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from decimal import Decimal
 from pathlib import Path
 
@@ -99,7 +100,7 @@ def test_source_metrics_volatility_ratio_is_return_standard_deviation() -> None:
     )
     returns = tuple(
         current / previous - Decimal(1)
-        for previous, current in zip(closes[:-1], closes[1:], strict=True)
+        for previous, current in itertools.pairwise(closes)
     )
     return_mean = sum(returns, Decimal(0)) / Decimal(len(returns))
     expected = (

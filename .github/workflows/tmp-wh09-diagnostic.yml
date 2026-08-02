@@ -61,5 +61,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          ruff check --fix ai_platform/wickhunter/paper_validation.py tests/ai_platform_integration/test_wickhunter_paper_validation.py
+          ruff format ai_platform/wickhunter/paper_validation.py tests/ai_platform_integration/test_wickhunter_paper_validation.py
           ruff check ai_platform/wickhunter/paper_validation.py tests/ai_platform_integration/test_wickhunter_paper_validation.py
           pytest -q -x --tb=short tests/ai_platform_integration/test_wickhunter_paper_validation.py

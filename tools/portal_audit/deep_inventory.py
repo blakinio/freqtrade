@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
+from typing import Any
 
 
-ROOT = Path(".")
 PORTAL = Path("ai_platform/portal")
 WEB = PORTAL / "web"
 TEST_ROOTS = [Path("tests/ai_platform/portal"), Path("tests/ai_platform_integration")]
 SKIP_MODULES = {"web", "e2e", "__pycache__"}
 
+
+# fmt: off
 
 def read(path: Path) -> str:
     try:
@@ -48,20 +51,18 @@ def router_prefix(raw: str) -> str:
     return match.group(1) if match else ""
 
 
-def backend_routes() -> list[dict[str, object]]:
-    result: list[dict[str, object]] = []
+def backend_routes() -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
     pattern = re.compile(
         r"@(?P<object>app|router)\.(?P<method>get|post|put|patch|delete)\(\s*"
-        r"[\"'](?P<path>[^\"']+)",
+        r"[\#'](?P<path>[^\#']+)",
         re.MULTILINE,
     )
     for path in sorted(PORTAL.rglob("*.py")):
         raw = read(path)
         prefix = router_prefix(raw)
         for match in pattern.finditer(raw):
-            route = (
-                prefix if match.group("object") == "router" else ""
-            ) + match.group("path")
+            route = (prefix if match.group("object") == "router" else "") + match.group("path")
             result.append(
                 {
                     "method": match.group("method").upper(),
@@ -92,8 +93,8 @@ def backend_targets(raw: str) -> list[str]:
     values: set[str] = set()
     patterns = [
         r"[\"'`](/v1/[^\"'`\s$]*)[\"'`]",
-        r"forwardControlPlaneMutation<[^>]+>\([^,]+,\s*[\"']([^\"']+)",
-        r"apiFetch<[^>]+>\([\"']([^\"']+)",
+        r"forwardControlPlaneMutation<[^>]+>\([^,]+,\s*[\#']([^\"']+)",
+        r"apiFetch<[^>]+>\([\"']([^\#']+)",
     ]
     for pattern in patterns:
         for match in re.finditer(pattern, raw):
@@ -101,9 +102,9 @@ def backend_targets(raw: str) -> list[str]:
     return sorted(values)
 
 
-def bff_inventory() -> list[dict[str, object]]:
+def bff_inventory() -> list[dict[str, Any]]:
     base = WEB / "app" / "api"
-    result: list[dict[str, object]] = []
+    result: list[dict[str, Any]] = []
     for path in sorted(base.rglob("route.ts")):
         raw = read(path)
         methods = exported_methods(raw)
@@ -114,8 +115,7 @@ def bff_inventory() -> list[dict[str, object]]:
                 "file": relative(path),
                 "methods": methods,
                 "backend_targets": backend_targets(raw),
-                "fixture_branch": "dataMode() === \"fixture\"" in raw
-                or "fixture" in raw.lower(),
+                "fixture_branch": 'dataMode() === "fixture"' in raw or "fixture" in raw.lower(),
                 "csrf": "requireBrowserMutation" in raw or not mutating,
                 "session": "requireBrowserSession" in raw
                 or "requireBrowserMutation" in raw
@@ -128,16 +128,16 @@ def bff_inventory() -> list[dict[str, object]]:
     return result
 
 
-def frontend_pages() -> list[dict[str, object]]:
+def frontend_pages() -> list[dict[str, Any]]:
     base = WEB / "app"
-    result: list[dict[str, object]] = []
+    result: list[dict[str, Any]] = []
     for path in sorted(base.rglob("page.tsx")):
         raw = read(path)
         result.append(
             {
                 "route": next_route(base, path),
                 "file": relative(path),
-                "client": "\"use client\"" in raw[:40],
+                "client": '"use client"' in raw[:40],
                 "has_form": "<form" in raw,
                 "has_button": "<button" in raw,
                 "api_refs": sorted(
@@ -158,7 +158,7 @@ def frontend_pages() -> list[dict[str, object]]:
     return result
 
 
-def test_inventory() -> list[dict[str, object]]:
+def test_inventory() -> list[dict[str, Any]]:
     files: list[Path] = []
     for root in TEST_ROOTS:
         if root.exists():
@@ -166,7 +166,7 @@ def test_inventory() -> list[dict[str, object]]:
     files.extend((WEB / "e2e").rglob("*.spec.ts"))
     files.extend((WEB / "e2e").rglob("*.test.mjs"))
 
-    result: list[dict[str, object]] = []
+    result: list[dict[str, Any]] = []
     for path in sorted(set(files)):
         raw = read(path)
         name = relative(path)
@@ -192,8 +192,8 @@ def test_inventory() -> list[dict[str, object]]:
     return result
 
 
-def backend_modules(tests: list[dict[str, object]]) -> list[dict[str, object]]:
-    result: list[dict[str, object]] = []
+def backend_modules(tests: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
     roots = [
         path
         for path in PORTAL.iterdir()
@@ -252,8 +252,8 @@ def backend_modules(tests: list[dict[str, object]]) -> list[dict[str, object]]:
     return result
 
 
-def workflow_inventory() -> list[dict[str, object]]:
-    result: list[dict[str, object]] = []
+def workflow_inventory() -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
     for path in sorted(Path(".github/workflows").glob("*")):
         if path.suffix not in {".yml", ".yaml"}:
             continue
@@ -316,7 +316,7 @@ def composition_evidence() -> dict[str, list[str]]:
     return result
 
 
-def markdown(data: dict[str, object]) -> str:
+def markdown(data: dict[str, Any]) -> str:
     summary = data["summary"]
     routes = data["backend_routes"]
     pages = data["frontend_pages"]
@@ -397,7 +397,7 @@ def markdown(data: dict[str, object]) -> str:
 
 def main() -> int:
     tests = test_inventory()
-    data: dict[str, object] = {
+    data: dict[str, Any] = {
         "schema_version": "portal-deep-inventory-v1",
         "backend_modules": backend_modules(tests),
         "backend_routes": backend_routes(),
@@ -429,6 +429,8 @@ def main() -> int:
     (output / "portal-deep-inventory.md").write_text(markdown(data), encoding="utf-8")
     print(json.dumps(summary, sort_keys=True))
     return 0
+
+# fmt: on
 
 
 if __name__ == "__main__":

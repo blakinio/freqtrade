@@ -28,7 +28,7 @@ jobs:
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     environment: synology-staging
-    timeout-minutes: 90
+    timeout-minutes: 45
 
     steps:
       - name: Check out exact request head
@@ -73,11 +73,6 @@ jobs:
           for path in "$DATASET_ROOT" "$PRICE_PATH_ROOT" "$REPLAY_ROOT"; do
             [[ -d "$path" && ! -L "$path" ]]
           done
-          python3 - <<'PY'
-          import ctypes
-          ctypes.CDLL("libgomp.so.1")
-          print("libgomp_available=true")
-          PY
 
       - name: Install uv and Python
         uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
@@ -94,7 +89,7 @@ jobs:
           uv pip install -e ft_client/
           uv pip install -e .
 
-      - name: Diagnose eligibility and verify bounded models
+      - name: Diagnose eligibility without model fitting
         shell: bash
         run: |
           set -euo pipefail
@@ -111,7 +106,7 @@ jobs:
           from ai_platform.wickhunter.lightgbm_scorer import (
               LightGBMScorerError,
               LightGBMTrainingPolicy,
-              train_lightgbm_scorer,
+              _candidate_examples,
           )
           from ai_platform.wickhunter.parameters import (
               DEFAULT_RESEARCH_BOUNDS,
@@ -185,11 +180,10 @@ jobs:
               validate_parameters(item, DEFAULT_RESEARCH_BOUNDS)
               return item
 
-          def split_counts(item: WickHunterParameters, split: str) -> dict[str, object]:
+          def manual_counts(item: WickHunterParameters, split: str) -> dict[str, int]:
               positive = 0
               non_positive = 0
               missing = 0
-              returns: list[Decimal] = []
               for case in split_cases[split]:
                   feature = case.feature
                   event_age = feature.decision_timestamp_ms - max(
@@ -202,14 +196,12 @@ jobs:
                       and feature.maximum_event_zscore < item.liquidation_zscore
                   ):
                       continue
-                  quote_volume = feature.metric("quote_volume_24h_usd")
-                  volatility = feature.metric("volatility_ratio")
-                  wick_ratio = feature.metric("wick_ratio")
-                  if quote_volume < item.minimum_quote_volume_usd:
+                  if feature.metric("quote_volume_24h_usd") < item.minimum_quote_volume_usd:
                       continue
+                  volatility = feature.metric("volatility_ratio")
                   if not item.minimum_volatility <= volatility <= item.maximum_volatility:
                       continue
-                  if wick_ratio < item.minimum_wick_ratio:
+                  if feature.metric("wick_ratio") < item.minimum_wick_ratio:
                       continue
                   vwap = feature.metric("vwap")
                   vwma = feature.metric("vwma")
@@ -225,29 +217,25 @@ jobs:
                       > feature.liquidated_long_notional_usd
                   )
                   sides: list[TradeDirection] = []
-                  if longs_dominate:
-                      if (
-                          vwap_distance <= -item.long_vwap_distance_ratio
-                          and vwma_distance <= -item.long_vwap_distance_ratio
-                      ):
-                          sides.append(TradeDirection.LONG)
-                          if trend < 0:
-                              sides.append(TradeDirection.SHORT)
-                  elif shorts_dominate:
-                      if (
-                          vwap_distance >= item.short_vwap_distance_ratio
-                          and vwma_distance >= item.short_vwap_distance_ratio
-                      ):
+                  if longs_dominate and (
+                      vwap_distance <= -item.long_vwap_distance_ratio
+                      and vwma_distance <= -item.long_vwap_distance_ratio
+                  ):
+                      sides.append(TradeDirection.LONG)
+                      if trend < 0:
                           sides.append(TradeDirection.SHORT)
-                          if trend > 0:
-                              sides.append(TradeDirection.LONG)
+                  elif shorts_dominate and (
+                      vwap_distance >= item.short_vwap_distance_ratio
+                      and vwma_distance >= item.short_vwap_distance_ratio
+                  ):
+                      sides.append(TradeDirection.SHORT)
+                      if trend > 0:
+                          sides.append(TradeDirection.LONG)
                   for side in sides:
                       label = case.label_for(side)
                       if label.outcome is LabelOutcome.MISSING_ENTRY or label.net_return_ratio is None:
                           missing += 1
-                          continue
-                      returns.append(label.net_return_ratio)
-                      if label.net_return_ratio > 0:
+                      elif label.net_return_ratio > 0:
                           positive += 1
                       else:
                           non_positive += 1
@@ -256,13 +244,11 @@ jobs:
                   "positive": positive,
                   "non_positive": non_positive,
                   "missing": missing,
-                  "return_min": None if not returns else str(min(returns)),
-                  "return_max": None if not returns else str(max(returns)),
               }
 
           def inspect(item: WickHunterParameters) -> dict[str, object]:
               counts = {
-                  split: split_counts(item, split)
+                  split: manual_counts(item, split)
                   for split in ("train", "validation", "test")
               }
               train = counts["train"]
@@ -292,16 +278,12 @@ jobs:
               for percentile in (Decimal("0.50"), Decimal("0.65")):
                   for zscore in (Decimal("0"), Decimal("1")):
                       exact_index += 1
-                      exact.append(
-                          inspect(
-                              build_parameters(
-                                  version=f"wickhunter-production-h180s-{exact_index:02d}",
-                                  band=band,
-                                  percentile=percentile,
-                                  zscore=zscore,
-                              )
-                          )
-                      )
+                      exact.append(inspect(build_parameters(
+                          version=f"wickhunter-production-h180s-{exact_index:02d}",
+                          band=band,
+                          percentile=percentile,
+                          zscore=zscore,
+                      )))
 
           bounded: list[dict[str, object]] = []
           bounded_index = 0
@@ -319,59 +301,53 @@ jobs:
                       Decimal("4"), Decimal("8"),
                   ):
                       bounded_index += 1
-                      bounded.append(
-                          inspect(
-                              build_parameters(
-                                  version=f"wickhunter-eligibility-scan-{bounded_index:03d}",
-                                  band=band,
-                                  percentile=percentile,
-                                  zscore=zscore,
-                              )
-                          )
-                      )
+                      bounded.append(inspect(build_parameters(
+                          version=f"wickhunter-eligibility-scan-{bounded_index:03d}",
+                          band=band,
+                          percentile=percentile,
+                          zscore=zscore,
+                      )))
 
           eligible = [item for item in bounded if item["eligible"]]
-          eligible.sort(
-              key=lambda item: (
-                  -int(item["splits"]["train"]["count"]),
-                  item["band"], item["percentile"], item["zscore"],
-              )
-          )
-          verified_models: list[dict[str, object]] = []
-          for record in eligible[:3]:
+          eligible.sort(key=lambda item: (
+              -int(item["splits"]["train"]["count"]),
+              item["band"], item["percentile"], item["zscore"],
+          ))
+          exact_shortlist: list[dict[str, object]] = []
+          for record in eligible[:12]:
               item = build_parameters(
                   version=str(record["parameter_version"]),
                   band=Decimal(str(record["band"])),
                   percentile=Decimal(str(record["percentile"])),
                   zscore=Decimal(str(record["zscore"])),
               )
-              try:
-                  artifact = train_lightgbm_scorer(
-                      cases=evaluation.cases,
-                      parameters=item,
-                      parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
-                      policy=policy,
-                  )
-              except LightGBMScorerError as exc:
-                  verified_models.append({
-                      "parameter_sha256": item.parameter_hash,
-                      "accepted": False,
-                      "error": str(exc),
-                  })
-              else:
-                  verified_models.append({
-                      "parameter_version": item.parameter_version,
-                      "parameter_sha256": item.parameter_hash,
-                      "band": str(item.long_vwap_distance_ratio),
-                      "percentile": str(item.liquidation_percentile),
-                      "zscore": str(item.liquidation_zscore),
-                      "accepted": True,
-                      "artifact_sha256": artifact.artifact_sha256,
-                      "training_example_count": artifact.training_example_count,
-                      "calibration_example_count": artifact.calibration_example_count,
-                      "positive_example_count": artifact.positive_example_count,
-                      "negative_example_count": artifact.negative_example_count,
-                  })
+              split_results: dict[str, object] = {}
+              for split in ("train", "validation"):
+                  try:
+                      examples = _candidate_examples(
+                          split_cases[split], parameters=item, policy=policy
+                      )
+                  except LightGBMScorerError as exc:
+                      split_results[split] = {"error": str(exc)}
+                  else:
+                      positives = sum(example.target == 1 for example in examples)
+                      split_results[split] = {
+                          "count": len(examples),
+                          "positive": positives,
+                          "non_positive": len(examples) - positives,
+                          "error": None,
+                      }
+              accepted = (
+                  split_results["train"].get("error") is None
+                  and split_results["validation"].get("error") is None
+                  and split_results["train"].get("positive", 0) > 0
+                  and split_results["train"].get("non_positive", 0) > 0
+              )
+              exact_shortlist.append({
+                  **record,
+                  "exact_candidate_examples": split_results,
+                  "exact_eligible": accepted,
+              })
 
           report = {
               "schema_version": "wickhunter-candidate-eligibility-diagnostic-v2",
@@ -387,10 +363,10 @@ jobs:
               "bounded_rejection_reasons": dict(sorted(Counter(
                   str(item["rejection"]) for item in bounded if not item["eligible"]
               ).items())),
-              "eligible_shortlist": eligible[:24],
-              "verified_models": verified_models,
+              "exact_shortlist": exact_shortlist,
               "protected_holdout_accessed": False,
               "persistent_state_written": False,
+              "model_fitting_performed": False,
               "execution_enabled": False,
               "live_capital_authorized": False,
               "trading_credentials_present": False,
@@ -398,11 +374,13 @@ jobs:
           }
           print("WICKHUNTER_DIAGNOSTIC_JSON=" + json.dumps(report, sort_keys=True))
           print("WICKHUNTER_DIAGNOSTIC_SUMMARY=" + json.dumps({
+              "split_counts": report["split_counts"],
               "exact_rejection_reasons": report["exact_rejection_reasons"],
               "bounded_grid_size": report["bounded_grid_size"],
               "bounded_eligible_count": report["bounded_eligible_count"],
-              "eligible_shortlist": report["eligible_shortlist"][:6],
-              "verified_models": report["verified_models"],
+              "bounded_rejection_reasons": report["bounded_rejection_reasons"],
+              "exact_shortlist": report["exact_shortlist"],
+              "model_fitting_performed": False,
               "execution_enabled": False,
               "live_capital_authorized": False,
               "orders_submitted": 0,

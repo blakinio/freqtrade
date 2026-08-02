@@ -1,15 +1,15 @@
 ---
 task_id: FTAI-20260802-wickhunter-candidate-paper-runtime-journal-v1
 repository: blakinio/freqtrade
-status: implementing
-phase: implementation
+status: validating
+phase: validation
 owner: autonomous-agent
 created_at: 2026-08-02
 updated_at: 2026-08-02
 related_pr: null
 blocked_by:
   - FTAI-20260802-wickhunter-candidate-runtime-binding-v1
-next_action: complete the observation-native WH-09 publication path; validate atomic journal recovery, tamper rejection and exact-head CI
+next_action: complete focused and exact-head CI; audit the stacked diff and merge after the runtime-binding dependency
 ---
 
 # WickHunter candidate PAPER runtime journal v1

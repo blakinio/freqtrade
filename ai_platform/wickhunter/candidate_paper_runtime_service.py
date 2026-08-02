@@ -5,7 +5,7 @@ import json
 import os
 import shutil
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -25,6 +25,10 @@ from ai_platform.wickhunter.paper_validation import (
     evaluate_paper_observations,
     observation_from_snapshot,
     publish_paper_observation_package,
+)
+from ai_platform.wickhunter.shadow import (
+    ShadowDecisionRequest,
+    evaluate_shadow_decision,
 )
 from ai_platform.wickhunter.shadow_runtime import (
     ReplayShadowParityEvidence,
@@ -181,6 +185,7 @@ def _decision_ids(decisions: Sequence[ShadowDecisionEvidence]) -> tuple[str, ...
 class CandidatePaperRuntimeJournal:
     root: Path
     binding: CandidatePaperRuntimeBinding
+    runtime_policy: ShadowRuntimePolicy
 
     def __post_init__(self) -> None:
         if not self.root.is_absolute():
@@ -208,6 +213,8 @@ class CandidatePaperRuntimeJournal:
             "dataset_hash": self.binding.request.dataset_hash,
             "code_sha": self.binding.request.code_sha,
             "policy_sha256": self.binding.policy.policy_sha256,
+            "runtime_policy_version": self.runtime_policy.policy_version,
+            "runtime_policy_sha256": self.runtime_policy.policy_sha256,
             "protected_holdout_accessed": False,
             "automatic_promotion_enabled": False,
             "trading_credentials_present": False,
@@ -256,7 +263,7 @@ class CandidatePaperRuntimeJournal:
             raise CandidatePaperRuntimeServiceError("journal generations are not contiguous")
         return paths
 
-    def _artifact_paths(self, generation_root: Path) -> tuple[str, ...]:
+    def _artifact_paths(self) -> tuple[str, ...]:
         return (
             f"{RUNTIME_DIR}/state.json",
             f"{RUNTIME_DIR}/portal-observability-snapshot.json",
@@ -264,7 +271,7 @@ class CandidatePaperRuntimeJournal:
             DECISIONS_NAME,
         )
 
-    def _verify_generation(
+    def _verify_generation(  # noqa: C901
         self,
         generation_root: Path,
     ) -> tuple[ShadowRuntimeState, PaperObservation, tuple[str, ...], str]:
@@ -297,15 +304,21 @@ class CandidatePaperRuntimeJournal:
             raise CandidatePaperRuntimeServiceError("generation run mismatch")
 
         index_path = generation_root / CHECKSUM_NAME
+        if index_path.is_symlink() or not index_path.is_file():
+            raise CandidatePaperRuntimeServiceError("generation checksum index is invalid")
         entries: dict[str, str] = {}
         for line in index_path.read_text(encoding="utf-8").splitlines():
             digest, separator, name = line.partition("  ")
             if not separator or name in entries:
                 raise CandidatePaperRuntimeServiceError("generation checksum index is malformed")
             entries[name] = digest
-        expected_artifacts = {*self._artifact_paths(generation_root), MANIFEST_NAME}
+        expected_artifacts = {*self._artifact_paths(), MANIFEST_NAME}
         if set(entries) != expected_artifacts:
             raise CandidatePaperRuntimeServiceError("generation checksum file set mismatch")
+        manifest_artifacts = manifest.get("artifacts")
+        expected_manifest_artifacts = [[name, entries[name]] for name in self._artifact_paths()]
+        if manifest_artifacts != expected_manifest_artifacts:
+            raise CandidatePaperRuntimeServiceError("generation manifest artifact map mismatch")
         for name, digest in entries.items():
             path = generation_root / name
             if path.is_symlink() or not path.is_file() or _sha256_file(path) != digest:
@@ -330,8 +343,13 @@ class CandidatePaperRuntimeJournal:
             generation_root / DECISIONS_NAME,
             field="shadow decisions",
         )
-        decision_ids = tuple(sorted(str(item.get("shadow_decision_id", "")) for item in decision_payloads))
-        if not decision_ids or len(decision_ids) != len(set(decision_ids)):
+        decision_ids = tuple(
+            sorted(str(item.get("shadow_decision_id", "")) for item in decision_payloads)
+        )
+        if len(decision_ids) != len(set(decision_ids)) or any(
+            len(value) != 64 or any(character not in "0123456789abcdef" for character in value)
+            for value in decision_ids
+        ):
             raise CandidatePaperRuntimeServiceError("generation decision identities are invalid")
         if list(decision_ids) != manifest.get("decision_ids"):
             raise CandidatePaperRuntimeServiceError("generation decision manifest mismatch")
@@ -394,7 +412,9 @@ class CandidatePaperRuntimeJournal:
             raise CandidatePaperRuntimeServiceError("runtime generation must be positive")
         previous = self._generation_paths()
         if generation != len(previous) + 1:
-            raise CandidatePaperRuntimeServiceError("runtime generation is not the next journal entry")
+            raise CandidatePaperRuntimeServiceError(
+                "runtime generation is not the next journal entry"
+            )
         observation = observation_from_snapshot(result.snapshot)
         observation_ids = tuple(
             sorted(
@@ -418,15 +438,9 @@ class CandidatePaperRuntimeJournal:
             ShadowRuntimeStore(runtime_root).save(result.state, result.snapshot)
             _write_json_new(temporary / OBSERVATION_NAME, observation)
             _write_jsonl(temporary / DECISIONS_NAME, result.decisions)
-            artifact_names = self._artifact_paths(temporary)
-            artifacts = tuple(
-                (name, _sha256_file(temporary / name)) for name in artifact_names
-            )
-            previous_manifest = (
-                None
-                if not previous
-                else self._verify_generation(previous[-1])[3]
-            )
+            artifact_names = self._artifact_paths()
+            artifacts = tuple((name, _sha256_file(temporary / name)) for name in artifact_names)
+            previous_manifest = None if not previous else self._verify_generation(previous[-1])[3]
             manifest = _self_hashed(
                 GENERATION_SCHEMA_VERSION,
                 {
@@ -434,6 +448,7 @@ class CandidatePaperRuntimeJournal:
                     "previous_manifest_sha256": previous_manifest,
                     "binding_id": self.binding.binding_id,
                     "run_id": self.binding.request.run_id,
+                    "runtime_policy_sha256": self.runtime_policy.policy_sha256,
                     "runtime_state_sha256": result.state.state_sha256,
                     "snapshot_id": observation.snapshot_id,
                     "observation_sha256": canonical_sha256(observation),
@@ -492,7 +507,9 @@ class CandidatePaperRuntimeJournal:
             for decision_id in observation.allowed_decision_ids
         }
         if evidence.shadow_decision_id not in allowed_ids:
-            raise CandidatePaperRuntimeServiceError("parity does not bind a journaled allowed decision")
+            raise CandidatePaperRuntimeServiceError(
+                "parity does not bind a journaled allowed decision"
+            )
         if (
             evidence.dataset_hash != self.binding.request.dataset_hash
             or evidence.code_sha != self.binding.request.code_sha
@@ -569,18 +586,22 @@ class CandidatePaperRuntimeService:
         binding: CandidatePaperRuntimeBinding,
         runtime_policy: ShadowRuntimePolicy,
         journal_root: Path,
+        decision_evaluator: Callable[
+            [ShadowDecisionRequest], ShadowDecisionEvidence
+        ] = evaluate_shadow_decision,
     ) -> None:
         if runtime_policy.maximum_drawdown_ratio > binding.policy.maximum_drawdown_ratio:
             raise CandidatePaperRuntimeServiceError(
                 "runtime drawdown policy is weaker than paper validation policy"
             )
         self.binding = binding
-        self.journal = CandidatePaperRuntimeJournal(journal_root, binding)
+        self.journal = CandidatePaperRuntimeJournal(journal_root, binding, runtime_policy)
         self.runtime = ShadowRuntime(
             bot_instance=binding.request.bot_instance,
             mode=binding.request.mode,
             policy=runtime_policy,
             store=None,
+            decision_evaluator=decision_evaluator,
         )
         recovered = self.journal.latest_state()
         if recovered is None:
@@ -594,6 +615,20 @@ class CandidatePaperRuntimeService:
                 code_sha=binding.request.code_sha,
             )
         else:
+            runtime_expected = (
+                binding.request.bot_instance,
+                binding.request.mode,
+                runtime_policy.policy_sha256,
+            )
+            runtime_actual = (
+                recovered.bot_instance,
+                recovered.mode,
+                recovered.policy_sha256,
+            )
+            if runtime_actual != runtime_expected:
+                raise CandidatePaperRuntimeServiceError(
+                    "recovered runtime policy or instance does not match"
+                )
             expected = (
                 binding.request.model_version,
                 binding.request.model_hash,

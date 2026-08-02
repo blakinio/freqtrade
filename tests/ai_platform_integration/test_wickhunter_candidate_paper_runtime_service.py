@@ -11,6 +11,9 @@ from ai_platform.wickhunter.candidate_paper_runtime_service import (
     CandidatePaperRuntimeService,
     CandidatePaperRuntimeServiceError,
 )
+from ai_platform.wickhunter.candidate_runtime_binding import (
+    CandidatePaperRuntimeBinding,
+)
 from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import (
     BotMode,
@@ -19,11 +22,13 @@ from ai_platform.wickhunter.contracts import (
     ShadowDecisionEvidence,
     ShadowStatus,
     SourceHealth,
+    StrategyHypothesis,
 )
 from ai_platform.wickhunter.paper_validation import (
     PaperValidationPolicy,
     build_paper_run_request,
 )
+from ai_platform.wickhunter.shadow import ShadowDecisionRequest
 from ai_platform.wickhunter.shadow_runtime import (
     ShadowRuntimePolicy,
     ShadowRuntimeTick,
@@ -59,7 +64,7 @@ def _runtime_policy(*, policy_version: str = "runtime-v1") -> ShadowRuntimePolic
     )
 
 
-def _binding() -> object:
+def _binding() -> CandidatePaperRuntimeBinding:
     policy = _paper_policy()
     request = build_paper_run_request(
         created_at_ms=START_MS,
@@ -91,7 +96,7 @@ def _binding() -> object:
         identity=identity,
     )
     binding.bind_request = lambda request_value: request_value
-    return binding
+    return cast(CandidatePaperRuntimeBinding, binding)
 
 
 def _universe(observed_at_ms: int) -> DynamicUniverseSnapshot:
@@ -110,14 +115,21 @@ def _universe(observed_at_ms: int) -> DynamicUniverseSnapshot:
     )
 
 
-def _request(observed_at_ms: int, universe: DynamicUniverseSnapshot) -> object:
-    return SimpleNamespace(
-        mode=BotMode.PAPER,
-        bot_instance="wickhunter-paper-v1",
-        universe=universe,
-        market=SimpleNamespace(
-            symbol="BTCUSDT",
-            decision_timestamp_ms=observed_at_ms,
+def _request(
+    observed_at_ms: int,
+    universe: DynamicUniverseSnapshot,
+) -> ShadowDecisionRequest:
+    return cast(
+        ShadowDecisionRequest,
+        SimpleNamespace(
+            mode=BotMode.PAPER,
+            bot_instance="wickhunter-paper-v1",
+            hypothesis=StrategyHypothesis.REVERSAL,
+            universe=universe,
+            market=SimpleNamespace(
+                symbol="BTCUSDT",
+                decision_timestamp_ms=observed_at_ms,
+            ),
         ),
     )
 
@@ -128,7 +140,7 @@ def _tick(observed_at_ms: int, *, include_decision: bool = True) -> ShadowRuntim
     return ShadowRuntimeTick(
         observed_at_ms=observed_at_ms,
         universe=universe,
-        decision_requests=cast(tuple, requests),
+        decision_requests=requests,
         mark_prices=(("BTCUSDT", Decimal("100")),),
         source_states=(
             LiquidationSourceState(
@@ -146,7 +158,7 @@ def _tick(observed_at_ms: int, *, include_decision: bool = True) -> ShadowRuntim
     )
 
 
-def _evaluator(request: object) -> ShadowDecisionEvidence:
+def _evaluator(request: ShadowDecisionRequest) -> ShadowDecisionEvidence:
     universe = request.universe
     created_at_ms = request.market.decision_timestamp_ms
     decision_id = canonical_sha256(
@@ -177,10 +189,10 @@ def _service(
     runtime_policy: ShadowRuntimePolicy | None = None,
 ) -> CandidatePaperRuntimeService:
     return CandidatePaperRuntimeService(
-        binding=cast(object, _binding()),
+        binding=_binding(),
         runtime_policy=runtime_policy or _runtime_policy(),
         journal_root=root,
-        decision_evaluator=cast(object, _evaluator),
+        decision_evaluator=_evaluator,
     )
 
 
@@ -234,12 +246,7 @@ def test_tampering_is_detected_before_recovery(tmp_path: Path) -> None:
     root = (tmp_path / "tampered-journal").resolve()
     service = _service(root)
     service.step(_tick(START_MS + 1_000))
-    observation_path = (
-        root
-        / "generations"
-        / "00000000000000000001"
-        / "paper-observation.json"
-    )
+    observation_path = root / "generations" / "00000000000000000001" / "paper-observation.json"
     observation_path.write_text("{}\n", encoding="utf-8")
 
     with pytest.raises(

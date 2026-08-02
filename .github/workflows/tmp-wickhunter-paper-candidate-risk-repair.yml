@@ -1,0 +1,180 @@
+name: Temporary WickHunter paper candidate risk repair
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - fix/wickhunter-paper-candidate-risk-gate-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-paper-candidate-risk-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: ${{ github.event.pull_request.head.ref == 'chore/trigger-wickhunter-paper-candidate-risk-repair' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/wickhunter-paper-candidate-risk-gate-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Apply bounded paper candidate gate
+        shell: python
+        run: |
+          from pathlib import Path
+
+          risk = Path("ai_platform/wickhunter/risk.py")
+          source = risk.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  '    spread_bps: Decimal\n'
+                  '    quote_volume_usd: Decimal\n',
+                  '    spread_bps: Decimal\n'
+                  '    quote_volume_usd: Decimal\n'
+                  '    candidate_paper_validation_authorized: bool = False\n',
+              ),
+              (
+                  '    if score.kind is ScoreKind.SUPERVISED_MODEL:\n'
+                  '        if score.promotion_state is not ModelPromotionState.APPROVED:\n'
+                  '            reasons.add(RiskReason.MODEL_NOT_APPROVED)\n'
+                  '        if context.model_drift is not DriftState.HEALTHY:\n',
+                  '    if score.kind is ScoreKind.SUPERVISED_MODEL:\n'
+                  '        candidate_paper_authorized = (\n'
+                  '            score.promotion_state is ModelPromotionState.CANDIDATE\n'
+                  '            and intent.mode in {BotMode.SHADOW, BotMode.PAPER}\n'
+                  '            and context.candidate_paper_validation_authorized\n'
+                  '        )\n'
+                  '        if (\n'
+                  '            score.promotion_state is not ModelPromotionState.APPROVED\n'
+                  '            and not candidate_paper_authorized\n'
+                  '        ):\n'
+                  '            reasons.add(RiskReason.MODEL_NOT_APPROVED)\n'
+                  '        if context.model_drift is not DriftState.HEALTHY:\n',
+              ),
+          )
+          for old, new in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one risk target, found {count}: {old!r}")
+              source = source.replace(old, new)
+          risk.write_text(source, encoding="utf-8")
+
+          tests = Path("tests/ai_platform_integration/test_wickhunter_vertical_slice.py")
+          test_source = tests.read_text(encoding="utf-8")
+          anchor = '''def test_risk_rejection_reasons_are_stable_unique_and_sorted() -> None:
+'''
+          addition = '''def test_candidate_model_can_be_simulated_with_explicit_paper_gate() -> None:
+    result = evaluate_shadow_decision(_request())
+    assert result.candidate is not None and result.trade_intent is not None
+    model_score = validated_external_model_score(
+        candidate=result.candidate,
+        feature_hash=result.trade_intent.feature_hash,
+        confidence=Decimal("0.9"),
+        expected_return_after_costs=Decimal("0.01"),
+        bounded_risk_multiplier=Decimal("0.5"),
+        model_version="wickhunter-lightgbm-candidate-v1",
+        model_hash="e" * 64,
+        promotion_state=ModelPromotionState.CANDIDATE,
+        scored_at_ms=DECISION_MS,
+    )
+    model_intent = replace(
+        result.trade_intent,
+        score_id=model_score.score_id,
+        confidence=model_score.confidence,
+        model_version=model_score.model_version,
+        model_hash=model_score.model_hash,
+        mode=BotMode.PAPER,
+    )
+    decision = evaluate_trade_intent(
+        intent=model_intent,
+        score=model_score,
+        context=_risk_context(candidate_paper_validation_authorized=True),
+        limits=_risk_limits(),
+    )
+    assert decision.outcome is RiskOutcome.ALLOW
+    assert "MODEL_NOT_APPROVED" not in decision.reason_codes
+
+
+def test_candidate_paper_gate_cannot_authorize_research_mode() -> None:
+    result = evaluate_shadow_decision(_request())
+    assert result.candidate is not None and result.trade_intent is not None
+    model_score = validated_external_model_score(
+        candidate=result.candidate,
+        feature_hash=result.trade_intent.feature_hash,
+        confidence=Decimal("0.9"),
+        expected_return_after_costs=Decimal("0.01"),
+        bounded_risk_multiplier=Decimal("0.5"),
+        model_version="wickhunter-lightgbm-candidate-v1",
+        model_hash="e" * 64,
+        promotion_state=ModelPromotionState.CANDIDATE,
+        scored_at_ms=DECISION_MS,
+    )
+    model_intent = replace(
+        result.trade_intent,
+        score_id=model_score.score_id,
+        confidence=model_score.confidence,
+        model_version=model_score.model_version,
+        model_hash=model_score.model_hash,
+        mode=BotMode.RESEARCH,
+    )
+    decision = evaluate_trade_intent(
+        intent=model_intent,
+        score=model_score,
+        context=_risk_context(candidate_paper_validation_authorized=True),
+        limits=_risk_limits(),
+    )
+    assert decision.outcome is RiskOutcome.REJECT
+    assert "MODEL_NOT_APPROVED" in decision.reason_codes
+
+
+'''
+          if test_source.count(anchor) != 1:
+              raise SystemExit("expected exactly one risk test insertion anchor")
+          if "test_candidate_model_can_be_simulated_with_explicit_paper_gate" in test_source:
+              raise SystemExit("candidate paper gate tests already exist")
+          tests.write_text(test_source.replace(anchor, addition + anchor), encoding="utf-8")
+
+      - name: Format lint typecheck and focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check --fix ai_platform/wickhunter/risk.py tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+          ruff format ai_platform/wickhunter/risk.py tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+          ruff check ai_platform/wickhunter/risk.py tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+          ruff format --check ai_platform/wickhunter/risk.py tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+          mypy ai_platform/wickhunter/risk.py
+          pytest -q tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+
+      - name: Commit and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/tmp-wickhunter-paper-candidate-risk-repair.yml
+          git add ai_platform/wickhunter/risk.py tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(wickhunter): authorize candidate paper simulation explicitly"
+          git push origin HEAD:fix/wickhunter-paper-candidate-risk-gate-v1

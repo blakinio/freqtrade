@@ -1,3 +1,3 @@
 # Temporary candidate runtime binding implementation trigger
 
-Request-only trigger for the bounded self-deleting implementation and focused validation on `feat/wickhunter-candidate-runtime-binding-v1`. Close without merge after the feature branch is updated.
+Retry the bounded self-deleting implementation and focused validation on `feat/wickhunter-candidate-runtime-binding-v1` after fixing the pytest parameter name and binding rollback model/parameter identities. Close without merge after the feature branch is updated.

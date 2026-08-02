@@ -1,0 +1,379 @@
+name: WickHunter candidate eligibility diagnostic v2
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-candidate-eligibility-diagnostic-20260802-v2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-candidate-eligibility-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-candidate-eligibility-diagnostic-20260802-v2.yml
+  DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-2091971608df-eaccc5ec-8f5be573
+  PRICE_PATH_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v5-h180s-5cffc1902479
+  REPLAY_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages/wickhunter-wh02-deterministic-replay-20260802-v4-eac7fe2e1cb3
+
+jobs:
+  diagnose:
+    name: Diagnose exact grid and bounded alternatives
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-candidate-eligibility-diagnostic-20260802-v2.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+          for path in "$DATASET_ROOT" "$PRICE_PATH_ROOT" "$REPLAY_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          python3 - <<'PY'
+          import ctypes
+          ctypes.CDLL("libgomp.so.1")
+          print("libgomp_available=true")
+          PY
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Diagnose eligibility and bounded alternatives
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          from collections import Counter
+          from dataclasses import replace
+          from decimal import Decimal
+          from pathlib import Path
+
+          from ai_platform.wickhunter.lightgbm_scorer import (
+              LightGBMScorerError,
+              LightGBMTrainingPolicy,
+              _candidate_examples,
+              train_lightgbm_scorer,
+          )
+          from ai_platform.wickhunter.parameters import (
+              DEFAULT_RESEARCH_BOUNDS,
+              INITIAL_COMPATIBILITY_PRIOR,
+              WickHunterParameters,
+              validate_parameters,
+          )
+          from ai_platform.wickhunter.production_evaluation import load_verified_evaluation_dataset
+
+          evaluation = load_verified_evaluation_dataset(
+              materialization_root=Path(os.environ["DATASET_ROOT"]),
+              price_path_root=Path(os.environ["PRICE_PATH_ROOT"]),
+              replay_root=Path(os.environ["REPLAY_ROOT"]),
+          )
+          if len(evaluation.cases) != 919:
+              raise RuntimeError("verified evaluation case count mismatch")
+          if (
+              evaluation.protected_holdout_accessed
+              or evaluation.immutable_inputs_mutated
+              or evaluation.model_execution_authorized
+              or evaluation.performance_research_authorized
+              or evaluation.execution_enabled
+              or evaluation.live_capital_authorized
+              or evaluation.trading_credentials_present
+              or evaluation.orders_submitted != 0
+          ):
+              raise RuntimeError("evaluation dataset contains unsafe authority")
+
+          policy = LightGBMTrainingPolicy(
+              training_splits=("train",),
+              calibration_splits=("validation",),
+              validation_splits=("test",),
+              forbidden_splits=("holdout", "protected_holdout"),
+              seed=20260801,
+              num_boost_round=40,
+              num_leaves=7,
+              min_data_in_leaf=2,
+              learning_rate=Decimal("0.05"),
+              calibration_bins=10,
+              no_trade_confidence=Decimal("0.60"),
+          )
+          split_cases = {
+              split: tuple(case for case in evaluation.cases if case.split_name == split)
+              for split in ("train", "validation", "test")
+          }
+
+          def parameters(
+              *, version: str, band: Decimal, percentile: Decimal, zscore: Decimal
+          ) -> WickHunterParameters:
+              item = replace(
+                  INITIAL_COMPATIBILITY_PRIOR,
+                  parameter_version=version,
+                  liquidation_percentile=percentile,
+                  liquidation_zscore=zscore,
+                  minimum_quote_volume_usd=Decimal("1000000"),
+                  long_vwap_distance_ratio=band,
+                  short_vwap_distance_ratio=band,
+                  minimum_wick_ratio=Decimal("0"),
+                  minimum_volatility=Decimal("0"),
+                  maximum_volatility=Decimal("0.50"),
+                  cooldown_ms=0,
+                  maximum_event_age_ms=300_000,
+                  base_risk_ratio=Decimal("0.001"),
+                  leverage=Decimal("1"),
+                  dca_enabled=False,
+                  dca_levels=0,
+                  dca_total_risk_ratio=Decimal("0.001"),
+                  maximum_holding_ms=180_000,
+                  minimum_confidence=Decimal("0.50"),
+              )
+              validate_parameters(item, DEFAULT_RESEARCH_BOUNDS)
+              return item
+
+          def examples(item: WickHunterParameters, split: str) -> dict[str, object]:
+              try:
+                  values = _candidate_examples(
+                      split_cases[split], parameters=item, policy=policy
+                  )
+              except LightGBMScorerError as exc:
+                  return {
+                      "count": 0,
+                      "positive": 0,
+                      "non_positive": 0,
+                      "return_min": None,
+                      "return_max": None,
+                      "error": str(exc),
+                  }
+              returns = [value.net_return_ratio for value in values]
+              positives = sum(value.target == 1 for value in values)
+              return {
+                  "count": len(values),
+                  "positive": positives,
+                  "non_positive": len(values) - positives,
+                  "return_min": str(min(returns)),
+                  "return_max": str(max(returns)),
+                  "error": None,
+              }
+
+          def inspect(item: WickHunterParameters) -> dict[str, object]:
+              train = examples(item, "train")
+              validation = examples(item, "validation")
+              if train["error"] is not None:
+                  rejection = train["error"]
+              elif validation["error"] is not None:
+                  rejection = validation["error"]
+              elif not train["positive"] or not train["non_positive"]:
+                  rejection = "training data must contain positive and negative outcomes"
+              else:
+                  rejection = None
+              return {
+                  "parameter_version": item.parameter_version,
+                  "parameter_sha256": item.parameter_hash,
+                  "band": str(item.long_vwap_distance_ratio),
+                  "percentile": str(item.liquidation_percentile),
+                  "zscore": str(item.liquidation_zscore),
+                  "train": train,
+                  "validation": validation,
+                  "eligible": rejection is None,
+                  "rejection": rejection,
+              }
+
+          exact: list[dict[str, object]] = []
+          exact_index = 0
+          for band in (Decimal("0.001"), Decimal("0.0015"), Decimal("0.002")):
+              for percentile in (Decimal("0.50"), Decimal("0.65")):
+                  for zscore in (Decimal("0"), Decimal("1")):
+                      exact_index += 1
+                      exact.append(
+                          inspect(
+                              parameters(
+                                  version=f"wickhunter-production-h180s-{exact_index:02d}",
+                                  band=band,
+                                  percentile=percentile,
+                                  zscore=zscore,
+                              )
+                          )
+                      )
+
+          bounded: list[dict[str, object]] = []
+          bounded_index = 0
+          for band in (
+              Decimal("0.001"),
+              Decimal("0.0015"),
+              Decimal("0.002"),
+              Decimal("0.003"),
+              Decimal("0.005"),
+              Decimal("0.010"),
+              Decimal("0.020"),
+              Decimal("0.050"),
+          ):
+              for percentile in (
+                  Decimal("0.50"),
+                  Decimal("0.65"),
+                  Decimal("0.80"),
+                  Decimal("0.90"),
+                  Decimal("0.95"),
+                  Decimal("0.995"),
+              ):
+                  for zscore in (
+                      Decimal("0"),
+                      Decimal("1"),
+                      Decimal("2"),
+                      Decimal("4"),
+                      Decimal("8"),
+                  ):
+                      bounded_index += 1
+                      bounded.append(
+                          inspect(
+                              parameters(
+                                  version=f"wickhunter-eligibility-scan-{bounded_index:03d}",
+                                  band=band,
+                                  percentile=percentile,
+                                  zscore=zscore,
+                              )
+                          )
+                      )
+
+          eligible = [item for item in bounded if item["eligible"]]
+          eligible.sort(
+              key=lambda item: (
+                  -int(item["train"]["count"]),
+                  item["band"],
+                  item["percentile"],
+                  item["zscore"],
+              )
+          )
+          verified_models: list[dict[str, object]] = []
+          for record in eligible[:3]:
+              item = parameters(
+                  version=str(record["parameter_version"]),
+                  band=Decimal(str(record["band"])),
+                  percentile=Decimal(str(record["percentile"])),
+                  zscore=Decimal(str(record["zscore"])),
+              )
+              try:
+                  artifact = train_lightgbm_scorer(
+                      cases=evaluation.cases,
+                      parameters=item,
+                      parameter_bounds=DEFAULT_RESEARCH_BOUNDS,
+                      policy=policy,
+                  )
+              except LightGBMScorerError as exc:
+                  verified_models.append(
+                      {
+                          "parameter_sha256": item.parameter_hash,
+                          "accepted": False,
+                          "error": str(exc),
+                      }
+                  )
+              else:
+                  verified_models.append(
+                      {
+                          "parameter_sha256": item.parameter_hash,
+                          "accepted": True,
+                          "artifact_sha256": artifact.artifact_sha256,
+                          "training_example_count": artifact.training_example_count,
+                          "calibration_example_count": artifact.calibration_example_count,
+                          "positive_example_count": artifact.positive_example_count,
+                          "negative_example_count": artifact.negative_example_count,
+                      }
+                  )
+
+          report = {
+              "schema_version": "wickhunter-candidate-eligibility-diagnostic-v2",
+              "evaluation_sha256": evaluation.evaluation_sha256,
+              "case_count": len(evaluation.cases),
+              "split_counts": {key: len(value) for key, value in split_cases.items()},
+              "exact_grid": exact,
+              "exact_rejection_reasons": dict(
+                  sorted(Counter(str(item["rejection"]) for item in exact).items())
+              ),
+              "bounded_grid_size": len(bounded),
+              "bounded_eligible_count": len(eligible),
+              "bounded_rejection_reasons": dict(
+                  sorted(
+                      Counter(
+                          str(item["rejection"]) for item in bounded if not item["eligible"]
+                      ).items()
+                  )
+              ),
+              "eligible_shortlist": eligible[:24],
+              "verified_models": verified_models,
+              "protected_holdout_accessed": False,
+              "persistent_state_written": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "trading_credentials_present": False,
+              "orders_submitted": 0,
+          }
+          print("WICKHUNTER_DIAGNOSTIC_JSON=" + json.dumps(report, sort_keys=True))
+          print(
+              "WICKHUNTER_DIAGNOSTIC_SUMMARY="
+              + json.dumps(
+                  {
+                      "exact_rejection_reasons": report["exact_rejection_reasons"],
+                      "bounded_grid_size": report["bounded_grid_size"],
+                      "bounded_eligible_count": report["bounded_eligible_count"],
+                      "verified_models": report["verified_models"],
+                      "execution_enabled": False,
+                      "live_capital_authorized": False,
+                      "orders_submitted": 0,
+                  },
+                  sort_keys=True,
+              )
+          )
+          PY

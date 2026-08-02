@@ -1,0 +1,1 @@
+Temporary synchronize trigger for the self-deleting replay coverage repair workflow.

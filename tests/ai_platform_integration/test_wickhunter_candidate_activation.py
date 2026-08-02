@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import ai_platform.wickhunter.candidate_activation as candidate_activation
 from ai_platform.wickhunter.candidate_activation import (
     CANDIDATE_FILES,
     CandidateActivationError,
@@ -14,7 +15,12 @@ from ai_platform.wickhunter.candidate_activation import (
     verify_candidate_package,
 )
 from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
-from ai_platform.wickhunter.paper_validation import verify_paper_run_request
+from ai_platform.wickhunter.paper_validation import (
+    PaperRunRequest,
+    PaperValidationPolicy,
+    publish_paper_run_request,
+    verify_paper_run_request,
+)
 from ai_platform.wickhunter.parameters import INITIAL_COMPATIBILITY_PRIOR
 
 
@@ -217,6 +223,71 @@ def test_verified_candidate_activates_immutable_paper_run(tmp_path: Path) -> Non
     assert claimed == canonical_sha256(binding)
     assert not binding["execution_enabled"]
     assert not binding["live_capital_authorized"]
+
+
+def test_activation_resumes_after_request_publication_is_interrupted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    candidate_root = _package(tmp_path / "candidate")
+    activation_root = tmp_path / "activation"
+
+    def interrupted_publish(
+        destination: Path,
+        *,
+        request: PaperRunRequest,
+        policy: PaperValidationPolicy,
+    ) -> dict[str, object]:
+        result = publish_paper_run_request(
+            destination,
+            request=request,
+            policy=policy,
+        )
+        assert result["run_id"] == request.run_id
+        raise RuntimeError("simulated interruption after request publication")
+
+    monkeypatch.setattr(
+        candidate_activation,
+        "publish_paper_run_request",
+        interrupted_publish,
+    )
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        activate_verified_candidate(
+            candidate_root=candidate_root,
+            activation_root=activation_root,
+            created_at_ms=1_800_000_000_000,
+        )
+    binding_path = tmp_path / "activation-candidate-binding.json"
+    assert activation_root.is_dir()
+    assert not binding_path.exists()
+
+    monkeypatch.setattr(
+        candidate_activation,
+        "publish_paper_run_request",
+        publish_paper_run_request,
+    )
+    result = activate_verified_candidate(
+        candidate_root=candidate_root,
+        activation_root=activation_root,
+        created_at_ms=1_800_000_000_000,
+    )
+    assert verify_paper_run_request(activation_root)["run_id"] == result.request.run_id
+    assert binding_path.is_file()
+
+
+def test_conflicting_existing_binding_blocks_request_publication(tmp_path: Path) -> None:
+    candidate_root = _package(tmp_path / "candidate")
+    activation_root = tmp_path / "activation"
+    binding_path = tmp_path / "activation-candidate-binding.json"
+    binding_path.write_text('{"run_id":"conflicting"}\n', encoding="utf-8")
+
+    with pytest.raises(CandidateActivationError, match="binding identity mismatch"):
+        activate_verified_candidate(
+            candidate_root=candidate_root,
+            activation_root=activation_root,
+            created_at_ms=1_800_000_000_000,
+        )
+    assert not activation_root.exists()
 
 
 def test_coordinated_model_text_tampering_is_rejected(tmp_path: Path) -> None:

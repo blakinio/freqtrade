@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass, fields
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -11,9 +12,11 @@ from ai_platform.wickhunter.canonical import canonical_sha256
 from ai_platform.wickhunter.contracts import BotMode
 from ai_platform.wickhunter.paper_validation import (
     PaperRunRequest,
+    PaperValidationError,
     PaperValidationPolicy,
     build_paper_run_request,
     publish_paper_run_request,
+    verify_paper_run_request,
 )
 from ai_platform.wickhunter.parameters import (
     DEFAULT_RESEARCH_BOUNDS,
@@ -453,6 +456,87 @@ def verify_candidate_package(  # noqa: C901
     return identity, parameters
 
 
+def _activation_binding(
+    identity: VerifiedCandidateIdentity,
+    request: PaperRunRequest,
+) -> dict[str, Any]:
+    binding: dict[str, Any] = {
+        "schema_version": CANDIDATE_ACTIVATION_SCHEMA,
+        "candidate_package_id": identity.package_id,
+        "candidate_manifest_sha256": identity.manifest_sha256,
+        "run_id": request.run_id,
+        "model_version": identity.model_version,
+        "model_hash": identity.model_hash,
+        "parameter_version": identity.parameter_version,
+        "parameter_hash": identity.parameter_hash,
+        "evaluation_sha256": identity.evaluation_sha256,
+        "code_sha": identity.source_commit_sha,
+        "protected_holdout_accessed": False,
+        "automatic_promotion_enabled": False,
+        "trading_credentials_present": False,
+        "order_adapter_present": False,
+        "execution_enabled": False,
+        "live_capital_authorized": False,
+        "orders_submitted": 0,
+    }
+    binding["binding_sha256"] = canonical_sha256(binding)
+    return binding
+
+
+def _verify_activation_binding(path: Path, expected: dict[str, Any]) -> None:
+    actual = _load_object(path, field="activation binding")
+    if actual != expected:
+        raise CandidateActivationError("activation binding identity mismatch")
+
+
+def _write_or_verify_activation_binding(path: Path, binding: dict[str, Any]) -> None:
+    if path.exists() or path.is_symlink():
+        _verify_activation_binding(path, binding)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    content = json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\n"
+    try:
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except FileExistsError:
+        _verify_activation_binding(path, binding)
+
+
+def _publish_or_verify_activation(
+    activation_root: Path,
+    *,
+    request: PaperRunRequest,
+    policy: PaperValidationPolicy,
+) -> None:
+    if activation_root.exists() or activation_root.is_symlink():
+        try:
+            verified = verify_paper_run_request(activation_root)
+        except PaperValidationError as exc:
+            raise CandidateActivationError("existing activation request is invalid") from exc
+        if verified.get("run_id") != request.run_id:
+            raise CandidateActivationError("activation request identity mismatch")
+        return
+    try:
+        publish_paper_run_request(
+            activation_root,
+            request=request,
+            policy=policy,
+        )
+    except PaperValidationError as exc:
+        if not activation_root.is_dir() or activation_root.is_symlink():
+            raise CandidateActivationError("unable to publish activation request") from exc
+        try:
+            verified = verify_paper_run_request(activation_root)
+        except PaperValidationError as verify_exc:
+            raise CandidateActivationError(
+                "published activation request is invalid"
+            ) from verify_exc
+        if verified.get("run_id") != request.run_id:
+            raise CandidateActivationError("activation request identity mismatch") from exc
+
+
 def activate_verified_candidate(
     *,
     candidate_root: Path,
@@ -489,38 +573,16 @@ def activate_verified_candidate(
         wh08_consumer_version=wh08_consumer_version,
         policy=policy,
     )
-    publish_paper_run_request(
+    binding_path = activation_root.parent / f"{activation_root.name}-candidate-binding.json"
+    binding = _activation_binding(identity, request)
+    if binding_path.exists() or binding_path.is_symlink():
+        _verify_activation_binding(binding_path, binding)
+    _publish_or_verify_activation(
         activation_root,
         request=request,
         policy=policy,
     )
-    binding = {
-        "schema_version": CANDIDATE_ACTIVATION_SCHEMA,
-        "candidate_package_id": identity.package_id,
-        "candidate_manifest_sha256": identity.manifest_sha256,
-        "run_id": request.run_id,
-        "model_version": identity.model_version,
-        "model_hash": identity.model_hash,
-        "parameter_version": identity.parameter_version,
-        "parameter_hash": identity.parameter_hash,
-        "evaluation_sha256": identity.evaluation_sha256,
-        "code_sha": identity.source_commit_sha,
-        "protected_holdout_accessed": False,
-        "automatic_promotion_enabled": False,
-        "trading_credentials_present": False,
-        "order_adapter_present": False,
-        "execution_enabled": False,
-        "live_capital_authorized": False,
-        "orders_submitted": 0,
-    }
-    binding["binding_sha256"] = canonical_sha256(binding)
-    binding_path = activation_root.parent / f"{activation_root.name}-candidate-binding.json"
-    if binding_path.exists() or binding_path.is_symlink():
-        raise CandidateActivationError("refusing to overwrite activation binding")
-    binding_path.write_text(
-        json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\n",
-        encoding="utf-8",
-    )
+    _write_or_verify_activation_binding(binding_path, binding)
     return CandidateActivationResult(
         identity=identity,
         parameters=parameters,

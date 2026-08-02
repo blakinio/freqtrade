@@ -68,13 +68,14 @@ def test_query_requires_exact_authorization_code_only(
         verifier._query_grant_types("authentik-server")
 
 
-def test_report_records_target_side_grant_evidence(tmp_path: Path) -> None:
+def test_report_records_target_side_grant_and_callback_evidence(tmp_path: Path) -> None:
     report_path = tmp_path / "report.json"
     report_path.write_text(
         json.dumps(
             {
                 "status": "success",
                 "authentik": {"provider_exists": True},
+                "portal": {"public_login_status": 307},
                 "secret_values_recorded": False,
                 "live_capital_authorized": False,
             }
@@ -82,6 +83,7 @@ def test_report_records_target_side_grant_evidence(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
+    callback_location = "https://quant.molehill.cloud/portal"
     report = verifier._augment_report(
         report_path,
         {
@@ -89,11 +91,14 @@ def test_report_records_target_side_grant_evidence(tmp_path: Path) -> None:
             "client_id": verifier.CLIENT_ID,
             "grant_types": ["authorization_code"],
         },
+        callback_location,
     )
 
     assert report["authentik"]["grant_types"] == ["authorization_code"]
     assert report["authentik"]["authorization_code_enabled"] is True
     assert report["authentik"]["legacy_grants_disabled"] is True
+    assert report["portal"]["public_callback_redirect_location"] == callback_location
+    assert report["portal"]["public_callback_redirect_verified"] is True
     assert report["secret_values_recorded"] is False
     assert report["live_capital_authorized"] is False
     assert report_path.stat().st_mode & 0o777 == 0o600

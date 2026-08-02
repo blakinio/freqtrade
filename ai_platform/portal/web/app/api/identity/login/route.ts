@@ -10,12 +10,16 @@ import {
   safeReturnTo,
   setFixtureIdentity,
 } from "@/lib/identity";
+import { portalPublicOrigin } from "@/lib/public-origin";
 
 export async function GET(request: NextRequest) {
   try {
     const returnTo = safeReturnTo(request.nextUrl.searchParams.get("return_to"));
     if (fixtureIdentityMode()) {
-      const response = NextResponse.redirect(new URL(returnTo, request.url), 303);
+      const response = NextResponse.redirect(
+        new URL(returnTo, portalPublicOrigin(request.nextUrl.origin)),
+        303,
+      );
       setFixtureIdentity(response, "authenticated");
       response.headers.set("cache-control", "no-store");
       return response;

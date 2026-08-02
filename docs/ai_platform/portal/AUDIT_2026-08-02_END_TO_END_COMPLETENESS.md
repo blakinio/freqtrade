@@ -5,13 +5,16 @@
 ```yaml
 audited_repository: blakinio/freqtrade
 audited_product_branch: develop
-audited_product_head: 0e7825bf860cd8011e1bd9207fcb0765baf8d52a
+audited_develop_head_at_closeout: 79065e29de8d949701e1465fc99cb6b6e8c4857e
+audited_portal_implementation_head: 0e7825bf860cd8011e1bd9207fcb0765baf8d52a
 audit_branch: audit/portal-e2e-completeness-20260802
 audit_pr: 1082
 prompting_standard_version: 2.1
 audit_date: 2026-08-02
 audit_type: static_repository_and_delivery_matrix
 ```
+
+The only `develop` change after the implementation head was the documentation-only login incident closeout in commit `79065e29de8d949701e1465fc99cb6b6e8c4857e`. It changed two task records and no portal backend, frontend, tests, migrations or deployment implementation. The final audit workflow ran against the current PR merge base containing that closeout.
 
 The audit branch adds only audit tooling, workflow evidence, this report and remediation task records. Portal backend/frontend behavior is unchanged.
 
@@ -38,14 +41,14 @@ Static or fixture evidence is not accepted as proof of real Authentik, Vault, pr
 
 ## Executive conclusion
 
-**The portal is not fully complete end to end.** Most repository-side product surfaces exist and are covered by substantial tests, but two previously hidden integration gaps prevent a full completion claim:
+**The portal is not fully complete end to end.** Most repository-side product surfaces exist and are covered by substantial tests, but two integration gaps prevent a full completion claim:
 
 1. Strategy Catalog has a frontend, BFF and fixture E2E, but its API-mode backend producer is absent.
 2. PI-08 private dry-run submission components exist and are tested in isolation, but no trusted product runtime assembles or injects them; canonical defaults remain fail-closed.
 
 A third gap concerns product localization: the application is fixed to English and has no message-catalog boundary. This requires either implementation or an explicit owner decision that the portal is English-only.
 
-Inventory result on the audit head:
+Inventory result:
 
 | Inventory | Count |
 |---|---:|
@@ -58,6 +61,7 @@ Inventory result on the audit head:
 | Missing documented pages | 0 |
 | Broken detected navigation destinations | 0 |
 | Direct browser references to private Freqtrade/Vault/Loki URLs | 0 |
+| Actionable findings | 3: 2 high, 1 medium |
 
 ## New actionable findings
 
@@ -107,7 +111,7 @@ Status vocabulary:
 | Backend module | Backend status | Frontend/consumer status | Conclusion and required action |
 |---|---|---|---|
 | `bot_builder` | COMPLETE_REPO | `/bots/new` integrated | Complete for dry-run creation; real execution still depends on PI-08 target/runtime closure. |
-| `bot_catalog` | COMPLETE_REPO | Used by bot creation/management | Complete for bot template/catalog contracts; distinct from the broken Strategy Catalog surface. |
+| `bot_catalog` | COMPLETE_REPO | Used by bot creation/management | Complete for bot template/catalog contracts; distinct from the incomplete Strategy Catalog surface. |
 | `bot_operations` | COMPLETE_REPO | Bot detail lifecycle/command controls integrated | Repository-complete with reconciliation semantics; real private target remains external. |
 | `contracts` | INTERNAL_ONLY | Shared across BFF/backend | Broad versioned contract coverage exists. Keep drift tests mandatory. |
 | `control_plane` | NEEDS_REMEDIATION | Most BFF surfaces integrated | Missing Strategy Catalog producer and trusted PI-08 runtime composition prevent full closure. |
@@ -120,16 +124,16 @@ Status vocabulary:
 | `execution_submission` | NEEDS_REMEDIATION | No direct browser consumer by design | Components and tests exist; add trusted server runtime assembly and API-mode evidence. |
 | `feature_registry` | COMPLETE_REPO | Strategy/research consumers | Complete for its research-only bounded role. |
 | `grid_control` | PARTIAL_REPO | `/bots/grid` partially integrated | Persisted dry-run control exists; exposure-increasing activation depends on completed PI-08 composition/target evidence. |
-| `identity` | COMPLETE_REPO / TARGET_BLOCKED | Login/session/logout BFF present | Repository and deployed login repair are complete; owner MFA/recovery/restore acceptance remains external. |
+| `identity` | COMPLETE_REPO / TARGET_BLOCKED | Login/session/logout BFF present | Repository/deployment login path and owner interactive login are accepted; recovery and restore remain external. |
 | `intelligence` | COMPLETE_REPO | Trade analysis/insights integrated | Complete for persisted read-model scope. |
 | `learning` | COMPLETE_REPO | Experiments/learning history integrated | Complete for aggregate history; no autonomous promotion authority. |
 | `model_control` | COMPLETE_REPO | AI overview/model reads integrated | Complete for immutable registry/control scope; model promotion boundaries remain unchanged. |
 | `observability` | COMPLETE_REPO / TARGET_BLOCKED | Execution logs/runtime health consume it | Contracts/redaction/runtime service exist; real Loki/Tempo/Prometheus connectivity remains deployment-owned. |
 | `operations` | COMPLETE_REPO / TARGET_BLOCKED | Positions/orders/trades/logs/risk/audit integrated | Repository mirrors and states exist; currentness depends on trusted runtime/telemetry sources. |
-| `product` | PARTIAL_REPO | Notifications/profile/admin partly integrated | In-app and overview capabilities exist; external channels and real membership/recovery administration remain open. |
+| `product` | PARTIAL_REPO | Notifications/profile/admin partly integrated | In-app and overview capabilities exist; external channels and broader recovery administration remain open. |
 | `quality_agent` | INTERNAL_ONLY | CI/audit consumer | Supporting validation module; no product page required. |
 | `risk` | NEEDS_REMEDIATION | `/terminal` risk-intent UI exists | Deterministic evaluation is complete; approved submission remains blocked in canonical composition until F-02 is fixed. |
-| `security` | COMPLETE_REPO | Cross-cutting authorization/session enforcement | Repository policy and negative-path evidence are substantial; real identity acceptance remains external. |
+| `security` | COMPLETE_REPO | Cross-cutting authorization/session enforcement | Repository policy and negative-path evidence are substantial; remaining recovery/restore acceptance is external. |
 | `signal_control` | COMPLETE_REPO | Signal logs/control integrated | Complete for tenant-scoped advisory/operational evidence. |
 | `signal_wizard` | COMPLETE_REPO | `/bots/signals` integrated | Complete for advisory control; intentionally no independent execution authority. |
 | `simulator` | INTERNAL_ONLY | E2E/quality consumer | Deterministic simulation evidence exists; not a standalone user page. |
@@ -167,15 +171,16 @@ Status vocabulary:
 | `/operations/runtime-health` | Present | Runtime state/evidence APIs present | COMPLETE_REPO / TARGET_BLOCKED | Validate real target freshness. |
 | `/operations/audit` | Present | Permission-gated audit API present | COMPLETE_REPO | None. |
 | `/platform/notifications` | Present | In-app preferences/entries present | PARTIAL_REPO | External email/webhook/push remains PI-05. |
-| `/login` and `/api/identity/*` | Present | Repository/BFF identity complete | TARGET_BLOCKED | Owner MFA/logout/recovery/restore and protected ingress acceptance. |
+| `/login` and `/api/identity/*` | Present | Repository/BFF identity and owner login accepted | COMPLETE_REPO / PARTIAL_TARGET | Recovery/restore and protected-ingress closure remain. |
 | `/platform/profile` | Present | Session/security read and logout controls present | PARTIAL_REPO / TARGET_BLOCKED | Real enrollment/recovery acceptance. |
-| `/platform/admin` | Present | RBAC overview present | PARTIAL_REPO / TARGET_BLOCKED | Real membership/recovery administration. |
+| `/platform/admin` | Present | RBAC overview present | PARTIAL_REPO / TARGET_BLOCKED | Broader membership/recovery administration. |
 
 ## Existing hard boundaries, not newly discovered code defects
 
 | Boundary | Current classification |
 |---|---|
-| Real Authentik/Synology MFA, recovery, backup/restore | TARGET_BLOCKED / owner-operated |
+| Authentik/Synology login and owner TOTP/logout | ACCEPTED; recorded by the merged incident closeout |
+| Identity recovery and backup/restore | TARGET_BLOCKED / owner-operated |
 | Real Loki/Tempo/Prometheus connectivity and dashboards | TARGET_BLOCKED |
 | External email/webhook/push delivery | DEFERRED PI-05 provider/privacy decision |
 | Real Vault initialization, credential enrollment and restore | TARGET_BLOCKED |
@@ -190,19 +195,23 @@ Status vocabulary:
 3. **F-03 localization decision/implementation** — required by the current completion standard unless formally declared not applicable.
 4. Execute real target acceptance packages separately; do not mix them with repository fixes or claim completion from fixture evidence.
 
-## Audit workflow evidence
-
-Preliminary reviewed workflow:
+## Final audit workflow evidence
 
 ```yaml
-run_id: 30766520014
-job_id: 91546110617
+run_id: 30766675903
+job_id: 91546521839
 result: success
-artifact_id: 8839111253
-artifact_digest: sha256:821aefbd9031230f9e7a4a40f04131888e2e727b88ef24ae81790017860997ad
+audited_pr_head: 09a6be82fc702c75d3bb9c808e26c931a9ed6c8b
+merge_base_develop_head: 79065e29de8d949701e1465fc99cb6b6e8c4857e
+artifact_id: 8839161469
+artifact_digest: sha256:8b84593589b7f345952c8e885bc765ffdebfe0eb82c8ddb05c8140eb41b90398
+finding_summary:
+  critical: 0
+  high: 2
+  medium: 1
 ```
 
-The final PR head must rerun the same audit and normal repository/security CI before the audit is considered ready for handover.
+A subsequent documentation-only closeout commit may change the audit PR head. The dedicated audit workflow and normal repository/security CI must remain green on that final head before merge or handover.
 
 ```text
 secret_values_recorded=false

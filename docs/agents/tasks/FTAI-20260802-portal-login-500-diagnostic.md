@@ -71,6 +71,8 @@ The deployment report proves:
 - identity fixture disabled;
 - no secret values recorded and no live-capital action authorized.
 
+At 2026-08-02 22:49 CEST the owner confirmed that the deployed Portal login works. This completes the owner-only interactive acceptance without recording credentials, TOTP values or other secrets.
+
 ## Acceptance inventory result
 
 - diagnostic implementation was limited to the four owned paths;
@@ -79,13 +81,14 @@ The deployment report proves:
 - trusted runner uploaded a secret-free report with the login HTTP 500 and sanitized exception;
 - diagnostic request-only PR closed without merge;
 - exact root cause and bounded repair were recorded;
-- repair was merged, deployed and target-proven.
+- repair was merged, deployed and target-proven;
+- owner confirmed successful interactive Portal login after deployment.
 
 ## Terminal checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-02T21:16:00+02:00
+checkpoint_version: 3
+updated_at: 2026-08-02T22:49:00+02:00
 status: completed
 proven:
   - public Next.js login route reached the identity backend
@@ -97,11 +100,9 @@ proven:
   - public login now returns HTTP 307 to Authentik
   - callback redirect to https://quant.molehill.cloud/portal is verified
   - request-only deployment PR 1073 closed without merge
-remaining_owner_acceptance:
-  - fresh private-browser password and current Authentik TOTP login
-  - verify expected tenant-local administrator access
-  - logout and verify session invalidation
-next_action: owner-only interactive acceptance under the parent OIDC handover; diagnostic and repair work are terminally complete
+  - owner confirmed successful interactive Portal login at 2026-08-02T22:49:00+02:00
+remaining_owner_acceptance: []
+next_action: none; incident diagnostic, repair, deployment and owner acceptance are terminally complete
 blockers: []
 ```
 

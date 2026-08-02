@@ -144,14 +144,23 @@ class IdentityService:
                 flow = repository.consume_login_flow(self._crypto.hash_token(state), now)
             except IdentityNotFoundError as exc:
                 raise IdentityAuthenticationError(str(exc)) from exc
-            verifier = self._crypto.decrypt(flow.verifier_ciphertext)
-            identity = self._oidc.exchange_code(
-                code=code,
-                code_verifier=verifier,
-                expected_nonce=flow.nonce,
-            )
-            if identity.issuer.rstrip("/") != self._oidc.issuer.rstrip("/"):
-                raise IdentityAuthenticationError("OIDC issuer mismatch")
+            verifier_ciphertext = flow.verifier_ciphertext
+            nonce = flow.nonce
+            requested_tenant_id = flow.requested_tenant_id
+            return_to = flow.return_to
+            session.commit()
+
+        verifier = self._crypto.decrypt(verifier_ciphertext)
+        identity = self._oidc.exchange_code(
+            code=code,
+            code_verifier=verifier,
+            expected_nonce=nonce,
+        )
+        if identity.issuer.rstrip("/") != self._oidc.issuer.rstrip("/"):
+            raise IdentityAuthenticationError("OIDC issuer mismatch")
+
+        with self._session_factory() as session:
+            repository = IdentityRepository(session)
             principal = repository.get_principal_by_external_identity(
                 identity.issuer,
                 identity.subject,
@@ -186,7 +195,7 @@ class IdentityService:
             memberships = repository.list_memberships_for_principal(principal.principal_id, now)
             membership = self._select_membership(
                 memberships,
-                requested_tenant_id=flow.requested_tenant_id,
+                requested_tenant_id=requested_tenant_id,
             )
             permissions = permissions_for_roles(self._role_names(membership))
             privileged = self._requires_mfa(permissions)
@@ -233,7 +242,7 @@ class IdentityService:
             )
             session.commit()
             return CompletedLogin(
-                return_to=flow.return_to,
+                return_to=return_to,
                 session=session_view(session_row, membership),
                 session_token=session_token,
                 csrf_token=csrf_token,

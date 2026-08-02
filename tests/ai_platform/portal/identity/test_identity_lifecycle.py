@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
+from pathlib import Path
+from threading import Event
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlencode, urlparse
 
@@ -90,6 +93,36 @@ class FakeOidcClient:
             issuer=self.issuer,
             subject=self.subject,
             idp_session_id=self.sid,
+        )
+
+
+class BlockingOidcClient(FakeOidcClient):
+    def __init__(self, clock: MutableClock):
+        super().__init__(clock)
+        self.exchange_started = Event()
+        self.release_exchange = Event()
+
+    def exchange_code(
+        self,
+        *,
+        code: str,
+        code_verifier: str,
+        expected_nonce: str,
+    ) -> OidcIdentity:
+        assert code == "valid-code"
+        assert len(code_verifier) >= 43
+        assert expected_nonce
+        self.exchange_started.set()
+        assert self.release_exchange.wait(timeout=5)
+        return OidcIdentity(
+            issuer=self.issuer,
+            subject=self.subject,
+            display_name="Portal User",
+            email="portal@example.test",
+            idp_session_id=self.sid,
+            authentication_time=self.clock(),
+            mfa_satisfied=self.mfa,
+            authentication_methods=("webauthn",),
         )
 
 
@@ -299,3 +332,73 @@ def test_open_redirect_is_rejected(
     )
 
     assert response.status_code == 422
+
+
+
+def test_file_sqlite_engine_uses_bounded_busy_timeout(tmp_path: Path) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'identity.db'}")
+    try:
+        with engine.connect() as connection:
+            assert connection.exec_driver_sql("PRAGMA busy_timeout").scalar_one() == 30_000
+    finally:
+        engine.dispose()
+
+
+def test_oidc_exchange_does_not_hold_sqlite_writer_lock(
+    tmp_path: Path,
+    clock: MutableClock,
+) -> None:
+    engine = build_engine(f"sqlite+pysqlite:///{tmp_path / 'identity.db'}")
+    create_schema(engine)
+    session_factory = build_session_factory(engine)
+    oidc = BlockingOidcClient(clock)
+    crypto = IdentityCrypto(
+        IdentitySecrets(
+            session_hmac_key=b"s" * 32,
+            flow_encryption_key=b"f" * 32,
+        )
+    )
+    service = IdentityService(session_factory, oidc, crypto, clock=clock)
+    principal = service.bootstrap_principal(
+        issuer=oidc.issuer,
+        subject=oidc.subject,
+        display_name="Portal User",
+        email="portal@example.test",
+    )
+    service.bootstrap_membership(
+        principal_id=principal.principal_id,
+        tenant_id="tenant-a",
+        roles=(RoleName.ADMIN,),
+    )
+    first = service.begin_login(requested_tenant_id="tenant-a", return_to="/first")
+    first_state = parse_qs(urlparse(first.authorization_url).query)["state"][0]
+
+    blocked = False
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        callback = executor.submit(
+            service.complete_login,
+            code="valid-code",
+            state=first_state,
+        )
+        assert oidc.exchange_started.wait(timeout=5)
+        competing_login = executor.submit(
+            service.begin_login,
+            requested_tenant_id="tenant-a",
+            return_to="/second",
+        )
+        try:
+            second = competing_login.result(timeout=1)
+        except FutureTimeoutError:
+            blocked = True
+        finally:
+            oidc.release_exchange.set()
+        completed = callback.result(timeout=5)
+        if blocked:
+            second = competing_login.result(timeout=5)
+
+    try:
+        assert not blocked
+        assert completed.return_to == "/first"
+        assert second.authorization_url.startswith("https://identity.example.test/authorize?")
+    finally:
+        engine.dispose()

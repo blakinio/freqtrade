@@ -12,6 +12,7 @@ class Base(DeclarativeBase):
 
 
 SessionFactory = Callable[[], Session]
+SQLITE_BUSY_TIMEOUT_SECONDS = 30.0
 
 
 def build_engine(database_url: str) -> Engine:
@@ -20,6 +21,12 @@ def build_engine(database_url: str) -> Engine:
             database_url,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
+        )
+    if database_url.startswith("sqlite"):
+        return create_engine(
+            database_url,
+            connect_args={"timeout": SQLITE_BUSY_TIMEOUT_SECONDS},
+            pool_pre_ping=True,
         )
     return create_engine(database_url, pool_pre_ping=True)
 

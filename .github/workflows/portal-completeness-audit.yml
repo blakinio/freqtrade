@@ -30,22 +30,26 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate audit tool
-        run: python -m py_compile tools/portal_audit/completeness_audit.py
-
-      - name: Generate portal completeness report
+      - name: Validate audit tools
         run: >-
-          python tools/portal_audit/completeness_audit.py
-          --head "${{ github.event.pull_request.head.sha || github.sha }}"
+          python -m py_compile
+          tools/portal_audit/completeness_audit.py
+          tools/portal_audit/deep_inventory.py
+
+      - name: Generate portal completeness reports
+        run: |
+          python tools/portal_audit/completeness_audit.py \
+            --head "${{ github.event.pull_request.head.sha || github.sha }}"
+          python tools/portal_audit/deep_inventory.py
 
       - name: Print bounded composition evidence
         run: |
           echo "== PI-08 and private-runtime composition references =="
           grep -R -n -E \
-            "PrivateSubmissionExecutionAdapter|PrivateDryRunApprovedIntentSubmitter|execution_submitter=|BotCommandActivationService|HttpPrivateRuntimeTransport|HttpPrivateRuntimeValuationSource|LokiRuntimeObservabilitySource" \
+            "PrivateSubmissionExecutionAdapter|PrivateDryRunApprovedIntentSubmitter|execution_submitter=|BotCommandActivationService|HttpPrivateRuntimeTransport|HttpPrivateRuntimeValuationSource|LokiRuntimeObservabilitySource|VaultCredentialBroker|FreqtradeExecutionAdapter|OutboxPublisher" \
             ai_platform/portal deploy tests \
             --exclude-dir=.git \
-            | head -n 400 || true
+            | head -n 500 || true
           echo "== Strategy catalog producer/consumer references =="
           grep -R -n -E "/v1/strategy-catalog|strategy-catalog" \
             ai_platform/portal tests \
@@ -53,10 +57,10 @@ jobs:
             | head -n 250 || true
           echo "== Canonical in-memory composition references =="
           grep -R -n -E \
-            "InMemoryBotConfigurationRepository|InMemorySignalControlRepository|InMemoryGridControlRepository|InMemoryExchangeConnectionRepository|UnavailableBotRuntimeStateProvider" \
+            "InMemoryBotConfigurationRepository|InMemorySignalControlRepository|InMemoryGridControlRepository|InMemoryExchangeConnectionRepository|UnavailableBotRuntimeStateProvider|UnavailableRuntimeValuationSource|UnavailableRuntimeObservabilitySource" \
             ai_platform/portal deploy tests \
             --exclude-dir=.git \
-            | head -n 300 || true
+            | head -n 400 || true
 
       - name: Build exact-head audit source snapshot
         run: |
@@ -94,7 +98,9 @@ jobs:
           sha256sum artifacts/portal-audit-source.tar.gz > artifacts/portal-audit-source.sha256
 
       - name: Print bounded report
-        run: cat artifacts/portal-completeness-audit.md
+        run: |
+          cat artifacts/portal-completeness-audit.md
+          sed -n '1,260p' artifacts/portal-deep-inventory.md
 
       - name: Upload audit evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -103,6 +109,8 @@ jobs:
           path: |
             artifacts/portal-completeness-audit.json
             artifacts/portal-completeness-audit.md
+            artifacts/portal-deep-inventory.json
+            artifacts/portal-deep-inventory.md
             artifacts/portal-audit-source.tar.gz
             artifacts/portal-audit-source.sha256
           if-no-files-found: error

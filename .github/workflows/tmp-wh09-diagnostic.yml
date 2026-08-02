@@ -1,0 +1,65 @@
+name: Temporary WH-09 first-failure diagnostic
+
+on:
+  pull_request:
+    types: [opened]
+    branches:
+      - feat/wickhunter-wh09-paper-validation-v1
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-wh09-paper-validation-v1
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked repository dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Apply current in-memory hardening
+        shell: python
+        run: |
+          from pathlib import Path
+
+          workflow = Path(".github/workflows/tmp-wh09-semantic-verification-retry.yml")
+          text = workflow.read_text(encoding="utf-8")
+          start_marker = (
+              "      - name: Apply bounded semantic verification hardening\n"
+              "        shell: python\n"
+              "        run: |\n"
+          )
+          end_marker = "\n      - name: Format and lint exact files\n"
+          if text.count(start_marker) != 1 or text.count(end_marker) != 1:
+              raise SystemExit("unable to isolate current hardening script")
+          body = text.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          lines = body.splitlines()
+          if any(line and not line.startswith("          ") for line in lines):
+              raise SystemExit("unexpected hardening script indentation")
+          script = "\n".join(line[10:] if line else "" for line in lines) + "\n"
+          exec(compile(script, str(workflow), "exec"), {})
+
+      - name: Run first focused failure only
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check ai_platform/wickhunter/paper_validation.py tests/ai_platform_integration/test_wickhunter_paper_validation.py
+          pytest -q -x --tb=short tests/ai_platform_integration/test_wickhunter_paper_validation.py

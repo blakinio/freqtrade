@@ -51,18 +51,20 @@ No Authentik configuration, credentials, membership, production data, restore, t
 ## Checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-02T19:04:00+02:00
+checkpoint_version: 3
+updated_at: 2026-08-02T19:08:00+02:00
 status: active
 proven:
   - public login HTTP 500 is caused by sqlite database locking
   - the lock occurs while storing a new login flow
   - deployed containers are healthy and Authentik is not the immediate failure source
   - bounded transaction split and concurrency regression are implemented
+  - focused behavior passed inside the full AI test suite
+  - exact Ruff 0.15.21 fixes are applied
   - all temporary implementation workflows and scripts are removed from the final diff
 validation:
   exact_head: pending
-next_action: complete exact-head CI, merge, deploy and repeat public login acceptance
+next_action: complete fresh exact-head CI, merge, deploy and repeat public login acceptance
 blockers: []
 ```
 

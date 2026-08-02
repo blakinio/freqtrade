@@ -33,58 +33,60 @@ jobs:
           tests = Path("tests/ai_platform_integration/test_wickhunter_paper_validation.py")
 
           source = implementation.read_text(encoding="utf-8")
-          decimal_old = '''        for value, field_name in (
-              (self.cumulative_realized_pnl_quote, "cumulative_realized_pnl_quote"),
-              (self.unrealized_pnl_quote, "unrealized_pnl_quote"),
-              (self.simulated_equity_quote, "simulated_equity_quote"),
-              (self.drawdown_ratio, "drawdown_ratio"),
-          ):
-              _decimal(value, field=field_name)
-          '''
-          decimal_new = '''        for decimal_value, field_name in (
-              (self.cumulative_realized_pnl_quote, "cumulative_realized_pnl_quote"),
-              (self.unrealized_pnl_quote, "unrealized_pnl_quote"),
-              (self.simulated_equity_quote, "simulated_equity_quote"),
-              (self.drawdown_ratio, "drawdown_ratio"),
-          ):
-              _decimal(decimal_value, field=field_name)
-          '''
-          review_old = '''    return CandidateReviewPackage(
-              schema_version=REVIEW_SCHEMA_VERSION,
-              package_id=package_id,
-              **payload,
+          decimal_header_old = (
+              "        for value, field_name in (\n"
+              "            (self.cumulative_realized_pnl_quote, "
+              '"cumulative_realized_pnl_quote"),\n'
           )
-          '''
-          review_new = '''    return CandidateReviewPackage(
-              schema_version=REVIEW_SCHEMA_VERSION,
-              package_id=package_id,
-              report_id=report.report_id,
-              run_id=request.run_id,
-              eligible_for_owner_review=report.candidate_review_eligible,
-              model_version=request.model_version,
-              model_hash=request.model_hash,
-              parameter_version=request.parameter_version,
-              parameter_hash=request.parameter_hash,
-              rollback_model_version=request.rollback_model_version,
-              rollback_model_hash=request.rollback_model_hash,
-              rollback_parameter_version=request.rollback_parameter_version,
-              rollback_parameter_hash=request.rollback_parameter_hash,
-              owner_decision_required=True,
-              automatic_promotion_enabled=False,
-              trading_credentials_present=False,
-              execution_enabled=False,
-              orders_submitted=0,
-              live_capital_authorized=False,
+          decimal_header_new = decimal_header_old.replace(
+              "for value, field_name", "for decimal_value, field_name"
           )
-          '''
+          decimal_call_old = (
+              "            _decimal(value, field=field_name)\n"
+              "        if self.simulated_equity_quote <= 0:\n"
+          )
+          decimal_call_new = decimal_call_old.replace(
+              "_decimal(value,", "_decimal(decimal_value,"
+          )
+          review_old = (
+              "    return CandidateReviewPackage(\n"
+              "        schema_version=REVIEW_SCHEMA_VERSION,\n"
+              "        package_id=package_id,\n"
+              "        **payload,\n"
+              "    )\n"
+          )
+          review_new = (
+              "    return CandidateReviewPackage(\n"
+              "        schema_version=REVIEW_SCHEMA_VERSION,\n"
+              "        package_id=package_id,\n"
+              "        report_id=report.report_id,\n"
+              "        run_id=request.run_id,\n"
+              "        eligible_for_owner_review=report.candidate_review_eligible,\n"
+              "        model_version=request.model_version,\n"
+              "        model_hash=request.model_hash,\n"
+              "        parameter_version=request.parameter_version,\n"
+              "        parameter_hash=request.parameter_hash,\n"
+              "        rollback_model_version=request.rollback_model_version,\n"
+              "        rollback_model_hash=request.rollback_model_hash,\n"
+              "        rollback_parameter_version=request.rollback_parameter_version,\n"
+              "        rollback_parameter_hash=request.rollback_parameter_hash,\n"
+              "        owner_decision_required=True,\n"
+              "        automatic_promotion_enabled=False,\n"
+              "        trading_credentials_present=False,\n"
+              "        execution_enabled=False,\n"
+              "        orders_submitted=0,\n"
+              "        live_capital_authorized=False,\n"
+              "    )\n"
+          )
 
           for old, new, label in (
-              (decimal_old, decimal_new, "decimal validation typing"),
-              (review_old, review_new, "candidate review typing"),
+              (decimal_header_old, decimal_header_new, "decimal loop header"),
+              (decimal_call_old, decimal_call_new, "decimal validation call"),
+              (review_old, review_new, "candidate review constructor"),
           ):
               count = source.count(old)
               if count != 1:
-                  raise SystemExit(f"expected exactly one {label} block, found {count}")
+                  raise SystemExit(f"expected exactly one {label}, found {count}")
               source = source.replace(old, new)
 
           status_replacements = {

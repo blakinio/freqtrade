@@ -1,0 +1,308 @@
+name: Temporary WickHunter candidate activation recovery repair
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - feat/wickhunter-candidate-paper-activation-v1
+    paths:
+      - ".tmp/wickhunter-candidate-activation-recovery-repair.md"
+      - ".tmp/wickhunter-candidate-activation-recovery-repair-v2.md"
+      - ".tmp/wickhunter-candidate-activation-recovery-repair-v3.md"
+      - ".tmp/wickhunter-candidate-activation-recovery-repair-v4.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-candidate-activation-recovery-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'chore/trigger-wickhunter-candidate-activation-recovery-repair'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-candidate-paper-activation-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Make candidate activation resumable
+        shell: python
+        run: |
+          from pathlib import Path
+
+          source_path = Path("ai_platform/wickhunter/candidate_activation.py")
+          source = source_path.read_text(encoding="utf-8")
+          source_import = "import hashlib\nimport json\n"
+          if source.count(source_import) != 1:
+              raise SystemExit("candidate activation standard import anchor mismatch")
+          source = source.replace(source_import, "import hashlib\nimport json\nimport os\n")
+
+          paper_import = (
+              "    PaperRunRequest,\n"
+              "    PaperValidationPolicy,\n"
+              "    build_paper_run_request,\n"
+              "    publish_paper_run_request,\n"
+              ")\n"
+          )
+          paper_replacement = (
+              "    PaperRunRequest,\n"
+              "    PaperValidationError,\n"
+              "    PaperValidationPolicy,\n"
+              "    build_paper_run_request,\n"
+              "    publish_paper_run_request,\n"
+              "    verify_paper_run_request,\n"
+              ")\n"
+          )
+          if source.count(paper_import) != 1:
+              raise SystemExit("candidate activation paper import anchor mismatch")
+          source = source.replace(paper_import, paper_replacement)
+
+          function_anchor = "def activate_verified_candidate(\n"
+          if source.count(function_anchor) != 1:
+              raise SystemExit("candidate activation function anchor mismatch")
+          if "def _publish_or_verify_activation(" in source:
+              raise SystemExit("activation recovery helpers already exist")
+          helpers = '''def _activation_binding(
+              identity: VerifiedCandidateIdentity,
+              request: PaperRunRequest,
+          ) -> dict[str, Any]:
+              binding: dict[str, Any] = {
+                  "schema_version": CANDIDATE_ACTIVATION_SCHEMA,
+                  "candidate_package_id": identity.package_id,
+                  "candidate_manifest_sha256": identity.manifest_sha256,
+                  "run_id": request.run_id,
+                  "model_version": identity.model_version,
+                  "model_hash": identity.model_hash,
+                  "parameter_version": identity.parameter_version,
+                  "parameter_hash": identity.parameter_hash,
+                  "evaluation_sha256": identity.evaluation_sha256,
+                  "code_sha": identity.source_commit_sha,
+                  "protected_holdout_accessed": False,
+                  "automatic_promotion_enabled": False,
+                  "trading_credentials_present": False,
+                  "order_adapter_present": False,
+                  "execution_enabled": False,
+                  "live_capital_authorized": False,
+                  "orders_submitted": 0,
+              }
+              binding["binding_sha256"] = canonical_sha256(binding)
+              return binding
+
+
+          def _verify_activation_binding(path: Path, expected: dict[str, Any]) -> None:
+              actual = _load_object(path, field="activation binding")
+              if actual != expected:
+                  raise CandidateActivationError("activation binding identity mismatch")
+
+
+          def _write_or_verify_activation_binding(path: Path, binding: dict[str, Any]) -> None:
+              if path.exists() or path.is_symlink():
+                  _verify_activation_binding(path, binding)
+                  return
+              path.parent.mkdir(parents=True, exist_ok=True)
+              content = json.dumps(binding, sort_keys=True, separators=(",", ":")) + "\\n"
+              try:
+                  with path.open("x", encoding="utf-8") as handle:
+                      handle.write(content)
+                      handle.flush()
+                      os.fsync(handle.fileno())
+              except FileExistsError:
+                  _verify_activation_binding(path, binding)
+
+
+          def _publish_or_verify_activation(
+              activation_root: Path,
+              *,
+              request: PaperRunRequest,
+              policy: PaperValidationPolicy,
+          ) -> None:
+              if activation_root.exists() or activation_root.is_symlink():
+                  try:
+                      verified = verify_paper_run_request(activation_root)
+                  except PaperValidationError as exc:
+                      raise CandidateActivationError("existing activation request is invalid") from exc
+                  if verified.get("run_id") != request.run_id:
+                      raise CandidateActivationError("activation request identity mismatch")
+                  return
+              try:
+                  publish_paper_run_request(
+                      activation_root,
+                      request=request,
+                      policy=policy,
+                  )
+              except PaperValidationError as exc:
+                  if not activation_root.is_dir() or activation_root.is_symlink():
+                      raise CandidateActivationError("unable to publish activation request") from exc
+                  try:
+                      verified = verify_paper_run_request(activation_root)
+                  except PaperValidationError as verify_exc:
+                      raise CandidateActivationError(
+                          "published activation request is invalid"
+                      ) from verify_exc
+                  if verified.get("run_id") != request.run_id:
+                      raise CandidateActivationError("activation request identity mismatch") from exc
+
+
+          '''
+          source = source.replace(function_anchor, helpers + function_anchor)
+
+          function_start = source.index(function_anchor)
+          publish_marker = "    publish_paper_run_request(\n"
+          return_marker = "    return CandidateActivationResult(\n"
+          publish_start = source.index(publish_marker, function_start)
+          return_start = source.index(return_marker, publish_start)
+          replacement_tail = '''    binding_path = activation_root.parent / f"{activation_root.name}-candidate-binding.json"
+              binding = _activation_binding(identity, request)
+              if binding_path.exists() or binding_path.is_symlink():
+                  _verify_activation_binding(binding_path, binding)
+              _publish_or_verify_activation(
+                  activation_root,
+                  request=request,
+                  policy=policy,
+              )
+              _write_or_verify_activation_binding(binding_path, binding)
+          '''
+          source = source[:publish_start] + replacement_tail + source[return_start:]
+          source_path.write_text(source, encoding="utf-8")
+
+          test_path = Path("tests/ai_platform_integration/test_wickhunter_candidate_activation.py")
+          tests = test_path.read_text(encoding="utf-8")
+          import_anchor = "import pytest\n\n"
+          if tests.count(import_anchor) != 1:
+              raise SystemExit("candidate activation test import anchor mismatch")
+          tests = tests.replace(
+              import_anchor,
+              "import pytest\n\nimport ai_platform.wickhunter.candidate_activation as candidate_activation\n",
+          )
+          paper_import = "from ai_platform.wickhunter.paper_validation import verify_paper_run_request\n"
+          paper_replacement = '''from ai_platform.wickhunter.paper_validation import (
+              PaperRunRequest,
+              PaperValidationPolicy,
+              publish_paper_run_request,
+              verify_paper_run_request,
+          )
+          '''
+          if tests.count(paper_import) != 1:
+              raise SystemExit("paper validation import target mismatch")
+          tests = tests.replace(paper_import, paper_replacement)
+
+          test_anchor = "def test_coordinated_model_text_tampering_is_rejected(tmp_path: Path) -> None:\n"
+          recovery_tests = '''def test_activation_resumes_after_request_publication_is_interrupted(
+              tmp_path: Path,
+              monkeypatch: pytest.MonkeyPatch,
+          ) -> None:
+              candidate_root = _package(tmp_path / "candidate")
+              activation_root = tmp_path / "activation"
+
+              def interrupted_publish(
+                  destination: Path,
+                  *,
+                  request: PaperRunRequest,
+                  policy: PaperValidationPolicy,
+              ) -> dict[str, object]:
+                  result = publish_paper_run_request(
+                      destination,
+                      request=request,
+                      policy=policy,
+                  )
+                  assert result["run_id"] == request.run_id
+                  raise RuntimeError("simulated interruption after request publication")
+
+              monkeypatch.setattr(
+                  candidate_activation,
+                  "publish_paper_run_request",
+                  interrupted_publish,
+              )
+              with pytest.raises(RuntimeError, match="simulated interruption"):
+                  activate_verified_candidate(
+                      candidate_root=candidate_root,
+                      activation_root=activation_root,
+                      created_at_ms=1_800_000_000_000,
+                  )
+              binding_path = tmp_path / "activation-candidate-binding.json"
+              assert activation_root.is_dir()
+              assert not binding_path.exists()
+
+              monkeypatch.setattr(
+                  candidate_activation,
+                  "publish_paper_run_request",
+                  publish_paper_run_request,
+              )
+              result = activate_verified_candidate(
+                  candidate_root=candidate_root,
+                  activation_root=activation_root,
+                  created_at_ms=1_800_000_000_000,
+              )
+              assert verify_paper_run_request(activation_root)["run_id"] == result.request.run_id
+              assert binding_path.is_file()
+
+
+          def test_conflicting_existing_binding_blocks_request_publication(tmp_path: Path) -> None:
+              candidate_root = _package(tmp_path / "candidate")
+              activation_root = tmp_path / "activation"
+              binding_path = tmp_path / "activation-candidate-binding.json"
+              binding_path.write_text('{"run_id":"conflicting"}\\n', encoding="utf-8")
+
+              with pytest.raises(CandidateActivationError, match="binding identity mismatch"):
+                  activate_verified_candidate(
+                      candidate_root=candidate_root,
+                      activation_root=activation_root,
+                      created_at_ms=1_800_000_000_000,
+                  )
+              assert not activation_root.exists()
+
+
+          '''
+          if tests.count(test_anchor) != 1:
+              raise SystemExit("candidate activation recovery test anchor mismatch")
+          if "test_activation_resumes_after_request_publication_is_interrupted" in tests:
+              raise SystemExit("candidate activation recovery tests already exist")
+          test_path.write_text(
+              tests.replace(test_anchor, recovery_tests + test_anchor),
+              encoding="utf-8",
+          )
+
+      - name: Format lint typecheck and focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check --fix ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          ruff format ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          ruff check ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          ruff format --check ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          mypy ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          pytest -q tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+
+      - name: Commit repair and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/tmp-wickhunter-candidate-activation-recovery-repair.yml
+          git add ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(wickhunter): make candidate activation resumable"
+          git push origin HEAD:feat/wickhunter-candidate-paper-activation-v1

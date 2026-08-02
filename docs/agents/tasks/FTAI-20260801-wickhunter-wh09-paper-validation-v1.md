@@ -55,24 +55,24 @@ Produce sustained shadow/paper evidence, replay-to-runtime reconciliation, rollb
 ```yaml
 checkpoint_version: 1
 policy_version: 2
-updated_at: 2026-08-02T12:25:00+02:00
+updated_at: 2026-08-02T12:32:00+02:00
 project_lane: freqtrade-wickhunter
 phase: validate
-session_id: wh09-20260802-003
+session_id: wh09-20260802-004
 session_role: implementer
 execution_mode: chat
-execution_reason: autonomous completion of WH-09 implementation, semantic hardening and exact-head closeout
+execution_reason: final owner-authored exact-head validation after semantic and mypy hardening
 status: validating
 branch: feat/wickhunter-wh09-paper-validation-v1
-head: 91e30abb874ebe723195263801c97856fb38de3b
+head: e06392bcac5188a91f75d0b7f79579328568907f
 base_branch: develop
 related_pr: 983
 context_pressure: medium
 context_growth: stable
 decomposition_decision: phased
 decomposition_reason: merge the bounded implementation independently from the later real 24-hour observation and evidence analysis
-validation_level: owner_checkpoint_exact_head_pending
-heavy_validation_runs: 2
+validation_level: final_owner_exact_head_pending
+heavy_validation_runs: 3
 proven:
   - WH-07 merged as bde362801d18ca2abf2615f4d1233b9b0f8f618a after exact-head checks passed
   - WH-08 merged as cfa0eae53d6ff54f5ef39b34a00e1cf09a9f1916 after Portal, E2E, repository and security checks passed
@@ -82,10 +82,12 @@ proven:
   - published evidence verification reconstructs request, observations, parity, exercises, report and candidate review instead of trusting rewritten manifests or checksums alone
   - request and replay-shadow parity identities are recomputed through their canonical domain payloads
   - final self-removing validation run 30743603723 passed Ruff, formatting and all focused WH-09 tests
+  - owner-authored AI Platform CI and security validation passed at 7ffc99f7be9cdb9074839612f56f93f2ce75c8ef
+  - pre-commit identified one missing local annotation and commit e06392bcac5188a91f75d0b7f79579328568907f repaired it while removing the helper workflow
   - all temporary workflows were removed and helper PRs 999, 1001, 1003, 1005, 1006, 1007, 1008, 1009 and 1011 were closed without merge
   - activation, evidence evaluation and candidate review remain read-only with zero credentials, orders, execution and live-capital authority
 derived:
-  - implementation and synthetic contract validation may merge after owner-authored exact-head repository CI and independent diff audit pass
+  - implementation and synthetic contract validation may merge after final owner-authored exact-head repository CI and independent diff audit pass
   - terminal sustained evidence remains incomplete until a real immutable activation request and observation window satisfy the declared policy
 unknown:
   - exact production model, parameter, dataset and rollback identities selected for the immutable activation request
@@ -105,8 +107,12 @@ validation:
   - command: final semantic verification run 30743603723
     result: PASS
     evidence: Ruff check and format passed; all focused WH-09 tests passed; temporary workflows removed
+  - command: owner-authored AI Platform CI and security checks at 7ffc99f7be9cdb9074839612f56f93f2ce75c8ef
+    result: PASS
+  - command: pre-commit at 7ffc99f7be9cdb9074839612f56f93f2ce75c8ef
+    result: FAIL — one missing annotation repaired at e06392bcac5188a91f75d0b7f79579328568907f
 blockers:
-  - owner-authored exact-head AI Platform, Freqtrade and security workflows must pass
+  - final owner-authored exact-head AI Platform, Freqtrade and security workflows must pass
   - independent final diff audit must report zero material findings
-next_action: run owner-authored exact-head CI and independent audit, merge PR 983 if green, then publish the immutable WH09-ACTIVATE package using exact production and rollback identities
+next_action: run final owner-authored exact-head CI and independent audit, merge PR 983 if green, then materialize exact production model and parameter identities and publish the immutable WH09-ACTIVATE package
 ```

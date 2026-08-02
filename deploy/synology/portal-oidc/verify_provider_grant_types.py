@@ -152,12 +152,24 @@ def _callback_probe_script() -> str:
         "http://127.0.0.1:3000/api/identity/callback"
         f"?code=public-origin-probe&state=public-origin-probe&return_to={CALLBACK_RETURN_TO}"
     )
-    return (
-        f"fetch({target!r},{{redirect:'manual'}}).then(async r=>{{"
-        f"console.log({CALLBACK_MARKER!r}+JSON.stringify({{status:r.status,"
-        "location:r.headers.get('location')}}));"
-        "if(r.status!==303)process.exit(2)"
-        "}).catch(e=>{console.error(String(e));process.exit(3)})"
+    target_json = json.dumps(target)
+    marker_json = json.dumps(CALLBACK_MARKER)
+    return "\n".join(
+        [
+            f"fetch({target_json}, {{ redirect: 'manual' }})",
+            "  .then((response) => {",
+            "    const payload = {",
+            "      status: response.status,",
+            "      location: response.headers.get('location'),",
+            "    };",
+            f"    console.log({marker_json} + JSON.stringify(payload));",
+            "    if (response.status !== 303) process.exit(2);",
+            "  })",
+            "  .catch((error) => {",
+            "    console.error(String(error));",
+            "    process.exit(3);",
+            "  });",
+        ]
     )
 
 

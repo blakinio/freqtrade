@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -66,6 +67,28 @@ def test_query_requires_exact_authorization_code_only(
         match="authorization-code-only",
     ):
         verifier._query_grant_types("authentik-server")
+
+
+def test_callback_probe_script_passes_node_syntax_check(tmp_path: Path) -> None:
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node.js is unavailable for verifier syntax validation")
+    assert node is not None
+
+    script = verifier._callback_probe_script()
+    probe = tmp_path / "portal-public-origin-probe.js"
+    probe.write_text(script, encoding="utf-8")
+    result = subprocess.run(
+        [node, "--check", str(probe)],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "location: response.headers.get('location')," in script
+    assert "JSON.stringify(payload)" in script
+    assert script.count("{") == script.count("}")
 
 
 def test_report_records_target_side_grant_and_callback_evidence(tmp_path: Path) -> None:

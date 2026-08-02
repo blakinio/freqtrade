@@ -103,8 +103,7 @@ def test_source_metrics_volatility_ratio_is_return_standard_deviation() -> None:
     )
     return_mean = sum(returns, Decimal(0)) / Decimal(len(returns))
     expected = (
-        sum(((value - return_mean) ** 2 for value in returns), Decimal(0))
-        / Decimal(len(returns))
+        sum(((value - return_mean) ** 2 for value in returns), Decimal(0)) / Decimal(len(returns))
     ).sqrt()
 
     assert values["volatility_ratio"] == expected

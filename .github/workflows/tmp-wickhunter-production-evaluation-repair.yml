@@ -1,0 +1,98 @@
+name: Temporary WickHunter production evaluation repair
+
+on:
+  pull_request:
+    types: [synchronize, reopened]
+    branches: [develop]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-production-evaluation-repair
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: ${{ github.event.pull_request.head.ref == 'feat/wickhunter-production-evaluation-loader-v1' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-production-evaluation-loader-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Apply bounded repair
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("ai_platform/wickhunter/production_evaluation.py")
+          source = path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  '            raw_entry_price=_optional_decimal(payload.get("raw_entry_price"), field="raw_entry_price"),\n',
+                  '            raw_entry_price=_optional_decimal(\n'
+                  '                payload.get("raw_entry_price"), field="raw_entry_price"\n'
+                  '            ),\n',
+              ),
+              (
+                  '            orders_submitted=_integer(payload.get("orders_submitted", -1), field="orders_submitted"),\n',
+                  '            orders_submitted=_integer(\n'
+                  '                payload.get("orders_submitted", -1), field="orders_submitted"\n'
+                  '            ),\n',
+              ),
+              (
+                  'def _load_labels(replay_root: Path, manifest: Mapping[str, object]) -> dict[str, tuple[CandidateLabel, ...]]:\n',
+                  'def _load_labels(  # noqa: C901\n'
+                  '    replay_root: Path,\n'
+                  '    manifest: Mapping[str, object],\n'
+                  ') -> dict[str, tuple[CandidateLabel, ...]]:\n',
+              ),
+          )
+          for old, new in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one repair target, found {count}")
+              source = source.replace(old, new)
+          path.write_text(source, encoding="utf-8")
+
+      - name: Format lint typecheck and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check --fix ai_platform/wickhunter/production_evaluation.py tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          ruff format ai_platform/wickhunter/production_evaluation.py tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          ruff check ai_platform/wickhunter/production_evaluation.py tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          ruff format --check ai_platform/wickhunter/production_evaluation.py tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          mypy ai_platform/wickhunter/production_evaluation.py
+          pytest -q tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+
+      - name: Commit and remove helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/tmp-wickhunter-production-evaluation-repair.yml
+          git add ai_platform/wickhunter/production_evaluation.py tests/ai_platform_integration/test_wickhunter_production_evaluation.py
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(wickhunter): validate production evaluation loader"
+          git push origin HEAD:feat/wickhunter-production-evaluation-loader-v1

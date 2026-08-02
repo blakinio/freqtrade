@@ -1,4 +1,4 @@
-name: Temporary WickHunter paper candidate risk repair
+name: Temporary WickHunter paper candidate risk artifact
 
 "on":
   pull_request:
@@ -6,23 +6,23 @@ name: Temporary WickHunter paper candidate risk repair
     branches: [develop]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: tmp-wickhunter-paper-candidate-risk-repair
-  cancel-in-progress: false
+  group: tmp-wickhunter-paper-candidate-risk-artifact
+  cancel-in-progress: true
 
 jobs:
-  repair:
+  validate:
     if: ${{ github.event.pull_request.head.ref == 'fix/wickhunter-paper-candidate-risk-gate-v1' }}
     runs-on: ubuntu-24.04
     steps:
-      - name: Check out feature branch
+      - name: Check out exact feature head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          ref: fix/wickhunter-paper-candidate-risk-gate-v1
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
-          persist-credentials: true
+          persist-credentials: false
 
       - name: Install uv and Python
         uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
@@ -166,14 +166,12 @@ def test_candidate_paper_gate_cannot_authorize_research_mode() -> None:
           mypy ai_platform/wickhunter/risk.py
           pytest -q tests/ai_platform_integration/test_wickhunter_vertical_slice.py
 
-      - name: Commit and remove helper
-        shell: bash
-        run: |
-          set -euo pipefail
-          git rm .github/workflows/tmp-wickhunter-paper-candidate-risk-repair.yml
-          git add ai_platform/wickhunter/risk.py tests/ai_platform_integration/test_wickhunter_vertical_slice.py
-          git diff --cached --check
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "fix(wickhunter): authorize candidate paper simulation explicitly"
-          git push origin HEAD:fix/wickhunter-paper-candidate-risk-gate-v1
+      - name: Upload validated source files
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wickhunter-paper-candidate-risk-gate
+          path: |
+            ai_platform/wickhunter/risk.py
+            tests/ai_platform_integration/test_wickhunter_vertical_slice.py
+          if-no-files-found: error
+          retention-days: 7

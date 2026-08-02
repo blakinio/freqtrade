@@ -49,7 +49,7 @@ def test_target_verifier_exercises_real_built_callback_route() -> None:
     assert "PORTAL_IDENTITY_FIXTURE_MODE=enabled" in verifier
     assert "PORTAL_PUBLIC_ORIGIN={PORTAL_ORIGIN}" in verifier
     assert "/api/identity/callback" in verifier
-    assert "redirect:'manual'" in verifier
+    assert "redirect: 'manual'" in verifier
     assert 'payload != {"status": 303, "location": expected_location}' in verifier
     assert 'portal["public_callback_redirect_verified"] = True' in verifier
     assert 'portal["public_callback_redirect_location"] = callback_location' in verifier

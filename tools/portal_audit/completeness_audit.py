@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Generate a static end-to-end completeness inventory for the AI Trading Portal."""
+"""Generate a static completeness inventory for the AI Trading Portal."""
+
 from __future__ import annotations
 
 import argparse
@@ -8,11 +9,15 @@ import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 PORTAL = Path("ai_platform/portal")
 WEB = PORTAL / "web"
 STATUS = Path("docs/ai_platform/portal/UI_DELIVERY_STATUS.md")
-TEST_ROOTS = (Path("tests/ai_platform/portal"), Path("tests/ai_platform_integration"))
+TEST_ROOTS = (
+    Path("tests/ai_platform/portal"),
+    Path("tests/ai_platform_integration"),
+)
 COMPOSITION = (
     PORTAL / "control_plane/api.py",
     PORTAL / "control_plane/api_core.py",
@@ -20,13 +25,14 @@ COMPOSITION = (
     PORTAL / "identity/public_runtime.py",
 )
 SKIP_MODULES = {"web", "e2e", "__pycache__"}
-MARKERS = re.compile(r"\b(TODO|FIXME|XXX|NotImplementedError)\b", re.I)
 SEVERITY = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 
 @dataclass(frozen=True)
 class Finding:
-    id: str
+    """One reviewable completeness finding."""
+
+    identifier: str
     severity: str
     area: str
     title: str
@@ -34,29 +40,35 @@ class Finding:
     remediation: str
 
 
-def root_from(start: Path) -> Path:
-    for candidate in (start.resolve(), *start.resolve().parents):
+def repository_root(start: Path) -> Path:
+    """Locate the repository root from an arbitrary working directory."""
+    resolved = start.resolve()
+    for candidate in (resolved, *resolved.parents):
         if (candidate / "AGENTS.md").exists() and (candidate / "pyproject.toml").exists():
             return candidate
     raise SystemExit("repository root not found")
 
 
-def text(path: Path) -> str:
+def read_text(path: Path) -> str:
+    """Read UTF-8 text and treat unreadable files as absent evidence."""
     try:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return ""
 
 
-def rel(root: Path, path: Path) -> str:
+def relative(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
-def files(path: Path, pattern: str) -> list[Path]:
-    return sorted(p for p in path.rglob(pattern) if p.is_file()) if path.exists() else []
+def matching_files(path: Path, pattern: str) -> list[Path]:
+    if not path.exists():
+        return []
+    return sorted(candidate for candidate in path.rglob(pattern) if candidate.is_file())
 
 
-def route(value: str) -> str:
+def normalize_route(value: str) -> str:
+    """Normalize framework path parameters to one comparable representation."""
     value = value.split("?", 1)[0]
     value = re.sub(r"\[[^/]+\]|\{[^/]+\}", "{}", value)
     value = re.sub(r"/+", "/", value)
@@ -64,139 +76,185 @@ def route(value: str) -> str:
 
 
 def next_route(app: Path, path: Path) -> str:
-    parts = [p for p in path.relative_to(app).parts[:-1] if not (p.startswith("(") and p.endswith(")"))]
-    return route("/" + "/".join(parts))
+    parts = [
+        part
+        for part in path.relative_to(app).parts[:-1]
+        if not (part.startswith("(") and part.endswith(")"))
+    ]
+    return normalize_route("/" + "/".join(parts))
 
 
 def documented_routes(raw: str) -> dict[str, dict[str, str]]:
+    """Parse the canonical product-route table from UI delivery status."""
     result: dict[str, dict[str, str]] = {}
     for line in raw.splitlines():
         if not line.startswith("|") or "`/" not in line:
             continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
         if len(cells) < 4 or cells[0] == "Product surface":
             continue
         match = re.search(r"`([^`]+)`", cells[1])
-        if not match:
+        if match is None:
             continue
         for item in match.group(1).split(","):
             item = item.strip()
             if item.startswith("/"):
-                result[route(item)] = {"surface": cells[0], "delivery": cells[2], "boundary": cells[3]}
+                result[normalize_route(item)] = {
+                    "surface": cells[0],
+                    "delivery": cells[2],
+                    "boundary": cells[3],
+                }
     return result
 
 
 def fastapi_routes(path: Path, root: Path) -> list[dict[str, str]]:
-    raw = text(path)
-    prefix_match = re.search(r"APIRouter\s*\([^)]*prefix\s*=\s*[\"']([^\"']+)", raw, re.S)
+    """Extract literal FastAPI routes from one Python source file."""
+    raw = read_text(path)
+    prefix_match = re.search(
+        r"APIRouter\s*\([^)]*prefix\s*=\s*[\"']([^\"']+)",
+        raw,
+        re.DOTALL,
+    )
     prefix = prefix_match.group(1) if prefix_match else ""
     pattern = re.compile(
-        r"@(?P<obj>app|router)\.(?P<method>get|post|put|patch|delete)\(\s*[\"'](?P<path>[^\"']+)[\"']",
-        re.M,
+        r"@(?P<object>app|router)\."
+        r"(?P<method>get|post|put|patch|delete)\(\s*"
+        r"[\"'](?P<path>[^\"']+)[\"']",
+        re.MULTILINE,
     )
-    found = []
+    result: list[dict[str, str]] = []
     for match in pattern.finditer(raw):
         value = match.group("path")
-        if match.group("obj") == "router":
+        if match.group("object") == "router":
             value = prefix + value
-        found.append({"method": match.group("method").upper(), "route": route(value), "file": rel(root, path)})
-    return found
-
-
-def marker_lines(root: Path, candidates: list[Path]) -> list[str]:
-    result = []
-    for path in candidates:
-        for number, line in enumerate(text(path).splitlines(), 1):
-            if MARKERS.search(line):
-                result.append(f"{rel(root, path)}:{number}: {line.strip()[:180]}")
+        result.append(
+            {
+                "method": match.group("method").upper(),
+                "route": normalize_route(value),
+                "file": relative(root, path),
+            }
+        )
     return result
 
 
 def test_inventory(root: Path) -> list[Path]:
     result: set[Path] = set()
     for test_root in TEST_ROOTS:
-        result.update(files(root / test_root, "test_*.py"))
-    result.update(files(root / WEB / "e2e", "*.spec.ts"))
-    result.update(files(root / WEB / "e2e", "*.test.mjs"))
+        result.update(matching_files(root / test_root, "test_*.py"))
+    result.update(matching_files(root / WEB / "e2e", "*.spec.ts"))
+    result.update(matching_files(root / WEB / "e2e", "*.test.mjs"))
     return sorted(result)
 
 
-def backend_inventory(root: Path, tests: list[Path]) -> list[dict[str, object]]:
+def backend_inventory(root: Path, tests: list[Path]) -> list[dict[str, Any]]:
+    """Inventory immediate backend modules and their supporting evidence."""
     portal = root / PORTAL
-    wiring = "\n".join(text(root / p) for p in COMPOSITION)
-    modules = []
-    for directory in sorted(p for p in portal.iterdir() if p.is_dir() and p.name not in SKIP_MODULES):
-        py = files(directory, "*.py")
-        if not py:
+    wiring = "\n".join(read_text(root / path) for path in COMPOSITION)
+    result: list[dict[str, Any]] = []
+    directories = sorted(
+        path
+        for path in portal.iterdir()
+        if path.is_dir() and path.name not in SKIP_MODULES
+    )
+    for directory in directories:
+        python_files = matching_files(directory, "*.py")
+        if not python_files:
             continue
         name = directory.name
         mapped_tests = []
         for test_path in tests:
-            body = text(test_path)
-            test_rel = rel(root, test_path)
-            if name in test_rel or f"ai_platform.portal.{name}" in body:
-                mapped_tests.append(test_rel)
-        py_rel = [rel(root, p) for p in py]
-        modules.append(
+            body = read_text(test_path)
+            test_name = relative(root, test_path)
+            if name in test_name or f"ai_platform.portal.{name}" in body:
+                mapped_tests.append(test_name)
+        paths = [relative(root, path) for path in python_files]
+        result.append(
             {
                 "name": name,
-                "python_files": py_rel,
-                "routers": [p for p in py_rel if p.endswith("router.py") or p.endswith("api.py")],
-                "services": [p for p in py_rel if p.endswith("service.py") or p.endswith("services.py")],
-                "persistence": [p for p in py_rel if p.endswith(("repository.py", "store.py", "database.py"))],
-                "schemas": [p for p in py_rel if p.endswith("schema.py") or "/contracts/" in p],
-                "migrations": [rel(root, p) for p in files(directory, "*.sql")],
+                "python_files": paths,
+                "routers": [
+                    path
+                    for path in paths
+                    if path.endswith("router.py") or path.endswith("api.py")
+                ],
+                "persistence": [
+                    path
+                    for path in paths
+                    if path.endswith(("repository.py", "store.py", "database.py"))
+                ],
+                "migrations": [
+                    relative(root, path)
+                    for path in matching_files(directory, "*.sql")
+                ],
                 "tests": mapped_tests,
                 "wired": f"ai_platform.portal.{name}." in wiring,
-                "markers": marker_lines(root, py),
             }
         )
-    return modules
+    return result
 
 
-def web_inventory(root: Path) -> dict[str, object]:
+def web_inventory(root: Path) -> dict[str, Any]:
+    """Inventory pages, BFF handlers, API references and navigation targets."""
     app = root / WEB / "app"
-    pages = {next_route(app, p): rel(root, p) for p in files(app, "page.tsx")}
-    handlers = {next_route(app, p): rel(root, p) for p in files(app / "api", "route.ts")}
-    source = files(root / WEB, "*.ts") + files(root / WEB, "*.tsx") + files(root / WEB, "*.mjs")
-    v1_refs: dict[str, set[str]] = defaultdict(set)
-    hrefs: dict[str, set[str]] = defaultdict(set)
-    private_refs = []
-    for path in sorted(set(source)):
-        body = text(path)
-        where = rel(root, path)
-        for match in re.finditer(r"[\"'`](/v1/[^\"'`\s$]*)[\"'`]", body):
-            v1_refs[route(match.group(1))].add(where)
-        for match in re.finditer(r"(?:href\s*=\s*|href\s*:\s*)[\"'](/[^\"']*)[\"']", body):
-            hrefs[route(match.group(1))].add(where)
-        for line_no, line in enumerate(body.splitlines(), 1):
-            lowered = line.lower()
-            if ("freqtrade" in lowered or "loki" in lowered or "vault" in lowered) and (
-                "http://" in lowered or "https://" in lowered
-            ):
-                private_refs.append(f"{where}:{line_no}: {line.strip()[:180]}")
-    support = {
-        "loading": [rel(root, p) for p in files(app, "loading.tsx")],
-        "error": [rel(root, p) for p in files(app, "error.tsx")],
-        "not_found": [rel(root, p) for p in files(app, "not-found.tsx")],
-        "locale": [
-            rel(root, p)
-            for p in source
-            if re.search(r"(i18n|locale|messages|translations)", rel(root, p), re.I)
-        ],
+    pages = {
+        next_route(app, path): relative(root, path)
+        for path in matching_files(app, "page.tsx")
     }
+    handlers = {
+        next_route(app, path): relative(root, path)
+        for path in matching_files(app / "api", "route.ts")
+    }
+    source = matching_files(root / WEB, "*.ts")
+    source += matching_files(root / WEB, "*.tsx")
+    source += matching_files(root / WEB, "*.mjs")
+    api_references: dict[str, set[str]] = defaultdict(set)
+    navigation: dict[str, set[str]] = defaultdict(set)
+    private_references: list[str] = []
+    for path in sorted(set(source)):
+        body = read_text(path)
+        location = relative(root, path)
+        for match in re.finditer(r"[\"'`](/v1/[^\"'`\s$]*)[\"'`]", body):
+            api_references[normalize_route(match.group(1))].add(location)
+        for match in re.finditer(
+            r"(?:href\s*=\s*|href\s*:\s*)[\"'](/[^\"']*)[\"']",
+            body,
+        ):
+            navigation[normalize_route(match.group(1))].add(location)
+        for line_number, line in enumerate(body.splitlines(), 1):
+            lowered = line.lower()
+            names_private_service = any(
+                token in lowered for token in ("freqtrade", "loki", "vault")
+            )
+            contains_url = "http://" in lowered or "https://" in lowered
+            if names_private_service and contains_url:
+                private_references.append(
+                    f"{location}:{line_number}: {line.strip()[:180]}"
+                )
+    locale_files = [
+        relative(root, path)
+        for path in source
+        if re.search(
+            r"(i18n|locale|messages|translations)",
+            relative(root, path),
+            re.IGNORECASE,
+        )
+    ]
     return {
         "page_routes": dict(sorted(pages.items())),
         "bff_routes": dict(sorted(handlers.items())),
-        "v1_refs": {k: sorted(v) for k, v in sorted(v1_refs.items())},
-        "navigation": {k: sorted(v) for k, v in sorted(hrefs.items())},
-        "private_refs": private_refs,
-        "support": support,
+        "v1_refs": {
+            key: sorted(value) for key, value in sorted(api_references.items())
+        },
+        "navigation": {
+            key: sorted(value) for key, value in sorted(navigation.items())
+        },
+        "private_refs": private_references,
+        "locale_files": locale_files,
     }
 
 
-def equivalent_backend(reference: str, routes: set[str]) -> bool:
-    normalized = route(reference)
+def route_exists(reference: str, routes: set[str]) -> bool:
+    normalized = normalize_route(reference)
     for candidate in routes:
         if normalized == candidate:
             return True
@@ -206,201 +264,289 @@ def equivalent_backend(reference: str, routes: set[str]) -> bool:
     return False
 
 
-def findings(
-    root: Path,
-    modules: list[dict[str, object]],
-    backend_routes: list[dict[str, str]],
-    web: dict[str, object],
-    docs: dict[str, dict[str, str]],
+def pi08_evidence(root: Path) -> tuple[list[str], list[str]]:
+    """Return runtime construction and fail-closed PI-08 boundary evidence."""
+    wiring: list[str] = []
+    boundaries: list[str] = []
+    for source in matching_files(root / PORTAL, "*.py"):
+        for line_number, line in enumerate(read_text(source).splitlines(), 1):
+            stripped = line.strip()
+            construction = (
+                "execution_submitter=" in stripped
+                or (
+                    "PrivateSubmissionExecutionAdapter(" in stripped
+                    and not stripped.startswith("class ")
+                )
+                or (
+                    "PrivateDryRunApprovedIntentSubmitter(" in stripped
+                    and not stripped.startswith("class ")
+                )
+            )
+            if construction:
+                wiring.append(
+                    f"{relative(root, source)}:{line_number}: {stripped[:180]}"
+                )
+            if "ORDER_SUBMISSION_NOT_IMPLEMENTED" in stripped:
+                boundaries.append(
+                    f"{relative(root, source)}:{line_number}: {stripped[:180]}"
+                )
+    return wiring, boundaries
+
+
+def contract_findings(
+    backend_routes: set[str],
+    web: dict[str, Any],
 ) -> list[Finding]:
     result: list[Finding] = []
-    pages: dict[str, str] = web["page_routes"]  # type: ignore[assignment]
-    bff: dict[str, str] = web["bff_routes"]  # type: ignore[assignment]
-    refs: dict[str, list[str]] = web["v1_refs"]  # type: ignore[assignment]
-    nav: dict[str, list[str]] = web["navigation"]  # type: ignore[assignment]
-    support: dict[str, list[str]] = web["support"]  # type: ignore[assignment]
-    private_refs: list[str] = web["private_refs"]  # type: ignore[assignment]
-    backend_set = {item["route"] for item in backend_routes}
-
-    pi08_wiring: list[str] = []
-    pi08_boundary: list[str] = []
-    for source in files(root / PORTAL, "*.py"):
-        for line_no, line in enumerate(text(source).splitlines(), 1):
-            stripped = line.strip()
-            if (
-                "execution_submitter=" in stripped
-                or ("PrivateSubmissionExecutionAdapter(" in stripped and not stripped.startswith("class "))
-                or ("PrivateDryRunApprovedIntentSubmitter(" in stripped and not stripped.startswith("class "))
-            ):
-                pi08_wiring.append(f"{rel(root, source)}:{line_no}: {stripped[:180]}")
-            if "ORDER_SUBMISSION_NOT_IMPLEMENTED" in stripped:
-                pi08_boundary.append(f"{rel(root, source)}:{line_no}: {stripped[:180]}")
-    if not pi08_wiring:
-        result.append(Finding(
-            "INTEGRATION-PI08-NO-RUNTIME-COMPOSITION", "high", "integration",
-            "PI-08 submission components are not assembled in a trusted portal runtime",
-            tuple(pi08_boundary + [
-                "ai_platform/portal/execution_submission/adapter.py: PrivateSubmissionExecutionAdapter is definition-only",
-                "ai_platform/portal/execution_submission/integration.py: PrivateDryRunApprovedIntentSubmitter is definition-only",
-            ]),
-            "Add one fail-closed server-side runtime factory that injects the real snapshot provider and PI-08 submitter into TerminalService/ExecutionAdapter, then prove API-mode submission and reconciliation without browser access to private Freqtrade.",
-        ))
-
-    ignored_doc_routes = {"/api/identity/*"}
-    for documented, status in sorted(docs.items()):
-        if documented in ignored_doc_routes or documented.startswith("/api/"):
+    for reference, sources in sorted(web["v1_refs"].items()):
+        if route_exists(reference, backend_routes):
             continue
-        if documented not in pages:
-            result.append(Finding(
-                f"UI-DOC-MISSING-{re.sub(r'[^a-z0-9]+', '-', documented.lower()).strip('-')}",
-                "high", "frontend", f"Documented product route {documented} has no Next.js page",
+        identifier = re.sub(r"[^a-z0-9]+", "-", reference.lower()).strip("-")
+        result.append(
+            Finding(
+                f"CONTRACT-NO-BACKEND-{identifier}",
+                "high",
+                "integration",
+                f"Frontend references {reference} without a matching FastAPI route",
+                tuple(sources),
+                "Add the producer route or correct the BFF contract and drift tests.",
+            )
+        )
+    return result
+
+
+def route_findings(
+    docs: dict[str, dict[str, str]],
+    web: dict[str, Any],
+) -> list[Finding]:
+    result: list[Finding] = []
+    pages = web["page_routes"]
+    for documented, status in sorted(docs.items()):
+        if documented.startswith("/api/") or documented in pages:
+            continue
+        identifier = re.sub(r"[^a-z0-9]+", "-", documented.lower()).strip("-")
+        result.append(
+            Finding(
+                f"UI-DOC-MISSING-{identifier}",
+                "high",
+                "frontend",
+                f"Documented product route {documented} has no Next.js page",
                 (f"{STATUS}: {status['surface']} ({status['delivery']})",),
-                "Implement the page or correct the canonical delivery-status claim and register a dependent task.",
-            ))
-    for target, sources in sorted(nav.items()):
+                "Implement the page or correct the canonical delivery claim.",
+            )
+        )
+    for target, sources in sorted(web["navigation"].items()):
         if target.startswith("/api/") or target in pages:
             continue
-        result.append(Finding(
-            f"UI-BROKEN-NAV-{re.sub(r'[^a-z0-9]+', '-', target.lower()).strip('-')}",
-            "high", "frontend", f"Navigation points to missing page {target}", tuple(sources),
-            "Add the destination page or remove/replace the navigation entry.",
-        ))
-    for reference, sources in sorted(refs.items()):
-        if not equivalent_backend(reference, backend_set):
-            result.append(Finding(
-                f"CONTRACT-NO-BACKEND-{re.sub(r'[^a-z0-9]+', '-', reference.lower()).strip('-')}",
-                "high", "integration", f"Frontend references {reference} but no matching FastAPI route was detected",
-                tuple(sources), "Wire the producer route or correct the BFF contract and add drift coverage.",
-            ))
-    for module in modules:
-        routers = module["routers"]
-        tests = module["tests"]
-        if routers and not module["wired"]:
-            result.append(Finding(
-                f"BACKEND-UNWIRED-{module['name']}", "high", "backend",
-                f"Router-bearing module {module['name']} is not detected in canonical composition roots",
-                tuple(routers), "Wire it into the product application or mark it internal/partial with an exact consumer task.",
-            ))
-        if routers and not tests:
-            result.append(Finding(
-                f"BACKEND-NO-FOCUSED-TEST-{module['name']}", "medium", "testing",
-                f"Router-bearing module {module['name']} has no focused mapped test",
-                tuple(routers), "Add focused contract/API tests or document the exact shared suite that proves it.",
-            ))
-        markers = module["markers"]
-        if markers:
-            sev = "high" if any("ORDER_SUBMISSION_NOT_IMPLEMENTED" in item for item in markers) else "medium"
-            result.append(Finding(
-                f"BACKEND-MARKERS-{module['name']}", sev, "backend",
-                f"Module {module['name']} contains explicit incompleteness markers", tuple(markers[:12]),
-                "Resolve each marker or retain an explicit partial status, dependent task and non-completion claim.",
-            ))
-    if not support["locale"]:
-        result.append(Finding(
-            "UX-NO-LOCALIZATION", "medium", "frontend", "No localization/message-catalog infrastructure was detected",
-            (rel(root, root / WEB / "app/layout.tsx"), "Root layout uses a fixed html language."),
-            "Add locale-aware messages/formatting or record a product decision that localization is not applicable.",
-        ))
-    if not support["loading"]:
-        result.append(Finding(
-            "UX-NO-LOADING-BOUNDARY", "medium", "frontend", "No Next.js loading.tsx boundary was detected",
-            (rel(root, root / WEB / "app"),),
-            "Add loading boundaries or prove an equivalent explicit loading-state strategy for every data-backed surface.",
-        ))
-    if not support["error"]:
-        result.append(Finding(
-            "UX-NO-ERROR-BOUNDARY", "medium", "frontend", "No Next.js error.tsx boundary was detected",
-            (rel(root, root / WEB / "app"),),
-            "Add recoverable error boundaries and browser E2E for network/server failure and retry.",
-        ))
-    if private_refs:
-        result.append(Finding(
-            "SECURITY-BROWSER-PRIVATE-ENDPOINT", "critical", "security",
-            "Browser code contains direct private-service URL references", tuple(private_refs[:20]),
-            "Remove direct browser access and keep private services behind the same-origin BFF.",
-        ))
-    if not bff:
-        result.append(Finding(
-            "INTEGRATION-NO-BFF", "critical", "integration", "No same-origin BFF handlers were detected",
-            (rel(root, root / WEB / "app"),), "Implement the BFF required by the portal trust boundary.",
-        ))
-    return sorted(result, key=lambda item: (SEVERITY[item.severity], item.id))
+        identifier = re.sub(r"[^a-z0-9]+", "-", target.lower()).strip("-")
+        result.append(
+            Finding(
+                f"UI-BROKEN-NAV-{identifier}",
+                "high",
+                "frontend",
+                f"Navigation points to missing page {target}",
+                tuple(sources),
+                "Add the destination page or replace the navigation entry.",
+            )
+        )
+    return result
 
 
-def markdown(data: dict[str, object]) -> str:
+def boundary_findings(root: Path, web: dict[str, Any]) -> list[Finding]:
+    result: list[Finding] = []
+    wiring, boundaries = pi08_evidence(root)
+    if not wiring:
+        evidence = boundaries + [
+            "execution_submission adapter and submitter are definition-only in product code"
+        ]
+        result.append(
+            Finding(
+                "INTEGRATION-PI08-NO-RUNTIME-COMPOSITION",
+                "high",
+                "integration",
+                "PI-08 components are not assembled in a trusted portal runtime",
+                tuple(evidence),
+                "Add a fail-closed server runtime factory and API-mode evidence.",
+            )
+        )
+    if not web["locale_files"]:
+        result.append(
+            Finding(
+                "UX-NO-LOCALIZATION",
+                "medium",
+                "frontend",
+                "No localization or message-catalog infrastructure was detected",
+                ("ai_platform/portal/web/app/layout.tsx: fixed html language",),
+                "Implement locales or record an owner-approved English-only decision.",
+            )
+        )
+    if web["private_refs"]:
+        result.append(
+            Finding(
+                "SECURITY-BROWSER-PRIVATE-ENDPOINT",
+                "critical",
+                "security",
+                "Browser code contains direct private-service URL references",
+                tuple(web["private_refs"][:20]),
+                "Keep all private services behind the same-origin BFF.",
+            )
+        )
+    return result
+
+
+def build_findings(
+    root: Path,
+    backend_routes: list[dict[str, str]],
+    web: dict[str, Any],
+    docs: dict[str, dict[str, str]],
+) -> list[Finding]:
+    routes = {item["route"] for item in backend_routes}
+    result = contract_findings(routes, web)
+    result.extend(route_findings(docs, web))
+    result.extend(boundary_findings(root, web))
+    return sorted(result, key=lambda item: (SEVERITY[item.severity], item.identifier))
+
+
+def markdown(data: dict[str, Any]) -> str:
+    """Render the machine inventory as a bounded human-readable report."""
     summary = data["summary"]
-    found = data["findings"]
-    modules = data["backend_modules"]
-    docs = data["documented_routes"]
-    pages = data["web"]["page_routes"]  # type: ignore[index]
     lines = [
-        "# AI Trading Portal end-to-end completeness audit", "",
-        f"Audited head: `{data['audited_head']}`", "",
-        "## Evidence boundary", "",
-        "This is a static repository audit. It proves file, route, wiring, migration, test and explicit-marker evidence on the audited head. It does not prove real Authentik, Synology, Vault, private Freqtrade, Loki/Tempo/Prometheus or Cloudflare target acceptance.", "",
-        "## Summary", "",
-        f"- Backend modules: **{summary['backend_modules']}**",  # type: ignore[index]
-        f"- FastAPI routes: **{summary['backend_routes']}**",  # type: ignore[index]
-        f"- Next.js pages: **{summary['frontend_pages']}**",  # type: ignore[index]
-        f"- BFF handlers: **{summary['bff_routes']}**",  # type: ignore[index]
-        f"- Canonical product routes: **{summary['documented_routes']}**",  # type: ignore[index]
-        f"- Test files considered: **{summary['test_files']}**",  # type: ignore[index]
-        f"- Findings: **{summary['finding_count']}**", "",  # type: ignore[index]
-        "## Findings", "",
+        "# AI Trading Portal end-to-end completeness audit",
+        "",
+        f"Audited head: `{data['audited_head']}`",
+        "",
+        "## Evidence boundary",
+        "",
+        "Static repository evidence only; external target acceptance is separate.",
+        "",
+        "## Summary",
+        "",
+        f"- Backend modules: **{summary['backend_modules']}**",
+        f"- FastAPI routes: **{summary['backend_routes']}**",
+        f"- Next.js pages: **{summary['frontend_pages']}**",
+        f"- BFF handlers: **{summary['bff_routes']}**",
+        f"- Canonical product routes: **{summary['documented_routes']}**",
+        f"- Test files considered: **{summary['test_files']}**",
+        f"- Findings: **{summary['finding_count']}**",
+        "",
+        "## Findings",
+        "",
     ]
-    if not found:
-        lines.append("No static completeness findings. Real-target and runtime gates still apply.")
-    for item in found:  # type: ignore[assignment]
-        lines.extend([f"### {item['severity'].upper()} — {item['id']}: {item['title']}", "", f"Area: `{item['area']}`", "", "Evidence:"])
-        lines.extend(f"- `{e}`" for e in item["evidence"])
+    findings = data["findings"]
+    if not findings:
+        lines.append("No static completeness findings.")
+    for item in findings:
+        lines.extend(
+            [
+                f"### {item['severity'].upper()} — {item['identifier']}",
+                "",
+                item["title"],
+                "",
+                "Evidence:",
+            ]
+        )
+        lines.extend(f"- `{evidence}`" for evidence in item["evidence"])
         lines.extend(["", f"Required follow-up: {item['remediation']}", ""])
-    lines.extend(["## Backend module inventory", "", "| Module | Files | Routers | Persistence | Migrations | Tests | Wired | Markers |", "|---|---:|---:|---:|---:|---:|---:|---:|"])
-    for item in modules:  # type: ignore[assignment]
-        lines.append(f"| {item['name']} | {len(item['python_files'])} | {len(item['routers'])} | {len(item['persistence'])} | {len(item['migrations'])} | {len(item['tests'])} | {'yes' if item['wired'] else 'no'} | {len(item['markers'])} |")
-    lines.extend(["", "## Product route inventory", "", "| Route | Surface | Delivery claim | Page |", "|---|---|---|---|"])
-    for item_route, status in sorted(docs.items()):  # type: ignore[union-attr]
-        lines.append(f"| `{item_route}` | {status['surface']} | {status['delivery']} | `{pages.get(item_route, 'MISSING')}` |")
-    lines.extend(["", "## Classification", "", "- `PROVEN`: static repository evidence on the exact audited head.", "- `DERIVED`: completeness risk inferred from absent wiring, route, test or UX boundary.", "- `UNKNOWN`: real external target availability and owner-operated identity/recovery journeys.", ""])
-    return "\n".join(lines)
+    lines.extend(
+        [
+            "## Backend module inventory",
+            "",
+            "| Module | Files | Routers | Persistence | Migrations | Tests | Wired |",
+            "|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for item in data["backend_modules"]:
+        wired = "yes" if item["wired"] else "no"
+        lines.append(
+            "| "
+            f"{item['name']} | {len(item['python_files'])} | "
+            f"{len(item['routers'])} | {len(item['persistence'])} | "
+            f"{len(item['migrations'])} | {len(item['tests'])} | {wired} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Product route inventory",
+            "",
+            "| Route | Surface | Delivery claim | Page |",
+            "|---|---|---|---|",
+        ]
+    )
+    pages = data["web"]["page_routes"]
+    for product_route, status in sorted(data["documented_routes"].items()):
+        page = pages.get(product_route, "MISSING")
+        lines.append(
+            f"| `{product_route}` | {status['surface']} | "
+            f"{status['delivery']} | `{page}` |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=".")
     parser.add_argument("--head", default="UNKNOWN")
-    parser.add_argument("--output-json", default="artifacts/portal-completeness-audit.json")
-    parser.add_argument("--output-md", default="artifacts/portal-completeness-audit.md")
+    parser.add_argument(
+        "--output-json",
+        default="artifacts/portal-completeness-audit.json",
+    )
+    parser.add_argument(
+        "--output-md",
+        default="artifacts/portal-completeness-audit.md",
+    )
     args = parser.parse_args()
-    root = root_from(Path(args.root))
+    root = repository_root(Path(args.root))
     tests = test_inventory(root)
     modules = backend_inventory(root, tests)
-    routes = []
-    for path in files(root / PORTAL, "*.py"):
+    routes: list[dict[str, str]] = []
+    for path in matching_files(root / PORTAL, "*.py"):
         routes.extend(fastapi_routes(path, root))
-    routes = sorted({json.dumps(x, sort_keys=True): x for x in routes}.values(), key=lambda x: (x["route"], x["method"], x["file"]))
+    unique = {json.dumps(item, sort_keys=True): item for item in routes}
+    routes = sorted(
+        unique.values(),
+        key=lambda item: (item["route"], item["method"], item["file"]),
+    )
     web = web_inventory(root)
-    docs = documented_routes(text(root / STATUS))
-    found = findings(root, modules, routes, web, docs)
-    data: dict[str, object] = {
+    docs = documented_routes(read_text(root / STATUS))
+    findings = build_findings(root, routes, web, docs)
+    data: dict[str, Any] = {
         "schema_version": "portal-completeness-audit-v1",
         "audited_head": args.head,
         "summary": {
-            "backend_modules": len(modules), "backend_routes": len(routes),
-            "frontend_pages": len(web["page_routes"]), "bff_routes": len(web["bff_routes"]),
-            "documented_routes": len(docs), "test_files": len(tests), "finding_count": len(found),
-            "by_severity": {name: sum(1 for f in found if f.severity == name) for name in SEVERITY},
+            "backend_modules": len(modules),
+            "backend_routes": len(routes),
+            "frontend_pages": len(web["page_routes"]),
+            "bff_routes": len(web["bff_routes"]),
+            "documented_routes": len(docs),
+            "test_files": len(tests),
+            "finding_count": len(findings),
+            "by_severity": {
+                severity: sum(
+                    1 for finding in findings if finding.severity == severity
+                )
+                for severity in SEVERITY
+            },
         },
-        "findings": [asdict(x) for x in found], "backend_modules": modules,
-        "backend_routes": routes, "web": web, "documented_routes": docs,
-        "test_files": [rel(root, p) for p in tests],
+        "findings": [asdict(finding) for finding in findings],
+        "backend_modules": modules,
+        "backend_routes": routes,
+        "web": web,
+        "documented_routes": docs,
+        "test_files": [relative(root, path) for path in tests],
     }
-    out_json, out_md = root / args.output_json, root / args.output_md
-    out_json.parent.mkdir(parents=True, exist_ok=True)
-    out_json.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    out_md.write_text(markdown(data) + "\n", encoding="utf-8")
+    output_json = root / args.output_json
+    output_markdown = root / args.output_md
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    output_json.write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    output_markdown.write_text(markdown(data), encoding="utf-8")
     print(json.dumps(data["summary"], sort_keys=True))
-    for item in found:
-        print(f"::{item.severity}::{item.id}::{item.title}")
+    for finding in findings:
+        print(
+            f"::{finding.severity}::{finding.identifier}::{finding.title}"
+        )
     return 0
 
 

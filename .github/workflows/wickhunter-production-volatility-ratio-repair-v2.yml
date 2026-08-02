@@ -1,0 +1,182 @@
+name: WickHunter production volatility metric repair v2
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - .github/workflows/wickhunter-production-volatility-ratio-repair-v2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-production-volatility-repair-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    name: Repair metric semantics and validate
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact helper head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate one-file helper boundary
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-production-volatility-ratio-repair-v2.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+
+      - name: Check out product branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: fix/wickhunter-production-volatility-ratio-v1
+
+      - name: Apply exact semantic repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("ai_platform/wickhunter/production_market_evidence_wh01.py")
+          text = source.read_text(encoding="utf-8")
+          old = '''    absolute_mean = _mean(
+              [abs(value) for value in returns],
+              field="absolute returns",
+          )
+          volatility_ratio = Decimal(0) if absolute_mean == 0 else return_std / absolute_mean
+          '''
+          new = '''    # Keep volatility on the same dimensionless return-ratio scale used by
+              # WickHunterParameters.minimum_volatility/maximum_volatility. Dividing by
+              # mean absolute return produces a coefficient-like value near one and makes
+              # the frozen decimal research bounds structurally unreachable.
+              volatility_ratio = return_std
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("expected volatility formula not found exactly once")
+          source.write_text(text.replace(old, new), encoding="utf-8")
+
+          test_path = Path(
+              "tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py"
+          )
+          test_text = test_path.read_text(encoding="utf-8")
+          marker = "def test_source_metrics_volatility_ratio_is_return_standard_deviation()"
+          if marker not in test_text:
+              test_text += '''
+
+
+def test_source_metrics_volatility_ratio_is_return_standard_deviation() -> None:
+    start_ms = 1_000_000
+    closes = (Decimal("100"), Decimal("101"), Decimal("99"), Decimal("102"))
+    candles = _candles(start_ms=start_ms, count=len(closes))
+    for row, close in zip(candles, closes, strict=True):
+        row["open"] = str(close)
+        row["high"] = str(close + Decimal("1"))
+        row["low"] = str(close - Decimal("1"))
+        row["close"] = str(close)
+        row["quote_volume"] = str(close * Decimal("10"))
+
+    values = _source_metrics(
+        candles,
+        start_ms + len(closes) * TIMEFRAME_MS,
+        MetricLookbacks(
+            quote_volume_rows=1,
+            vwap_rows=1,
+            vwma_rows=1,
+            atr_rows=1,
+            volatility_rows=3,
+            wick_rows=1,
+            trend_rows=1,
+        ),
+    )
+    returns = tuple(
+        current / previous - Decimal(1)
+        for previous, current in zip(closes, closes[1:], strict=True)
+    )
+    return_mean = sum(returns, Decimal(0)) / Decimal(len(returns))
+    expected = (
+        sum(((value - return_mean) ** 2 for value in returns), Decimal(0))
+        / Decimal(len(returns))
+    ).sqrt()
+
+    assert values["volatility_ratio"] == expected
+    assert values["volatility_ratio"] < Decimal("0.50")
+'''
+              test_path.write_text(test_text, encoding="utf-8")
+
+          documentation = Path(
+              "docs/ai_platform/WICKHUNTER_PRODUCTION_VOLATILITY_METRIC.md"
+          )
+          documentation.write_text(
+              '''# WickHunter production volatility metric
+
+`volatility_ratio` is the population standard deviation of completed-candle
+simple returns over the frozen lookback. It is dimensionless and remains on the
+same decimal return-ratio scale as `minimum_volatility` and
+`maximum_volatility` in `WickHunterParameters`.
+
+It must not be divided by mean absolute return. That alternative is a
+coefficient-like statistic commonly near one and is incompatible with the
+frozen research ceiling of `0.50`.
+
+The formula correction changes immutable feature identities. Existing WH-01
+production datasets and every downstream replay/model artifact remain valid as
+historical evidence but must not be reused for candidate fitting. A new WH-01
+dataset, replay price-path binding, WH-02 replay package, and candidate package
+must be materialized after the corrected code merges.
+
+This boundary changes no holdout, credential, execution, order, promotion, or
+live-capital authority.
+''',
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Validate focused implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check ruff pytest
+          python3 -m ruff check \
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+          python3 -m ruff format --check \
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+          PYTHONPATH=. python3 -m pytest -q \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py
+
+      - name: Commit product changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/wickhunter/production_market_evidence_wh01.py \
+            tests/ai_platform_integration/test_wickhunter_production_market_evidence_wh01.py \
+            docs/ai_platform/WICKHUNTER_PRODUCTION_VOLATILITY_METRIC.md
+          git diff --cached --check
+          git commit -m "fix(wickhunter): align production volatility with parameter scale"
+          git push origin HEAD:fix/wickhunter-production-volatility-ratio-v1

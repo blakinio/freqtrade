@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+
 DATA = Path("artifacts/portal-deep-inventory.json")
 OUT = Path("artifacts")
 DEVELOP_SHA = "626087ca45d67eb908d6c1f1f419f13cbd49f596"

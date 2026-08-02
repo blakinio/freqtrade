@@ -1,4 +1,4 @@
-name: WickHunter candidate eligibility diagnostic v2
+name: WickHunter candidate gate diagnostic v3
 
 "on":
   pull_request:
@@ -22,13 +22,13 @@ env:
 
 jobs:
   diagnose:
-    name: Diagnose exact grid and bounded alternatives
+    name: Isolate zero-candidate strategy gate
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     environment: synology-staging
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Check out exact request head
@@ -74,26 +74,11 @@ jobs:
             [[ -d "$path" && ! -L "$path" ]]
           done
 
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
-        with:
-          activate-environment: true
-          python-version: "3.13"
-          enable-cache: false
-
-      - name: Install locked dependencies
+      - name: Diagnose strategy gates without fitting or writes
         shell: bash
         run: |
           set -euo pipefail
-          uv pip install -r requirements-dev.txt
-          uv pip install -e ft_client/
-          uv pip install -e .
-
-      - name: Diagnose eligibility without model fitting
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
+          PYTHONPATH=. python3 - <<'PY'
           import json
           import os
           from collections import Counter
@@ -101,20 +86,14 @@ jobs:
           from decimal import Decimal
           from pathlib import Path
 
-          from ai_platform.wickhunter.contracts import TradeDirection
-          from ai_platform.wickhunter.deterministic_replay import LabelOutcome
-          from ai_platform.wickhunter.lightgbm_scorer import (
-              LightGBMScorerError,
-              LightGBMTrainingPolicy,
-              _candidate_examples,
-          )
+          from ai_platform.wickhunter.contracts import StrategyHypothesis
           from ai_platform.wickhunter.parameters import (
               DEFAULT_RESEARCH_BOUNDS,
               INITIAL_COMPATIBILITY_PRIOR,
-              WickHunterParameters,
               validate_parameters,
           )
           from ai_platform.wickhunter.production_evaluation import load_verified_evaluation_dataset
+          from ai_platform.wickhunter.strategy import SignalMemory, generate_candidate
 
           evaluation = load_verified_evaluation_dataset(
               materialization_root=Path(os.environ["DATASET_ROOT"]),
@@ -135,79 +114,97 @@ jobs:
           ):
               raise RuntimeError("evaluation dataset contains unsafe authority")
 
-          policy = LightGBMTrainingPolicy(
-              training_splits=("train",),
-              calibration_splits=("validation",),
-              validation_splits=("test",),
-              forbidden_splits=("holdout", "protected_holdout"),
-              seed=20260801,
-              num_boost_round=40,
-              num_leaves=7,
-              min_data_in_leaf=2,
-              learning_rate=Decimal("0.05"),
-              calibration_bins=10,
-              no_trade_confidence=Decimal("0.60"),
+          parameters = replace(
+              INITIAL_COMPATIBILITY_PRIOR,
+              parameter_version="wickhunter-gate-diagnostic-minimum-bounds-v1",
+              liquidation_percentile=Decimal("0.50"),
+              liquidation_zscore=Decimal("0"),
+              minimum_quote_volume_usd=Decimal("1000000"),
+              long_vwap_distance_ratio=Decimal("0.001"),
+              short_vwap_distance_ratio=Decimal("0.001"),
+              minimum_wick_ratio=Decimal("0"),
+              minimum_volatility=Decimal("0"),
+              maximum_volatility=Decimal("0.50"),
+              cooldown_ms=0,
+              maximum_event_age_ms=300_000,
+              base_risk_ratio=Decimal("0.001"),
+              leverage=Decimal("1"),
+              dca_enabled=False,
+              dca_levels=0,
+              dca_total_risk_ratio=Decimal("0.001"),
+              maximum_holding_ms=180_000,
+              minimum_confidence=Decimal("0.50"),
           )
-          split_cases = {
-              split: tuple(case for case in evaluation.cases if case.split_name == split)
-              for split in ("train", "validation", "test")
-          }
-
-          def build_parameters(
-              *, version: str, band: Decimal, percentile: Decimal, zscore: Decimal
-          ) -> WickHunterParameters:
-              item = replace(
-                  INITIAL_COMPATIBILITY_PRIOR,
-                  parameter_version=version,
-                  liquidation_percentile=percentile,
-                  liquidation_zscore=zscore,
-                  minimum_quote_volume_usd=Decimal("1000000"),
-                  long_vwap_distance_ratio=band,
-                  short_vwap_distance_ratio=band,
-                  minimum_wick_ratio=Decimal("0"),
-                  minimum_volatility=Decimal("0"),
-                  maximum_volatility=Decimal("0.50"),
-                  cooldown_ms=0,
-                  maximum_event_age_ms=300_000,
-                  base_risk_ratio=Decimal("0.001"),
-                  leverage=Decimal("1"),
-                  dca_enabled=False,
-                  dca_levels=0,
-                  dca_total_risk_ratio=Decimal("0.001"),
-                  maximum_holding_ms=180_000,
-                  minimum_confidence=Decimal("0.50"),
+          validate_parameters(parameters, DEFAULT_RESEARCH_BOUNDS)
+          hypothetical_bands = tuple(
+              Decimal(value)
+              for value in (
+                  "0",
+                  "0.00001",
+                  "0.00005",
+                  "0.00010",
+                  "0.00025",
+                  "0.00050",
+                  "0.00100",
               )
-              validate_parameters(item, DEFAULT_RESEARCH_BOUNDS)
-              return item
+          )
 
-          def manual_counts(item: WickHunterParameters, split: str) -> dict[str, int]:
-              positive = 0
-              non_positive = 0
-              missing = 0
-              for case in split_cases[split]:
+          split_reports: dict[str, object] = {}
+          global_reason_counts: Counter[str] = Counter()
+          for split in ("train", "validation", "test"):
+              cases = tuple(case for case in evaluation.cases if case.split_name == split)
+              gates: Counter[str] = Counter()
+              reasons: Counter[str] = Counter()
+              band_counts = {
+                  str(band): {"reversal": 0, "continuation": 0}
+                  for band in hypothetical_bands
+              }
+              long_capacities: list[tuple[Decimal, str, int]] = []
+              short_capacities: list[tuple[Decimal, str, int]] = []
+              distances: list[Decimal] = []
+              for case in cases:
                   feature = case.feature
                   event_age = feature.decision_timestamp_ms - max(
                       aggregate.latest_received_at_ms for aggregate in feature.source_aggregates
                   )
-                  if event_age > item.maximum_event_age_ms:
+                  if event_age > parameters.maximum_event_age_ms:
+                      gates["stale"] += 1
                       continue
+                  gates["fresh"] += 1
                   if (
-                      feature.maximum_event_percentile < item.liquidation_percentile
-                      and feature.maximum_event_zscore < item.liquidation_zscore
+                      feature.maximum_event_percentile < parameters.liquidation_percentile
+                      and feature.maximum_event_zscore < parameters.liquidation_zscore
                   ):
+                      gates["liquidation_threshold_not_met"] += 1
                       continue
-                  if feature.metric("quote_volume_24h_usd") < item.minimum_quote_volume_usd:
-                      continue
+                  gates["liquidation_threshold_met"] += 1
+                  quote_volume = feature.metric("quote_volume_24h_usd")
                   volatility = feature.metric("volatility_ratio")
-                  if not item.minimum_volatility <= volatility <= item.maximum_volatility:
+                  wick_ratio = feature.metric("wick_ratio")
+                  if quote_volume < parameters.minimum_quote_volume_usd:
+                      gates["quote_volume_below_minimum"] += 1
                       continue
-                  if feature.metric("wick_ratio") < item.minimum_wick_ratio:
+                  if not parameters.minimum_volatility <= volatility <= parameters.maximum_volatility:
+                      gates["volatility_outside_range"] += 1
                       continue
+                  if wick_ratio < parameters.minimum_wick_ratio:
+                      gates["wick_ratio_below_minimum"] += 1
+                      continue
+                  gates["nonprice_gates_passed"] += 1
+
                   vwap = feature.metric("vwap")
                   vwma = feature.metric("vwma")
                   trend = feature.metric("trend_return_ratio")
                   vwap_distance = (feature.decision_price - vwap) / vwap
                   vwma_distance = (feature.decision_price - vwma) / vwma
+                  distances.extend((abs(vwap_distance), abs(vwma_distance)))
+                  if feature.decision_price == vwap:
+                      gates["decision_price_equals_vwap"] += 1
+                  if feature.decision_price == vwma:
+                      gates["decision_price_equals_vwma"] += 1
+                  if vwap == vwma:
+                      gates["vwap_equals_vwma"] += 1
+
                   longs_dominate = (
                       feature.liquidated_long_notional_usd
                       > feature.liquidated_short_notional_usd
@@ -216,154 +213,81 @@ jobs:
                       feature.liquidated_short_notional_usd
                       > feature.liquidated_long_notional_usd
                   )
-                  sides: list[TradeDirection] = []
-                  if longs_dominate and (
-                      vwap_distance <= -item.long_vwap_distance_ratio
-                      and vwma_distance <= -item.long_vwap_distance_ratio
-                  ):
-                      sides.append(TradeDirection.LONG)
-                      if trend < 0:
-                          sides.append(TradeDirection.SHORT)
-                  elif shorts_dominate and (
-                      vwap_distance >= item.short_vwap_distance_ratio
-                      and vwma_distance >= item.short_vwap_distance_ratio
-                  ):
-                      sides.append(TradeDirection.SHORT)
-                      if trend > 0:
-                          sides.append(TradeDirection.LONG)
-                  for side in sides:
-                      label = case.label_for(side)
-                      if label.outcome is LabelOutcome.MISSING_ENTRY or label.net_return_ratio is None:
-                          missing += 1
-                      elif label.net_return_ratio > 0:
-                          positive += 1
-                      else:
-                          non_positive += 1
-              return {
-                  "count": positive + non_positive,
-                  "positive": positive,
-                  "non_positive": non_positive,
-                  "missing": missing,
-              }
-
-          def inspect(item: WickHunterParameters) -> dict[str, object]:
-              counts = {
-                  split: manual_counts(item, split)
-                  for split in ("train", "validation", "test")
-              }
-              train = counts["train"]
-              validation = counts["validation"]
-              if train["count"] == 0:
-                  rejection = "no eligible candidate-level training examples"
-              elif validation["count"] == 0:
-                  rejection = "no eligible candidate-level calibration examples"
-              elif train["positive"] == 0 or train["non_positive"] == 0:
-                  rejection = "training data must contain positive and negative outcomes"
-              else:
-                  rejection = None
-              return {
-                  "parameter_version": item.parameter_version,
-                  "parameter_sha256": item.parameter_hash,
-                  "band": str(item.long_vwap_distance_ratio),
-                  "percentile": str(item.liquidation_percentile),
-                  "zscore": str(item.liquidation_zscore),
-                  "splits": counts,
-                  "eligible": rejection is None,
-                  "rejection": rejection,
-              }
-
-          exact: list[dict[str, object]] = []
-          exact_index = 0
-          for band in (Decimal("0.001"), Decimal("0.0015"), Decimal("0.002")):
-              for percentile in (Decimal("0.50"), Decimal("0.65")):
-                  for zscore in (Decimal("0"), Decimal("1")):
-                      exact_index += 1
-                      exact.append(inspect(build_parameters(
-                          version=f"wickhunter-production-h180s-{exact_index:02d}",
-                          band=band,
-                          percentile=percentile,
-                          zscore=zscore,
-                      )))
-
-          bounded: list[dict[str, object]] = []
-          bounded_index = 0
-          for band in (
-              Decimal("0.001"), Decimal("0.0015"), Decimal("0.002"),
-              Decimal("0.003"), Decimal("0.005"), Decimal("0.010"),
-              Decimal("0.020"), Decimal("0.050"),
-          ):
-              for percentile in (
-                  Decimal("0.50"), Decimal("0.65"), Decimal("0.80"),
-                  Decimal("0.90"), Decimal("0.95"), Decimal("0.995"),
-              ):
-                  for zscore in (
-                      Decimal("0"), Decimal("1"), Decimal("2"),
-                      Decimal("4"), Decimal("8"),
-                  ):
-                      bounded_index += 1
-                      bounded.append(inspect(build_parameters(
-                          version=f"wickhunter-eligibility-scan-{bounded_index:03d}",
-                          band=band,
-                          percentile=percentile,
-                          zscore=zscore,
-                      )))
-
-          eligible = [item for item in bounded if item["eligible"]]
-          eligible.sort(key=lambda item: (
-              -int(item["splits"]["train"]["count"]),
-              item["band"], item["percentile"], item["zscore"],
-          ))
-          exact_shortlist: list[dict[str, object]] = []
-          for record in eligible[:12]:
-              item = build_parameters(
-                  version=str(record["parameter_version"]),
-                  band=Decimal(str(record["band"])),
-                  percentile=Decimal(str(record["percentile"])),
-                  zscore=Decimal(str(record["zscore"])),
-              )
-              split_results: dict[str, object] = {}
-              for split in ("train", "validation"):
-                  try:
-                      examples = _candidate_examples(
-                          split_cases[split], parameters=item, policy=policy
+                  if not longs_dominate and not shorts_dominate:
+                      gates["liquidation_direction_tied"] += 1
+                  elif longs_dominate:
+                      gates["long_liquidations_dominate"] += 1
+                      capacity = min(-vwap_distance, -vwma_distance)
+                      long_capacities.append(
+                          (capacity, feature.symbol, feature.decision_timestamp_ms)
                       )
-                  except LightGBMScorerError as exc:
-                      split_results[split] = {"error": str(exc)}
+                      for band in hypothetical_bands:
+                          if capacity >= band:
+                              band_counts[str(band)]["reversal"] += 1
+                              if trend < 0:
+                                  band_counts[str(band)]["continuation"] += 1
                   else:
-                      positives = sum(example.target == 1 for example in examples)
-                      split_results[split] = {
-                          "count": len(examples),
-                          "positive": positives,
-                          "non_positive": len(examples) - positives,
-                          "error": None,
-                      }
-              accepted = (
-                  split_results["train"].get("error") is None
-                  and split_results["validation"].get("error") is None
-                  and split_results["train"].get("positive", 0) > 0
-                  and split_results["train"].get("non_positive", 0) > 0
-              )
-              exact_shortlist.append({
-                  **record,
-                  "exact_candidate_examples": split_results,
-                  "exact_eligible": accepted,
-              })
+                      gates["short_liquidations_dominate"] += 1
+                      capacity = min(vwap_distance, vwma_distance)
+                      short_capacities.append(
+                          (capacity, feature.symbol, feature.decision_timestamp_ms)
+                      )
+                      for band in hypothetical_bands:
+                          if capacity >= band:
+                              band_counts[str(band)]["reversal"] += 1
+                              if trend > 0:
+                                  band_counts[str(band)]["continuation"] += 1
+
+                  for hypothesis in (
+                      StrategyHypothesis.CONTINUATION,
+                      StrategyHypothesis.REVERSAL,
+                  ):
+                      candidate = generate_candidate(
+                          features=feature,
+                          parameters=parameters,
+                          hypothesis=hypothesis,
+                          memory=SignalMemory(),
+                      )
+                      if candidate.action.value == "ignore":
+                          for reason in candidate.reason_codes:
+                              reasons[f"{hypothesis.value}:{reason}"] += 1
+                      else:
+                          reasons[f"{hypothesis.value}:{candidate.action.value}"] += 1
+
+              global_reason_counts.update(reasons)
+              long_capacities.sort(reverse=True)
+              short_capacities.sort(reverse=True)
+              split_reports[split] = {
+                  "case_count": len(cases),
+                  "gate_counts": dict(sorted(gates.items())),
+                  "strategy_reason_counts": dict(sorted(reasons.items())),
+                  "hypothetical_band_counts": band_counts,
+                  "maximum_absolute_price_metric_distance": (
+                      None if not distances else str(max(distances))
+                  ),
+                  "maximum_long_band_capacity": (
+                      None if not long_capacities else str(long_capacities[0][0])
+                  ),
+                  "maximum_short_band_capacity": (
+                      None if not short_capacities else str(short_capacities[0][0])
+                  ),
+                  "top_long_band_capacities": [
+                      {"capacity": str(value), "symbol": symbol, "at_ms": at_ms}
+                      for value, symbol, at_ms in long_capacities[:5]
+                  ],
+                  "top_short_band_capacities": [
+                      {"capacity": str(value), "symbol": symbol, "at_ms": at_ms}
+                      for value, symbol, at_ms in short_capacities[:5]
+                  ],
+              }
 
           report = {
-              "schema_version": "wickhunter-candidate-eligibility-diagnostic-v2",
+              "schema_version": "wickhunter-candidate-gate-diagnostic-v3",
               "evaluation_sha256": evaluation.evaluation_sha256,
-              "case_count": len(evaluation.cases),
-              "split_counts": {key: len(value) for key, value in split_cases.items()},
-              "exact_grid": exact,
-              "exact_rejection_reasons": dict(
-                  sorted(Counter(str(item["rejection"]) for item in exact).items())
-              ),
-              "bounded_grid_size": len(bounded),
-              "bounded_eligible_count": len(eligible),
-              "bounded_rejection_reasons": dict(sorted(Counter(
-                  str(item["rejection"]) for item in bounded if not item["eligible"]
-              ).items())),
-              "exact_shortlist": exact_shortlist,
+              "parameter_sha256": parameters.parameter_hash,
+              "minimum_allowed_band": "0.001",
+              "splits": split_reports,
+              "global_strategy_reason_counts": dict(sorted(global_reason_counts.items())),
               "protected_holdout_accessed": False,
               "persistent_state_written": False,
               "model_fitting_performed": False,
@@ -372,17 +296,5 @@ jobs:
               "trading_credentials_present": False,
               "orders_submitted": 0,
           }
-          print("WICKHUNTER_DIAGNOSTIC_JSON=" + json.dumps(report, sort_keys=True))
-          print("WICKHUNTER_DIAGNOSTIC_SUMMARY=" + json.dumps({
-              "split_counts": report["split_counts"],
-              "exact_rejection_reasons": report["exact_rejection_reasons"],
-              "bounded_grid_size": report["bounded_grid_size"],
-              "bounded_eligible_count": report["bounded_eligible_count"],
-              "bounded_rejection_reasons": report["bounded_rejection_reasons"],
-              "exact_shortlist": report["exact_shortlist"],
-              "model_fitting_performed": False,
-              "execution_enabled": False,
-              "live_capital_authorized": False,
-              "orders_submitted": 0,
-          }, sort_keys=True))
+          print("WICKHUNTER_GATE_DIAGNOSTIC=" + json.dumps(report, sort_keys=True))
           PY

@@ -47,8 +47,10 @@ jobs:
           done
 
       - name: Inspect bounded state metadata only
-        shell: python
+        shell: bash
         run: |
+          set -euo pipefail
+          python3 - <<'PY'
           import json
           import os
           from pathlib import Path
@@ -120,3 +122,4 @@ jobs:
                       )
           records.sort(key=lambda item: (item["path"], item["type"]))
           print(json.dumps({"record_count": len(records), "records": records}, indent=2))
+          PY

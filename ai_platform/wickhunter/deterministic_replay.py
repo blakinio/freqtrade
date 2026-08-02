@@ -858,6 +858,45 @@ def _window_for(
         raise DeterministicReplayError(f"missing declared split window for {split_name}") from exc
 
 
+def _validated_trade_timestamps(
+    trades_by_symbol: Mapping[str, Sequence[ReplayAggregateTrade]],
+) -> dict[str, tuple[int, ...]]:
+    result: dict[str, tuple[int, ...]] = {}
+    for symbol, trades in trades_by_symbol.items():
+        if not trades:
+            raise DeterministicReplayError(f"trade path is empty for {symbol}")
+        orders = tuple((trade.occurred_at_ms, trade.aggregate_trade_id) for trade in trades)
+        if list(orders) != sorted(set(orders)):
+            raise DeterministicReplayError(
+                f"trade path must be unique and strictly ordered for {symbol}"
+            )
+        if any(trade.symbol != symbol for trade in trades):
+            raise DeterministicReplayError(
+                f"trade path symbol does not match partition for {symbol}"
+            )
+        result[symbol] = tuple(trade.occurred_at_ms for trade in trades)
+    return result
+
+
+def _exact_replay_trade_window(
+    *,
+    trades: Sequence[ReplayAggregateTrade],
+    timestamps: Sequence[int],
+    decision_timestamp_ms: int,
+    policy: ReplayPolicy,
+) -> Sequence[ReplayAggregateTrade]:
+    eligible_at = decision_timestamp_ms + policy.entry_delay_ms
+    label_end = decision_timestamp_ms + policy.label_horizon_ms
+    start_index = bisect_left(timestamps, eligible_at)
+    coverage_index = bisect_left(timestamps, label_end)
+    if coverage_index >= len(trades):
+        raise DeterministicReplayError("trade path does not reach the exact label deadline")
+    end_index = bisect_right(timestamps, label_end)
+    if end_index <= coverage_index:
+        end_index = coverage_index + 1
+    return trades[start_index:end_index]
+
+
 def _build_labels(
     *,
     rows: Sequence[_DatasetRow],
@@ -865,6 +904,7 @@ def _build_labels(
     request: ReplayRequest,
 ) -> list[CandidateLabel]:
     labels: list[CandidateLabel] = []
+    timestamps_by_symbol = _validated_trade_timestamps(trades_by_symbol)
     for row in rows:
         window = _window_for(row.split_name, request.split_windows)
         if not window.start_ms <= row.decision_timestamp_ms < window.end_ms:
@@ -872,8 +912,15 @@ def _build_labels(
         if row.decision_timestamp_ms + request.policy.label_horizon_ms > window.end_ms:
             raise DeterministicReplayError("dataset label crosses its split boundary")
         trades = trades_by_symbol.get(row.symbol)
-        if trades is None:
+        timestamps = timestamps_by_symbol.get(row.symbol)
+        if trades is None or timestamps is None:
             raise DeterministicReplayError(f"missing price path for {row.symbol}")
+        replay_trades = _exact_replay_trade_window(
+            trades=trades,
+            timestamps=timestamps,
+            decision_timestamp_ms=row.decision_timestamp_ms,
+            policy=request.policy,
+        )
         for side in request.sides:
             decision = ReplayDecision(
                 dataset_id=request.dataset_id,
@@ -889,7 +936,11 @@ def _build_labels(
                 side=side,
             )
             labels.append(
-                replay_event_label(decision=decision, trades=trades, policy=request.policy)
+                replay_event_label(
+                    decision=decision,
+                    trades=replay_trades,
+                    policy=request.policy,
+                )
             )
     labels.sort(
         key=lambda item: (

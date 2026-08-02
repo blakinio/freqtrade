@@ -1,0 +1,109 @@
+name: Temporary WickHunter candidate activation recovery repair v3
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - feat/wickhunter-candidate-paper-activation-v1
+    paths:
+      - ".tmp/wickhunter-candidate-activation-recovery-repair-v3.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-wickhunter-candidate-activation-recovery-repair-v3
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'chore/trigger-wickhunter-candidate-activation-recovery-repair'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out exact feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: feat/wickhunter-candidate-paper-activation-v1
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Apply validated v2 transformation and line-length repair
+        shell: python
+        run: |
+          from pathlib import Path
+
+          workflow = Path(
+              ".github/workflows/tmp-wickhunter-candidate-activation-recovery-repair-v2.yml"
+          ).read_text(encoding="utf-8")
+          start_marker = (
+              "      - name: Make candidate activation resumable\n"
+              "        shell: python\n"
+              "        run: |\n"
+          )
+          end_marker = "\n      - name: Format lint typecheck and focused tests\n"
+          start = workflow.index(start_marker) + len(start_marker)
+          end = workflow.index(end_marker, start)
+          script_lines = workflow[start:end].splitlines()
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in script_lines
+          ) + "\n"
+          exec(compile(script, "candidate-activation-repair-v2", "exec"))
+
+          source_path = Path("ai_platform/wickhunter/candidate_activation.py")
+          source = source_path.read_text(encoding="utf-8")
+          old = (
+              '            raise CandidateActivationError("published activation request is invalid") '
+              "from verify_exc\n"
+          )
+          new = (
+              "            raise CandidateActivationError(\n"
+              '                "published activation request is invalid"\n'
+              "            ) from verify_exc\n"
+          )
+          if source.count(old) != 1:
+              raise SystemExit("line-length repair target mismatch")
+          source_path.write_text(source.replace(old, new), encoding="utf-8")
+
+      - name: Format lint typecheck and focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruff check --fix ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          ruff format ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          ruff check ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          ruff format --check ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          mypy ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          pytest -q tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+
+      - name: Commit repair and remove helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm \
+            .github/workflows/tmp-wickhunter-candidate-activation-recovery-repair.yml \
+            .github/workflows/tmp-wickhunter-candidate-activation-recovery-repair-v2.yml \
+            .github/workflows/tmp-wickhunter-candidate-activation-recovery-repair-v3.yml
+          git add ai_platform/wickhunter/candidate_activation.py tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(wickhunter): make candidate activation resumable"
+          git push origin HEAD:feat/wickhunter-candidate-paper-activation-v1

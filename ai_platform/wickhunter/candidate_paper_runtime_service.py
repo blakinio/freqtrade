@@ -274,6 +274,8 @@ class CandidatePaperRuntimeJournal:
     def _verify_generation(  # noqa: C901
         self,
         generation_root: Path,
+        *,
+        expected_previous_manifest_sha256: str | None,
     ) -> tuple[ShadowRuntimeState, PaperObservation, tuple[str, ...], str]:
         expected_entries = {
             RUNTIME_DIR,
@@ -302,6 +304,10 @@ class CandidatePaperRuntimeJournal:
             raise CandidatePaperRuntimeServiceError("generation binding mismatch")
         if manifest.get("run_id") != self.binding.request.run_id:
             raise CandidatePaperRuntimeServiceError("generation run mismatch")
+        if manifest.get("previous_manifest_sha256") != expected_previous_manifest_sha256:
+            raise CandidatePaperRuntimeServiceError("generation chain identity mismatch")
+        if manifest.get("runtime_policy_sha256") != self.runtime_policy.policy_sha256:
+            raise CandidatePaperRuntimeServiceError("generation runtime policy identity mismatch")
 
         index_path = generation_root / CHECKSUM_NAME
         if index_path.is_symlink() or not index_path.is_file():
@@ -339,6 +345,8 @@ class CandidatePaperRuntimeJournal:
             raise CandidatePaperRuntimeServiceError("paper observation is invalid") from exc
         if observation.snapshot_id != manifest.get("snapshot_id"):
             raise CandidatePaperRuntimeServiceError("generation snapshot identity mismatch")
+        if manifest.get("observation_sha256") != canonical_sha256(observation):
+            raise CandidatePaperRuntimeServiceError("generation observation identity mismatch")
         decision_payloads = _read_jsonl(
             generation_root / DECISIONS_NAME,
             field="shadow decisions",
@@ -355,19 +363,25 @@ class CandidatePaperRuntimeJournal:
             raise CandidatePaperRuntimeServiceError("generation decision manifest mismatch")
         return state, observation, decision_ids, str(manifest["manifest_sha256"])
 
-    def latest_state(self) -> ShadowRuntimeState | None:
-        paths = self._generation_paths()
-        if not paths:
-            return None
-        latest_state: ShadowRuntimeState | None = None
-        latest_observation: PaperObservation | None = None
-        latest_manifest = ""
-        for path in paths:
-            latest_state, latest_observation, _decision_ids_value, latest_manifest = (
-                self._verify_generation(path)
+    def _verified_generations(
+        self,
+    ) -> tuple[tuple[ShadowRuntimeState, PaperObservation, tuple[str, ...], str], ...]:
+        verified: list[tuple[ShadowRuntimeState, PaperObservation, tuple[str, ...], str]] = []
+        previous_manifest_sha256: str | None = None
+        for path in self._generation_paths():
+            result = self._verify_generation(
+                path,
+                expected_previous_manifest_sha256=previous_manifest_sha256,
             )
-        if latest_state is None or latest_observation is None:
-            raise CandidatePaperRuntimeServiceError("latest generation is unavailable")
+            previous_manifest_sha256 = result[3]
+            verified.append(result)
+        return tuple(verified)
+
+    def latest_state(self) -> ShadowRuntimeState | None:
+        verified = self._verified_generations()
+        if not verified:
+            return None
+        latest_state, latest_observation, _decision_ids_value, latest_manifest = verified[-1]
         self._write_pointer(
             generation=latest_state.generation,
             manifest_sha256=latest_manifest,
@@ -410,7 +424,7 @@ class CandidatePaperRuntimeJournal:
         generation = result.state.generation
         if generation < 1:
             raise CandidatePaperRuntimeServiceError("runtime generation must be positive")
-        previous = self._generation_paths()
+        previous = self._verified_generations()
         if generation != len(previous) + 1:
             raise CandidatePaperRuntimeServiceError(
                 "runtime generation is not the next journal entry"
@@ -440,7 +454,7 @@ class CandidatePaperRuntimeJournal:
             _write_jsonl(temporary / DECISIONS_NAME, result.decisions)
             artifact_names = self._artifact_paths()
             artifacts = tuple((name, _sha256_file(temporary / name)) for name in artifact_names)
-            previous_manifest = None if not previous else self._verify_generation(previous[-1])[3]
+            previous_manifest = None if not previous else previous[-1][3]
             manifest = _self_hashed(
                 GENERATION_SCHEMA_VERSION,
                 {
@@ -478,7 +492,10 @@ class CandidatePaperRuntimeJournal:
         except Exception:
             shutil.rmtree(temporary, ignore_errors=True)
             raise
-        self._verify_generation(destination)
+        self._verify_generation(
+            destination,
+            expected_previous_manifest_sha256=previous_manifest,
+        )
         self._write_pointer(
             generation=generation,
             manifest_sha256=str(manifest["manifest_sha256"]),
@@ -488,7 +505,7 @@ class CandidatePaperRuntimeJournal:
         return observation
 
     def observations(self) -> tuple[PaperObservation, ...]:
-        return tuple(self._verify_generation(path)[1] for path in self._generation_paths())
+        return tuple(item[1] for item in self._verified_generations())
 
     def _write_idempotent_record(self, path: Path, value: object, *, field: str) -> None:
         content = canonical_json(value) + "\n"
@@ -665,10 +682,11 @@ class CandidatePaperRuntimeService:
         try:
             result = self.runtime.step(bound_tick)
             self.journal.commit(result)
+        except CandidatePaperRuntimeServiceError:
+            self.runtime.state = previous_state
+            raise
         except (ShadowRuntimeError, PaperValidationError, OSError, ValueError) as exc:
             self.runtime.state = previous_state
-            if isinstance(exc, CandidatePaperRuntimeServiceError):
-                raise
             raise CandidatePaperRuntimeServiceError("candidate PAPER runtime step failed") from exc
         except Exception:
             self.runtime.state = previous_state

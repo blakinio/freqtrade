@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,13 +10,14 @@ from typing import cast
 import pytest
 
 from ai_platform.wickhunter.candidate_paper_runtime_service import (
+    GENERATION_SCHEMA_VERSION,
     CandidatePaperRuntimeService,
     CandidatePaperRuntimeServiceError,
 )
 from ai_platform.wickhunter.candidate_runtime_binding import (
     CandidatePaperRuntimeBinding,
 )
-from ai_platform.wickhunter.canonical import canonical_sha256
+from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
 from ai_platform.wickhunter.contracts import (
     BotMode,
     DriftState,
@@ -253,6 +256,62 @@ def test_tampering_is_detected_before_recovery(tmp_path: Path) -> None:
         CandidatePaperRuntimeServiceError,
         match="checksum mismatch",
     ):
+        _service(root)
+
+
+def _rewrite_generation_manifest_field(
+    generation_root: Path,
+    *,
+    field: str,
+    value: object,
+) -> None:
+    manifest_path = generation_root / "manifest.json"
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload[field] = value
+    body = {
+        key: item
+        for key, item in payload.items()
+        if key not in {"schema_version", "manifest_sha256"}
+    }
+    payload["manifest_sha256"] = canonical_sha256(
+        {"schema_version": GENERATION_SCHEMA_VERSION, "payload": body}
+    )
+    manifest_path.write_text(canonical_json(payload) + "\n", encoding="utf-8")
+    digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    index_path = generation_root / "artifact-sha256.txt"
+    lines = [
+        f"{digest}  manifest.json" if line.endswith("  manifest.json") else line
+        for line in index_path.read_text(encoding="utf-8").splitlines()
+    ]
+    index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    (
+        ("previous_manifest_sha256", "9" * 64, "generation chain identity"),
+        ("runtime_policy_sha256", "8" * 64, "runtime policy identity"),
+        ("observation_sha256", "7" * 64, "observation identity"),
+    ),
+)
+def test_recovery_rejects_generation_manifest_identity_substitution(
+    tmp_path: Path,
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    root = (tmp_path / f"manifest-{field}").resolve()
+    service = _service(root)
+    service.step(_tick(START_MS + 1_000))
+    service.step(_tick(START_MS + 2_000))
+    generation_root = root / "generations" / "00000000000000000002"
+    _rewrite_generation_manifest_field(
+        generation_root,
+        field=field,
+        value=value,
+    )
+
+    with pytest.raises(CandidatePaperRuntimeServiceError, match=message):
         _service(root)
 
 

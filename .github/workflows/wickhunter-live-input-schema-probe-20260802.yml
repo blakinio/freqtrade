@@ -1,0 +1,151 @@
+name: WickHunter live input schema probe
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-live-input-schema-probe-20260802.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact read-only request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-live-input-schema-probe-20260802.yml'
+          [[ "$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")" == "$expected" ]]
+          [[ "${{ runner.name }}" == "freqtrade-synology-staging" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]]
+          done
+
+      - name: Inspect bounded public input schemas
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker inspect liquid20-live >/dev/null
+          docker exec liquid20-live python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("/data/live")
+          pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+          state = pointer.get("state")
+          if not isinstance(state, dict):
+              raise SystemExit("liquid20 live state missing")
+          run_id = pointer.get("active_run_id")
+          if not isinstance(run_id, str):
+              raise SystemExit("liquid20 active run missing")
+          run_root = root / "runs" / run_id
+          result = {
+              "contract": pointer.get("contract"),
+              "active_run_id": run_id,
+              "collector_heartbeat_at_ms": pointer.get("collector_heartbeat_at_ms"),
+              "state_keys": sorted(state),
+              "source_keys": {
+                  source: sorted(payload) if isinstance(payload, dict) else []
+                  for source, payload in sorted((state.get("sources") or {}).items())
+              },
+              "event_schemas": {},
+          }
+          for source in ("binance-usdm", "bybit-linear", "okx-swap"):
+              path = run_root / f"{source}.ndjson"
+              if not path.is_file() or path.stat().st_size == 0:
+                  result["event_schemas"][source] = {"available": False}
+                  continue
+              last = None
+              with path.open(encoding="utf-8") as handle:
+                  for line in handle:
+                      if line.strip():
+                          last = json.loads(line)
+              if not isinstance(last, dict):
+                  raise SystemExit(f"invalid last event: {source}")
+              result["event_schemas"][source] = {
+                  "available": True,
+                  "keys": sorted(last),
+                  "source": last.get("source"),
+                  "symbol_type": type(last.get("symbol")).__name__,
+                  "occurred_at_ms": last.get("occurred_at_ms"),
+                  "received_at_ms": last.get("received_at_ms"),
+              }
+          print(json.dumps({"liquid20": result}, indent=2, sort_keys=True))
+          PY
+
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          roots = (
+              Path("/var/lib/freqtrade-staging-state/wickhunter-production-market-evidence"),
+              Path("/var/lib/freqtrade-staging-state/wickhunter-production-market-evidence-v2-20260801"),
+          )
+          output = {}
+          for root in roots:
+              if not root.is_dir() or root.is_symlink():
+                  continue
+              health_path = root / "collector-health.json"
+              health = (
+                  json.loads(health_path.read_text(encoding="utf-8"))
+                  if health_path.is_file() and not health_path.is_symlink()
+                  else None
+              )
+              pointers = sorted(root.glob("active-*.json"))
+              pointer = None
+              if pointers:
+                  pointer = json.loads(pointers[-1].read_text(encoding="utf-8"))
+              run_dirs = sorted(
+                  (path for path in root.iterdir() if path.is_dir() and not path.is_symlink()),
+                  key=lambda path: path.stat().st_mtime_ns,
+              )
+              latest_sample = None
+              if run_dirs:
+                  sample_root = run_dirs[-1] / "market-samples"
+                  samples = sorted(sample_root.glob("*.json")) if sample_root.is_dir() else []
+                  if samples:
+                      payload = json.loads(samples[-1].read_text(encoding="utf-8"))
+                      latest_sample = {
+                          "file_name": samples[-1].name,
+                          "keys": sorted(payload) if isinstance(payload, dict) else [],
+                          "nested_keys": {
+                              key: sorted(value)
+                              for key, value in sorted(payload.items())
+                              if isinstance(value, dict)
+                          } if isinstance(payload, dict) else {},
+                      }
+              output[root.name] = {
+                  "health_keys": sorted(health) if isinstance(health, dict) else [],
+                  "health": health,
+                  "active_pointer_keys": sorted(pointer) if isinstance(pointer, dict) else [],
+                  "active_pointer": pointer,
+                  "latest_run": run_dirs[-1].name if run_dirs else None,
+                  "latest_sample_schema": latest_sample,
+              }
+          print(json.dumps({"market_evidence": output}, indent=2, sort_keys=True))
+          PY

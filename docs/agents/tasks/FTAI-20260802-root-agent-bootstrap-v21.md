@@ -1,11 +1,11 @@
 ---
 task_id: FTAI-20260802-root-agent-bootstrap-v21
-status: implementing
+status: validating
 branch: docs/root-agent-bootstrap-v21-20260802
 base_branch: develop
 created: 2026-08-02
 updated: 2026-08-02
-related_pr: ""
+related_pr: "#996"
 required_reads:
   - AGENTS.md
   - AGENTS.override.md

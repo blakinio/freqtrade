@@ -76,17 +76,40 @@ jobs:
 
           tests = Path("tests/ai_platform_integration/test_wickhunter_production_evaluation.py")
           test_source = tests.read_text(encoding="utf-8")
-          old = (
-              '    path.write_text("".join(canonical_json(payload) + "\\n" for payload in payloads), '
-              'encoding="utf-8")\n'
+          test_replacements = (
+              (
+                  'from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256\n',
+                  'from ai_platform.wickhunter.baseline_strategy import BaselineEvaluationError\n'
+                  'from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256\n',
+              ),
+              (
+                  '    CandidateLabel,\n    LabelOutcome,\n',
+                  '    CandidateLabel,\n    DeterministicReplayError,\n    LabelOutcome,\n',
+              ),
+              (
+                  '    path.write_text("".join(canonical_json(payload) + "\\n" for payload in payloads), encoding="utf-8")\n',
+                  '    content = "".join(canonical_json(payload) + "\\n" for payload in payloads)\n'
+                  '    path.write_text(content, encoding="utf-8")\n',
+              ),
+              (
+                  '    with pytest.raises(ValueError, match="one long and one short"):\n',
+                  '    with pytest.raises(BaselineEvaluationError, match="one long and one short"):\n',
+              ),
+              (
+                  '    with pytest.raises(ProductionEvaluationError, match="dataset row identity mismatch"):\n',
+                  '    with pytest.raises(ProductionEvaluationError, match="invalid dataset row"):\n',
+              ),
+              (
+                  '    with pytest.raises(ValueError, match="unsafe authority"):\n',
+                  '    with pytest.raises(DeterministicReplayError, match="unsafe authority"):\n',
+              ),
           )
-          new = (
-              '    content = "".join(canonical_json(payload) + "\\n" for payload in payloads)\n'
-              '    path.write_text(content, encoding="utf-8")\n'
-          )
-          if test_source.count(old) != 1:
-              raise SystemExit("expected exactly one focused test formatting target")
-          tests.write_text(test_source.replace(old, new), encoding="utf-8")
+          for old, new in test_replacements:
+              count = test_source.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected exactly one test repair target, found {count}")
+              test_source = test_source.replace(old, new)
+          tests.write_text(test_source, encoding="utf-8")
 
       - name: Format lint typecheck and test
         shell: bash

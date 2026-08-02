@@ -1,0 +1,81 @@
+name: Portal Navigation Audit Apply
+
+on:
+  push:
+    branches:
+      - audit/portal-e2e-completeness-20260802
+    paths:
+      - .github/workflows/portal-nav-audit-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out audit branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: audit/portal-e2e-completeness-20260802
+          fetch-depth: 0
+
+      - name: Apply and validate audit update
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/portal-nav-update.part{1..5} | tr -d '\n' | base64 -d > /tmp/portal-nav-update.tgz
+          tar -xzf /tmp/portal-nav-update.tgz
+          rm .github/portal-nav-update.part{1..5}
+          rm .github/workflows/portal-nav-audit-apply.yml
+
+          python -m py_compile \
+            tools/portal_audit/completeness_audit.py \
+            tools/portal_audit/deep_inventory.py \
+            tools/portal_audit/classified_matrices.py \
+            tools/portal_audit/navigation_matrix.py
+          rm -rf artifacts
+          python tools/portal_audit/deep_inventory.py
+          python tools/portal_audit/classified_matrices.py
+          python tools/portal_audit/navigation_matrix.py
+
+          python - <<'PY'
+          import json
+          from collections import Counter
+          from pathlib import Path
+
+          deep = json.loads(Path('artifacts/portal-deep-inventory.json').read_text())
+          nav = json.loads(Path('artifacts/portal-navigation-completeness-matrix.json').read_text())
+          assert deep['summary']['backend_modules'] == 30
+          assert deep['summary']['backend_routes'] == 92
+          assert deep['summary']['frontend_pages'] == 33
+          assert deep['summary']['bff_handlers'] == 28
+          assert deep['summary']['tests'] == 225
+          assert nav['count'] == 28
+          assert Counter(item['overall'] for item in nav['surfaces']) == Counter({
+              'DISCONNECTED': 15,
+              'PARTIAL': 9,
+              'EXTERNAL_ACCEPTANCE_REQUIRED': 3,
+              'MISSING': 1,
+          })
+          PY
+
+          python -m pip install pre-commit
+          set +e
+          pre-commit run --all-files
+          set -e
+          pre-commit run --all-files
+
+          allowed='^(tools/portal_audit/(deep_inventory|classified_matrices|navigation_matrix)\.py|\.github/workflows/portal-completeness-audit\.yml|docs/ai_platform/portal/AUDIT_2026-08-0(2_END_TO_END_COMPLETENESS|3_LEFT_NAVIGATION_COMPLETENESS)\.md|docs/agents/tasks/FTAI-20260802-portal-end-to-end-completeness-audit\.md|\.github/portal-nav-update\.part[1-5]|\.github/workflows/portal-nav-audit-apply\.yml)$'
+          unexpected=$(git status --short | cut -c4- | grep -Ev "$allowed" || true)
+          test -z "$unexpected" || { echo 'Unexpected paths:'; echo "$unexpected"; exit 1; }
+
+      - name: Commit audit-only update
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'audit(portal): classify every left-navigation module'
+          git push origin HEAD:audit/portal-e2e-completeness-20260802

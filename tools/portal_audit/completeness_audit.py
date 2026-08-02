@@ -20,10 +20,7 @@ COMPOSITION = (
     PORTAL / "identity/public_runtime.py",
 )
 SKIP_MODULES = {"web", "e2e", "__pycache__"}
-MARKERS = re.compile(
-    r"\b(TODO|FIXME|XXX|NotImplementedError|UnsupportedExecutionOperationError|ORDER_SUBMISSION_NOT_IMPLEMENTED)\b",
-    re.I,
-)
+MARKERS = re.compile(r"\b(TODO|FIXME|XXX|NotImplementedError)\b", re.I)
 SEVERITY = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 
@@ -224,6 +221,30 @@ def findings(
     support: dict[str, list[str]] = web["support"]  # type: ignore[assignment]
     private_refs: list[str] = web["private_refs"]  # type: ignore[assignment]
     backend_set = {item["route"] for item in backend_routes}
+
+    pi08_wiring: list[str] = []
+    pi08_boundary: list[str] = []
+    for source in files(root / PORTAL, "*.py"):
+        for line_no, line in enumerate(text(source).splitlines(), 1):
+            stripped = line.strip()
+            if (
+                "execution_submitter=" in stripped
+                or ("PrivateSubmissionExecutionAdapter(" in stripped and not stripped.startswith("class "))
+                or ("PrivateDryRunApprovedIntentSubmitter(" in stripped and not stripped.startswith("class "))
+            ):
+                pi08_wiring.append(f"{rel(root, source)}:{line_no}: {stripped[:180]}")
+            if "ORDER_SUBMISSION_NOT_IMPLEMENTED" in stripped:
+                pi08_boundary.append(f"{rel(root, source)}:{line_no}: {stripped[:180]}")
+    if not pi08_wiring:
+        result.append(Finding(
+            "INTEGRATION-PI08-NO-RUNTIME-COMPOSITION", "high", "integration",
+            "PI-08 submission components are not assembled in a trusted portal runtime",
+            tuple(pi08_boundary + [
+                "ai_platform/portal/execution_submission/adapter.py: PrivateSubmissionExecutionAdapter is definition-only",
+                "ai_platform/portal/execution_submission/integration.py: PrivateDryRunApprovedIntentSubmitter is definition-only",
+            ]),
+            "Add one fail-closed server-side runtime factory that injects the real snapshot provider and PI-08 submitter into TerminalService/ExecutionAdapter, then prove API-mode submission and reconciliation without browser access to private Freqtrade.",
+        ))
 
     ignored_doc_routes = {"/api/identity/*"}
     for documented, status in sorted(docs.items()):

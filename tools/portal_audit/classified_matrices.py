@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from audit_ledger import (
     load_ledger,
@@ -38,9 +39,7 @@ def md_table(headers: list[str], rows: list[list[str]]) -> str:
     )
 
 
-def classification(
-    ledger: Mapping[str, Any], section: str, key: str
-) -> Mapping[str, str]:
+def classification(ledger: Mapping[str, Any], section: str, key: str) -> Mapping[str, str]:
     try:
         return ledger["classifications"][section][key]
     except KeyError as exc:
@@ -205,7 +204,9 @@ def frontend_matrix(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> str:
 def runtime_matrix(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> str:
     comp_rows: list[list[str]] = []
     for needle, refs in data["composition_evidence"].items():
-        product = [value for value in refs if "/tests/" not in value and not value.startswith("tests/")]
+        product = [
+            value for value in refs if "/tests/" not in value and not value.startswith("tests/")
+        ]
         test_refs = [value for value in refs if value not in product]
         status = (
             "COMPOSED"
@@ -257,7 +258,13 @@ def runtime_matrix(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> str:
             "## Runtime composition roots and boundaries",
             "",
             md_table(
-                ["Symbol/construction", "Classification", "Product refs", "Test refs", "Evidence sample"],
+                [
+                    "Symbol/construction",
+                    "Classification",
+                    "Product refs",
+                    "Test refs",
+                    "Evidence sample",
+                ],
                 comp_rows,
             ),
             "",

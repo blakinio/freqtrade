@@ -74,52 +74,63 @@ jobs:
           import base64
           import binascii
           import os
-          import re
           import zlib
           from pathlib import Path
 
           run_temp = Path(os.environ["RUNNER_TEMP"])
           source = (run_temp / "source-helper.yml").read_text(encoding="utf-8")
           start_marker = 'cat > "$RUNNER_TEMP/wh09-payload.b64" <<\'PAYLOAD\''
-          lines = source.splitlines()
-          starts = [index for index, line in enumerate(lines) if line.strip() == start_marker]
-          if len(starts) != 1:
+          if source.count(start_marker) != 1:
               raise SystemExit("payload start marker mismatch")
-          payload_index = starts[0] + 1
-          if payload_index >= len(lines):
-              raise SystemExit("payload content missing")
-          encoded_line = lines[payload_index].strip()
-          if not encoded_line or re.fullmatch(r"[A-Za-z0-9+/=]+", encoded_line) is None:
-              raise SystemExit("payload line contains non-base64 characters")
+          tail = source.split(start_marker, 1)[1]
+          payload_start = tail.find("H4sI")
+          if payload_start < 0:
+              raise SystemExit("payload gzip base64 prefix missing")
+          if tail[:payload_start].strip():
+              raise SystemExit("unexpected content before payload gzip base64 prefix")
 
+          alphabet = frozenset(
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+          )
+          inflater = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
           decoded = bytearray()
-          for offset in range(0, len(encoded_line), 4):
-              quartet = encoded_line[offset : offset + 4]
-              if len(quartet) != 4:
-                  break
+          quartet: list[str] = []
+          archive: bytes | None = None
+          for offset, character in enumerate(tail[payload_start:]):
+              if character.isspace():
+                  continue
+              if character not in alphabet:
+                  raise SystemExit(
+                      f"non-base64 character before gzip eof at offset {offset}"
+                  )
+              quartet.append(character)
+              if len(quartet) < 4:
+                  continue
+              encoded_quartet = "".join(quartet)
+              padded = "=" in encoded_quartet
               try:
-                  decoded.extend(base64.b64decode(quartet, validate=True))
+                  block = base64.b64decode(encoded_quartet, validate=True)
               except (binascii.Error, ValueError) as error:
                   raise SystemExit(
                       f"payload quartet decode failed at offset {offset}: {error}"
                   ) from error
-              if "=" in quartet:
+              quartet.clear()
+              decoded.extend(block)
+              try:
+                  inflater.decompress(block)
+              except zlib.error as error:
+                  raise SystemExit(f"payload gzip recovery failed: {error}") from error
+              if inflater.eof:
+                  consumed = len(decoded) - len(inflater.unused_data)
+                  if consumed <= 0:
+                      raise SystemExit("payload gzip stream consumed zero bytes")
+                  archive = bytes(decoded[:consumed])
                   break
-          if not decoded:
-              raise SystemExit("payload decoded to zero bytes")
+              if padded:
+                  raise SystemExit("payload base64 padding preceded gzip eof")
 
-          inflater = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
-          try:
-              inflater.decompress(bytes(decoded))
-              inflater.flush()
-          except zlib.error as error:
-              raise SystemExit(f"payload gzip recovery failed: {error}") from error
-          if not inflater.eof:
+          if archive is None:
               raise SystemExit("payload did not contain one complete gzip stream")
-          consumed = len(decoded) - len(inflater.unused_data)
-          if consumed <= 0:
-              raise SystemExit("payload gzip stream consumed zero bytes")
-          archive = bytes(decoded[:consumed])
           (run_temp / "wh09-payload.tar.gz").write_bytes(archive)
           PY
 

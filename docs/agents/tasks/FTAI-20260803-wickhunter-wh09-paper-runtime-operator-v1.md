@@ -95,3 +95,19 @@ After implementation merge:
 ## Completion rule
 
 This implementation task may be merged only when all exact-head validations pass and no unresolved review thread or material safety finding remains. Issue #1144 remains open until the post-merge deployment and prospective acceptance package are independently verified.
+
+<!-- WH09_RUFF_DIAGNOSTIC_BEGIN -->
+```text
+[ai_platform/wickhunter/candidate_paper_runtime_operator.py]
+ai_platform/wickhunter/candidate_paper_runtime_operator.py:412:15: S310 Audit URL open for permitted schemes. Allowing use of `file:` or custom schemes is often unexpected.
+Found 1 error.
+
+[deploy/synology/wickhunter-paper-runtime/healthcheck.py]
+deploy/synology/wickhunter-paper-runtime/healthcheck.py:53:5: C901 `main` is too complex (18 > 12)
+Found 1 error.
+
+[tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py]
+tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py:372:66: RUF043 Pattern passed to `match=` contains metacharacters but is neither escaped nor raw
+Found 1 error.
+```
+<!-- WH09_RUFF_DIAGNOSTIC_END -->

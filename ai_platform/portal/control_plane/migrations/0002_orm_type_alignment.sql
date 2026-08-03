@@ -91,7 +91,7 @@ BEGIN
         ) AS values_to_align(table_name, column_name, max_length)
     LOOP
         EXECUTE format(
-            'SELECT EXISTS (SELECT 1 FROM %I WHERE char_length(%I) > $1)',
+            'SELECT EXISTS (SELECT 1 FROM %%I WHERE char_length(%%I) > $1)',
             target.table_name,
             target.column_name
         )
@@ -99,12 +99,12 @@ BEGIN
         USING target.max_length;
 
         IF oversized THEN
-            RAISE EXCEPTION 'schema alignment blocked: %.% exceeds VARCHAR(%)',
+            RAISE EXCEPTION 'schema alignment blocked: %%.%% exceeds VARCHAR(%%)',
                 target.table_name, target.column_name, target.max_length;
         END IF;
 
         EXECUTE format(
-            'ALTER TABLE %I ALTER COLUMN %I TYPE VARCHAR(%s)',
+            'ALTER TABLE %%I ALTER COLUMN %%I TYPE VARCHAR(%%s)',
             target.table_name,
             target.column_name,
             target.max_length

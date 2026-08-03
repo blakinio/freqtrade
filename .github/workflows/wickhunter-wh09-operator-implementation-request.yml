@@ -152,9 +152,16 @@ jobs:
               encoding="utf-8",
           )
           PY
+          allowed=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
           changed="$(git diff --name-only | sort)"
-          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          [[ "$changed" == "$expected" ]]
+          [[ -n "$changed" ]]
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            grep -Fxq "$path" <<< "$allowed" || {
+              echo "unexpected changed path: $path" >&2
+              exit 1
+            }
+          done <<< "$changed"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add \

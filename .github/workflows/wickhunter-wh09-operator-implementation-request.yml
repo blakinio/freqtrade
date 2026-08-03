@@ -18,6 +18,7 @@ concurrency:
 env:
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
   TARGET_HEAD_SHA: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
+  HELPER_BRANCH: ops/wickhunter-wh09-operator-implementation-20260803-v1
 
 jobs:
   materialize:
@@ -122,8 +123,6 @@ jobs:
 
       - name: Publish preview only when newly materialized
         shell: bash
-        env:
-          HELPER_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           set -euo pipefail
           if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then

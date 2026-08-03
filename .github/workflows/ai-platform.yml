@@ -135,17 +135,19 @@ jobs:
           PY
 
           docker run --rm \
+            --entrypoint python \
             --volume "$PWD/artifacts/image-sensitive-scan:/scan:ro" \
             "$IMAGE" \
-            python -m ai_platform.portal.security.sensitive_scan \
+            -m ai_platform.portal.security.sensitive_scan \
             /scan/clean.json \
             > artifacts/image-sensitive-scan/clean-report.json
 
           set +e
           docker run --rm \
+            --entrypoint python \
             --volume "$PWD/artifacts/image-sensitive-scan:/scan:ro" \
             "$IMAGE" \
-            python -m ai_platform.portal.security.sensitive_scan \
+            -m ai_platform.portal.security.sensitive_scan \
             /scan/negative.json \
             > artifacts/image-sensitive-scan/negative-report.json
           negative_status=$?
@@ -157,6 +159,7 @@ jobs:
             echo "scanner report exposed the synthetic value" >&2
             exit 1
           fi
+          rm -f artifacts/image-sensitive-scan/clean.json artifacts/image-sensitive-scan/negative.json
 
       - name: Upload exact-image scanner evidence
         if: always()

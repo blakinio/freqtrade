@@ -202,6 +202,7 @@ def test_unknown_revision_and_schema_drift_fail_readiness() -> None:
             )
             connection.execute(text("DROP INDEX ix_portal_bots_tenant"))
         with pytest.raises(SchemaReadinessError) as exc_info:
-            assert "portal_bots" in exc_info.value.report["differences"]["changed_tables"]
+            assert_schema_ready(engine)
+        assert "portal_bots" in exc_info.value.report["differences"]["changed_tables"]
     finally:
         engine.dispose()

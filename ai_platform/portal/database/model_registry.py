@@ -26,6 +26,14 @@ MODEL_MODULES = (
 )
 
 
+def _repository_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
+def _model_path(module_name: str) -> Path:
+    return _repository_root().joinpath(*module_name.split(".")).with_suffix(".py")
+
+
 def _declared_table_names(path: Path) -> frozenset[str]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     names: set[str] = set()
@@ -44,22 +52,35 @@ def _declared_table_names(path: Path) -> frozenset[str]:
     return frozenset(names)
 
 
-def load_portal_models() -> None:
-    """Register every durable Portal ORM table without package side effects.
+def portal_table_names() -> frozenset[str]:
+    names: set[str] = set()
+    for module_name in MODEL_MODULES:
+        path = _model_path(module_name)
+        if not path.is_file():
+            raise RuntimeError(f"Portal model file is missing: {path}")
+        names.update(_declared_table_names(path))
+    return frozenset(names)
+
+
+def load_portal_models() -> frozenset[str]:
+    """Register and return the authoritative durable Portal table manifest.
 
     Registration is keyed by the tables already present on the shared metadata,
     not by ``sys.modules``. This supports callers that imported only part of the
     Portal while preventing duplicate SQLAlchemy table declarations. Model files
     are executed under private module names so package ``__init__`` services are
-    never imported by the database image or schema evidence job.
+    never imported by the database image or schema evidence job. Tables attached
+    to the shared Base by unrelated tests or services are not part of the returned
+    manifest and must never be migrated by this authority.
     """
 
-    repository_root = Path(__file__).resolve().parents[3]
+    declared_manifest: set[str] = set()
     for index, module_name in enumerate(MODEL_MODULES):
-        path = repository_root.joinpath(*module_name.split(".")).with_suffix(".py")
+        path = _model_path(module_name)
         if not path.is_file():
             raise RuntimeError(f"Portal model file is missing: {path}")
         declared_tables = _declared_table_names(path)
+        declared_manifest.update(declared_tables)
         registered_tables = declared_tables.intersection(Base.metadata.tables)
         if registered_tables == declared_tables:
             continue
@@ -79,3 +100,9 @@ def load_portal_models() -> None:
         except Exception:
             sys.modules.pop(private_name, None)
             raise
+    missing_from_metadata = sorted(declared_manifest - set(Base.metadata.tables))
+    if missing_from_metadata:
+        raise RuntimeError(
+            f"Portal model manifest is not fully registered: {missing_from_metadata}"
+        )
+    return frozenset(declared_manifest)

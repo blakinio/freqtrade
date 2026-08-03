@@ -8,6 +8,7 @@ from pydantic import Field, PositiveInt, model_validator
 
 from ai_platform.portal.contracts.common import ContractModel, NonEmptyStr, UtcDateTime
 from ai_platform.portal.contracts.environment import Environment, ExecutionMode
+from ai_platform.portal.contracts.sensitive import OpaqueSensitiveReference
 
 
 PositiveDecimal = Annotated[Decimal, Field(gt=0)]
@@ -42,7 +43,7 @@ class BotSpec(ContractModel):
     strategy_version: NonEmptyStr
     model_version: NonEmptyStr
     risk_policy_version: NonEmptyStr
-    exchange_connection_ref: NonEmptyStr
+    exchange_connection_ref: OpaqueSensitiveReference
     pair_universe: tuple[NonEmptyStr, ...]
     timeframe: NonEmptyStr
     capital_allocation: PositiveDecimal
@@ -69,7 +70,7 @@ class BotConfigRevision(ContractModel):
     strategy_version: NonEmptyStr
     model_version: NonEmptyStr
     risk_policy_version: NonEmptyStr
-    exchange_connection_ref: NonEmptyStr
+    exchange_connection_ref: OpaqueSensitiveReference
     pair_universe: tuple[NonEmptyStr, ...]
     timeframe: NonEmptyStr
     capital_allocation: PositiveDecimal

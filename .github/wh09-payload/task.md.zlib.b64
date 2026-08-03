@@ -9,7 +9,7 @@
 
 ## Objective
 
-Implement the missing persistent operator that binds the independently verified candidate and immutable PAPER activation to real read-only Liquid20 live evidence, canonical public market context and the restart-safe `CandidatePaperRuntimeService` journal.
+Implement the missing persistent operator that binds the independently verified candidate and immutable PAPER activation to real read-only Liquid20 live evidence, canonical public market context, and the restart-safe `CandidatePaperRuntimeService` journal.
 
 ## Owned paths
 
@@ -17,38 +17,38 @@ Implement the missing persistent operator that binds the independently verified 
 - `deploy/synology/wickhunter-paper-runtime/Dockerfile`
 - `deploy/synology/wickhunter-paper-runtime/README.md`
 - `deploy/synology/wickhunter-paper-runtime/compose.yaml`
-- `deploy/synology/wickhunter-paper-runtime/healthcheck.py`
+- `deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py`
 - `docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md`
 - `tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py`
 
 ## Independent continuation audit findings
 
-The first product head was not mergeable as a terminal implementation despite focused tests passing:
+The first product head was not terminally mergeable despite focused tests passing:
 
-1. it read `bidPrice`/`askPrice` from Binance `/fapi/v1/ticker/24hr`, although the public book contract is `/fapi/v1/ticker/bookTicker`;
-2. it emitted only a subset of the nine canonical feature metrics, so the real `build_liquidation_features()` path failed;
-3. it computed `volatility_ratio` as candle range/close rather than the frozen WH-01 population standard deviation of completed-candle simple returns;
-4. it consumed an invented `latest.json` schema that the deployed Liquid20 collector does not publish;
-5. it set `candidate_paper_validation_authorized=false`, making an allowed candidate PAPER decision impossible;
-6. it labelled network evidence with a pre-fetch decision time and did not verify source timestamps;
-7. it under-reported projected simulated exposure and loss state;
-8. its tests stubbed the runtime service and therefore did not exercise the feature-complete request boundary;
-9. its branch was behind `develop`, causing the completeness workflow to fail before product validation.
+1. spread used `/fapi/v1/ticker/24hr` instead of `/fapi/v1/ticker/bookTicker`;
+2. the market context omitted canonical feature metrics;
+3. `volatility_ratio` used candle range/close instead of completed-candle return volatility;
+4. input used an invented single-file `latest.json` contract rather than the deployed Liquid20 live root;
+5. candidate PAPER validation was disabled, making an allowed simulated decision impossible;
+6. source availability and timestamp identity were incomplete;
+7. projected simulated exposure and loss state were under-reported;
+8. tests stubbed the runtime service and missed the feature-complete boundary;
+9. deployment documentation and Compose referenced an incorrect healthcheck path;
+10. generated preview retained a legacy snapshot fallback and duplicate market-wide intensity function.
 
 ## Repair state
 
 The active repair:
 
-- consumes the real `live-state-v1.json` pointer and active source NDJSON files read-only;
-- derives existing WH-01 history semantics and a canonical live dynamic universe;
-- supports empty no-burst ticks so the prospective snapshot cadence remains truthful;
-- uses public premium, book-ticker, open-interest and 5-minute kline endpoints only;
-- derives every canonical production metric with exact WH-01 lookbacks and availability timestamps;
-- authorizes candidate validation in PAPER simulation only while keeping all execution/order/live authority false;
-- derives projected exposure, daily loss, drawdown and consecutive-loss context from the journal;
-- exposes explicit bounded drift enum inputs for separately reviewed acceptance exercises;
-- validates real input parsing, canonical feature construction, strict generation time and truthful health state;
-- synchronizes the branch with the current `develop` before exact-head CI.
+- accepts only the real `live-state-v1.json` pointer and active source NDJSON files beneath the read-only Liquid20 live root;
+- derives deterministic 24-hour histories, complete burst buckets, a canonical live universe, and market-wide liquidation intensity;
+- uses public premium index, book ticker, open interest, and 1440 contiguous completed one-minute candles;
+- derives the nine canonical feature metrics plus funding and open interest;
+- authorizes candidate validation in PAPER simulation only while keeping all execution, order, and live-capital authority false;
+- derives projected exposure, daily loss, drawdown, and consecutive-loss context from the simulated journal;
+- exposes bounded drift enum inputs for separately reviewed acceptance exercises;
+- packages `paper_runtime_healthcheck.py` and binds Compose to that exact path;
+- validates real input parsing, feature construction, strict generation time, truthful health, exact path scope, and exact image revision.
 
 ## Safety boundary
 
@@ -62,12 +62,12 @@ The active repair:
 
 ## Required terminal sequence
 
-1. exact-head compile, Ruff, mypy, focused integration tests, Compose validation and image build;
-2. independent diff audit, no unresolved reviews and all required repository checks green;
+1. exact-head compile, Ruff, mypy, focused integration tests, Compose validation, and image build;
+2. independent diff audit, no unresolved reviews, and all required repository checks green;
 3. merge PR `#1160` only after the exact head is accepted;
-4. archive this implementation checkpoint;
+4. close helper PR `#1147` without merge;
 5. create a separate exact-one-file request-only deployment PR pinned to the merged SHA;
-6. publish a fresh immutable activation and journal root, prove host-level public-market egress restriction, deploy on `freqtrade-synology-staging`, and collect the full prospective WH-09 window;
-7. independently verify the immutable final evidence and leave the explicit owner decision open.
+6. publish a fresh immutable activation and journal root, prove host-level public-market egress restriction, deploy on `freqtrade-staging`, and collect the full prospective WH-09 window;
+7. independently verify immutable final evidence and leave the explicit owner decision open.
 
 Implementation merge alone does not close Issue `#1144`.

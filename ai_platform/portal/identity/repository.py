@@ -4,7 +4,7 @@ import json
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, select, update
 from sqlalchemy.orm import Session
 
 from ai_platform.portal.contracts.identity import RoleName
@@ -233,11 +233,20 @@ class IdentityRepository:
         self.session.flush()
 
     def consume_login_flow(self, state_hash: str, now: datetime) -> OidcLoginFlowRow:
-        row = self.session.get(OidcLoginFlowRow, state_hash)
-        if row is None or row.consumed_at is not None or _utc(row.expires_at) <= now:
+        statement = (
+            update(OidcLoginFlowRow)
+            .where(
+                OidcLoginFlowRow.state_hash == state_hash,
+                OidcLoginFlowRow.consumed_at.is_(None),
+                OidcLoginFlowRow.expires_at > now,
+            )
+            .values(consumed_at=now)
+            .returning(OidcLoginFlowRow)
+            .execution_options(synchronize_session=False)
+        )
+        row = self.session.scalars(statement).one_or_none()
+        if row is None:
             raise IdentityNotFoundError("OIDC login state is invalid or expired")
-        row.consumed_at = now
-        self.session.flush()
         return row
 
     def create_session(

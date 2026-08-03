@@ -22,7 +22,9 @@ from ai_platform.portal.security.sensitive_data import (
 
 
 _SUPPORTED_SUFFIXES = frozenset({".db", ".json", ".jsonl", ".ndjson", ".sqlite", ".sqlite3"})
-_EXCLUDED_DIRECTORIES = frozenset({".git", ".mypy_cache", ".pytest_cache", "node_modules", "__pycache__"})
+_EXCLUDED_DIRECTORIES = frozenset(
+    {".git", ".mypy_cache", ".pytest_cache", "node_modules", "__pycache__"}
+)
 _DEFAULT_MAX_FILE_BYTES = 32 * 1024 * 1024
 
 

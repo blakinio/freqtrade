@@ -161,7 +161,7 @@ def _file_session_factory(tmp_path: Path) -> tuple[SessionFactory, Any]:
 
 def test_claim_statement_is_compare_and_swap_on_postgresql() -> None:
     session = _CapturingSession()
-    repository = IdentityRepository(session)  # type: ignore[arg-type]
+    repository = IdentityRepository(session)
     now = datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
 
     repository.consume_login_flow("state-hash", now)

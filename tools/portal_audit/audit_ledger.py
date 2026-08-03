@@ -9,6 +9,7 @@ from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
+
 LEDGER_PATH = Path("tools/portal_audit/ledger/index.json")
 PROGRAM_PATH = Path("docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md")
 STATUSES = {
@@ -239,8 +240,7 @@ def validate_ledger(ledger: Mapping[str, Any], completed: set[int] | None = None
         for index, row in enumerate(classifications["deployment_boundaries"])
     ]
     entries += [
-        (f"navigation:{index}", row)
-        for index, row in enumerate(classifications["navigation"])
+        (f"navigation:{index}", row) for index, row in enumerate(classifications["navigation"])
     ]
     seen: set[tuple[Any, Any]] = set()
     for key, entry in entries:
@@ -337,9 +337,7 @@ def validate_inventory(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> No
             raise AuditLedgerError(f"expected-absent route {prefix} now exists")
 
 
-def validate_report_metadata(
-    data: Mapping[str, Any], ledger: Mapping[str, Any], head: str
-) -> None:
+def validate_report_metadata(data: Mapping[str, Any], ledger: Mapping[str, Any], head: str) -> None:
     for key, value in ledger_metadata(ledger, head).items():
         if data.get(key) != value:
             raise AuditLedgerError(f"deep inventory metadata mismatch for {key}")

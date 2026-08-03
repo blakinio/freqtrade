@@ -69,7 +69,7 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Materialize generated operator plaintext
+      - name: Materialize and repair generated operator plaintext
         shell: bash
         run: |
           set -euo pipefail
@@ -86,66 +86,75 @@ jobs:
           payload = Path('.github/wh09-payload/operator.py.zlib.b64')
           current_bytes = payload.read_bytes()
           if current_bytes.startswith(b'from __future__ import annotations'):
-              text = current_bytes.decode('utf-8')
-              try:
-                  compile(text, str(payload), 'exec')
-              except (IndentationError, SyntaxError) as exc:
-                  print(f'persisted_preview_compile_error={exc}')
-              else:
-                  print('persisted_preview_compile_valid=true')
-              print(f'materialized_operator_sha256={hashlib.sha256(current_bytes).hexdigest()}')
-              raise SystemExit(0)
-
-          compressed = base64.b64decode(current_bytes.strip(), validate=True)
-          try:
-              decoded = zlib.decompress(compressed)
-          except zlib.error as exc:
-              if 'incorrect data check' not in str(exc):
-                  raise
-              decoded = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
-          if hashlib.sha256(decoded).hexdigest() != '19fb98ca6e6910eeda89d910ad6d9c63b63fbf9f7d261ba1ec2bee2bd96aa48c':
-              raise SystemExit('operator payload identity mismatch')
-          transformation = decoded.decode('utf-8')
-          sentinel = 'operator_path.write_text(operator, encoding="utf-8")'
-          index = transformation.find(sentinel)
-          if index < 0 or transformation.find(sentinel, index + 1) >= 0:
-              raise SystemExit('verified operator write sentinel is not unique')
-          prefix = transformation[: index + len(sentinel)] + '\n'
-          compile(prefix, str(payload), 'exec')
-          original_cwd = Path.cwd()
-          try:
-              os.chdir('target')
-              exec(compile(prefix, str(payload), 'exec'), {'__name__': '__main__'})
-          finally:
-              os.chdir(original_cwd)
-          operator = Path('target/ai_platform/wickhunter/candidate_paper_runtime_operator.py')
-          operator_text = operator.read_text(encoding='utf-8')
-          payload.write_text(operator_text, encoding='utf-8')
-          print(f'materialized_operator_sha256={hashlib.sha256(operator_text.encode()).hexdigest()}')
-          try:
-              compile(operator_text, str(operator), 'exec')
-          except (IndentationError, SyntaxError) as exc:
-              print(f'materialized_preview_compile_error={exc}')
-              lines = operator_text.splitlines()
-              start = max(0, (exc.lineno or 1) - 6)
-              stop = min(len(lines), (exc.lineno or 1) + 5)
-              for line_number in range(start, stop):
-                  print(f'{line_number + 1:04d}: {lines[line_number]!r}')
+              operator_text = current_bytes.decode('utf-8')
           else:
-              print('materialized_preview_compile_valid=true')
+              compressed = base64.b64decode(current_bytes.strip(), validate=True)
+              try:
+                  decoded = zlib.decompress(compressed)
+              except zlib.error as exc:
+                  if 'incorrect data check' not in str(exc):
+                      raise
+                  decoded = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
+              if hashlib.sha256(decoded).hexdigest() != '19fb98ca6e6910eeda89d910ad6d9c63b63fbf9f7d261ba1ec2bee2bd96aa48c':
+                  raise SystemExit('operator payload identity mismatch')
+              transformation = decoded.decode('utf-8')
+              sentinel = 'operator_path.write_text(operator, encoding="utf-8")'
+              index = transformation.find(sentinel)
+              if index < 0 or transformation.find(sentinel, index + 1) >= 0:
+                  raise SystemExit('verified operator write sentinel is not unique')
+              prefix = transformation[: index + len(sentinel)] + '\n'
+              compile(prefix, str(payload), 'exec')
+              original_cwd = Path.cwd()
+              try:
+                  os.chdir('target')
+                  exec(compile(prefix, str(payload), 'exec'), {'__name__': '__main__'})
+              finally:
+                  os.chdir(original_cwd)
+              operator = Path('target/ai_platform/wickhunter/candidate_paper_runtime_operator.py')
+              operator_text = operator.read_text(encoding='utf-8')
+
+          broken = '''        with path.open("rb") as handle:
+  offset = max(0, size - MAX_INPUT_BYTES)
+  handle.seek(offset)
+  if offset:
+      handle.readline()
+  for raw in handle:
+      if not raw.strip():
+continue
+      payload = json.loads(raw.decode("utf-8"))
+      rows.append(_require_object(payload, field=field))
+'''
+          fixed = '''        with path.open("rb") as handle:
+            offset = max(0, size - MAX_INPUT_BYTES)
+            handle.seek(offset)
+            if offset:
+                handle.readline()
+            for raw in handle:
+                if not raw.strip():
+                    continue
+                payload = json.loads(raw.decode("utf-8"))
+                rows.append(_require_object(payload, field=field))
+'''
+          if broken in operator_text:
+              if operator_text.count(broken) != 1:
+                  raise SystemExit('damaged JSONL reader block is not unique')
+              operator_text = operator_text.replace(broken, fixed)
+          compile(operator_text, str(payload), 'exec')
+          payload.write_text(operator_text, encoding='utf-8')
+          print(f'compile_valid_operator_sha256={hashlib.sha256(operator_text.encode()).hexdigest()}')
           PY
           git diff --check
 
-      - name: Publish generated preview only
+      - name: Publish compile-valid operator preview
         shell: bash
         run: |
           set -euo pipefail
           if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then
-            echo "Operator preview already materialized."
+            echo "Operator preview is already compile-valid."
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .github/wh09-payload/operator.py.zlib.b64
-          git commit -m "chore(wickhunter): materialize operator repair preview"
+          git commit -m "fix(wickhunter): repair generated operator preview"
           git push origin "HEAD:$HELPER_BRANCH"

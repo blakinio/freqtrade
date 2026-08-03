@@ -37,6 +37,7 @@ class ModelPromotionSlotRow(Base):
         ForeignKeyConstraint(
             ["tenant_id", "current_model_version_id"],
             ["portal_model_versions.tenant_id", "portal_model_versions.model_version_id"],
+            name="fk_portal_model_slot_version",
             ondelete="RESTRICT",
         ),
         Index("ix_portal_model_slots_tenant_model", "tenant_id", "current_model_version_id"),

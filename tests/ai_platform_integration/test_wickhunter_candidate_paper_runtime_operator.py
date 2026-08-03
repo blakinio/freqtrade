@@ -369,6 +369,6 @@ def test_poll_cadence_cannot_violate_ninety_six_snapshot_minimum(
         monkeypatch.delenv(name, raising=False)
     runtime_operator = _operator(tmp_path)
 
-    with pytest.raises(CandidatePaperRuntimeOperatorError, match="60..900"):
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match=r"60\.\.900"):
         runtime_operator.run_forever(poll_seconds=901)
     assert 86_400 // operator_module.DEFAULT_POLL_SECONDS >= 96

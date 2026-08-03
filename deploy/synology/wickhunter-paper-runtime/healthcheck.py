@@ -50,7 +50,7 @@ def _load(path: Path) -> dict[str, Any]:
     return payload
 
 
-def main() -> int:
+def main() -> int:  # noqa: C901
     try:
         path = Path(os.environ.get("HEALTH_PATH", "/runtime/operator/health.json"))
         if not path.is_absolute():

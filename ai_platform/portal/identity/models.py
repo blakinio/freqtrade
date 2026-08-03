@@ -2,7 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ai_platform.portal.control_plane.database import Base
@@ -41,10 +51,25 @@ class TenantMembershipRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
+        CheckConstraint(
+            "membership_version > 0",
+            name="ck_portal_membership_version_positive",
+        ),
+        ForeignKeyConstraint(
+            ["principal_id"],
+            ["portal_identity_principals.principal_id"],
+            name="fk_portal_membership_principal",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint(
             "principal_id",
             "tenant_id",
             name="uq_portal_membership_principal_tenant",
+        ),
+        UniqueConstraint(
+            "membership_id",
+            "principal_id",
+            name="uq_portal_membership_identity",
         ),
         Index("ix_portal_membership_tenant_status", "tenant_id", "status"),
         Index("ix_portal_membership_principal", "principal_id"),
@@ -70,6 +95,19 @@ class PortalSessionRow(Base):
     revocation_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     __table_args__ = (
+        CheckConstraint(
+            "membership_version > 0",
+            name="ck_portal_session_membership_version_positive",
+        ),
+        ForeignKeyConstraint(
+            ["membership_id", "principal_id"],
+            [
+                "portal_tenant_memberships.membership_id",
+                "portal_tenant_memberships.principal_id",
+            ],
+            name="fk_portal_session_membership_identity",
+            ondelete="RESTRICT",
+        ),
         Index("ix_portal_session_principal_active", "principal_id", "revoked_at"),
         Index("ix_portal_session_membership_active", "membership_id", "revoked_at"),
         Index("ix_portal_session_idp_sid", "idp_session_id"),

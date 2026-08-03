@@ -7,11 +7,8 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
-from ai_platform.portal.control_plane.database import (
-    Base,
-    build_engine,
-    build_session_factory,
-)
+from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+from ai_platform.portal.control_plane.migration_authority import apply_migrations
 from ai_platform.portal.identity.oidc import OidcProviderUnavailable
 from ai_platform.portal.identity.runtime import IdentityRuntimeConfig, build_identity_service
 from ai_platform.portal.identity.schema import BackchannelLogoutResult, PortalSessionView
@@ -182,7 +179,7 @@ def build_public_app() -> FastAPI:
         raise RuntimeError("public identity runtime requires production or staging")
     database_url = _required("PORTAL_DATABASE_URL")
     engine = build_engine(database_url)
-    Base.metadata.create_all(engine)
+    schema = apply_migrations(engine)
     session_factory = build_session_factory(engine)
     config = IdentityRuntimeConfig.from_environment()
     if config.transport_mode != "secure_https":
@@ -198,6 +195,9 @@ def build_public_app() -> FastAPI:
             "identity_transport": config.transport_mode,
             "identity_fixture": False,
             "membership_bootstrap": "explicit_only",
+            "schema_dialect": schema["dialect"],
+            "schema_revision": schema["expected_revision"],
+            "schema_ready": schema["ready"],
             "live_capital_authorized": False,
         }
 

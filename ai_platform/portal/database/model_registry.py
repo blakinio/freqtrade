@@ -63,45 +63,61 @@ def portal_table_names() -> frozenset[str]:
     return frozenset(names)
 
 
+def _load_model_module(module_name: str, path: Path, declared_tables: frozenset[str]) -> None:
+    registered_tables = declared_tables.intersection(Base.metadata.tables)
+    if module_name in sys.modules:
+        if registered_tables != declared_tables:
+            missing = sorted(declared_tables - registered_tables)
+            raise RuntimeError(
+                f"Portal model module {module_name} is loaded but tables are missing: {missing}"
+            )
+        return
+    if registered_tables:
+        missing = sorted(declared_tables - registered_tables)
+        if missing:
+            raise RuntimeError(
+                f"Portal model registration is partial for {path}: missing {missing}"
+            )
+        raise RuntimeError(
+            f"Portal tables for {module_name} were registered without the canonical module"
+        )
+
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Portal model file cannot be loaded: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception:
+        sys.modules.pop(module_name, None)
+        raise
+
+    missing = sorted(declared_tables - set(Base.metadata.tables))
+    if missing:
+        sys.modules.pop(module_name, None)
+        raise RuntimeError(f"Portal model module {module_name} did not register tables: {missing}")
+
+
 def load_portal_models() -> frozenset[str]:
     """Register and return the authoritative durable Portal table manifest.
 
-    Registration is keyed by the tables already present on the shared metadata,
-    not by ``sys.modules``. This supports callers that imported only part of the
-    Portal while preventing duplicate SQLAlchemy table declarations. Model files
-    are executed under private module names so package ``__init__`` services are
-    never imported by the database image or schema evidence job. Tables attached
-    to the shared Base by unrelated tests or services are not part of the returned
-    manifest and must never be migrated by this authority.
+    Model files are executed under their canonical module names without importing
+    package ``__init__`` services. Later normal imports therefore reuse the exact
+    same module and SQLAlchemy table objects instead of declaring them twice.
+    Tables attached to the shared Base by unrelated tests or services are not part
+    of the returned manifest and must never be migrated by this authority.
     """
 
     with _MODEL_REGISTRY_LOCK:
         declared_manifest: set[str] = set()
-        for index, module_name in enumerate(MODEL_MODULES):
+        for module_name in MODEL_MODULES:
             path = _model_path(module_name)
             if not path.is_file():
                 raise RuntimeError(f"Portal model file is missing: {path}")
             declared_tables = _declared_table_names(path)
             declared_manifest.update(declared_tables)
-            registered_tables = declared_tables.intersection(Base.metadata.tables)
-            if registered_tables == declared_tables:
-                continue
-            if registered_tables:
-                missing = sorted(declared_tables - registered_tables)
-                raise RuntimeError(
-                    f"Portal model registration is partial for {path}: missing {missing}"
-                )
-            private_name = f"_portal_schema_model_{index}"
-            spec = importlib.util.spec_from_file_location(private_name, path)
-            if spec is None or spec.loader is None:
-                raise RuntimeError(f"Portal model file cannot be loaded: {path}")
-            module = importlib.util.module_from_spec(spec)
-            sys.modules[private_name] = module
-            try:
-                spec.loader.exec_module(module)
-            except Exception:
-                sys.modules.pop(private_name, None)
-                raise
+            _load_model_module(module_name, path, declared_tables)
         missing_from_metadata = sorted(declared_manifest - set(Base.metadata.tables))
         if missing_from_metadata:
             raise RuntimeError(

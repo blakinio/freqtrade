@@ -54,7 +54,7 @@ jobs:
 
       - name: Generate deterministic schema inventory
         env:
-          PYTHONPATH: .
+          PYTHONPATH: .:ai_platform
         run: |
           set -euo pipefail
           python -m py_compile tools/portal_schema/inventory.py

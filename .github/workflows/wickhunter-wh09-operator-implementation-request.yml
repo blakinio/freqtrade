@@ -72,32 +72,37 @@ jobs:
           [[ -z "$(git -C target status --porcelain)" ]]
           git show "$PAYLOAD_SOURCE_SHA:$WORKFLOW_PATH" > "$RUNNER_TEMP/source-helper.yml"
           python3 - <<'PY'
+          import base64
+          import hashlib
           import os
+          import re
           from pathlib import Path
 
-          source = (Path(os.environ["RUNNER_TEMP"]) / "source-helper.yml").read_text(
-              encoding="utf-8"
-          )
+          run_temp = Path(os.environ["RUNNER_TEMP"])
+          source = (run_temp / "source-helper.yml").read_text(encoding="utf-8")
           start_marker = 'cat > "$RUNNER_TEMP/wh09-payload.b64" <<\'PAYLOAD\''
           lines = source.splitlines()
           starts = [index for index, line in enumerate(lines) if line.strip() == start_marker]
           if len(starts) != 1:
               raise SystemExit("payload start marker mismatch")
-          payload_lines = []
-          for line in lines[starts[0] + 1 :]:
-              if line.strip() == "PAYLOAD":
-                  break
-              payload_lines.append(line.strip())
-          encoded = "".join(payload_lines)
-          if not encoded:
+          payload_index = starts[0] + 1
+          if payload_index >= len(lines):
               raise SystemExit("payload content missing")
-          (Path(os.environ["RUNNER_TEMP"]) / "wh09-payload.b64").write_text(
-              encoded + "\n",
-              encoding="ascii",
-          )
+          encoded = lines[payload_index].strip()
+          if not encoded or re.fullmatch(r"[A-Za-z0-9+/]+={0,2}", encoded) is None:
+              raise SystemExit("payload is not one strict base64 line")
+          try:
+              archive = base64.b64decode(encoded, validate=True)
+          except ValueError as error:
+              raise SystemExit(f"payload base64 decode failed: {error}") from error
+          digest = hashlib.sha256(archive).hexdigest()
+          expected_digest = os.environ["PAYLOAD_SHA256"]
+          if digest != expected_digest:
+              raise SystemExit(
+                  f"payload sha256 mismatch: expected {expected_digest}, got {digest}"
+              )
+          (run_temp / "wh09-payload.tar.gz").write_bytes(archive)
           PY
-          base64 --decode "$RUNNER_TEMP/wh09-payload.b64" > "$RUNNER_TEMP/wh09-payload.tar.gz"
-          echo "$PAYLOAD_SHA256  $RUNNER_TEMP/wh09-payload.tar.gz" | sha256sum --check --strict
 
           cd target
           python3 - <<'PY'

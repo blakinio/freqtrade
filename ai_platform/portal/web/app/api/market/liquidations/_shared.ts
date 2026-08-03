@@ -1,7 +1,10 @@
 import { resolve } from "node:path";
 
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { identityErrorResponse } from "@/lib/identity";
+import { authorizeLocalReadRequest } from "@/lib/local-read-authorization";
 import {
   LIQUIDATION_SOURCES,
   LiquidationDataUnavailableError,
@@ -12,8 +15,20 @@ import {
   type LiquidationSource,
 } from "@/lib/liquidations";
 
+const liquid20AuthorizationPolicy = {
+  tenantEnvironmentVariable: "PORTAL_LIQUIDATIONS_TENANT_ID",
+  fixtureTenantId: "tenant-demo",
+  authorizedRoles: ["user", "trader", "analyst", "model_reviewer", "admin"],
+  permissionDeniedCode: "LIQUID20_PERMISSION_DENIED",
+  permissionDeniedMessage: "Liquid20 read permission is required",
+} as const;
+
 let singleton: LiquidationLiveReadModel | null = null;
 let singletonKey: string | null = null;
+
+export async function authorizeLiquidationRequest(request: NextRequest): Promise<void> {
+  await authorizeLocalReadRequest(request, liquid20AuthorizationPolicy);
+}
 
 function configuredDataRoot(): string {
   const configured = process.env.PORTAL_LIQUIDATIONS_DATA_ROOT?.trim();
@@ -117,8 +132,13 @@ export function liquidationQuery(searchParams: URLSearchParams): LiquidationQuer
 }
 
 export function safeLiquidationError(error: unknown): NextResponse {
+  const identityResponse = identityErrorResponse(error);
+  if (identityResponse) return identityResponse;
   if (error instanceof LiquidationQueryError) {
-    return NextResponse.json({ detail: error.message }, { status: 422 });
+    return NextResponse.json(
+      { detail: error.message },
+      { status: 422, headers: { "cache-control": "no-store" } },
+    );
   }
   if (error instanceof LiquidationDataUnavailableError) {
     return NextResponse.json(

@@ -16,6 +16,7 @@ from audit_ledger import (
     validate_report_metadata,
 )
 
+
 APP_SHELL = Path("ai_platform/portal/web/components/app-shell.tsx")
 INVENTORY = Path("artifacts/portal-deep-inventory.json")
 OUTPUT_JSON = Path("artifacts/portal-navigation-completeness-matrix.json")

@@ -7,8 +7,8 @@ issue: 1126
 repository: blakinio/freqtrade
 lane: freqtrade-portal
 task_kind: implementation
-phase: reproduce
-status: implementing
+phase: validate
+status: validating
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
@@ -29,13 +29,16 @@ feature_scope:
 branch: fix/portal-1126-ai-learning-permissions
 base_branch: develop
 base_head: 9b865a64897ef17004809ccf4973c7a930fe4314
-pr: none
+pr: 1149
 owned_paths:
   - ai_platform/portal/intelligence/service.py
   - ai_platform/portal/learning/service.py
-  - tests/ai_platform/portal/**intelligence**
-  - tests/ai_platform/portal/**learning**
-  - tests/ai_platform/portal/**control_plane**
+  - ai_platform/portal/simulator/runner.py
+  - tests/ai_platform/portal/test_ai_learning_authorization.py
+  - tests/ai_platform/portal/intelligence/test_trade_intelligence_service.py
+  - tests/ai_platform/portal/learning/test_learning_service.py
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/simulator/test_universal_scenario.py
   - docs/ai_platform/portal/AI_LEARNING_PERMISSION_MATRIX.md
   - docs/agents/tasks/active/FTAI-20260803-portal-remediation-1126.md
   - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
@@ -48,87 +51,109 @@ consumer_constraints:
   - do not add new permission enum values unless current vocabulary is proven insufficient
   - do not create the #1111 canonical audit writer
   - do not implement #1117 capability-aware UI
-  - do not compose the missing #1102 producer/runtime programme
+  - do not compose the missing #1102 production producer/runtime programme
 live_capital_authorized: false
 withdrawals_enabled: false
 protected_production_deployment_authorized: false
 ```
 
-## Finding reproduced
+## Finding and selected contract
 
-On the exact base, `TradeIntelligenceService` and `LearningService` tenant-scope records but do not call `require_permission()` in any public method. The public `/v1/trade-analysis`, `/v1/insights` and `/v1/learning/history` routes delegate directly to those services, so any authenticated tenant membership—including the built-in `service` role with only `bot.read`—can read AI/learning evidence. Existing write/producer methods likewise lack an application-service permission and actor boundary.
+On the exact base, `TradeIntelligenceService` and `LearningService` tenant-scoped records but did not call `require_permission()` in any public method. The public `/v1/trade-analysis`, `/v1/insights` and `/v1/learning/history` routes delegated directly to those services, so any authenticated tenant membership—including the built-in `service` role with only `bot.read`—could read AI/learning evidence. Existing writes and automatic evidence producers also lacked an explicit application-service permission/actor boundary.
 
-The canonical vocabulary already contains `model.read`, `model.train` and `model.promote`. This task begins with the least-authority hypothesis that AI/learning reads use `model.read`, bounded hypothesis/experiment/candidate creation uses `model.train`, and automatic trade-evidence production requires a tenant-bound `ActorType.SERVICE` plus `model.train`. Candidate registration remains non-promoting and cannot imply runtime activation. This hypothesis must be challenged against live call sites and tests before finalization.
+The verified least-authority contract reuses the current vocabulary:
+
+- reads: `model.read`;
+- bounded hypothesis, experiment and non-promoting candidate writes: `model.train`;
+- automatic decision/outcome intelligence production: `ActorType.SERVICE` plus `model.train`;
+- model promotion remains separate under `model.promote`.
+
+The deterministic universal simulator no longer derives producer authority from the requesting agent. It requires a separately injected trusted producer context and verifies tenant, service actor, `model.train`, request and correlation provenance before any scenario mutation.
 
 ## Acceptance inventory
 
-- [ ] Every public intelligence and learning service method enforces one documented permission and, for automatic producer methods, an explicit actor-type policy.
-- [ ] Intelligence/learning reads require `model.read` and deny a service/custom membership without it.
-- [ ] Human bounded learning actions require `model.train` and do not require or imply `model.promote`.
-- [ ] Automatic decision/outcome evidence producers require a trusted tenant-bound service identity with `model.train`; browser/user/trader/analyst authority cannot impersonate the producer.
-- [ ] Candidate registration remains `promoted=false`, `assigned_to_bot=false` and cannot activate runtime or live capital.
-- [ ] Permission checks occur before repository lookup/write so cross-tenant/resource-enumeration attempts fail without revealing record existence.
-- [ ] Direct service calls and public API routes produce the same authorization outcome.
-- [ ] Tests cover user, trader, analyst, model reviewer, admin, service and custom minimal-permission contexts.
-- [ ] Permission removal is observed on the next request because authorization derives from the current `RequestContext`.
-- [ ] Existing canonical Permission/authorization implementation is reused; no competing framework or broad permission migration is introduced.
-- [ ] Existing audit/security behaviour is preserved; canonical denied-event expansion remains owned by #1111 unless an existing writer can be reused without new authority.
-- [ ] Focused tests, full AI Platform CI, bounded API integration, exact-head repository CI, fresh changed-path audit and applicable Portal/API-mode E2E pass.
+- [x] Every public intelligence and learning service method enforces one documented permission and automatic producer methods enforce service actor type.
+- [x] Intelligence/learning reads require `model.read` and deny service/custom memberships without it.
+- [x] Human/agent bounded learning actions require `model.train` and do not require or imply `model.promote`.
+- [x] Automatic decision/outcome producers require a tenant-bound trusted service identity with `model.train`.
+- [x] Candidate registration remains `promoted=false`, `assigned_to_bot=false` and cannot activate runtime or live capital.
+- [x] Permission checks occur before repository lookup/write.
+- [x] Direct service and public API routes share the service authorization outcome.
+- [x] Tests cover user, trader, analyst, model reviewer, admin, service and custom minimal-permission contexts.
+- [x] Current `RequestContext` permissions are evaluated on every call; no permission cache was added.
+- [x] Existing canonical Permission/authorization implementation is reused.
+- [x] No competing denied-event/audit authority was created; #1111 remains the producer.
+- [ ] Second exact-head heavy validation passes after first-attempt defect isolation.
+- [ ] Fresh exact-head changed-path audit reports no material finding.
 - [ ] PR merges, Issue #1126 closes, task archives and ownership releases.
 
 ## Safety
 
 - Frontend visibility is never treated as authorization.
-- Service identity cannot inherit browser cookies or arbitrary user authority.
+- Service identity is separately injected and cannot inherit browser/agent authority.
 - No model promotion, bot assignment, runtime activation, private provider access, trading, withdrawal or live-capital effect is added.
 - No AI/learning evidence, tenant data or credentials are logged in denied responses.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-03T10:44:00Z
-head: 9b865a64897ef17004809ccf4973c7a930fe4314
+checkpoint_version: 2
+updated_at: 2026-08-03T10:56:00Z
+head: c62decc9f6745568886ebbd181d46aca67a8d361
 branch: fix/portal-1126-ai-learning-permissions
-pr: none
-status: implementing
+pr: 1149
+status: validating
 context_routes:
   - issue #1126
   - ai_platform/portal/intelligence/service.py
   - ai_platform/portal/learning/service.py
-  - ai_platform/portal/contracts/identity.py
-  - ai_platform/portal/security/authorization.py
-  - ai_platform/portal/control_plane/context.py
-  - ai_platform/portal/control_plane/api_core.py
+  - ai_platform/portal/simulator/runner.py
+  - docs/ai_platform/portal/AI_LEARNING_PERMISSION_MATRIX.md
 proven:
-  - every public intelligence service method lacks require_permission
-  - every public learning service method lacks require_permission
-  - the three public read routes delegate directly to those services
-  - built-in service role has only bot.read but currently reaches these reads
-  - existing model.read/model.train/model.promote vocabulary and require_permission authority exist
-  - no overlapping branch, open PR or durable task for issue 1126 was found
-  - issue 1124 is terminal and develop exact head is 9b865a64897ef17004809ccf4973c7a930fe4314
+  - all public intelligence and learning methods now use canonical model.read/model.train checks
+  - automatic intelligence production additionally requires ActorType.SERVICE
+  - public API routes inherit the same service denial mapping
+  - universal simulator previously passed the requesting agent context into automatic intelligence and learning producers
+  - simulator now requires a separately injected trusted producer context and validates tenant/actor/permission/request/correlation provenance
+  - built-in service remains denied by default because its role grants only bot.read
+  - candidate registration remains non-promoting and unassigned
+  - first heavy validation reached the complete AI Platform suite; 1080 tests passed and 14 failures were isolated to stale legacy contexts plus simulator producer composition
 derived:
-  - existing model.read/model.train scopes are the smallest non-migrating permission matrix unless call-site evidence disproves it
-  - service-only plus model.train is the narrow initial automatic-producer policy
+  - adding model permissions to existing test identities is a fixture correction where those tests intentionally exercise authorized behaviour
+  - injected producer context is required to avoid confused-deputy privilege derivation from a browser/agent request
 unknown:
-  - exact current test filenames and every internal producer call site, to resolve before mutation
-  - whether an existing bounded audit/security emitter can record denial without claiming #1111 authority
+  - final exact-head CI and fresh audit outcome
 conflicts: []
 first_failure:
-  marker: ai-learning-authenticated-membership-overreach
-  evidence: tenant-only service methods and direct public route delegation
+  marker: first-heavy-ai-platform-permission-fixture-and-simulator-composition
+  evidence: run 30807054648 job 91664752081 on head 7cf442e877d027b1d4a0a56d7e2c4ce2bf6939b5
 rejected_hypotheses:
+  - weakening service authorization to preserve old tests; rejected
+  - adding model.train to the requesting simulator agent; rejected as privilege inheritance
   - tenant equality is sufficient least privilege; rejected
-  - route/UI checks can replace service authorization; rejected
-  - model.train implies promotion/runtime activation; rejected by separate model.promote boundary
 changed_paths:
+  - ai_platform/portal/intelligence/service.py
+  - ai_platform/portal/learning/service.py
+  - ai_platform/portal/simulator/runner.py
+  - tests/ai_platform/portal/test_ai_learning_authorization.py
+  - tests/ai_platform/portal/intelligence/test_trade_intelligence_service.py
+  - tests/ai_platform/portal/learning/test_learning_service.py
+  - tests/ai_platform/portal/control_plane/test_api.py
+  - tests/ai_platform/portal/simulator/test_universal_scenario.py
+  - docs/ai_platform/portal/AI_LEARNING_PERMISSION_MATRIX.md
   - docs/agents/tasks/active/FTAI-20260803-portal-remediation-1126.md
 validation:
-  - command: static exact-base reproduction
-    result: FAIL_EXPECTED
-    evidence: no permission or actor checks in intelligence/learning service methods
+  - command: AI Platform CI run 30807054648
+    tested_sha: 7cf442e877d027b1d4a0a56d7e2c4ce2bf6939b5
+    result: FAIL_ISOLATED
+    evidence: 14 failed, 1080 passed, 71 skipped; all failures mapped to stale permission fixtures or simulator use of request actor as automatic producer
+  - command: GitHub Actions Security Analysis run 30807054695
+    tested_sha: 7cf442e877d027b1d4a0a56d7e2c4ce2bf6939b5
+    result: PASS
+  - command: Portal Completeness Audit run 30807054565
+    tested_sha: 7cf442e877d027b1d4a0a56d7e2c4ce2bf6939b5
+    result: PASS
 blockers:
   - none
-next_action: Resolve all intelligence/learning call sites and tests, then implement the smallest canonical model.read/model.train plus trusted-service producer matrix at the application-service boundary.
+next_action: Run the second exact-head validation wave on PR #1149 and isolate only the first relevant failure if any.
 ```

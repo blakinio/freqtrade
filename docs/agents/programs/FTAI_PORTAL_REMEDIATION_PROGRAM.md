@@ -17,28 +17,33 @@ run_scope: autonomous_program
 continuation_policy: continue_until_real_stop
 task_completion_policy: finalize_archive_and_continue
 user_communication: terminal_only
+initial_audit_merge: ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
+programme_initialization_merge: 0a82a5c93613a213989865bd9128ac7263227148
+last_resolved_develop_head: 0a82a5c93613a213989865bd9128ac7263227148
+current_integration_pr: 1146
+validated_current_pr_head: b5413489daa04b55b7167e3f291f2f919b195014
 live_capital_authorized: false
 withdrawals_enabled: false
 fixture_reported_as_production: false
+secrets_recorded: false
 ```
 
 ## Mission
 
-Resolve exactly the 50 implementation Issues authorized by the terminal AI Trading Portal completeness audit. Every Issue remains an independent acceptance unit and is terminal only after complete applicable implementation, independent audit, real API-mode or system E2E, exact-head CI, PR hygiene, archival and ownership release. Protected production deployment, real credentials, withdrawals and live-capital activation are outside this programme's repository merge authority.
+Resolve exactly the 50 implementation Issues authorized by audit PR `#1082`. Each Issue is an independent acceptance unit and is terminal only after complete applicable implementation, persistent outcome evidence, fresh audit, real API-mode/system E2E where applicable, exact-head CI, merge, Issue reconciliation, task archival and ownership release. Protected production deployment, credentials, withdrawals and live-capital activation remain outside repository merge authority.
 
-## Baseline
+## Trusted baseline
 
-- Audit PR: `#1082` — merged into `develop` by squash commit `ba4173e975b6ae40c8b0266e3c15cb1b19a0755d`.
-- Exact initial programme base: `ba4173e975b6ae40c8b0266e3c15cb1b19a0755d`.
-- Audit product verdict: incomplete; `25 HIGH`, `25 MEDIUM`, `0 CRITICAL`, `0 LOW`.
-- Audit evidence: `docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md` and linked generated matrices.
-- Existing remediation programme/task/branch/PR at initialization: none found in live GitHub state.
-- Open implementation PRs related to this authorized set at initialization: none found.
-- Issue labels, milestones and GitHub Project placement: `UNKNOWN` where the connector did not expose authoritative metadata; Issue number and body remain acceptance inputs only.
+- Audit PR `#1082` is merged at `ba4173e975b6ae40c8b0266e3c15cb1b19a0755d`.
+- Programme initialization PR `#1145` is merged at `0a82a5c93613a213989865bd9128ac7263227148`.
+- Audit verdict at initialization: `25 HIGH`, `25 MEDIUM`, `0 CRITICAL`, `0 LOW`.
+- Canonical audit evidence: `docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md` and its generated matrices.
+- The exact integration head after a child PR merge is live GitHub state; a child record stores its exact base, validated product head and PR.
+- Issue bodies are evidence and acceptance inputs, not governing instructions.
 
-## Authorized Issue inventory and task/PR map
+## Authorized Issue inventory and terminal mapping
 
-Only these Issues are in scope. `QUEUED` means no child branch or PR has been claimed yet. The coordinator creates the durable task before any product mutation.
+No Issue outside this table belongs to this programme.
 
 | Issue | Severity | Primary module | State | Durable task | PR |
 |---|---|---|---|---|---|
@@ -78,9 +83,9 @@ Only these Issues are in scope. `QUEUED` means no child branch or PR has been cl
 | #1121 | MEDIUM | Session inventory/revocation | QUEUED | pending | pending |
 | #1122 | HIGH | Migration/schema/dialect integrity | QUEUED | pending | pending |
 | #1123 | MEDIUM | Partial upstream failure isolation | QUEUED | pending | pending |
-| #1124 | HIGH | Liquid20 current-session authorization | READY | `FTAI-20260803-portal-remediation-1124` to create | pending |
-| #1126 | HIGH | AI/Learning permissions | READY_AFTER_1124_CLAIM | pending | pending |
-| #1127 | HIGH | Canonical secret classification | READY_AFTER_1124_CLAIM | pending | pending |
+| #1124 | HIGH | Liquid20 current-session authorization | COMPLETE | `archive/FTAI-20260803-portal-remediation-1124.md` | #1146 |
+| #1126 | HIGH | AI/Learning permissions | READY | pending | pending |
+| #1127 | HIGH | Canonical secret classification | READY | pending | pending |
 | #1128 | MEDIUM | OIDC flow quotas/cleanup | QUEUED | pending | pending |
 | #1129 | MEDIUM | Bounded semantic fields | QUEUED | pending | pending |
 | #1130 | MEDIUM | OIDC response/algorithm/rotation bounds | QUEUED | pending | pending |
@@ -95,150 +100,119 @@ Only these Issues are in scope. `QUEUED` means no child branch or PR has been cl
 
 Inventory count: `50`.
 
-## Dependency graph and integration waves
+## Dependency graph
 
-The graph is evidence-driven and must be revised when exact code/Issue analysis disproves a dependency.
+### S0 — immediate security containment
 
-### Wave S0 — immediate containment
+1. `#1124` Liquid20 authoritative session boundary — complete through PR `#1146`.
+2. `#1126` explicit AI/Learning service permissions — next READY task; no unresolved producer dependency after ownership preflight.
+3. `#1127` canonical secret classification — independent sole producer after `#1126` is claimed.
+4. Identity hardening sequence: `#1137` atomic state claim → `#1132` logout replay → `#1130` OIDC bounds/rotation → `#1128` flow quotas/cleanup → `#1135` identity key rotation. `#1122` owns any shared production migration work.
 
-- `#1124` current-session authorization for Liquid20 local-file reads: first READY task; no shared producer dependency is required for a complete bounded fix.
-- `#1126` AI/Learning explicit service permissions: independent after ownership preflight.
-- `#1127` canonical sensitive-field classification: independent producer; consumers must not create competing alias sets.
-- `#1137`, `#1132`, `#1130`, `#1128`, `#1135`: identity hardening sequence, ordered by shared identity persistence/migration ownership.
+### F1 — shared foundations
 
-### Wave F1 — shared persistence, contract and reliability foundations
+- `#1122` migration/schema/dialect authority.
+- `#1109` generated transport schemas and canonical error envelope.
+- `#1108` trusted correlation/causation propagation; `#1110` consumes `#1108` and `#1109` for the sole bounded BFF transport.
+- `#1115` inbound limits and `#1129` bounded semantic fields feed generated contracts.
+- `#1111` canonical audit writer/projection.
+- `#1112` event taxonomy, transactional outbox, publisher and inbox/poison substrate.
+- `#1113` durable idempotency/replay/CAS authority.
+- `#1134` workload limiter/admission authority; `#1142` consumes its evidence and `#1122` dialect decisions.
+- `#1107` consumes pagination contracts, migration indexes and retention/workload rules.
 
-- `#1122` owns production migration authority, schema revision readiness and dialect parity.
-- `#1109` owns generated transport schemas and canonical error envelope.
-- `#1108` owns trusted request/correlation/causation propagation.
-- `#1110` consumes `#1109` and `#1108` for the shared bounded BFF transport.
-- `#1115` and `#1129` own inbound and semantic field/collection limits; both feed contract generation.
-- `#1111` owns the canonical audit writer/read projection.
-- `#1112` owns event taxonomy, transactional outbox publisher and inbox/poison substrate.
-- `#1113` owns durable mutation replay/CAS policy and shared store.
-- `#1134` owns application workload limiter/admission substrate.
-- `#1142` depends on production-dialect decisions in `#1122` and workload evidence in `#1134`.
-- `#1107` consumes pagination contracts, migration indexes and workload/retention rules.
+### R2 — trusted runtime composition
 
-### Wave R2 — trusted runtime composition
+- `#1100` sole credential broker.
+- `#1092` authoritative runtime read/reconciliation; `#1093` valuation and `#1094` observability consume it.
+- `#1086` PI-08 consumes credential, audit, event, idempotency, kill-switch and runtime foundations.
+- `#1091` command activation consumes `#1100`, `#1086` and `#1092`.
+- `#1099` desired-state activation consumes outbox, provisioning, command and reconciliation paths.
+- `#1120` owns kill-switch hierarchy/contracts across every exposure path.
+- `#1136` establishes source-time integrity for runtime, valuation and freshness claims.
 
-- `#1100` is the sole credential broker producer.
-- `#1092` is the authoritative private runtime read/reconciliation producer.
-- `#1093` depends on the runtime identity/read boundary from `#1092`.
-- `#1094` composes the approved observability source and consumes redaction/correlation rules.
-- `#1086` composes PI-08 and consumes `#1100`, `#1111`, `#1112`, `#1113`, `#1120` policy and runtime reconciliation.
-- `#1091` consumes `#1100`, `#1086` for exposure-increasing replacements, and `#1092` for reconciliation.
-- `#1099` consumes `#1112`, `#1092`, `#1091` and runtime provisioning.
-- `#1120` owns kill-switch hierarchy/contracts and must integrate with all exposure paths; repository implementation may begin after shared audit/outbox/idempotency contracts stabilize.
-- `#1136` provides source-time integrity before runtime/valuation/telemetry freshness can be called complete.
+### P3 — product vertical slices
 
-### Wave P3 — durable product vertical slices
-
-- `#1090`, `#1095`, `#1096`, `#1097` consume migration, audit, outbox and idempotency foundations.
-- `#1097` additionally consumes the sole credential broker `#1100`.
-- `#1085` consumes generated contracts, audit/idempotency and authoritative strategy persistence.
-- `#1102` consumes AI permissions `#1126`, events `#1112`, audit `#1111`, correlation `#1108` and runtime evidence.
-- `#1104` consumes shared events/audit/idempotency; real external channel acceptance may remain separately WAITING after repository-owned work.
-- `#1103`, `#1117`, `#1118`, `#1121` form the identity/capability/admin UI sequence.
-- `#1119` consumes bounded reads, freshness/source-time policy, event publication and API-mode runtime.
+- `#1090`, `#1095`, `#1096`, `#1097` consume migration, audit, outbox and idempotency foundations; `#1097` also consumes `#1100`.
+- `#1085` consumes generated contracts and authoritative strategy persistence.
+- `#1102` consumes `#1126`, `#1112`, `#1111`, `#1108` and runtime evidence.
+- `#1104` consumes event/audit/idempotency foundations; external channel proof may later be one exact WAITING boundary.
+- `#1103`, `#1117`, `#1118`, `#1121` form the administration/capability/tenant/session UI sequence.
+- `#1119` consumes bounded reads, source-time policy, events and API-mode runtime.
 - `#1123` consumes the canonical error and bounded transport contracts.
-- `#1087` requires an explicit owner-approved language policy before final acceptance; implementation must not guess it.
-- `#1140` spans all final user-facing workflows and runs after principal UI contracts stabilize.
+- `#1087` requires an explicit owner-approved language policy; never guess it.
+- `#1140` is the full-product accessibility/responsive acceptance wave after principal UI contracts stabilize.
 
-### Wave D4 — deployment, evidence and closeout
+### D4 — deployment and closeout
 
-- `#1089` composes the authenticated complete API runtime and consumes shared migration/runtime producers.
-- `#1098` establishes real API-mode browser acceptance and is a downstream gate for user-facing Issues.
-- `#1114` and `#1116` validate the exact deployed candidate and supply-chain/browser boundary.
-- `#1139` implements repository-owned backup/restore tooling after schema/dialect authority is stable; protected isolated restore acceptance remains separately authorized.
-- `#1101` reconciles the canonical status ledger only from verified terminal evidence.
-- Final fresh independent audit runs after all repository-owned fixes are merged.
+- `#1089` owns authenticated production/staging API-mode composition.
+- `#1098` owns the disposable real API-mode browser harness and downstream journey gate.
+- `#1114` and `#1116` validate browser and exact-image supply-chain boundaries.
+- `#1139` implements repository-owned backup/restore tooling after `#1122`; protected isolated restore remains separately authorized.
+- `#1101` reconciles documentation only from terminal evidence.
+- Final independent audit runs on exact final `develop` after all repository work is merged.
 
-## Shared-contract ownership
+## Sole shared-contract producers
 
-Exactly one task may hold each producer lease. Consumers may edit exclusive module paths but may not create substitutes.
-
-| Shared mechanism | Sole producer Issue | Initial owned path families |
+| Mechanism | Producer Issue | Exclusive authority |
 |---|---|---|
-| Production migration/schema authority | #1122 | `ai_platform/portal/**/migrations/**`, schema readiness and migration tooling |
-| Transport schema and error envelope | #1109 | canonical OpenAPI/schema generator, generated TS transport contracts, shared errors |
-| Correlation propagation | #1108 | trusted BFF/backend context middleware and event propagation contract |
+| Production migrations/schema | #1122 | migration files, schema readiness and dialect tooling |
+| Generated schemas/errors | #1109 | OpenAPI/schema generator, generated TS contracts, common envelope |
+| Correlation propagation | #1108 | trusted request/context/event propagation |
 | BFF control-plane transport | #1110 | one server-only bounded transport module |
-| Canonical audit writer/projection | #1111 | audit contract/writer/store/read projection |
-| Transactional outbox/publisher/inbox | #1112 | event taxonomy, outbox abstraction, publisher and dedup substrate |
-| Durable idempotency/CAS | #1113 | mutation inventory, key store and common replay/CAS interfaces |
-| Sensitive metadata classifier | #1127 | shared secret-key/value classification and corpus |
-| Credential broker | #1100 | PI-07 Vault broker composition and narrow consumer interfaces |
-| Workload limiter | #1134 | route/action budgets and shared limiter/admission interfaces |
-| Product runtime composition root | #1089 | authenticated production/staging app composition and provider wiring |
-| API-mode browser harness | #1098 | disposable real control-plane/browser environment and evidence profile |
+| Canonical audit | #1111 | writer, store and read projection |
+| Outbox/events/inbox | #1112 | taxonomy, transactional publisher, dedup/poison substrate |
+| Idempotency/CAS | #1113 | mutation inventory, replay store and common CAS interfaces |
+| Sensitive metadata classifier | #1127 | canonical aliases/classification and corpus |
+| Credential broker | #1100 | PI-07 composition and narrow consumer interfaces |
+| Workload limiter | #1134 | route/action budgets and admission interfaces |
+| Runtime composition root | #1089 | authenticated deployment/provider wiring |
+| API-mode browser harness | #1098 | disposable real control-plane/browser evidence profile |
 
-A child task records exact path ownership and any shared lease before mutation. Overlap requires serialization or explicit producer/consumer integration order.
+Consumers may edit exclusive paths but cannot create competing authorities. Every child task records ownership before mutation and releases it at terminal closeout.
 
-## Programme barriers
-
-| Barrier | Current state | Exit evidence |
-|---|---|---|
-| Audit baseline | COMPLETE | PR #1082 merged at `ba4173e975b6ae40c8b0266e3c15cb1b19a0755d` |
-| Immediate security containment | READY | #1124, #1126, #1127 terminal |
-| Shared foundations | NOT_STARTED | producer PRs merged with exact-head tests and no competing contracts |
-| Runtime composition | NOT_STARTED | canonical dry-run runtime and providers selected fail closed |
-| Product vertical slices | NOT_STARTED | issue-specific real API-mode journeys and restart evidence |
-| Deployment package | NOT_STARTED | exact API-mode images, migrations, security and supply-chain gates |
-| Protected target acceptance | EXTERNAL_BOUNDARY | separately authorized Synology/Auth/Cloudflare/Vault/private-runtime checks only |
-| Final independent audit | NOT_STARTED | zero open material findings on final `develop` |
-
-## Current programme state
+## Current state and barriers
 
 ```yaml
 completed:
-  - audit PR #1082 merged into develop at ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
+  - audit PR #1082 merged at ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
+  - programme PR #1145 merged at 0a82a5c93613a213989865bd9128ac7263227148
+  - issue #1124 implemented, validated and archived through PR #1146
 active:
   - coordinator task FTAI-20260803-portal-remediation-program
 ready:
-  - issue: 1124
-    reason: active application authorization bypass; bounded paths; no unresolved producer dependency
   - issue: 1126
-    reason: independent service-level permission containment after ownership preflight
+    reason: highest-priority remaining independent application security boundary
   - issue: 1127
-    reason: independent canonical secret-classifier producer after ownership preflight
+    reason: independent secret-classifier producer after ownership preflight
 waiting: []
 blocked: []
-closed_issues: 0
+closed_issues: 1
 active_issues: 0
 waiting_issues: 0
 blocked_issues: 0
 ```
 
-## Protected-target acceptance boundary
+| Barrier | State | Exit evidence |
+|---|---|---|
+| Audit baseline | COMPLETE | PR #1082 merged |
+| Programme initialization | COMPLETE | PR #1145 merged |
+| Immediate security containment | ACTIVE | #1124 complete; #1126 and #1127 remain |
+| Shared foundations | NOT_STARTED | producer PRs terminal with no competing contracts |
+| Runtime composition | NOT_STARTED | canonical dry-run runtime/providers fail closed |
+| Product vertical slices | NOT_STARTED | issue-specific real API-mode journeys and restart evidence |
+| Deployment package | NOT_STARTED | exact API-mode images, migrations, security and supply-chain gates |
+| Protected target acceptance | EXTERNAL_BOUNDARY | separately authorized protected checks only |
+| Final independent audit | NOT_STARTED | zero material findings on exact final develop |
 
-Repository-safe dry-run/staging validation and existing trusted Synology runners are authorized. The following remain separate and cannot be inferred from repository CI:
+## Protected-target boundary
 
-- irreversible production deployment;
-- real credential, Vault secret or identity-key mutation;
-- live trading, withdrawals, live-capital activation or capital allocation;
-- owner-managed Cloudflare/Authentik/Vault/private Freqtrade acceptance requiring protected secrets or approval;
-- destructive restore against a real protected environment.
-
-Repository-owned work must be complete before any task is classified `WAITING` on one exact external authority/resource.
+Repository-safe dry-run/staging validation and existing trusted Synology runners are authorized. These remain separate: irreversible production deployment; protected credential/Vault/identity-key mutation; live trading, withdrawals or capital; owner-managed Cloudflare/Authentik/Vault/private-runtime acceptance; destructive restore against a protected environment. A task may enter `WAITING` only after all repository-owned work is complete and one exact external authority/resource is named.
 
 ## Terminal completion criteria
 
-The programme is terminal only when:
-
-1. all 50 authorized Issues are closed by verified terminal outcomes or accurately classified by one exact external blocker after all repository-owned work is complete;
-2. every linked implementation/audit/validation/archive PR is intentionally terminal;
-3. no HIGH or material MEDIUM finding remains;
-4. canonical deployment runs API mode and cannot use fixtures in staging/production;
-5. representative browser → same-origin BFF → authenticated control plane → persistence/provider → refreshed UI journeys pass without interception/fallback;
-6. current session, tenant, permissions, CSRF and MFA are backend-authoritative;
-7. migrations, persistence, concurrency, idempotency, audit, events and recovery are restart-safe;
-8. exact images pass SBOM, vulnerability, provenance, runtime and security validation;
-9. accessibility and backup/isolated restore acceptance are complete where applicable;
-10. fresh independent audit reports zero open material findings on exact final `develop`;
-11. all tasks are archived/terminal and all path ownership/leases are released;
-12. safety flags remain false for live capital, withdrawals, secret recording and fixture-as-production claims.
+The programme is terminal only when all 50 Issues are truthfully terminal; all repository-owned remediation is merged; canonical deployment is authenticated API mode without fixture fallback; representative browser-to-BFF-to-control-plane-to-persistence/provider journeys pass; backend session/tenant/capability/CSRF/MFA rules are authoritative; migrations, concurrency, idempotency, audit, events and recovery are restart-safe; exact images pass security/SBOM/provenance/runtime checks; accessibility and backup/isolated restore acceptance are complete; fresh final audit has no material finding; all PRs/tasks are terminal; and every ownership/lease is released with all safety flags false.
 
 ## Programme next action
 
-Create and claim durable child task `FTAI-20260803-portal-remediation-1124` from the current exact `develop` head, assign only the Liquid20/local-file BFF authorization paths, reproduce the cookie-presence bypass and implement the smallest complete current-session authorization repair.
+Create and claim child task `FTAI-20260803-portal-remediation-1126` from the exact live `develop` head after PR `#1146` merges, reproduce the AI/Learning service-principal over-permission finding, and implement explicit least-privilege service permissions without creating a competing authorization authority.

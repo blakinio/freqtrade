@@ -36,7 +36,7 @@ RUN python -m pip install --no-cache-dir -r requirements.txt \
     && python -m pip install --no-cache-dir -e /app \
     && python -m compileall -q \
         /app/ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-        /app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+        /app/deploy/synology/wickhunter-paper-runtime/healthcheck.py \
     && find /app -type d -name __pycache__ -prune -exec rm -rf '{}' + \
     && chown -R root:root /app \
     && chmod -R a-w /app

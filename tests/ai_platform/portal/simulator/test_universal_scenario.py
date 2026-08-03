@@ -64,6 +64,7 @@ def test_universal_scenario_creates_candidate_without_model_mutation() -> None:
     context = _context(
         Permission.BOT_CREATE,
         Permission.BOT_READ,
+        Permission.MODEL_READ,
         Permission.RISK_MANAGE,
         Permission.TRADE_MANUAL_EXECUTE,
     )

@@ -55,6 +55,7 @@ jobs:
           docker run --rm --entrypoint python "$IMAGE" \
             -m ai_platform.portal.control_plane.schema_integrity \
             --format json \
+            --fail-on-table-drift \
             > artifacts/portal-schema-inventory.json
           docker run --rm --entrypoint python "$IMAGE" \
             -m ai_platform.portal.control_plane.schema_integrity \
@@ -69,6 +70,8 @@ jobs:
           print(json.dumps(summary, indent=2, sort_keys=True))
           assert summary["orm_tables"] >= 1
           assert summary["migration_files"] >= 1
+          assert summary["orm_tables_without_migration"] == []
+          assert summary["duplicate_migration_table_owners"] == {}
           PY
           cat artifacts/portal-schema-inventory.md
 
@@ -80,5 +83,190 @@ jobs:
           path: |
             artifacts/portal-schema-inventory.json
             artifacts/portal-schema-inventory.md
+          if-no-files-found: error
+          retention-days: 14
+
+  postgresql:
+    name: PostgreSQL migration, drift and relationship proof
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+        env:
+          POSTGRES_DB: portal_schema
+          POSTGRES_USER: portal_schema
+          POSTGRES_PASSWORD: ci-only-synthetic-schema-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portal_schema -d portal_schema"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build exact Portal identity image
+        run: >-
+          docker build
+          --file deploy/synology/portal-oidc/Dockerfile.control-plane
+          --tag portal-schema-postgresql:${{ github.sha }}
+          .
+
+      - name: Prove serialized concurrent migration and exact readiness
+        env:
+          IMAGE: portal-schema-postgresql:${{ github.sha }}
+          DATABASE_URL: postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm --network host --entrypoint python "$IMAGE" \
+            -m ai_platform.portal.control_plane.migration_authority \
+            migrate --database-url "$DATABASE_URL" \
+            > artifacts/migrate-a.json &
+          pid_a=$!
+          docker run --rm --network host --entrypoint python "$IMAGE" \
+            -m ai_platform.portal.control_plane.migration_authority \
+            migrate --database-url "$DATABASE_URL" \
+            > artifacts/migrate-b.json &
+          pid_b=$!
+          wait "$pid_a"
+          wait "$pid_b"
+          docker run --rm --network host --entrypoint python "$IMAGE" \
+            -m ai_platform.portal.control_plane.migration_authority \
+            check --database-url "$DATABASE_URL" \
+            > artifacts/schema-status.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          results = [
+              json.loads(Path("artifacts/migrate-a.json").read_text()),
+              json.loads(Path("artifacts/migrate-b.json").read_text()),
+          ]
+          status = json.loads(Path("artifacts/schema-status.json").read_text())
+          assert sorted(result["applied_now"] for result in results) == [0, 17]
+          assert all(result["ready"] is True for result in results)
+          assert status["ready"] is True
+          assert status["migration_count"] == 17
+          assert status["current_revision"] == status["expected_revision"]
+          print(json.dumps({"migrations": results, "status": status}, indent=2, sort_keys=True))
+          PY
+
+      - name: Prove tenant-aware hard relationships and relaxed cross-tenant intent identity
+        env:
+          IMAGE: portal-schema-postgresql:${{ github.sha }}
+          DATABASE_URL: postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema
+        run: |
+          set -euo pipefail
+          docker run --rm -i --network host --entrypoint python "$IMAGE" - <<'PY'
+          import json
+          import os
+          from sqlalchemy import create_engine, text
+          from sqlalchemy.exc import IntegrityError
+
+          url = os.environ.get("DATABASE_URL") or "postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema"
+          engine = create_engine(url)
+          try:
+              with engine.begin() as connection:
+                  for tenant in ("tenant-a", "tenant-b"):
+                      connection.execute(
+                          text(
+                              "INSERT INTO portal_bots "
+                              "(tenant_id, bot_id, name, spec_json, desired_state, observed_state, current_revision) "
+                              "VALUES (:tenant, 'bot-1', 'Bot', '{}', 'STOPPED', 'STOPPED', 1)"
+                          ),
+                          {"tenant": tenant},
+                      )
+                      connection.execute(
+                          text(
+                              "INSERT INTO portal_trade_intents "
+                              "(tenant_id, trade_intent_id, bot_id, intent_json, created_at) "
+                              "VALUES (:tenant, 'shared-intent', 'bot-1', '{}', CURRENT_TIMESTAMP)"
+                          ),
+                          {"tenant": tenant},
+                      )
+                      connection.execute(
+                          text(
+                              "INSERT INTO portal_decision_snapshots "
+                              "(tenant_id, snapshot_id, bot_id, trade_intent_id, decision_at, snapshot_json) "
+                              "VALUES (:tenant, :snapshot, 'bot-1', 'shared-intent', CURRENT_TIMESTAMP, '{}')"
+                          ),
+                          {"tenant": tenant, "snapshot": f"snapshot-{tenant}"},
+                      )
+              rejected = False
+              try:
+                  with engine.begin() as connection:
+                      connection.execute(
+                          text(
+                              "INSERT INTO portal_decision_snapshots "
+                              "(tenant_id, snapshot_id, bot_id, trade_intent_id, decision_at, snapshot_json) "
+                              "VALUES ('tenant-b', 'mismatch', 'bot-1', 'tenant-a-only', CURRENT_TIMESTAMP, '{}')"
+                          )
+                      )
+              except IntegrityError:
+                  rejected = True
+              assert rejected is True
+              print(json.dumps({
+                  "cross_tenant_same_intent_id_allowed": True,
+                  "mismatched_tenant_reference_rejected": True,
+                  "secret_values_recorded": False,
+                  "live_capital_authorized": False,
+              }, sort_keys=True))
+          finally:
+              engine.dispose()
+          PY
+
+      - name: Prove checksum drift fails closed
+        env:
+          IMAGE: portal-schema-postgresql:${{ github.sha }}
+          DATABASE_URL: postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema
+        run: |
+          set -euo pipefail
+          docker run --rm -i --network host --entrypoint python "$IMAGE" - <<'PY'
+          from sqlalchemy import create_engine, text
+
+          url = "postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema"
+          engine = create_engine(url)
+          try:
+              with engine.begin() as connection:
+                  original = connection.execute(
+                      text("SELECT sha256 FROM portal_schema_migrations WHERE position = 1")
+                  ).scalar_one()
+                  connection.execute(
+                      text("UPDATE portal_schema_migrations SET sha256 = :sha WHERE position = 1"),
+                      {"sha": "0" * 64},
+                  )
+              failed_closed = False
+              try:
+                  from ai_platform.portal.control_plane.migration_authority import assert_schema_ready
+                  assert_schema_ready(engine)
+              except Exception:
+                  failed_closed = True
+              assert failed_closed is True
+              with engine.begin() as connection:
+                  connection.execute(
+                      text("UPDATE portal_schema_migrations SET sha256 = :sha WHERE position = 1"),
+                      {"sha": original},
+                  )
+          finally:
+              engine.dispose()
+          PY
+          docker run --rm --network host --entrypoint python "$IMAGE" \
+            -m ai_platform.portal.control_plane.migration_authority \
+            check --database-url "$DATABASE_URL" \
+            > artifacts/schema-status-after-drift.json
+
+      - name: Upload secret-free PostgreSQL evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-schema-postgresql-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/*.json
           if-no-files-found: error
           retention-days: 14

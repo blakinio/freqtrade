@@ -4,6 +4,7 @@ extend = "../../../pyproject.toml"
 "sensitive_data.py" = [
   "C901",  # Bounded fail-closed reject/redact and serialized decoders keep one traversal policy.
   "E501",  # Security classification expressions remain auditable as single logical predicates.
+  "RUF100",  # Existing inline S105 rationale remains explicit for classification-only labels.
   "S105",  # Enum values are classification labels, never credentials.
 ]
 "sensitive_scan.py" = [

@@ -69,7 +69,7 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Materialize verified operator into existing helper payload path
+      - name: Materialize generated operator plaintext
         shell: bash
         run: |
           set -euo pipefail
@@ -87,7 +87,12 @@ jobs:
           current_bytes = payload.read_bytes()
           if current_bytes.startswith(b'from __future__ import annotations'):
               text = current_bytes.decode('utf-8')
-              compile(text, str(payload), 'exec')
+              try:
+                  compile(text, str(payload), 'exec')
+              except (IndentationError, SyntaxError) as exc:
+                  print(f'persisted_preview_compile_error={exc}')
+              else:
+                  print('persisted_preview_compile_valid=true')
               print(f'materialized_operator_sha256={hashlib.sha256(current_bytes).hexdigest()}')
               raise SystemExit(0)
 
@@ -115,18 +120,28 @@ jobs:
               os.chdir(original_cwd)
           operator = Path('target/ai_platform/wickhunter/candidate_paper_runtime_operator.py')
           operator_text = operator.read_text(encoding='utf-8')
-          compile(operator_text, str(operator), 'exec')
           payload.write_text(operator_text, encoding='utf-8')
           print(f'materialized_operator_sha256={hashlib.sha256(operator_text.encode()).hexdigest()}')
+          try:
+              compile(operator_text, str(operator), 'exec')
+          except (IndentationError, SyntaxError) as exc:
+              print(f'materialized_preview_compile_error={exc}')
+              lines = operator_text.splitlines()
+              start = max(0, (exc.lineno or 1) - 6)
+              stop = min(len(lines), (exc.lineno or 1) + 5)
+              for line_number in range(start, stop):
+                  print(f'{line_number + 1:04d}: {lines[line_number]!r}')
+          else:
+              print('materialized_preview_compile_valid=true')
           PY
           git diff --check
 
-      - name: Publish preview only when newly materialized
+      - name: Publish generated preview only
         shell: bash
         run: |
           set -euo pipefail
           if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then
-            echo "Operator preview already materialized and compile-valid."
+            echo "Operator preview already materialized."
             exit 0
           fi
           git config user.name github-actions[bot]

@@ -23,7 +23,7 @@ env:
 
 jobs:
   materialize:
-    name: Rebuild audited operator preview
+    name: Rebuild audited helper payloads
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
@@ -78,8 +78,11 @@ jobs:
           python3 - <<'PY'
           from __future__ import annotations
 
+          import base64
+          import hashlib
           import os
           import subprocess
+          import zlib
           from pathlib import Path
 
           workflow_path = ".github/workflows/wickhunter-wh09-operator-implementation-request.yml"
@@ -147,9 +150,9 @@ jobs:
           compile(script, "bounded_operator_repair.py", "exec")
           exec(compile(script, "bounded_operator_repair.py", "exec"), {"__name__": "__main__"})
 
-          payload = Path(".github/wh09-payload/operator.py.zlib.b64")
-          compiled = payload.read_text(encoding="utf-8")
-          compile(compiled, str(payload), "exec")
+          operator_path = Path(".github/wh09-payload/operator.py.zlib.b64")
+          operator_text = operator_path.read_text(encoding="utf-8")
+          compile(operator_text, str(operator_path), "exec")
           for marker in (
               'LIVE_POINTER_NAME = "live-state-v1.json"',
               '"/fapi/v1/ticker/bookTicker"',
@@ -157,29 +160,89 @@ jobs:
               '"market_wide_liquidation_intensity"',
               'liquid20_root_path: Path',
           ):
-              if marker not in compiled:
-                  raise SystemExit(f"required marker missing: {marker}")
+              if marker not in operator_text:
+                  raise SystemExit(f"required operator marker missing: {marker}")
           for marker in (
               '"/fapi/v1/ticker/24hr"',
               "liquid20_snapshot_path",
               "--liquid20-snapshot",
           ):
-              if marker in compiled:
-                  raise SystemExit(f"forbidden marker remains: {marker}")
+              if marker in operator_text:
+                  raise SystemExit(f"forbidden operator marker remains: {marker}")
+
+          def materialize_payload(path: Path, *, markers: tuple[str, ...]) -> str:
+              raw = path.read_bytes()
+              if not raw or len(raw) > 1_048_576:
+                  raise SystemExit(f"payload size is outside bounds: {path}")
+              try:
+                  existing = raw.decode("utf-8")
+              except UnicodeDecodeError:
+                  existing = ""
+              if all(marker in existing for marker in markers):
+                  text = existing
+                  transport = "plaintext"
+              else:
+                  compressed = base64.b64decode(raw.strip(), validate=True)
+                  try:
+                      decoded = zlib.decompress(compressed)
+                      transport = "zlib-wrapper"
+                  except zlib.error as exc:
+                      if "incorrect data check" not in str(exc) or len(compressed) < 7:
+                          raise
+                      decoded = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
+                      transport = "raw-deflate-recovery"
+                  if not decoded or len(decoded) > 1_048_576 or b"\x00" in decoded:
+                      raise SystemExit(f"decoded payload is outside bounds: {path}")
+                  text = decoded.decode("utf-8")
+                  if not all(marker in text for marker in markers):
+                      raise SystemExit(f"decoded payload markers mismatch: {path}")
+                  path.write_text(text, encoding="utf-8")
+              print(
+                  f"payload={path.name} transport={transport} "
+                  f"sha256={hashlib.sha256(text.encode()).hexdigest()}"
+              )
+              return text
+
+          readme = materialize_payload(
+              Path(".github/wh09-payload/README.md.zlib.b64"),
+              markers=("WickHunter", "Liquid20"),
+          )
+          compose = materialize_payload(
+              Path(".github/wh09-payload/compose.yaml.zlib.b64"),
+              markers=("services:", "liquid20"),
+          )
+          healthcheck = materialize_payload(
+              Path(".github/wh09-payload/healthcheck.py.zlib.b64"),
+              markers=("from __future__ import annotations", "health"),
+          )
+          task = materialize_payload(
+              Path(".github/wh09-payload/task.md.zlib.b64"),
+              markers=("WH-09", "Liquid20"),
+          )
+          tests = materialize_payload(
+              Path(".github/wh09-payload/tests.py.zlib.b64"),
+              markers=("candidate_paper_runtime_operator", "test_"),
+          )
+          del readme, compose, task
+          compile(healthcheck, "healthcheck.py", "exec")
+          compile(tests, "tests.py", "exec")
           PY
-          python3 -m py_compile .github/wh09-payload/operator.py.zlib.b64
+          python3 -m py_compile \
+            .github/wh09-payload/operator.py.zlib.b64 \
+            .github/wh09-payload/healthcheck.py.zlib.b64 \
+            .github/wh09-payload/tests.py.zlib.b64
           git diff --check
 
-      - name: Publish compile-valid preview
+      - name: Publish auditable plaintext payloads
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then
-            echo "Operator preview is unchanged."
+          if git diff --quiet -- .github/wh09-payload; then
+            echo "Helper payloads are unchanged."
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/wh09-payload/operator.py.zlib.b64
-          git commit -m "fix(wickhunter): rebuild compile-valid operator preview"
+          git add .github/wh09-payload
+          git commit -m "fix(wickhunter): materialize auditable helper payloads"
           git push origin "HEAD:$HELPER_BRANCH"

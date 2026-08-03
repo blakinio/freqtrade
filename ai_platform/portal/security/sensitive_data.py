@@ -15,9 +15,8 @@ _CAMEL_ACRONYM_BOUNDARY = re.compile(r"([A-Z]+)([A-Z][a-z])")
 _CAMEL_WORD_BOUNDARY = re.compile(r"([a-z0-9])([A-Z])")
 _NON_ALNUM = re.compile(r"[^A-Za-z0-9]+")
 
-# These suffixes describe a field's metadata, not the protected value itself. Keep this
-# allowlist deliberately narrow: `cookie_policy` and `authorization_status` are safe,
-# while `authorization_header`, `secret_ref`, and `vault_ref` remain sensitive.
+# These suffixes describe metadata about a protected field, not its value. Keep the
+# allowlist narrow: authorization_header, secret_ref, and vault_ref remain sensitive.
 _METADATA_ONLY_SUFFIXES = frozenset(
     {
         "algorithm",
@@ -41,10 +40,6 @@ _METADATA_ONLY_SUFFIXES = frozenset(
         "type",
     }
 )
-
-_COMPOUND_KINDS: tuple[tuple[tuple[str, ...], "SensitiveFieldKind"], ...]
-_SINGLE_TOKEN_KINDS: dict[str, "SensitiveFieldKind"]
-_COMPACT_KINDS: dict[str, "SensitiveFieldKind"]
 
 
 class SensitiveFieldKind(StrEnum):
@@ -137,7 +132,7 @@ class UnsupportedSensitiveDataTypeError(SensitiveDataError):
 
 
 def classify_sensitive_key(key: str) -> SensitiveFieldMatch | None:
-    """Classify a field name after case, delimiter, acronym, and camel-case normalization."""
+    """Classify a field after case, delimiter, acronym, and camel-case normalization."""
 
     tokens = _key_tokens(key)
     if not tokens:
@@ -152,15 +147,11 @@ def classify_sensitive_key(key: str) -> SensitiveFieldMatch | None:
             return SensitiveFieldMatch(kind=kind, normalized_key=normalized)
 
     for token in tokens:
-        kind = _SINGLE_TOKEN_KINDS.get(token)
+        kind = _SINGLE_TOKEN_KINDS.get(token) or _COMPACT_KINDS.get(token)
         if kind is not None:
             return SensitiveFieldMatch(kind=kind, normalized_key=normalized)
-        compact_kind = _COMPACT_KINDS.get(token)
-        if compact_kind is not None:
-            return SensitiveFieldMatch(kind=compact_kind, normalized_key=normalized)
 
-    compact = "".join(tokens)
-    compact_kind = _COMPACT_KINDS.get(compact)
+    compact_kind = _COMPACT_KINDS.get("".join(tokens))
     if compact_kind is not None:
         return SensitiveFieldMatch(kind=compact_kind, normalized_key=normalized)
     return None
@@ -176,14 +167,13 @@ def reject_sensitive_data(
     """Validate a JSON-like structure before persistence or publication."""
 
     _validate_limits(max_depth=max_depth, max_items=max_items)
-    budget = [0]
     _reject(
         value,
         path=path,
         depth=0,
         max_depth=max_depth,
         max_items=max_items,
-        budget=budget,
+        budget=[0],
         active=set(),
     )
     return value
@@ -220,7 +210,10 @@ def _key_tokens(key: str) -> tuple[str, ...]:
 
 def _contains_subsequence(tokens: tuple[str, ...], candidate: tuple[str, ...]) -> bool:
     width = len(candidate)
-    return any(tokens[index : index + width] == candidate for index in range(len(tokens) - width + 1))
+    return any(
+        tokens[index : index + width] == candidate
+        for index in range(len(tokens) - width + 1)
+    )
 
 
 def _validate_limits(*, max_depth: int, max_items: int) -> None:
@@ -329,17 +322,17 @@ def _redact(
                 _consume(path=child_path, budget=budget, max_items=max_items)
                 if classify_sensitive_key(key) is not None:
                     redacted[key] = replacement
-                    continue
-                redacted[key] = _redact(
-                    child,
-                    path=child_path,
-                    depth=depth + 1,
-                    max_depth=max_depth,
-                    max_items=max_items,
-                    budget=budget,
-                    active=active,
-                    replacement=replacement,
-                )
+                else:
+                    redacted[key] = _redact(
+                        child,
+                        path=child_path,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                        max_items=max_items,
+                        budget=budget,
+                        active=active,
+                        replacement=replacement,
+                    )
             return redacted
         finally:
             active.remove(identity)
@@ -347,30 +340,26 @@ def _redact(
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         identity = _enter_container(value, path=path, active=active)
         try:
-            return [
-                _redact(
-                    child,
-                    path=f"{path}[{index}]",
-                    depth=depth + 1,
-                    max_depth=max_depth,
-                    max_items=max_items,
-                    budget=budget,
-                    active=active,
-                    replacement=replacement,
+            redacted_sequence: list[Any] = []
+            for index, child in enumerate(value):
+                child_path = f"{path}[{index}]"
+                _consume(path=child_path, budget=budget, max_items=max_items)
+                redacted_sequence.append(
+                    _redact(
+                        child,
+                        path=child_path,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                        max_items=max_items,
+                        budget=budget,
+                        active=active,
+                        replacement=replacement,
+                    )
                 )
-                for index, child in enumerate(value)
-                if not _consume_and_skip(
-                    path=f"{path}[{index}]", budget=budget, max_items=max_items
-                )
-            ]
+            return redacted_sequence
         finally:
             active.remove(identity)
 
     if isinstance(value, (set, frozenset, bytearray)):
         raise UnsupportedSensitiveDataTypeError(path=path, value=value)
     return value
-
-
-def _consume_and_skip(*, path: str, budget: list[int], max_items: int) -> bool:
-    _consume(path=path, budget=budget, max_items=max_items)
-    return False

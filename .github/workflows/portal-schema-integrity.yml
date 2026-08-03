@@ -1,0 +1,84 @@
+name: Portal Schema Integrity
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/**"
+      - "deploy/synology/portal-oidc/**"
+      - "tests/ai_platform/portal/**"
+      - "tests/ai_platform_integration/**"
+      - "docs/ai_platform/portal/**"
+      - "docs/agents/tasks/**/FTAI-*-portal-remediation-1122.md"
+      - ".github/workflows/portal-schema-integrity.yml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "ai_platform/portal/**"
+      - "deploy/synology/portal-oidc/**"
+      - "tests/ai_platform/portal/**"
+      - "tests/ai_platform_integration/**"
+      - "docs/ai_platform/portal/**"
+      - ".github/workflows/portal-schema-integrity.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "portal-schema-integrity-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    name: Exact-image ORM and migration inventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build exact Portal identity image
+        run: >-
+          docker build
+          --file deploy/synology/portal-oidc/Dockerfile.control-plane
+          --tag portal-schema-integrity:${{ github.sha }}
+          .
+
+      - name: Generate secret-free schema inventory
+        env:
+          IMAGE: portal-schema-integrity:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm --entrypoint python "$IMAGE" \
+            -m ai_platform.portal.control_plane.schema_integrity \
+            --format json \
+            > artifacts/portal-schema-inventory.json
+          docker run --rm --entrypoint python "$IMAGE" \
+            -m ai_platform.portal.control_plane.schema_integrity \
+            --format markdown \
+            > artifacts/portal-schema-inventory.md
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("artifacts/portal-schema-inventory.json").read_text())
+          summary = payload["summary"]
+          print(json.dumps(summary, indent=2, sort_keys=True))
+          assert summary["orm_tables"] >= 1
+          assert summary["migration_files"] >= 1
+          PY
+          cat artifacts/portal-schema-inventory.md
+
+      - name: Upload schema inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-schema-inventory-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/portal-schema-inventory.json
+            artifacts/portal-schema-inventory.md
+          if-no-files-found: error
+          retention-days: 14

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib
+import importlib.util
 import json
 import re
 from pathlib import Path
@@ -27,21 +27,24 @@ def _package_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
-def discover_model_modules() -> tuple[str, ...]:
-    portal_root = _portal_root()
-    package_root = _package_root()
-    modules: list[str] = []
-    for path in sorted(portal_root.rglob("models.py")):
-        relative = path.relative_to(package_root).with_suffix("")
-        modules.append(".".join(relative.parts))
-    return tuple(modules)
+def discover_model_files() -> tuple[Path, ...]:
+    return tuple(sorted(_portal_root().rglob("models.py")))
 
 
 def import_model_modules() -> tuple[str, ...]:
-    modules = discover_model_modules()
-    for module in modules:
-        importlib.import_module(module)
-    return modules
+    package_root = _package_root()
+    loaded: list[str] = []
+    for index, path in enumerate(discover_model_files()):
+        relative = path.relative_to(package_root).with_suffix("")
+        display_name = ".".join(relative.parts)
+        module_name = f"_portal_schema_inventory_{index}_{'_'.join(relative.parts)}"
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"cannot load Portal model file: {path}")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        loaded.append(display_name)
+    return tuple(loaded)
 
 
 def _column_payload(table: Table) -> list[dict[str, Any]]:

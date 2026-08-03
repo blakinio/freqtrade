@@ -7,9 +7,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from ai_platform.portal.security.sensitive_data import (
-    SensitiveDataError,
     classify_sensitive_key,
     reject_sensitive_data,
+    SensitiveDataError,
 )
 
 

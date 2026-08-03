@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Any
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -15,15 +16,35 @@ SessionFactory = Callable[[], Session]
 SQLITE_BUSY_TIMEOUT_SECONDS = 30.0
 
 
+def _enable_sqlite_foreign_keys(
+    dbapi_connection: Any,
+    _connection_record: Any,
+) -> None:
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys=ON")
+        enabled = cursor.execute("PRAGMA foreign_keys").fetchone()
+        if enabled is None or enabled[0] != 1:
+            raise RuntimeError("SQLite foreign-key enforcement could not be enabled")
+    finally:
+        cursor.close()
+
+
+def _build_sqlite_engine(database_url: str, **kwargs: Any) -> Engine:
+    engine = create_engine(database_url, **kwargs)
+    event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    return engine
+
+
 def build_engine(database_url: str) -> Engine:
     if database_url == "sqlite+pysqlite:///:memory:":
-        return create_engine(
+        return _build_sqlite_engine(
             database_url,
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
     if database_url.startswith("sqlite"):
-        return create_engine(
+        return _build_sqlite_engine(
             database_url,
             connect_args={"timeout": SQLITE_BUSY_TIMEOUT_SECONDS},
             pool_pre_ping=True,

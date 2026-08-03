@@ -116,17 +116,16 @@ jobs:
           ) -> None:
               starts = [index for index, line in enumerate(lines) if line == start_marker]
               ends = [index for index, line in enumerate(lines) if line == end_marker]
-              candidates = [
-                  (start, end)
-                  for start in starts
-                  for end in ends
-                  if start < end
-              ]
-              if len(candidates) != 1:
+              candidates = []
+              for start in starts:
+                  following = [end for end in ends if end > start]
+                  if following:
+                      candidates.append((start, min(following)))
+              if not candidates:
                   raise SystemExit(
                       f'operator repair boundary mismatch: {start_marker!r} -> {end_marker!r}'
                   )
-              start, end = candidates[0]
+              start, end = min(candidates, key=lambda pair: pair[1] - pair[0])
               normalized = list(replacement)
               target_indent = len(start_marker) - len(start_marker.lstrip())
               nonempty = [line for line in normalized if line.strip()]

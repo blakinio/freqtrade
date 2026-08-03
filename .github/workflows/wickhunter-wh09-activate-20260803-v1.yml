@@ -1,0 +1,373 @@
+name: WickHunter WH09 candidate PAPER activation v1
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-activate-20260803-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-activate-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-activate-20260803-v1.yml
+  EXPECTED_BASE_SHA: 2f9792455fcd5e5b398b8f8bd88036e1bde62010
+  CANDIDATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-candidate-materialization/packages/wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  CANDIDATE_PACKAGE_ID: wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  CANDIDATE_MANIFEST_SHA256: 4c8cd77294f0142aefcd0895f654d1c78260d9f77a44e6caf134d161e742c5eb
+  EVALUATION_SHA256: 87d9a859168cabab6d35e764fdc719e111f498b9fbff6cbc825f87c2db15b5cb
+  PARAMETER_VERSION: wickhunter-production-h180s-01
+  PARAMETER_SHA256: 59b0ca8572c53b8c2bcd7ad2f609f045004bf3299c19359d0b6ce8e76b34cd07
+  MODEL_VERSION: wickhunter-lightgbm-a9ca9a91087e34e2
+  MODEL_HASH: a9ca9a91087e34e269e5eee171e70e8979c7940d8789e93f7069b57dd2753cd9
+  MODEL_ARTIFACT_SHA256: c69ab40dbfc0bd92ca599618f07a844269ce0acada13cd7ece4ed295808dbe48
+  ROLLBACK_MODEL_VERSION: wickhunter-deterministic-baseline-v1
+  ROLLBACK_MODEL_HASH: 43572f6f7bb614240b56b7dd4b2f473a4a50f84aa743da58fe1d28ab40e0ca91
+  ROLLBACK_PARAMETER_VERSION: wickhunter-production-h180s-01
+  ROLLBACK_PARAMETER_HASH: 59b0ca8572c53b8c2bcd7ad2f609f045004bf3299c19359d0b6ce8e76b34cd07
+  SOURCE_COMMIT_SHA: 626087ca45d67eb908d6c1f1f419f13cbd49f596
+  ACTIVATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/activations/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2
+  JOURNAL_ROOT: /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/journals/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2
+  BOT_INSTANCE: wickhunter-paper-v1
+  WH08_CONSUMER_VERSION: wickhunter-portal-consumer-v1
+  WINDOW_DURATION_MS: "86700000"
+
+jobs:
+  activate:
+    name: Publish immutable WH09 PAPER activation
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact activation request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-activate-20260803-v1.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          [[ -d "$CANDIDATE_ROOT" && ! -L "$CANDIDATE_ROOT" ]]
+          [[ "$(basename "$CANDIDATE_ROOT")" == "$CANDIDATE_PACKAGE_ID" ]]
+          for path in "$(dirname "$ACTIVATION_ROOT")" "$(dirname "$JOURNAL_ROOT")"; do
+            [[ ! -L "$path" ]] || { echo "state parent is a symlink: $path" >&2; exit 1; }
+          done
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Publish or verify immutable activation and journal
+        id: terminal
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - <<'PY' | tee "$RUNNER_TEMP/wickhunter-wh09-activation-terminal.json"
+          import json
+          import os
+          import time
+          from dataclasses import asdict
+          from decimal import Decimal
+          from pathlib import Path
+
+          from ai_platform.wickhunter.candidate_activation import (
+              activate_verified_candidate,
+              load_verified_candidate_package,
+          )
+          from ai_platform.wickhunter.candidate_paper_runtime_service import (
+              CandidatePaperRuntimeService,
+          )
+          from ai_platform.wickhunter.candidate_runtime_binding import (
+              build_candidate_paper_runtime_binding,
+          )
+          from ai_platform.wickhunter.canonical import canonical_sha256
+          from ai_platform.wickhunter.paper_validation import (
+              load_verified_paper_run_request,
+          )
+          from ai_platform.wickhunter.shadow_runtime import ShadowRuntimePolicy
+
+          candidate_root = Path(os.environ["CANDIDATE_ROOT"])
+          activation_root = Path(os.environ["ACTIVATION_ROOT"])
+          journal_root = Path(os.environ["JOURNAL_ROOT"])
+          candidate_binding_path = (
+              activation_root.parent / f"{activation_root.name}-candidate-binding.json"
+          )
+
+          package = load_verified_candidate_package(candidate_root)
+          identity = package.identity
+          expected = {
+              "package_id": os.environ["CANDIDATE_PACKAGE_ID"],
+              "manifest_sha256": os.environ["CANDIDATE_MANIFEST_SHA256"],
+              "evaluation_sha256": os.environ["EVALUATION_SHA256"],
+              "parameter_version": os.environ["PARAMETER_VERSION"],
+              "parameter_hash": os.environ["PARAMETER_SHA256"],
+              "model_version": os.environ["MODEL_VERSION"],
+              "model_hash": os.environ["MODEL_HASH"],
+              "model_artifact_sha256": os.environ["MODEL_ARTIFACT_SHA256"],
+              "rollback_model_version": os.environ["ROLLBACK_MODEL_VERSION"],
+              "rollback_model_hash": os.environ["ROLLBACK_MODEL_HASH"],
+              "rollback_parameter_version": os.environ["ROLLBACK_PARAMETER_VERSION"],
+              "rollback_parameter_hash": os.environ["ROLLBACK_PARAMETER_HASH"],
+              "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+          }
+          observed = {
+              "package_id": identity.package_id,
+              "manifest_sha256": identity.manifest_sha256,
+              "evaluation_sha256": identity.evaluation_sha256,
+              "parameter_version": identity.parameter_version,
+              "parameter_hash": identity.parameter_hash,
+              "model_version": identity.model_version,
+              "model_hash": identity.model_hash,
+              "model_artifact_sha256": identity.model_artifact_sha256,
+              "rollback_model_version": identity.rollback_model_version,
+              "rollback_model_hash": identity.rollback_model_hash,
+              "rollback_parameter_version": identity.rollback_parameter_version,
+              "rollback_parameter_hash": identity.rollback_parameter_hash,
+              "source_commit_sha": identity.source_commit_sha,
+          }
+          if observed != expected:
+              raise SystemExit(f"candidate identity mismatch: {observed!r}")
+
+          if activation_root.exists() or activation_root.is_symlink():
+              request, policy = load_verified_paper_run_request(activation_root)
+              activation_state = "verified_existing"
+          else:
+              result = activate_verified_candidate(
+                  candidate_root=candidate_root,
+                  activation_root=activation_root,
+                  created_at_ms=time.time_ns() // 1_000_000,
+                  bot_instance=os.environ["BOT_INSTANCE"],
+                  wh08_consumer_version=os.environ["WH08_CONSUMER_VERSION"],
+                  window_duration_ms=int(os.environ["WINDOW_DURATION_MS"]),
+              )
+              request = result.request
+              policy = result.policy
+              activation_state = "published_new"
+
+          if request.model_version != identity.model_version:
+              raise SystemExit("activation model version mismatch")
+          if request.model_hash != identity.model_hash:
+              raise SystemExit("activation model hash mismatch")
+          if request.parameter_version != identity.parameter_version:
+              raise SystemExit("activation parameter version mismatch")
+          if request.parameter_hash != identity.parameter_hash:
+              raise SystemExit("activation parameter hash mismatch")
+          if request.dataset_hash != identity.evaluation_sha256:
+              raise SystemExit("activation dataset identity mismatch")
+          if request.code_sha != identity.source_commit_sha:
+              raise SystemExit("activation code identity mismatch")
+          if request.rollback_model_version != identity.rollback_model_version:
+              raise SystemExit("activation rollback model version mismatch")
+          if request.rollback_model_hash != identity.rollback_model_hash:
+              raise SystemExit("activation rollback model hash mismatch")
+          if request.rollback_parameter_version != identity.rollback_parameter_version:
+              raise SystemExit("activation rollback parameter version mismatch")
+          if request.rollback_parameter_hash != identity.rollback_parameter_hash:
+              raise SystemExit("activation rollback parameter hash mismatch")
+          if request.window_end_ms - request.window_start_ms != int(
+              os.environ["WINDOW_DURATION_MS"]
+          ):
+              raise SystemExit("activation window duration mismatch")
+
+          binding = build_candidate_paper_runtime_binding(
+              candidate_root=candidate_root,
+              activation_root=activation_root,
+          )
+          runtime_policy = ShadowRuntimePolicy(
+              policy_version="wickhunter-paper-runtime-v1",
+              simulated_initial_equity_quote=Decimal("10000"),
+              maximum_universe_age_ms=300000,
+              maximum_source_age_ms=300000,
+              minimum_healthy_sources=1,
+              maximum_open_positions=4,
+              maximum_drawdown_ratio=Decimal("0.20"),
+              decision_history_limit=1000,
+          )
+          service = CandidatePaperRuntimeService(
+              binding=binding,
+              runtime_policy=runtime_policy,
+              journal_root=journal_root,
+          )
+          if service.journal.latest_state() is not None:
+              raise SystemExit("activation journal already contains runtime generations")
+
+          activation_manifest = json.loads(
+              (activation_root / "activation-manifest.json").read_text(encoding="utf-8")
+          )
+          candidate_binding = json.loads(candidate_binding_path.read_text(encoding="utf-8"))
+          journal_identity = json.loads(
+              (journal_root / "identity.json").read_text(encoding="utf-8")
+          )
+          claimed_binding_sha = candidate_binding.pop("binding_sha256")
+          if canonical_sha256(candidate_binding) != claimed_binding_sha:
+              raise SystemExit("candidate activation binding self-hash mismatch")
+          candidate_binding["binding_sha256"] = claimed_binding_sha
+
+          for payload_name, payload in (
+              ("activation manifest", activation_manifest),
+              ("candidate activation binding", candidate_binding),
+              ("journal identity", journal_identity),
+          ):
+              for key in (
+                  "protected_holdout_accessed",
+                  "automatic_promotion_enabled",
+                  "trading_credentials_present",
+                  "order_adapter_present",
+                  "execution_enabled",
+                  "live_capital_authorized",
+              ):
+                  if key in payload and payload[key] is not False:
+                      raise SystemExit(f"{payload_name} contains forbidden authority: {key}")
+              if payload.get("orders_submitted", 0) != 0:
+                  raise SystemExit(f"{payload_name} submitted orders")
+
+          terminal = {
+              **observed,
+              "activation_state": activation_state,
+              "activation_root": str(activation_root),
+              "activation_manifest_sha256": activation_manifest["manifest_sha256"],
+              "candidate_activation_binding_sha256": claimed_binding_sha,
+              "journal_root": str(journal_root),
+              "journal_identity_sha256": journal_identity["identity_sha256"],
+              "runtime_binding_id": binding.binding_id,
+              "paper_policy_sha256": policy.policy_sha256,
+              "runtime_policy": asdict(runtime_policy),
+              "runtime_policy_sha256": runtime_policy.policy_sha256,
+              "run_id": request.run_id,
+              "created_at_ms": request.created_at_ms,
+              "window_start_ms": request.window_start_ms,
+              "window_end_ms": request.window_end_ms,
+              "window_duration_ms": request.window_end_ms - request.window_start_ms,
+              "bot_instance": request.bot_instance,
+              "mode": request.mode.value,
+              "wh08_consumer_version": request.wh08_consumer_version,
+              "journal_generation_count": 0,
+              "status": "activated_waiting_observation",
+              "candidate_only": True,
+              "owner_decision_required": True,
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          print(json.dumps(terminal, indent=2, sort_keys=True, default=str))
+          output_path = Path(os.environ["GITHUB_OUTPUT"])
+          with output_path.open("a", encoding="utf-8") as handle:
+              for key in (
+                  "run_id",
+                  "activation_manifest_sha256",
+                  "runtime_binding_id",
+                  "paper_policy_sha256",
+                  "runtime_policy_sha256",
+                  "journal_identity_sha256",
+                  "window_start_ms",
+                  "window_end_ms",
+              ):
+                  handle.write(f"{key}={terminal[key]}\n")
+          PY
+
+      - name: Publish activation summary
+        shell: bash
+        env:
+          TERMINAL_RUN_ID: ${{ steps.terminal.outputs.run_id }}
+          TERMINAL_ACTIVATION_MANIFEST: ${{ steps.terminal.outputs.activation_manifest_sha256 }}
+          TERMINAL_RUNTIME_BINDING: ${{ steps.terminal.outputs.runtime_binding_id }}
+          TERMINAL_PAPER_POLICY: ${{ steps.terminal.outputs.paper_policy_sha256 }}
+          TERMINAL_RUNTIME_POLICY: ${{ steps.terminal.outputs.runtime_policy_sha256 }}
+          TERMINAL_JOURNAL_IDENTITY: ${{ steps.terminal.outputs.journal_identity_sha256 }}
+          TERMINAL_WINDOW_START_MS: ${{ steps.terminal.outputs.window_start_ms }}
+          TERMINAL_WINDOW_END_MS: ${{ steps.terminal.outputs.window_end_ms }}
+        run: |
+          {
+            echo "## WickHunter WH09 PAPER activation"
+            echo
+            echo "- Run: \`$TERMINAL_RUN_ID\`"
+            echo "- Activation manifest: \`$TERMINAL_ACTIVATION_MANIFEST\`"
+            echo "- Runtime binding: \`$TERMINAL_RUNTIME_BINDING\`"
+            echo "- PAPER policy: \`$TERMINAL_PAPER_POLICY\`"
+            echo "- Runtime policy: \`$TERMINAL_RUNTIME_POLICY\`"
+            echo "- Journal identity: \`$TERMINAL_JOURNAL_IDENTITY\`"
+            echo "- Window: \`$TERMINAL_WINDOW_START_MS..$TERMINAL_WINDOW_END_MS\`"
+            echo "- Initial journal generations: \`0\`"
+            echo "- Status: \`activated_waiting_observation\`"
+            echo "- Holdout/promotion/credentials/order adapter/execution/live capital: \`absent\`"
+            echo "- Orders submitted: \`0\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded activation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh09-activation-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wickhunter-wh09-activation-terminal.json
+            /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/activations/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2/policy.json
+            /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/activations/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2/request.json
+            /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/activations/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2/activation-manifest.json
+            /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/activations/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2/artifact-sha256.txt
+            /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/activations/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2-candidate-binding.json
+            /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/journals/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2/identity.json
+          if-no-files-found: error
+          retention-days: 30

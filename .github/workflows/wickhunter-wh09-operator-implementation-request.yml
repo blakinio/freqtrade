@@ -83,9 +83,9 @@ jobs:
           if source.count(start) != 1:
               raise SystemExit("payload start marker mismatch")
           tail = source.split(start, 1)[1]
-          if tail.count(end) != 1:
-              raise SystemExit("payload end marker mismatch")
-          encoded = tail.split(end, 1)[0]
+          encoded, separator, _remainder = tail.partition(end)
+          if not separator:
+              raise SystemExit("payload end marker missing")
           (Path(os.environ["RUNNER_TEMP"]) / "wh09-payload.b64").write_text(
               encoded,
               encoding="ascii",
@@ -93,6 +93,7 @@ jobs:
           PY
           base64 --decode "$RUNNER_TEMP/wh09-payload.b64" > "$RUNNER_TEMP/wh09-payload.tar.gz"
           echo "$PAYLOAD_SHA256  $RUNNER_TEMP/wh09-payload.tar.gz" | sha256sum --check --strict
+
           cd target
           python3 - <<'PY'
           import os
@@ -110,10 +111,11 @@ jobs:
               "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py",
           }
           with tarfile.open(archive, "r:gz") as handle:
-              files = {item.name for item in handle.getmembers() if item.isfile()}
+              members = handle.getmembers()
+              files = {item.name for item in members if item.isfile()}
               if files != expected:
                   raise SystemExit(f"payload file set mismatch: {sorted(files)}")
-              for item in handle.getmembers():
+              for item in members:
                   path = Path(item.name)
                   if path.is_absolute() or ".." in path.parts or item.issym() or item.islnk():
                       raise SystemExit(f"unsafe payload member: {item.name}")
@@ -149,6 +151,7 @@ jobs:
               raise SystemExit("task base anchor mismatch")
           task.write_text(text.replace(old_base, new_base, 1), encoding="utf-8")
           PY
+
           python3 -m py_compile \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/healthcheck.py \

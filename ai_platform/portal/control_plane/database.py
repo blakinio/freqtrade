@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Callable
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -13,6 +14,20 @@ class Base(DeclarativeBase):
 
 SessionFactory = Callable[[], Session]
 SQLITE_BUSY_TIMEOUT_SECONDS = 30.0
+
+
+@event.listens_for(Engine, "connect")
+def _enable_sqlite_foreign_keys(dbapi_connection: object, _connection_record: object) -> None:
+    if not isinstance(dbapi_connection, sqlite3.Connection):
+        return
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys=ON")
+        enabled = cursor.execute("PRAGMA foreign_keys").fetchone()
+    finally:
+        cursor.close()
+    if enabled != (1,):
+        raise RuntimeError("SQLite foreign-key enforcement could not be enabled")
 
 
 def build_engine(database_url: str) -> Engine:
@@ -36,9 +51,8 @@ def build_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def create_schema(engine: Engine) -> None:
-    # Import every portal module that contributes SQLAlchemy tables to the shared
-    # metadata before creating the development/test schema. Production continues
-    # to use the versioned migrations owned by each module.
+    # Development and isolated unit tests may construct metadata directly. Public
+    # staging/production runtimes must use the ordered migration authority instead.
     from ai_platform.portal.bot_operations import models as bot_operation_models  # noqa: F401
     from ai_platform.portal.control_plane import models as control_plane_models  # noqa: F401
     from ai_platform.portal.execution_submission import (  # noqa: F401

@@ -15,7 +15,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-operator-implementation-request.yml
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
   TARGET_BASE_SHA: 0a82a5c93613a213989865bd9128ac7263227148
   TARGET_HEAD_SHA: ae22c826dc46a7a71a6aa7d9f389b0d92078323c
@@ -62,7 +61,7 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Validate and repair explicit product files
+      - name: Validate exact product scope
         shell: bash
         run: |
           set -euo pipefail
@@ -75,43 +74,49 @@ jobs:
             printf 'Expected product paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
             exit 1
           }
+
+      - name: Repair operator environment typing
+        shell: bash
+        run: |
+          set -euo pipefail
           cd target
           python3 - <<'PY'
-          import re
           from pathlib import Path
 
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label} anchor count={count}")
-              return text.replace(old, new, 1)
-
-          operator_path = Path(
-              "ai_platform/wickhunter/candidate_paper_runtime_operator.py"
+          path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
+          text = path.read_text(encoding="utf-8")
+          old_import = "import time\nfrom dataclasses import dataclass\n"
+          old_type = "environment: dict[str, str] | os._Environ[str] | None = None"
+          if text.count(old_import) != 1 or text.count(old_type) != 1:
+              raise SystemExit("operator typing anchor mismatch")
+          text = text.replace(
+              old_import,
+              "import time\nfrom collections.abc import Mapping\nfrom dataclasses import dataclass\n",
+              1,
           )
-          operator = operator_path.read_text(encoding="utf-8")
-          if "from collections.abc import Mapping\n" not in operator:
-              operator = replace_once(
-                  operator,
-                  "import time\n",
-                  "import time\nfrom collections.abc import Mapping\n",
-                  "operator Mapping import",
-              )
-          operator = replace_once(
-              operator,
-              "environment: dict[str, str] | os._Environ[str] | None = None",
+          text = text.replace(
+              old_type,
               "environment: Mapping[str, str] | None = None",
-              "operator environment type",
+              1,
           )
-          operator_path.write_text(operator, encoding="utf-8")
+          path.write_text(text, encoding="utf-8")
+          PY
 
-          test_path = Path(
+      - name: Repair test payload mutations
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
               "tests/ai_platform_integration/"
               "test_wickhunter_candidate_paper_runtime_operator.py"
           )
-          tests = test_path.read_text(encoding="utf-8")
-          if "def _rehash_payload(" not in tests:
-              helpers = '''def _rehash_payload(payload: dict[str, object]) -> None:
+          text = path.read_text(encoding="utf-8")
+          anchor = "def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:\n"
+          helpers = '''def _rehash_payload(payload: dict[str, object]) -> None:
               body = {
                   key: value
                   for key, value in payload.items()
@@ -132,76 +137,82 @@ jobs:
 
 
           '''
-              tests = replace_once(
-                  tests,
-                  "def _write_snapshot(",
-                  helpers + "def _write_snapshot(",
-                  "test helper insertion",
-              )
-          tests = replace_once(
-              tests,
-              '        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),',
-              '        (_stale_payload, "stale"),',
-              "stale parameter",
+          if text.count(anchor) != 1:
+              raise SystemExit("test helper anchor mismatch")
+          text = text.replace(anchor, helpers + anchor, 1)
+          stale = '        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),'
+          if text.count(stale) != 1:
+              raise SystemExit("stale mutation anchor mismatch")
+          text = text.replace(stale, '        (_stale_payload, "stale"),', 1)
+          future = '''        (
+              lambda payload: cast(list[dict[str, object]], payload["events"])[0].update(
+                  {"received_at_ms": NOW_MS + 1}
+              ),
+              "unavailable",
+          ),'''
+          if text.count(future) != 1:
+              raise SystemExit("future mutation anchor mismatch")
+          text = text.replace(future, '        (_future_event_payload, "unavailable"),', 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Repair test request and slots patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(
+              "tests/ai_platform_integration/"
+              "test_wickhunter_candidate_paper_runtime_operator.py"
           )
-          future_pattern = re.compile(
-              r'''        \(
-                  \s*lambda payload: cast\(list\[dict\[str, object\]\], payload\["events"\]\)\[0\]\.update\(
-                  \s*\{"received_at_ms": NOW_MS \+ 1\}
-                  \s*\),
-                  \s*"unavailable",
-                  \s*\),''',
-              re.VERBOSE,
-          )
-          tests, future_count = future_pattern.subn(
-              '        (_future_event_payload, "unavailable"),', tests, count=1
-          )
-          if future_count != 1:
-              raise SystemExit(f"future parameter anchor count={future_count}")
-          tests = replace_once(
-              tests,
-              'request.method == "GET"',
-              'request.get_method() == "GET"',
-              "request method",
-          )
-          patch_pattern = re.compile(
-              r'''    monkeypatch\.setattr\(
-                  runtime_operator,
-                  \s*"_compose_tick",
-                  \s*lambda \*\*_kwargs: cast\(
-                  ShadowRuntimeTick, SimpleNamespace\(observed_at_ms=NOW_MS\)
-                  \),
-                  \)''',
-              re.VERBOSE,
-          )
-          patch_replacement = '''    monkeypatch.setattr(
+          text = path.read_text(encoding="utf-8")
+          old_method = 'request.method == "GET"'
+          old_patch = '    monkeypatch.setattr(runtime_operator, "_compose_tick", lambda **_kwargs: cast(ShadowRuntimeTick, SimpleNamespace(observed_at_ms=NOW_MS)))'
+          if text.count(old_method) != 1:
+              raise SystemExit("request method anchor mismatch")
+          if text.count(old_patch) != 1:
+              raise SystemExit("slots monkeypatch anchor mismatch")
+          text = text.replace(old_method, 'request.get_method() == "GET"', 1)
+          text = text.replace(
+              old_patch,
+              '''    monkeypatch.setattr(
               CandidatePaperRuntimeOperator,
               "_compose_tick",
               lambda self, **_kwargs: cast(
                   ShadowRuntimeTick,
                   SimpleNamespace(observed_at_ms=NOW_MS),
               ),
-          )'''
-          tests, patch_count = patch_pattern.subn(
-              patch_replacement, tests, count=1
+          )''',
+              1,
           )
-          if patch_count != 1:
-              raise SystemExit(f"compose tick monkeypatch anchor count={patch_count}")
-          test_path.write_text(tests, encoding="utf-8")
-
-          dockerfile_path = Path(
-              "deploy/synology/wickhunter-paper-runtime/Dockerfile"
-          )
-          dockerfile = dockerfile_path.read_text(encoding="utf-8")
-          dockerfile = replace_once(
-              dockerfile,
-              "    && python - <<'PY'\n",
-              "    && OPERATOR_COMMIT=\"$OPERATOR_COMMIT\" python - <<'PY'\n",
-              "Dockerfile commit environment",
-          )
-          dockerfile_path.write_text(dockerfile, encoding="utf-8")
-          print("deterministic product repairs applied")
+          path.write_text(text, encoding="utf-8")
           PY
+
+      - name: Repair Docker commit validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("deploy/synology/wickhunter-paper-runtime/Dockerfile")
+          text = path.read_text(encoding="utf-8")
+          old = "    && python - <<'PY'\n"
+          new = "    && OPERATOR_COMMIT=\"$OPERATOR_COMMIT\" python - <<'PY'\n"
+          if text.count(old) != 1:
+              raise SystemExit("Docker commit anchor mismatch")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+      - name: Compile explicit Python paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
           python3 -m py_compile \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/healthcheck.py \
@@ -225,7 +236,7 @@ jobs:
           uv pip install -e ft_client/
           uv pip install -e .
 
-      - name: Format and validate implementation
+      - name: Format and lint explicit Python paths
         shell: bash
         run: |
           set -euo pipefail
@@ -242,11 +253,29 @@ jobs:
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/healthcheck.py \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+
+      - name: Type-check operator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
           mypy ai_platform/wickhunter/candidate_paper_runtime_operator.py
+
+      - name: Run focused operator and runtime tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
           pytest -q \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
             tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+
+      - name: Validate hardened Compose package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
           OPERATOR_COMMIT="$TARGET_HEAD_SHA" \
           CANDIDATE_ROOT_HOST=/tmp/candidate \
           ACTIVATION_ROOT_HOST=/tmp/activation \
@@ -258,32 +287,29 @@ jobs:
               -f deploy/synology/wickhunter-paper-runtime/compose.yaml \
               config --quiet
 
-      - name: Commit and build validated product
+      - name: Commit, build and push validated product
         shell: bash
         run: |
           set -euo pipefail
           cd target
           expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          actual="$(git diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)"
-          [[ "$actual" == "$expected" ]]
-          repair_paths="$(git diff --name-only | sort)"
-          allowed_repairs=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          [[ "$(git diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)" == "$expected" ]]
+          repairs="$(git diff --name-only | sort)"
+          allowed=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
           while IFS= read -r path; do
             [[ -z "$path" ]] && continue
-            grep -Fxq "$path" <<< "$allowed_repairs" || {
+            grep -Fxq "$path" <<< "$allowed" || {
               echo "unexpected repair path: $path" >&2
               exit 1
             }
-          done <<< "$repair_paths"
+          done <<< "$repairs"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          if [[ -n "$repair_paths" ]]; then
-            git add \
-              ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-              deploy/synology/wickhunter-paper-runtime/Dockerfile \
-              tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-            git commit -m "fix(wickhunter): validate persistent PAPER operator"
-          fi
+          git add \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          git commit -m "fix(wickhunter): validate persistent PAPER operator"
           product_sha="$(git rev-parse HEAD)"
           docker build \
             --build-arg OPERATOR_COMMIT="$product_sha" \
@@ -298,6 +324,6 @@ jobs:
             echo
             echo "- Product head: \`$product_sha\`"
             echo "- Product paths: \`7\`"
-            echo "- Ruff, format, mypy, focused pytest, Compose and image build: \`PASS\`"
+            echo "- Compile, Ruff, mypy, focused pytest, Compose and image build: \`PASS\`"
             echo "- Protected holdout/credentials/order adapter/execution/orders/live capital: \`absent\`"
           } >> "$GITHUB_STEP_SUMMARY"

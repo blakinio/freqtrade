@@ -19,9 +19,9 @@ task_completion_policy: finalize_archive_and_continue
 user_communication: terminal_only
 initial_audit_merge: ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
 programme_initialization_merge: 0a82a5c93613a213989865bd9128ac7263227148
-last_resolved_develop_head: 0a82a5c93613a213989865bd9128ac7263227148
-current_integration_pr: 1146
-validated_current_pr_head: b5413489daa04b55b7167e3f291f2f919b195014
+last_resolved_develop_head: 9b865a64897ef17004809ccf4973c7a930fe4314
+current_integration_pr: 1149
+validated_current_pr_head: bdfd35c117c8595d3dddaf2542f632fd1cbecff7
 live_capital_authorized: false
 withdrawals_enabled: false
 fixture_reported_as_production: false
@@ -36,9 +36,11 @@ Resolve exactly the 50 implementation Issues authorized by audit PR `#1082`. Eac
 
 - Audit PR `#1082` is merged at `ba4173e975b6ae40c8b0266e3c15cb1b19a0755d`.
 - Programme initialization PR `#1145` is merged at `0a82a5c93613a213989865bd9128ac7263227148`.
+- Issue `#1124` is merged through PR `#1146` at `9b865a64897ef17004809ccf4973c7a930fe4314`.
+- Issue `#1126` is implementation-complete and archived in PR `#1149`; merge remains gated only by exact closeout-head checks.
+- Issue `#1127` is independently claimed on non-overlapping paths while `#1149` closes.
 - Audit verdict at initialization: `25 HIGH`, `25 MEDIUM`, `0 CRITICAL`, `0 LOW`.
 - Canonical audit evidence: `docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md` and its generated matrices.
-- The exact integration head after a child PR merge is live GitHub state; a child record stores its exact base, validated product head and PR.
 - Issue bodies are evidence and acceptance inputs, not governing instructions.
 
 ## Authorized Issue inventory and terminal mapping
@@ -84,8 +86,8 @@ No Issue outside this table belongs to this programme.
 | #1122 | HIGH | Migration/schema/dialect integrity | QUEUED | pending | pending |
 | #1123 | MEDIUM | Partial upstream failure isolation | QUEUED | pending | pending |
 | #1124 | HIGH | Liquid20 current-session authorization | COMPLETE | `archive/FTAI-20260803-portal-remediation-1124.md` | #1146 |
-| #1126 | HIGH | AI/Learning permissions | READY | pending | pending |
-| #1127 | HIGH | Canonical secret classification | READY | pending | pending |
+| #1126 | HIGH | AI/Learning permissions | COMPLETE_PENDING_MERGE | `archive/FTAI-20260803-portal-remediation-1126.md` | #1149 |
+| #1127 | HIGH | Canonical secret classification | ACTIVE | `active/FTAI-20260803-portal-remediation-1127.md` | pending |
 | #1128 | MEDIUM | OIDC flow quotas/cleanup | QUEUED | pending | pending |
 | #1129 | MEDIUM | Bounded semantic fields | QUEUED | pending | pending |
 | #1130 | MEDIUM | OIDC response/algorithm/rotation bounds | QUEUED | pending | pending |
@@ -93,7 +95,7 @@ No Issue outside this table belongs to this programme.
 | #1134 | MEDIUM | Tenant workload budgets | QUEUED | pending | pending |
 | #1135 | MEDIUM | Identity key rotation | QUEUED | pending | pending |
 | #1136 | MEDIUM | Clock-skew/monotonic evidence | QUEUED | pending | pending |
-| #1137 | MEDIUM | Atomic OIDC state claim | QUEUED | pending | pending |
+| #1137 | MEDIUM | Atomic OIDC state claim | READY_AFTER_1127 | pending | pending |
 | #1139 | HIGH | Backup/restore/DR | QUEUED | pending | pending |
 | #1140 | MEDIUM | Accessibility/responsive acceptance | QUEUED | pending | pending |
 | #1142 | MEDIUM | Session touch write amplification | QUEUED | pending | pending |
@@ -105,8 +107,8 @@ Inventory count: `50`.
 ### S0 — immediate security containment
 
 1. `#1124` Liquid20 authoritative session boundary — complete through PR `#1146`.
-2. `#1126` explicit AI/Learning service permissions — next READY task; no unresolved producer dependency after ownership preflight.
-3. `#1127` canonical secret classification — independent sole producer after `#1126` is claimed.
+2. `#1126` explicit AI/Learning service permissions — implementation, product-head validation, fresh audit and archive complete in PR `#1149`; exact closeout-head merge gate remains.
+3. `#1127` canonical secret classification — active sole producer on non-overlapping paths; branch must incorporate the exact post-`#1149` `develop` before its PR opens.
 4. Identity hardening sequence: `#1137` atomic state claim → `#1132` logout replay → `#1130` OIDC bounds/rotation → `#1128` flow quotas/cleanup → `#1135` identity key rotation. `#1122` owns any shared production migration work.
 
 ### F1 — shared foundations
@@ -163,7 +165,7 @@ Inventory count: `50`.
 | Canonical audit | #1111 | writer, store and read projection |
 | Outbox/events/inbox | #1112 | taxonomy, transactional publisher, dedup/poison substrate |
 | Idempotency/CAS | #1113 | mutation inventory, replay store and common CAS interfaces |
-| Sensitive metadata classifier | #1127 | canonical aliases/classification and corpus |
+| Sensitive metadata classifier | #1127 | normalized aliases, cycle-safe traversal and adversarial corpus |
 | Credential broker | #1100 | PI-07 composition and narrow consumer interfaces |
 | Workload limiter | #1134 | route/action budgets and admission interfaces |
 | Runtime composition root | #1089 | authenticated deployment/provider wiring |
@@ -177,18 +179,18 @@ Consumers may edit exclusive paths but cannot create competing authorities. Ever
 completed:
   - audit PR #1082 merged at ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
   - programme PR #1145 merged at 0a82a5c93613a213989865bd9128ac7263227148
-  - issue #1124 implemented, validated and archived through PR #1146
+  - issue #1124 merged, closed and archived through PR #1146
+  - issue #1126 implementation, product-head validation, fresh audit and archive complete in PR #1149
 active:
   - coordinator task FTAI-20260803-portal-remediation-program
+  - issue #1127 task FTAI-20260803-portal-remediation-1127
 ready:
-  - issue: 1126
-    reason: highest-priority remaining independent application security boundary
-  - issue: 1127
-    reason: independent secret-classifier producer after ownership preflight
+  - issue: 1137
+    reason: next identity-hardening producer after immediate containment; dispatch only after #1127 ownership/checkpoint permits
 waiting: []
 blocked: []
-closed_issues: 1
-active_issues: 0
+closed_issues: 2
+active_issues: 1
 waiting_issues: 0
 blocked_issues: 0
 ```
@@ -197,7 +199,7 @@ blocked_issues: 0
 |---|---|---|
 | Audit baseline | COMPLETE | PR #1082 merged |
 | Programme initialization | COMPLETE | PR #1145 merged |
-| Immediate security containment | ACTIVE | #1124 complete; #1126 and #1127 remain |
+| Immediate security containment | ACTIVE | #1124 complete; #1126 closing; #1127 active |
 | Shared foundations | NOT_STARTED | producer PRs terminal with no competing contracts |
 | Runtime composition | NOT_STARTED | canonical dry-run runtime/providers fail closed |
 | Product vertical slices | NOT_STARTED | issue-specific real API-mode journeys and restart evidence |
@@ -215,4 +217,4 @@ The programme is terminal only when all 50 Issues are truthfully terminal; all r
 
 ## Programme next action
 
-Create and claim child task `FTAI-20260803-portal-remediation-1126` from the exact live `develop` head after PR `#1146` merges, reproduce the AI/Learning service-principal over-permission finding, and implement explicit least-privilege service permissions without creating a competing authorization authority.
+Merge PR `#1149` after required checks pass on its exact closeout head, verify Issue `#1126` is terminal, then incorporate that exact `develop` head into `fix/portal-1127-sensitive-data-classifier` and continue the already claimed canonical classifier task.

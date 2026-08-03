@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import uuid4
 
 from ai_platform.portal.contracts.bots import BotSpec
 from ai_platform.portal.contracts.environment import ExecutionMode
-from ai_platform.portal.contracts.identity import Permission
+from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.risk import ApprovedExecutionIntent
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
@@ -30,13 +31,21 @@ class ScenarioAssertionError(RuntimeError):
     pass
 
 
+ProducerContextProvider = Callable[[RequestContext], RequestContext]
+
+
 class UniversalScenarioRunner:
-    def __init__(self, session_factory: SessionFactory) -> None:
+    def __init__(
+        self,
+        session_factory: SessionFactory,
+        producer_context_provider: ProducerContextProvider | None = None,
+    ) -> None:
         self._control = ControlPlaneService(session_factory)
         self._risk = RiskService(session_factory)
         self._intelligence = TradeIntelligenceService(session_factory)
         self._learning = LearningService(session_factory)
         self._operations = OperationalReadService(session_factory)
+        self._producer_context_provider = producer_context_provider
 
     def run_captured(
         self, context: RequestContext, manifest: ScenarioManifest
@@ -66,6 +75,7 @@ class UniversalScenarioRunner:
             raise ScenarioAssertionError("scenario context lacks required portal permissions")
         if context.tenant_id != manifest.tenant_id:
             raise ScenarioAssertionError("scenario tenant does not match trusted request context")
+        producer_context = self._trusted_producer_context(context)
 
         risk_policy_id = f"risk-{manifest.scenario_id}"
         model_version = f"model-active-{manifest.scenario_id}"
@@ -134,7 +144,7 @@ class UniversalScenarioRunner:
         self._operations.close_position(context, position.position_id)
 
         decision_snapshot = self._intelligence.record_decision_snapshot(
-            context,
+            producer_context,
             DecisionSnapshot(
                 snapshot_id=uuid4(),
                 tenant_id=context.tenant_id,
@@ -155,17 +165,17 @@ class UniversalScenarioRunner:
             ),
         )
         analysis = self._intelligence.analyze_outcome(
-            context,
+            producer_context,
             snapshot_id=str(decision_snapshot.snapshot_id),
             outcome=outcome,
         )
         hypothesis = self._learning.create_hypothesis(
-            context,
+            producer_context,
             analysis.insight,
             "Evaluate a reproducible candidate from the deterministic simulator outcome.",
         )
         experiment = self._learning.record_experiment(
-            context,
+            producer_context,
             hypothesis_id=str(hypothesis.hypothesis_id),
             evidence_window=EvidenceWindow(
                 start_at=datetime(2026, 5, 1, tzinfo=UTC),
@@ -178,7 +188,7 @@ class UniversalScenarioRunner:
             ),
         )
         candidate = self._learning.register_candidate(
-            context,
+            producer_context,
             experiment_id=str(experiment.experiment_id),
             model_family_id="simulator-family",
             candidate_model_version_id=f"candidate-{manifest.scenario_id}",
@@ -207,3 +217,19 @@ class UniversalScenarioRunner:
             candidate_model_version_id=candidate.candidate_model_version_id,
             realized_pnl=outcome.realized_pnl,
         )
+
+    def _trusted_producer_context(self, request_context: RequestContext) -> RequestContext:
+        if self._producer_context_provider is None:
+            raise ScenarioAssertionError("trusted AI producer context is not configured")
+        producer = self._producer_context_provider(request_context)
+        if producer.tenant_id != request_context.tenant_id:
+            raise ScenarioAssertionError("AI producer tenant does not match scenario tenant")
+        if producer.actor_type is not ActorType.SERVICE:
+            raise ScenarioAssertionError("AI producer must use a trusted service identity")
+        if Permission.MODEL_TRAIN not in producer.permissions:
+            raise ScenarioAssertionError("AI producer lacks model.train permission")
+        if producer.request_id != request_context.request_id:
+            raise ScenarioAssertionError("AI producer request provenance does not match scenario")
+        if producer.correlation_id != request_context.correlation_id:
+            raise ScenarioAssertionError("AI producer correlation does not match scenario")
+        return producer

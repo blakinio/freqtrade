@@ -34,6 +34,18 @@ def _context(*permissions: Permission) -> RequestContext:
     )
 
 
+def _producer_context(request_context: RequestContext) -> RequestContext:
+    return RequestContext(
+        tenant_id=request_context.tenant_id,
+        actor_id="service-simulator-ai-producer",
+        actor_type=ActorType.SERVICE,
+        permissions=(Permission.MODEL_TRAIN,),
+        request_id=request_context.request_id,
+        correlation_id=request_context.correlation_id,
+        causation_id=request_context.causation_id,
+    )
+
+
 def _session_factory():
     engine = build_engine("sqlite+pysqlite:///:memory:")
     create_schema(engine)
@@ -43,17 +55,22 @@ def _session_factory():
     return build_session_factory(engine)
 
 
+def _runner() -> UniversalScenarioRunner:
+    return UniversalScenarioRunner(_session_factory(), _producer_context)
+
+
 def test_universal_scenario_creates_candidate_without_model_mutation() -> None:
     manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
     context = _context(
         Permission.BOT_CREATE,
         Permission.BOT_READ,
+        Permission.MODEL_READ,
         Permission.RISK_MANAGE,
         Permission.TRADE_MANUAL_EXECUTE,
     )
     session_factory = _session_factory()
 
-    evidence = UniversalScenarioRunner(session_factory).run(context, manifest)
+    evidence = UniversalScenarioRunner(session_factory, _producer_context).run(context, manifest)
     operations = OperationalReadService(session_factory)
 
     assert evidence.realized_pnl == 10
@@ -91,14 +108,43 @@ def test_universal_scenario_requires_explicit_portal_permissions() -> None:
     manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
 
     with pytest.raises(ScenarioAssertionError, match="required portal permissions"):
-        UniversalScenarioRunner(_session_factory()).run(_context(Permission.BOT_READ), manifest)
+        _runner().run(_context(Permission.BOT_READ), manifest)
+
+
+def test_universal_scenario_requires_injected_trusted_ai_producer() -> None:
+    manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
+    context = _context(
+        Permission.BOT_CREATE,
+        Permission.BOT_READ,
+        Permission.RISK_MANAGE,
+        Permission.TRADE_MANUAL_EXECUTE,
+    )
+
+    with pytest.raises(ScenarioAssertionError, match="producer context is not configured"):
+        UniversalScenarioRunner(_session_factory()).run(context, manifest)
+
+
+def test_universal_scenario_rejects_browser_actor_as_ai_producer() -> None:
+    manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
+    context = _context(
+        Permission.BOT_CREATE,
+        Permission.BOT_READ,
+        Permission.RISK_MANAGE,
+        Permission.TRADE_MANUAL_EXECUTE,
+    )
+
+    with pytest.raises(ScenarioAssertionError, match="trusted service identity"):
+        UniversalScenarioRunner(_session_factory(), lambda _request: context).run(
+            context,
+            manifest,
+        )
 
 
 def test_first_failure_evidence_is_preserved_without_retry_or_sleep() -> None:
     manifest = ScenarioManifest.model_validate_json(SCENARIO.read_text(encoding="utf-8"))
     context = _context(Permission.BOT_READ)
 
-    report = UniversalScenarioRunner(_session_factory()).run_captured(context, manifest)
+    report = _runner().run_captured(context, manifest)
 
     assert report.passed is False
     assert report.evidence is None

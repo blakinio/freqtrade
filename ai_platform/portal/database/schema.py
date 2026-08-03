@@ -12,7 +12,6 @@ from sqlalchemy import (
     DateTime,
     Engine,
     ForeignKeyConstraint,
-    Index,
     Integer,
     MetaData,
     String,
@@ -54,93 +53,93 @@ class HardRelation:
 
 _HARD_RELATIONS = (
     HardRelation(
-        name="bot_config_revision_to_bot",
-        child_table="portal_bot_config_revisions",
-        parent_table="portal_bots",
-        orphan_count_sql="""
-            SELECT COUNT(*)
-            FROM portal_bot_config_revisions child
-            LEFT JOIN portal_bots parent
-              ON parent.tenant_id = child.tenant_id
-             AND parent.bot_id = child.bot_id
-            WHERE parent.bot_id IS NULL
+        "bot_config_revision_to_bot",
+        "portal_bot_config_revisions",
+        "portal_bots",
+        """
+        SELECT COUNT(*)
+        FROM portal_bot_config_revisions child
+        LEFT JOIN portal_bots parent
+          ON parent.tenant_id = child.tenant_id
+         AND parent.bot_id = child.bot_id
+        WHERE parent.bot_id IS NULL
         """,
     ),
     HardRelation(
-        name="membership_to_principal",
-        child_table="portal_tenant_memberships",
-        parent_table="portal_identity_principals",
-        orphan_count_sql="""
-            SELECT COUNT(*)
-            FROM portal_tenant_memberships child
-            LEFT JOIN portal_identity_principals parent
-              ON parent.principal_id = child.principal_id
-            WHERE parent.principal_id IS NULL
+        "membership_to_principal",
+        "portal_tenant_memberships",
+        "portal_identity_principals",
+        """
+        SELECT COUNT(*)
+        FROM portal_tenant_memberships child
+        LEFT JOIN portal_identity_principals parent
+          ON parent.principal_id = child.principal_id
+        WHERE parent.principal_id IS NULL
         """,
     ),
     HardRelation(
-        name="session_to_membership_identity",
-        child_table="portal_identity_sessions",
-        parent_table="portal_tenant_memberships",
-        orphan_count_sql="""
-            SELECT COUNT(*)
-            FROM portal_identity_sessions child
-            LEFT JOIN portal_tenant_memberships parent
-              ON parent.membership_id = child.membership_id
-             AND parent.principal_id = child.principal_id
-            WHERE parent.membership_id IS NULL
+        "session_to_membership_identity",
+        "portal_identity_sessions",
+        "portal_tenant_memberships",
+        """
+        SELECT COUNT(*)
+        FROM portal_identity_sessions child
+        LEFT JOIN portal_tenant_memberships parent
+          ON parent.membership_id = child.membership_id
+         AND parent.principal_id = child.principal_id
+        WHERE parent.membership_id IS NULL
         """,
     ),
     HardRelation(
-        name="risk_decision_to_trade_intent",
-        child_table="portal_risk_decisions",
-        parent_table="portal_trade_intents",
-        orphan_count_sql="""
-            SELECT COUNT(*)
-            FROM portal_risk_decisions child
-            LEFT JOIN portal_trade_intents parent
-              ON parent.tenant_id = child.tenant_id
-             AND parent.trade_intent_id = child.trade_intent_id
-            WHERE parent.trade_intent_id IS NULL
+        "risk_decision_to_trade_intent",
+        "portal_risk_decisions",
+        "portal_trade_intents",
+        """
+        SELECT COUNT(*)
+        FROM portal_risk_decisions child
+        LEFT JOIN portal_trade_intents parent
+          ON parent.tenant_id = child.tenant_id
+         AND parent.trade_intent_id = child.trade_intent_id
+        WHERE parent.trade_intent_id IS NULL
         """,
     ),
     HardRelation(
-        name="model_slot_to_model_version",
-        child_table="portal_model_promotion_slots",
-        parent_table="portal_model_versions",
-        orphan_count_sql="""
-            SELECT COUNT(*)
-            FROM portal_model_promotion_slots child
-            LEFT JOIN portal_model_versions parent
-              ON parent.tenant_id = child.tenant_id
-             AND parent.model_version_id = child.current_model_version_id
-            WHERE parent.model_version_id IS NULL
+        "model_slot_to_model_version",
+        "portal_model_promotion_slots",
+        "portal_model_versions",
+        """
+        SELECT COUNT(*)
+        FROM portal_model_promotion_slots child
+        LEFT JOIN portal_model_versions parent
+          ON parent.tenant_id = child.tenant_id
+         AND parent.model_version_id = child.current_model_version_id
+        WHERE parent.model_version_id IS NULL
         """,
     ),
     HardRelation(
-        name="bot_command_history_to_command",
-        child_table="portal_bot_command_history",
-        parent_table="portal_bot_commands",
-        orphan_count_sql="""
-            SELECT COUNT(*)
-            FROM portal_bot_command_history child
-            LEFT JOIN portal_bot_commands parent
-              ON parent.scope_tenant_id = child.scope_tenant_id
-             AND parent.command_id = child.command_id
-            WHERE parent.command_id IS NULL
+        "bot_command_history_to_command",
+        "portal_bot_command_history",
+        "portal_bot_commands",
+        """
+        SELECT COUNT(*)
+        FROM portal_bot_command_history child
+        LEFT JOIN portal_bot_commands parent
+          ON parent.scope_tenant_id = child.scope_tenant_id
+         AND parent.command_id = child.command_id
+        WHERE parent.command_id IS NULL
         """,
     ),
     HardRelation(
-        name="bot_conflict_to_existing_command",
-        child_table="portal_bot_command_idempotency_conflicts",
-        parent_table="portal_bot_commands",
-        orphan_count_sql="""
-            SELECT COUNT(*)
-            FROM portal_bot_command_idempotency_conflicts child
-            LEFT JOIN portal_bot_commands parent
-              ON parent.scope_tenant_id = child.scope_tenant_id
-             AND parent.command_id = child.existing_command_id
-            WHERE parent.command_id IS NULL
+        "bot_conflict_to_existing_command",
+        "portal_bot_command_idempotency_conflicts",
+        "portal_bot_commands",
+        """
+        SELECT COUNT(*)
+        FROM portal_bot_command_idempotency_conflicts child
+        LEFT JOIN portal_bot_commands parent
+          ON parent.scope_tenant_id = child.scope_tenant_id
+         AND parent.command_id = child.existing_command_id
+        WHERE parent.command_id IS NULL
         """,
     ),
 )
@@ -163,7 +162,10 @@ class UnversionedSchemaError(SchemaMigrationError):
 def _canonical_sql(value: object | None) -> str | None:
     if value is None:
         return None
-    return re.sub(r"\s+", " ", str(value).strip()).lower()
+    normalized = re.sub(r"\s+", " ", str(value).strip()).lower()
+    while normalized.startswith("(") and normalized.endswith(")"):
+        normalized = normalized[1:-1].strip()
+    return normalized
 
 
 def _type_token(column_type: Any, dialect: Any) -> str:
@@ -200,20 +202,17 @@ def _expected_table_snapshot(table: Table, dialect: Any) -> dict[str, Any]:
                 }
             )
         elif isinstance(constraint, ForeignKeyConstraint):
+            elements = list(constraint.elements)
             foreign_keys.append(
                 {
                     "name": constraint.name,
                     "columns": [column.name for column in constraint.columns],
-                    "referred_table": next(
-                        iter(constraint.elements)
-                    ).column.table.name,
-                    "referred_columns": [
-                        element.column.name for element in constraint.elements
-                    ],
+                    "referred_table": elements[0].column.table.name,
+                    "referred_columns": [element.column.name for element in elements],
                     "ondelete": next(
                         (
-                            element.ondelete
-                            for element in constraint.elements
+                            element.ondelete.upper()
+                            for element in elements
                             if element.ondelete is not None
                         ),
                         None,
@@ -222,10 +221,7 @@ def _expected_table_snapshot(table: Table, dialect: Any) -> dict[str, Any]:
             )
         elif isinstance(constraint, CheckConstraint):
             checks.append(
-                {
-                    "name": constraint.name,
-                    "sql": _canonical_sql(constraint.sqltext),
-                }
+                {"name": constraint.name, "sql": _canonical_sql(constraint.sqltext)}
             )
     indexes = [
         {
@@ -249,16 +245,35 @@ def _expected_table_snapshot(table: Table, dialect: Any) -> dict[str, Any]:
             foreign_keys,
             key=lambda item: (item["name"] or "", tuple(item["columns"])),
         ),
-        "checks": sorted(checks, key=lambda item: (item["name"] or "", item["sql"] or "")),
-        "indexes": sorted(indexes, key=lambda item: (item["name"] or "", tuple(item["columns"]))),
+        "checks": sorted(
+            checks,
+            key=lambda item: (item["name"] or "", item["sql"] or ""),
+        ),
+        "indexes": sorted(
+            indexes,
+            key=lambda item: (item["name"] or "", tuple(item["columns"])),
+        ),
     }
 
 
+def _manifest_tables() -> tuple[Table, ...]:
+    manifest = load_portal_models()
+    ordered = tuple(
+        table for table in Base.metadata.sorted_tables if table.name in manifest
+    )
+    ordered_names = {table.name for table in ordered}
+    if ordered_names != set(manifest):
+        raise RuntimeError(
+            "Portal table manifest and SQLAlchemy dependency order differ: "
+            f"missing={sorted(set(manifest) - ordered_names)}"
+        )
+    return ordered
+
+
 def _expected_snapshot(engine: Engine) -> dict[str, Any]:
-    load_portal_models()
     return {
         table.name: _expected_table_snapshot(table, engine.dialect)
-        for table in sorted(Base.metadata.tables.values(), key=lambda item: item.name)
+        for table in _manifest_tables()
     }
 
 
@@ -293,7 +308,11 @@ def _actual_table_snapshot(connection: Any, table_name: str) -> dict[str, Any]:
             "columns": list(constraint.get("constrained_columns") or []),
             "referred_table": constraint.get("referred_table"),
             "referred_columns": list(constraint.get("referred_columns") or []),
-            "ondelete": (constraint.get("options") or {}).get("ondelete"),
+            "ondelete": (
+                str((constraint.get("options") or {}).get("ondelete")).upper()
+                if (constraint.get("options") or {}).get("ondelete") is not None
+                else None
+            ),
         }
         for constraint in inspector.get_foreign_keys(table_name)
     ]
@@ -328,16 +347,21 @@ def _actual_table_snapshot(connection: Any, table_name: str) -> dict[str, Any]:
             foreign_keys,
             key=lambda item: (item["name"] or "", tuple(item["columns"])),
         ),
-        "checks": sorted(checks, key=lambda item: (item["name"] or "", item["sql"] or "")),
-        "indexes": sorted(indexes, key=lambda item: (item["name"] or "", tuple(item["columns"]))),
+        "checks": sorted(
+            checks,
+            key=lambda item: (item["name"] or "", item["sql"] or ""),
+        ),
+        "indexes": sorted(
+            indexes,
+            key=lambda item: (item["name"] or "", tuple(item["columns"])),
+        ),
     }
 
 
 def _actual_snapshot(connection: Any) -> dict[str, Any]:
-    inspector = inspect(connection)
     table_names = sorted(
         table_name
-        for table_name in inspector.get_table_names()
+        for table_name in inspect(connection).get_table_names()
         if table_name.startswith("portal_") and table_name != MIGRATION_TABLE_NAME
     )
     return {
@@ -347,27 +371,25 @@ def _actual_snapshot(connection: Any) -> dict[str, Any]:
 
 
 def _fingerprint(snapshot: dict[str, Any]) -> str:
-    encoded = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    encoded = json.dumps(snapshot, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
 
 
 def _snapshot_differences(
     expected: dict[str, Any], actual: dict[str, Any]
 ) -> dict[str, Any]:
-    missing_tables = sorted(set(expected) - set(actual))
-    unexpected_tables = sorted(set(actual) - set(expected))
-    changed_tables = {
-        table_name: {
-            "expected": expected[table_name],
-            "actual": actual[table_name],
-        }
-        for table_name in sorted(set(expected) & set(actual))
-        if expected[table_name] != actual[table_name]
-    }
+    common = sorted(set(expected) & set(actual))
     return {
-        "missing_tables": missing_tables,
-        "unexpected_tables": unexpected_tables,
-        "changed_tables": changed_tables,
+        "missing_tables": sorted(set(expected) - set(actual)),
+        "unexpected_tables": sorted(set(actual) - set(expected)),
+        "changed_tables": {
+            table_name: {
+                "expected": expected[table_name],
+                "actual": actual[table_name],
+            }
+            for table_name in common
+            if expected[table_name] != actual[table_name]
+        },
     }
 
 
@@ -389,9 +411,11 @@ def _revision_rows(connection: Any) -> list[dict[str, Any]]:
             "revision_id": row["revision_id"],
             "dialect_name": row["dialect_name"],
             "schema_fingerprint": row["schema_fingerprint"],
-            "applied_at": row["applied_at"].isoformat()
-            if row["applied_at"] is not None
-            else None,
+            "applied_at": (
+                row["applied_at"].isoformat()
+                if row["applied_at"] is not None
+                else None
+            ),
         }
         for row in rows
     ]
@@ -415,7 +439,9 @@ def _schema_status_connection(connection: Any, engine: Engine) -> dict[str, Any]
     )
     sqlite_foreign_keys: bool | None = None
     if engine.dialect.name == "sqlite":
-        sqlite_foreign_keys = connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
+        sqlite_foreign_keys = (
+            connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
+        )
     schema_matches = not any(
         (
             differences["missing_tables"],
@@ -430,6 +456,7 @@ def _schema_status_connection(connection: Any, engine: Engine) -> dict[str, Any]
         "applied_revisions": revisions,
         "expected_schema_fingerprint": expected_fingerprint,
         "actual_schema_fingerprint": actual_fingerprint,
+        "table_count": len(expected),
         "differences": differences,
         "sqlite_foreign_keys": sqlite_foreign_keys,
         "safety": {
@@ -460,47 +487,52 @@ def _acquire_migration_lock(connection: Any, engine: Engine) -> None:
         )
 
 
+def _scan_integrity_connection(connection: Any) -> dict[str, Any]:
+    table_names = set(inspect(connection).get_table_names())
+    relations: dict[str, Any] = {}
+    for relation in _HARD_RELATIONS:
+        if relation.child_table not in table_names or relation.parent_table not in table_names:
+            relations[relation.name] = {
+                "status": "not_applicable",
+                "orphan_count": None,
+            }
+            continue
+        orphan_count = int(
+            connection.execute(text(relation.orphan_count_sql)).scalar_one()
+        )
+        relations[relation.name] = {
+            "status": "clean" if orphan_count == 0 else "orphaned",
+            "orphan_count": orphan_count,
+        }
+    clean = all(item["orphan_count"] in {None, 0} for item in relations.values())
+    return {
+        "status": "clean" if clean else "quarantine_required",
+        "relations": relations,
+        "policy": "fail_closed_no_reassignment_no_deletion",
+        "safety": {
+            "row_values_recorded": False,
+            "secret_values_recorded": False,
+            "protected_production_mutated": False,
+            "live_capital_authorized": False,
+        },
+    }
+
+
 def scan_database_integrity(engine: Engine) -> dict[str, Any]:
     with engine.connect() as connection:
-        table_names = set(inspect(connection).get_table_names())
-        relations: dict[str, Any] = {}
-        for relation in _HARD_RELATIONS:
-            if relation.child_table not in table_names or relation.parent_table not in table_names:
-                relations[relation.name] = {
-                    "status": "not_applicable",
-                    "orphan_count": None,
-                }
-                continue
-            orphan_count = int(
-                connection.execute(text(relation.orphan_count_sql)).scalar_one()
-            )
-            relations[relation.name] = {
-                "status": "clean" if orphan_count == 0 else "orphaned",
-                "orphan_count": orphan_count,
-            }
-        clean = all(
-            item["orphan_count"] in {None, 0} for item in relations.values()
-        )
-        return {
-            "status": "clean" if clean else "quarantine_required",
-            "relations": relations,
-            "policy": "fail_closed_no_reassignment_no_deletion",
-            "safety": {
-                "row_values_recorded": False,
-                "secret_values_recorded": False,
-                "protected_production_mutated": False,
-                "live_capital_authorized": False,
-            },
-        }
+        return _scan_integrity_connection(connection)
 
 
 def migrate_database(engine: Engine) -> dict[str, Any]:
-    expected = _expected_snapshot(engine)
+    manifest_tables = _manifest_tables()
+    expected = {
+        table.name: _expected_table_snapshot(table, engine.dialect)
+        for table in manifest_tables
+    }
     expected_fingerprint = _fingerprint(expected)
     with engine.begin() as connection:
         _acquire_migration_lock(connection, engine)
-        inspector = inspect(connection)
-        table_names = set(inspector.get_table_names())
+        table_names = set(inspect(connection).get_table_names())
         revision_table_exists = MIGRATION_TABLE_NAME in table_names
         existing_portal_tables = sorted(
             table_name
@@ -512,7 +544,7 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
                 report = {
                     "status": "unversioned_schema",
                     "existing_portal_tables": existing_portal_tables,
-                    "integrity_scan": scan_database_integrity(engine),
+                    "integrity_scan": _scan_integrity_connection(connection),
                     "policy": "backup_scan_quarantine_rebuild_restore_validate",
                 }
                 raise UnversionedSchemaError(
@@ -543,7 +575,7 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
                     "policy": "fail_closed_restore_last_known_backup",
                 },
             )
-        for table in Base.metadata.sorted_tables:
+        for table in manifest_tables:
             table.create(connection, checkfirst=False)
         connection.execute(
             _schema_migrations.insert().values(

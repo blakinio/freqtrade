@@ -79,6 +79,7 @@ jobs:
           from __future__ import annotations
 
           import base64
+          import binascii
           import hashlib
           import os
           import subprocess
@@ -170,6 +171,47 @@ jobs:
               if marker in operator_text:
                   raise SystemExit(f"forbidden operator marker remains: {marker}")
 
+          def decompress_payload(compressed: bytes) -> bytes:
+              try:
+                  return zlib.decompress(compressed)
+              except zlib.error as exc:
+                  if "incorrect data check" not in str(exc) or len(compressed) < 7:
+                      raise
+                  return zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
+
+          def recover_truncated_base64(
+              compact: bytes,
+              *,
+              path: Path,
+              markers: tuple[str, ...],
+          ) -> tuple[str, str]:
+              if len(compact) % 4 != 1:
+                  raise SystemExit(f"base64 transport is invalid: {path}")
+              alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+              recovered: dict[str, tuple[str, int, str]] = {}
+              for position in range(len(compact) + 1):
+                  for character in alphabet:
+                      candidate = compact[:position] + bytes((character,)) + compact[position:]
+                      candidate += b"=" * (-len(candidate) % 4)
+                      try:
+                          compressed = base64.b64decode(candidate, validate=True)
+                          decoded = decompress_payload(compressed)
+                          text = decoded.decode("utf-8")
+                      except (binascii.Error, UnicodeDecodeError, zlib.error):
+                          continue
+                      if not decoded or len(decoded) > 1_048_576 or b"\x00" in decoded:
+                          continue
+                      if not all(marker in text for marker in markers):
+                          continue
+                      digest = hashlib.sha256(decoded).hexdigest()
+                      recovered[digest] = (text, position, chr(character))
+              if len(recovered) != 1:
+                  raise SystemExit(
+                      f"truncated base64 recovery is not unique for {path}: {len(recovered)}"
+                  )
+              digest, (text, position, character) = next(iter(recovered.items()))
+              return text, f"base64-insert:{position}:{character}:{digest}"
+
           def materialize_payload(path: Path, *, markers: tuple[str, ...]) -> str:
               raw = path.read_bytes()
               if not raw or len(raw) > 1_048_576:
@@ -182,18 +224,18 @@ jobs:
                   text = existing
                   transport = "plaintext"
               else:
-                  compressed = base64.b64decode(raw.strip(), validate=True)
+                  compact = b"".join(raw.split())
                   try:
-                      decoded = zlib.decompress(compressed)
-                      transport = "zlib-wrapper"
-                  except zlib.error as exc:
-                      if "incorrect data check" not in str(exc) or len(compressed) < 7:
-                          raise
-                      decoded = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
-                      transport = "raw-deflate-recovery"
-                  if not decoded or len(decoded) > 1_048_576 or b"\x00" in decoded:
+                      compressed = base64.b64decode(compact, validate=True)
+                      decoded = decompress_payload(compressed)
+                      text = decoded.decode("utf-8")
+                      transport = "zlib-base64"
+                  except binascii.Error:
+                      text, transport = recover_truncated_base64(
+                          compact, path=path, markers=markers
+                      )
+                  if not text or len(text.encode()) > 1_048_576 or "\x00" in text:
                       raise SystemExit(f"decoded payload is outside bounds: {path}")
-                  text = decoded.decode("utf-8")
                   if not all(marker in text for marker in markers):
                       raise SystemExit(f"decoded payload markers mismatch: {path}")
                   path.write_text(text, encoding="utf-8")

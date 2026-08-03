@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +43,12 @@ def import_model_modules() -> tuple[str, ...]:
         if spec is None or spec.loader is None:
             raise RuntimeError(f"cannot load Portal model file: {path}")
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            sys.modules.pop(module_name, None)
+            raise
         loaded.append(display_name)
     return tuple(loaded)
 

@@ -4,6 +4,7 @@ import ast
 import importlib.util
 import sys
 from pathlib import Path
+from threading import RLock
 
 from ai_platform.portal.control_plane.database import Base
 
@@ -24,6 +25,7 @@ MODEL_MODULES = (
     "ai_platform.portal.strategy_lab.models",
     "ai_platform.portal.telemetry.models",
 )
+_MODEL_REGISTRY_LOCK = RLock()
 
 
 def _repository_root() -> Path:
@@ -74,35 +76,36 @@ def load_portal_models() -> frozenset[str]:
     manifest and must never be migrated by this authority.
     """
 
-    declared_manifest: set[str] = set()
-    for index, module_name in enumerate(MODEL_MODULES):
-        path = _model_path(module_name)
-        if not path.is_file():
-            raise RuntimeError(f"Portal model file is missing: {path}")
-        declared_tables = _declared_table_names(path)
-        declared_manifest.update(declared_tables)
-        registered_tables = declared_tables.intersection(Base.metadata.tables)
-        if registered_tables == declared_tables:
-            continue
-        if registered_tables:
-            missing = sorted(declared_tables - registered_tables)
+    with _MODEL_REGISTRY_LOCK:
+        declared_manifest: set[str] = set()
+        for index, module_name in enumerate(MODEL_MODULES):
+            path = _model_path(module_name)
+            if not path.is_file():
+                raise RuntimeError(f"Portal model file is missing: {path}")
+            declared_tables = _declared_table_names(path)
+            declared_manifest.update(declared_tables)
+            registered_tables = declared_tables.intersection(Base.metadata.tables)
+            if registered_tables == declared_tables:
+                continue
+            if registered_tables:
+                missing = sorted(declared_tables - registered_tables)
+                raise RuntimeError(
+                    f"Portal model registration is partial for {path}: missing {missing}"
+                )
+            private_name = f"_portal_schema_model_{index}"
+            spec = importlib.util.spec_from_file_location(private_name, path)
+            if spec is None or spec.loader is None:
+                raise RuntimeError(f"Portal model file cannot be loaded: {path}")
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[private_name] = module
+            try:
+                spec.loader.exec_module(module)
+            except Exception:
+                sys.modules.pop(private_name, None)
+                raise
+        missing_from_metadata = sorted(declared_manifest - set(Base.metadata.tables))
+        if missing_from_metadata:
             raise RuntimeError(
-                f"Portal model registration is partial for {path}: missing {missing}"
+                f"Portal model manifest is not fully registered: {missing_from_metadata}"
             )
-        private_name = f"_portal_schema_model_{index}"
-        spec = importlib.util.spec_from_file_location(private_name, path)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"Portal model file cannot be loaded: {path}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[private_name] = module
-        try:
-            spec.loader.exec_module(module)
-        except Exception:
-            sys.modules.pop(private_name, None)
-            raise
-    missing_from_metadata = sorted(declared_manifest - set(Base.metadata.tables))
-    if missing_from_metadata:
-        raise RuntimeError(
-            f"Portal model manifest is not fully registered: {missing_from_metadata}"
-        )
-    return frozenset(declared_manifest)
+        return frozenset(declared_manifest)

@@ -1,0 +1,84 @@
+name: Portal 1122 Autofix
+
+on:
+  push:
+    branches:
+      - fix/portal-1122-migration-schema-integrity
+    paths:
+      - .github/workflows/portal-1122-autofix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  autofix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/portal-1122-migration-schema-integrity
+          fetch-depth: 0
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+      - name: Apply semantic repairs
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file_path = Path(path)
+              text = file_path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one match in {path}, found {count}: {old!r}")
+              file_path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          replace_once(
+              "ai_platform/portal/control_plane/service.py",
+              "                self._repository.add_bot(session, bot)\n                self._repository.add_revision(session, revision)",
+              "                self._repository.add_bot(session, bot)\n                session.flush()\n                self._repository.add_revision(session, revision)",
+          )
+          replace_once(
+              "ai_platform/portal/database/schema.py",
+              "from datetime import datetime, timezone",
+              "from datetime import UTC, datetime",
+          )
+          replace_once(
+              "ai_platform/portal/database/schema.py",
+              "None if column.server_default is None else column.server_default.arg",
+              "None\n                if column.server_default is None\n                else getattr(column.server_default, \"arg\", column.server_default)",
+          )
+          replace_once(
+              "ai_platform/portal/database/schema.py",
+              "datetime.now(timezone.utc)",
+              "datetime.now(UTC)",
+          )
+          replace_once(
+              "tests/ai_platform/portal/database/test_schema_postgresql.py",
+              "from __future__ import annotations\n\nimport os",
+              "from __future__ import annotations\n\nimport os\nfrom collections.abc import Iterator",
+          )
+          replace_once(
+              "tests/ai_platform/portal/database/test_schema_postgresql.py",
+              "def clean_postgres_schema() -> None:",
+              "def clean_postgres_schema() -> Iterator[None]:",
+          )
+          PY
+      - name: Run and apply repository hooks
+        shell: bash
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --all-files || true
+          pre-commit run --all-files
+      - name: Commit repaired branch
+        shell: bash
+        run: |
+          rm .github/workflows/portal-1122-autofix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(portal): stabilize schema integrity validation"
+          git push origin HEAD:fix/portal-1122-migration-schema-integrity

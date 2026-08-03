@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from audit_ledger import ledger_metadata, load_ledger, resolve_exact_head
+
 
 PORTAL = Path("ai_platform/portal")
 WEB = PORTAL / "web"
@@ -397,6 +399,8 @@ def markdown(data: dict[str, Any]) -> str:
         "# AI Trading Portal end-to-end completeness audit",
         "",
         f"Audited head: `{data['audited_head']}`",
+        f"Ledger version: `{data['ledger_version']}`",
+        f"Ledger SHA-256: `{data['ledger_sha256']}`",
         "",
         "## Evidence boundary",
         "",
@@ -467,7 +471,7 @@ def markdown(data: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=".")
-    parser.add_argument("--head", default="UNKNOWN")
+    parser.add_argument("--head", required=True)
     parser.add_argument(
         "--output-json",
         default="artifacts/portal-completeness-audit.json",
@@ -478,6 +482,8 @@ def main() -> int:
     )
     args = parser.parse_args()
     root = repository_root(Path(args.root))
+    audited_head = resolve_exact_head(args.head, root)
+    ledger = load_ledger(root / "tools/portal_audit/ledger/index.json")
     tests = test_inventory(root)
     modules = backend_inventory(root, tests)
     routes: list[dict[str, str]] = []
@@ -492,8 +498,8 @@ def main() -> int:
     docs = documented_routes(read_text(root / STATUS))
     findings = build_findings(root, routes, web, docs)
     data: dict[str, Any] = {
-        "schema_version": "portal-completeness-audit-v1",
-        "audited_head": args.head,
+        "schema_version": "portal-completeness-audit-v2",
+        **ledger_metadata(ledger, audited_head),
         "summary": {
             "backend_modules": len(modules),
             "backend_routes": len(routes),

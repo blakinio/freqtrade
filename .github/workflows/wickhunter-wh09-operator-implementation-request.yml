@@ -232,23 +232,41 @@ jobs:
           uv pip install -e ft_client/
           uv pip install -e .
 
-      - name: Format and lint explicit Python paths
+      - name: Format and apply safe Ruff fixes
         shell: bash
         run: |
           set -euo pipefail
           cd target
-          ruff format \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/healthcheck.py \
+          paths=(
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py
+            deploy/synology/wickhunter-paper-runtime/healthcheck.py
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          ruff check \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/healthcheck.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          ruff format --check \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/healthcheck.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          )
+          ruff format "${paths[@]}"
+          ruff check --fix --exit-zero "${paths[@]}"
+          ruff format "${paths[@]}"
+          ruff format --check "${paths[@]}"
+
+      - name: Lint operator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          ruff check ai_platform/wickhunter/candidate_paper_runtime_operator.py
+
+      - name: Lint healthcheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          ruff check deploy/synology/wickhunter-paper-runtime/healthcheck.py
+
+      - name: Lint focused tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          ruff check tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
 
       - name: Type-check operator
         shell: bash
@@ -291,7 +309,7 @@ jobs:
           expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
           [[ "$(git diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)" == "$expected" ]]
           repairs="$(git diff --name-only | sort)"
-          allowed=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          allowed=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
           while IFS= read -r path; do
             [[ -z "$path" ]] && continue
             grep -Fxq "$path" <<< "$allowed" || {
@@ -304,6 +322,7 @@ jobs:
           git add \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            deploy/synology/wickhunter-paper-runtime/healthcheck.py \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
           git commit -m "fix(wickhunter): validate persistent PAPER operator"
           product_sha="$(git rev-parse HEAD)"

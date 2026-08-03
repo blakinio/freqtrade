@@ -141,7 +141,7 @@ def _source_runtime_alerts(
     *,
     now_ms: int,
     event_stale_ms: int,
-    reconnects_per_hour_max: int,
+    reconnect_max: int,
 ) -> list[dict[str, str]]:
     state = _record(_record(pointer).get("state"))
     sources = _record(state.get("sources"))
@@ -208,7 +208,7 @@ def _source_runtime_alerts(
                 )
             )
         elif uptime_hours is not None:
-            reconnect_budget = reconnects_per_hour_max * uptime_hours
+            reconnect_budget = reconnect_max * uptime_hours
             if reconnects > reconnect_budget:
                 reconnect_rate = reconnects / uptime_hours
                 alerts.append(
@@ -216,7 +216,7 @@ def _source_runtime_alerts(
                         "LIQUID20_SOURCE_RECONNECTS_UNCONTROLLED",
                         (
                             f"{source} reconnect rate {reconnect_rate:.1f}/h exceeds "
-                            f"{reconnects_per_hour_max}/h."
+                            f"{reconnect_max}/h."
                         ),
                     )
                 )
@@ -464,7 +464,7 @@ def main(argv: list[str] | None = None) -> int:
         pointer,
         now_ms=now_ms,
         event_stale_ms=(int(os.environ.get("LIQUID20_EVENT_STALE_SECONDS", "300")) * 1000),
-        reconnects_per_hour_max=int(os.environ.get("LIQUID20_RECONNECTS_PER_HOUR_MAX", "100")),
+        reconnect_max=int(os.environ.get("LIQUID20_RECONNECTS_PER_HOUR_MAX", "100")),
     )
     report["schema_version"] = 2
     report["checks"]["portal"] = portal_result

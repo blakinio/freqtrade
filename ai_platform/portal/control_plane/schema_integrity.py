@@ -38,6 +38,9 @@ def import_model_modules() -> tuple[str, ...]:
     for index, path in enumerate(discover_model_files()):
         relative = path.relative_to(package_root).with_suffix("")
         display_name = ".".join(relative.parts)
+        if display_name in sys.modules:
+            loaded.append(display_name)
+            continue
         module_name = f"_portal_schema_inventory_{index}_{'_'.join(relative.parts)}"
         spec = importlib.util.spec_from_file_location(module_name, path)
         if spec is None or spec.loader is None:

@@ -28,5 +28,5 @@
   "origin_probe_url_env": "PORTAL_STAGING_ORIGIN_PROBE_URL",
   "freqtrade_probe_url_env": "PORTAL_STAGING_FREQTRADE_PROBE_URL",
   "access_client_id_env": "PORTAL_STAGING_CF_ACCESS_CLIENT_ID",
-  "access_client_secret_env": "PORTAL_STAGING_CF_ACCESS_CLIENT_SECRET"
+  "access_client_secret_env_name": "PORTAL_STAGING_CF_ACCESS_CLIENT_SECRET"
 }

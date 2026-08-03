@@ -41,7 +41,7 @@ def policy_violations(policy: StagingIngressPolicy) -> tuple[str, ...]:
         policy.origin_probe_url_env,
         policy.freqtrade_probe_url_env,
         policy.access_client_id_env,
-        policy.access_client_secret_env,
+        policy.access_client_secret_env_name,
     )
     if len(set(env_refs)) != len(env_refs):
         violations.append("staging environment references must be distinct")

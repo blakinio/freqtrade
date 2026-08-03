@@ -1,0 +1,21 @@
+extend = "../../../pyproject.toml"
+
+[format]
+exclude = [
+  "sensitive_data.py",  # Preserve the reviewed security classifier layout; lint remains enabled.
+]
+
+[lint.per-file-ignores]
+"http_validation.py" = [
+  "I001",  # Imports stay grouped by framework and canonical security authority.
+]
+"sensitive_data.py" = [
+  "C901",  # Bounded fail-closed reject/redact and serialized decoders keep one traversal policy.
+  "E501",  # Security classification expressions remain auditable as single logical predicates.
+  "RUF100",  # Existing inline S105 rationale remains explicit for classification-only labels.
+  "S105",  # Enum values are classification labels, never credentials.
+]
+"sensitive_scan.py" = [
+  "C901",  # Bounded value-free artifact collection keeps finding provenance in one traversal.
+  "E501",  # Static scanner allow/exclude sets remain auditable as complete declarations.
+]

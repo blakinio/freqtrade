@@ -1,0 +1,186 @@
+name: WickHunter WH09 operator preview materialization
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-operator-implementation-request.yml"
+      - ".github/wh09-payload/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-operator-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
+  TARGET_HEAD_SHA: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
+  HELPER_BRANCH: ops/wickhunter-wh09-operator-implementation-20260803-v1
+  REPAIR_SOURCE_SHA: 6d754b28889287f596dca763c945a3560ba54cf5
+
+jobs:
+  materialize:
+    name: Rebuild audited operator preview
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact helper scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+          expected=(
+            ".github/wh09-payload/README.md.zlib.b64"
+            ".github/wh09-payload/compose.yaml.zlib.b64"
+            ".github/wh09-payload/healthcheck.py.zlib.b64"
+            ".github/wh09-payload/operator.py.zlib.b64"
+            ".github/wh09-payload/task.md.zlib.b64"
+            ".github/wh09-payload/tests.py.zlib.b64"
+            ".github/workflows/wickhunter-wh09-operator-implementation-request.yml"
+          )
+          mapfile -t actual < <(git diff --name-only "$merge_base" "$HEAD_SHA" | sort)
+          [[ "${#actual[@]}" -eq "${#expected[@]}" ]]
+          for index in "${!expected[@]}"; do
+            [[ "${actual[$index]}" == "${expected[$index]}" ]]
+          done
+
+      - name: Check out exact product head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+          ref: ${{ env.TARGET_HEAD_SHA }}
+          path: target
+
+      - name: Execute bounded canonical repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git -C target rev-parse HEAD)" == "$TARGET_HEAD_SHA" ]]
+          python3 - <<'PY'
+          from __future__ import annotations
+
+          import os
+          import subprocess
+          from pathlib import Path
+
+          workflow_path = ".github/workflows/wickhunter-wh09-operator-implementation-request.yml"
+          source = subprocess.check_output(
+              ["git", "show", f"{os.environ['REPAIR_SOURCE_SHA']}:{workflow_path}"],
+              text=True,
+          )
+          start_token = "          python3 - <<'PY'\n"
+          end_token = "          PY\n"
+          start = source.index(start_token) + len(start_token)
+          end = source.index(end_token, start)
+          script = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in source[start:end].splitlines()
+          ) + "\n"
+
+          old = '''def replace_unique_region(
+              start_marker: str,
+              end_marker: str,
+              replacement: list[str],
+          ) -> None:
+              starts = [index for index, line in enumerate(lines) if line == start_marker]
+              ends = [index for index, line in enumerate(lines) if line == end_marker]
+              if len(starts) != 1 or len(ends) != 1 or starts[0] >= ends[0]:
+                  raise SystemExit(
+                      f'operator repair boundary mismatch: {start_marker!r} -> {end_marker!r}'
+                  )
+              lines[starts[0] : ends[0]] = replacement
+          '''
+          new = '''def replace_unique_region(
+              start_marker: str,
+              end_marker: str,
+              replacement: list[str],
+          ) -> None:
+              starts = [index for index, line in enumerate(lines) if line == start_marker]
+              ends = [index for index, line in enumerate(lines) if line == end_marker]
+              candidates = [
+                  (start, end)
+                  for start in starts
+                  for end in ends
+                  if start < end
+              ]
+              if len(candidates) != 1:
+                  raise SystemExit(
+                      f'operator repair boundary mismatch: {start_marker!r} -> {end_marker!r}'
+                  )
+              start, end = candidates[0]
+              normalized = list(replacement)
+              target_indent = len(start_marker) - len(start_marker.lstrip())
+              nonempty = [line for line in normalized if line.strip()]
+              minimum_indent = min(
+                  (len(line) - len(line.lstrip()) for line in nonempty),
+                  default=target_indent,
+              )
+              if minimum_indent < target_indent:
+                  padding = ' ' * (target_indent - minimum_indent)
+                  normalized = [
+                      padding + line if line.strip() else line
+                      for line in normalized
+                  ]
+              lines[start:end] = normalized
+          '''
+          if script.count(old) != 1:
+              raise SystemExit("repair function source mismatch")
+          script = script.replace(old, new, 1)
+          compile(script, "bounded_operator_repair.py", "exec")
+          exec(compile(script, "bounded_operator_repair.py", "exec"), {"__name__": "__main__"})
+
+          payload = Path(".github/wh09-payload/operator.py.zlib.b64")
+          compiled = payload.read_text(encoding="utf-8")
+          compile(compiled, str(payload), "exec")
+          for marker in (
+              'LIVE_POINTER_NAME = "live-state-v1.json"',
+              '"/fapi/v1/ticker/bookTicker"',
+              '"atr_ratio"',
+              '"market_wide_liquidation_intensity"',
+              'liquid20_root_path: Path',
+          ):
+              if marker not in compiled:
+                  raise SystemExit(f"required marker missing: {marker}")
+          for marker in (
+              '"/fapi/v1/ticker/24hr"',
+              "liquid20_snapshot_path",
+              "--liquid20-snapshot",
+          ):
+              if marker in compiled:
+                  raise SystemExit(f"forbidden marker remains: {marker}")
+          PY
+          python3 -m py_compile .github/wh09-payload/operator.py.zlib.b64
+          git diff --check
+
+      - name: Publish compile-valid preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then
+            echo "Operator preview is unchanged."
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/wh09-payload/operator.py.zlib.b64
+          git commit -m "fix(wickhunter): rebuild compile-valid operator preview"
+          git push origin "HEAD:$HELPER_BRANCH"

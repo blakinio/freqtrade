@@ -95,13 +95,29 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           python3 - <<'PY'
           import base64
+          import hashlib
           import traceback
           import zlib
           from pathlib import Path
 
           path = Path("../.github/wh09-payload/operator.py.zlib.b64")
           try:
-              script = zlib.decompress(base64.b64decode(path.read_bytes().strip())).decode("utf-8")
+              compressed = base64.b64decode(path.read_bytes().strip(), validate=True)
+              try:
+                  script_bytes = zlib.decompress(compressed)
+                  transport = "zlib-wrapper"
+              except zlib.error as exc:
+                  if "incorrect data check" not in str(exc):
+                      raise
+                  if len(compressed) < 7:
+                      raise RuntimeError("compressed repair payload is too short") from exc
+                  script_bytes = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
+                  transport = "raw-deflate-recovery"
+              if not script_bytes or len(script_bytes) > 1048576:
+                  raise RuntimeError("decoded repair script size is outside the bounded contract")
+              script = script_bytes.decode("utf-8")
+              print(f"repair_transport={transport}")
+              print(f"repair_script_sha256={hashlib.sha256(script_bytes).hexdigest()}")
               exec(compile(script, str(path), "exec"), {"__name__": "__main__"})
           except BaseException as exc:
               print(f"::error title=WH09 repair execution::{type(exc).__name__}: {exc}")

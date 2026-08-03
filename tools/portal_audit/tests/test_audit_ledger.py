@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 audit_ledger = importlib.import_module("audit_ledger")

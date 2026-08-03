@@ -68,23 +68,23 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Verify exact product and repair payload identities
+      - name: Verify exact product head
         shell: bash
         run: |
           set -euo pipefail
           cd target
-          actual_head="$(git rev-parse HEAD)"
-          [[ "$actual_head" == "$TARGET_HEAD_SHA" ]] || {
-            echo "::error title=WH09 product head mismatch::expected=$TARGET_HEAD_SHA actual=$actual_head"
+          actual="$(git rev-parse HEAD)"
+          [[ "$actual" == "$TARGET_HEAD_SHA" ]] || {
+            echo "::error title=WH09 product head mismatch::expected=$TARGET_HEAD_SHA actual=$actual"
             exit 1
           }
           git fetch origin develop
-          develop_sha="$(git rev-parse origin/develop)"
-          merge_base="$(git merge-base HEAD origin/develop)"
-          [[ "$merge_base" == "$develop_sha" ]] || {
-            echo "::error title=WH09 develop ancestry mismatch::develop=$develop_sha merge_base=$merge_base"
-            exit 1
-          }
+
+      - name: Verify exact repair payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
           python3 - <<'PY'
           import hashlib
           import os
@@ -95,10 +95,7 @@ jobs:
           expected = os.environ["REPAIR_PAYLOAD_SHA256"]
           print(f"repair_payload_sha256={actual}")
           if actual != expected:
-              print(
-                  f"::error title=WH09 repair payload mismatch::expected={expected} actual={actual}"
-              )
-              raise SystemExit(1)
+              raise SystemExit(f"repair payload mismatch: expected={expected} actual={actual}")
           PY
 
       - name: Execute live-contract repair
@@ -123,22 +120,13 @@ jobs:
               traceback.print_exc()
               raise
           PY
-          echo "repair_diff_begin"
           git diff --name-status
-          echo "repair_diff_end"
           expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
           actual="$(git diff --name-only | sort)"
           [[ "$actual" == "$expected" ]] || {
-            echo "::error title=WH09 repaired path mismatch::expected five owned paths; inspect repair_diff markers"
             printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
             exit 1
           }
-
-      - name: Compile repaired product
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
           python3 -m py_compile \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \

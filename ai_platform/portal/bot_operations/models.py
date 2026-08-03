@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ai_platform.portal.control_plane.database import Base
@@ -46,6 +54,12 @@ class BotCommandHistoryRow(Base):
             "sequence",
             name="uq_portal_bot_command_history_sequence",
         ),
+        ForeignKeyConstraint(
+            ("scope_tenant_id", "command_id"),
+            ("portal_bot_commands.scope_tenant_id", "portal_bot_commands.command_id"),
+            name="fk_portal_bot_command_history_command",
+            ondelete="RESTRICT",
+        ),
         Index(
             "ix_portal_bot_command_history_tenant_command",
             "scope_tenant_id",
@@ -67,6 +81,12 @@ class BotCommandIdempotencyConflictRow(Base):
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
+        ForeignKeyConstraint(
+            ("scope_tenant_id", "existing_command_id"),
+            ("portal_bot_commands.scope_tenant_id", "portal_bot_commands.command_id"),
+            name="fk_portal_bot_command_conflict_existing",
+            ondelete="RESTRICT",
+        ),
         Index(
             "ix_portal_bot_command_conflicts_tenant_key",
             "scope_tenant_id",

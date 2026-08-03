@@ -107,7 +107,7 @@ def run_probes(
     origin_url = _required_url(policy, "origin_probe_url_env")
     freqtrade_url = _required_url(policy, "freqtrade_probe_url_env")
     client_id = _required_env(policy, "access_client_id_env")
-    client_secret = _required_env(policy, "access_client_secret_env")
+    client_secret = _required_env(policy, "access_client_secret_env_name")
     privileged_url = urljoin(base_url.rstrip("/") + "/", privileged_path.lstrip("/"))
 
     results: list[ProbeResult] = []

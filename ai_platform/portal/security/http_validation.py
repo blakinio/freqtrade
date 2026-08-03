@@ -29,11 +29,7 @@ def _safe_message(error_type: str, location: list[str | int], message: Any) -> s
     fallback = _GENERIC_MESSAGES.get(error_type, "Request field is invalid")
     if not isinstance(message, str) or not message or len(message) > _MAX_PUBLIC_MESSAGE_LENGTH:
         return fallback
-    if any(
-        classify_sensitive_key(part) is not None
-        for part in location
-        if isinstance(part, str)
-    ):
+    if any(classify_sensitive_key(part) is not None for part in location if isinstance(part, str)):
         return fallback
     try:
         reject_sensitive_data(
@@ -60,8 +56,7 @@ def install_safe_request_validation_handler(app: FastAPI) -> None:
         for error in exc.errors():
             error_type = str(error.get("type", "validation_error"))
             location: list[str | int] = [
-                str(part) if not isinstance(part, int) else part
-                for part in error.get("loc", ())
+                str(part) if not isinstance(part, int) else part for part in error.get("loc", ())
             ]
             details.append(
                 {

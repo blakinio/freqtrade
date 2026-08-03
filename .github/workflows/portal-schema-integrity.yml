@@ -158,6 +158,33 @@ jobs:
           print(json.dumps({"migrations": results, "status": status}, indent=2, sort_keys=True))
           PY
 
+      - name: Capture normalized PostgreSQL schema contract
+        env:
+          IMAGE: portal-schema-postgresql:${{ github.sha }}
+          DATABASE_URL: postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema
+        run: |
+          set -euo pipefail
+          docker run --rm --network host \
+            --volume "$PWD/artifacts:/artifacts" \
+            --entrypoint python "$IMAGE" \
+            -m ai_platform.portal.control_plane.schema_contract \
+            snapshot \
+            --database-url "$DATABASE_URL" \
+            --output /artifacts/portal-schema-contract-candidate.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("artifacts/portal-schema-contract-candidate.json").read_text())
+          assert payload["orm_column_drift"] == []
+          assert len(payload["database"]["tables"]) == 42
+          print(json.dumps({
+              "schema_contract_version": payload["database"]["schema_contract_version"],
+              "tables": len(payload["database"]["tables"]),
+              "orm_column_drift": payload["orm_column_drift"],
+          }, sort_keys=True))
+          PY
+
       - name: Prove tenant-aware hard relationships and relaxed cross-tenant intent identity
         env:
           IMAGE: portal-schema-postgresql:${{ github.sha }}
@@ -199,6 +226,13 @@ jobs:
                           ),
                           {"tenant": tenant, "snapshot": f"snapshot-{tenant}"},
                       )
+                  connection.execute(
+                      text(
+                          "INSERT INTO portal_trade_intents "
+                          "(tenant_id, trade_intent_id, bot_id, intent_json, created_at) "
+                          "VALUES ('tenant-a', 'tenant-a-only', 'bot-1', '{}', CURRENT_TIMESTAMP)"
+                      )
+                  )
               rejected = False
               try:
                   with engine.begin() as connection:
@@ -214,7 +248,7 @@ jobs:
               assert rejected is True
               print(json.dumps({
                   "cross_tenant_same_intent_id_allowed": True,
-                  "mismatched_tenant_reference_rejected": True,
+                  "cross_tenant_existing_reference_rejected": True,
                   "secret_values_recorded": False,
                   "live_capital_authorized": False,
               }, sort_keys=True))

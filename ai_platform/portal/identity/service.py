@@ -3,27 +3,27 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
+from ai_platform.portal.identity import service_base
 from ai_platform.portal.identity.repository import (
     IdentityNotFoundError,
     IdentityRepository,
     session_view,
 )
 from ai_platform.portal.identity.schema import CompletedLogin, PrincipalStatus
-from ai_platform.portal.identity.service_base import (
-    AuthenticatedSession,
-    CSRF_COOKIE_NAME,
-    CSRF_HEADER_NAME,
-    IdentityAuthenticationError,
-    IdentityAuthorizationError,
-    IdentityPolicy,
-    IdentityProviderError,
-    IdentityService as _IdentityService,
-    SESSION_COOKIE_NAME,
-)
 from ai_platform.portal.security.authorization import permissions_for_roles
 
 
-class IdentityService(_IdentityService):
+AuthenticatedSession = service_base.AuthenticatedSession
+CSRF_COOKIE_NAME = service_base.CSRF_COOKIE_NAME
+CSRF_HEADER_NAME = service_base.CSRF_HEADER_NAME
+IdentityAuthenticationError = service_base.IdentityAuthenticationError
+IdentityAuthorizationError = service_base.IdentityAuthorizationError
+IdentityPolicy = service_base.IdentityPolicy
+IdentityProviderError = service_base.IdentityProviderError
+SESSION_COOKIE_NAME = service_base.SESSION_COOKIE_NAME
+
+
+class IdentityService(service_base.IdentityService):
     """Identity service with an attributable, fail-closed OIDC callback lifecycle."""
 
     def complete_login(self, *, code: str, state: str) -> CompletedLogin:

@@ -78,16 +78,21 @@ jobs:
           source = (Path(os.environ["RUNNER_TEMP"]) / "source-helper.yml").read_text(
               encoding="utf-8"
           )
-          start = "cat > \"$RUNNER_TEMP/wh09-payload.b64\" <<'PAYLOAD'\n"
-          end = "\nPAYLOAD\n"
-          if source.count(start) != 1:
+          start_marker = 'cat > "$RUNNER_TEMP/wh09-payload.b64" <<\'PAYLOAD\''
+          lines = source.splitlines()
+          starts = [index for index, line in enumerate(lines) if line.strip() == start_marker]
+          if len(starts) != 1:
               raise SystemExit("payload start marker mismatch")
-          tail = source.split(start, 1)[1]
-          encoded, separator, _remainder = tail.partition(end)
-          if not separator:
-              raise SystemExit("payload end marker missing")
+          payload_lines = []
+          for line in lines[starts[0] + 1 :]:
+              if line.strip() == "PAYLOAD":
+                  break
+              payload_lines.append(line.strip())
+          encoded = "".join(payload_lines)
+          if not encoded:
+              raise SystemExit("payload content missing")
           (Path(os.environ["RUNNER_TEMP"]) / "wh09-payload.b64").write_text(
-              encoded,
+              encoded + "\n",
               encoding="ascii",
           )
           PY

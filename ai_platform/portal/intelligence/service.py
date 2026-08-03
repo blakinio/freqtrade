@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 
+from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.intelligence.repository import TradeIntelligenceRepository
@@ -20,7 +21,7 @@ from ai_platform.portal.intelligence.schema import (
     TradeInsight,
     TradeOutcome,
 )
-from ai_platform.portal.security.authorization import PermissionDeniedError
+from ai_platform.portal.security.authorization import PermissionDeniedError, require_permission
 
 
 class DecisionSnapshotNotFoundError(LookupError):
@@ -59,6 +60,7 @@ class TradeIntelligenceService:
         context: RequestContext,
         snapshot: DecisionSnapshot,
     ) -> DecisionSnapshot:
+        self._require_trusted_producer(context)
         self._require_tenant(context, snapshot.tenant_id)
         try:
             with self._session_factory() as session, session.begin():
@@ -88,6 +90,7 @@ class TradeIntelligenceService:
         outcome: TradeOutcome,
         synthesizer: InsightSynthesizer | None = None,
     ) -> TradeAnalysis:
+        self._require_trusted_producer(context)
         self._require_tenant(context, outcome.tenant_id)
         occurred_at = self._clock()
         try:
@@ -126,6 +129,7 @@ class TradeIntelligenceService:
         return analysis
 
     def get_analysis(self, context: RequestContext, analysis_id: str) -> TradeAnalysis:
+        require_permission(context.permissions, Permission.MODEL_READ)
         with self._session_factory() as session:
             analysis = self._repository.get_analysis(session, context.tenant_id, analysis_id)
         if analysis is None:
@@ -133,8 +137,17 @@ class TradeIntelligenceService:
         return analysis
 
     def list_analyses(self, context: RequestContext) -> tuple[TradeAnalysis, ...]:
+        require_permission(context.permissions, Permission.MODEL_READ)
         with self._session_factory() as session:
             return self._repository.list_analyses(session, context.tenant_id)
+
+    @staticmethod
+    def _require_trusted_producer(context: RequestContext) -> None:
+        require_permission(context.permissions, Permission.MODEL_TRAIN)
+        if context.actor_type is not ActorType.SERVICE:
+            raise PermissionDeniedError(
+                "trusted service identity is required for trade intelligence production"
+            )
 
     @staticmethod
     def _require_tenant(context: RequestContext, tenant_id: str) -> None:

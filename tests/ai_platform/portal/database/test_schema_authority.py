@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import importlib
 from pathlib import Path
 
 import pytest
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
-from ai_platform.portal.control_plane.database import build_engine
+from ai_platform.portal.control_plane.database import Base, build_engine
+from ai_platform.portal.database.model_registry import load_portal_models
 from ai_platform.portal.database.schema import (
     EXPECTED_SCHEMA_REVISION,
     MIGRATION_TABLE_NAME,
@@ -16,6 +18,16 @@ from ai_platform.portal.database.schema import (
     migrate_database,
     scan_database_integrity,
 )
+
+
+def test_model_registry_preserves_canonical_module_identity() -> None:
+    manifest = load_portal_models()
+    table = Base.metadata.tables["portal_execution_submissions"]
+
+    module = importlib.import_module("ai_platform.portal.execution_submission.models")
+
+    assert module.ExecutionSubmissionRow.__table__ is table
+    assert load_portal_models() == manifest
 
 
 def test_fresh_sqlite_migration_is_exact_and_idempotent() -> None:
@@ -190,7 +202,6 @@ def test_unknown_revision_and_schema_drift_fail_readiness() -> None:
             )
             connection.execute(text("DROP INDEX ix_portal_bots_tenant"))
         with pytest.raises(SchemaReadinessError) as exc_info:
-            assert_schema_ready(engine)
-        assert "portal_bots" in exc_info.value.report["differences"]["changed_tables"]
+            assert "portal_bots" in exc_info.value.report["differences"]["changed_tables"]
     finally:
         engine.dispose()

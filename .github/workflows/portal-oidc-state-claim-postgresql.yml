@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - "ai_platform/portal/identity/**"
+      - "deploy/synology/portal-oidc/requirements.txt"
       - ".github/workflows/portal-oidc-state-claim-postgresql.yml"
   push:
     branches:
       - develop
     paths:
       - "ai_platform/portal/identity/**"
+      - "deploy/synology/portal-oidc/requirements.txt"
       - ".github/workflows/portal-oidc-state-claim-postgresql.yml"
 
 permissions:
@@ -54,7 +56,6 @@ jobs:
         run: >-
           python -m pip install --disable-pip-version-check
           -r deploy/synology/portal-oidc/requirements.txt
-          "psycopg[binary]==3.3.4"
 
       - name: Prove exactly one PostgreSQL claim owner
         env:

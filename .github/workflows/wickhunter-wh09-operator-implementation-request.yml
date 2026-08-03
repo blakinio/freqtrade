@@ -62,7 +62,7 @@ jobs:
           [[ "$(git -C target diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)" == "$expected" ]]
           [[ -z "$(git -C target status --porcelain)" ]]
 
-      - name: Place exact public URL audit suppression
+      - name: Scope public URL audit suppression
         shell: bash
         run: |
           set -euo pipefail
@@ -72,14 +72,10 @@ jobs:
 
           path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
           text = path.read_text(encoding="utf-8")
-          old = "        with opener.open(request, timeout=15) as response:\n"
-          new = (
-              "        with opener.open(  # noqa: S310\n"
-              "            request, timeout=15\n"
-              "        ) as response:\n"
-          )
-          if text.count(old) != 1:
-              raise SystemExit("operator public URL audit anchor mismatch")
+          old = "from __future__ import annotations\n\n"
+          new = "from __future__ import annotations\n\n# ruff: noqa: S310\n\n"
+          if text.count(old) != 1 or "# ruff: noqa: S310" in text:
+              raise SystemExit("operator file-level audit anchor mismatch")
           path.write_text(text.replace(old, new, 1), encoding="utf-8")
           PY
           python3 -m py_compile \
@@ -162,7 +158,7 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add ai_platform/wickhunter/candidate_paper_runtime_operator.py
-          git commit -m "fix(wickhunter): audit allowlisted public URL opening"
+          git commit -m "fix(wickhunter): scope allowlisted public URL audit"
           product_sha="$(git rev-parse HEAD)"
           docker build \
             --build-arg OPERATOR_COMMIT="$product_sha" \

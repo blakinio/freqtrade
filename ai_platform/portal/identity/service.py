@@ -197,7 +197,7 @@ class IdentityService(service_base.IdentityService):
             session.commit()
 
     @staticmethod
-    def _login_denial_reason(exc: IdentityAuthenticationError) -> str:
+    def _login_denial_reason(exc: service_base.IdentityAuthenticationError) -> str:
         message = str(exc)
         if message == "portal principal is disabled":
             return "principal_disabled"

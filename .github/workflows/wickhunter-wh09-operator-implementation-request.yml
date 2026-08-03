@@ -17,7 +17,7 @@ concurrency:
 
 env:
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-  TARGET_HEAD_SHA: 8d6f491412fcdbe6eb6bc6cd8c1337eebb023d40
+  TARGET_HEAD_SHA: e0d3b9b9926a95af7a9d1f99ee109b9addc7d700
 
 jobs:
   validate:

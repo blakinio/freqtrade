@@ -6,6 +6,12 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from ai_platform.portal.security.sensitive_data import (
+    SensitiveDataError,
+    classify_sensitive_key,
+    reject_sensitive_data,
+)
+
 
 _GENERIC_MESSAGES = {
     "extra_forbidden": "Extra inputs are not permitted",
@@ -16,6 +22,30 @@ _GENERIC_MESSAGES = {
     "string_too_short": "Field is too short",
     "value_error": "Field value is invalid",
 }
+_MAX_PUBLIC_MESSAGE_LENGTH = 512
+
+
+def _safe_message(error_type: str, location: list[str | int], message: Any) -> str:
+    fallback = _GENERIC_MESSAGES.get(error_type, "Request field is invalid")
+    if not isinstance(message, str) or not message or len(message) > _MAX_PUBLIC_MESSAGE_LENGTH:
+        return fallback
+    if any(
+        classify_sensitive_key(part) is not None
+        for part in location
+        if isinstance(part, str)
+    ):
+        return fallback
+    try:
+        reject_sensitive_data(
+            {"message": message},
+            max_depth=4,
+            max_items=16,
+            max_string_bytes=_MAX_PUBLIC_MESSAGE_LENGTH,
+            max_serialized_layers=2,
+        )
+    except SensitiveDataError:
+        return fallback
+    return message
 
 
 def install_safe_request_validation_handler(app: FastAPI) -> None:
@@ -29,12 +59,15 @@ def install_safe_request_validation_handler(app: FastAPI) -> None:
         details: list[dict[str, Any]] = []
         for error in exc.errors():
             error_type = str(error.get("type", "validation_error"))
-            location = [str(part) if not isinstance(part, int) else part for part in error.get("loc", ())]
+            location: list[str | int] = [
+                str(part) if not isinstance(part, int) else part
+                for part in error.get("loc", ())
+            ]
             details.append(
                 {
                     "type": error_type,
                     "loc": location,
-                    "msg": _GENERIC_MESSAGES.get(error_type, "Request field is invalid"),
+                    "msg": _safe_message(error_type, location, error.get("msg")),
                 }
             )
         return JSONResponse(

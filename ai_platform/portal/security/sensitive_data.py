@@ -44,18 +44,18 @@ _METADATA_ONLY_SUFFIXES = frozenset(
 
 class SensitiveFieldKind(StrEnum):
     API_KEY = "api_key"
-    API_SECRET = "api_secret"
+    API_SECRET = "api_secret"  # noqa: S105 - classification label, not a credential
     AUTHORIZATION = "authorization"
-    CLIENT_SECRET = "client_secret"
+    CLIENT_SECRET = "client_secret"  # noqa: S105 - classification label
     COOKIE = "cookie"
     CREDENTIAL = "credential"
-    PASSWORD = "password"
-    PASSPHRASE = "passphrase"
+    PASSWORD = "password"  # noqa: S105 - classification label
+    PASSPHRASE = "passphrase"  # noqa: S105 - classification label
     PRIVATE_KEY = "private_key"
-    REFRESH_TOKEN = "refresh_token"
-    SECRET = "secret"
-    SECRET_REFERENCE = "secret_reference"
-    TOKEN = "token"
+    REFRESH_TOKEN = "refresh_token"  # noqa: S105 - classification label
+    SECRET = "secret"  # noqa: S105 - classification label
+    SECRET_REFERENCE = "secret_reference"  # noqa: S105 - classification label
+    TOKEN = "token"  # noqa: S105 - classification label
     VAULT_REFERENCE = "vault_reference"
 
 

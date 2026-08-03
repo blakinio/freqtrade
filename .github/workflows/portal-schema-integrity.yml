@@ -57,9 +57,14 @@ jobs:
           PYTHONPATH: .:ai_platform
         run: |
           set -euo pipefail
-          python -m py_compile tools/portal_schema/inventory.py
+          python -m py_compile \
+            tools/portal_schema/inventory.py \
+            tools/portal_schema/model_provenance.py
           python tools/portal_schema/inventory.py \
             --output artifacts/portal-schema-inventory.json
+          python tools/portal_schema/model_provenance.py \
+            > artifacts/portal-schema-model-provenance.json
+          cat artifacts/portal-schema-model-provenance.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -67,9 +72,15 @@ jobs:
           payload = json.loads(
               Path("artifacts/portal-schema-inventory.json").read_text(encoding="utf-8")
           )
+          provenance = json.loads(
+              Path("artifacts/portal-schema-model-provenance.json").read_text(
+                  encoding="utf-8"
+              )
+          )
           assert payload["format_version"] == 1
           assert payload["orm"]["table_count"] > 0
           assert payload["migrations"]["file_count"] > 0
+          assert set(payload["orm"]["tables"]) == set(provenance)
           assert payload["safety"] == {
               "live_capital_authorized": False,
               "protected_production_mutated": False,
@@ -82,6 +93,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: portal-schema-inventory-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/portal-schema-inventory.json
+          path: |
+            artifacts/portal-schema-inventory.json
+            artifacts/portal-schema-model-provenance.json
           if-no-files-found: error
           retention-days: 14

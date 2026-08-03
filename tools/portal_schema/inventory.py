@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import importlib
+import importlib.util
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -37,8 +38,24 @@ CREATE_ALL_RE = re.compile(r"\b(?:Base\.)?metadata\.create_all\s*\(")
 
 
 def _load_models() -> None:
+    """Register exact model files without importing unrelated package services."""
+
     for module_name in MODEL_MODULES:
-        importlib.import_module(module_name)
+        if module_name in sys.modules:
+            continue
+        path = ROOT.joinpath(*module_name.split(".")).with_suffix(".py")
+        if not path.is_file():
+            raise RuntimeError(f"Portal model file is missing: {path.relative_to(ROOT)}")
+        spec = importlib.util.spec_from_file_location(module_name, path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"cannot load Portal model file: {path.relative_to(ROOT)}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[module_name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception:
+            sys.modules.pop(module_name, None)
+            raise
 
 
 def _column_payload(column: Any) -> dict[str, Any]:

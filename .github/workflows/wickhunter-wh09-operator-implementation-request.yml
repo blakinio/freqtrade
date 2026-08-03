@@ -75,7 +75,7 @@ jobs:
             exit 1
           }
 
-      - name: Repair operator environment typing
+      - name: Apply deterministic review repairs
         shell: bash
         run: |
           set -euo pipefail
@@ -83,129 +83,125 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
-          text = path.read_text(encoding="utf-8")
-          old_import = "import time\nfrom dataclasses import dataclass\n"
-          old_type = "environment: dict[str, str] | os._Environ[str] | None = None"
-          if text.count(old_import) != 1 or text.count(old_type) != 1:
-              raise SystemExit("operator typing anchor mismatch")
-          text = text.replace(
-              old_import,
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label} anchor count={count}")
+              return text.replace(old, new, 1)
+
+          operator_path = Path(
+              "ai_platform/wickhunter/candidate_paper_runtime_operator.py"
+          )
+          operator = operator_path.read_text(encoding="utf-8")
+          operator = replace_once(
+              operator,
+              "import time\nfrom dataclasses import dataclass\n",
               "import time\nfrom collections.abc import Mapping\nfrom dataclasses import dataclass\n",
-              1,
+              "operator Mapping import",
           )
-          text = text.replace(
-              old_type,
+          operator = replace_once(
+              operator,
+              "environment: dict[str, str] | os._Environ[str] | None = None",
               "environment: Mapping[str, str] | None = None",
-              1,
+              "operator environment type",
           )
-          path.write_text(text, encoding="utf-8")
-          PY
+          operator_path.write_text(operator, encoding="utf-8")
 
-      - name: Repair test payload mutations
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path(
+          test_path = Path(
               "tests/ai_platform_integration/"
               "test_wickhunter_candidate_paper_runtime_operator.py"
           )
-          text = path.read_text(encoding="utf-8")
-          anchor = "def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:\n"
-          helpers = '''def _rehash_payload(payload: dict[str, object]) -> None:
-              body = {
-                  key: value
-                  for key, value in payload.items()
-                  if key != "snapshot_sha256"
-              }
-              payload["snapshot_sha256"] = canonical_sha256(body)
-
-
-          def _stale_payload(payload: dict[str, object]) -> None:
-              payload.clear()
-              payload.update(_liquid20_payload(observed_at_ms=NOW_MS - 400_000))
-
-
-          def _future_event_payload(payload: dict[str, object]) -> None:
-              events = cast(list[dict[str, object]], payload["events"])
-              events[0]["received_at_ms"] = NOW_MS + 1
-              _rehash_payload(payload)
-
-
-          '''
-          if text.count(anchor) != 1:
-              raise SystemExit("test helper anchor mismatch")
-          text = text.replace(anchor, helpers + anchor, 1)
-          stale = '        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),'
-          if text.count(stale) != 1:
-              raise SystemExit("stale mutation anchor mismatch")
-          text = text.replace(stale, '        (_stale_payload, "stale"),', 1)
-          future = '''        (
-              lambda payload: cast(list[dict[str, object]], payload["events"])[0].update(
-                  {"received_at_ms": NOW_MS + 1}
-              ),
-              "unavailable",
-          ),'''
-          if text.count(future) != 1:
-              raise SystemExit("future mutation anchor mismatch")
-          text = text.replace(future, '        (_future_event_payload, "unavailable"),', 1)
-          path.write_text(text, encoding="utf-8")
-          PY
-
-      - name: Repair test request and slots patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path(
-              "tests/ai_platform_integration/"
-              "test_wickhunter_candidate_paper_runtime_operator.py"
+          tests = test_path.read_text(encoding="utf-8")
+          helpers = "\n".join(
+              [
+                  "def _rehash_payload(payload: dict[str, object]) -> None:",
+                  "    body = {",
+                  "        key: value",
+                  "        for key, value in payload.items()",
+                  '        if key != "snapshot_sha256"',
+                  "    }",
+                  '    payload["snapshot_sha256"] = canonical_sha256(body)',
+                  "",
+                  "",
+                  "def _stale_payload(payload: dict[str, object]) -> None:",
+                  "    payload.clear()",
+                  "    payload.update(_liquid20_payload(observed_at_ms=NOW_MS - 400_000))",
+                  "",
+                  "",
+                  "def _future_event_payload(payload: dict[str, object]) -> None:",
+                  '    events = cast(list[dict[str, object]], payload["events"])',
+                  '    events[0]["received_at_ms"] = NOW_MS + 1',
+                  "    _rehash_payload(payload)",
+                  "",
+                  "",
+              ]
           )
-          text = path.read_text(encoding="utf-8")
-          old_method = 'request.method == "GET"'
+          tests = replace_once(
+              tests,
+              "def _write_snapshot(",
+              helpers + "def _write_snapshot(",
+              "test helper insertion",
+          )
+          tests = replace_once(
+              tests,
+              '        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),',
+              '        (_stale_payload, "stale"),',
+              "stale mutation",
+          )
+          future = "\n".join(
+              [
+                  "        (",
+                  '            lambda payload: cast(list[dict[str, object]], payload["events"])[0].update(',
+                  '                {"received_at_ms": NOW_MS + 1}',
+                  "            ),",
+                  '            "unavailable",',
+                  "        ),",
+              ]
+          )
+          tests = replace_once(
+              tests,
+              future,
+              '        (_future_event_payload, "unavailable"),',
+              "future mutation",
+          )
+          tests = replace_once(
+              tests,
+              'request.method == "GET"',
+              'request.get_method() == "GET"',
+              "request method",
+          )
           old_patch = '    monkeypatch.setattr(runtime_operator, "_compose_tick", lambda **_kwargs: cast(ShadowRuntimeTick, SimpleNamespace(observed_at_ms=NOW_MS)))'
-          if text.count(old_method) != 1:
-              raise SystemExit("request method anchor mismatch")
-          if text.count(old_patch) != 1:
-              raise SystemExit("slots monkeypatch anchor mismatch")
-          text = text.replace(old_method, 'request.get_method() == "GET"', 1)
-          text = text.replace(
-              old_patch,
-              '''    monkeypatch.setattr(
-              CandidatePaperRuntimeOperator,
-              "_compose_tick",
-              lambda self, **_kwargs: cast(
-                  ShadowRuntimeTick,
-                  SimpleNamespace(observed_at_ms=NOW_MS),
-              ),
-          )''',
-              1,
+          new_patch = "\n".join(
+              [
+                  "    monkeypatch.setattr(",
+                  "        CandidatePaperRuntimeOperator,",
+                  '        "_compose_tick",',
+                  "        lambda self, **_kwargs: cast(",
+                  "            ShadowRuntimeTick,",
+                  "            SimpleNamespace(observed_at_ms=NOW_MS),",
+                  "        ),",
+                  "    )",
+              ]
           )
-          path.write_text(text, encoding="utf-8")
-          PY
+          tests = replace_once(
+              tests,
+              old_patch,
+              new_patch,
+              "slots monkeypatch",
+          )
+          test_path.write_text(tests, encoding="utf-8")
 
-      - name: Repair Docker commit validation
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("deploy/synology/wickhunter-paper-runtime/Dockerfile")
-          text = path.read_text(encoding="utf-8")
-          old = "    && python - <<'PY'\n"
-          new = "    && OPERATOR_COMMIT=\"$OPERATOR_COMMIT\" python - <<'PY'\n"
-          if text.count(old) != 1:
-              raise SystemExit("Docker commit anchor mismatch")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          dockerfile_path = Path(
+              "deploy/synology/wickhunter-paper-runtime/Dockerfile"
+          )
+          dockerfile = dockerfile_path.read_text(encoding="utf-8")
+          dockerfile = replace_once(
+              dockerfile,
+              "    && python - <<'PY'\n",
+              "    && OPERATOR_COMMIT=\"$OPERATOR_COMMIT\" python - <<'PY'\n",
+              "Dockerfile commit environment",
+          )
+          dockerfile_path.write_text(dockerfile, encoding="utf-8")
           PY
 
       - name: Compile explicit Python paths

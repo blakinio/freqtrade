@@ -116,11 +116,11 @@ Before a deployment request is reviewed, run on the exact product head:
 ```bash
 ruff format --check \
   ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-  deploy/synology/wickhunter-paper-runtime/healthcheck.py \
+  deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
   tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
 ruff check \
   ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-  deploy/synology/wickhunter-paper-runtime/healthcheck.py \
+  deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
   tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
 mypy ai_platform/wickhunter/candidate_paper_runtime_operator.py
 pytest -q \

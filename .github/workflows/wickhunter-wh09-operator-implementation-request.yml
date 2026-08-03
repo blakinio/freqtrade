@@ -113,22 +113,27 @@ jobs:
               operator = Path('target/ai_platform/wickhunter/candidate_paper_runtime_operator.py')
               operator_text = operator.read_text(encoding='utf-8')
 
-          broken = '\n'.join(
-              [
-                  '        with path.open("rb") as handle:',
-                  '  offset = max(0, size - MAX_INPUT_BYTES)',
-                  '  handle.seek(offset)',
-                  '  if offset:',
-                  '      handle.readline()',
-                  '  for raw in handle:',
-                  '      if not raw.strip():',
-                  'continue',
-                  '      payload = json.loads(raw.decode("utf-8"))',
-                  '      rows.append(_require_object(payload, field=field))',
+          lines = operator_text.splitlines()
+          offsets = [
+              index
+              for index, line in enumerate(lines)
+              if line.strip() == 'offset = max(0, size - MAX_INPUT_BYTES)'
+          ]
+          if len(offsets) == 1:
+              offset_index = offsets[0]
+              start_index = offset_index - 1
+              if start_index < 0 or lines[start_index].strip() != 'with path.open("rb") as handle:':
+                  raise SystemExit('JSONL reader opening boundary mismatch')
+              end_indexes = [
+                  index
+                  for index in range(offset_index, min(len(lines), offset_index + 20))
+                  if lines[index].strip()
+                  == 'rows.append(_require_object(payload, field=field))'
               ]
-          ) + '\n'
-          fixed = '\n'.join(
-              [
+              if len(end_indexes) != 1:
+                  raise SystemExit('JSONL reader closing boundary mismatch')
+              end_index = end_indexes[0]
+              replacement = [
                   '        with path.open("rb") as handle:',
                   '            offset = max(0, size - MAX_INPUT_BYTES)',
                   '            handle.seek(offset)',
@@ -140,11 +145,9 @@ jobs:
                   '                payload = json.loads(raw.decode("utf-8"))',
                   '                rows.append(_require_object(payload, field=field))',
               ]
-          ) + '\n'
-          if broken in operator_text:
-              if operator_text.count(broken) != 1:
-                  raise SystemExit('damaged JSONL reader block is not unique')
-              operator_text = operator_text.replace(broken, fixed)
+              lines[start_index : end_index + 1] = replacement
+              operator_text = '\n'.join(lines) + '\n'
+
           compile(operator_text, str(payload), 'exec')
           payload.write_text(operator_text, encoding='utf-8')
           print(f'compile_valid_operator_sha256={hashlib.sha256(operator_text.encode()).hexdigest()}')

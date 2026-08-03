@@ -1,0 +1,361 @@
+name: WickHunter corrected candidate materialization v2
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-candidate-materialization-20260803-v2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-candidate-materialization-v2-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-candidate-materialization-20260803-v2.yml
+  PINNED_SCRIPT_COMMIT: 04961b3171da378c4599d22d79606229abf08b08
+  PINNED_SCRIPT_PATH: .github/workflows/wickhunter-candidate-materialization-20260802-v1.yml
+  PINNED_SCRIPT_BLOB: a5cf3405c35209d884bfce043dd34d558c77e177
+  DATASET_ROOT: /var/lib/freqtrade-staging-state/wickhunter-production-datasets/wickhunter-wh01-production-dataset-20260731-v3-e02199bfac82-eaccc5ec-8f5be573
+  DATASET_MANIFEST_SHA256: fbf6c4fc35ad012db010eda29a6110c114669d972a1cc14533d9cda733cd23a1
+  PRICE_PATH_ROOT: /var/lib/freqtrade-staging-state/wickhunter-replay-price-path/packages/wickhunter-wh02-replay-price-path-20260731-v6-h180s-626087ca45d6
+  PRICE_PATH_MANIFEST_SHA256: 38dc7eb800cb3e462909addfd6dfd1ac971a8f433d9d424e3ab4c2f3d0133970
+  REPLAY_ROOT: /var/lib/freqtrade-staging-state/wickhunter-deterministic-replay/packages/wickhunter-wh02-deterministic-replay-20260802-v5-626087ca45d6
+  REPLAY_MANIFEST_SHA256: 30c5b0892397ec0e41c6071f55c93e50fd0d950c9518c9f3ae8b0ec64dd3b3ee
+  CANDIDATE_STATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-candidate-materialization/packages
+
+jobs:
+  materialize:
+    name: Materialize corrected deterministic candidate evidence
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 120
+
+    steps:
+      - name: Check out exact request head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and closed authority
+        id: identity
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-candidate-materialization-20260803-v2.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact one-file request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+          done
+          for path in "$DATASET_ROOT" "$PRICE_PATH_ROOT" "$REPLAY_ROOT"; do
+            [[ -d "$path" && ! -L "$path" ]]
+          done
+          mkdir -p "$CANDIDATE_STATE_ROOT"
+          [[ -d "$CANDIDATE_STATE_ROOT" && ! -L "$CANDIDATE_STATE_ROOT" && -w "$CANDIDATE_STATE_ROOT" ]]
+          package_id="wickhunter-candidate-materialization-20260803-v2-${BASE_SHA:0:12}"
+          output_root="$CANDIDATE_STATE_ROOT/$package_id"
+          [[ ! -e "$output_root" ]]
+          printf 'source_commit_sha=%s\n' "$BASE_SHA" >> "$GITHUB_OUTPUT"
+          printf 'package_id=%s\n' "$package_id" >> "$GITHUB_OUTPUT"
+          printf 'output_root=%s\n' "$output_root" >> "$GITHUB_OUTPUT"
+
+      - name: Extract pinned reviewed candidate program
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$PINNED_SCRIPT_COMMIT^{commit}"
+          observed_blob="$(git rev-parse "$PINNED_SCRIPT_COMMIT:$PINNED_SCRIPT_PATH")"
+          [[ "$observed_blob" == "$PINNED_SCRIPT_BLOB" ]]
+          git show "$PINNED_SCRIPT_COMMIT:$PINNED_SCRIPT_PATH" > "$RUNNER_TEMP/pinned-candidate-workflow.yml"
+          PINNED_SOURCE="$RUNNER_TEMP/pinned-candidate-workflow.yml" \
+          EXTRACTED_PROGRAM="$RUNNER_TEMP/candidate-materializer.py" \
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          source = Path(os.environ["PINNED_SOURCE"])
+          destination = Path(os.environ["EXTRACTED_PROGRAM"])
+          lines = source.read_text(encoding="utf-8").splitlines()
+          start_marker = "          python3 - <<'PY'"
+          end_marker = "          PY"
+          if lines.count(start_marker) != 1:
+              raise SystemExit("pinned candidate program start marker mismatch")
+          start = lines.index(start_marker) + 1
+          endings = [index for index in range(start, len(lines)) if lines[index] == end_marker]
+          if len(endings) != 1:
+              raise SystemExit("pinned candidate program end marker mismatch")
+          body = []
+          for line in lines[start:endings[0]]:
+              if not line:
+                  body.append("")
+              elif line.startswith("          "):
+                  body.append(line[10:])
+              else:
+                  raise SystemExit("pinned candidate program indentation mismatch")
+          text = "\n".join(body) + "\n"
+          required = (
+              "load_verified_evaluation_dataset",
+              "train_lightgbm_scorer",
+              "optimize_bounded_parameters",
+              "selection_source\": \"validation_only",
+              "automatic_promotion_enabled\": False",
+              "orders_submitted\": 0",
+          )
+          for token in required:
+              if token not in text:
+                  raise SystemExit(f"pinned candidate program missing token: {token}")
+          destination.write_text(text, encoding="utf-8")
+          PY
+          python3 -m py_compile "$RUNNER_TEMP/candidate-materializer.py"
+          sha256sum "$RUNNER_TEMP/candidate-materializer.py" | tee "$RUNNER_TEMP/candidate-program-sha256.txt"
+
+      - name: Independently verify corrected immutable inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/candidate-input-verification.json"
+          import json
+          import os
+          from pathlib import Path
+
+          from ai_platform.wickhunter.production_dataset_materialization import verify_production_materialization
+          from ai_platform.wickhunter.replay_price_path import verify_replay_price_path_package
+          from ai_platform.wickhunter.deterministic_replay import verify_deterministic_replay_package
+
+          dataset_root = Path(os.environ["DATASET_ROOT"])
+          price_root = Path(os.environ["PRICE_PATH_ROOT"])
+          replay_root = Path(os.environ["REPLAY_ROOT"])
+          dataset = verify_production_materialization(dataset_root)
+          price = verify_replay_price_path_package(
+              output_root=price_root,
+              materialization_root=dataset_root,
+          )
+          replay = verify_deterministic_replay_package(
+              materialization_root=dataset_root,
+              price_path_root=price_root,
+              output_root=replay_root,
+          )
+          expected = (
+              ("dataset", dataset, "dataset_manifest_sha256", os.environ["DATASET_MANIFEST_SHA256"]),
+              ("price", price, "manifest_sha256", os.environ["PRICE_PATH_MANIFEST_SHA256"]),
+              ("replay", replay, "manifest_sha256", os.environ["REPLAY_MANIFEST_SHA256"]),
+          )
+          for label, payload, key, value in expected:
+              if payload.get("outcome") != "accepted" or payload.get(key) != value:
+                  raise SystemExit(f"{label} immutable identity rejected")
+          if replay.get("decision_count") != 919 or replay.get("label_count") != 1838:
+              raise SystemExit("replay count mismatch")
+          for label, payload in (("dataset", dataset), ("price", price), ("replay", replay)):
+              for key in (
+                  "protected_holdout_accessed",
+                  "immutable_inputs_mutated",
+                  "model_execution_authorized",
+                  "performance_research_authorized",
+                  "execution_enabled",
+                  "live_capital_authorized",
+                  "trading_credentials_present",
+              ):
+                  if key in payload and payload.get(key) is not False:
+                      raise SystemExit(f"unsafe {label} authority: {key}")
+              if payload.get("orders_submitted", 0) != 0:
+                  raise SystemExit(f"orders submitted by {label}")
+          print(json.dumps({
+              "dataset_manifest_sha256": os.environ["DATASET_MANIFEST_SHA256"],
+              "price_path_manifest_sha256": os.environ["PRICE_PATH_MANIFEST_SHA256"],
+              "replay_manifest_sha256": os.environ["REPLAY_MANIFEST_SHA256"],
+              "decision_count": 919,
+              "label_count": 1838,
+              "protected_holdout_accessed": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Select validation-only candidate and materialize model
+        id: candidate
+        shell: bash
+        env:
+          SOURCE_COMMIT_SHA: ${{ steps.identity.outputs.source_commit_sha }}
+          PACKAGE_ID: ${{ steps.identity.outputs.package_id }}
+          OUTPUT_ROOT: ${{ steps.identity.outputs.output_root }}
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 "$RUNNER_TEMP/candidate-materializer.py"
+
+      - name: Independently verify terminal candidate package
+        shell: bash
+        env:
+          PACKAGE_ID: ${{ steps.identity.outputs.package_id }}
+          OUTPUT_ROOT: ${{ steps.identity.outputs.output_root }}
+          EXPECTED_MANIFEST: ${{ steps.candidate.outputs.manifest_sha256 }}
+          EXPECTED_EVALUATION: ${{ steps.candidate.outputs.evaluation_sha256 }}
+          EXPECTED_PARAMETER_HASH: ${{ steps.candidate.outputs.parameter_hash }}
+          EXPECTED_MODEL_HASH: ${{ steps.candidate.outputs.model_hash }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee "$RUNNER_TEMP/candidate-independent-verification.json"
+          import json
+          import os
+          from pathlib import Path
+
+          from ai_platform.wickhunter.candidate_activation import load_verified_candidate_package
+
+          root = Path(os.environ["OUTPUT_ROOT"])
+          package = load_verified_candidate_package(root)
+          identity = package.identity
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          expected = {
+              "package_id": os.environ["PACKAGE_ID"],
+              "manifest_sha256": os.environ["EXPECTED_MANIFEST"],
+              "evaluation_sha256": os.environ["EXPECTED_EVALUATION"],
+              "parameter_sha256": os.environ["EXPECTED_PARAMETER_HASH"],
+              "model_hash": os.environ["EXPECTED_MODEL_HASH"],
+          }
+          observed = {
+              "package_id": identity.package_id,
+              "manifest_sha256": identity.manifest_sha256,
+              "evaluation_sha256": identity.evaluation_sha256,
+              "parameter_sha256": identity.parameter_hash,
+              "model_hash": identity.model_hash,
+          }
+          if observed != expected:
+              raise SystemExit("independent candidate identity mismatch")
+          for key in (
+              "candidate_only",
+              "owner_decision_required",
+          ):
+              if manifest.get(key) is not True:
+                  raise SystemExit(f"candidate terminal flag mismatch: {key}")
+          for key in (
+              "automatic_promotion_enabled",
+              "protected_holdout_accessed",
+              "trading_credentials_present",
+              "order_adapter_present",
+              "execution_enabled",
+              "live_capital_authorized",
+          ):
+              if manifest.get(key) is not False:
+                  raise SystemExit(f"unsafe candidate authority: {key}")
+          if manifest.get("orders_submitted") != 0:
+              raise SystemExit("candidate package submitted orders")
+          print(json.dumps({
+              **observed,
+              "model_artifact_sha256": identity.model_artifact_sha256,
+              "optimizer_result_id": identity.optimizer_result_id,
+              "comparison_report_id": identity.comparison_report_id,
+              "rollback_model_hash": identity.rollback_model_hash,
+              "automatic_promotion_enabled": False,
+              "protected_holdout_accessed": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Publish terminal summary
+        shell: bash
+        env:
+          PACKAGE_VALUE: ${{ steps.candidate.outputs.package_id }}
+          PATH_VALUE: ${{ steps.candidate.outputs.immutable_path }}
+          MANIFEST_VALUE: ${{ steps.candidate.outputs.manifest_sha256 }}
+          EVALUATION_VALUE: ${{ steps.candidate.outputs.evaluation_sha256 }}
+          PARAMETER_VERSION_VALUE: ${{ steps.candidate.outputs.parameter_version }}
+          PARAMETER_HASH_VALUE: ${{ steps.candidate.outputs.parameter_hash }}
+          MODEL_VERSION_VALUE: ${{ steps.candidate.outputs.model_version }}
+          MODEL_HASH_VALUE: ${{ steps.candidate.outputs.model_hash }}
+          MODEL_ARTIFACT_VALUE: ${{ steps.candidate.outputs.model_artifact_sha256 }}
+          OPTIMIZER_VALUE: ${{ steps.candidate.outputs.optimizer_result_id }}
+          COMPARISON_VALUE: ${{ steps.candidate.outputs.comparison_report_id }}
+          ROLLBACK_VERSION_VALUE: ${{ steps.candidate.outputs.rollback_model_version }}
+          ROLLBACK_HASH_VALUE: ${{ steps.candidate.outputs.rollback_model_hash }}
+          TRAINABLE_VALUE: ${{ steps.candidate.outputs.trainable_candidate_count }}
+        run: |
+          {
+            echo "## WickHunter corrected candidate materialization"
+            echo
+            echo "- Package: \`$PACKAGE_VALUE\`"
+            echo "- Immutable path: \`$PATH_VALUE\`"
+            echo "- Manifest: \`$MANIFEST_VALUE\`"
+            echo "- Evaluation: \`$EVALUATION_VALUE\`"
+            echo "- Trainable finite candidates: \`$TRAINABLE_VALUE\`"
+            echo "- Selected parameter: \`$PARAMETER_VERSION_VALUE / $PARAMETER_HASH_VALUE\`"
+            echo "- Candidate model: \`$MODEL_VERSION_VALUE / $MODEL_HASH_VALUE\`"
+            echo "- Model artifact: \`$MODEL_ARTIFACT_VALUE\`"
+            echo "- Optimizer result: \`$OPTIMIZER_VALUE\`"
+            echo "- Test-descriptive comparison: \`$COMPARISON_VALUE\`"
+            echo "- Rollback: \`$ROLLBACK_VERSION_VALUE / $ROLLBACK_HASH_VALUE\`"
+            echo "- Selection source: \`validation_only\`"
+            echo "- Holdout/promotion/credentials/orders/execution/live capital: \`absent\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded metadata evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-candidate-materialization-v2-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/candidate-program-sha256.txt
+            ${{ runner.temp }}/candidate-input-verification.json
+            ${{ runner.temp }}/wickhunter-candidate-evidence.json
+            ${{ runner.temp }}/candidate-independent-verification.json
+            ${{ steps.identity.outputs.output_root }}/evaluation-identity.json
+            ${{ steps.identity.outputs.output_root }}/finite-search-audit.json
+            ${{ steps.identity.outputs.output_root }}/selected-parameters.json
+            ${{ steps.identity.outputs.output_root }}/optimizer-result.json
+            ${{ steps.identity.outputs.output_root }}/model-artifact.json
+            ${{ steps.identity.outputs.output_root }}/comparison-report.json
+            ${{ steps.identity.outputs.output_root }}/rollback.json
+            ${{ steps.identity.outputs.output_root }}/manifest.json
+            ${{ steps.identity.outputs.output_root }}/artifact-sha256.txt
+          if-no-files-found: warn
+          retention-days: 30

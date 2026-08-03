@@ -82,6 +82,7 @@ jobs:
           import os
           import zlib
           from pathlib import Path
+          from textwrap import dedent
 
           payload = Path('.github/wh09-payload/operator.py.zlib.b64')
           current_bytes = payload.read_bytes()
@@ -169,65 +170,499 @@ jobs:
           replace_unique_region(
               '    source_states: list[LiquidationSourceState] = []',
               '    ordered_events = tuple(',
-              [
-                  '    source_states: list[LiquidationSourceState] = []',
-                  '    events: list[LiquidationEvent] = []',
-                  '    history_start_ms = observed_at_ms - LIVE_HISTORY_WINDOW_MS',
-                  '    for source in sorted(source_payloads):',
-                  '        if not re.fullmatch(r"[a-z0-9-]{2,40}", source):',
-                  '            raise CandidatePaperRuntimeOperatorError(',
-                  '                "Liquid20 live source identity is invalid"',
-                  '            )',
-                  '        source_row = _require_object(',
-                  '            source_payloads[source], field=f"Liquid20 source state {source}"',
-                  '        )',
-                  '        source_states.append(',
-                  '            _live_source_state(',
-                  '                source,',
-                  '                source_row,',
-                  '                observed_at_ms=observed_at_ms,',
-                  '                maximum_age_ms=maximum_age_ms,',
-                  '            )',
-                  '        )',
-                  '        event_rows = _read_bounded_jsonl_tail(',
-                  '            run_root / f"{source}.ndjson",',
-                  '            field=f"Liquid20 source events {source}",',
-                  '        )',
-                  '        for row in event_rows:',
-                  '            try:',
-                  '                event = event_from_json_dict(row)',
-                  '            except ValueError as exc:',
-                  '                raise CandidatePaperRuntimeOperatorError(',
-                  '                    f"Liquid20 source event is invalid: {source}"',
-                  '                ) from exc',
-                  '            if event.source != source:',
-                  '                raise CandidatePaperRuntimeOperatorError(',
-                  '                    "Liquid20 event source does not match its immutable source file"',
-                  '                )',
-                  '            if event.received_at_ms > observed_at_ms:',
-                  '                raise CandidatePaperRuntimeOperatorError(',
-                  '                    "Liquid20 event was unavailable at live observation time"',
-                  '                )',
-                  '            if event.received_at_ms >= history_start_ms:',
-                  '                events.append(event)',
-                  '',
-              ],
+              dedent('''
+                  source_states: list[LiquidationSourceState] = []
+                  events: list[LiquidationEvent] = []
+                  history_start_ms = observed_at_ms - LIVE_HISTORY_WINDOW_MS
+                  for source in sorted(source_payloads):
+                      if not re.fullmatch(r"[a-z0-9-]{2,40}", source):
+                          raise CandidatePaperRuntimeOperatorError(
+                              "Liquid20 live source identity is invalid"
+                          )
+                      source_row = _require_object(
+                          source_payloads[source], field=f"Liquid20 source state {source}"
+                      )
+                      source_states.append(
+                          _live_source_state(
+                              source,
+                              source_row,
+                              observed_at_ms=observed_at_ms,
+                              maximum_age_ms=maximum_age_ms,
+                          )
+                      )
+                      event_rows = _read_bounded_jsonl_tail(
+                          run_root / f"{source}.ndjson",
+                          field=f"Liquid20 source events {source}",
+                      )
+                      for row in event_rows:
+                          try:
+                              event = event_from_json_dict(row)
+                          except ValueError as exc:
+                              raise CandidatePaperRuntimeOperatorError(
+                                  f"Liquid20 source event is invalid: {source}"
+                              ) from exc
+                          if event.source != source:
+                              raise CandidatePaperRuntimeOperatorError(
+                                  "Liquid20 event source does not match its immutable source file"
+                              )
+                          if event.received_at_ms > observed_at_ms:
+                              raise CandidatePaperRuntimeOperatorError(
+                                  "Liquid20 event was unavailable at live observation time"
+                              )
+                          if event.received_at_ms >= history_start_ms:
+                              events.append(event)
+
+              ''').splitlines(),
           )
 
           replace_unique_region(
               '    by_symbol: dict[str, list[LiquidationEvent]] = {}',
               '    ranked_symbols = sorted(',
-              [
-                  '    by_symbol: dict[str, list[LiquidationEvent]] = {}',
-                  '    for event in ordered_events:',
-                  '        symbol = event.symbol.upper()',
-                  '        if not SYMBOL_RE.fullmatch(symbol):',
-                  '            raise CandidatePaperRuntimeOperatorError(',
-                  '                "Liquid20 live event symbol is invalid"',
-                  '            )',
-                  '        by_symbol.setdefault(symbol, []).append(event)',
-              ],
+              dedent('''
+                  by_symbol: dict[str, list[LiquidationEvent]] = {}
+                  for event in ordered_events:
+                      symbol = event.symbol.upper()
+                      if not SYMBOL_RE.fullmatch(symbol):
+                          raise CandidatePaperRuntimeOperatorError(
+                              "Liquid20 live event symbol is invalid"
+                          )
+                      by_symbol.setdefault(symbol, []).append(event)
+              ''').splitlines(),
           )
+
+          if '    selected_events = tuple(' in lines:
+              replace_unique_region(
+                  '    selected_events = tuple(',
+                  '    universe = DynamicUniverseSnapshot(',
+                  ['    selected_events = ordered_events', ''],
+              )
+          elif '    selected_events = ordered_events' not in lines:
+              raise SystemExit('selected Liquid20 event repair boundary mismatch')
+
+          replace_unique_region(
+              'class PublicMarketSnapshot:',
+              'def _require_object(value: object, *, field: str) -> dict[str, Any]:',
+              dedent('''
+              class PublicMarketSnapshot:
+                  symbol: str
+                  observed_at_ms: int
+                  decision_price: Decimal
+                  completed_candle_close_ms: int
+                  quote_volume_24h_usd: Decimal
+                  spread_bps: Decimal
+                  trend_return_ratio: Decimal
+                  volatility_ratio: Decimal
+                  vwap: Decimal
+                  vwma: Decimal
+                  wick_ratio: Decimal
+                  atr_ratio: Decimal
+                  open_interest_usd: Decimal
+                  funding_rate: Decimal
+
+                  def market_context(
+                      self,
+                      *,
+                      market_wide_liquidation_intensity: Decimal,
+                  ) -> MarketContextSnapshot:
+                      completed_at = self.completed_candle_close_ms
+                      completed_source = "completed_candle:binance-usdm-public-1m"
+                      metrics = (
+                          AvailableMetric(
+                              "funding_rate",
+                              self.funding_rate,
+                              self.observed_at_ms,
+                              "binance-usdm-public-premium-index",
+                          ),
+                          AvailableMetric(
+                              "open_interest_usd",
+                              self.open_interest_usd,
+                              self.observed_at_ms,
+                              "binance-usdm-public-open-interest",
+                          ),
+                          AvailableMetric(
+                              "quote_volume_24h_usd",
+                              self.quote_volume_24h_usd,
+                              completed_at,
+                              completed_source,
+                          ),
+                          AvailableMetric(
+                              "spread_bps",
+                              self.spread_bps,
+                              self.observed_at_ms,
+                              "binance-usdm-public-book-ticker",
+                          ),
+                          AvailableMetric(
+                              "trend_return_ratio",
+                              self.trend_return_ratio,
+                              completed_at,
+                              completed_source,
+                          ),
+                          AvailableMetric(
+                              "volatility_ratio",
+                              self.volatility_ratio,
+                              completed_at,
+                              completed_source,
+                          ),
+                          AvailableMetric("vwap", self.vwap, completed_at, completed_source),
+                          AvailableMetric("vwma", self.vwma, completed_at, completed_source),
+                          AvailableMetric(
+                              "wick_ratio",
+                              self.wick_ratio,
+                              completed_at,
+                              completed_source,
+                          ),
+                          AvailableMetric(
+                              "atr_ratio",
+                              self.atr_ratio,
+                              completed_at,
+                              completed_source,
+                          ),
+                          AvailableMetric(
+                              "market_wide_liquidation_intensity",
+                              market_wide_liquidation_intensity,
+                              self.observed_at_ms,
+                              "liquid20-live:market-wide",
+                          ),
+                      )
+                      return MarketContextSnapshot(
+                          symbol=self.symbol,
+                          decision_timestamp_ms=self.observed_at_ms,
+                          decision_price=self.decision_price,
+                          completed_candle_close_ms=completed_at,
+                          metrics=tuple(sorted(metrics, key=lambda metric: metric.name)),
+                      )
+
+
+              ''').splitlines(),
+          )
+
+          replace_unique_region(
+              'def fetch_public_market_snapshot(',
+              'def _runtime_policy() -> ShadowRuntimePolicy:',
+              dedent('''
+              def _market_wide_liquidation_intensity(
+                  events: tuple[LiquidationEvent, ...],
+                  *,
+                  decision_timestamp_ms: int,
+                  burst_window_ms: int,
+              ) -> Decimal:
+                  if burst_window_ms <= 0:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "market-wide liquidation burst window must be positive"
+                      )
+                  history_start_ms = decision_timestamp_ms - LIVE_HISTORY_WINDOW_MS
+                  current_start_ms = decision_timestamp_ms - burst_window_ms
+                  complete_bucket_count = (
+                      current_start_ms - history_start_ms
+                  ) // burst_window_ms
+                  if complete_bucket_count < 1:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "market-wide liquidation intensity lacks a complete history bucket"
+                      )
+                  aligned_history_start_ms = (
+                      current_start_ms - complete_bucket_count * burst_window_ms
+                  )
+                  current_notional = Decimal("0")
+                  history_buckets = [Decimal("0") for _ in range(complete_bucket_count)]
+                  for event in events:
+                      available_at_ms = event.received_at_ms
+                      if available_at_ms > decision_timestamp_ms:
+                          continue
+                      if current_start_ms <= available_at_ms <= decision_timestamp_ms:
+                          current_notional += event.notional_usd
+                      elif aligned_history_start_ms <= available_at_ms < current_start_ms:
+                          bucket_index = (
+                              available_at_ms - aligned_history_start_ms
+                          ) // burst_window_ms
+                          if 0 <= bucket_index < complete_bucket_count:
+                              history_buckets[bucket_index] += event.notional_usd
+                  baseline = sum(history_buckets, Decimal("0")) / Decimal(
+                      complete_bucket_count
+                  )
+                  if baseline <= 0:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "market-wide liquidation intensity lacks positive history"
+                      )
+                  return current_notional / baseline
+
+
+              def fetch_public_market_snapshot(
+                  *,
+                  symbol: str,
+                  observed_at_ms: int,
+                  base_url: str = DEFAULT_PUBLIC_MARKET_BASE_URL,
+                  opener: OpenerDirector | None = None,
+              ) -> PublicMarketSnapshot:
+                  normalized = symbol.upper()
+                  if not SYMBOL_RE.fullmatch(normalized):
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public market symbol is invalid"
+                      )
+                  if observed_at_ms <= 0:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public market observation time must be positive"
+                      )
+                  assert_closed_authority_environment()
+                  client = opener or build_opener(ProxyHandler({}), _NoRedirectHandler())
+                  premium = _require_object(
+                      _read_public_json(
+                          client,
+                          url=_public_url(
+                              base_url,
+                              "/fapi/v1/premiumIndex",
+                              {"symbol": normalized},
+                          ),
+                          field="public premium index",
+                      ),
+                      field="public premium index",
+                  )
+                  book = _require_object(
+                      _read_public_json(
+                          client,
+                          url=_public_url(
+                              base_url,
+                              "/fapi/v1/ticker/bookTicker",
+                              {"symbol": normalized},
+                          ),
+                          field="public book ticker",
+                      ),
+                      field="public book ticker",
+                  )
+                  open_interest = _require_object(
+                      _read_public_json(
+                          client,
+                          url=_public_url(
+                              base_url,
+                              "/fapi/v1/openInterest",
+                              {"symbol": normalized},
+                          ),
+                          field="public open interest",
+                      ),
+                      field="public open interest",
+                  )
+                  klines = _require_list(
+                      _read_public_json(
+                          client,
+                          url=_public_url(
+                              base_url,
+                              "/fapi/v1/klines",
+                              {"symbol": normalized, "interval": "1m", "limit": 1441},
+                          ),
+                          field="public klines",
+                      ),
+                      field="public klines",
+                  )
+                  for response, field in (
+                      (premium, "public premium index"),
+                      (book, "public book ticker"),
+                      (open_interest, "public open interest"),
+                  ):
+                      if str(response.get("symbol", "")).upper() != normalized:
+                          raise CandidatePaperRuntimeOperatorError(
+                              f"{field} symbol identity mismatch"
+                          )
+
+                  completed: list[
+                      tuple[int, Decimal, Decimal, Decimal, Decimal, Decimal, Decimal]
+                  ] = []
+                  for raw in klines:
+                      row = _require_list(raw, field="public kline")
+                      if len(row) < 8:
+                          raise CandidatePaperRuntimeOperatorError(
+                              "public kline is malformed"
+                          )
+                      close_ms = _integer(row[6], field="public kline close")
+                      if close_ms > observed_at_ms:
+                          continue
+                      candle_open = _decimal(row[1], field="candle open", positive=True)
+                      candle_high = _decimal(row[2], field="candle high", positive=True)
+                      candle_low = _decimal(row[3], field="candle low", positive=True)
+                      candle_close = _decimal(row[4], field="candle close", positive=True)
+                      base_volume = _decimal(
+                          row[5], field="candle base volume", non_negative=True
+                      )
+                      quote_volume = _decimal(
+                          row[7], field="candle quote volume", non_negative=True
+                      )
+                      if not (
+                          candle_low
+                          <= min(candle_open, candle_close)
+                          <= max(candle_open, candle_close)
+                          <= candle_high
+                      ):
+                          raise CandidatePaperRuntimeOperatorError(
+                              "public completed candle is inconsistent"
+                          )
+                      completed.append(
+                          (
+                              close_ms,
+                              candle_open,
+                              candle_high,
+                              candle_low,
+                              candle_close,
+                              base_volume,
+                              quote_volume,
+                          )
+                      )
+                  completed.sort(key=lambda item: item[0])
+                  if len({item[0] for item in completed}) != len(completed):
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public completed candle timestamps are duplicated"
+                      )
+                  if len(completed) < 1440:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public klines must contain 1440 completed one-minute rows"
+                      )
+                  completed = completed[-1440:]
+                  if any(
+                      current[0] - previous[0] != 60_000
+                      for previous, current in zip(
+                          completed[:-1], completed[1:], strict=True
+                      )
+                  ):
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public completed candle history contains a gap"
+                      )
+                  latest = completed[-1]
+                  completed_close_ms = latest[0]
+                  if observed_at_ms - completed_close_ms > DEFAULT_MAX_SOURCE_AGE_MS:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public completed candle is stale"
+                      )
+
+                  total_base_volume = sum(
+                      (item[5] for item in completed), Decimal("0")
+                  )
+                  total_quote_volume = sum(
+                      (item[6] for item in completed), Decimal("0")
+                  )
+                  if total_base_volume <= 0 or total_quote_volume <= 0:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public completed candle volume is empty"
+                      )
+                  vwap = total_quote_volume / total_base_volume
+                  vwma = sum(
+                      (item[4] * item[5] for item in completed), Decimal("0")
+                  ) / total_base_volume
+
+                  atr_rows = completed[-15:]
+                  true_ranges = [
+                      max(
+                          current[2] - current[3],
+                          abs(current[2] - previous[4]),
+                          abs(current[3] - previous[4]),
+                      )
+                      for previous, current in zip(
+                          atr_rows[:-1], atr_rows[1:], strict=True
+                      )
+                  ]
+                  atr_ratio = (
+                      sum(true_ranges, Decimal("0"))
+                      / Decimal(len(true_ranges))
+                      / latest[4]
+                  )
+
+                  closes = [item[4] for item in completed]
+                  returns = [
+                      current / previous - Decimal("1")
+                      for previous, current in zip(
+                          closes[:-1], closes[1:], strict=True
+                      )
+                  ]
+                  mean_return = sum(returns, Decimal("0")) / Decimal(len(returns))
+                  variance = sum(
+                      ((value - mean_return) ** 2 for value in returns), Decimal("0")
+                  ) / Decimal(len(returns))
+                  volatility_ratio = variance.sqrt()
+                  trend_return_ratio = latest[4] / completed[0][1] - Decimal("1")
+                  wick_values: list[Decimal] = []
+                  for item in completed:
+                      candle_range = item[2] - item[3]
+                      wick_total = (item[2] - max(item[1], item[4])) + (
+                          min(item[1], item[4]) - item[3]
+                      )
+                      wick_values.append(
+                          Decimal("0")
+                          if candle_range == 0
+                          else wick_total / candle_range
+                      )
+                  wick_ratio = sum(wick_values, Decimal("0")) / Decimal(
+                      len(wick_values)
+                  )
+
+                  mark_price = _decimal(
+                      premium.get("markPrice"),
+                      field="public mark price",
+                      positive=True,
+                  )
+                  bid = _decimal(
+                      book.get("bidPrice"), field="public bid", positive=True
+                  )
+                  ask = _decimal(
+                      book.get("askPrice"), field="public ask", positive=True
+                  )
+                  if ask < bid:
+                      raise CandidatePaperRuntimeOperatorError(
+                          "public bid/ask spread is inverted"
+                      )
+                  midpoint = (ask + bid) / Decimal("2")
+                  spread_bps = ((ask - bid) / midpoint) * Decimal("10000")
+                  open_interest_quantity = _decimal(
+                      open_interest.get("openInterest"),
+                      field="public open interest",
+                      non_negative=True,
+                  )
+                  funding_rate = _decimal(
+                      premium.get("lastFundingRate"), field="public funding rate"
+                  )
+                  return PublicMarketSnapshot(
+                      symbol=normalized,
+                      observed_at_ms=observed_at_ms,
+                      decision_price=latest[4],
+                      completed_candle_close_ms=completed_close_ms,
+                      quote_volume_24h_usd=total_quote_volume,
+                      spread_bps=spread_bps,
+                      trend_return_ratio=trend_return_ratio,
+                      volatility_ratio=volatility_ratio,
+                      vwap=vwap,
+                      vwma=vwma,
+                      wick_ratio=wick_ratio,
+                      atr_ratio=atr_ratio,
+                      open_interest_usd=open_interest_quantity * mark_price,
+                      funding_rate=funding_rate,
+                  )
+
+
+              ''').splitlines(),
+          )
+
+          replace_unique_region(
+              '        latest_state = self.service.runtime.state',
+              '        for symbol in liquid20.universe.selected_symbols:',
+              dedent('''
+                      latest_state = self.service.runtime.state
+                      market_wide_liquidation_intensity = _market_wide_liquidation_intensity(
+                          liquid20.events,
+                          decision_timestamp_ms=observed_at_ms,
+                          burst_window_ms=self.service.binding.parameters.burst_window_ms,
+                      )
+                      requests: list[ShadowDecisionRequest] = []
+              ''').splitlines(),
+          )
+
+          old_market_line = '                    market=market.market_context(),'
+          old_indexes = [index for index, line in enumerate(lines) if line == old_market_line]
+          if len(old_indexes) == 1:
+              index = old_indexes[0]
+              lines[index : index + 1] = [
+                  '                    market=market.market_context(',
+                  '                        market_wide_liquidation_intensity=(',
+                  '                            market_wide_liquidation_intensity',
+                  '                        )',
+                  '                    ),',
+              ]
+          elif '                    market=market.market_context(' not in lines:
+              raise SystemExit('market context binding repair boundary mismatch')
 
           operator_text = '\n'.join(lines) + '\n'
           payload.write_text(operator_text, encoding='utf-8')

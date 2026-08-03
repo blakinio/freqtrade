@@ -2,10 +2,18 @@
 # ruff: noqa: E501
 from __future__ import annotations
 
+import argparse
 import json
 import re
 from pathlib import Path
 from typing import Any
+
+from audit_ledger import (
+    ledger_metadata,
+    load_ledger,
+    resolve_exact_head,
+    validate_inventory,
+)
 
 
 PORTAL = Path("ai_platform/portal")
@@ -93,8 +101,8 @@ def backend_targets(raw: str) -> list[str]:
     values: set[str] = set()
     patterns = [
         r"[\"'`](/v1/[^\"'`\s$]*)[\"'`]",
-        r"forwardControlPlaneMutation<[^>]+>\([^,]+,\s*[\#']([^\"']+)",
-        r"apiFetch<[^>]+>\([\"']([^\#']+)",
+        r"forwardControlPlaneMutation<[^>]+>\([^,]+,\s*[\"']([^\"']+)",
+        r"apiFetch<[^>]+>\([\"']([^\"']+)",
     ]
     for pattern in patterns:
         for match in re.finditer(pattern, raw):
@@ -243,7 +251,7 @@ def backend_modules(tests: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     if path.name
                     in {"router.py", "api.py", "api_core.py", "http.py", "public_runtime.py"}
                 ],
-                "migrations": [relative(path) for path in directory.rglob("*.sql")],
+                "migrations": [relative(path) for path in sorted(directory.rglob("*.sql"))],
                 "tests": mapped_tests,
                 "in_memory": "InMemory" in raw,
                 "unavailable_boundary": "Unavailable" in raw,
@@ -325,6 +333,9 @@ def markdown(data: dict[str, Any]) -> str:
     lines = [
         "# Portal deep inventory",
         "",
+        f"- Audited head: `{data['audited_head']}`",
+        f"- Ledger version: `{data['ledger_version']}`",
+        f"- Ledger SHA-256: `{data['ledger_sha256']}`",
         f"- Backend modules: **{summary['backend_modules']}**",
         f"- Backend routes: **{summary['backend_routes']}**",
         f"- Frontend pages: **{summary['frontend_pages']}**",
@@ -396,6 +407,11 @@ def markdown(data: dict[str, Any]) -> str:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--head", required=True)
+    args = parser.parse_args()
+    audited_head = resolve_exact_head(args.head)
+    ledger = load_ledger()
     tests = test_inventory()
     data: dict[str, Any] = {
         "schema_version": "portal-deep-inventory-v1",
@@ -420,6 +436,8 @@ def main() -> int:
         "workflows": len(data["workflows"]),
     }
     data["summary"] = summary
+    data.update(ledger_metadata(ledger, audited_head))
+    validate_inventory(data, ledger)
     output = Path("artifacts")
     output.mkdir(exist_ok=True)
     (output / "portal-deep-inventory.json").write_text(

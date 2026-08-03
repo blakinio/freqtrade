@@ -19,32 +19,72 @@ concurrency:
 
 permissions:
   contents: read
+  issues: read
 
 jobs:
   static-completeness-audit:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      AUDIT_HEAD: "${{ github.event.pull_request.head.sha || github.sha }}"
     steps:
-      - name: Checkout
+      - name: Checkout exact audited head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
+          ref: "${{ github.event.pull_request.head.sha || github.sha }}"
           persist-credentials: false
 
       - name: Validate audit tools
         run: >-
           python -m py_compile
+          tools/portal_audit/audit_ledger.py
           tools/portal_audit/completeness_audit.py
           tools/portal_audit/deep_inventory.py
           tools/portal_audit/classified_matrices.py
           tools/portal_audit/navigation_matrix.py
+          tools/portal_audit/validate_issue_states.py
 
-      - name: Generate portal completeness reports
+      - name: Run audit-tool regression tests
+        run: python -m unittest discover -s tools/portal_audit/tests -v
+
+      - name: Reject closed Issue mappings
+        env:
+          GITHUB_TOKEN: "${{ github.token }}"
+        run: >-
+          python tools/portal_audit/validate_issue_states.py
+          --repository "${{ github.repository }}"
+
+      - name: Generate exact-head portal completeness reports
         run: |
-          python tools/portal_audit/completeness_audit.py \
-            --head "${{ github.event.pull_request.head.sha || github.sha }}"
-          python tools/portal_audit/deep_inventory.py
-          python tools/portal_audit/classified_matrices.py
-          python tools/portal_audit/navigation_matrix.py
+          python tools/portal_audit/completeness_audit.py --head "$AUDIT_HEAD"
+          python tools/portal_audit/deep_inventory.py --head "$AUDIT_HEAD"
+          python tools/portal_audit/classified_matrices.py --head "$AUDIT_HEAD"
+          python tools/portal_audit/navigation_matrix.py --head "$AUDIT_HEAD"
+
+      - name: Prove report reproducibility
+        run: |
+          report_files=(
+            portal-completeness-audit.json
+            portal-completeness-audit.md
+            portal-deep-inventory.json
+            portal-deep-inventory.md
+            portal-backend-matrix.md
+            portal-frontend-bff-matrix.md
+            portal-runtime-test-deployment-matrix.md
+            portal-navigation-completeness-matrix.json
+            portal-navigation-completeness-matrix.md
+          )
+          mkdir -p /tmp/portal-audit-first
+          for file in "${report_files[@]}"; do
+            cp "artifacts/$file" "/tmp/portal-audit-first/$file"
+          done
+          python tools/portal_audit/completeness_audit.py --head "$AUDIT_HEAD"
+          python tools/portal_audit/deep_inventory.py --head "$AUDIT_HEAD"
+          python tools/portal_audit/classified_matrices.py --head "$AUDIT_HEAD"
+          python tools/portal_audit/navigation_matrix.py --head "$AUDIT_HEAD"
+          for file in "${report_files[@]}"; do
+            cmp "/tmp/portal-audit-first/$file" "artifacts/$file"
+          done
 
       - name: Print bounded composition evidence
         run: |
@@ -66,8 +106,10 @@ jobs:
             --exclude-dir=.git \
             | head -n 400 || true
 
-      - name: Build exact-head audit source snapshot
+      - name: Build reproducible exact-head audit source snapshot
+        shell: bash
         run: |
+          set -euo pipefail
           snapshot_paths=(
             AGENTS.md
             pyproject.toml
@@ -77,6 +119,7 @@ jobs:
             docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
             docs/agents/GITHUB_ONLY_EXECUTION.md
             docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
+            docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
             docs/ai_platform/ARCHITECTURE.md
             docs/ai_platform/ROADMAP.md
             docs/ai_platform/portal
@@ -92,14 +135,44 @@ jobs:
               snapshot_paths+=("$candidate")
             fi
           done
-          tar \
-            --exclude='ai_platform/portal/web/node_modules' \
-            --exclude='**/__pycache__' \
-            --exclude='*.pyc' \
-            --exclude='*.env' \
-            -czf artifacts/portal-audit-source.tar.gz \
-            "${snapshot_paths[@]}"
+
+          build_snapshot() {
+            local archive="$1"
+            local manifest="$2"
+            local list_file="$3"
+            find "${snapshot_paths[@]}" -type f \
+              ! -path '*/node_modules/*' \
+              ! -path '*/__pycache__/*' \
+              ! -name '*.pyc' \
+              ! -name '*.env' \
+              -print0 | LC_ALL=C sort -z > "$list_file"
+            xargs -0 sha256sum < "$list_file" > "$manifest"
+            tar \
+              --null \
+              --files-from="$list_file" \
+              --sort=name \
+              --format=posix \
+              --pax-option=delete=atime,delete=ctime \
+              --mtime='UTC 1970-01-01' \
+              --owner=0 \
+              --group=0 \
+              --numeric-owner \
+              --mode='u+rwX,go+rX,go-w' \
+              -cf - | gzip -n > "$archive"
+          }
+
+          build_snapshot \
+            artifacts/portal-audit-source.tar.gz \
+            artifacts/portal-audit-source.manifest.sha256 \
+            /tmp/portal-audit-source-files-1
+          build_snapshot \
+            /tmp/portal-audit-source-2.tar.gz \
+            /tmp/portal-audit-source-2.manifest.sha256 \
+            /tmp/portal-audit-source-files-2
+          cmp artifacts/portal-audit-source.tar.gz /tmp/portal-audit-source-2.tar.gz
+          cmp artifacts/portal-audit-source.manifest.sha256 /tmp/portal-audit-source-2.manifest.sha256
           sha256sum artifacts/portal-audit-source.tar.gz > artifacts/portal-audit-source.sha256
+          sha256sum artifacts/portal-audit-source.manifest.sha256 > artifacts/portal-audit-source.manifest.digest
 
       - name: Print bounded report
         run: |
@@ -126,5 +199,7 @@ jobs:
             artifacts/portal-navigation-completeness-matrix.md
             artifacts/portal-audit-source.tar.gz
             artifacts/portal-audit-source.sha256
+            artifacts/portal-audit-source.manifest.sha256
+            artifacts/portal-audit-source.manifest.digest
           if-no-files-found: error
           retention-days: 30

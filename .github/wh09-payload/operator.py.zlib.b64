@@ -274,15 +274,15 @@ def _read_bounded_jsonl_tail(path: Path, *, field: str) -> tuple[dict[str, Any],
     rows: list[dict[str, Any]] = []
     try:
         with path.open("rb") as handle:
-  offset = max(0, size - MAX_INPUT_BYTES)
-  handle.seek(offset)
-  if offset:
-      handle.readline()
-  for raw in handle:
-      if not raw.strip():
-continue
-      payload = json.loads(raw.decode("utf-8"))
-      rows.append(_require_object(payload, field=field))
+            offset = max(0, size - MAX_INPUT_BYTES)
+            handle.seek(offset)
+            if offset:
+                handle.readline()
+            for raw in handle:
+                if not raw.strip():
+                    continue
+                payload = json.loads(raw.decode("utf-8"))
+                rows.append(_require_object(payload, field=field))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CandidatePaperRuntimeOperatorError(f"unable to read {field}") from exc
     if not rows:

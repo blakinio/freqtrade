@@ -69,7 +69,7 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Materialize and repair generated operator plaintext
+      - name: Materialize and persist repaired operator plaintext
         shell: bash
         run: |
           set -euo pipefail
@@ -127,13 +127,12 @@ jobs:
               end_indexes = [
                   index
                   for index in range(offset_index, min(len(lines), offset_index + 20))
-                  if lines[index].strip()
-                  == 'rows.append(_require_object(payload, field=field))'
+                  if lines[index].strip() == 'rows.append(_require_object(payload, field=field))'
               ]
               if len(end_indexes) != 1:
                   raise SystemExit('JSONL reader closing boundary mismatch')
               end_index = end_indexes[0]
-              replacement = [
+              lines[start_index : end_index + 1] = [
                   '        with path.open("rb") as handle:',
                   '            offset = max(0, size - MAX_INPUT_BYTES)',
                   '            handle.seek(offset)',
@@ -145,25 +144,33 @@ jobs:
                   '                payload = json.loads(raw.decode("utf-8"))',
                   '                rows.append(_require_object(payload, field=field))',
               ]
-              lines[start_index : end_index + 1] = replacement
               operator_text = '\n'.join(lines) + '\n'
 
-          compile(operator_text, str(payload), 'exec')
           payload.write_text(operator_text, encoding='utf-8')
-          print(f'compile_valid_operator_sha256={hashlib.sha256(operator_text.encode()).hexdigest()}')
+          print(f'persisted_operator_sha256={hashlib.sha256(operator_text.encode()).hexdigest()}')
+          try:
+              compile(operator_text, str(payload), 'exec')
+          except (IndentationError, SyntaxError) as exc:
+              print(f'operator_compile_error={exc}')
+              error_line = exc.lineno or 1
+              context = operator_text.splitlines()
+              for number in range(max(1, error_line - 5), min(len(context), error_line + 5) + 1):
+                  print(f'{number:04d}: {context[number - 1]!r}')
+          else:
+              print('operator_compile_valid=true')
           PY
           git diff --check
 
-      - name: Publish compile-valid operator preview
+      - name: Publish repaired operator preview
         shell: bash
         run: |
           set -euo pipefail
           if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then
-            echo "Operator preview is already compile-valid."
+            echo "Operator preview is unchanged."
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add .github/wh09-payload/operator.py.zlib.b64
-          git commit -m "fix(wickhunter): repair generated operator preview"
+          git commit -m "fix(wickhunter): persist repaired operator preview"
           git push origin "HEAD:$HELPER_BRANCH"

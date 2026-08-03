@@ -122,6 +122,12 @@ def _require_text(value: object, *, field: str) -> str:
     return value.strip()
 
 
+def _require_exact_text(value: object, *, field: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise CandidateActivationError(f"{field} must be non-empty text")
+    return value
+
+
 def _require_false(payload: dict[str, Any], field: str) -> None:
     if payload.get(field) is not False:
         raise CandidateActivationError(f"unsafe authority field: {field}")
@@ -381,7 +387,7 @@ def _model_artifact(payload: dict[str, Any]) -> LightGBMModelArtifact:
             model_kind=_require_text(payload["model_kind"], field="model_kind"),
             model_version=_require_text(payload["model_version"], field="model_version"),
             model_hash=_require_sha256(payload["model_hash"], field="model_hash"),
-            model_text=_require_text(payload["model_text"], field="model_text"),
+            model_text=_require_exact_text(payload["model_text"], field="model_text"),
             feature_schema_version=_require_text(
                 payload["feature_schema_version"],
                 field="feature_schema_version",

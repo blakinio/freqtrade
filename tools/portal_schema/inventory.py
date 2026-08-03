@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
+import importlib
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -38,25 +37,8 @@ CREATE_ALL_RE = re.compile(r"\b(?:Base\.)?metadata\.create_all\s*\(")
 
 
 def _load_models() -> None:
-    """Load model files without executing package ``__init__`` modules.
-
-    Several Portal packages export services from ``__init__``. Importing a models
-    module through the package therefore pulls unrelated runtime dependencies into
-    the schema audit. Loading the exact model file keeps this evidence boundary
-    deterministic while registering every table on the shared SQLAlchemy metadata.
-    """
-
-    for index, module_name in enumerate(MODEL_MODULES):
-        path = ROOT.joinpath(*module_name.split(".")).with_suffix(".py")
-        if not path.is_file():
-            raise RuntimeError(f"Portal model file is missing: {path.relative_to(ROOT)}")
-        synthetic_name = f"_portal_schema_inventory_model_{index}"
-        spec = importlib.util.spec_from_file_location(synthetic_name, path)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"cannot load Portal model file: {path.relative_to(ROOT)}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[synthetic_name] = module
-        spec.loader.exec_module(module)
+    for module_name in MODEL_MODULES:
+        importlib.import_module(module_name)
 
 
 def _column_payload(column: Any) -> dict[str, Any]:

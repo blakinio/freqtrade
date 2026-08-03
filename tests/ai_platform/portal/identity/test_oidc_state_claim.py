@@ -34,6 +34,14 @@ from ai_platform.portal.identity.service import (
 )
 
 
+_CALLBACK_ACTIONS = {
+    "identity.login_state_claimed",
+    "identity.login_state_rejected",
+    "identity.login_denied",
+    "identity.login_succeeded",
+}
+
+
 @dataclass
 class FixedClock:
     value: datetime
@@ -159,6 +167,45 @@ def _file_session_factory(tmp_path: Path) -> tuple[SessionFactory, Any]:
     return build_session_factory(engine), engine
 
 
+def _callback_events(session_factory: SessionFactory) -> tuple[IdentityAuditEventRow, ...]:
+    with session_factory() as session:
+        return tuple(
+            session.scalars(
+                select(IdentityAuditEventRow)
+                .where(IdentityAuditEventRow.action.in_(_CALLBACK_ACTIONS))
+                .order_by(IdentityAuditEventRow.occurred_at, IdentityAuditEventRow.event_id)
+            ).all()
+        )
+
+
+def _assert_safe_claim_correlation(
+    events: tuple[IdentityAuditEventRow, ...],
+    *,
+    state: str,
+) -> str:
+    correlations = {event.correlation_id for event in events}
+    assert len(correlations) == 1
+    claim_id = correlations.pop()
+    assert claim_id is not None
+    assert claim_id == _crypto().hash_token(state)
+    assert claim_id != state
+    rendered = "|".join(
+        str(value)
+        for event in events
+        for value in (
+            event.action,
+            event.actor_id,
+            event.reason,
+            event.correlation_id,
+        )
+    )
+    assert state not in rendered
+    assert "code-a" not in rendered
+    assert "code-b" not in rendered
+    assert "verifier" not in rendered.casefold()
+    return claim_id
+
+
 def test_claim_statement_is_compare_and_swap_on_postgresql() -> None:
     session = _CapturingSession()
     repository = IdentityRepository(session)
@@ -272,7 +319,9 @@ def test_expired_state_cannot_be_claimed(tmp_path: Path) -> None:
         engine.dispose()
 
 
-def test_overlapping_callbacks_have_one_provider_owner_and_one_session(tmp_path: Path) -> None:
+def test_overlapping_callbacks_have_one_provider_owner_session_and_attribution(
+    tmp_path: Path,
+) -> None:
     session_factory, engine = _file_session_factory(tmp_path)
     clock = FixedClock(datetime(2026, 8, 3, 12, 0, tzinfo=UTC))
     oidc = CountingOidcClient(clock)
@@ -293,20 +342,18 @@ def test_overlapping_callbacks_have_one_provider_owner_and_one_session(tmp_path:
         assert oidc.exchange_count == 1
         with session_factory() as session:
             assert session.scalar(select(func.count()).select_from(PortalSessionRow)) == 1
-            assert (
-                session.scalar(
-                    select(func.count())
-                    .select_from(IdentityAuditEventRow)
-                    .where(IdentityAuditEventRow.action == "identity.login_succeeded")
-                )
-                == 1
-            )
+        events = _callback_events(session_factory)
+        assert [event.action for event in events].count("identity.login_state_claimed") == 1
+        assert [event.action for event in events].count("identity.login_state_rejected") == 1
+        assert [event.action for event in events].count("identity.login_succeeded") == 1
+        assert [event.action for event in events].count("identity.login_denied") == 0
+        _assert_safe_claim_correlation(events, state=state)
     finally:
         oidc.release_exchange.set()
         engine.dispose()
 
 
-def test_provider_failure_consumes_state_and_cannot_be_retried(tmp_path: Path) -> None:
+def test_provider_failure_is_terminal_attributable_and_cannot_be_retried(tmp_path: Path) -> None:
     session_factory, engine = _file_session_factory(tmp_path)
     clock = FixedClock(datetime(2026, 8, 3, 12, 0, tzinfo=UTC))
     oidc = CountingOidcClient(clock, fail_exchange=True)
@@ -321,5 +368,57 @@ def test_provider_failure_consumes_state_and_cannot_be_retried(tmp_path: Path) -
         assert oidc.exchange_count == 1
         with session_factory() as session:
             assert session.scalar(select(func.count()).select_from(PortalSessionRow)) == 0
+        events = _callback_events(session_factory)
+        assert [event.action for event in events] == [
+            "identity.login_state_claimed",
+            "identity.login_denied",
+            "identity.login_state_rejected",
+        ]
+        assert [event.reason for event in events] == [
+            "claimed",
+            "provider_exchange_failed",
+            "invalid_or_replayed",
+        ]
+        _assert_safe_claim_correlation(events, state=state)
+    finally:
+        engine.dispose()
+
+
+def test_provider_success_without_membership_has_terminal_denial_and_no_retry(
+    tmp_path: Path,
+) -> None:
+    session_factory, engine = _file_session_factory(tmp_path)
+    clock = FixedClock(datetime(2026, 8, 3, 12, 0, tzinfo=UTC))
+    oidc = CountingOidcClient(clock)
+    oidc.release_exchange.set()
+    service = IdentityService(session_factory, oidc, _crypto(), clock=clock)
+    service.bootstrap_principal(
+        issuer=oidc.issuer,
+        subject="user-1",
+        display_name="Portal User",
+        email="portal@example.test",
+    )
+    state = _state(service)
+
+    try:
+        with pytest.raises(IdentityAuthenticationError, match="membership"):
+            service.complete_login(code="code-a", state=state)
+        with pytest.raises(IdentityAuthenticationError, match="invalid or expired"):
+            service.complete_login(code="code-b", state=state)
+        assert oidc.exchange_count == 1
+        with session_factory() as session:
+            assert session.scalar(select(func.count()).select_from(PortalSessionRow)) == 0
+        events = _callback_events(session_factory)
+        assert [event.action for event in events] == [
+            "identity.login_state_claimed",
+            "identity.login_denied",
+            "identity.login_state_rejected",
+        ]
+        assert [event.reason for event in events] == [
+            "claimed",
+            "membership_unavailable",
+            "invalid_or_replayed",
+        ]
+        _assert_safe_claim_correlation(events, state=state)
     finally:
         engine.dispose()

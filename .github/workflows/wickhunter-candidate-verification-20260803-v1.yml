@@ -1,0 +1,252 @@
+name: WickHunter corrected candidate verification v1
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-candidate-verification-20260803-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-candidate-verification-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-candidate-verification-20260803-v1.yml
+  EXPECTED_BASE_SHA: 2f9792455fcd5e5b398b8f8bd88036e1bde62010
+  CANDIDATE_ROOT: /var/lib/freqtrade-staging-state/wickhunter-candidate-materialization/packages/wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  CANDIDATE_PACKAGE_ID: wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  CANDIDATE_MANIFEST_SHA256: 4c8cd77294f0142aefcd0895f654d1c78260d9f77a44e6caf134d161e742c5eb
+  EVALUATION_SHA256: 87d9a859168cabab6d35e764fdc719e111f498b9fbff6cbc825f87c2db15b5cb
+  PARAMETER_VERSION: wickhunter-production-h180s-01
+  PARAMETER_SHA256: 59b0ca8572c53b8c2bcd7ad2f609f045004bf3299c19359d0b6ce8e76b34cd07
+  MODEL_VERSION: wickhunter-lightgbm-a9ca9a91087e34e2
+  MODEL_HASH: a9ca9a91087e34e269e5eee171e70e8979c7940d8789e93f7069b57dd2753cd9
+  MODEL_ARTIFACT_SHA256: c69ab40dbfc0bd92ca599618f07a844269ce0acada13cd7ece4ed295808dbe48
+  OPTIMIZER_RESULT_ID: c3b2e289146e1f4b7fc4f7c4f7ba7464264ccc2a935ce123ce07e99a046f338a
+  COMPARISON_REPORT_ID: 60e51ccc8c576ab27ca29f7ff5029eb09d71fe15300156e65ffde9f8515a36ba
+  ROLLBACK_MODEL_HASH: 43572f6f7bb614240b56b7dd4b2f473a4a50f84aa743da58fe1d28ab40e0ca91
+  SOURCE_COMMIT_SHA: 626087ca45d67eb908d6c1f1f419f13cbd49f596
+
+jobs:
+  verify:
+    name: Independently verify corrected candidate package
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact verification request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-candidate-verification-20260803-v1.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          [[ -d "$CANDIDATE_ROOT" && ! -L "$CANDIDATE_ROOT" ]]
+          [[ "$(basename "$CANDIDATE_ROOT")" == "$CANDIDATE_PACKAGE_ID" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || { echo "recognized trading credential present: $name" >&2; exit 1; }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || { echo "proxy environment present: $name" >&2; exit 1; }
+          done
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Load, reconstruct and verify immutable package
+        id: terminal
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - <<'PY' | tee "$RUNNER_TEMP/wickhunter-candidate-verification.json"
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          from ai_platform.wickhunter.candidate_activation import load_verified_candidate_package
+          from ai_platform.wickhunter.lightgbm_scorer import LightGBMAdvisoryScorer
+
+          root = Path(os.environ["CANDIDATE_ROOT"])
+          package = load_verified_candidate_package(root)
+          scorer = LightGBMAdvisoryScorer(package.model_artifact)
+          identity = package.identity
+          artifact = package.model_artifact
+          parameters = package.parameters
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+
+          expected = {
+              "package_id": os.environ["CANDIDATE_PACKAGE_ID"],
+              "manifest_sha256": os.environ["CANDIDATE_MANIFEST_SHA256"],
+              "evaluation_sha256": os.environ["EVALUATION_SHA256"],
+              "parameter_version": os.environ["PARAMETER_VERSION"],
+              "parameter_hash": os.environ["PARAMETER_SHA256"],
+              "model_version": os.environ["MODEL_VERSION"],
+              "model_hash": os.environ["MODEL_HASH"],
+              "model_artifact_sha256": os.environ["MODEL_ARTIFACT_SHA256"],
+              "optimizer_result_id": os.environ["OPTIMIZER_RESULT_ID"],
+              "comparison_report_id": os.environ["COMPARISON_REPORT_ID"],
+              "rollback_model_hash": os.environ["ROLLBACK_MODEL_HASH"],
+              "source_commit_sha": os.environ["SOURCE_COMMIT_SHA"],
+          }
+          observed = {
+              "package_id": identity.package_id,
+              "manifest_sha256": identity.manifest_sha256,
+              "evaluation_sha256": identity.evaluation_sha256,
+              "parameter_version": identity.parameter_version,
+              "parameter_hash": identity.parameter_hash,
+              "model_version": identity.model_version,
+              "model_hash": identity.model_hash,
+              "model_artifact_sha256": identity.model_artifact_sha256,
+              "optimizer_result_id": identity.optimizer_result_id,
+              "comparison_report_id": identity.comparison_report_id,
+              "rollback_model_hash": identity.rollback_model_hash,
+              "source_commit_sha": identity.source_commit_sha,
+          }
+          if observed != expected:
+              raise SystemExit(f"candidate identity mismatch: {observed!r}")
+          if artifact.artifact_sha256 != identity.model_artifact_sha256:
+              raise SystemExit("model artifact identity mismatch")
+          if artifact.model_hash != identity.model_hash:
+              raise SystemExit("model identity mismatch")
+          if hashlib.sha256(artifact.model_text.encode("utf-8")).hexdigest() != identity.model_hash:
+              raise SystemExit("exact model text does not match model hash")
+          if not artifact.model_text.endswith("\n"):
+              raise SystemExit("serialized LightGBM model text lost terminal newline")
+          if scorer.artifact != artifact:
+              raise SystemExit("advisory scorer artifact mismatch")
+          if parameters.parameter_version != identity.parameter_version or parameters.parameter_hash != identity.parameter_hash:
+              raise SystemExit("selected parameter identity mismatch")
+          if manifest.get("candidate_only") is not True or manifest.get("owner_decision_required") is not True:
+              raise SystemExit("candidate terminal flags mismatch")
+          for key in (
+              "automatic_promotion_enabled",
+              "protected_holdout_accessed",
+              "trading_credentials_present",
+              "order_adapter_present",
+              "execution_enabled",
+              "live_capital_authorized",
+          ):
+              if manifest.get(key) is not False:
+                  raise SystemExit(f"unsafe candidate authority: {key}")
+          if manifest.get("orders_submitted") != 0:
+              raise SystemExit("candidate package submitted orders")
+
+          terminal = {
+              **observed,
+              "immutable_path": str(root),
+              "model_text_terminal_newline_preserved": True,
+              "advisory_scorer_loaded": True,
+              "candidate_only": True,
+              "owner_decision_required": True,
+              "automatic_promotion_enabled": False,
+              "protected_holdout_accessed": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "live_capital_authorized": False,
+              "orders_submitted": 0,
+              "status": "verified",
+          }
+          print(json.dumps(terminal, indent=2, sort_keys=True))
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as handle:
+              for key in (
+                  "package_id",
+                  "manifest_sha256",
+                  "evaluation_sha256",
+                  "parameter_version",
+                  "parameter_hash",
+                  "model_version",
+                  "model_hash",
+                  "model_artifact_sha256",
+                  "optimizer_result_id",
+                  "comparison_report_id",
+                  "rollback_model_hash",
+              ):
+                  handle.write(f"{key}={terminal[key]}\n")
+          PY
+
+      - name: Publish terminal summary
+        shell: bash
+        run: |
+          {
+            echo "## WickHunter corrected candidate verification"
+            echo
+            echo "- Package: \`${{ steps.terminal.outputs.package_id }}\`"
+            echo "- Manifest: \`${{ steps.terminal.outputs.manifest_sha256 }}\`"
+            echo "- Evaluation: \`${{ steps.terminal.outputs.evaluation_sha256 }}\`"
+            echo "- Parameter: \`${{ steps.terminal.outputs.parameter_version }} / ${{ steps.terminal.outputs.parameter_hash }}\`"
+            echo "- Model: \`${{ steps.terminal.outputs.model_version }} / ${{ steps.terminal.outputs.model_hash }}\`"
+            echo "- Model artifact: \`${{ steps.terminal.outputs.model_artifact_sha256 }}\`"
+            echo "- Exact terminal newline preserved: \`true\`"
+            echo "- Advisory scorer loaded: \`true\`"
+            echo "- Holdout/promotion/credentials/order adapter/execution/live capital: \`absent\`"
+            echo "- Orders submitted: \`0\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded verification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-candidate-verification-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wickhunter-candidate-verification.json
+            ${{ env.CANDIDATE_ROOT }}/evaluation-identity.json
+            ${{ env.CANDIDATE_ROOT }}/finite-search-audit.json
+            ${{ env.CANDIDATE_ROOT }}/selected-parameters.json
+            ${{ env.CANDIDATE_ROOT }}/optimizer-result.json
+            ${{ env.CANDIDATE_ROOT }}/model-artifact.json
+            ${{ env.CANDIDATE_ROOT }}/comparison-report.json
+            ${{ env.CANDIDATE_ROOT }}/rollback.json
+            ${{ env.CANDIDATE_ROOT }}/manifest.json
+            ${{ env.CANDIDATE_ROOT }}/artifact-sha256.txt
+          if-no-files-found: error
+          retention-days: 30

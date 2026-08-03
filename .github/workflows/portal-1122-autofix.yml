@@ -6,9 +6,20 @@ on:
       - fix/portal-1122-migration-schema-integrity
     paths:
       - .github/workflows/portal-1122-autofix.yml
+  pull_request:
+    branches:
+      - develop
+    types:
+      - synchronize
+    paths:
+      - .github/workflows/portal-1122-autofix.yml
 
 permissions:
   contents: write
+
+concurrency:
+  group: portal-1122-autofix
+  cancel-in-progress: true
 
 jobs:
   autofix:

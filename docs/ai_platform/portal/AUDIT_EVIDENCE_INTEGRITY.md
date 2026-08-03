@@ -14,6 +14,7 @@ The generator and validation implementation is:
 - `tools/portal_audit/deep_inventory.py`
 - `tools/portal_audit/classified_matrices.py`
 - `tools/portal_audit/navigation_matrix.py`
+- `tools/portal_audit/validate_issue_states.py`
 
 ## Fail-closed rules
 
@@ -25,7 +26,7 @@ The workflow fails until the ledger receives an explicit disposition when any of
 - same-origin BFF handler inventory;
 - canonical left navigation;
 - monitored runtime/provider composition evidence;
-- a classification references an Issue marked `COMPLETE` in the Portal remediation programme;
+- a classification references an Issue marked `COMPLETE` in the Portal remediation programme or an Issue already closed on GitHub;
 - exact checked-out commit and requested audit head differ;
 - generated report metadata does not match the current ledger and head.
 

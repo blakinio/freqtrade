@@ -73,62 +73,124 @@ jobs:
           python3 - <<'PY'
           import base64
           import binascii
+          import hashlib
+          import io
           import os
+          import tarfile
           import zlib
           from pathlib import Path
 
+          expected = {
+              "ai_platform/wickhunter/candidate_paper_runtime_operator.py",
+              "deploy/synology/wickhunter-paper-runtime/Dockerfile",
+              "deploy/synology/wickhunter-paper-runtime/README.md",
+              "deploy/synology/wickhunter-paper-runtime/compose.yaml",
+              "deploy/synology/wickhunter-paper-runtime/healthcheck.py",
+              "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md",
+              "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py",
+          }
           run_temp = Path(os.environ["RUNNER_TEMP"])
           source = (run_temp / "source-helper.yml").read_text(encoding="utf-8")
-          start_marker = 'cat > "$RUNNER_TEMP/wh09-payload.b64" <<\'PAYLOAD\''
-          if source.count(start_marker) != 1:
+          marker = 'cat > "$RUNNER_TEMP/wh09-payload.b64" <<\'PAYLOAD\''
+          if source.count(marker) != 1:
               raise SystemExit("payload start marker mismatch")
-          tail = source.split(start_marker, 1)[1]
-          payload_start = tail.find("H4sI")
-          if payload_start < 0:
-              raise SystemExit("payload gzip base64 prefix missing")
-          if tail[:payload_start].strip():
-              raise SystemExit("unexpected content before payload gzip base64 prefix")
-
+          tail = source.split(marker, 1)[1]
+          payload_lines = [line.strip() for line in tail.splitlines() if "H4sI" in line]
+          if len(payload_lines) != 1:
+              raise SystemExit(f"payload line count mismatch: {len(payload_lines)}")
+          encoded = payload_lines[0][payload_lines[0].index("H4sI") :]
           alphabet = frozenset(
               "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
           )
-          inflater = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
-          decoded = bytearray()
-          quartet: list[str] = []
-          archive: bytes | None = None
-          for offset, character in enumerate(tail[payload_start:]):
-              if character.isspace():
-                  continue
-              if character not in alphabet:
-                  raise SystemExit(
-                      f"non-base64 character before gzip eof at offset {offset}"
-                  )
-              quartet.append(character)
-              if len(quartet) < 4:
-                  continue
-              encoded_quartet = "".join(quartet)
-              try:
-                  block = base64.b64decode(encoded_quartet, validate=True)
-              except (binascii.Error, ValueError) as error:
-                  raise SystemExit(
-                      f"payload quartet decode failed at offset {offset}: {error}"
-                  ) from error
-              quartet.clear()
-              decoded.extend(block)
-              try:
-                  inflater.decompress(block)
-              except zlib.error as error:
-                  raise SystemExit(f"payload gzip recovery failed: {error}") from error
-              if inflater.eof:
-                  consumed = len(decoded) - len(inflater.unused_data)
-                  if consumed <= 0:
-                      raise SystemExit("payload gzip stream consumed zero bytes")
-                  archive = bytes(decoded[:consumed])
-                  break
+          if not encoded or any(character not in alphabet for character in encoded):
+              raise SystemExit("payload line contains a non-base64 character")
 
-          if archive is None:
-              raise SystemExit("payload did not contain one complete gzip stream")
+          encoded_segments: list[str] = []
+          segment_start = 0
+          for index in range(3, len(encoded), 4):
+              quartet = encoded[index - 3 : index + 1]
+              if "=" in quartet:
+                  encoded_segments.append(encoded[segment_start : index + 1])
+                  segment_start = index + 1
+          if segment_start < len(encoded):
+              remainder = encoded[segment_start:]
+              remainder += "=" * (-len(remainder) % 4)
+              encoded_segments.append(remainder)
+          if not encoded_segments:
+              raise SystemExit("payload contains no decodable segments")
+
+          decoded_segments: list[bytes] = []
+          for index, segment in enumerate(encoded_segments):
+              try:
+                  decoded_segments.append(base64.b64decode(segment, validate=True))
+              except (binascii.Error, ValueError) as error:
+                  raise SystemExit(f"payload segment {index} decode failed: {error}") from error
+
+          byte_candidates: list[bytes] = []
+          byte_candidates.extend(decoded_segments)
+          for start in range(len(decoded_segments)):
+              combined = bytearray()
+              for end in range(start, len(decoded_segments)):
+                  combined.extend(decoded_segments[end])
+                  byte_candidates.append(bytes(combined))
+
+          matches: dict[str, bytes] = {}
+          diagnostics: list[str] = []
+          for candidate_index, candidate in enumerate(byte_candidates):
+              search_from = 0
+              while True:
+                  gzip_start = candidate.find(b"\x1f\x8b\x08", search_from)
+                  if gzip_start < 0:
+                      break
+                  search_from = gzip_start + 1
+                  inflater = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
+                  try:
+                      inflater.decompress(candidate[gzip_start:])
+                      inflater.flush()
+                  except zlib.error as error:
+                      diagnostics.append(
+                          f"candidate={candidate_index} offset={gzip_start} zlib={error}"
+                      )
+                      continue
+                  if not inflater.eof:
+                      continue
+                  consumed = len(candidate[gzip_start:]) - len(inflater.unused_data)
+                  if consumed <= 0:
+                      continue
+                  archive = candidate[gzip_start : gzip_start + consumed]
+                  try:
+                      with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as handle:
+                          members = handle.getmembers()
+                          files = {item.name for item in members if item.isfile()}
+                          unsafe = [
+                              item.name
+                              for item in members
+                              if Path(item.name).is_absolute()
+                              or ".." in Path(item.name).parts
+                              or item.issym()
+                              or item.islnk()
+                          ]
+                  except tarfile.TarError as error:
+                      diagnostics.append(
+                          f"candidate={candidate_index} offset={gzip_start} tar={error}"
+                      )
+                      continue
+                  if files == expected and not unsafe:
+                      matches[hashlib.sha256(archive).hexdigest()] = archive
+
+          if len(matches) != 1:
+              preview = "; ".join(diagnostics[:20])
+              raise SystemExit(
+                  "expected exactly one structurally valid WH09 archive; "
+                  f"segments={len(decoded_segments)} candidates={len(byte_candidates)} "
+                  f"matches={len(matches)} diagnostics={preview}"
+              )
+          archive = next(iter(matches.values()))
           (run_temp / "wh09-payload.tar.gz").write_bytes(archive)
+          print(
+              f"Recovered WH09 archive: segments={len(decoded_segments)} "
+              f"bytes={len(archive)} sha256={hashlib.sha256(archive).hexdigest()}"
+          )
           PY
 
           cd target
@@ -178,15 +240,15 @@ jobs:
               source = source.replace(old, new, 1)
           source_path.write_text(source, encoding="utf-8")
 
-          task = Path(
+          task_path = Path(
               "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md"
           )
-          text = task.read_text(encoding="utf-8")
+          text = task_path.read_text(encoding="utf-8")
           old_base = "base_sha: 2f9792455fcd5e5b398b8f8bd88036e1bde62010"
           new_base = "base_sha: 0a82a5c93613a213989865bd9128ac7263227148"
           if text.count(old_base) != 1:
               raise SystemExit("task base anchor mismatch")
-          task.write_text(text.replace(old_base, new_base, 1), encoding="utf-8")
+          task_path.write_text(text.replace(old_base, new_base, 1), encoding="utf-8")
           PY
 
           python3 -m py_compile \

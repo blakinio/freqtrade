@@ -19,8 +19,7 @@ def test_generated_dependency_manifest_is_excluded_from_persisted_data_scan(
         json.dumps(
             {
                 "packages": {
-                    f"node_modules/generated-{index}": {"optional": True}
-                    for index in range(300)
+                    f"node_modules/generated-{index}": {"optional": True} for index in range(300)
                 }
             }
         ),

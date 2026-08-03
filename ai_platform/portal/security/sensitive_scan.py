@@ -113,8 +113,9 @@ def scan_value(
 def _iter_supported_files(paths: Sequence[Path]) -> Iterator[Path]:
     seen: set[Path] = set()
     for root in paths:
+        candidates: Iterator[Path]
         if root.is_file():
-            candidates = (root,)
+            candidates = iter((root,))
         elif root.is_dir():
             candidates = (
                 candidate

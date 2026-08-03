@@ -5,8 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from audit_ledger import (
     load_ledger,
@@ -48,9 +49,13 @@ def validate_navigation(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> N
     expected = tuple((str(item["route"]), str(item["label"])) for item in surfaces(ledger))
     actual = parse_navigation()
     if actual != expected:
-        raise SystemExit(f"navigation drift requires an explicit ledger update: expected {expected!r}, got {actual!r}")
+        raise SystemExit(
+            f"navigation drift requires an explicit ledger update: expected {expected!r}, got {actual!r}"
+        )
     page_routes = {str(item["route"]) for item in data["frontend_pages"]}
-    missing = sorted(str(item["route"]) for item in surfaces(ledger) if item["route"] not in page_routes)
+    missing = sorted(
+        str(item["route"]) for item in surfaces(ledger) if item["route"] not in page_routes
+    )
     if missing:
         raise SystemExit(f"navigation pages missing: {missing}")
 

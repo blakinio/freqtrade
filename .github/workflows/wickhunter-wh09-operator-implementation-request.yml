@@ -1,4 +1,4 @@
-name: WickHunter WH09 operator preview materialization
+name: WickHunter WH09 operator preview cleanup
 
 "on":
   pull_request:
@@ -12,26 +12,23 @@ permissions:
   contents: write
 
 concurrency:
-  group: wickhunter-wh09-operator-preview-${{ github.event.pull_request.number }}
+  group: wickhunter-wh09-operator-cleanup-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
-  TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-  TARGET_HEAD_SHA: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
   HELPER_BRANCH: ops/wickhunter-wh09-operator-implementation-20260803-v1
-  REPAIR_SOURCE_SHA: 6d754b28889287f596dca763c945a3560ba54cf5
 
 jobs:
-  materialize:
-    name: Rebuild audited helper payloads
+  cleanup:
+    name: Normalize audited operator preview
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 10
 
     steps:
-      - name: Check out exact helper request
+      - name: Check out exact helper head
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: true
@@ -62,212 +59,82 @@ jobs:
             [[ "${actual[$index]}" == "${expected[$index]}" ]]
           done
 
-      - name: Check out exact product head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: false
-          fetch-depth: 1
-          ref: ${{ env.TARGET_HEAD_SHA }}
-          path: target
-
-      - name: Execute bounded canonical repair
+      - name: Remove legacy and duplicate operator code
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$(git -C target rev-parse HEAD)" == "$TARGET_HEAD_SHA" ]]
           python3 - <<'PY'
-          from __future__ import annotations
-
-          import base64
-          import binascii
-          import hashlib
-          import os
-          import subprocess
-          import zlib
           from pathlib import Path
 
-          workflow_path = ".github/workflows/wickhunter-wh09-operator-implementation-request.yml"
-          source = subprocess.check_output(
-              ["git", "show", f"{os.environ['REPAIR_SOURCE_SHA']}:{workflow_path}"],
-              text=True,
-          )
-          start_token = "          python3 - <<'PY'\n"
-          end_token = "          PY\n"
-          start = source.index(start_token) + len(start_token)
-          end = source.index(end_token, start)
-          script = "\n".join(
-              line[10:] if line.startswith("          ") else line
-              for line in source[start:end].splitlines()
-          ) + "\n"
+          path = Path(".github/wh09-payload/operator.py.zlib.b64")
+          text = path.read_text(encoding="utf-8")
 
-          old = '''def replace_unique_region(
-              start_marker: str,
-              end_marker: str,
-              replacement: list[str],
-          ) -> None:
-              starts = [index for index, line in enumerate(lines) if line == start_marker]
-              ends = [index for index, line in enumerate(lines) if line == end_marker]
-              if len(starts) != 1 or len(ends) != 1 or starts[0] >= ends[0]:
-                  raise SystemExit(
-                      f'operator repair boundary mismatch: {start_marker!r} -> {end_marker!r}'
-                  )
-              lines[starts[0] : ends[0]] = replacement
-          '''
-          new = '''def replace_unique_region(
-              start_marker: str,
-              end_marker: str,
-              replacement: list[str],
-          ) -> None:
-              starts = [index for index, line in enumerate(lines) if line == start_marker]
-              ends = [index for index, line in enumerate(lines) if line == end_marker]
-              candidates = []
-              for start in starts:
-                  following = [end for end in ends if end > start]
-                  if following:
-                      candidates.append((start, min(following)))
-              if not candidates:
-                  raise SystemExit(
-                      f'operator repair boundary mismatch: {start_marker!r} -> {end_marker!r}'
-                  )
-              start, end = min(candidates, key=lambda pair: pair[1] - pair[0])
-              normalized = list(replacement)
-              target_indent = len(start_marker) - len(start_marker.lstrip())
-              nonempty = [line for line in normalized if line.strip()]
-              minimum_indent = min(
-                  (len(line) - len(line.lstrip()) for line in nonempty),
-                  default=target_indent,
+          legacy_start = text.find("\ndef _source_health(value: object) -> SourceHealth:")
+          public_start = text.find("\ndef _public_url(")
+          if legacy_start < 0 or public_start <= legacy_start:
+              raise SystemExit("legacy snapshot boundary mismatch")
+          loader = '''
+
+def load_liquid20_snapshot(
+    path: Path,
+    *,
+    now_ms: int,
+    maximum_age_ms: int = DEFAULT_MAX_SOURCE_AGE_MS,
+) -> Liquid20Snapshot:
+    if maximum_age_ms < 1:
+        raise CandidatePaperRuntimeOperatorError(
+            "maximum Liquid20 age must be positive"
+        )
+    return _load_liquid20_live_root(
+        path,
+        now_ms=now_ms,
+        maximum_age_ms=maximum_age_ms,
+    )
+
+'''
+          text = text[:legacy_start] + loader + text[public_start:]
+
+          marker = "\ndef _market_wide_liquidation_intensity("
+          starts = []
+          offset = 0
+          while True:
+              index = text.find(marker, offset)
+              if index < 0:
+                  break
+              starts.append(index)
+              offset = index + len(marker)
+          if len(starts) == 2:
+              fetch_start = text.find("\ndef fetch_public_market_snapshot(", starts[1])
+              if fetch_start <= starts[1]:
+                  raise SystemExit("duplicate metric function boundary mismatch")
+              text = text[:starts[1]] + "\n" + text[fetch_start:]
+          elif len(starts) != 1:
+              raise SystemExit(
+                  f"unexpected market-wide intensity definition count: {len(starts)}"
               )
-              if minimum_indent < target_indent:
-                  padding = ' ' * (target_indent - minimum_indent)
-                  normalized = [
-                      padding + line if line.strip() else line
-                      for line in normalized
-                  ]
-              lines[start:end] = normalized
-          '''
-          if script.count(old) != 1:
-              raise SystemExit("repair function source mismatch")
-          script = script.replace(old, new, 1)
-          compile(script, "bounded_operator_repair.py", "exec")
-          exec(compile(script, "bounded_operator_repair.py", "exec"), {"__name__": "__main__"})
 
-          operator_path = Path(".github/wh09-payload/operator.py.zlib.b64")
-          operator_text = operator_path.read_text(encoding="utf-8")
-          compile(operator_text, str(operator_path), "exec")
-          for marker in (
+          compile(text, str(path), "exec")
+          required = (
               'LIVE_POINTER_NAME = "live-state-v1.json"',
               '"/fapi/v1/ticker/bookTicker"',
               '"atr_ratio"',
               '"market_wide_liquidation_intensity"',
-              'liquid20_root_path: Path',
-          ):
-              if marker not in operator_text:
-                  raise SystemExit(f"required operator marker missing: {marker}")
-          for marker in (
+              'def load_liquid20_snapshot(',
+          )
+          forbidden = (
+              "def _source_health(",
+              "def _history_from_payload(",
+              "if path.is_dir():",
               '"/fapi/v1/ticker/24hr"',
-              "liquid20_snapshot_path",
               "--liquid20-snapshot",
-          ):
-              if marker in operator_text:
-                  raise SystemExit(f"forbidden operator marker remains: {marker}")
-
-          def decompress_payload(compressed: bytes) -> bytes:
-              try:
-                  return zlib.decompress(compressed)
-              except zlib.error as exc:
-                  if "incorrect data check" not in str(exc) or len(compressed) < 7:
-                      raise
-                  return zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
-
-          def recover_truncated_base64(
-              compact: bytes,
-              *,
-              path: Path,
-              markers: tuple[str, ...],
-          ) -> tuple[str, str]:
-              if len(compact) % 4 != 1:
-                  raise SystemExit(f"base64 transport is invalid: {path}")
-              alphabet = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-              recovered: dict[str, tuple[str, int, str]] = {}
-              for position in range(len(compact) + 1):
-                  for character in alphabet:
-                      candidate = compact[:position] + bytes((character,)) + compact[position:]
-                      candidate += b"=" * (-len(candidate) % 4)
-                      try:
-                          compressed = base64.b64decode(candidate, validate=True)
-                          decoded = decompress_payload(compressed)
-                          text = decoded.decode("utf-8")
-                      except (binascii.Error, UnicodeDecodeError, zlib.error):
-                          continue
-                      if not decoded or len(decoded) > 1_048_576 or b"\x00" in decoded:
-                          continue
-                      if not all(marker in text for marker in markers):
-                          continue
-                      digest = hashlib.sha256(decoded).hexdigest()
-                      recovered[digest] = (text, position, chr(character))
-              if len(recovered) != 1:
-                  raise SystemExit(
-                      f"truncated base64 recovery is not unique for {path}: {len(recovered)}"
-                  )
-              digest, (text, position, character) = next(iter(recovered.items()))
-              return text, f"base64-insert:{position}:{character}:{digest}"
-
-          def materialize_payload(path: Path, *, markers: tuple[str, ...]) -> str:
-              raw = path.read_bytes()
-              if not raw or len(raw) > 1_048_576:
-                  raise SystemExit(f"payload size is outside bounds: {path}")
-              try:
-                  existing = raw.decode("utf-8")
-              except UnicodeDecodeError:
-                  existing = ""
-              if all(marker in existing for marker in markers):
-                  text = existing
-                  transport = "plaintext"
-              else:
-                  compact = b"".join(raw.split())
-                  try:
-                      compressed = base64.b64decode(compact, validate=True)
-                      decoded = decompress_payload(compressed)
-                      text = decoded.decode("utf-8")
-                      transport = "zlib-base64"
-                  except binascii.Error:
-                      text, transport = recover_truncated_base64(
-                          compact, path=path, markers=markers
-                      )
-                  if not text or len(text.encode()) > 1_048_576 or "\x00" in text:
-                      raise SystemExit(f"decoded payload is outside bounds: {path}")
-                  if not all(marker in text for marker in markers):
-                      raise SystemExit(f"decoded payload markers mismatch: {path}")
-                  path.write_text(text, encoding="utf-8")
-              print(
-                  f"payload={path.name} transport={transport} "
-                  f"sha256={hashlib.sha256(text.encode()).hexdigest()}"
-              )
-              return text
-
-          readme = materialize_payload(
-              Path(".github/wh09-payload/README.md.zlib.b64"),
-              markers=("WickHunter", "Liquid20"),
           )
-          compose = materialize_payload(
-              Path(".github/wh09-payload/compose.yaml.zlib.b64"),
-              markers=("services:", "liquid20"),
-          )
-          healthcheck = materialize_payload(
-              Path(".github/wh09-payload/healthcheck.py.zlib.b64"),
-              markers=("from __future__ import annotations", "health"),
-          )
-          task = materialize_payload(
-              Path(".github/wh09-payload/task.md.zlib.b64"),
-              markers=("WH-09", "Liquid20"),
-          )
-          tests = materialize_payload(
-              Path(".github/wh09-payload/tests.py.zlib.b64"),
-              markers=("candidate_paper_runtime_operator", "test_"),
-          )
-          del readme, compose, task
-          compile(healthcheck, "healthcheck.py", "exec")
-          compile(tests, "tests.py", "exec")
+          if not all(value in text for value in required):
+              raise SystemExit("required root-only operator contract is incomplete")
+          if any(value in text for value in forbidden):
+              raise SystemExit("legacy operator contract remains")
+          if text.count("def _market_wide_liquidation_intensity(") != 1:
+              raise SystemExit("market-wide intensity definition is not unique")
+          path.write_text(text, encoding="utf-8")
           PY
           python3 -m py_compile \
             .github/wh09-payload/operator.py.zlib.b64 \
@@ -275,16 +142,16 @@ jobs:
             .github/wh09-payload/tests.py.zlib.b64
           git diff --check
 
-      - name: Publish auditable plaintext payloads
+      - name: Publish normalized preview
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- .github/wh09-payload; then
-            echo "Helper payloads are unchanged."
+          if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then
+            echo "Operator preview is already normalized."
             exit 0
           fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add .github/wh09-payload
-          git commit -m "fix(wickhunter): materialize auditable helper payloads"
+          git add .github/wh09-payload/operator.py.zlib.b64
+          git commit -m "fix(wickhunter): remove legacy snapshot fallback"
           git push origin "HEAD:$HELPER_BRANCH"

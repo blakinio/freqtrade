@@ -19,7 +19,7 @@ from ai_platform.portal.control_plane.database import (
     build_session_factory,
     create_schema,
 )
-from ai_platform.portal.observability.logging import structured_log
+from ai_platform.portal.observability.redaction import redact_sensitive
 from ai_platform.portal.security.sensitive_data import (
     REDACTED_VALUE,
     SensitiveFieldKind,
@@ -181,22 +181,21 @@ def test_sensitive_fingerprint_is_keyed_deterministic_and_never_contains_value()
         fingerprint_sensitive_value(value, key=b"short")
 
 
-def test_structured_log_redacts_extended_aliases_and_serialized_values(capsys) -> None:
+def test_observability_redaction_uses_extended_aliases_and_serialized_values() -> None:
     canary = _canary("LOG")
 
-    structured_log(
-        "security.test",
-        attributes={
+    redacted = redact_sensitive(
+        {
             "credential_ref": canary,
             "serialized": json.dumps({"session_id": canary}),
             "authorization_status": "denied",
-        },
+        }
     )
-    output = capsys.readouterr().out
 
-    assert canary not in output
-    assert output.count(REDACTED_VALUE) == 2
-    assert '"authorization_status":"denied"' in output
+    serialized = json.dumps(redacted, sort_keys=True)
+    assert canary not in serialized
+    assert serialized.count(REDACTED_VALUE) == 2
+    assert redacted["authorization_status"] == "denied"
 
 
 def test_historical_scanner_reports_json_jsonl_and_sqlite_paths_without_values(

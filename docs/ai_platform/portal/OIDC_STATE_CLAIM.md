@@ -18,6 +18,8 @@ The claim transaction is short and commits before any OIDC provider request. Pro
 
 A transaction rollback before commit does not create a durable claim and no provider exchange may have started. After the claim commits, the browser state is never reopened. Provider timeout, provider rejection or process death therefore requires a new login flow rather than reusing the original state or authorization code.
 
+A process restart interprets a committed claim without a terminal success event as an interrupted terminal attempt. It never reopens the browser state. The user starts a new login flow, while the durable claim event provides investigation evidence for the incomplete attempt.
+
 ## Concurrency outcome
 
 For two independent callbacks carrying the same browser state:
@@ -29,6 +31,19 @@ For two independent callbacks carrying the same browser state:
 
 Different authorization codes do not create separate authority when they share one state transaction.
 
+## Attributable callback evidence
+
+The keyed state hash already used as the database identity is also the callback correlation identifier. It is deterministic for one login flow, does not expose the raw browser state and requires no additional schema or replay authority.
+
+The callback lifecycle emits bounded events:
+
+- `identity.login_state_claimed` once when the conditional update commits;
+- `identity.login_state_rejected` for each missing, expired or replayed callback, with reason `invalid_or_replayed`;
+- `identity.login_denied` once for a claimed callback that terminates after provider or identity validation, using a reviewed static reason such as `provider_exchange_failed`, `issuer_mismatch`, `principal_disabled`, `membership_unavailable`, `tenant_selection_required` or `mfa_required`;
+- `identity.login_succeeded` once when the Portal session transaction commits.
+
+The claim, denial and success events share the keyed correlation identifier. No event stores the state, authorization code, PKCE verifier, provider response or session token. A crash after the claim commit is visible as a claim without a terminal denial/success event and remains non-retryable with the original browser state.
+
 ## Database semantics
 
 The statement is compiled and tested against the supported PostgreSQL dialect and executed through independent file-backed SQLite connections. SQLite uses its bounded busy timeout; a waiting writer reevaluates the conditional predicate after the winning commit and receives a zero-row result.
@@ -37,7 +52,7 @@ No migration is introduced by this task. Shared production migration authority r
 
 ## Evidence and privacy
 
-Tests and errors may record only bounded outcome labels and existing request/correlation identifiers. They must never record or expose:
+Tests and errors may record only bounded outcome labels and the keyed claim correlation identifier. They must never record or expose:
 
 - raw browser state;
 - authorization code;
@@ -46,4 +61,4 @@ Tests and errors may record only bounded outcome labels and existing request/cor
 - provider response payload;
 - session or CSRF token.
 
-Protected Authentik staging validation must use synthetic test identities, prove one provider exchange owner and one resulting Portal session, and remain separate from production or live-capital authorization.
+Exact-image validation must fail closed, require a non-empty machine-checked artifact and prove one provider owner, one rejected loser and one Portal session. Protected Authentik staging validation must use synthetic test identities and remain separate from production or live-capital authorization.

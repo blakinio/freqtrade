@@ -15,6 +15,7 @@ from audit_ledger import (
     validate_report_metadata,
 )
 
+
 DATA = Path("artifacts/portal-deep-inventory.json")
 OUT = Path("artifacts")
 STATUS_ORDER = [

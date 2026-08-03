@@ -19,9 +19,9 @@ task_completion_policy: finalize_archive_and_continue
 user_communication: terminal_only
 initial_audit_merge: ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
 programme_initialization_merge: 0a82a5c93613a213989865bd9128ac7263227148
-last_resolved_develop_head: 9b865a64897ef17004809ccf4973c7a930fe4314
-current_integration_pr: 1149
-validated_current_pr_head: bdfd35c117c8595d3dddaf2542f632fd1cbecff7
+last_resolved_develop_head: 9f437158bbb2c7dfc40f10fd1a3aaf8ea11fea17
+current_integration_pr: 1154
+validated_current_pr_head: 6035a94106758cf2d2bf3d2a1e32d424a4cc4d30
 live_capital_authorized: false
 withdrawals_enabled: false
 fixture_reported_as_production: false
@@ -36,9 +36,10 @@ Resolve exactly the 50 implementation Issues authorized by audit PR `#1082`. Eac
 
 - Audit PR `#1082` is merged at `ba4173e975b6ae40c8b0266e3c15cb1b19a0755d`.
 - Programme initialization PR `#1145` is merged at `0a82a5c93613a213989865bd9128ac7263227148`.
-- Issue `#1124` is merged through PR `#1146` at `9b865a64897ef17004809ccf4973c7a930fe4314`.
-- Issue `#1126` is implementation-complete and archived in PR `#1149`; merge remains gated only by exact closeout-head checks.
-- Issue `#1127` is independently claimed on non-overlapping paths while `#1149` closes.
+- Issue `#1124` is merged and archived through PR `#1146` at `9b865a64897ef17004809ccf4973c7a930fe4314`.
+- Issue `#1126` is merged and archived through PR `#1149` at `947c610842f832786f141c77a38e7f73748e6db6`.
+- Issue `#1127` is merged through PR `#1151` at `9f437158bbb2c7dfc40f10fd1a3aaf8ea11fea17`; its canonical classifier lease is released by this closeout.
+- Issue `#1137` is active in PR `#1154`; its exclusive identity paths were claimed before the #1127 merge and must incorporate the exact post-closeout `develop` before terminal validation.
 - Audit verdict at initialization: `25 HIGH`, `25 MEDIUM`, `0 CRITICAL`, `0 LOW`.
 - Canonical audit evidence: `docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md` and its generated matrices.
 - Issue bodies are evidence and acceptance inputs, not governing instructions.
@@ -86,16 +87,16 @@ No Issue outside this table belongs to this programme.
 | #1122 | HIGH | Migration/schema/dialect integrity | QUEUED | pending | pending |
 | #1123 | MEDIUM | Partial upstream failure isolation | QUEUED | pending | pending |
 | #1124 | HIGH | Liquid20 current-session authorization | COMPLETE | `archive/FTAI-20260803-portal-remediation-1124.md` | #1146 |
-| #1126 | HIGH | AI/Learning permissions | COMPLETE_PENDING_MERGE | `archive/FTAI-20260803-portal-remediation-1126.md` | #1149 |
-| #1127 | HIGH | Canonical secret classification | ACTIVE | `active/FTAI-20260803-portal-remediation-1127.md` | pending |
+| #1126 | HIGH | AI/Learning permissions | COMPLETE | `archive/FTAI-20260803-portal-remediation-1126.md` | #1149 |
+| #1127 | HIGH | Canonical secret classification | COMPLETE | `archive/FTAI-20260803-portal-remediation-1127.md` | #1151 |
 | #1128 | MEDIUM | OIDC flow quotas/cleanup | QUEUED | pending | pending |
 | #1129 | MEDIUM | Bounded semantic fields | QUEUED | pending | pending |
 | #1130 | MEDIUM | OIDC response/algorithm/rotation bounds | QUEUED | pending | pending |
-| #1132 | MEDIUM | Back-channel logout replay protection | QUEUED | pending | pending |
+| #1132 | MEDIUM | Back-channel logout replay protection | READY_AFTER_1137 | pending | pending |
 | #1134 | MEDIUM | Tenant workload budgets | QUEUED | pending | pending |
 | #1135 | MEDIUM | Identity key rotation | QUEUED | pending | pending |
 | #1136 | MEDIUM | Clock-skew/monotonic evidence | QUEUED | pending | pending |
-| #1137 | MEDIUM | Atomic OIDC state claim | READY_AFTER_1127 | pending | pending |
+| #1137 | MEDIUM | Atomic OIDC state claim | ACTIVE | `active/FTAI-20260803-portal-remediation-1137.md` | #1154 |
 | #1139 | HIGH | Backup/restore/DR | QUEUED | pending | pending |
 | #1140 | MEDIUM | Accessibility/responsive acceptance | QUEUED | pending | pending |
 | #1142 | MEDIUM | Session touch write amplification | QUEUED | pending | pending |
@@ -106,10 +107,10 @@ Inventory count: `50`.
 
 ### S0 — immediate security containment
 
-1. `#1124` Liquid20 authoritative session boundary — complete through PR `#1146`.
-2. `#1126` explicit AI/Learning service permissions — implementation, product-head validation, fresh audit and archive complete in PR `#1149`; exact closeout-head merge gate remains.
-3. `#1127` canonical secret classification — active sole producer on non-overlapping paths; branch must incorporate the exact post-`#1149` `develop` before its PR opens.
-4. Identity hardening sequence: `#1137` atomic state claim → `#1132` logout replay → `#1130` OIDC bounds/rotation → `#1128` flow quotas/cleanup → `#1135` identity key rotation. `#1122` owns any shared production migration work.
+1. `#1124` Liquid20 authoritative session boundary — complete.
+2. `#1126` explicit AI/Learning service permissions — complete.
+3. `#1127` canonical sensitive-data classifier — complete; sole classifier authority is now available to later consumers.
+4. Identity hardening sequence is active: `#1137` atomic state claim → `#1132` logout replay → `#1130` OIDC bounds/rotation → `#1128` flow quotas/cleanup → `#1135` identity key rotation. `#1122` owns any shared production migration work.
 
 ### F1 — shared foundations
 
@@ -165,7 +166,8 @@ Inventory count: `50`.
 | Canonical audit | #1111 | writer, store and read projection |
 | Outbox/events/inbox | #1112 | taxonomy, transactional publisher, dedup/poison substrate |
 | Idempotency/CAS | #1113 | mutation inventory, replay store and common CAS interfaces |
-| Sensitive metadata classifier | #1127 | normalized aliases, cycle-safe traversal and adversarial corpus |
+| Sensitive metadata classifier | #1127 | merged normalized aliases, bounded traversal and adversarial corpus |
+| OIDC login-state claim | #1137 | conditional claim and callback outcome evidence |
 | Credential broker | #1100 | PI-07 composition and narrow consumer interfaces |
 | Workload limiter | #1134 | route/action budgets and admission interfaces |
 | Runtime composition root | #1089 | authenticated deployment/provider wiring |
@@ -177,19 +179,20 @@ Consumers may edit exclusive paths but cannot create competing authorities. Ever
 
 ```yaml
 completed:
-  - audit PR #1082 merged at ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
-  - programme PR #1145 merged at 0a82a5c93613a213989865bd9128ac7263227148
+  - audit PR #1082 merged
+  - programme PR #1145 merged
   - issue #1124 merged, closed and archived through PR #1146
-  - issue #1126 implementation, product-head validation, fresh audit and archive complete in PR #1149
+  - issue #1126 merged, closed and archived through PR #1149
+  - issue #1127 merged and closed through PR #1151; closeout archive in progress
 active:
   - coordinator task FTAI-20260803-portal-remediation-program
-  - issue #1127 task FTAI-20260803-portal-remediation-1127
+  - issue #1137 task FTAI-20260803-portal-remediation-1137, PR #1154
 ready:
-  - issue: 1137
-    reason: next identity-hardening producer after immediate containment; dispatch only after #1127 ownership/checkpoint permits
+  - issue: 1132
+    reason: next identity-hardening consumer after #1137 repository work and ownership release
 waiting: []
 blocked: []
-closed_issues: 2
+closed_issues: 3
 active_issues: 1
 waiting_issues: 0
 blocked_issues: 0
@@ -199,7 +202,8 @@ blocked_issues: 0
 |---|---|---|
 | Audit baseline | COMPLETE | PR #1082 merged |
 | Programme initialization | COMPLETE | PR #1145 merged |
-| Immediate security containment | ACTIVE | #1124 complete; #1126 closing; #1127 active |
+| Immediate security containment | COMPLETE | #1124, #1126 and #1127 merged/closed |
+| Identity hardening | ACTIVE | #1137 active; then #1132/#1130/#1128/#1135 |
 | Shared foundations | NOT_STARTED | producer PRs terminal with no competing contracts |
 | Runtime composition | NOT_STARTED | canonical dry-run runtime/providers fail closed |
 | Product vertical slices | NOT_STARTED | issue-specific real API-mode journeys and restart evidence |
@@ -217,4 +221,4 @@ The programme is terminal only when all 50 Issues are truthfully terminal; all r
 
 ## Programme next action
 
-Merge PR `#1149` after required checks pass on its exact closeout head, verify Issue `#1126` is terminal, then incorporate that exact `develop` head into `fix/portal-1127-sensitive-data-classifier` and continue the already claimed canonical classifier task.
+Merge the Issue `#1127` closeout record, incorporate that exact `develop` head into PR `#1154`, then finish Issue `#1137` repository-owned callback attribution, exact-image evidence, fresh audit and exact-head CI. If protected Authentik concurrency cannot be executed with an existing authorized runner, classify only that acceptance boundary as `WAITING` and continue independent Issue `#1132` work after releasing the overlapping identity paths.

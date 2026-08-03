@@ -89,7 +89,11 @@ def test_api_enforces_tenant_isolation_without_resource_disclosure(
     client = TestClient(create_app(session_factory, lambda: holder["context"]))
     assert client.post("/v1/bots", json=_create_payload("tenant-a")).status_code == 201
 
-    holder["context"] = _context("tenant-b", Permission.BOT_READ)
+    holder["context"] = _context(
+        "tenant-b",
+        Permission.BOT_READ,
+        Permission.MODEL_READ,
+    )
     assert client.get("/v1/bots/bot-1").status_code == 404
     assert client.get("/v1/bots").json() == []
     assert client.get("/v1/orders").json() == []
@@ -172,7 +176,9 @@ def test_read_only_portal_data_routes_fail_closed_through_trusted_context(
 def test_operational_routes_return_truthful_empty_state_and_protect_audit_reads(
     session_factory: SessionFactory,
 ) -> None:
-    holder = {"context": _context("tenant-a", Permission.BOT_READ)}
+    holder = {
+        "context": _context("tenant-a", Permission.BOT_READ, Permission.MODEL_READ)
+    }
     client = TestClient(create_app(session_factory, lambda: holder["context"]))
 
     for path in (

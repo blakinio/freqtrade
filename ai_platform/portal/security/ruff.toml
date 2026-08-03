@@ -1,6 +1,9 @@
 extend = "../../../pyproject.toml"
 
 [lint.per-file-ignores]
+"http_validation.py" = [
+  "I001",  # Imports stay grouped by framework and canonical security authority.
+]
 "sensitive_data.py" = [
   "C901",  # Bounded fail-closed reject/redact and serialized decoders keep one traversal policy.
   "E501",  # Security classification expressions remain auditable as single logical predicates.

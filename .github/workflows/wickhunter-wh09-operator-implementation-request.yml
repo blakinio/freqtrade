@@ -1,4 +1,4 @@
-name: WickHunter WH09 payload integrity diagnostic
+name: WickHunter WH09 operator repair preview
 
 "on":
   pull_request:
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: wickhunter-wh09-payload-diagnostic-${{ github.event.pull_request.number }}
+  group: wickhunter-wh09-operator-preview-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
@@ -20,8 +20,8 @@ env:
   TARGET_HEAD_SHA: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
 
 jobs:
-  diagnose:
-    name: Diagnose bounded repair payloads
+  preview:
+    name: Materialize audited operator preview
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
@@ -59,12 +59,20 @@ jobs:
           for index in "${!expected[@]}"; do
             [[ "${actual[$index]}" == "${expected[$index]}" ]]
           done
-          [[ -z "$(git status --porcelain --untracked-files=no)" ]]
 
-      - name: Decode and classify every payload without executing it
+      - name: Check out exact product head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: target
+
+      - name: Recover only the verified complete operator transformation
         shell: bash
         run: |
           set -euo pipefail
+          [[ "$(git -C target rev-parse HEAD)" == "$TARGET_HEAD_SHA" ]]
           python3 - <<'PY'
           from __future__ import annotations
 
@@ -73,59 +81,45 @@ jobs:
           import zlib
           from pathlib import Path
 
-          payload_root = Path('.github/wh09-payload')
-          failures: list[str] = []
-          for path in sorted(payload_root.glob('*.zlib.b64')):
-              print(f'--- {path.name} ---')
-              encoded = path.read_bytes().strip()
-              try:
-                  compressed = base64.b64decode(encoded, validate=True)
-              except Exception as exc:
-                  failures.append(f'{path.name}: base64: {exc}')
-                  print(f'base64_error={type(exc).__name__}:{exc}')
-                  continue
-              transport = 'zlib-wrapper'
-              try:
-                  decoded = zlib.decompress(compressed)
-              except zlib.error as exc:
-                  if 'incorrect data check' not in str(exc) or len(compressed) < 7:
-                      failures.append(f'{path.name}: zlib: {exc}')
-                      print(f'zlib_error={exc}')
-                      continue
-                  decoded = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
-                  transport = 'raw-deflate-recovery'
-              print(f'transport={transport}')
-              print(f'decoded_bytes={len(decoded)}')
-              print(f'decoded_sha256={hashlib.sha256(decoded).hexdigest()}')
-              try:
-                  text = decoded.decode('utf-8')
-              except UnicodeDecodeError as exc:
-                  failures.append(f'{path.name}: utf8: {exc}')
-                  print(f'utf8_error={exc}')
-                  continue
-              lines = text.splitlines()
-              print(f'line_count={len(lines)}')
-              print(f'first_line={lines[0] if lines else "<empty>"}')
-              print(f'last_line={lines[-1] if lines else "<empty>"}')
-              if path.name.endswith('.py.zlib.b64'):
-                  try:
-                      compile(text, path.name, 'exec')
-                  except SyntaxError as exc:
-                      failures.append(f'{path.name}: syntax line {exc.lineno}: {exc.msg}')
-                      print(f'syntax_error_line={exc.lineno}')
-                      print(f'syntax_error_offset={exc.offset}')
-                      print(f'syntax_error_message={exc.msg}')
-                      if exc.lineno:
-                          start = max(1, exc.lineno - 8)
-                          end = min(len(lines), exc.lineno + 8)
-                          for number in range(start, end + 1):
-                              print(f'context[{number}]={lines[number - 1]!r}')
-                  else:
-                      print('python_compile=PASS')
-          if failures:
-              print('payload_diagnostic=FAIL')
-              for failure in failures:
-                  print(f'failure={failure}')
-              raise SystemExit(1)
-          print('payload_diagnostic=PASS')
+          payload = Path('.github/wh09-payload/operator.py.zlib.b64')
+          compressed = base64.b64decode(payload.read_bytes().strip(), validate=True)
+          try:
+              decoded = zlib.decompress(compressed)
+          except zlib.error as exc:
+              if 'incorrect data check' not in str(exc):
+                  raise
+              decoded = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
+          text = decoded.decode('utf-8')
+          sentinel = 'operator_path.write_text(operator, encoding="utf-8")'
+          index = text.find(sentinel)
+          if index < 0 or text.find(sentinel, index + 1) >= 0:
+              raise SystemExit('verified operator write sentinel is not unique')
+          prefix = text[: index + len(sentinel)] + '\n'
+          if hashlib.sha256(decoded).hexdigest() != '19fb98ca6e6910eeda89d910ad6d9c63b63fbf9f7d261ba1ec2bee2bd96aa48c':
+              raise SystemExit('operator payload identity mismatch')
+          compile(prefix, str(payload), 'exec')
+          namespace = {'__name__': '__main__'}
+          current = Path.cwd()
+          try:
+              import os
+              os.chdir('target')
+              exec(compile(prefix, str(payload), 'exec'), namespace)
+          finally:
+              os.chdir(current)
+          operator = Path('target/ai_platform/wickhunter/candidate_paper_runtime_operator.py')
+          compile(operator.read_text(encoding='utf-8'), str(operator), 'exec')
+          print(f'preview_operator_sha256={hashlib.sha256(operator.read_bytes()).hexdigest()}')
           PY
+          mkdir -p preview/ai_platform/wickhunter
+          cp target/ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            preview/ai_platform/wickhunter/candidate_paper_runtime_operator.py
+          git -C target diff --check
+          git -C target diff --stat
+
+      - name: Upload exact preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: wickhunter-wh09-operator-preview-${{ github.event.pull_request.head.sha }}
+          path: preview/
+          if-no-files-found: error
+          retention-days: 3

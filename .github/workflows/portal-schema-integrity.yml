@@ -53,6 +53,8 @@ jobs:
           -r deploy/synology/portal-oidc/requirements.txt
 
       - name: Generate deterministic schema inventory
+        env:
+          PYTHONPATH: .
         run: |
           set -euo pipefail
           python -m py_compile tools/portal_schema/inventory.py

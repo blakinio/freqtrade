@@ -1,0 +1,130 @@
+name: Portal Completeness Audit
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/**"
+      - "deploy/**"
+      - "tests/ai_platform/portal/**"
+      - "tests/ai_platform_integration/**"
+      - "docs/ai_platform/portal/**"
+      - "docs/agents/tasks/FTAI-*-portal-*-audit.md"
+      - "tools/portal_audit/**"
+      - ".github/workflows/portal-completeness-audit.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  static-completeness-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
+      - name: Validate audit tools
+        run: >-
+          python -m py_compile
+          tools/portal_audit/completeness_audit.py
+          tools/portal_audit/deep_inventory.py
+          tools/portal_audit/classified_matrices.py
+          tools/portal_audit/navigation_matrix.py
+
+      - name: Generate portal completeness reports
+        run: |
+          python tools/portal_audit/completeness_audit.py \
+            --head "${{ github.event.pull_request.head.sha || github.sha }}"
+          python tools/portal_audit/deep_inventory.py
+          python tools/portal_audit/classified_matrices.py
+          python tools/portal_audit/navigation_matrix.py
+
+      - name: Print bounded composition evidence
+        run: |
+          echo "== PI-08 and private-runtime composition references =="
+          grep -R -n -E \
+            "PrivateSubmissionExecutionAdapter|PrivateDryRunApprovedIntentSubmitter|execution_submitter=|BotCommandActivationService|HttpPrivateRuntimeTransport|HttpPrivateRuntimeValuationSource|LokiRuntimeObservabilitySource|VaultCredentialBroker|FreqtradeExecutionAdapter|OutboxPublisher" \
+            ai_platform/portal deploy tests \
+            --exclude-dir=.git \
+            | head -n 500 || true
+          echo "== Strategy catalog producer/consumer references =="
+          grep -R -n -E "/v1/strategy-catalog|strategy-catalog" \
+            ai_platform/portal tests \
+            --exclude-dir=.git \
+            | head -n 250 || true
+          echo "== Canonical in-memory composition references =="
+          grep -R -n -E \
+            "InMemoryBotConfigurationRepository|InMemorySignalControlRepository|InMemoryGridControlRepository|InMemoryExchangeConnectionRepository|UnavailableBotRuntimeStateProvider|UnavailableRuntimeValuationSource|UnavailableRuntimeObservabilitySource" \
+            ai_platform/portal deploy tests \
+            --exclude-dir=.git \
+            | head -n 400 || true
+
+      - name: Build exact-head audit source snapshot
+        run: |
+          snapshot_paths=(
+            AGENTS.md
+            pyproject.toml
+            docs/agents/CONTEXT_HANDOFF.md
+            docs/agents/ANTI_STALL_AND_EXECUTION_BUDGET.md
+            docs/agents/AUTONOMOUS_PROGRAM_CONTINUATION.md
+            docs/agents/DELIVERY_COMPLETENESS_AND_CLOSEOUT.md
+            docs/agents/GITHUB_ONLY_EXECUTION.md
+            docs/agents/programs/FTAI_AI_TRADING_PORTAL_PROGRAM.md
+            docs/ai_platform/ARCHITECTURE.md
+            docs/ai_platform/ROADMAP.md
+            docs/ai_platform/portal
+            ai_platform/portal
+            deploy
+            tests/ai_platform/portal
+            tests/ai_platform_integration
+            .github/workflows
+            tools/portal_audit
+          )
+          for candidate in Dockerfile docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
+            if [[ -e "$candidate" ]]; then
+              snapshot_paths+=("$candidate")
+            fi
+          done
+          tar \
+            --exclude='ai_platform/portal/web/node_modules' \
+            --exclude='**/__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='*.env' \
+            -czf artifacts/portal-audit-source.tar.gz \
+            "${snapshot_paths[@]}"
+          sha256sum artifacts/portal-audit-source.tar.gz > artifacts/portal-audit-source.sha256
+
+      - name: Print bounded report
+        run: |
+          cat artifacts/portal-completeness-audit.md
+          sed -n '1,260p' artifacts/portal-deep-inventory.md
+          sed -n '1,220p' artifacts/portal-backend-matrix.md
+          sed -n '1,180p' artifacts/portal-frontend-bff-matrix.md
+          sed -n '1,180p' artifacts/portal-runtime-test-deployment-matrix.md
+          sed -n '1,240p' artifacts/portal-navigation-completeness-matrix.md
+
+      - name: Upload audit evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: portal-completeness-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/portal-completeness-audit.json
+            artifacts/portal-completeness-audit.md
+            artifacts/portal-deep-inventory.json
+            artifacts/portal-deep-inventory.md
+            artifacts/portal-backend-matrix.md
+            artifacts/portal-frontend-bff-matrix.md
+            artifacts/portal-runtime-test-deployment-matrix.md
+            artifacts/portal-navigation-completeness-matrix.json
+            artifacts/portal-navigation-completeness-matrix.md
+            artifacts/portal-audit-source.tar.gz
+            artifacts/portal-audit-source.sha256
+          if-no-files-found: error
+          retention-days: 30

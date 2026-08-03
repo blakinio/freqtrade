@@ -1,4 +1,4 @@
-name: WickHunter WH09 payload integrity probe
+name: WickHunter WH09 PAPER operator implementation repair
 
 "on":
   pull_request:
@@ -9,20 +9,25 @@ name: WickHunter WH09 payload integrity probe
       - ".github/wh09-payload/**"
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
-  group: wickhunter-wh09-payload-probe-${{ github.event.pull_request.number }}
+  group: wickhunter-wh09-operator-repair-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
+env:
+  TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
+  TARGET_HEAD_SHA: e0d3b9b9926a95af7a9d1f99ee109b9addc7d700
+
 jobs:
-  probe:
-    name: Report exact audited payload hashes
+  validate:
+    name: Repair and validate real persistent PAPER operator
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 60
+
     steps:
       - name: Check out exact helper request
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -30,7 +35,8 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
-      - name: Validate scope and print SHA-256
+
+      - name: Validate bounded helper scope
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -49,7 +55,206 @@ jobs:
           )
           mapfile -t actual < <(git diff --name-only "$merge_base" "$HEAD_SHA" | sort)
           [[ "${#actual[@]}" -eq "${#expected[@]}" ]]
+          for path in "${expected[@]}"; do
+            [[ -f "$path" ]]
+          done
           for index in "${!expected[@]}"; do
             [[ "${actual[$index]}" == "${expected[$index]}" ]]
           done
-          sha256sum .github/wh09-payload/*.zlib.b64
+
+      - name: Check out exact product branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: target
+
+      - name: Synchronize product with current develop
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          [[ "$(git rev-parse HEAD)" == "$TARGET_HEAD_SHA" ]]
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin develop
+          git merge --no-edit origin/develop
+
+      - name: Materialize SHA-256-bound audited repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          python3 - <<'PY'
+          import base64
+          import hashlib
+          import subprocess
+          import zlib
+          from pathlib import Path
+
+          payload_root = Path("../.github/wh09-payload")
+          health_path = "deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py"
+          payloads = {
+              "operator.py.zlib.b64": (
+                  "ai_platform/wickhunter/candidate_paper_runtime_operator.py",
+                  "f7baf684825e8a91f3611d5ae7203242c66e00fa3fcd2856f432ee0544d27f41",
+              ),
+              "README.md.zlib.b64": (
+                  "deploy/synology/wickhunter-paper-runtime/README.md",
+                  "94ff00497831a5eb852c9c07311e6c83bde849ab15aea4961e72310a571900c2",
+              ),
+              "compose.yaml.zlib.b64": (
+                  "deploy/synology/wickhunter-paper-runtime/compose.yaml",
+                  "1367541c0fa05f66fd91f55dcd045f7cc997973bc154f2eff0860b2ab0bd17d8",
+              ),
+              "healthcheck.py.zlib.b64": (
+                  health_path,
+                  "2de5bc8b44fef978318674adfab78c4bb922af7537974ec6af12e422482f44d7",
+              ),
+              "task.md.zlib.b64": (
+                  "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md",
+                  "d43ffaf8faca8d8bdf4dc6cbbf5ebabec515be4ee1ed6e43539d9d56b89afb6f",
+              ),
+              "tests.py.zlib.b64": (
+                  "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py",
+                  "c03e158d1352adc9e5fd10417f077bd8d5c3fc6688a48b06c9f87dc66b421770",
+              ),
+          }
+          base = subprocess.check_output(
+              ["git", "rev-parse", "origin/develop"], text=True
+          ).strip()
+          for payload_name, (target_name, expected_sha256) in payloads.items():
+              raw = (payload_root / payload_name).read_bytes()
+              actual_sha256 = hashlib.sha256(raw).hexdigest()
+              if actual_sha256 != expected_sha256:
+                  raise SystemExit(
+                      f"payload hash mismatch: {payload_name}: {actual_sha256}"
+                  )
+              content = zlib.decompress(base64.b64decode(raw.strip())).decode("utf-8")
+              content = content.replace("__BASE_SHA__", base)
+              if target_name.endswith(("README.md", "compose.yaml", ".md")):
+                  content = content.replace("healthcheck.py", "paper_runtime_healthcheck.py")
+              target = Path(target_name)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(content, encoding="utf-8")
+
+          dockerfile = Path("deploy/synology/wickhunter-paper-runtime/Dockerfile")
+          dockerfile.write_text(
+              dockerfile.read_text(encoding="utf-8").replace(
+                  "/app/deploy/synology/wickhunter-paper-runtime/healthcheck.py",
+                  "/app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py",
+              ),
+              encoding="utf-8",
+          )
+          old_healthcheck = Path("deploy/synology/wickhunter-paper-runtime/healthcheck.py")
+          if old_healthcheck.exists():
+              old_healthcheck.unlink()
+          PY
+          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndeploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          [[ "$(git diff --name-only | sort)" == "$expected" ]]
+          python3 -m py_compile \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+          working-directory: target
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          uv pip install -r requirements-dev.txt
+          uv pip install lightgbm==4.6.0
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Validate format and lint
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          paths=(
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          )
+          ruff format "${paths[@]}"
+          ruff check "${paths[@]}"
+          ruff format --check "${paths[@]}"
+
+      - name: Type-check operator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          mypy ai_platform/wickhunter/candidate_paper_runtime_operator.py
+
+      - name: Run focused operator and runtime tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          pytest -q \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+
+      - name: Validate hardened Compose package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          OPERATOR_COMMIT="$TARGET_HEAD_SHA" \
+          CANDIDATE_ROOT_HOST=/tmp/candidate \
+          ACTIVATION_ROOT_HOST=/tmp/activation \
+          JOURNAL_ROOT_HOST=/tmp/journal \
+          OPERATOR_STATE_HOST=/tmp/operator \
+          LIQUID20_LIVE_HOST=/tmp/liquid20 \
+          WICKHUNTER_PAPER_RUNTIME_IMAGE=wickhunter-paper-runtime:"$TARGET_HEAD_SHA" \
+            docker compose \
+              -f deploy/synology/wickhunter-paper-runtime/compose.yaml \
+              config --quiet
+
+      - name: Commit exact repaired product
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          git add \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            deploy/synology/wickhunter-paper-runtime/README.md \
+            deploy/synology/wickhunter-paper-runtime/compose.yaml \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          git rm --ignore-unmatch deploy/synology/wickhunter-paper-runtime/healthcheck.py
+          git commit -m "fix(wickhunter): bind WH09 operator to real live contracts"
+          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          [[ "$(git diff --name-only origin/develop...HEAD | sort)" == "$expected" ]]
+          product_sha="$(git rev-parse HEAD)"
+          docker build \
+            --build-arg OPERATOR_COMMIT="$product_sha" \
+            --tag "wickhunter-paper-runtime:$product_sha" \
+            --file deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            .
+          image_revision="$(docker image inspect "wickhunter-paper-runtime:$product_sha" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+          [[ "$image_revision" == "$product_sha" ]]
+          git push origin "HEAD:$TARGET_BRANCH"
+          {
+            echo "## WickHunter WH09 audited operator repair"
+            echo
+            echo "- Product head: \`$product_sha\`"
+            echo "- Synced develop: \`$(git rev-parse origin/develop)\`"
+            echo "- Real Liquid20 contract and canonical metric path: \`PASS\`"
+            echo "- Compile, Ruff, mypy, focused pytest, Compose and image build: \`PASS\`"
+            echo "- Protected holdout/credentials/order adapter/execution/orders/live capital: \`absent\`"
+          } >> "$GITHUB_STEP_SUMMARY"

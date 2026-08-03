@@ -86,13 +86,13 @@ def test_read_methods_deny_before_repository_access() -> None:
     intelligence = TradeIntelligenceService(never_session)
     learning = LearningService(never_session)
 
-    with pytest.raises(PermissionDeniedError, match="model.read"):
+    with pytest.raises(PermissionDeniedError, match=r"model\.read"):
         intelligence.get_analysis(denied, "analysis-secret")
-    with pytest.raises(PermissionDeniedError, match="model.read"):
+    with pytest.raises(PermissionDeniedError, match=r"model\.read"):
         intelligence.list_analyses(denied)
-    with pytest.raises(PermissionDeniedError, match="model.read"):
+    with pytest.raises(PermissionDeniedError, match=r"model\.read"):
         learning.history(denied, "hypothesis-secret")
-    with pytest.raises(PermissionDeniedError, match="model.read"):
+    with pytest.raises(PermissionDeniedError, match=r"model\.read"):
         learning.history_all(denied)
 
 
@@ -100,9 +100,9 @@ def test_learning_writes_deny_before_argument_or_repository_inspection() -> None
     denied = context(permissions=(Permission.MODEL_READ,))
     service = LearningService(never_session)
 
-    with pytest.raises(PermissionDeniedError, match="model.train"):
+    with pytest.raises(PermissionDeniedError, match=r"model\.train"):
         service.create_hypothesis(denied, cast(TradeInsight, object()), "statement")
-    with pytest.raises(PermissionDeniedError, match="model.train"):
+    with pytest.raises(PermissionDeniedError, match=r"model\.train"):
         service.record_experiment(
             denied,
             hypothesis_id="hypothesis-secret",
@@ -111,7 +111,7 @@ def test_learning_writes_deny_before_argument_or_repository_inspection() -> None
             outcome=ExperimentOutcome.POSITIVE,
             result_summary="result",
         )
-    with pytest.raises(PermissionDeniedError, match="model.train"):
+    with pytest.raises(PermissionDeniedError, match=r"model\.train"):
         service.register_candidate(
             denied,
             experiment_id="experiment-secret",

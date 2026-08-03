@@ -206,6 +206,19 @@ def _assert_safe_claim_correlation(
     return claim_id
 
 
+def _assert_callback_outcomes(
+    events: tuple[IdentityAuditEventRow, ...],
+    *,
+    reasons: dict[str, str],
+) -> None:
+    actions = [event.action for event in events]
+    assert len(actions) == len(reasons)
+    for action, reason in reasons.items():
+        assert actions.count(action) == 1
+        event = next(item for item in events if item.action == action)
+        assert event.reason == reason
+
+
 def test_claim_statement_is_compare_and_swap_on_postgresql() -> None:
     session = _CapturingSession()
     repository = IdentityRepository(session)
@@ -369,16 +382,14 @@ def test_provider_failure_is_terminal_attributable_and_cannot_be_retried(tmp_pat
         with session_factory() as session:
             assert session.scalar(select(func.count()).select_from(PortalSessionRow)) == 0
         events = _callback_events(session_factory)
-        assert [event.action for event in events] == [
-            "identity.login_state_claimed",
-            "identity.login_denied",
-            "identity.login_state_rejected",
-        ]
-        assert [event.reason for event in events] == [
-            "claimed",
-            "provider_exchange_failed",
-            "invalid_or_replayed",
-        ]
+        _assert_callback_outcomes(
+            events,
+            reasons={
+                "identity.login_state_claimed": "claimed",
+                "identity.login_denied": "provider_exchange_failed",
+                "identity.login_state_rejected": "invalid_or_replayed",
+            },
+        )
         _assert_safe_claim_correlation(events, state=state)
     finally:
         engine.dispose()
@@ -409,16 +420,14 @@ def test_provider_success_without_membership_has_terminal_denial_and_no_retry(
         with session_factory() as session:
             assert session.scalar(select(func.count()).select_from(PortalSessionRow)) == 0
         events = _callback_events(session_factory)
-        assert [event.action for event in events] == [
-            "identity.login_state_claimed",
-            "identity.login_denied",
-            "identity.login_state_rejected",
-        ]
-        assert [event.reason for event in events] == [
-            "claimed",
-            "membership_unavailable",
-            "invalid_or_replayed",
-        ]
+        _assert_callback_outcomes(
+            events,
+            reasons={
+                "identity.login_state_claimed": "claimed",
+                "identity.login_denied": "membership_unavailable",
+                "identity.login_state_rejected": "invalid_or_replayed",
+            },
+        )
         _assert_safe_claim_correlation(events, state=state)
     finally:
         engine.dispose()

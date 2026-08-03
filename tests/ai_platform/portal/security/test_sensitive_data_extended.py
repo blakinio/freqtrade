@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,6 +19,7 @@ from ai_platform.portal.control_plane.database import (
     build_session_factory,
     create_schema,
 )
+from ai_platform.portal.observability.logging import structured_log
 from ai_platform.portal.security.sensitive_data import (
     REDACTED_VALUE,
     SensitiveFieldKind,
@@ -96,7 +98,10 @@ def test_metadata_descriptors_and_public_endpoints_remain_safe(key: str) -> None
             "-----BEGIN PRIVATE KEY-----\n" + _canary("KEY") + "\n-----END PRIVATE KEY-----",
             SensitiveValueKind.PRIVATE_KEY,
         ),
-        ("mode=test&session_id=" + _canary("SESSION"), SensitiveValueKind.EMBEDDED_SECRET_ASSIGNMENT),
+        (
+            "mode=test&session_id=" + _canary("SESSION"),
+            SensitiveValueKind.EMBEDDED_SECRET_ASSIGNMENT,
+        ),
     ],
 )
 def test_high_confidence_sensitive_values_are_classified(
@@ -131,7 +136,7 @@ def test_opaque_reference_contract_accepts_identifiers_and_rejects_paths_urls_or
         "vault://secret/tenant-a/exchange",
         "/private/store/credential",
         "https://user:pass@private.invalid/value",
-        "Bearer-raw-value",
+        "Bearer " + _canary("OPAQUE"),
         "short",
     ):
         with pytest.raises(ValueError):
@@ -176,14 +181,38 @@ def test_sensitive_fingerprint_is_keyed_deterministic_and_never_contains_value()
         fingerprint_sensitive_value(value, key=b"short")
 
 
+def test_structured_log_redacts_extended_aliases_and_serialized_values(capsys) -> None:
+    canary = _canary("LOG")
+
+    structured_log(
+        "security.test",
+        attributes={
+            "credential_ref": canary,
+            "serialized": json.dumps({"session_id": canary}),
+            "authorization_status": "denied",
+        },
+    )
+    output = capsys.readouterr().out
+
+    assert canary not in output
+    assert output.count(REDACTED_VALUE) == 2
+    assert '"authorization_status":"denied"' in output
+
+
 def test_historical_scanner_reports_json_jsonl_and_sqlite_paths_without_values(
     tmp_path: Path,
 ) -> None:
     canary = _canary("HISTORICAL")
     json_path = tmp_path / "events.json"
-    json_path.write_text(json.dumps({"records": [{"credential_ref": canary}]}), encoding="utf-8")
+    json_path.write_text(
+        json.dumps({"records": [{"credential_ref": canary}]}),
+        encoding="utf-8",
+    )
     jsonl_path = tmp_path / "audit.jsonl"
-    jsonl_path.write_text(json.dumps({"safe": json.dumps({"session_id": canary})}) + "\n", encoding="utf-8")
+    jsonl_path.write_text(
+        json.dumps({"safe": json.dumps({"session_id": canary})}) + "\n",
+        encoding="utf-8",
+    )
     sqlite_path = tmp_path / "portal.sqlite3"
     connection = sqlite3.connect(sqlite_path)
     try:
@@ -213,8 +242,6 @@ def test_historical_scanner_reports_json_jsonl_and_sqlite_paths_without_values(
 
 
 def _context() -> RequestContext:
-    from uuid import uuid4
-
     return RequestContext(
         tenant_id="tenant-a",
         actor_id="actor-a",

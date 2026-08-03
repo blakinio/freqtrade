@@ -11,14 +11,16 @@ from typing import Any
 
 from audit_ledger import AuditLedgerError, issue_numbers, load_ledger
 
+
 JsonFetcher = Callable[[str], dict[str, Any]]
 
 
 def github_fetcher(repository: str, token: str, api_url: str) -> JsonFetcher:
     parsed = urllib.parse.urlsplit(api_url)
+    hostname = parsed.hostname
     if (
         parsed.scheme != "https"
-        or parsed.hostname is None
+        or hostname is None
         or parsed.username is not None
         or parsed.password is not None
         or parsed.query
@@ -28,7 +30,7 @@ def github_fetcher(repository: str, token: str, api_url: str) -> JsonFetcher:
     base_path = parsed.path.rstrip("/")
 
     def fetch(path: str) -> dict[str, Any]:
-        connection = http.client.HTTPSConnection(parsed.hostname, parsed.port, timeout=20)
+        connection = http.client.HTTPSConnection(hostname, parsed.port, timeout=20)
         endpoint = f"{base_path}/repos/{repository}/{path.lstrip('/')}"
         headers = {
             "Accept": "application/vnd.github+json",
@@ -46,9 +48,7 @@ def github_fetcher(repository: str, token: str, api_url: str) -> JsonFetcher:
                 )
             decoded = json.loads(payload)
         except (OSError, http.client.HTTPException, json.JSONDecodeError) as exc:
-            raise AuditLedgerError(
-                f"cannot verify GitHub Issue state for {path}: {exc}"
-            ) from exc
+            raise AuditLedgerError(f"cannot verify GitHub Issue state for {path}: {exc}") from exc
         finally:
             connection.close()
         if not isinstance(decoded, dict):
@@ -68,9 +68,7 @@ def validate_open_issue_mappings(ledger: dict[str, Any], fetch: JsonFetcher) -> 
             )
         state = payload.get("state")
         if state not in {"open", "closed"}:
-            raise AuditLedgerError(
-                f"GitHub Issue #{number} returned unknown state {state!r}"
-            )
+            raise AuditLedgerError(f"GitHub Issue #{number} returned unknown state {state!r}")
         if state == "closed":
             closed.append(number)
     if closed:

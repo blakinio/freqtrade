@@ -43,8 +43,7 @@ def _declared_table_names(path: Path) -> frozenset[str]:
         if not isinstance(node, ast.Assign):
             continue
         if not any(
-            isinstance(target, ast.Name) and target.id == "__tablename__"
-            for target in node.targets
+            isinstance(target, ast.Name) and target.id == "__tablename__" for target in node.targets
         ):
             continue
         if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):

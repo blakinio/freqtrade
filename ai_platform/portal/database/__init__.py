@@ -8,6 +8,7 @@ from ai_platform.portal.database.schema import (
     schema_status,
 )
 
+
 __all__ = [
     "EXPECTED_SCHEMA_REVISION",
     "SchemaMigrationError",

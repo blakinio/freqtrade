@@ -29,9 +29,7 @@ def _column_payload(column: Any) -> dict[str, Any]:
         "primary_key": bool(column.primary_key),
         "unique": bool(column.unique),
         "index": bool(column.index),
-        "server_default": None
-        if column.server_default is None
-        else str(column.server_default.arg),
+        "server_default": None if column.server_default is None else str(column.server_default.arg),
     }
 
 
@@ -43,8 +41,7 @@ def _constraint_payload(constraint: Any) -> dict[str, Any]:
     }
     if isinstance(constraint, ForeignKeyConstraint):
         payload["references"] = sorted(
-            f"{element.column.table.name}.{element.column.name}"
-            for element in constraint.elements
+            f"{element.column.table.name}.{element.column.name}" for element in constraint.elements
         )
         payload["ondelete"] = sorted(
             {element.ondelete for element in constraint.elements if element.ondelete}

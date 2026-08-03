@@ -179,19 +179,13 @@ def test_unknown_revision_and_schema_drift_fail_readiness() -> None:
         migrate_database(engine)
         with engine.begin() as connection:
             connection.execute(
-                text(
-                    f"UPDATE {MIGRATION_TABLE_NAME} "
-                    "SET revision_id = 'unknown-revision'"
-                )
+                text(f"UPDATE {MIGRATION_TABLE_NAME} SET revision_id = 'unknown-revision'")
             )
         with pytest.raises(SchemaReadinessError):
             assert_schema_ready(engine)
         with engine.begin() as connection:
             connection.execute(
-                text(
-                    f"UPDATE {MIGRATION_TABLE_NAME} "
-                    "SET revision_id = :revision_id"
-                ),
+                text(f"UPDATE {MIGRATION_TABLE_NAME} SET revision_id = :revision_id"),
                 {"revision_id": EXPECTED_SCHEMA_REVISION},
             )
             connection.execute(text("DROP INDEX ix_portal_bots_tenant"))

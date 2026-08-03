@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import (
@@ -185,7 +185,9 @@ def _expected_table_snapshot(table: Table, dialect: Any) -> dict[str, Any]:
             "type": _type_token(column.type, dialect),
             "nullable": False if column.name in primary_key_set else bool(column.nullable),
             "default": _canonical_sql(
-                None if column.server_default is None else column.server_default.arg
+                None
+                if column.server_default is None
+                else getattr(column.server_default, "arg", column.server_default)
             ),
         }
         for column in table.columns
@@ -220,15 +222,12 @@ def _expected_table_snapshot(table: Table, dialect: Any) -> dict[str, Any]:
                 }
             )
         elif isinstance(constraint, CheckConstraint):
-            checks.append(
-                {"name": constraint.name, "sql": _canonical_sql(constraint.sqltext)}
-            )
+            checks.append({"name": constraint.name, "sql": _canonical_sql(constraint.sqltext)})
     indexes = [
         {
             "name": index.name,
             "columns": [
-                getattr(expression, "name", str(expression))
-                for expression in index.expressions
+                getattr(expression, "name", str(expression)) for expression in index.expressions
             ],
             "unique": bool(index.unique),
         }
@@ -258,9 +257,7 @@ def _expected_table_snapshot(table: Table, dialect: Any) -> dict[str, Any]:
 
 def _manifest_tables() -> tuple[Table, ...]:
     manifest = load_portal_models()
-    ordered = tuple(
-        table for table in Base.metadata.sorted_tables if table.name in manifest
-    )
+    ordered = tuple(table for table in Base.metadata.sorted_tables if table.name in manifest)
     ordered_names = {table.name for table in ordered}
     if ordered_names != set(manifest):
         raise RuntimeError(
@@ -272,8 +269,7 @@ def _manifest_tables() -> tuple[Table, ...]:
 
 def _expected_snapshot(engine: Engine) -> dict[str, Any]:
     return {
-        table.name: _expected_table_snapshot(table, engine.dialect)
-        for table in _manifest_tables()
+        table.name: _expected_table_snapshot(table, engine.dialect) for table in _manifest_tables()
     }
 
 
@@ -365,8 +361,7 @@ def _actual_snapshot(connection: Any) -> dict[str, Any]:
         if table_name.startswith("portal_") and table_name != MIGRATION_TABLE_NAME
     )
     return {
-        table_name: _actual_table_snapshot(connection, table_name)
-        for table_name in table_names
+        table_name: _actual_table_snapshot(connection, table_name) for table_name in table_names
     }
 
 
@@ -375,9 +370,7 @@ def _fingerprint(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _snapshot_differences(
-    expected: dict[str, Any], actual: dict[str, Any]
-) -> dict[str, Any]:
+def _snapshot_differences(expected: dict[str, Any], actual: dict[str, Any]) -> dict[str, Any]:
     common = sorted(set(expected) & set(actual))
     return {
         "missing_tables": sorted(set(expected) - set(actual)),
@@ -412,9 +405,7 @@ def _revision_rows(connection: Any) -> list[dict[str, Any]]:
             "dialect_name": row["dialect_name"],
             "schema_fingerprint": row["schema_fingerprint"],
             "applied_at": (
-                row["applied_at"].isoformat()
-                if row["applied_at"] is not None
-                else None
+                row["applied_at"].isoformat() if row["applied_at"] is not None else None
             ),
         }
         for row in rows
@@ -439,9 +430,7 @@ def _schema_status_connection(connection: Any, engine: Engine) -> dict[str, Any]
     )
     sqlite_foreign_keys: bool | None = None
     if engine.dialect.name == "sqlite":
-        sqlite_foreign_keys = (
-            connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
-        )
+        sqlite_foreign_keys = connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
     schema_matches = not any(
         (
             differences["missing_tables"],
@@ -497,9 +486,7 @@ def _scan_integrity_connection(connection: Any) -> dict[str, Any]:
                 "orphan_count": None,
             }
             continue
-        orphan_count = int(
-            connection.execute(text(relation.orphan_count_sql)).scalar_one()
-        )
+        orphan_count = int(connection.execute(text(relation.orphan_count_sql)).scalar_one())
         relations[relation.name] = {
             "status": "clean" if orphan_count == 0 else "orphaned",
             "orphan_count": orphan_count,
@@ -526,8 +513,7 @@ def scan_database_integrity(engine: Engine) -> dict[str, Any]:
 def migrate_database(engine: Engine) -> dict[str, Any]:
     manifest_tables = _manifest_tables()
     expected = {
-        table.name: _expected_table_snapshot(table, engine.dialect)
-        for table in manifest_tables
+        table.name: _expected_table_snapshot(table, engine.dialect) for table in manifest_tables
     }
     expected_fingerprint = _fingerprint(expected)
     with engine.begin() as connection:
@@ -583,7 +569,7 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
                 revision_id=EXPECTED_SCHEMA_REVISION,
                 dialect_name=engine.dialect.name,
                 schema_fingerprint=expected_fingerprint,
-                applied_at=datetime.now(timezone.utc),
+                applied_at=datetime.now(UTC),
             )
         )
     return assert_schema_ready(engine)

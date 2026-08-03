@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from uuid import uuid4
 
@@ -24,7 +25,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture(autouse=True)
-def clean_postgres_schema() -> None:
+def clean_postgres_schema() -> Iterator[None]:
     assert POSTGRES_URL is not None
     engine = build_engine(POSTGRES_URL)
     with engine.begin() as connection:
@@ -58,9 +59,12 @@ def test_concurrent_postgresql_migrations_converge_on_one_revision() -> None:
     engine = build_engine(POSTGRES_URL)
     try:
         with engine.connect() as connection:
-            assert connection.execute(
-                text(f"SELECT COUNT(*) FROM {MIGRATION_TABLE_NAME}")
-            ).scalar_one() == 1
+            assert (
+                connection.execute(
+                    text(f"SELECT COUNT(*) FROM {MIGRATION_TABLE_NAME}")
+                ).scalar_one()
+                == 1
+            )
         assert assert_schema_ready(engine)["status"] == "ready"
     finally:
         engine.dispose()
@@ -139,12 +143,18 @@ def test_audit_and_outbox_write_are_atomic_on_postgresql() -> None:
             )
             raise RuntimeError("synthetic application rollback")
     with engine.connect() as connection:
-        assert connection.execute(
-            text("SELECT COUNT(*) FROM portal_audit_events WHERE audit_id = :audit_id"),
-            {"audit_id": audit_id},
-        ).scalar_one() == 0
-        assert connection.execute(
-            text("SELECT COUNT(*) FROM portal_outbox_events WHERE event_id = :event_id"),
-            {"event_id": event_id},
-        ).scalar_one() == 0
+        assert (
+            connection.execute(
+                text("SELECT COUNT(*) FROM portal_audit_events WHERE audit_id = :audit_id"),
+                {"audit_id": audit_id},
+            ).scalar_one()
+            == 0
+        )
+        assert (
+            connection.execute(
+                text("SELECT COUNT(*) FROM portal_outbox_events WHERE event_id = :event_id"),
+                {"event_id": event_id},
+            ).scalar_one()
+            == 0
+        )
     engine.dispose()

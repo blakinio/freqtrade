@@ -73,9 +73,7 @@ def main() -> int:
         if any(payload.get(name) != expected for name, expected in ZERO_AUTHORITY.items()):
             return _fail("health claims forbidden authority")
         checked_at_ms = _integer(payload.get("checked_at_ms"), field="checked_at_ms")
-        last_success_at_ms = _integer(
-            payload.get("last_success_at_ms"), field="last_success_at_ms"
-        )
+        last_success_at_ms = _integer(payload.get("last_success_at_ms"), field="last_success_at_ms")
         now_ms = time.time_ns() // 1_000_000
         maximum_age_ms = int(os.environ.get("HEALTH_MAX_AGE_SECONDS", "1200")) * 1000
         if maximum_age_ms < 60_000:

@@ -82,6 +82,22 @@ def _liquid20_payload(*, observed_at_ms: int = NOW_MS) -> dict[str, object]:
     return {**body, "snapshot_sha256": canonical_sha256(body)}
 
 
+def _rehash_payload(payload: dict[str, object]) -> None:
+    body = {key: value for key, value in payload.items() if key != "snapshot_sha256"}
+    payload["snapshot_sha256"] = canonical_sha256(body)
+
+
+def _stale_payload(payload: dict[str, object]) -> None:
+    payload.clear()
+    payload.update(_liquid20_payload(observed_at_ms=NOW_MS - 400_000))
+
+
+def _future_event_payload(payload: dict[str, object]) -> None:
+    events = cast(list[dict[str, object]], payload["events"])
+    events[0]["received_at_ms"] = NOW_MS + 1
+    _rehash_payload(payload)
+
+
 def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:
     path.write_text(canonical_json(payload or _liquid20_payload()) + "\n", encoding="utf-8")
     return path
@@ -173,13 +189,8 @@ def test_load_liquid20_snapshot_verifies_hash_and_decision_time(tmp_path: Path) 
 @pytest.mark.parametrize(
     ("mutation", "message"),
     (
-        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),
-        (
-            lambda payload: cast(list[dict[str, object]], payload["events"])[0].update(
-                {"received_at_ms": NOW_MS + 1}
-            ),
-            "unavailable",
-        ),
+        (_stale_payload, "stale"),
+        (_future_event_payload, "unavailable"),
         (lambda payload: payload.update({"snapshot_sha256": "0" * 64}), "self-hash"),
     ),
 )
@@ -266,7 +277,7 @@ def test_public_market_fetch_is_network_free_and_uses_only_public_gets(
     assert snapshot.decision_price == Decimal("100")
     assert snapshot.open_interest_usd == Decimal("20000000")
     assert len(opener.requests) == 4
-    assert all(request.method == "GET" for request in opener.requests)
+    assert all(request.get_method() == "GET" for request in opener.requests)
     assert all("Authorization" not in request.headers for request in opener.requests)
 
 
@@ -313,12 +324,25 @@ def test_success_and_failure_health_are_truthful_and_bounded(
     for name in operator_module.FORBIDDEN_ENVIRONMENT_NAMES:
         monkeypatch.delenv(name, raising=False)
     runtime_operator = _operator(tmp_path)
-    monkeypatch.setattr(operator_module, "load_liquid20_snapshot", lambda *_args, **_kwargs: SimpleNamespace(
-        snapshot_id="f" * 64,
-        universe=SimpleNamespace(selected_symbols=("BTCUSDT",)),
-    ))
-    monkeypatch.setattr(operator_module, "fetch_public_market_snapshot", lambda **_kwargs: _market())
-    monkeypatch.setattr(runtime_operator, "_compose_tick", lambda **_kwargs: cast(ShadowRuntimeTick, SimpleNamespace(observed_at_ms=NOW_MS)))
+    monkeypatch.setattr(
+        operator_module,
+        "load_liquid20_snapshot",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            snapshot_id="f" * 64,
+            universe=SimpleNamespace(selected_symbols=("BTCUSDT",)),
+        ),
+    )
+    monkeypatch.setattr(
+        operator_module, "fetch_public_market_snapshot", lambda **_kwargs: _market()
+    )
+    monkeypatch.setattr(
+        CandidatePaperRuntimeOperator,
+        "_compose_tick",
+        lambda self, **_kwargs: cast(
+            ShadowRuntimeTick,
+            SimpleNamespace(observed_at_ms=NOW_MS),
+        ),
+    )
 
     assert runtime_operator.run_once(observed_at_ms=NOW_MS) == 1
     healthy = json.loads(runtime_operator.health_path.read_text(encoding="utf-8"))

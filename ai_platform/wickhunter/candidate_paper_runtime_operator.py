@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -36,6 +37,7 @@ from ai_platform.wickhunter.shadow_runtime import ShadowRuntimePolicy, ShadowRun
 from ai_platform.wickhunter.strategy import SignalMemory
 from ai_platform.wickhunter.universe import DynamicUniverseSnapshot, UniverseInstrumentDecision
 
+
 LIQUID20_SCHEMA_VERSION = "wickhunter-liquid20-public-snapshot-v1"
 HEALTH_SCHEMA_VERSION = "wickhunter-paper-runtime-operator-health-v1"
 DEFAULT_PUBLIC_MARKET_BASE_URL = "https://fapi.binance.com"
@@ -47,11 +49,24 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
 FORBIDDEN_ENVIRONMENT_NAMES = (
-    "OKX_API_KEY", "OKX_API_SECRET", "OKX_SECRET_KEY", "OKX_PASSPHRASE",
-    "BYBIT_API_KEY", "BYBIT_API_SECRET", "BINANCE_API_KEY", "BINANCE_API_SECRET",
-    "FT_EXCHANGE_KEY", "FT_EXCHANGE_SECRET", "FREQTRADE__EXCHANGE__KEY",
-    "FREQTRADE__EXCHANGE__SECRET", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
-    "http_proxy", "https_proxy", "all_proxy",
+    "OKX_API_KEY",
+    "OKX_API_SECRET",
+    "OKX_SECRET_KEY",
+    "OKX_PASSPHRASE",
+    "BYBIT_API_KEY",
+    "BYBIT_API_SECRET",
+    "BINANCE_API_KEY",
+    "BINANCE_API_SECRET",
+    "FT_EXCHANGE_KEY",
+    "FT_EXCHANGE_SECRET",
+    "FREQTRADE__EXCHANGE__KEY",
+    "FREQTRADE__EXCHANGE__SECRET",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
 )
 ZERO_AUTHORITY = {
     "protected_holdout_accessed": False,
@@ -69,7 +84,9 @@ class CandidatePaperRuntimeOperatorError(RuntimeError):
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
-    def redirect_request(self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str) -> None:
+    def redirect_request(
+        self, req: Request, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> None:
         del req, fp, code, msg, headers, newurl
         return None
 
@@ -108,11 +125,30 @@ class PublicMarketSnapshot:
 
     def market_context(self) -> MarketContextSnapshot:
         metrics = (
-            AvailableMetric("funding_rate", self.funding_rate, self.observed_at_ms, "binance-usdm-public"),
-            AvailableMetric("open_interest_usd", self.open_interest_usd, self.observed_at_ms, "binance-usdm-public"),
-            AvailableMetric("quote_volume_24h_usd", self.quote_volume_24h_usd, self.observed_at_ms, "binance-usdm-public"),
-            AvailableMetric("volatility_ratio", self.volatility_ratio, self.completed_candle_close_ms, "binance-usdm-public"),
-            AvailableMetric("wick_ratio", self.wick_ratio, self.completed_candle_close_ms, "binance-usdm-public"),
+            AvailableMetric(
+                "funding_rate", self.funding_rate, self.observed_at_ms, "binance-usdm-public"
+            ),
+            AvailableMetric(
+                "open_interest_usd",
+                self.open_interest_usd,
+                self.observed_at_ms,
+                "binance-usdm-public",
+            ),
+            AvailableMetric(
+                "quote_volume_24h_usd",
+                self.quote_volume_24h_usd,
+                self.observed_at_ms,
+                "binance-usdm-public",
+            ),
+            AvailableMetric(
+                "volatility_ratio",
+                self.volatility_ratio,
+                self.completed_candle_close_ms,
+                "binance-usdm-public",
+            ),
+            AvailableMetric(
+                "wick_ratio", self.wick_ratio, self.completed_candle_close_ms, "binance-usdm-public"
+            ),
         )
         return MarketContextSnapshot(
             symbol=self.symbol,
@@ -147,7 +183,9 @@ def _integer(value: object, *, field: str) -> int:
     return parsed
 
 
-def _decimal(value: object, *, field: str, positive: bool = False, non_negative: bool = False) -> Decimal:
+def _decimal(
+    value: object, *, field: str, positive: bool = False, non_negative: bool = False
+) -> Decimal:
     try:
         parsed = Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError) as exc:
@@ -170,7 +208,7 @@ def _assert_regular_absolute(path: Path, *, field: str, must_exist: bool = True)
         raise CandidatePaperRuntimeOperatorError(f"{field} does not exist")
 
 
-def assert_closed_authority_environment(environment: dict[str, str] | os._Environ[str] | None = None) -> None:
+def assert_closed_authority_environment(environment: Mapping[str, str] | None = None) -> None:
     values = os.environ if environment is None else environment
     present = sorted(name for name in FORBIDDEN_ENVIRONMENT_NAMES if values.get(name))
     if present:
@@ -202,11 +240,15 @@ def _source_health(value: object) -> SourceHealth:
 def _history_from_payload(payload: dict[str, Any]) -> LiquidationHistorySnapshot:
     event_notionals = tuple(
         _decimal(item, field="history event notional", positive=True)
-        for item in _require_list(payload.get("event_notionals_usd"), field="history event notionals")
+        for item in _require_list(
+            payload.get("event_notionals_usd"), field="history event notionals"
+        )
     )
     burst_notionals = tuple(
         _decimal(item, field="history burst notional", positive=True)
-        for item in _require_list(payload.get("burst_window_notionals_usd"), field="history burst notionals")
+        for item in _require_list(
+            payload.get("burst_window_notionals_usd"), field="history burst notionals"
+        )
     )
     previous = payload.get("previous_burst_received_at_ms")
     previous_ms = None if previous is None else _integer(previous, field="previous burst")
@@ -255,18 +297,28 @@ def load_liquid20_snapshot(  # noqa: C901
         raise CandidatePaperRuntimeOperatorError("Liquid20 snapshot contains no events")
     event_ids = [item.source_event_id for item in events]
     if event_ids != sorted(event_ids) or len(event_ids) != len(set(event_ids)):
-        raise CandidatePaperRuntimeOperatorError("Liquid20 events must be unique and sorted by source_event_id")
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 events must be unique and sorted by source_event_id"
+        )
     if any(item.received_at_ms > observed_at_ms for item in events):
-        raise CandidatePaperRuntimeOperatorError("Liquid20 event was unavailable at snapshot observation time")
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 event was unavailable at snapshot observation time"
+        )
     histories = tuple(
         _history_from_payload(_require_object(item, field="Liquid20 history"))
         for item in _require_list(payload.get("histories"), field="Liquid20 histories")
     )
     history_symbols = [item.symbol for item in histories]
-    if history_symbols != sorted(history_symbols) or len(history_symbols) != len(set(history_symbols)):
-        raise CandidatePaperRuntimeOperatorError("Liquid20 histories must be unique and sorted by symbol")
+    if history_symbols != sorted(history_symbols) or len(history_symbols) != len(
+        set(history_symbols)
+    ):
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 histories must be unique and sorted by symbol"
+        )
     if any(item.available_at_ms > observed_at_ms for item in histories):
-        raise CandidatePaperRuntimeOperatorError("Liquid20 history was unavailable at snapshot observation time")
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 history was unavailable at snapshot observation time"
+        )
     source_states: list[LiquidationSourceState] = []
     for item in _require_list(payload.get("source_states"), field="Liquid20 source states"):
         row = _require_object(item, field="Liquid20 source state")
@@ -276,7 +328,9 @@ def load_liquid20_snapshot(  # noqa: C901
                 source=str(row.get("source", "")),
                 health=_source_health(row.get("health")),
                 coverage_available=row.get("coverage_available") is True,
-                last_received_at_ms=None if last_received is None else _integer(last_received, field="source last_received_at_ms"),
+                last_received_at_ms=None
+                if last_received is None
+                else _integer(last_received, field="source last_received_at_ms"),
                 observed_at_ms=_integer(row.get("observed_at_ms"), field="source observed_at_ms"),
             )
         )
@@ -287,14 +341,26 @@ def load_liquid20_snapshot(  # noqa: C901
     if not source_tuple:
         raise CandidatePaperRuntimeOperatorError("Liquid20 source states are empty")
     if any(item.observed_at_ms > observed_at_ms for item in source_tuple):
-        raise CandidatePaperRuntimeOperatorError("Liquid20 source state was unavailable at snapshot observation time")
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 source state was unavailable at snapshot observation time"
+        )
     universe_rows: list[UniverseInstrumentDecision] = []
     for item in _require_list(payload.get("universe"), field="Liquid20 universe"):
         row = _require_object(item, field="Liquid20 universe decision")
         symbol = str(row.get("symbol", "")).upper()
         if not SYMBOL_RE.fullmatch(symbol):
             raise CandidatePaperRuntimeOperatorError("Liquid20 universe symbol is invalid")
-        reasons = tuple(sorted({str(value) for value in _require_list(row.get("reason_codes"), field="universe reason codes") if str(value).strip()}))
+        reasons = tuple(
+            sorted(
+                {
+                    str(value)
+                    for value in _require_list(
+                        row.get("reason_codes"), field="universe reason codes"
+                    )
+                    if str(value).strip()
+                }
+            )
+        )
         universe_rows.append(
             UniverseInstrumentDecision(
                 canonical_instrument_id=str(row.get("canonical_instrument_id", "")),
@@ -313,15 +379,29 @@ def load_liquid20_snapshot(  # noqa: C901
         raise CandidatePaperRuntimeOperatorError("Liquid20 snapshot contains no selected symbols")
     event_symbols = {item.symbol.upper() for item in events}
     history_set = {item.symbol.upper() for item in histories}
-    missing = sorted(symbol for symbol in universe.selected_symbols if symbol not in event_symbols or symbol not in history_set)
+    missing = sorted(
+        symbol
+        for symbol in universe.selected_symbols
+        if symbol not in event_symbols or symbol not in history_set
+    )
     if missing:
-        raise CandidatePaperRuntimeOperatorError(f"Liquid20 universe lacks usable evidence for: {','.join(missing)}")
+        raise CandidatePaperRuntimeOperatorError(
+            f"Liquid20 universe lacks usable evidence for: {','.join(missing)}"
+        )
     return Liquid20Snapshot(claimed_hash, observed_at_ms, events, histories, source_tuple, universe)
 
 
 def _public_url(base_url: str, path: str, parameters: dict[str, object]) -> str:
     parsed = urlparse(base_url)
-    if (parsed.scheme != "https" or parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment or parsed.path not in {"", "/"} or not parsed.hostname):
+    if (
+        parsed.scheme != "https"
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+        or not parsed.hostname
+    ):
         raise CandidatePaperRuntimeOperatorError("public market base URL is not allowed")
     if parsed.hostname.lower() not in {"fapi.binance.com", "testnet.binancefuture.com"}:
         raise CandidatePaperRuntimeOperatorError("public market host is not allowlisted")
@@ -329,14 +409,20 @@ def _public_url(base_url: str, path: str, parameters: dict[str, object]) -> str:
 
 
 def _read_public_json(opener: OpenerDirector, *, url: str, field: str) -> object:
-    request = Request(url, method="GET", headers={"Accept": "application/json", "User-Agent": "wickhunter-paper-runtime-operator/1"})
+    request = Request(
+        url,
+        method="GET",
+        headers={"Accept": "application/json", "User-Agent": "wickhunter-paper-runtime-operator/1"},
+    )
     try:
-        with opener.open(request, timeout=15) as response:  # noqa: S310
+        with opener.open(request, timeout=15) as response:
             if response.geturl() != url:
                 raise CandidatePaperRuntimeOperatorError(f"{field} redirected unexpectedly")
             content_type = str(response.headers.get("Content-Type", "")).lower()
             if "application/json" not in content_type:
-                raise CandidatePaperRuntimeOperatorError(f"{field} returned a non-JSON content type")
+                raise CandidatePaperRuntimeOperatorError(
+                    f"{field} returned a non-JSON content type"
+                )
             content_length = response.headers.get("Content-Length")
             if content_length is not None and int(content_length) > MAX_HTTP_BYTES:
                 raise CandidatePaperRuntimeOperatorError(f"{field} response is too large")
@@ -353,18 +439,52 @@ def _read_public_json(opener: OpenerDirector, *, url: str, field: str) -> object
         raise CandidatePaperRuntimeOperatorError(f"{field} returned malformed JSON") from exc
 
 
-def fetch_public_market_snapshot(  # noqa: C901
-    *, symbol: str, observed_at_ms: int, base_url: str = DEFAULT_PUBLIC_MARKET_BASE_URL, opener: OpenerDirector | None = None
+def fetch_public_market_snapshot(
+    *,
+    symbol: str,
+    observed_at_ms: int,
+    base_url: str = DEFAULT_PUBLIC_MARKET_BASE_URL,
+    opener: OpenerDirector | None = None,
 ) -> PublicMarketSnapshot:
     normalized = symbol.upper()
     if not SYMBOL_RE.fullmatch(normalized):
         raise CandidatePaperRuntimeOperatorError("public market symbol is invalid")
     assert_closed_authority_environment()
     client = opener or build_opener(ProxyHandler({}), _NoRedirectHandler())
-    premium = _require_object(_read_public_json(client, url=_public_url(base_url, "/fapi/v1/premiumIndex", {"symbol": normalized}), field="public premium index"), field="public premium index")
-    ticker = _require_object(_read_public_json(client, url=_public_url(base_url, "/fapi/v1/ticker/24hr", {"symbol": normalized}), field="public 24h ticker"), field="public 24h ticker")
-    open_interest = _require_object(_read_public_json(client, url=_public_url(base_url, "/fapi/v1/openInterest", {"symbol": normalized}), field="public open interest"), field="public open interest")
-    klines = _require_list(_read_public_json(client, url=_public_url(base_url, "/fapi/v1/klines", {"symbol": normalized, "interval": "1m", "limit": 2}), field="public klines"), field="public klines")
+    premium = _require_object(
+        _read_public_json(
+            client,
+            url=_public_url(base_url, "/fapi/v1/premiumIndex", {"symbol": normalized}),
+            field="public premium index",
+        ),
+        field="public premium index",
+    )
+    ticker = _require_object(
+        _read_public_json(
+            client,
+            url=_public_url(base_url, "/fapi/v1/ticker/24hr", {"symbol": normalized}),
+            field="public 24h ticker",
+        ),
+        field="public 24h ticker",
+    )
+    open_interest = _require_object(
+        _read_public_json(
+            client,
+            url=_public_url(base_url, "/fapi/v1/openInterest", {"symbol": normalized}),
+            field="public open interest",
+        ),
+        field="public open interest",
+    )
+    klines = _require_list(
+        _read_public_json(
+            client,
+            url=_public_url(
+                base_url, "/fapi/v1/klines", {"symbol": normalized, "interval": "1m", "limit": 2}
+            ),
+            field="public klines",
+        ),
+        field="public klines",
+    )
     if len(klines) != 2:
         raise CandidatePaperRuntimeOperatorError("public klines must contain exactly two rows")
     candle = _require_list(klines[0], field="completed public kline")
@@ -376,27 +496,47 @@ def fetch_public_market_snapshot(  # noqa: C901
     candle_close = _decimal(candle[4], field="candle close", positive=True)
     completed_close_ms = _integer(candle[6], field="completed candle close")
     if completed_close_ms > observed_at_ms:
-        raise CandidatePaperRuntimeOperatorError("public completed candle was unavailable at decision time")
+        raise CandidatePaperRuntimeOperatorError(
+            "public completed candle was unavailable at decision time"
+        )
     if observed_at_ms - completed_close_ms > DEFAULT_MAX_SOURCE_AGE_MS:
         raise CandidatePaperRuntimeOperatorError("public completed candle is stale")
-    if not candle_low <= min(candle_open, candle_close) <= max(candle_open, candle_close) <= candle_high:
+    if (
+        not candle_low
+        <= min(candle_open, candle_close)
+        <= max(candle_open, candle_close)
+        <= candle_high
+    ):
         raise CandidatePaperRuntimeOperatorError("public completed candle is inconsistent")
     candle_range = candle_high - candle_low
     volatility_ratio = candle_range / candle_close
-    wick_total = (candle_high - max(candle_open, candle_close)) + (min(candle_open, candle_close) - candle_low)
+    wick_total = (candle_high - max(candle_open, candle_close)) + (
+        min(candle_open, candle_close) - candle_low
+    )
     wick_ratio = Decimal("0") if candle_range == 0 else wick_total / candle_range
     decision_price = _decimal(premium.get("markPrice"), field="public mark price", positive=True)
-    quote_volume = _decimal(ticker.get("quoteVolume"), field="public quote volume", non_negative=True)
+    quote_volume = _decimal(
+        ticker.get("quoteVolume"), field="public quote volume", non_negative=True
+    )
     bid = _decimal(ticker.get("bidPrice"), field="public bid", positive=True)
     ask = _decimal(ticker.get("askPrice"), field="public ask", positive=True)
     if ask < bid:
         raise CandidatePaperRuntimeOperatorError("public bid/ask spread is inverted")
     spread_bps = ((ask - bid) / decision_price) * Decimal("10000")
-    open_interest_quantity = _decimal(open_interest.get("openInterest"), field="public open interest", non_negative=True)
+    open_interest_quantity = _decimal(
+        open_interest.get("openInterest"), field="public open interest", non_negative=True
+    )
     funding_rate = _decimal(premium.get("lastFundingRate"), field="public funding rate")
     return PublicMarketSnapshot(
-        normalized, observed_at_ms, decision_price, completed_close_ms, quote_volume,
-        spread_bps, volatility_ratio, wick_ratio, open_interest_quantity * decision_price,
+        normalized,
+        observed_at_ms,
+        decision_price,
+        completed_close_ms,
+        quote_volume,
+        spread_bps,
+        volatility_ratio,
+        wick_ratio,
+        open_interest_quantity * decision_price,
         funding_rate,
     )
 
@@ -443,7 +583,9 @@ def _atomic_health(path: Path, payload: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.parent.is_symlink() or path.is_symlink():
         raise CandidatePaperRuntimeOperatorError("health path cannot be a symlink")
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+    )
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
@@ -469,7 +611,9 @@ class CandidatePaperRuntimeOperator:
 
     def __post_init__(self) -> None:
         if not GIT_SHA_RE.fullmatch(self.operator_commit):
-            raise CandidatePaperRuntimeOperatorError("operator commit must be an exact lowercase Git SHA")
+            raise CandidatePaperRuntimeOperatorError(
+                "operator commit must be an exact lowercase Git SHA"
+            )
         _assert_regular_absolute(self.liquid20_snapshot_path, field="Liquid20 snapshot")
         if not self.health_path.is_absolute():
             raise CandidatePaperRuntimeOperatorError("health path must be absolute")
@@ -479,12 +623,18 @@ class CandidatePaperRuntimeOperator:
             raise CandidatePaperRuntimeOperatorError("maximum source age must be positive")
         assert_closed_authority_environment()
 
-    def _compose_tick(  # noqa: C901
-        self, *, liquid20: Liquid20Snapshot, markets: tuple[PublicMarketSnapshot, ...], observed_at_ms: int
+    def _compose_tick(
+        self,
+        *,
+        liquid20: Liquid20Snapshot,
+        markets: tuple[PublicMarketSnapshot, ...],
+        observed_at_ms: int,
     ) -> ShadowRuntimeTick:
         market_by_symbol = {item.symbol: item for item in markets}
         if set(market_by_symbol) != set(liquid20.universe.selected_symbols):
-            raise CandidatePaperRuntimeOperatorError("public market symbols do not match the selected Liquid20 universe")
+            raise CandidatePaperRuntimeOperatorError(
+                "public market symbols do not match the selected Liquid20 universe"
+            )
         latest_state = self.service.runtime.state
         requests: list[ShadowDecisionRequest] = []
         for symbol in liquid20.universe.selected_symbols:
@@ -545,7 +695,15 @@ class CandidatePaperRuntimeOperator:
             retraining_state="disabled",
         )
 
-    def _health_payload(self, *, status: str, checked_at_ms: int, liquid20_snapshot_id: str | None, error_code: str | None, error_message: str | None) -> dict[str, object]:
+    def _health_payload(
+        self,
+        *,
+        status: str,
+        checked_at_ms: int,
+        liquid20_snapshot_id: str | None,
+        error_code: str | None,
+        error_message: str | None,
+    ) -> dict[str, object]:
         state = self.service.runtime.state
         request = self.service.binding.request
         payload: dict[str, object] = {
@@ -572,20 +730,47 @@ class CandidatePaperRuntimeOperator:
         now_ms = time.time_ns() // 1_000_000 if observed_at_ms is None else observed_at_ms
         request = self.service.binding.request
         if not request.window_start_ms <= now_ms < request.window_end_ms:
-            raise CandidatePaperRuntimeOperatorError("current time is outside the immutable activation window")
-        liquid20 = load_liquid20_snapshot(self.liquid20_snapshot_path, now_ms=now_ms, maximum_age_ms=self.maximum_source_age_ms)
+            raise CandidatePaperRuntimeOperatorError(
+                "current time is outside the immutable activation window"
+            )
+        liquid20 = load_liquid20_snapshot(
+            self.liquid20_snapshot_path, now_ms=now_ms, maximum_age_ms=self.maximum_source_age_ms
+        )
         markets = tuple(
-            fetch_public_market_snapshot(symbol=symbol, observed_at_ms=now_ms, base_url=self.public_market_base_url, opener=self.opener)
+            fetch_public_market_snapshot(
+                symbol=symbol,
+                observed_at_ms=now_ms,
+                base_url=self.public_market_base_url,
+                opener=self.opener,
+            )
             for symbol in liquid20.universe.selected_symbols
         )
         tick = self._compose_tick(liquid20=liquid20, markets=markets, observed_at_ms=now_ms)
         result = self.service.step(tick)
         self.last_success_at_ms = now_ms
-        _atomic_health(self.health_path, self._health_payload(status="healthy", checked_at_ms=now_ms, liquid20_snapshot_id=liquid20.snapshot_id, error_code=None, error_message=None))
+        _atomic_health(
+            self.health_path,
+            self._health_payload(
+                status="healthy",
+                checked_at_ms=now_ms,
+                liquid20_snapshot_id=liquid20.snapshot_id,
+                error_code=None,
+                error_message=None,
+            ),
+        )
         return result.state.generation
 
     def publish_failure(self, error: BaseException, *, checked_at_ms: int) -> None:
-        _atomic_health(self.health_path, self._health_payload(status="fail_closed", checked_at_ms=checked_at_ms, liquid20_snapshot_id=None, error_code=type(error).__name__, error_message=str(error)))
+        _atomic_health(
+            self.health_path,
+            self._health_payload(
+                status="fail_closed",
+                checked_at_ms=checked_at_ms,
+                liquid20_snapshot_id=None,
+                error_code=type(error).__name__,
+                error_message=str(error),
+            ),
+        )
 
     def run_forever(self, *, poll_seconds: int) -> None:
         if not 60 <= poll_seconds <= 900:
@@ -594,13 +779,20 @@ class CandidatePaperRuntimeOperator:
             checked_at_ms = time.time_ns() // 1_000_000
             try:
                 self.run_once(observed_at_ms=checked_at_ms)
-            except (CandidatePaperRuntimeOperatorError, CandidatePaperRuntimeServiceError, OSError, ValueError) as exc:
+            except (
+                CandidatePaperRuntimeOperatorError,
+                CandidatePaperRuntimeServiceError,
+                OSError,
+                ValueError,
+            ) as exc:
                 self.publish_failure(exc, checked_at_ms=checked_at_ms)
             time.sleep(poll_seconds)
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Persistent fail-closed WickHunter candidate PAPER operator")
+    parser = argparse.ArgumentParser(
+        description="Persistent fail-closed WickHunter candidate PAPER operator"
+    )
     parser.add_argument("--candidate-root", type=Path, required=True)
     parser.add_argument("--activation-root", type=Path, required=True)
     parser.add_argument("--journal-root", type=Path, required=True)
@@ -624,11 +816,17 @@ def main() -> int:
         (args.liquid20_snapshot, "Liquid20 snapshot"),
         (args.health_root, "health root"),
     ):
-        _assert_regular_absolute(path, field=field, must_exist=field not in {"journal root", "health root"})
+        _assert_regular_absolute(
+            path, field=field, must_exist=field not in {"journal root", "health root"}
+        )
     args.journal_root.mkdir(parents=True, exist_ok=True)
     args.health_root.mkdir(parents=True, exist_ok=True)
-    binding = build_candidate_paper_runtime_binding(candidate_root=args.candidate_root, activation_root=args.activation_root)
-    service = CandidatePaperRuntimeService(binding=binding, runtime_policy=_runtime_policy(), journal_root=args.journal_root)
+    binding = build_candidate_paper_runtime_binding(
+        candidate_root=args.candidate_root, activation_root=args.activation_root
+    )
+    service = CandidatePaperRuntimeService(
+        binding=binding, runtime_policy=_runtime_policy(), journal_root=args.journal_root
+    )
     operator = CandidatePaperRuntimeOperator(
         service=service,
         liquid20_snapshot_path=args.liquid20_snapshot,

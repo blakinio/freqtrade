@@ -12,7 +12,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 RUN test -n "$OPERATOR_COMMIT" \
-    && python - <<'PY'
+    && OPERATOR_COMMIT="$OPERATOR_COMMIT" python - <<'PY'
 import os
 import re
 

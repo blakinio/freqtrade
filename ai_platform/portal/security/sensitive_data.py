@@ -84,6 +84,7 @@ _SINGLE_TOKEN_KINDS = {
 }
 
 _COMPACT_KINDS = {
+    "accesstoken": SensitiveFieldKind.TOKEN,
     "apikey": SensitiveFieldKind.API_KEY,
     "apisecret": SensitiveFieldKind.API_SECRET,
     "clientsecret": SensitiveFieldKind.CLIENT_SECRET,
@@ -91,9 +92,24 @@ _COMPACT_KINDS = {
     "refreshtoken": SensitiveFieldKind.REFRESH_TOKEN,
     "secretreference": SensitiveFieldKind.SECRET_REFERENCE,
     "secretref": SensitiveFieldKind.SECRET_REFERENCE,
+    "sessiontoken": SensitiveFieldKind.TOKEN,
+    "setcookie": SensitiveFieldKind.COOKIE,
     "vaultreference": SensitiveFieldKind.VAULT_REFERENCE,
     "vaultref": SensitiveFieldKind.VAULT_REFERENCE,
+    "websockettoken": SensitiveFieldKind.TOKEN,
+    "wstoken": SensitiveFieldKind.TOKEN,
 }
+
+_COMPACT_SUFFIX_KINDS = (
+    ("authorization", SensitiveFieldKind.AUTHORIZATION),
+    ("passphrase", SensitiveFieldKind.PASSPHRASE),
+    ("password", SensitiveFieldKind.PASSWORD),
+    ("credentials", SensitiveFieldKind.CREDENTIAL),
+    ("credential", SensitiveFieldKind.CREDENTIAL),
+    ("secret", SensitiveFieldKind.SECRET),
+    ("token", SensitiveFieldKind.TOKEN),
+    ("cookie", SensitiveFieldKind.COOKIE),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,7 +124,10 @@ class SensitiveDataError(ValueError):
 
 class SensitiveFieldError(SensitiveDataError):
     def __init__(self, *, path: str, match: SensitiveFieldMatch) -> None:
-        super().__init__(f"sensitive {match.kind.value} field is forbidden at {path}")
+        super().__init__(
+            "sensitive payload field is forbidden at "
+            f"{path} (classification={match.kind.value})"
+        )
         self.path = path
         self.match = match
 
@@ -150,6 +169,9 @@ def classify_sensitive_key(key: str) -> SensitiveFieldMatch | None:
         kind = _SINGLE_TOKEN_KINDS.get(token) or _COMPACT_KINDS.get(token)
         if kind is not None:
             return SensitiveFieldMatch(kind=kind, normalized_key=normalized)
+        for suffix, suffix_kind in _COMPACT_SUFFIX_KINDS:
+            if len(token) > len(suffix) and token.endswith(suffix):
+                return SensitiveFieldMatch(kind=suffix_kind, normalized_key=normalized)
 
     compact_kind = _COMPACT_KINDS.get("".join(tokens))
     if compact_kind is not None:
@@ -293,7 +315,7 @@ def _reject(
             active.remove(identity)
         return
 
-    if isinstance(value, (set, frozenset, bytearray)):
+    if isinstance(value, (set, frozenset, bytes, bytearray)):
         raise UnsupportedSensitiveDataTypeError(path=path, value=value)
 
 
@@ -360,6 +382,6 @@ def _redact(
         finally:
             active.remove(identity)
 
-    if isinstance(value, (set, frozenset, bytearray)):
+    if isinstance(value, (set, frozenset, bytes, bytearray)):
         raise UnsupportedSensitiveDataTypeError(path=path, value=value)
     return value

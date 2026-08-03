@@ -121,6 +121,20 @@ jobs:
               operator_text = operator.read_text(encoding='utf-8')
 
           lines = operator_text.splitlines()
+
+          def replace_unique_region(
+              start_marker: str,
+              end_marker: str,
+              replacement: list[str],
+          ) -> None:
+              starts = [index for index, line in enumerate(lines) if line == start_marker]
+              ends = [index for index, line in enumerate(lines) if line == end_marker]
+              if len(starts) != 1 or len(ends) != 1 or starts[0] >= ends[0]:
+                  raise SystemExit(
+                      f'operator repair boundary mismatch: {start_marker!r} -> {end_marker!r}'
+                  )
+              lines[starts[0] : ends[0]] = replacement
+
           offsets = [
               index
               for index, line in enumerate(lines)
@@ -151,8 +165,71 @@ jobs:
                   '                payload = json.loads(raw.decode("utf-8"))',
                   '                rows.append(_require_object(payload, field=field))',
               ]
-              operator_text = '\n'.join(lines) + '\n'
 
+          replace_unique_region(
+              '    source_states: list[LiquidationSourceState] = []',
+              '    ordered_events = tuple(',
+              [
+                  '    source_states: list[LiquidationSourceState] = []',
+                  '    events: list[LiquidationEvent] = []',
+                  '    history_start_ms = observed_at_ms - LIVE_HISTORY_WINDOW_MS',
+                  '    for source in sorted(source_payloads):',
+                  '        if not re.fullmatch(r"[a-z0-9-]{2,40}", source):',
+                  '            raise CandidatePaperRuntimeOperatorError(',
+                  '                "Liquid20 live source identity is invalid"',
+                  '            )',
+                  '        source_row = _require_object(',
+                  '            source_payloads[source], field=f"Liquid20 source state {source}"',
+                  '        )',
+                  '        source_states.append(',
+                  '            _live_source_state(',
+                  '                source,',
+                  '                source_row,',
+                  '                observed_at_ms=observed_at_ms,',
+                  '                maximum_age_ms=maximum_age_ms,',
+                  '            )',
+                  '        )',
+                  '        event_rows = _read_bounded_jsonl_tail(',
+                  '            run_root / f"{source}.ndjson",',
+                  '            field=f"Liquid20 source events {source}",',
+                  '        )',
+                  '        for row in event_rows:',
+                  '            try:',
+                  '                event = event_from_json_dict(row)',
+                  '            except ValueError as exc:',
+                  '                raise CandidatePaperRuntimeOperatorError(',
+                  '                    f"Liquid20 source event is invalid: {source}"',
+                  '                ) from exc',
+                  '            if event.source != source:',
+                  '                raise CandidatePaperRuntimeOperatorError(',
+                  '                    "Liquid20 event source does not match its immutable source file"',
+                  '                )',
+                  '            if event.received_at_ms > observed_at_ms:',
+                  '                raise CandidatePaperRuntimeOperatorError(',
+                  '                    "Liquid20 event was unavailable at live observation time"',
+                  '                )',
+                  '            if event.received_at_ms >= history_start_ms:',
+                  '                events.append(event)',
+                  '',
+              ],
+          )
+
+          replace_unique_region(
+              '    by_symbol: dict[str, list[LiquidationEvent]] = {}',
+              '    ranked_symbols = sorted(',
+              [
+                  '    by_symbol: dict[str, list[LiquidationEvent]] = {}',
+                  '    for event in ordered_events:',
+                  '        symbol = event.symbol.upper()',
+                  '        if not SYMBOL_RE.fullmatch(symbol):',
+                  '            raise CandidatePaperRuntimeOperatorError(',
+                  '                "Liquid20 live event symbol is invalid"',
+                  '            )',
+                  '        by_symbol.setdefault(symbol, []).append(event)',
+              ],
+          )
+
+          operator_text = '\n'.join(lines) + '\n'
           payload.write_text(operator_text, encoding='utf-8')
           print(f'persisted_operator_sha256={hashlib.sha256(operator_text.encode()).hexdigest()}')
           try:

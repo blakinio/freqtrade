@@ -177,9 +177,7 @@ def test_operational_portal_probe_proves_live_boundary_and_all_sources() -> None
         "binance-usdm",
         "okx-swap",
     }
-    assert all(
-        source["healthy"] for source in result["observation"]["sources"].values()
-    )
+    assert all(source["healthy"] for source in result["observation"]["sources"].values())
 
 
 def test_operational_portal_probe_failure_preserves_specific_diagnosis() -> None:
@@ -208,6 +206,7 @@ def test_operational_probe_is_bounded_and_does_not_launch_candidate() -> None:
     assert "set -Eeuo pipefail" in script
     assert "AbortSignal.timeout" in script
     assert "command -v timeout" in script
+    assert "docker_bounded" in script
     assert 'test "$portal_restart" = "always"' in script
     assert 'test "$portal_uid" != "0"' in script
     assert 'test -z "$docker_socket_mount"' in script

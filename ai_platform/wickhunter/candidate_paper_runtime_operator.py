@@ -174,7 +174,7 @@ def _require_list(value: object, *, field: str) -> list[Any]:
 
 
 def _integer(value: object, *, field: str) -> int:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise CandidatePaperRuntimeOperatorError(f"{field} must be an integer")
     try:
         parsed = int(value)

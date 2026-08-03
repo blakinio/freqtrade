@@ -125,8 +125,7 @@ class SensitiveDataError(ValueError):
 class SensitiveFieldError(SensitiveDataError):
     def __init__(self, *, path: str, match: SensitiveFieldMatch) -> None:
         super().__init__(
-            "sensitive payload field is forbidden at "
-            f"{path} (classification={match.kind.value})"
+            f"sensitive payload field is forbidden at {path} (classification={match.kind.value})"
         )
         self.path = path
         self.match = match
@@ -233,8 +232,7 @@ def _key_tokens(key: str) -> tuple[str, ...]:
 def _contains_subsequence(tokens: tuple[str, ...], candidate: tuple[str, ...]) -> bool:
     width = len(candidate)
     return any(
-        tokens[index : index + width] == candidate
-        for index in range(len(tokens) - width + 1)
+        tokens[index : index + width] == candidate for index in range(len(tokens) - width + 1)
     )
 
 

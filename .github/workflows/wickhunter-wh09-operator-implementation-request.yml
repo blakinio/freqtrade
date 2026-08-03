@@ -64,10 +64,7 @@ jobs:
           [[ "$(stat -c %s "$payload")" -le 1048576 ]]
           printf 'helper_commit=%s\nrepair_payload_sha256=' "$HEAD_SHA"
           sha256sum "$payload" | cut -d' ' -f1
-          git status --porcelain --untracked-files=no | grep -q '^$' || {
-            git status --short
-            exit 1
-          }
+          [[ -z "$(git status --porcelain --untracked-files=no)" ]]
 
       - name: Check out exact product branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

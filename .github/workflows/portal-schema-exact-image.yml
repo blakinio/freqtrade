@@ -1,0 +1,154 @@
+name: Portal Schema Exact Image
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/**"
+      - "deploy/synology/portal-oidc/**"
+      - ".github/workflows/portal-schema-exact-image.yml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "ai_platform/portal/**"
+      - "deploy/synology/portal-oidc/**"
+      - ".github/workflows/portal-schema-exact-image.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "portal-schema-exact-image-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  exact-image:
+    name: Exact image migration, readiness and boot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+        env:
+          POSTGRES_DB: portal_exact_image
+          POSTGRES_USER: portal_exact_image
+          POSTGRES_PASSWORD: ci-only-synthetic-exact-image-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portal_exact_image -d portal_exact_image"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build exact control-plane image
+        run: |
+          set -euo pipefail
+          docker build \
+            --pull=false \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --file deploy/synology/portal-oidc/Dockerfile.control-plane \
+            --tag "portal-control-plane:${GITHUB_SHA}" \
+            .
+
+      - name: Migrate and verify with exact image
+        env:
+          PORTAL_DATABASE_URL: postgresql+psycopg://portal_exact_image:ci-only-synthetic-exact-image-password@127.0.0.1:5432/portal_exact_image
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          docker run --rm --network host \
+            --env PORTAL_DATABASE_URL \
+            "portal-control-plane:${GITHUB_SHA}" \
+            python -m ai_platform.portal.database.cli migrate \
+            > artifacts/exact-image-migrate.json
+          docker run --rm --network host \
+            --env PORTAL_DATABASE_URL \
+            "portal-control-plane:${GITHUB_SHA}" \
+            python -m ai_platform.portal.database.cli check \
+            > artifacts/exact-image-check.json
+
+      - name: Boot API only after exact-image readiness
+        env:
+          PORTAL_DATABASE_URL: postgresql+psycopg://portal_exact_image:ci-only-synthetic-exact-image-password@127.0.0.1:5432/portal_exact_image
+          PORTAL_ENVIRONMENT: production
+          PORTAL_IDENTITY_CLIENT_ID: synthetic-client
+          PORTAL_IDENTITY_CLIENT_SECRET: synthetic-client-secret
+          PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64: MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA
+          PORTAL_IDENTITY_ISSUER: https://issuer.example/application/o/portal/
+          PORTAL_IDENTITY_REDIRECT_URI: https://portal.example/api/identity/callback
+          PORTAL_IDENTITY_SESSION_HMAC_KEY_B64: MTExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTE
+          PORTAL_IDENTITY_TRANSPORT_MODE: secure_https
+        run: |
+          set -euo pipefail
+          name="portal-schema-exact-image-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          cleanup() {
+            docker rm -f "$name" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker run --detach --name "$name" --network host \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --env PORTAL_DATABASE_URL \
+            --env PORTAL_ENVIRONMENT \
+            --env PORTAL_IDENTITY_CLIENT_ID \
+            --env PORTAL_IDENTITY_CLIENT_SECRET \
+            --env PORTAL_IDENTITY_FLOW_ENCRYPTION_KEY_B64 \
+            --env PORTAL_IDENTITY_ISSUER \
+            --env PORTAL_IDENTITY_REDIRECT_URI \
+            --env PORTAL_IDENTITY_SESSION_HMAC_KEY_B64 \
+            --env PORTAL_IDENTITY_TRANSPORT_MODE \
+            "portal-control-plane:${GITHUB_SHA}"
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:8000/healthz \
+              > artifacts/exact-image-health.json; then
+              break
+            fi
+            if ! docker inspect --format '{{.State.Running}}' "$name" | grep -qx true; then
+              docker logs "$name"
+              exit 1
+            fi
+            sleep 2
+          done
+          test -s artifacts/exact-image-health.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          migrate = json.loads(
+              Path("artifacts/exact-image-migrate.json").read_text(encoding="utf-8")
+          )
+          check = json.loads(
+              Path("artifacts/exact-image-check.json").read_text(encoding="utf-8")
+          )
+          health = json.loads(
+              Path("artifacts/exact-image-health.json").read_text(encoding="utf-8")
+          )
+          assert migrate["status"] == "ready"
+          assert check["status"] == "ready"
+          assert migrate["expected_revision"] == check["expected_revision"]
+          assert health["status"] == "ok"
+          assert health["database_dialect"] == "postgresql"
+          assert health["live_capital_authorized"] is False
+          PY
+
+      - name: Upload secret-free exact-image evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-schema-exact-image-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/exact-image-migrate.json
+            artifacts/exact-image-check.json
+            artifacts/exact-image-health.json
+          if-no-files-found: error
+          retention-days: 14

@@ -5,7 +5,9 @@ from datetime import datetime
 from sqlalchemy import DateTime, ForeignKeyConstraint, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from ai_platform.portal.control_plane import models as control_plane_models  # noqa: F401
 from ai_platform.portal.control_plane.database import Base
+from ai_platform.portal.risk import models as risk_models  # noqa: F401
 
 
 class DecisionSnapshotRow(Base):

@@ -56,6 +56,11 @@ jobs:
           PORTAL_IDENTITY_FIXTURE_MODE: enabled
         run: npm run build
 
+      - name: Production session authorization integration
+        run: |
+          npm run test:market-evidence-auth
+          npm run test:liquid20-auth
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 

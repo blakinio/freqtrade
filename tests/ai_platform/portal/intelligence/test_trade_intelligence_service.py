@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from ai_platform.portal.contracts.identity import ActorType
+from ai_platform.portal.contracts.identity import ActorType, Permission
 from ai_platform.portal.contracts.risk import TradeSide
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import (
@@ -42,7 +42,7 @@ def _context(tenant_id: str = "tenant-a") -> RequestContext:
         tenant_id=tenant_id,
         actor_id=f"service-{tenant_id}",
         actor_type=ActorType.SERVICE,
-        permissions=(),
+        permissions=(Permission.MODEL_READ, Permission.MODEL_TRAIN),
         request_id=uuid4(),
         correlation_id=uuid4(),
     )

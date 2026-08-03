@@ -4,6 +4,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from ai_platform.portal.contracts.identity import Permission
 from ai_platform.portal.control_plane.context import RequestContext
 from ai_platform.portal.control_plane.database import SessionFactory
 from ai_platform.portal.intelligence.schema import TradeInsight
@@ -17,7 +18,7 @@ from ai_platform.portal.learning.schema import (
     LearningHistoryEntry,
     LearningHypothesis,
 )
-from ai_platform.portal.security.authorization import PermissionDeniedError
+from ai_platform.portal.security.authorization import PermissionDeniedError, require_permission
 
 
 FINAL_HOLDOUT_START = datetime(2026, 8, 1, tzinfo=UTC)
@@ -52,6 +53,7 @@ class LearningService:
         insight: TradeInsight,
         statement: str,
     ) -> LearningHypothesis:
+        require_permission(context.permissions, Permission.MODEL_TRAIN)
         self._require_tenant(context, insight.tenant_id)
         hypothesis = LearningHypothesis(
             hypothesis_id=uuid4(),
@@ -76,6 +78,7 @@ class LearningService:
         outcome: ExperimentOutcome,
         result_summary: str,
     ) -> LearningExperiment:
+        require_permission(context.permissions, Permission.MODEL_TRAIN)
         self._validate_evidence_window(evidence_window)
         with self._session_factory() as session, session.begin():
             hypothesis = self._repository.get_hypothesis(
@@ -110,6 +113,7 @@ class LearningService:
         feature_schema_version_id: str,
         autonomy_level: AutonomyLevel = AutonomyLevel.L4_BOUNDED_CANDIDATE,
     ) -> LearningCandidate:
+        require_permission(context.permissions, Permission.MODEL_TRAIN)
         if autonomy_level is not AutonomyLevel.L4_BOUNDED_CANDIDATE:
             raise LearningWorkflowConflictError(
                 "candidate registration requires bounded L4 autonomy authority"
@@ -144,6 +148,7 @@ class LearningService:
         return candidate
 
     def history(self, context: RequestContext, hypothesis_id: str) -> LearningHistoryEntry:
+        require_permission(context.permissions, Permission.MODEL_READ)
         with self._session_factory() as session:
             hypothesis = self._repository.get_hypothesis(
                 session,
@@ -173,6 +178,7 @@ class LearningService:
         )
 
     def history_all(self, context: RequestContext) -> tuple[LearningHistoryEntry, ...]:
+        require_permission(context.permissions, Permission.MODEL_READ)
         with self._session_factory() as session:
             hypotheses = self._repository.list_hypotheses(session, context.tenant_id)
             entries: list[LearningHistoryEntry] = []

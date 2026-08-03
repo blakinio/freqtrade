@@ -36,7 +36,15 @@ def test_policy_cannot_enable_public_origin_or_live_execution() -> None:
 
 def test_policy_rejects_secret_values_instead_of_env_references() -> None:
     payload = load_policy(POLICY).model_dump(mode="json")
-    payload["access_client_secret_env"] = "actual-secret-value"
+    payload["access_client_secret_env_name"] = "actual-secret-value"
+
+    with pytest.raises(ValidationError):
+        StagingIngressPolicy.model_validate(payload)
+
+
+def test_policy_rejects_ambiguous_secret_value_field_name() -> None:
+    payload = load_policy(POLICY).model_dump(mode="json")
+    payload["access_client_secret_env"] = payload.pop("access_client_secret_env_name")
 
     with pytest.raises(ValidationError):
         StagingIngressPolicy.model_validate(payload)

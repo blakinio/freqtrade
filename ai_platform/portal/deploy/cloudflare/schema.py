@@ -46,7 +46,7 @@ class StagingIngressPolicy(BaseModel):
     origin_probe_url_env: str
     freqtrade_probe_url_env: str
     access_client_id_env: str
-    access_client_secret_env: str
+    access_client_secret_env_name: str
 
     @field_validator(
         "public_base_url_env",
@@ -54,7 +54,7 @@ class StagingIngressPolicy(BaseModel):
         "origin_probe_url_env",
         "freqtrade_probe_url_env",
         "access_client_id_env",
-        "access_client_secret_env",
+        "access_client_secret_env_name",
     )
     @classmethod
     def validate_env_reference(cls, value: str) -> str:

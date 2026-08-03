@@ -1,34 +1,32 @@
 from __future__ import annotations
 
-import re
-from collections.abc import Mapping, Sequence
 from typing import Any
 
+from ai_platform.portal.security.sensitive_data import (
+    DEFAULT_MAX_DEPTH,
+    DEFAULT_MAX_ITEMS,
+    DEFAULT_MAX_SERIALIZED_LAYERS,
+    DEFAULT_MAX_STRING_BYTES,
+    reject_sensitive_data,
+)
 
-def _normalize_key(key: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", key.lower()).strip("_")
 
+def reject_sensitive_payload_keys(
+    value: Any,
+    *,
+    path: str = "payload",
+    max_depth: int = DEFAULT_MAX_DEPTH,
+    max_items: int = DEFAULT_MAX_ITEMS,
+    max_string_bytes: int = DEFAULT_MAX_STRING_BYTES,
+    max_serialized_layers: int = DEFAULT_MAX_SERIALIZED_LAYERS,
+) -> Any:
+    """Fail closed before public event/audit payload persistence or publication."""
 
-def reject_sensitive_payload_keys(value: Any, *, path: str = "payload") -> Any:
-    """Fail closed when a public event/audit payload contains a raw sensitive-value field."""
-
-    if isinstance(value, Mapping):
-        for key, nested in value.items():
-            normalized = _normalize_key(str(key))
-            forbidden = (
-                "secret" in normalized
-                or "password" in normalized
-                or normalized == "passphrase"
-                or normalized == "token"
-                or normalized.endswith("_token")
-                or normalized.endswith("_key")
-            )
-            if forbidden:
-                raise ValueError(f"sensitive payload field is forbidden at {path}.{key}")
-            reject_sensitive_payload_keys(nested, path=f"{path}.{key}")
-        return value
-
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        for index, nested in enumerate(value):
-            reject_sensitive_payload_keys(nested, path=f"{path}[{index}]")
-    return value
+    return reject_sensitive_data(
+        value,
+        path=path,
+        max_depth=max_depth,
+        max_items=max_items,
+        max_string_bytes=max_string_bytes,
+        max_serialized_layers=max_serialized_layers,
+    )

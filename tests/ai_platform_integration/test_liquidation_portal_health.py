@@ -200,7 +200,7 @@ def test_existing_proof_script_preserves_security_and_session_boundaries() -> No
     assert 'docker exec --env "PORTAL_FIXTURE_COOKIE=$fixture_cookie"' in script
 
 
-def test_health_workflow_requires_combined_collector_and_portal_monitoring() -> None:
+def test_health_workflow_uses_bounded_operational_portal_monitoring() -> None:
     repository_root = Path(__file__).resolve().parents[2]
     workflow = (
         repository_root / ".github" / "workflows" / "liquidations-live-operational-health.yml"
@@ -210,8 +210,10 @@ def test_health_workflow_requires_combined_collector_and_portal_monitoring() -> 
     assert "Check Synology collector and portal" in workflow
     assert "python -m ai_platform.scripts.liquidation_operational_health" in workflow
     assert "LIQUID20_PORTAL_PROOF_SCRIPT" in workflow
-    assert "prove-liquidations-live.sh" in workflow
-    assert 'PORTAL_LIVE_PROOF_DELAY_SECONDS: "12"' in workflow
+    assert "probe-liquidations-live-operational.sh" in workflow
+    assert "prove-liquidations-live.sh" not in workflow
+    assert 'PORTAL_OPERATIONAL_PROBE_TIMEOUT_SECONDS: "15"' in workflow
+    assert 'LIQUID20_RECONNECTS_PER_HOUR_MAX: "100"' in workflow
     assert 'LIQUID20_REQUIRE_PORTAL_HEALTH: "true"' in workflow
     assert "liquidations-live-portal-health.json" in workflow
     assert "statuses: write" in workflow

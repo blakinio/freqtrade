@@ -29,6 +29,8 @@ from ai_platform.scripts.liquidation_portal_health import (
 
 REQUIRED_SOURCES = ("bybit-linear", "binance-usdm", "okx-swap")
 DATA_MOUNT_DESTINATION = "/data"
+PORTAL_OPERATIONAL_REPORT_TYPE = "liquidations_live_portal_operational_probe"
+HOUR_MS = 60 * 60 * 1000
 
 _CONTAINER_OBSERVATION_SCRIPT = r"""
 import json
@@ -144,6 +146,10 @@ def _source_runtime_alerts(
     state = _record(_record(pointer).get("state"))
     sources = _record(state.get("sources"))
     collector_started_at_ms = _integer(state.get("collector_started_at_ms"))
+    uptime_hours = None
+    if collector_started_at_ms is not None and now_ms >= collector_started_at_ms:
+        uptime_hours = max(1.0, (now_ms - collector_started_at_ms) / HOUR_MS)
+
     alerts: list[dict[str, str]] = []
     for source in REQUIRED_SOURCES:
         item = _record(sources.get(source))
@@ -201,13 +207,19 @@ def _source_runtime_alerts(
                     f"{source} reconnect count is invalid.",
                 )
             )
-        elif reconnects > reconnect_max:
-            alerts.append(
-                _alert(
-                    "LIQUID20_SOURCE_RECONNECTS_UNCONTROLLED",
-                    f"{source} reconnect count {reconnects} exceeds {reconnect_max}.",
+        elif uptime_hours is not None:
+            reconnect_budget = reconnect_max * uptime_hours
+            if reconnects > reconnect_budget:
+                reconnect_rate = reconnects / uptime_hours
+                alerts.append(
+                    _alert(
+                        "LIQUID20_SOURCE_RECONNECTS_UNCONTROLLED",
+                        (
+                            f"{source} reconnect rate {reconnect_rate:.1f}/h exceeds "
+                            f"{reconnect_max}/h."
+                        ),
+                    )
                 )
-            )
     return alerts
 
 
@@ -253,6 +265,137 @@ def _runtime_portal_alerts(
     return alerts
 
 
+def _operational_portal_source_results(
+    pointer: dict[str, Any] | None,
+) -> tuple[dict[str, Any], bool]:
+    state = _record(_record(pointer).get("state"))
+    raw_sources = _record(state.get("sources"))
+    results: dict[str, Any] = {}
+    healthy = True
+    for source in REQUIRED_SOURCES:
+        item = _record(raw_sources.get(source))
+        source_ok = (
+            item.get("configured") is True
+            and item.get("connected") is True
+            and isinstance(item.get("subscription_symbol_count"), int)
+            and item["subscription_symbol_count"] >= 1
+            and isinstance(item.get("events_written"), int)
+            and item["events_written"] >= 0
+        )
+        results[source] = {
+            "configured": item.get("configured"),
+            "connected": item.get("connected"),
+            "subscription_symbol_count": item.get("subscription_symbol_count"),
+            "events": item.get("events_written"),
+            "healthy": source_ok,
+        }
+        healthy = healthy and source_ok
+    return results, healthy
+
+
+def _evaluate_operational_portal_report(
+    report: dict[str, Any] | None,
+    *,
+    pointer: dict[str, Any] | None,
+    now_ms: int,
+    proof_exit_code: int | None,
+) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    mode = portal_health_module.portal_mode_from_pointer(pointer, now_ms=now_ms)
+    source_results, sources_ok = _operational_portal_source_results(pointer)
+    if not isinstance(report, dict):
+        return (
+            {
+                "enabled": True,
+                "healthy": False,
+                "mode": mode,
+                "result": None,
+                "proof_exit_code": proof_exit_code,
+                "production": {},
+                "observation": {"sources": source_results},
+            },
+            [_alert("PORTAL_LIQUIDATIONS_HEALTH_UNAVAILABLE", "Portal report is unavailable.")],
+        )
+
+    if report.get("result") != "success" or proof_exit_code != 0:
+        reason = str(report.get("rejection_reason") or "Operational portal probe failed.")[:500]
+        return (
+            {
+                "enabled": True,
+                "healthy": False,
+                "mode": mode,
+                "result": report.get("result"),
+                "rejection_reason": reason,
+                "proof_exit_code": proof_exit_code,
+                "commit_sha": report.get("commit_sha"),
+                "production": {},
+                "observation": {"sources": source_results},
+            },
+            [_alert("PORTAL_LIQUIDATIONS_PROBE_FAILED", reason)],
+        )
+
+    production = _record(report.get("production_portal"))
+    boundary = _record(production.get("unauthenticated_boundary"))
+    container_ok = production.get("running") is True
+    security_ok = (
+        isinstance(production.get("uid"), int)
+        and production["uid"] != 0
+        and production.get("restart_policy") == "always"
+        and production.get("real_data_mount_read_only") is True
+        and production.get("docker_socket_mounted") is False
+    )
+    boundary_ok = (
+        boundary.get("page_status") == 200
+        and boundary.get("health_status") == 401
+        and boundary.get("health_code") == "SESSION_MISSING"
+        and "no-store" in str(boundary.get("health_cache_control") or "")
+    )
+
+    alerts: list[dict[str, str]] = []
+    checks = (
+        (container_ok, "PORTAL_PRODUCTION_CONTAINER_UNHEALTHY", "Portal container is not running."),
+        (security_ok, "PORTAL_PRODUCTION_SECURITY_UNHEALTHY", "Portal runtime security failed."),
+        (boundary_ok, "PORTAL_PRODUCTION_BOUNDARY_UNHEALTHY", "Portal boundary failed."),
+        (sources_ok, "PORTAL_LIQUIDATIONS_SOURCE_UNHEALTHY", "Collector sources failed."),
+    )
+    for passed, code, message in checks:
+        if not passed:
+            alerts.append(_alert(code, message))
+
+    mode_alerts = {
+        "stale": ("PORTAL_LIQUIDATIONS_STALE", "Portal input state is STALE."),
+        "offline": ("PORTAL_LIQUIDATIONS_OFFLINE", "Portal input state is OFFLINE."),
+    }
+    if mode in mode_alerts:
+        code, message = mode_alerts[mode]
+        alerts.append(_alert(code, message))
+    elif mode != "live":
+        alerts.append(_alert("PORTAL_LIQUIDATIONS_MODE_INVALID", f"Invalid portal mode: {mode!r}."))
+
+    return (
+        {
+            "enabled": True,
+            "healthy": not alerts,
+            "mode": mode,
+            "result": report.get("result"),
+            "rejection_reason": report.get("rejection_reason"),
+            "proof_exit_code": proof_exit_code,
+            "commit_sha": report.get("commit_sha"),
+            "production": {
+                "page_status": boundary.get("page_status"),
+                "protected_health_status": boundary.get("health_status"),
+                "protected_health_code": boundary.get("health_code"),
+                "protected_health_cache_control": boundary.get("health_cache_control"),
+                "restart_policy": production.get("restart_policy"),
+                "uid": production.get("uid"),
+                "real_data_mount_read_only": production.get("real_data_mount_read_only"),
+                "docker_socket_mounted": production.get("docker_socket_mounted"),
+            },
+            "observation": {"sources": source_results},
+        },
+        alerts,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     proof_exit_code = None
@@ -269,8 +412,6 @@ def main(argv: list[str] | None = None) -> int:
         args.data_root,
     )
 
-    # The operational entrypoint extends the existing health functions for this run only.
-    # Importing this module does not mutate global source requirements for unrelated tests.
     live_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
     portal_health_module.REQUIRED_SOURCES = REQUIRED_SOURCES
 
@@ -289,24 +430,41 @@ def main(argv: list[str] | None = None) -> int:
         "error": observation_error,
         "healthy": observation_error is None,
     }
-    portal_report = normalize_portal_report(
-        read_portal_report(args.portal_report),
-        pointer=pointer,
-        now_ms=now_ms,
-        proof_exit_code=proof_exit_code,
+
+    raw_portal_report = read_portal_report(args.portal_report)
+    operational_probe = (
+        isinstance(raw_portal_report, dict)
+        and raw_portal_report.get("report_type") == PORTAL_OPERATIONAL_REPORT_TYPE
     )
-    portal_result, portal_alerts = evaluate_portal_report(
-        portal_report,
-        required=args.require_portal,
-    )
+    if operational_probe:
+        portal_report = raw_portal_report
+        portal_result, portal_alerts = _evaluate_operational_portal_report(
+            portal_report,
+            pointer=pointer,
+            now_ms=now_ms,
+            proof_exit_code=proof_exit_code,
+        )
+        consistency_alerts: list[dict[str, str]] = []
+    else:
+        portal_report = normalize_portal_report(
+            raw_portal_report,
+            pointer=pointer,
+            now_ms=now_ms,
+            proof_exit_code=proof_exit_code,
+        )
+        portal_result, portal_alerts = evaluate_portal_report(
+            portal_report,
+            required=args.require_portal,
+        )
+        consistency_alerts = (
+            _runtime_portal_alerts(pointer, portal_report) if args.require_portal else []
+        )
+
     operational_alerts = _source_runtime_alerts(
         pointer,
         now_ms=now_ms,
         event_stale_ms=(int(os.environ.get("LIQUID20_EVENT_STALE_SECONDS", "300")) * 1000),
-        reconnect_max=int(os.environ.get("LIQUID20_RECONNECT_COUNT_MAX", "100")),
-    )
-    consistency_alerts = (
-        _runtime_portal_alerts(pointer, portal_report) if args.require_portal else []
+        reconnect_max=int(os.environ.get("LIQUID20_RECONNECTS_PER_HOUR_MAX", "100")),
     )
     report["schema_version"] = 2
     report["checks"]["portal"] = portal_result

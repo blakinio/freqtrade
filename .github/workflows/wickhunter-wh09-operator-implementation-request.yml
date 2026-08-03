@@ -1,4 +1,4 @@
-name: WickHunter WH09 PAPER operator audit repair
+name: WickHunter WH09 live-contract integration repair
 
 "on":
   pull_request:
@@ -12,20 +12,21 @@ permissions:
   contents: write
 
 concurrency:
-  group: wickhunter-wh09-operator-audit-repair-${{ github.event.pull_request.number }}
+  group: wickhunter-wh09-live-contract-repair-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-  TARGET_HEAD_SHA: 6ad2d1db6280182626eb675060b4911cd6b5a159
+  TARGET_HEAD_SHA: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
+  REPAIR_PAYLOAD_SHA256: a6cc09317b2f0b7ef97afd8385bd4fc2ec33c59288837ad1ec1034083e6fa581
 
 jobs:
   validate:
-    name: Repair audited PAPER authorization and decision-time guards
+    name: Bind operator to real Liquid20 and nine market metrics
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
 
     steps:
@@ -67,7 +68,7 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Apply bounded audit repair
+      - name: Apply SHA-256-bound live-contract repair
         shell: bash
         run: |
           set -euo pipefail
@@ -78,84 +79,23 @@ jobs:
           git fetch origin develop
           [[ "$(git merge-base HEAD origin/develop)" == "$(git rev-parse origin/develop)" ]]
           python3 - <<'PY'
+          import base64
+          import hashlib
+          import os
+          import zlib
           from pathlib import Path
 
-          def replace_once(text: str, old: str, new: str, label: str) -> str:
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{label}: expected one match, found {count}")
-              return text.replace(old, new, 1)
-
-          operator_path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
-          operator = operator_path.read_text(encoding="utf-8")
-          operator = replace_once(
-              operator,
-              "    AvailableMetric,\n    DriftState,",
-              "    AvailableMetric,\n    BotMode,\n    DriftState,",
-              "BotMode import",
-          )
-          operator = replace_once(
-              operator,
-              "    if not source_tuple:\n        raise CandidatePaperRuntimeOperatorError(\"Liquid20 source states are empty\")\n    if any(item.observed_at_ms > observed_at_ms for item in source_tuple):",
-              "    if not source_tuple:\n        raise CandidatePaperRuntimeOperatorError(\"Liquid20 source states are empty\")\n    if any(\n        item.last_received_at_ms is not None\n        and (\n            item.last_received_at_ms > observed_at_ms\n            or item.last_received_at_ms > item.observed_at_ms\n        )\n        for item in source_tuple\n    ):\n        raise CandidatePaperRuntimeOperatorError(\n            \"Liquid20 source receipt was unavailable at source observation time\"\n        )\n    if any(item.observed_at_ms > observed_at_ms for item in source_tuple):",
-              "source receipt decision-time guard",
-          )
-          operator = replace_once(
-              operator,
-              "    if parsed.hostname.lower() not in {\"fapi.binance.com\", \"testnet.binancefuture.com\"}:\n",
-              "    if parsed.hostname.lower() != \"fapi.binance.com\":\n",
-              "real market host allowlist",
-          )
-          operator = replace_once(
-              operator,
-              "        _assert_regular_absolute(self.liquid20_snapshot_path, field=\"Liquid20 snapshot\")\n",
-              "        if self.service.binding.request.mode is not BotMode.PAPER:\n            raise CandidatePaperRuntimeOperatorError(\n                \"runtime binding mode must be PAPER\"\n            )\n        _assert_regular_absolute(self.liquid20_snapshot_path, field=\"Liquid20 snapshot\")\n",
-              "PAPER binding guard",
-          )
-          operator = replace_once(
-              operator,
-              "                        candidate_paper_validation_authorized=False,\n",
-              "                        candidate_paper_validation_authorized=True,\n",
-              "candidate PAPER authorization",
-          )
-          operator_path.write_text(operator, encoding="utf-8")
-
-          tests_path = Path(
-              "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py"
-          )
-          tests = tests_path.read_text(encoding="utf-8")
-          tests = replace_once(
-              tests,
-              "def _future_event_payload(payload: dict[str, object]) -> None:\n    events = cast(list[dict[str, object]], payload[\"events\"])\n    events[0][\"received_at_ms\"] = NOW_MS + 1\n    _rehash_payload(payload)\n\n\n",
-              "def _future_event_payload(payload: dict[str, object]) -> None:\n    events = cast(list[dict[str, object]], payload[\"events\"])\n    events[0][\"received_at_ms\"] = NOW_MS + 1\n    _rehash_payload(payload)\n\n\ndef _future_source_state_payload(payload: dict[str, object]) -> None:\n    states = cast(list[dict[str, object]], payload[\"source_states\"])\n    states[0][\"last_received_at_ms\"] = NOW_MS + 1\n    _rehash_payload(payload)\n\n\n",
-              "future source-state fixture",
-          )
-          tests = replace_once(
-              tests,
-              "        (_future_event_payload, \"unavailable\"),\n        (lambda payload: payload.update({\"snapshot_sha256\": \"0\" * 64}), \"self-hash\"),",
-              "        (_future_event_payload, \"unavailable\"),\n        (_future_source_state_payload, \"source receipt\"),\n        (lambda payload: payload.update({\"snapshot_sha256\": \"0\" * 64}), \"self-hash\"),",
-              "future source-state parameter",
-          )
-          tests = replace_once(
-              tests,
-              "    assert request.risk_context.candidate_paper_validation_authorized is False\n",
-              "    assert request.risk_context.candidate_paper_validation_authorized is True\n",
-              "candidate PAPER authorization assertion",
-          )
-          tests = replace_once(
-              tests,
-              "def test_public_market_redirect_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:\n",
-              "def test_non_production_public_market_host_fails_closed(\n    monkeypatch: pytest.MonkeyPatch,\n) -> None:\n    for name in operator_module.FORBIDDEN_ENVIRONMENT_NAMES:\n        monkeypatch.delenv(name, raising=False)\n    with pytest.raises(CandidatePaperRuntimeOperatorError, match=\"allowlisted\"):\n        fetch_public_market_snapshot(\n            symbol=\"BTCUSDT\",\n            observed_at_ms=NOW_MS,\n            base_url=\"https://testnet.binancefuture.com\",\n            opener=cast(Any, _Opener()),\n        )\n\n\ndef test_public_market_redirect_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:\n",
-              "real host regression test",
-          )
-          tests = replace_once(
-              tests,
-              "def test_operator_composes_paper_tick_without_authority(\n",
-              "def test_operator_rejects_non_paper_binding(tmp_path: Path) -> None:\n    service = _service()\n    service.binding.request.mode = BotMode.SHADOW\n    with pytest.raises(CandidatePaperRuntimeOperatorError, match=\"mode must be PAPER\"):\n        CandidatePaperRuntimeOperator(\n            service=cast(Any, service),\n            liquid20_snapshot_path=_write_snapshot(tmp_path / \"liquid20.json\").resolve(),\n            health_path=(tmp_path / \"health\" / \"health.json\").resolve(),\n            operator_commit=CODE_SHA,\n        )\n\n\ndef test_operator_composes_paper_tick_without_authority(\n",
-              "PAPER binding regression test",
-          )
-          tests_path.write_text(tests, encoding="utf-8")
+          path = Path("../.github/wh09-payload/operator.py.zlib.b64")
+          raw = path.read_bytes()
+          actual = hashlib.sha256(raw).hexdigest()
+          expected = os.environ["REPAIR_PAYLOAD_SHA256"]
+          if actual != expected:
+              raise SystemExit(f"repair payload hash mismatch: {actual}")
+          script = zlib.decompress(base64.b64decode(raw.strip())).decode("utf-8")
+          exec(compile(script, str(path), "exec"), {"__name__": "__main__"})
           PY
+          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          [[ "$(git diff --name-only | sort)" == "$expected" ]]
           python3 -m py_compile \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
@@ -179,7 +119,7 @@ jobs:
           uv pip install -e ft_client/
           uv pip install -e .
 
-      - name: Validate focused implementation
+      - name: Validate real contract and canonical metric path
         shell: bash
         run: |
           set -euo pipefail
@@ -192,7 +132,9 @@ jobs:
           ruff format "${paths[@]}"
           ruff check "${paths[@]}"
           ruff format --check "${paths[@]}"
-          mypy ai_platform/wickhunter/candidate_paper_runtime_operator.py
+          mypy \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
           pytest -q \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
@@ -206,15 +148,18 @@ jobs:
           WICKHUNTER_PAPER_RUNTIME_IMAGE=wickhunter-paper-runtime:"$TARGET_HEAD_SHA" \
             docker compose -f deploy/synology/wickhunter-paper-runtime/compose.yaml config --quiet
 
-      - name: Commit, build and publish exact repaired product
+      - name: Commit, build and publish exact integrated product
         shell: bash
         run: |
           set -euo pipefail
           cd target
           git add \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/README.md \
+            deploy/synology/wickhunter-paper-runtime/compose.yaml \
+            docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          git commit -m "fix(wickhunter): authorize bounded PAPER candidate evaluation"
+          git commit -m "fix(wickhunter): consume real Liquid20 live contract"
           expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
           [[ "$(git diff --name-only origin/develop...HEAD | sort)" == "$expected" ]]
           product_sha="$(git rev-parse HEAD)"
@@ -227,11 +172,11 @@ jobs:
           [[ "$image_revision" == "$product_sha" ]]
           git push origin "HEAD:$TARGET_BRANCH"
           {
-            echo "## WickHunter WH09 independent audit repair"
+            echo "## WickHunter WH09 real live-contract repair"
             echo
             echo "- Product head: \`$product_sha\`"
-            echo "- Candidate PAPER evaluation is authorized only for an exact PAPER binding: \`PASS\`"
-            echo "- Source-state decision-time guard and real production host restriction: \`PASS\`"
-            echo "- Compile, Ruff, mypy, focused pytest, Compose and exact-revision image build: \`PASS\`"
-            echo "- Trading credentials/order adapter/execution/orders/live capital: \`absent\`"
+            echo "- Real Liquid20 pointer and per-source NDJSON contract: \`PASS\`"
+            echo "- Canonical nine public market metrics: \`PASS\`"
+            echo "- Compile, Ruff, mypy, focused pytest, Compose and exact image build: \`PASS\`"
+            echo "- Credentials/order adapter/execution/orders/live capital: \`absent\`"
           } >> "$GITHUB_STEP_SUMMARY"

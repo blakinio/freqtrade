@@ -18,16 +18,16 @@ env:
   WORKFLOW_PATH: .github/workflows/wickhunter-wh09-operator-implementation-request.yml
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
   TARGET_BASE_SHA: 0a82a5c93613a213989865bd9128ac7263227148
-  PAYLOAD_SOURCE_SHA: e6b0dcae0ca8382821a7be56deeb558c822264d6
+  TARGET_HEAD_SHA: ae22c826dc46a7a71a6aa7d9f389b0d92078323c
 
 jobs:
   apply-and-verify:
-    name: Apply and validate persistent PAPER operator
+    name: Validate explicit persistent PAPER operator
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Check out exact helper request
@@ -50,12 +50,11 @@ jobs:
           expected=$'A\t.github/workflows/wickhunter-wh09-operator-implementation-request.yml'
           actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
           [[ "$actual" == "$expected" ]] || {
-            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            printf 'Expected helper scope:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
             exit 1
           }
-          git cat-file -e "$PAYLOAD_SOURCE_SHA^{commit}"
 
-      - name: Check out target feature branch
+      - name: Check out exact product branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: true
@@ -63,194 +62,121 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Recover and materialize exact implementation payload
+      - name: Validate and repair explicit product files
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$(git -C target rev-parse HEAD)" == "$TARGET_BASE_SHA" ]]
+          [[ "$(git -C target rev-parse HEAD)" == "$TARGET_HEAD_SHA" ]]
+          [[ "$(git -C target merge-base "$TARGET_BASE_SHA" HEAD)" == "$TARGET_BASE_SHA" ]]
           [[ -z "$(git -C target status --porcelain)" ]]
-          git show "$PAYLOAD_SOURCE_SHA:$WORKFLOW_PATH" > "$RUNNER_TEMP/source-helper.yml"
-          python3 - <<'PY'
-          import base64
-          import binascii
-          import hashlib
-          import io
-          import os
-          import tarfile
-          import zlib
-          from pathlib import Path
-
-          expected = {
-              "ai_platform/wickhunter/candidate_paper_runtime_operator.py",
-              "deploy/synology/wickhunter-paper-runtime/Dockerfile",
-              "deploy/synology/wickhunter-paper-runtime/README.md",
-              "deploy/synology/wickhunter-paper-runtime/compose.yaml",
-              "deploy/synology/wickhunter-paper-runtime/healthcheck.py",
-              "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md",
-              "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py",
+          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          actual="$(git -C target diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected product paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
           }
-          run_temp = Path(os.environ["RUNNER_TEMP"])
-          source = (run_temp / "source-helper.yml").read_text(encoding="utf-8")
-          marker = 'cat > "$RUNNER_TEMP/wh09-payload.b64" <<\'PAYLOAD\''
-          if source.count(marker) != 1:
-              raise SystemExit("payload start marker mismatch")
-          tail = source.split(marker, 1)[1]
-          payload_lines = [line.strip() for line in tail.splitlines() if "H4sI" in line]
-          if len(payload_lines) != 1:
-              raise SystemExit(f"payload line count mismatch: {len(payload_lines)}")
-          encoded = payload_lines[0][payload_lines[0].index("H4sI") :]
-          alphabet = frozenset(
-              "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
-          )
-          if not encoded or any(character not in alphabet for character in encoded):
-              raise SystemExit("payload line contains a non-base64 character")
-
-          encoded_segments: list[str] = []
-          segment_start = 0
-          for index in range(3, len(encoded), 4):
-              quartet = encoded[index - 3 : index + 1]
-              if "=" in quartet:
-                  encoded_segments.append(encoded[segment_start : index + 1])
-                  segment_start = index + 1
-          if segment_start < len(encoded):
-              remainder = encoded[segment_start:]
-              remainder += "=" * (-len(remainder) % 4)
-              encoded_segments.append(remainder)
-          if not encoded_segments:
-              raise SystemExit("payload contains no decodable segments")
-
-          decoded_segments: list[bytes] = []
-          for index, segment in enumerate(encoded_segments):
-              try:
-                  decoded_segments.append(base64.b64decode(segment, validate=True))
-              except (binascii.Error, ValueError) as error:
-                  raise SystemExit(f"payload segment {index} decode failed: {error}") from error
-
-          byte_candidates: list[bytes] = []
-          byte_candidates.extend(decoded_segments)
-          for start in range(len(decoded_segments)):
-              combined = bytearray()
-              for end in range(start, len(decoded_segments)):
-                  combined.extend(decoded_segments[end])
-                  byte_candidates.append(bytes(combined))
-
-          matches: dict[str, bytes] = {}
-          diagnostics: list[str] = []
-          for candidate_index, candidate in enumerate(byte_candidates):
-              search_from = 0
-              while True:
-                  gzip_start = candidate.find(b"\x1f\x8b\x08", search_from)
-                  if gzip_start < 0:
-                      break
-                  search_from = gzip_start + 1
-                  inflater = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
-                  try:
-                      inflater.decompress(candidate[gzip_start:])
-                      inflater.flush()
-                  except zlib.error as error:
-                      diagnostics.append(
-                          f"candidate={candidate_index} offset={gzip_start} zlib={error}"
-                      )
-                      continue
-                  if not inflater.eof:
-                      continue
-                  consumed = len(candidate[gzip_start:]) - len(inflater.unused_data)
-                  if consumed <= 0:
-                      continue
-                  archive = candidate[gzip_start : gzip_start + consumed]
-                  try:
-                      with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as handle:
-                          members = handle.getmembers()
-                          files = {item.name for item in members if item.isfile()}
-                          unsafe = [
-                              item.name
-                              for item in members
-                              if Path(item.name).is_absolute()
-                              or ".." in Path(item.name).parts
-                              or item.issym()
-                              or item.islnk()
-                          ]
-                  except tarfile.TarError as error:
-                      diagnostics.append(
-                          f"candidate={candidate_index} offset={gzip_start} tar={error}"
-                      )
-                      continue
-                  if files == expected and not unsafe:
-                      matches[hashlib.sha256(archive).hexdigest()] = archive
-
-          if len(matches) != 1:
-              preview = "; ".join(diagnostics[:20])
-              raise SystemExit(
-                  "expected exactly one structurally valid WH09 archive; "
-                  f"segments={len(decoded_segments)} candidates={len(byte_candidates)} "
-                  f"matches={len(matches)} diagnostics={preview}"
-              )
-          archive = next(iter(matches.values()))
-          (run_temp / "wh09-payload.tar.gz").write_bytes(archive)
-          print(
-              f"Recovered WH09 archive: segments={len(decoded_segments)} "
-              f"bytes={len(archive)} sha256={hashlib.sha256(archive).hexdigest()}"
-          )
-          PY
-
           cd target
           python3 - <<'PY'
-          import os
-          import tarfile
           from pathlib import Path
 
-          archive = Path(os.environ["RUNNER_TEMP"]) / "wh09-payload.tar.gz"
-          expected = {
-              "ai_platform/wickhunter/candidate_paper_runtime_operator.py",
-              "deploy/synology/wickhunter-paper-runtime/Dockerfile",
-              "deploy/synology/wickhunter-paper-runtime/README.md",
-              "deploy/synology/wickhunter-paper-runtime/compose.yaml",
-              "deploy/synology/wickhunter-paper-runtime/healthcheck.py",
-              "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md",
-              "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py",
-          }
-          with tarfile.open(archive, "r:gz") as handle:
-              members = handle.getmembers()
-              files = {item.name for item in members if item.isfile()}
-              if files != expected:
-                  raise SystemExit(f"payload file set mismatch: {sorted(files)}")
-              for item in members:
-                  path = Path(item.name)
-                  if path.is_absolute() or ".." in path.parts or item.issym() or item.islnk():
-                      raise SystemExit(f"unsafe payload member: {item.name}")
-              handle.extractall(".", filter="data")
-
-          source_path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
-          source = source_path.read_text(encoding="utf-8")
-          replacements = (
-              ("def load_liquid20_snapshot(\n", "def load_liquid20_snapshot(  # noqa: C901\n"),
-              (
-                  "        with opener.open(request, timeout=15) as response:\n",
-                  "        with opener.open(request, timeout=15) as response:  # noqa: S310\n",
-              ),
-              (
-                  "def fetch_public_market_snapshot(\n",
-                  "def fetch_public_market_snapshot(  # noqa: C901\n",
-              ),
-              ("    def _compose_tick(\n", "    def _compose_tick(  # noqa: C901\n"),
+          operator_path = Path(
+              "ai_platform/wickhunter/candidate_paper_runtime_operator.py"
           )
-          for old, new in replacements:
-              if source.count(old) != 1:
+          operator = operator_path.read_text(encoding="utf-8")
+          operator_replacements = (
+              (
+                  "import time\nfrom dataclasses import dataclass\n",
+                  "import time\nfrom collections.abc import Mapping\nfrom dataclasses import dataclass\n",
+              ),
+              (
+                  "environment: dict[str, str] | os._Environ[str] | None = None",
+                  "environment: Mapping[str, str] | None = None",
+              ),
+          )
+          for old, new in operator_replacements:
+              if operator.count(old) != 1:
                   raise SystemExit(f"operator repair anchor mismatch: {old!r}")
-              source = source.replace(old, new, 1)
-          source_path.write_text(source, encoding="utf-8")
+              operator = operator.replace(old, new, 1)
+          operator_path.write_text(operator, encoding="utf-8")
 
-          task_path = Path(
-              "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md"
+          test_path = Path(
+              "tests/ai_platform_integration/"
+              "test_wickhunter_candidate_paper_runtime_operator.py"
           )
-          text = task_path.read_text(encoding="utf-8")
-          old_base = "base_sha: 2f9792455fcd5e5b398b8f8bd88036e1bde62010"
-          new_base = "base_sha: 0a82a5c93613a213989865bd9128ac7263227148"
-          if text.count(old_base) != 1:
-              raise SystemExit("task base anchor mismatch")
-          task_path.write_text(text.replace(old_base, new_base, 1), encoding="utf-8")
-          PY
+          tests = test_path.read_text(encoding="utf-8")
+          helper_anchor = '''def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:
+          '''
+          helpers = '''def _rehash_payload(payload: dict[str, object]) -> None:
+              body = {key: value for key, value in payload.items() if key != "snapshot_sha256"}
+              payload["snapshot_sha256"] = canonical_sha256(body)
 
+
+          def _stale_payload(payload: dict[str, object]) -> None:
+              payload.clear()
+              payload.update(_liquid20_payload(observed_at_ms=NOW_MS - 400_000))
+
+
+          def _future_event_payload(payload: dict[str, object]) -> None:
+              events = cast(list[dict[str, object]], payload["events"])
+              events[0]["received_at_ms"] = NOW_MS + 1
+              _rehash_payload(payload)
+
+
+          def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:
+          '''
+          if tests.count(helper_anchor) != 1:
+              raise SystemExit("test helper insertion anchor mismatch")
+          tests = tests.replace(helper_anchor, helpers, 1)
+          old_parameters = '''        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),
+              (
+                  lambda payload: cast(list[dict[str, object]], payload["events"])[0].update(
+                      {"received_at_ms": NOW_MS + 1}
+                  ),
+                  "unavailable",
+              ),
+          '''
+          new_parameters = '''        (_stale_payload, "stale"),
+              (_future_event_payload, "unavailable"),
+          '''
+          if tests.count(old_parameters) != 1:
+              raise SystemExit("test parameter repair anchor mismatch")
+          tests = tests.replace(old_parameters, new_parameters, 1)
+          if tests.count('request.method == "GET"') != 1:
+              raise SystemExit("request method repair anchor mismatch")
+          tests = tests.replace(
+              'request.method == "GET"',
+              'request.get_method() == "GET"',
+              1,
+          )
+          old_patch = '''    monkeypatch.setattr(runtime_operator, "_compose_tick", lambda **_kwargs: cast(ShadowRuntimeTick, SimpleNamespace(observed_at_ms=NOW_MS)))
+          '''
+          new_patch = '''    monkeypatch.setattr(
+              CandidatePaperRuntimeOperator,
+              "_compose_tick",
+              lambda self, **_kwargs: cast(
+                  ShadowRuntimeTick,
+                  SimpleNamespace(observed_at_ms=NOW_MS),
+              ),
+          )
+          '''
+          if tests.count(old_patch) != 1:
+              raise SystemExit("compose tick monkeypatch anchor mismatch")
+          tests = tests.replace(old_patch, new_patch, 1)
+          test_path.write_text(tests, encoding="utf-8")
+
+          dockerfile_path = Path(
+              "deploy/synology/wickhunter-paper-runtime/Dockerfile"
+          )
+          dockerfile = dockerfile_path.read_text(encoding="utf-8")
+          old_docker = '    && python - <<\'PY\'\n'
+          new_docker = '    && OPERATOR_COMMIT="$OPERATOR_COMMIT" python - <<\'PY\'\n'
+          if dockerfile.count(old_docker) != 1:
+              raise SystemExit("Dockerfile commit validation anchor mismatch")
+          dockerfile_path.write_text(
+              dockerfile.replace(old_docker, new_docker, 1),
+              encoding="utf-8",
+          )
+          PY
           python3 -m py_compile \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/healthcheck.py \
@@ -296,41 +222,58 @@ jobs:
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
             tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
-          OPERATOR_COMMIT="$TARGET_BASE_SHA" \
+          OPERATOR_COMMIT="$TARGET_HEAD_SHA" \
           CANDIDATE_ROOT_HOST=/tmp/candidate \
           ACTIVATION_ROOT_HOST=/tmp/activation \
           JOURNAL_ROOT_HOST=/tmp/journal \
           OPERATOR_STATE_HOST=/tmp/operator \
           LIQUID20_LIVE_HOST=/tmp/liquid20 \
+          WICKHUNTER_PAPER_RUNTIME_IMAGE=wickhunter-paper-runtime:"$TARGET_HEAD_SHA" \
             docker compose \
               -f deploy/synology/wickhunter-paper-runtime/compose.yaml \
               config --quiet
 
-      - name: Commit validated product change
+      - name: Commit and build validated product
         shell: bash
         run: |
           set -euo pipefail
           cd target
           expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          actual="$(git diff --name-only | sort)"
-          [[ "$actual" == "$expected" ]] || {
-            printf 'Expected product paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
-            exit 1
-          }
+          actual="$(git diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)"
+          [[ "$actual" == "$expected" ]]
+          repair_paths="$(git diff --name-only | sort)"
+          allowed_repairs=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            grep -Fxq "$path" <<< "$allowed_repairs" || {
+              echo "unexpected repair path: $path" >&2
+              exit 1
+            }
+          done <<< "$repair_paths"
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime \
-            docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          git commit -m "feat(wickhunter): add persistent WH09 PAPER operator"
+          if [[ -n "$repair_paths" ]]; then
+            git add \
+              ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+              deploy/synology/wickhunter-paper-runtime/Dockerfile \
+              deploy/synology/wickhunter-paper-runtime/healthcheck.py \
+              tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+            git commit -m "fix(wickhunter): validate persistent PAPER operator"
+          fi
+          product_sha="$(git rev-parse HEAD)"
+          docker build \
+            --build-arg OPERATOR_COMMIT="$product_sha" \
+            --tag "wickhunter-paper-runtime:$product_sha" \
+            --file deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            .
+          image_revision="$(docker image inspect "wickhunter-paper-runtime:$product_sha" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
+          [[ "$image_revision" == "$product_sha" ]]
           git push origin "HEAD:$TARGET_BRANCH"
           {
             echo "## WickHunter WH09 PAPER operator"
             echo
-            echo "- Target branch: \`$TARGET_BRANCH\`"
+            echo "- Product head: \`$product_sha\`"
             echo "- Product paths: \`7\`"
-            echo "- Ruff, format, mypy, focused pytest and Compose: \`PASS\`"
+            echo "- Ruff, format, mypy, focused pytest, Compose and image build: \`PASS\`"
             echo "- Protected holdout/credentials/order adapter/execution/orders/live capital: \`absent\`"
           } >> "$GITHUB_STEP_SUMMARY"

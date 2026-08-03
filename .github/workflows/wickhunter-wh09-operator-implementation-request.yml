@@ -1,4 +1,4 @@
-name: WickHunter WH09 live-contract integration repair
+name: WickHunter WH09 payload integrity diagnostic
 
 "on":
   pull_request:
@@ -9,10 +9,10 @@ name: WickHunter WH09 live-contract integration repair
       - ".github/wh09-payload/**"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: wickhunter-wh09-live-contract-repair-${{ github.event.pull_request.number }}
+  group: wickhunter-wh09-payload-diagnostic-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 env:
@@ -20,13 +20,13 @@ env:
   TARGET_HEAD_SHA: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
 
 jobs:
-  validate:
-    name: Bind operator to real Liquid20 and nine market metrics
+  diagnose:
+    name: Diagnose bounded repair payloads
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 15
 
     steps:
       - name: Check out exact helper request
@@ -36,7 +36,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Validate bounded helper scope and payload
+      - name: Validate exact helper scope
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -59,160 +59,73 @@ jobs:
           for index in "${!expected[@]}"; do
             [[ "${actual[$index]}" == "${expected[$index]}" ]]
           done
-          payload=.github/wh09-payload/operator.py.zlib.b64
-          [[ -f "$payload" && ! -L "$payload" && -s "$payload" ]]
-          [[ "$(stat -c %s "$payload")" -le 1048576 ]]
-          printf 'helper_commit=%s\nrepair_payload_sha256=' "$HEAD_SHA"
-          sha256sum "$payload" | cut -d' ' -f1
           [[ -z "$(git status --porcelain --untracked-files=no)" ]]
 
-      - name: Check out exact product branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          persist-credentials: true
-          fetch-depth: 0
-          ref: ${{ env.TARGET_BRANCH }}
-          path: target
-
-      - name: Verify exact product head
+      - name: Decode and classify every payload without executing it
         shell: bash
         run: |
           set -euo pipefail
-          cd target
-          actual="$(git rev-parse HEAD)"
-          [[ "$actual" == "$TARGET_HEAD_SHA" ]] || {
-            echo "::error title=WH09 product head mismatch::expected=$TARGET_HEAD_SHA actual=$actual"
-            exit 1
-          }
-          git fetch origin develop
-
-      - name: Execute live-contract repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           python3 - <<'PY'
+          from __future__ import annotations
+
           import base64
           import hashlib
-          import traceback
           import zlib
           from pathlib import Path
 
-          path = Path("../.github/wh09-payload/operator.py.zlib.b64")
-          try:
-              compressed = base64.b64decode(path.read_bytes().strip(), validate=True)
+          payload_root = Path('.github/wh09-payload')
+          failures: list[str] = []
+          for path in sorted(payload_root.glob('*.zlib.b64')):
+              print(f'--- {path.name} ---')
+              encoded = path.read_bytes().strip()
               try:
-                  script_bytes = zlib.decompress(compressed)
-                  transport = "zlib-wrapper"
+                  compressed = base64.b64decode(encoded, validate=True)
+              except Exception as exc:
+                  failures.append(f'{path.name}: base64: {exc}')
+                  print(f'base64_error={type(exc).__name__}:{exc}')
+                  continue
+              transport = 'zlib-wrapper'
+              try:
+                  decoded = zlib.decompress(compressed)
               except zlib.error as exc:
-                  if "incorrect data check" not in str(exc):
-                      raise
-                  if len(compressed) < 7:
-                      raise RuntimeError("compressed repair payload is too short") from exc
-                  script_bytes = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
-                  transport = "raw-deflate-recovery"
-              if not script_bytes or len(script_bytes) > 1048576:
-                  raise RuntimeError("decoded repair script size is outside the bounded contract")
-              script = script_bytes.decode("utf-8")
-              print(f"repair_transport={transport}")
-              print(f"repair_script_sha256={hashlib.sha256(script_bytes).hexdigest()}")
-              exec(compile(script, str(path), "exec"), {"__name__": "__main__"})
-          except BaseException as exc:
-              print(f"::error title=WH09 repair execution::{type(exc).__name__}: {exc}")
-              traceback.print_exc()
-              raise
+                  if 'incorrect data check' not in str(exc) or len(compressed) < 7:
+                      failures.append(f'{path.name}: zlib: {exc}')
+                      print(f'zlib_error={exc}')
+                      continue
+                  decoded = zlib.decompress(compressed[2:-4], -zlib.MAX_WBITS)
+                  transport = 'raw-deflate-recovery'
+              print(f'transport={transport}')
+              print(f'decoded_bytes={len(decoded)}')
+              print(f'decoded_sha256={hashlib.sha256(decoded).hexdigest()}')
+              try:
+                  text = decoded.decode('utf-8')
+              except UnicodeDecodeError as exc:
+                  failures.append(f'{path.name}: utf8: {exc}')
+                  print(f'utf8_error={exc}')
+                  continue
+              lines = text.splitlines()
+              print(f'line_count={len(lines)}')
+              print(f'first_line={lines[0] if lines else "<empty>"}')
+              print(f'last_line={lines[-1] if lines else "<empty>"}')
+              if path.name.endswith('.py.zlib.b64'):
+                  try:
+                      compile(text, path.name, 'exec')
+                  except SyntaxError as exc:
+                      failures.append(f'{path.name}: syntax line {exc.lineno}: {exc.msg}')
+                      print(f'syntax_error_line={exc.lineno}')
+                      print(f'syntax_error_offset={exc.offset}')
+                      print(f'syntax_error_message={exc.msg}')
+                      if exc.lineno:
+                          start = max(1, exc.lineno - 8)
+                          end = min(len(lines), exc.lineno + 8)
+                          for number in range(start, end + 1):
+                              print(f'context[{number}]={lines[number - 1]!r}')
+                  else:
+                      print('python_compile=PASS')
+          if failures:
+              print('payload_diagnostic=FAIL')
+              for failure in failures:
+                  print(f'failure={failure}')
+              raise SystemExit(1)
+          print('payload_diagnostic=PASS')
           PY
-          git diff --name-status
-          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          actual="$(git diff --name-only | sort)"
-          [[ "$actual" == "$expected" ]] || {
-            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
-            exit 1
-          }
-          python3 -m py_compile \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-
-      - name: Install uv and Python
-        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
-        with:
-          activate-environment: true
-          python-version: "3.13"
-          enable-cache: false
-          working-directory: target
-
-      - name: Install locked dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          uv pip install -r requirements-dev.txt
-          uv pip install lightgbm==4.6.0
-          uv pip install -e ft_client/
-          uv pip install -e .
-
-      - name: Validate real contract and canonical metric path
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          paths=(
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py
-            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          )
-          ruff format "${paths[@]}"
-          ruff check "${paths[@]}"
-          ruff format --check "${paths[@]}"
-          mypy \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
-          pytest -q \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
-          OPERATOR_COMMIT="$TARGET_HEAD_SHA" \
-          CANDIDATE_ROOT_HOST=/tmp/candidate \
-          ACTIVATION_ROOT_HOST=/tmp/activation \
-          JOURNAL_ROOT_HOST=/tmp/journal \
-          OPERATOR_STATE_HOST=/tmp/operator \
-          LIQUID20_LIVE_HOST=/tmp/liquid20 \
-          WICKHUNTER_PAPER_RUNTIME_IMAGE=wickhunter-paper-runtime:"$TARGET_HEAD_SHA" \
-            docker compose -f deploy/synology/wickhunter-paper-runtime/compose.yaml config --quiet
-
-      - name: Commit, build and publish exact integrated product
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          git add \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/README.md \
-            deploy/synology/wickhunter-paper-runtime/compose.yaml \
-            docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          git commit -m "fix(wickhunter): consume real Liquid20 live contract"
-          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          [[ "$(git diff --name-only origin/develop...HEAD | sort)" == "$expected" ]]
-          product_sha="$(git rev-parse HEAD)"
-          docker build \
-            --build-arg OPERATOR_COMMIT="$product_sha" \
-            --tag "wickhunter-paper-runtime:$product_sha" \
-            --file deploy/synology/wickhunter-paper-runtime/Dockerfile \
-            .
-          image_revision="$(docker image inspect "wickhunter-paper-runtime:$product_sha" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
-          [[ "$image_revision" == "$product_sha" ]]
-          git push origin "HEAD:$TARGET_BRANCH"
-          {
-            echo "## WickHunter WH09 real live-contract repair"
-            echo
-            echo "- Product head: \`$product_sha\`"
-            echo "- Exact helper commit and reported payload SHA-256: \`PASS\`"
-            echo "- Real Liquid20 pointer and per-source NDJSON contract: \`PASS\`"
-            echo "- Canonical nine public market metrics: \`PASS\`"
-            echo "- Compile, Ruff, mypy, focused pytest, Compose and exact image build: \`PASS\`"
-            echo "- Credentials/order adapter/execution/orders/live capital: \`absent\`"
-          } >> "$GITHUB_STEP_SUMMARY"

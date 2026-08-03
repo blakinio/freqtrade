@@ -1,0 +1,373 @@
+name: WickHunter WH09 PAPER runtime diagnostic v1
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-runtime-diagnostic-20260803-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-runtime-diagnostic-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-runtime-diagnostic-20260803-v1.yml
+  EXPECTED_BASE_SHA: 2f9792455fcd5e5b398b8f8bd88036e1bde62010
+  ACTIVATION_ROOT: /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/activations/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2
+  JOURNAL_ROOT: /var/lib/freqtrade-staging-state/wickhunter-paper-runtime/journals/wickhunter-wh09-activation-20260803-v1-a9ca9a91087e34e2
+  EXPECTED_RUN_ID: b7f867004261fad8ba25433e795ad752fe9e904dd3343260266d60359999506f
+  EXPECTED_BINDING_ID: 1eedc3269686392244c2d76426be67ccf500c324430d4f56b4003c366382d2f7
+  EXPECTED_JOURNAL_IDENTITY: c36abaca35a19be94ce9c259d2aa309241485c948226d206450fb6c5ac13f2ab
+  EXPECTED_WINDOW_START_MS: "1785747747354"
+  EXPECTED_WINDOW_END_MS: "1785834447354"
+
+jobs:
+  diagnose:
+    name: Inspect trusted PAPER runtime state
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-runtime-diagnostic-20260803-v1.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          [[ -d "$ACTIVATION_ROOT" && ! -L "$ACTIVATION_ROOT" ]]
+          [[ -d "$JOURNAL_ROOT" && ! -L "$JOURNAL_ROOT" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+
+      - name: Inspect journal, processes and safe source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 - <<'PY'
+          import json
+          import os
+          import shutil
+          import subprocess
+          import time
+          from pathlib import Path
+
+          activation_root = Path(os.environ["ACTIVATION_ROOT"])
+          journal_root = Path(os.environ["JOURNAL_ROOT"])
+          expected_run_id = os.environ["EXPECTED_RUN_ID"]
+          expected_binding_id = os.environ["EXPECTED_BINDING_ID"]
+          expected_identity = os.environ["EXPECTED_JOURNAL_IDENTITY"]
+          expected_start = int(os.environ["EXPECTED_WINDOW_START_MS"])
+          expected_end = int(os.environ["EXPECTED_WINDOW_END_MS"])
+          now_ms = time.time_ns() // 1_000_000
+
+          def load_object(path: Path) -> dict[str, object]:
+              if path.is_symlink() or not path.is_file():
+                  raise SystemExit(f"required regular file is absent: {path.name}")
+              value = json.loads(path.read_text(encoding="utf-8"))
+              if not isinstance(value, dict):
+                  raise SystemExit(f"required object is malformed: {path.name}")
+              return value
+
+          request = load_object(activation_root / "request.json")
+          identity = load_object(journal_root / "identity.json")
+          if request.get("run_id") != expected_run_id:
+              raise SystemExit("activation run identity mismatch")
+          if request.get("window_start_ms") != expected_start:
+              raise SystemExit("activation start identity mismatch")
+          if request.get("window_end_ms") != expected_end:
+              raise SystemExit("activation end identity mismatch")
+          if identity.get("run_id") != expected_run_id:
+              raise SystemExit("journal run identity mismatch")
+          if identity.get("binding_id") != expected_binding_id:
+              raise SystemExit("journal binding identity mismatch")
+          if identity.get("identity_sha256") != expected_identity:
+              raise SystemExit("journal self identity mismatch")
+          for payload_name, payload in (("request", request), ("journal identity", identity)):
+              for key in (
+                  "protected_holdout_accessed",
+                  "automatic_promotion_enabled",
+                  "trading_credentials_present",
+                  "order_adapter_present",
+                  "execution_enabled",
+                  "live_capital_authorized",
+              ):
+                  if key in payload and payload[key] is not False:
+                      raise SystemExit(f"{payload_name} contains forbidden authority: {key}")
+              if payload.get("orders_submitted", 0) != 0:
+                  raise SystemExit(f"{payload_name} submitted orders")
+
+          generations_root = journal_root / "generations"
+          generation_paths = tuple(
+              sorted(
+                  (
+                      path
+                      for path in generations_root.iterdir()
+                      if path.is_dir() and not path.is_symlink() and path.name.isdigit()
+                  ),
+                  key=lambda path: int(path.name),
+              )
+          )
+          generation_numbers = [int(path.name) for path in generation_paths]
+          if generation_numbers != list(range(1, len(generation_numbers) + 1)):
+              raise SystemExit("journal generations are not contiguous")
+          latest_generation = generation_numbers[-1] if generation_numbers else None
+          latest_generation_mtime_ms = (
+              int(generation_paths[-1].stat().st_mtime_ns // 1_000_000)
+              if generation_paths
+              else None
+          )
+          pointer_path = journal_root / "active-generation.json"
+          pointer = load_object(pointer_path) if pointer_path.exists() else None
+          pointer_generation = pointer.get("generation") if pointer else None
+          if pointer_generation is not None and pointer_generation != latest_generation:
+              raise SystemExit("journal pointer does not match latest generation")
+
+          keywords = (
+              "wickhunter",
+              "candidate_paper_runtime",
+              "paper-runtime",
+              expected_run_id,
+              str(journal_root),
+          )
+          process_matches: list[dict[str, object]] = []
+          for proc in Path("/proc").iterdir():
+              if not proc.name.isdigit() or int(proc.name) == os.getpid():
+                  continue
+              try:
+                  raw = (proc / "cmdline").read_bytes().replace(b"\0", b" ").decode(
+                      "utf-8", errors="replace"
+                  )
+                  lowered = raw.lower()
+                  matched = sorted({key for key in keywords if key.lower() in lowered})
+                  if not matched:
+                      continue
+                  try:
+                      executable = (proc / "exe").resolve().name
+                  except OSError:
+                      executable = "unknown"
+                  process_matches.append(
+                      {
+                          "pid": int(proc.name),
+                          "executable": executable,
+                          "matched_keys": matched,
+                          "exact_run_or_journal_match": (
+                              expected_run_id in raw or str(journal_root) in raw
+                          ),
+                      }
+                  )
+              except (OSError, PermissionError):
+                  continue
+          process_matches.sort(key=lambda item: int(item["pid"]))
+
+          def filtered_command(command: list[str], marker: str) -> list[dict[str, str]]:
+              executable = shutil.which(command[0])
+              if executable is None:
+                  return []
+              try:
+                  completed = subprocess.run(
+                      [executable, *command[1:]],
+                      check=False,
+                      capture_output=True,
+                      text=True,
+                      timeout=15,
+                  )
+              except (OSError, subprocess.SubprocessError):
+                  return []
+              values: list[dict[str, str]] = []
+              for line in completed.stdout.splitlines():
+                  lowered = line.lower()
+                  if not any(key.lower() in lowered for key in keywords[:3]):
+                      continue
+                  values.append({"source": marker, "line": line[:300]})
+              return values[:20]
+
+          container_matches = filtered_command(
+              ["docker", "ps", "--format", "{{.Names}}\t{{.Image}}\t{{.Status}}"],
+              "docker",
+          )
+          service_matches = filtered_command(
+              [
+                  "systemctl",
+                  "list-units",
+                  "--type=service",
+                  "--all",
+                  "--no-legend",
+                  "--no-pager",
+              ],
+              "systemd-service",
+          )
+          timer_matches = filtered_command(
+              ["systemctl", "list-timers", "--all", "--no-legend", "--no-pager"],
+              "systemd-timer",
+          )
+
+          state_root = Path("/var/lib/freqtrade-staging-state")
+          state_root_entries = []
+          if state_root.is_dir() and not state_root.is_symlink():
+              state_root_entries = sorted(
+                  path.name
+                  for path in state_root.iterdir()
+                  if not path.is_symlink() and (path.is_dir() or path.is_file())
+              )[:100]
+
+          relevant_tokens = (
+              "wickhunter",
+              "liquid",
+              "market",
+              "candle",
+              "universe",
+              "snapshot",
+              "paper",
+              "runtime",
+          )
+          recent_relevant_files: list[dict[str, object]] = []
+          cutoff_ns = time.time_ns() - 48 * 60 * 60 * 1_000_000_000
+          if state_root.is_dir() and not state_root.is_symlink():
+              for root, dirs, files in os.walk(state_root, followlinks=False):
+                  root_path = Path(root)
+                  try:
+                      depth = len(root_path.relative_to(state_root).parts)
+                  except ValueError:
+                      continue
+                  dirs[:] = [name for name in dirs if not (root_path / name).is_symlink()]
+                  if depth >= 5:
+                      dirs[:] = []
+                  for name in files:
+                      path = root_path / name
+                      relative = str(path.relative_to(state_root))
+                      if not any(token in relative.lower() for token in relevant_tokens):
+                          continue
+                      try:
+                          stat = path.stat()
+                      except OSError:
+                          continue
+                      if stat.st_mtime_ns < cutoff_ns:
+                          continue
+                      recent_relevant_files.append(
+                          {
+                              "path": relative,
+                              "size_bytes": stat.st_size,
+                              "modified_at_ms": stat.st_mtime_ns // 1_000_000,
+                          }
+                      )
+          recent_relevant_files.sort(
+              key=lambda item: (int(item["modified_at_ms"]), str(item["path"])),
+              reverse=True,
+          )
+          recent_relevant_files = recent_relevant_files[:100]
+
+          exact_process = any(
+              bool(item["exact_run_or_journal_match"]) for item in process_matches
+          )
+          runtime_authority_detected = bool(
+              exact_process or container_matches or service_matches or timer_matches
+          )
+          if generation_numbers:
+              classification = "runtime_generations_present"
+          elif runtime_authority_detected:
+              classification = "runtime_authority_present_without_generations"
+          else:
+              classification = "runtime_not_running"
+
+          terminal = {
+              "status": "diagnosed",
+              "classification": classification,
+              "checked_at_ms": now_ms,
+              "run_id": expected_run_id,
+              "binding_id": expected_binding_id,
+              "journal_identity_sha256": expected_identity,
+              "window_start_ms": expected_start,
+              "window_end_ms": expected_end,
+              "window_elapsed_ms": max(0, now_ms - expected_start),
+              "window_remaining_ms": max(0, expected_end - now_ms),
+              "generation_count": len(generation_numbers),
+              "latest_generation": latest_generation,
+              "latest_generation_mtime_ms": latest_generation_mtime_ms,
+              "pointer_generation": pointer_generation,
+              "process_matches": process_matches[:50],
+              "container_matches": container_matches,
+              "service_matches": service_matches,
+              "timer_matches": timer_matches,
+              "state_root_entries": state_root_entries,
+              "recent_relevant_files": recent_relevant_files,
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          result_path = Path(os.environ["RUNNER_TEMP"]) / "wickhunter-wh09-runtime-diagnostic.json"
+          result_path.write_text(
+              json.dumps(terminal, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(terminal, indent=2, sort_keys=True))
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          with summary_path.open("a", encoding="utf-8") as handle:
+              handle.write("## WickHunter WH09 PAPER runtime diagnostic\n\n")
+              handle.write(f"- Classification: `{classification}`\n")
+              handle.write(f"- Journal generations: `{len(generation_numbers)}`\n")
+              handle.write(f"- Exact process match: `{str(exact_process).lower()}`\n")
+              handle.write(f"- Matching containers: `{len(container_matches)}`\n")
+              handle.write(f"- Matching services/timers: `{len(service_matches) + len(timer_matches)}`\n")
+              handle.write(f"- Window remaining ms: `{max(0, expected_end - now_ms)}`\n")
+              handle.write("- Credentials/order adapter/execution/orders/live capital: `absent`\n")
+          PY
+
+      - name: Upload bounded runtime diagnostic
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: wickhunter-wh09-runtime-diagnostic-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/wickhunter-wh09-runtime-diagnostic.json
+          if-no-files-found: error
+          retention-days: 30

@@ -68,34 +68,77 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Apply SHA-256-bound live-contract repair
+      - name: Verify exact product and repair payload identities
         shell: bash
         run: |
           set -euo pipefail
           cd target
-          [[ "$(git rev-parse HEAD)" == "$TARGET_HEAD_SHA" ]]
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          actual_head="$(git rev-parse HEAD)"
+          [[ "$actual_head" == "$TARGET_HEAD_SHA" ]] || {
+            echo "::error title=WH09 product head mismatch::expected=$TARGET_HEAD_SHA actual=$actual_head"
+            exit 1
+          }
           git fetch origin develop
-          [[ "$(git merge-base HEAD origin/develop)" == "$(git rev-parse origin/develop)" ]]
+          develop_sha="$(git rev-parse origin/develop)"
+          merge_base="$(git merge-base HEAD origin/develop)"
+          [[ "$merge_base" == "$develop_sha" ]] || {
+            echo "::error title=WH09 develop ancestry mismatch::develop=$develop_sha merge_base=$merge_base"
+            exit 1
+          }
           python3 - <<'PY'
-          import base64
           import hashlib
           import os
+          from pathlib import Path
+
+          path = Path("../.github/wh09-payload/operator.py.zlib.b64")
+          actual = hashlib.sha256(path.read_bytes()).hexdigest()
+          expected = os.environ["REPAIR_PAYLOAD_SHA256"]
+          print(f"repair_payload_sha256={actual}")
+          if actual != expected:
+              print(
+                  f"::error title=WH09 repair payload mismatch::expected={expected} actual={actual}"
+              )
+              raise SystemExit(1)
+          PY
+
+      - name: Execute live-contract repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          python3 - <<'PY'
+          import base64
+          import traceback
           import zlib
           from pathlib import Path
 
           path = Path("../.github/wh09-payload/operator.py.zlib.b64")
-          raw = path.read_bytes()
-          actual = hashlib.sha256(raw).hexdigest()
-          expected = os.environ["REPAIR_PAYLOAD_SHA256"]
-          if actual != expected:
-              raise SystemExit(f"repair payload hash mismatch: {actual}")
-          script = zlib.decompress(base64.b64decode(raw.strip())).decode("utf-8")
-          exec(compile(script, str(path), "exec"), {"__name__": "__main__"})
+          try:
+              script = zlib.decompress(base64.b64decode(path.read_bytes().strip())).decode("utf-8")
+              exec(compile(script, str(path), "exec"), {"__name__": "__main__"})
+          except BaseException as exc:
+              print(f"::error title=WH09 repair execution::{type(exc).__name__}: {exc}")
+              traceback.print_exc()
+              raise
           PY
+          echo "repair_diff_begin"
+          git diff --name-status
+          echo "repair_diff_end"
           expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          [[ "$(git diff --name-only | sort)" == "$expected" ]]
+          actual="$(git diff --name-only | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            echo "::error title=WH09 repaired path mismatch::expected five owned paths; inspect repair_diff markers"
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Compile repaired product
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
           python3 -m py_compile \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \

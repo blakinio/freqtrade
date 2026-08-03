@@ -125,6 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts
+          chmod 0777 artifacts
           docker run --rm --network host --entrypoint python "$IMAGE" \
             -m ai_platform.portal.control_plane.migration_authority \
             migrate --database-url "$DATABASE_URL" \

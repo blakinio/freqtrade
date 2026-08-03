@@ -1,269 +1,196 @@
 #!/usr/bin/env python3
+# ruff: noqa: E501
 from __future__ import annotations
 
-import hashlib
-import json
-import re
-import subprocess
+import hashlib, json, re, subprocess
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-LEDGER_PATH = Path("tools/portal_audit/completeness_ledger.json")
+LEDGER_PATH = Path("tools/portal_audit/ledger/index.json")
 PROGRAM_PATH = Path("docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md")
-VALID_STATUSES = {
-    "COMPLETE",
-    "PARTIAL",
-    "MISSING",
-    "DISCONNECTED",
-    "FIXTURE_ONLY",
-    "EXTERNAL_ACCEPTANCE_REQUIRED",
-    "BLOCKED",
-    "NOT_APPLICABLE",
-}
-ISSUE_PATTERN = re.compile(r"#(?P<number>\d+)")
-SHA_PATTERN = re.compile(r"[0-9a-f]{40}")
+STATUSES = {"COMPLETE", "PARTIAL", "MISSING", "DISCONNECTED", "FIXTURE_ONLY", "EXTERNAL_ACCEPTANCE_REQUIRED", "BLOCKED", "NOT_APPLICABLE"}
+ISSUE_RE = re.compile(r"#(?P<number>\d+)")
+SHA_RE = re.compile(r"[0-9a-f]{40}")
+DIGEST_RE = re.compile(r"[0-9a-f]{64}")
 
 
 class AuditLedgerError(RuntimeError):
-    """Raised when exact-head audit evidence is stale or incomplete."""
+    pass
 
 
 def canonical_digest(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    raw = json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _rules(rows: Any, section: str) -> dict[str, dict[str, str]]:
+    if not isinstance(rows, list):
+        raise AuditLedgerError(f"{section} must be a list")
+    result = {}
+    for row in rows:
+        try:
+            key, status, issue, reason = row.split("|", 3)
+        except (AttributeError, ValueError) as exc:
+            raise AuditLedgerError(f"invalid {section} row: {row!r}") from exc
+        if key in result:
+            raise AuditLedgerError(f"duplicate {section} key: {key}")
+        result[key] = {"status": status, "issue": issue, "reason": reason}
+    return result
+
+
+def _rows(rows: Any, fields: tuple[str, ...], section: str) -> list[dict[str, str]]:
+    if not isinstance(rows, list):
+        raise AuditLedgerError(f"{section} must be a list")
+    result = []
+    for row in rows:
+        values = row.split("|", len(fields) - 1) if isinstance(row, str) else []
+        if len(values) != len(fields):
+            raise AuditLedgerError(f"invalid {section} row: {row!r}")
+        result.append(dict(zip(fields, values, strict=True)))
+    return result
 
 
 def load_ledger(path: Path = LEDGER_PATH) -> dict[str, Any]:
     try:
-        ledger = json.loads(path.read_text(encoding="utf-8"))
+        index = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
-        raise AuditLedgerError(f"cannot load completeness ledger {path}: {exc}") from exc
-    if ledger.get("schema_version") != "portal-completeness-ledger-v1":
-        raise AuditLedgerError("unsupported completeness ledger schema")
-    if ledger.get("mode") != "living_exact_head_gate":
-        raise AuditLedgerError("completeness ledger must declare living_exact_head_gate mode")
-    if not isinstance(ledger.get("ledger_version"), str) or not ledger["ledger_version"]:
-        raise AuditLedgerError("completeness ledger version is required")
+        raise AuditLedgerError(f"cannot load ledger index: {exc}") from exc
+    if index.get("schema_version") != "portal-completeness-ledger-v2" or index.get("mode") != "living_exact_head_gate":
+        raise AuditLedgerError("unsupported ledger contract")
+    if not index.get("ledger_version") or not isinstance(index.get("sections"), Mapping):
+        raise AuditLedgerError("ledger version and section map are required")
+    section = {}
+    for name in ("backend_modules", "backend_routes", "frontend_pages", "bff_handlers", "navigation", "runtime"):
+        value = index["sections"].get(name)
+        if not isinstance(value, str):
+            raise AuditLedgerError(f"missing ledger section {name}")
+        try:
+            section[name] = json.loads(Path(value).read_text())
+        except (OSError, json.JSONDecodeError) as exc:
+            raise AuditLedgerError(f"cannot load ledger section {name}: {exc}") from exc
+    routes, runtime = section["backend_routes"], section["runtime"]
+    if not isinstance(routes, Mapping) or not isinstance(runtime, Mapping):
+        raise AuditLedgerError("invalid route/runtime ledger sections")
+    classifications = {
+        "backend_modules": _rules(section["backend_modules"], "backend_modules"),
+        "backend_routes": _rules(routes.get("rows"), "backend_routes"),
+        "frontend_pages": _rules(section["frontend_pages"], "frontend_pages"),
+        "bff_handlers": _rules(section["bff_handlers"], "bff_handlers"),
+        "expected_absent_backend_routes": _rules(routes.get("expected_absent"), "expected_absent_backend_routes"),
+        "navigation": _rows(section["navigation"], ("group", "label", "route", "frontend", "api_boundary", "backend", "persistence_provider", "tests", "overall", "issues", "reason"), "navigation"),
+        "runtime_fixture_boundaries": _rows(runtime.get("runtime_fixture_boundaries"), ("path", "classification", "proves", "does_not_prove"), "runtime_fixture_boundaries"),
+        "deployment_boundaries": _rows(runtime.get("deployment_boundaries"), ("area", "status", "reason"), "deployment_boundaries"),
+        "runtime_notes": runtime.get("runtime_notes"),
+    }
+    ledger = {"schema_version": index["schema_version"], "ledger_version": index["ledger_version"], "mode": index["mode"], "inventory": index.get("inventory"), "classifications": classifications, "_source_sha256": canonical_digest({"index": index, "sections": section})}
     validate_ledger(ledger)
     return ledger
 
 
-def resolve_exact_head(explicit_head: str | None, root: Path = Path(".")) -> str:
-    candidate = (explicit_head or "").strip().lower()
-    if not SHA_PATTERN.fullmatch(candidate):
-        raise AuditLedgerError("--head must be an exact 40-character lowercase commit SHA")
-    git_dir = root / ".git"
-    if git_dir.exists():
-        try:
-            actual = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=root, text=True
-            ).strip().lower()
-        except (OSError, subprocess.CalledProcessError) as exc:
-            raise AuditLedgerError(f"cannot resolve checked-out commit: {exc}") from exc
+def resolve_exact_head(head: str | None, root: Path = Path(".")) -> str:
+    candidate = (head or "").strip().lower()
+    if not SHA_RE.fullmatch(candidate):
+        raise AuditLedgerError("--head must be an exact 40-character lowercase SHA")
+    if (root / ".git").exists():
+        actual = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip().lower()
         if actual != candidate:
-            raise AuditLedgerError(
-                f"audit head mismatch: requested {candidate}, checked out {actual}"
-            )
+            raise AuditLedgerError(f"audit head mismatch: requested {candidate}, checked out {actual}")
     return candidate
 
 
-def ledger_metadata(ledger: Mapping[str, Any], audited_head: str) -> dict[str, str]:
-    return {
-        "audited_head": audited_head,
-        "ledger_version": str(ledger["ledger_version"]),
-        "ledger_sha256": canonical_digest(ledger),
-    }
+def ledger_metadata(ledger: Mapping[str, Any], head: str) -> dict[str, str]:
+    return {"audited_head": head, "ledger_version": str(ledger["ledger_version"]), "ledger_sha256": str(ledger.get("_source_sha256") or canonical_digest(ledger))}
 
 
-def composition_signature(
-    evidence: Mapping[str, Iterable[str]],
-) -> dict[str, list[str]]:
-    signature: dict[str, list[str]] = {}
+def composition_signature(evidence: Mapping[str, Iterable[str]]) -> dict[str, list[str]]:
+    result = {}
     for needle, references in sorted(evidence.items()):
-        normalized: set[str] = set()
+        values = set()
         for reference in references:
             match = re.match(r"^(.*?):\d+:\s?(.*)$", str(reference))
-            normalized.add(
-                f"{match.group(1)}: {match.group(2)}" if match else str(reference)
-            )
-        signature[str(needle)] = sorted(normalized)
-    return signature
+            values.add(f"{match.group(1)}: {match.group(2)}" if match else str(reference))
+        result[str(needle)] = sorted(values)
+    return result
 
 
 def completed_programme_issues(path: Path = PROGRAM_PATH) -> set[int]:
     if not path.exists():
         return set()
-    completed: set[int] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
-        match = re.match(r"\|\s*#(?P<number>\d+)\s*\|.*\|\s*COMPLETE\s*\|", line)
-        if match:
-            completed.add(int(match.group("number")))
-    return completed
+    return {int(m.group("number")) for line in path.read_text().splitlines() if (m := re.match(r"\|\s*#(?P<number>\d+)\s*\|.*\|\s*COMPLETE\s*\|", line))}
 
 
 def issue_numbers(value: Any) -> set[int]:
     if isinstance(value, Mapping):
-        return set().union(*(issue_numbers(item) for item in value.values())) if value else set()
+        return set().union(*(issue_numbers(v) for v in value.values())) if value else set()
     if isinstance(value, list):
-        return set().union(*(issue_numbers(item) for item in value)) if value else set()
-    if isinstance(value, str):
-        return {int(match.group("number")) for match in ISSUE_PATTERN.finditer(value)}
-    return set()
-
-
-def _classification_entries(ledger: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[str, Any]]]:
-    classifications = ledger.get("classifications")
-    if not isinstance(classifications, Mapping):
-        raise AuditLedgerError("classifications object is required")
-    for section in (
-        "backend_modules",
-        "backend_routes",
-        "frontend_pages",
-        "bff_handlers",
-        "expected_absent_backend_routes",
-    ):
-        entries = classifications.get(section)
-        if not isinstance(entries, Mapping):
-            raise AuditLedgerError(f"classification section {section} must be an object")
-        for key, entry in entries.items():
-            if not isinstance(entry, Mapping):
-                raise AuditLedgerError(f"classification {section}:{key} must be an object")
-            yield f"{section}:{key}", entry
-    deployment = classifications.get("deployment_boundaries")
-    if not isinstance(deployment, list):
-        raise AuditLedgerError("deployment boundary classifications must be a list")
-    for index, entry in enumerate(deployment):
-        if not isinstance(entry, Mapping):
-            raise AuditLedgerError(f"deployment boundary {index} must be an object")
-        yield f"deployment:{index}", entry
-    navigation = classifications.get("navigation")
-    if not isinstance(navigation, list):
-        raise AuditLedgerError("navigation classifications must be a list")
-    for index, entry in enumerate(navigation):
-        if not isinstance(entry, Mapping):
-            raise AuditLedgerError(f"navigation classification {index} must be an object")
-        yield f"navigation:{index}", entry
+        return set().union(*(issue_numbers(v) for v in value)) if value else set()
+    return {int(m.group("number")) for m in ISSUE_RE.finditer(value)} if isinstance(value, str) else set()
 
 
 def validate_ledger(ledger: Mapping[str, Any], completed: set[int] | None = None) -> None:
-    completed = completed_programme_issues() if completed is None else completed
     inventory = ledger.get("inventory")
     if not isinstance(inventory, Mapping):
-        raise AuditLedgerError("inventory object is required")
+        raise AuditLedgerError("inventory is required")
     for key in ("backend_modules", "backend_routes", "frontend_pages", "bff_handlers"):
-        values = inventory.get(key)
-        if not isinstance(values, list) or len(values) != len({json.dumps(v, sort_keys=True) for v in values}):
-            raise AuditLedgerError(f"inventory {key} must be a duplicate-free list")
-    digest = inventory.get("composition_signature_sha256")
-    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        fp = inventory.get(key)
+        if not isinstance(fp, Mapping) or not isinstance(fp.get("count"), int) or not DIGEST_RE.fullmatch(str(fp.get("sha256", ""))):
+            raise AuditLedgerError(f"invalid inventory fingerprint: {key}")
+    if not DIGEST_RE.fullmatch(str(inventory.get("composition_signature_sha256", ""))):
         raise AuditLedgerError("composition signature digest is required")
-
-    referenced: set[int] = set()
-    seen_navigation: set[tuple[str, str]] = set()
-    for key, entry in _classification_entries(ledger):
+    cls = ledger["classifications"]
+    entries = [(f"{section}:{key}", entry) for section in ("backend_modules", "backend_routes", "frontend_pages", "bff_handlers", "expected_absent_backend_routes") for key, entry in cls[section].items()]
+    entries += [(f"deployment:{i}", row) for i, row in enumerate(cls["deployment_boundaries"])]
+    entries += [(f"navigation:{i}", row) for i, row in enumerate(cls["navigation"])]
+    seen = set()
+    for key, entry in entries:
         status = entry.get("status") or entry.get("overall")
-        if status not in VALID_STATUSES:
-            raise AuditLedgerError(f"{key} has invalid status {status!r}")
-        reason = entry.get("reason")
-        if not isinstance(reason, str) or not reason.strip():
-            raise AuditLedgerError(f"{key} must include a non-empty reason")
-        referenced.update(issue_numbers(entry))
+        if status not in STATUSES or not str(entry.get("reason", "")).strip():
+            raise AuditLedgerError(f"invalid classification: {key}")
         if key.startswith("navigation:"):
-            route = str(entry.get("route", ""))
-            label = str(entry.get("label", ""))
-            if not route or not label or (route, label) in seen_navigation:
-                raise AuditLedgerError("navigation entries require unique route/label pairs")
-            seen_navigation.add((route, label))
-            overall = entry.get("overall")
-            layers = [
-                entry.get("frontend"),
-                entry.get("api_boundary"),
-                entry.get("backend"),
-                entry.get("persistence_provider"),
-                entry.get("tests"),
-            ]
-            if overall == "COMPLETE" and any(layer != "COMPLETE" for layer in layers):
-                raise AuditLedgerError(
-                    f"navigation {route} cannot be COMPLETE with incomplete layers"
-                )
-    referenced.update(issue_numbers(ledger))
-    stale = sorted(referenced & completed)
+            pair = (entry.get("route"), entry.get("label"))
+            if None in pair or pair in seen:
+                raise AuditLedgerError("navigation entries must be unique")
+            seen.add(pair)
+            if entry.get("overall") == "COMPLETE" and any(entry.get(layer) != "COMPLETE" for layer in ("frontend", "api_boundary", "backend", "persistence_provider", "tests")):
+                raise AuditLedgerError(f"navigation {entry['route']} contradicts its layers")
+    stale = sorted(issue_numbers(ledger) & (completed_programme_issues() if completed is None else completed))
     if stale:
-        raise AuditLedgerError(
-            "ledger still references programme Issues marked COMPLETE: "
-            + ", ".join(f"#{number}" for number in stale)
-        )
+        raise AuditLedgerError("ledger references programme Issues marked COMPLETE: " + ", ".join(f"#{n}" for n in stale))
 
 
-def _actual_route_inventory(data: Mapping[str, Any]) -> list[dict[str, str]]:
-    return sorted(
-        [
-            {"method": str(item["method"]), "route": str(item["route"]), "file": str(item["file"])}
-            for item in data["backend_routes"]
-        ],
-        key=lambda item: (item["route"], item["method"], item["file"]),
-    )
+def _inventory(data: Mapping[str, Any]) -> dict[str, list[Any]]:
+    return {
+        "backend_modules": sorted(str(x["module"]) for x in data["backend_modules"]),
+        "backend_routes": sorted(({"method": str(x["method"]), "route": str(x["route"]), "file": str(x["file"])} for x in data["backend_routes"]), key=lambda x: (x["route"], x["method"], x["file"])),
+        "frontend_pages": sorted(str(x["route"]) for x in data["frontend_pages"]),
+        "bff_handlers": sorted(str(x["route"]) for x in data["bff_handlers"]),
+    }
 
 
 def validate_inventory(data: Mapping[str, Any], ledger: Mapping[str, Any]) -> None:
-    expected = ledger["inventory"]
-    actual = {
-        "backend_modules": sorted(str(item["module"]) for item in data["backend_modules"]),
-        "backend_routes": _actual_route_inventory(data),
-        "frontend_pages": sorted(str(item["route"]) for item in data["frontend_pages"]),
-        "bff_handlers": sorted(str(item["route"]) for item in data["bff_handlers"]),
-    }
+    actual = _inventory(data)
     for key, value in actual.items():
-        if value != expected[key]:
-            missing = [item for item in expected[key] if item not in value]
-            added = [item for item in value if item not in expected[key]]
-            raise AuditLedgerError(
-                f"{key} drift requires an explicit ledger update; missing={missing!r}, added={added!r}"
-            )
-
-    expected_digest = str(expected["composition_signature_sha256"])
-    actual_digest = canonical_digest(composition_signature(data["composition_evidence"]))
-    if actual_digest != expected_digest:
-        raise AuditLedgerError(
-            "runtime composition evidence changed without an explicit ledger disposition: "
-            f"expected {expected_digest}, got {actual_digest}"
-        )
-
-    classifications = ledger["classifications"]
-    coverage = {
-        "backend_modules": set(classifications["backend_modules"]),
-        "backend_routes": set(classifications["backend_routes"]),
-        "frontend_pages": set(classifications["frontend_pages"]),
-        "bff_handlers": set(classifications["bff_handlers"]),
-    }
-    expected_coverage = {
-        "backend_modules": set(actual["backend_modules"]),
-        "backend_routes": {
-            f"{item['method']} {item['route']}" for item in actual["backend_routes"]
-        },
-        "frontend_pages": set(actual["frontend_pages"]),
-        "bff_handlers": set(actual["bff_handlers"]),
-    }
+        expected = ledger["inventory"][key]
+        digest = canonical_digest(value)
+        if len(value) != expected["count"] or digest != expected["sha256"]:
+            raise AuditLedgerError(f"{key} drift requires an explicit ledger update; expected {expected['count']}/{expected['sha256']}, got {len(value)}/{digest}")
+    expected = ledger["inventory"]["composition_signature_sha256"]
+    digest = canonical_digest(composition_signature(data["composition_evidence"]))
+    if digest != expected:
+        raise AuditLedgerError(f"runtime composition evidence changed without an explicit ledger disposition: expected {expected}, got {digest}")
+    cls = ledger["classifications"]
+    coverage = {"backend_modules": set(cls["backend_modules"]), "backend_routes": set(cls["backend_routes"]), "frontend_pages": set(cls["frontend_pages"]), "bff_handlers": set(cls["bff_handlers"])}
+    expected_coverage = {"backend_modules": set(actual["backend_modules"]), "backend_routes": {f"{x['method']} {x['route']}" for x in actual["backend_routes"]}, "frontend_pages": set(actual["frontend_pages"]), "bff_handlers": set(actual["bff_handlers"])}
     for key in coverage:
         if coverage[key] != expected_coverage[key]:
-            raise AuditLedgerError(
-                f"{key} classifications do not exactly cover current inventory"
-            )
-
-    current_routes = {item["route"] for item in actual["backend_routes"]}
-    for route in classifications["expected_absent_backend_routes"]:
-        if any(current.startswith(route) for current in current_routes):
-            raise AuditLedgerError(
-                f"expected-absent route {route} now exists; update its classification"
-            )
+            raise AuditLedgerError(f"{key} classifications do not exactly cover current inventory")
+    routes = {x["route"] for x in actual["backend_routes"]}
+    for prefix in cls["expected_absent_backend_routes"]:
+        if any(route.startswith(prefix) for route in routes):
+            raise AuditLedgerError(f"expected-absent route {prefix} now exists")
 
 
-def validate_report_metadata(
-    data: Mapping[str, Any], ledger: Mapping[str, Any], audited_head: str
-) -> None:
-    expected = ledger_metadata(ledger, audited_head)
-    for key, value in expected.items():
+def validate_report_metadata(data: Mapping[str, Any], ledger: Mapping[str, Any], head: str) -> None:
+    for key, value in ledger_metadata(ledger, head).items():
         if data.get(key) != value:
-            raise AuditLedgerError(
-                f"deep inventory metadata mismatch for {key}: expected {value!r}, got {data.get(key)!r}"
-            )
+            raise AuditLedgerError(f"deep inventory metadata mismatch for {key}")

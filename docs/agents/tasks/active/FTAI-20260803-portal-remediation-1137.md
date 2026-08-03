@@ -7,12 +7,12 @@ issue: 1137
 repository: blakinio/freqtrade
 lane: freqtrade-portal
 task_kind: implementation
-phase: validate_and_merge
-status: validating
+phase: protected_acceptance
+status: waiting
 priority: medium
 prompting_standard_version: 2.1
 execution_policy_version: 2
-context_pressure: medium
+context_pressure: low
 decomposition_decision: single
 execution_mode: github_only
 run_scope: autonomous_task
@@ -29,135 +29,94 @@ feature_scope:
 branch: fix/portal-1137-atomic-oidc-state-claim
 base_branch: develop
 base_head: c19f9881127485bc4a5090510765199d972956de
-implementation_head: 49a226f47d25b72318364a1734dcd5d78c7df877
+implementation_head: 5dc6261e294e5324ee8baca6caff8fc3129cc0ab
 pr: 1154
+pr_state: merged
+merge_commit: f1bf851733ecc870f61c1206b0ee0fe8755c6e67
 related_prs:
   - pr: 1156
     purpose: integrate current develop after Issue 1127 closeout
     state: merged
     merge_commit: 63901617f2277624373ab31525032ea83352f86b
-owned_paths:
-  - ai_platform/portal/identity/repository.py
-  - ai_platform/portal/identity/service.py
-  - ai_platform/portal/identity/service_base.py
-  - tests/ai_platform/portal/identity/test_oidc_state_claim.py
-  - .github/workflows/portal-oidc-state-claim.yml
-  - .github/workflows/portal-oidc-state-claim-postgresql.yml
-  - docs/ai_platform/portal/OIDC_STATE_CLAIM.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-1137.md
-shared_path_leases:
-  - mechanism: oidc_login_state_claim
-    producer_issue: 1137
-    status: held_until_repository_merge
-producer_dependencies:
-  - existing portal_oidc_login_flows schema
-consumer_constraints:
-  - do not add a competing migration authority; Issue 1122 owns shared production migrations
-  - do not hold a database transaction across provider I/O
-  - do not make a claimed state reusable after timeout or process failure
-  - do not persist raw state, code, verifier, tokens or provider responses
-  - Issue 1132 may claim overlapping identity paths only after this repository merge and lease release
+owned_paths: []
+shared_path_leases: []
+repository_work_remaining: false
+external_acceptance_remaining: true
 live_capital_authorized: false
 withdrawals_enabled: false
 protected_production_deployment_authorized: false
 ```
 
-## Finding and repair
+## Repository result
 
-The exact-base implementation performed a non-locking read/check/write transition. Two independent transactions could therefore observe the same pending OIDC login flow and each proceed toward provider exchange.
+PR `#1154` replaced the non-locking OIDC state read/check/write sequence with one conditional `UPDATE ... RETURNING` claim whose predicate requires the keyed state identity, `consumed_at IS NULL` and `expires_at > now`. The claim transaction commits before provider I/O. A losing callback cannot obtain the verifier, call the provider, mutate principal or membership state, issue a Portal session or emit duplicate login-success evidence.
 
-The repair replaces that transition with one conditional `UPDATE ... RETURNING` whose predicate requires the keyed state identity, `consumed_at IS NULL` and `expires_at > now`. The claim transaction commits before any provider request. Losing callbacks receive the same bounded invalid/expired response and cannot decrypt the verifier, call the provider, create or update identity state, issue a Portal session or emit login success.
-
-The keyed state hash is reused only as the audit correlation identifier. Raw browser state, authorization code, verifier, provider payload and session material remain excluded. A committed claim is terminal: timeout, provider rejection or process death requires a new login flow and never reopens the original state/code.
+A committed claim is terminal. Provider rejection, timeout or process interruption cannot reopen the original state or code. Audit correlation uses only the keyed state identifier; raw browser state, authorization code, PKCE verifier, provider payload and session material remain excluded.
 
 ## Acceptance inventory
 
-- [x] State claim is one production-dialect-safe conditional update with an affected-row/returned-row ownership check.
-- [x] The predicate requires matching state identity, `consumed_at IS NULL` and an unexpired row.
-- [x] Exactly one concurrent transaction receives the login flow; every loser receives the bounded invalid/replay result.
-- [x] Losing callbacks perform no provider exchange, principal update, membership change, Portal session creation or login-success effect.
-- [x] Provider I/O remains outside database transactions and row locks.
-- [x] Provider timeout, exchange failure or process interruption after claim leaves the browser state terminally consumed.
-- [x] Sequential replay and expired-state behavior remain indistinguishable.
-- [x] File-backed SQLite is proven through independent connections.
-- [x] PostgreSQL 16.13 is executed through two independent connections and proves exactly one durable claim owner.
-- [x] Same-code/distinct-code overlap, rollback, expiry, provider failure, missing membership and duplicate-session prevention are covered.
-- [x] Audit events use one keyed correlation identifier and exclude raw state, code, verifier and token material.
-- [x] Exact control-plane image validation produces a non-empty machine-checked artifact.
-- [x] Fresh Portal Completeness Audit and GitHub Actions workflow-security analysis pass on the implementation head.
-- [ ] Final full exact-head CI passes after this checkpoint commit.
-- [ ] Protected Authentik staging concurrency is executed with synthetic identities under the protected-target boundary.
-- [ ] PR #1154 merges without auto-closing Issue #1137 while protected acceptance remains outstanding.
-- [ ] Repository ownership/lease releases and the programme continues with Issue #1132.
+- [x] Atomic conditional claim with affected-row ownership check.
+- [x] Exactly one callback owner and one bounded losing result under concurrent delivery.
+- [x] No provider exchange, identity mutation, session issuance or success audit by a loser.
+- [x] Provider I/O occurs outside database transactions and row locks.
+- [x] Timeout, failure and interruption leave the state terminally consumed.
+- [x] Sequential replay and expired-state responses remain bounded and non-enumerating.
+- [x] Independent file-backed SQLite connections prove exactly one owner.
+- [x] Independent PostgreSQL 16.13 connections prove exactly one durable owner.
+- [x] Same-code, distinct-code, rollback, expiry, provider-failure, membership and duplicate-session cases are covered.
+- [x] Exact control-plane image produces non-empty machine-checked evidence.
+- [x] Fresh Portal Completeness Audit and workflow-security analysis pass.
+- [x] Full exact-head Freqtrade CI passes.
+- [x] PR `#1154` merged without auto-closing Issue `#1137`.
+- [x] Repository ownership and the OIDC state-claim lease are released.
+- [ ] Protected Authentik staging concurrency passes using an authorized synthetic protected-target identity.
+- [ ] Issue `#1137` closes and this task archives after protected acceptance.
 
-## Validation evidence
+## Exact-head evidence
 
-Validated implementation head before this checkpoint: `49a226f47d25b72318364a1734dcd5d78c7df877`.
+Validated implementation head: `5dc6261e294e5324ee8baca6caff8fc3129cc0ab`.
 
-- Portal OIDC State Claim run `30824017390`: success.
-  - exact-image artifact `8860035312`;
-  - digest `sha256:d6af01bb25fbeb45330070906b01bdf47905abbf8eb10f989cd72cc28acee659`;
-  - one provider owner, one rejected callback and one Portal session;
-  - `secret_values_recorded=false`, `live_capital_authorized=false`.
-- Portal OIDC State Claim PostgreSQL run `30824017512`: success.
-  - PostgreSQL 16.13, two independent connections;
-  - outcomes exactly `claimed` and `rejected`;
-  - durable claim count exactly one;
-  - artifact `8860036269`;
-  - digest `sha256:5467a557f139d2b0096352f0f4c222ae2cce33eddcf9e34dc1b1bd2944309d97`;
-  - `raw_state_recorded=false`, `secret_values_recorded=false`, `live_capital_authorized=false`.
-- AI Platform CI run `30824017347`: success.
-- Portal Completeness Audit run `30824017455`: success.
-- GitHub Actions Security Analysis run `30824017355`: success.
-- Freqtrade CI run `30824017369`: still running when this checkpoint was written; the checkpoint commit must receive a fresh exact-head run.
-- Coordinator changed-path review: no unresolved repository-owned material finding after adding real PostgreSQL execution.
-- PR comments, reviews and review threads: none unresolved at the checkpoint.
+- Freqtrade CI `30824694901`: success.
+- AI Platform CI `30824694834`: success.
+- Portal Completeness Audit `30824696000`: success.
+- GitHub Actions Security Analysis `30824694865`: success.
+- Portal OIDC State Claim exact-image run `30824694973`: success.
+  - artifact `8860313666`;
+  - digest `sha256:ce29f185c0fb6c9985eb665dacf8adf08fbd6b3a82645a9b46ab073bed41cbb7`.
+- PostgreSQL independent-connection run `30824695775`: success.
+  - artifact `8860316412`;
+  - digest `sha256:bfbcc2252d228679985dc0b69fada31e6f55582601046e22ef6b643a88b2f7b9`.
+- PR comments/reviews: one pin-metadata finding corrected.
+- Unresolved review threads: zero.
+- Merge: squash commit `f1bf851733ecc870f61c1206b0ee0fe8755c6e67`.
 
 ## Protected-target boundary
 
-The repository contains trusted Synology deployment and diagnostic workflows, but the existing public Authentik flow intentionally keeps password/TOTP browser acceptance owner-controlled. No current authorized request can manufacture or disclose those protected credentials. Therefore repository implementation may merge after exact-head gates, but Issue #1137 must remain open and classified `WAITING` until a protected staging run uses a synthetic identity and proves concurrent callbacks against the protected Authentik target. Fixture or isolated provider emulation must not be reported as that acceptance.
+The remaining acceptance is one protected-environment operation: run two concurrent callbacks through the protected Authentik staging target using an authorized synthetic identity. Existing owner password/TOTP material is not authorized for repository automation or evidence. Isolated provider emulation, exact-image tests and local Authentik health checks are supporting evidence only and must not be reported as protected-target acceptance.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 2
-updated_at: 2026-08-03T14:45:00Z
+checkpoint_version: 3
+updated_at: 2026-08-03T15:10:00Z
+status: waiting
 branch: fix/portal-1137-atomic-oidc-state-claim
-head_before_checkpoint: 49a226f47d25b72318364a1734dcd5d78c7df877
+implementation_head: 5dc6261e294e5324ee8baca6caff8fc3129cc0ab
 pr: 1154
-status: validating
+merge_commit: f1bf851733ecc870f61c1206b0ee0fe8755c6e67
 proven:
-  - atomic conditional claim is implemented and provider I/O starts only after claim commit
-  - overlapping callbacks produce one provider exchange and one Portal session in exact-image validation
-  - independent file-backed SQLite connections produce one claimant and one rejected loser
-  - independent PostgreSQL 16.13 connections produce one durable claimant and one rejected loser
-  - claim/rejection/denial/success evidence uses a keyed correlation identifier without raw state or credential material
-  - exact-image, AI Platform, Portal Completeness and workflow-security checks passed on implementation head 49a226f47d25b72318364a1734dcd5d78c7df877
+  - repository implementation, focused validation, production-dialect concurrency proof, exact-image proof, independent audit, review hygiene and exact-head CI are complete
+  - issue remains open because the protected Authentik staging criterion has not been executed
+  - repository ownership and shared-path lease are released
+  - no protected credential, production deployment, trading, withdrawal or live-capital mutation occurred
 derived:
-  - repository-owned implementation is ready for final exact-head CI and merge
-  - protected Authentik staging acceptance is separable from repository merge but not from Issue closure
+  - independent Issue 1132 work may now claim the overlapping identity paths
 unknown:
-  - protected Authentik staging concurrency outcome using a synthetic protected-target identity
+  - protected Authentik staging concurrency outcome using an authorized synthetic identity
 conflicts: []
-first_failure:
-  marker: oidc-state-read-check-write-race
-  evidence: superseded by atomic update and PostgreSQL/SQLite concurrency proof
-rejected_hypotheses:
-  - SQL compilation alone proves production-dialect behavior; rejected and replaced with real PostgreSQL execution
-  - isolated Authentik health emulation is protected staging callback acceptance; rejected because it performs no protected callback login
-  - owner password or TOTP material may be automated or recorded; rejected by the protected identity boundary
-changed_paths:
-  - .github/workflows/portal-oidc-state-claim-postgresql.yml
-  - .github/workflows/portal-oidc-state-claim.yml
-  - ai_platform/portal/identity/repository.py
-  - ai_platform/portal/identity/service.py
-  - ai_platform/portal/identity/service_base.py
-  - tests/ai_platform/portal/identity/test_oidc_state_claim.py
-  - docs/ai_platform/portal/OIDC_STATE_CLAIM.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-1137.md
-blockers:
-  - authority: protected Authentik staging identity acceptance
-    scope: Issue closure only after repository merge
-    repository_work_remaining: false after exact-head CI and merge
-next_action: Run final exact-head CI for this checkpoint, update PR #1154 so it does not auto-close Issue #1137, merge the repository implementation, then record Issue #1137 as WAITING, release the identity claim lease and start Issue #1132.
+blocker:
+  authority: protected Authentik staging identity acceptance
+  repository_work_remaining: false
+  scope: Issue closure and task archival only
+next_action: Execute the protected Authentik staging concurrent-callback test with an authorized synthetic identity, then close Issue 1137 and archive this task if it passes.
 ```

@@ -64,7 +64,6 @@ jobs:
             --output artifacts/portal-schema-inventory.json
           python tools/portal_schema/model_provenance.py \
             > artifacts/portal-schema-model-provenance.json
-          cat artifacts/portal-schema-model-provenance.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -78,8 +77,14 @@ jobs:
               )
           )
           assert payload["format_version"] == 1
-          assert payload["orm"]["table_count"] > 0
-          assert payload["migrations"]["file_count"] > 0
+          assert payload["orm"]["table_count"] == 41
+          assert payload["migrations"]["table_count"] == 41
+          assert payload["drift"] == {
+              "duplicate_migration_owners": {},
+              "migration_without_orm": [],
+              "orm_without_migration": [],
+          }
+          assert payload["create_all_calls"] == []
           assert set(payload["orm"]["tables"]) == set(provenance)
           assert payload["safety"] == {
               "live_capital_authorized": False,
@@ -96,5 +101,128 @@ jobs:
           path: |
             artifacts/portal-schema-inventory.json
             artifacts/portal-schema-model-provenance.json
+          if-no-files-found: error
+          retention-days: 14
+
+  sqlite-integrity:
+    name: SQLite semantic parity and fail-closed readiness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install bounded test dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          -r deploy/synology/portal-oidc/requirements.txt
+          pytest==8.4.1
+
+      - name: Run SQLite schema authority tests
+        env:
+          PYTHONPATH: .:ai_platform
+        run: |
+          set -euo pipefail
+          pytest -q \
+            tests/ai_platform/portal/control_plane/test_database_integrity.py \
+            tests/ai_platform/portal/database/test_schema_authority.py
+
+  postgresql-integrity:
+    name: PostgreSQL concurrency, rollback and restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: docker.io/library/postgres:16.13-alpine3.23@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777
+        env:
+          POSTGRES_DB: portal_schema
+          POSTGRES_USER: portal_schema
+          POSTGRES_PASSWORD: ci-only-synthetic-schema-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U portal_schema -d portal_schema"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install bounded test dependencies
+        run: >-
+          python -m pip install --disable-pip-version-check
+          -r deploy/synology/portal-oidc/requirements.txt
+          pytest==8.4.1
+
+      - name: Prove PostgreSQL migration and recovery boundaries
+        env:
+          PYTHONPATH: .:ai_platform
+          PORTAL_TEST_POSTGRES_URL: postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema
+        run: |
+          set -euo pipefail
+          pytest -q tests/ai_platform/portal/database/test_schema_postgresql.py
+
+      - name: Create source schema for backup and restore
+        env:
+          PYTHONPATH: .:ai_platform
+          PORTAL_DATABASE_URL: postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python -m ai_platform.portal.database.cli migrate \
+            --output artifacts/postgresql-source-readiness.json
+
+      - name: Prove backup and restore revision integrity
+        env:
+          PGPASSWORD: ci-only-synthetic-schema-password
+          PYTHONPATH: .:ai_platform
+        run: |
+          set -euo pipefail
+          pg_dump \
+            --host 127.0.0.1 \
+            --username portal_schema \
+            --format custom \
+            --file artifacts/portal-schema.backup \
+            portal_schema
+          createdb \
+            --host 127.0.0.1 \
+            --username portal_schema \
+            portal_schema_restore
+          pg_restore \
+            --host 127.0.0.1 \
+            --username portal_schema \
+            --dbname portal_schema_restore \
+            --no-owner \
+            --exit-on-error \
+            artifacts/portal-schema.backup
+          PORTAL_DATABASE_URL="postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema_restore" \
+            python -m ai_platform.portal.database.cli check \
+            --output artifacts/postgresql-restored-readiness.json
+
+      - name: Upload secret-free PostgreSQL evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-schema-postgresql-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            artifacts/postgresql-source-readiness.json
+            artifacts/postgresql-restored-readiness.json
           if-no-files-found: error
           retention-days: 14

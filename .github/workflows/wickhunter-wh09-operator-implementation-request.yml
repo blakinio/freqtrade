@@ -85,8 +85,15 @@ jobs:
 
           payload = Path('.github/wh09-payload/operator.py.zlib.b64')
           current_bytes = payload.read_bytes()
-          if current_bytes.startswith(b'from __future__ import annotations'):
-              operator_text = current_bytes.decode('utf-8')
+          try:
+              candidate_text = current_bytes.decode('utf-8')
+          except UnicodeDecodeError:
+              candidate_text = ''
+          if (
+              'from __future__ import annotations' in candidate_text[:4096]
+              and 'class CandidatePaperRuntimeOperatorError' in candidate_text[:8192]
+          ):
+              operator_text = candidate_text
           else:
               compressed = base64.b64decode(current_bytes.strip(), validate=True)
               try:

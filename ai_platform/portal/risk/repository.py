@@ -107,6 +107,10 @@ class RiskRepository:
                 created_at=intent.created_at,
             )
         )
+        # The following risk decision has a composite foreign key to this intent.
+        # Flush the parent explicitly because these rows intentionally do not expose
+        # an ORM relationship that SQLAlchemy could use to infer insert ordering.
+        session.flush()
 
     def get_trade_intent(
         self,

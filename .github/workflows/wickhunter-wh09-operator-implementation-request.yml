@@ -72,8 +72,8 @@ jobs:
 
           path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
           text = path.read_text(encoding="utf-8")
-          old = "from __future__ import annotations\n\n"
-          new = "from __future__ import annotations\n\n# ruff: noqa: S310\n\n"
+          old = "from __future__ import annotations\n"
+          new = "# ruff: noqa: S310\n\nfrom __future__ import annotations\n"
           if text.count(old) != 1 or "# ruff: noqa: S310" in text:
               raise SystemExit("operator file-level audit anchor mismatch")
           path.write_text(text.replace(old, new, 1), encoding="utf-8")

@@ -1,0 +1,183 @@
+name: WickHunter preserve model text fix request
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-model-text-fix-request.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-model-text-fix-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-model-text-fix-request.yml
+  TARGET_BRANCH: fix/wickhunter-preserve-model-text-20260803
+  TARGET_BASE_SHA: c11ee1de3d6064a1b233a8bbd3c62950755ff6eb
+
+jobs:
+  apply-and-verify:
+    name: Apply exact model-text preservation fix
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact helper scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$TARGET_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-model-text-fix-request.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Check out target feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: target
+
+      - name: Apply deterministic source and regression changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          [[ "$(git rev-parse HEAD)" == "$TARGET_BASE_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path("ai_platform/wickhunter/candidate_activation.py")
+          tests = Path("tests/ai_platform_integration/test_wickhunter_candidate_activation.py")
+
+          source_text = source.read_text(encoding="utf-8")
+          anchor = '''def _require_text(value: object, *, field: str) -> str:
+              if not isinstance(value, str) or not value.strip():
+                  raise CandidateActivationError(f"{field} must be non-empty text")
+              return value.strip()
+          '''
+          replacement = '''def _require_text(value: object, *, field: str) -> str:
+              if not isinstance(value, str) or not value.strip():
+                  raise CandidateActivationError(f"{field} must be non-empty text")
+              return value.strip()
+
+
+          def _require_exact_text(value: object, *, field: str) -> str:
+              if not isinstance(value, str) or not value.strip():
+                  raise CandidateActivationError(f"{field} must be non-empty text")
+              return value
+          '''
+          if source_text.count(anchor) != 1:
+              raise SystemExit("candidate text validator anchor mismatch")
+          source_text = source_text.replace(anchor, replacement, 1)
+          old_loader = '            model_text=_require_text(payload["model_text"], field="model_text"),'
+          new_loader = '            model_text=_require_exact_text(payload["model_text"], field="model_text"),'
+          if source_text.count(old_loader) != 1:
+              raise SystemExit("model text loader anchor mismatch")
+          source_text = source_text.replace(old_loader, new_loader, 1)
+          source.write_text(source_text, encoding="utf-8")
+
+          test_text = tests.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  'MODEL_HASH = hashlib.sha256(b"model-text").hexdigest()',
+                  'MODEL_HASH = hashlib.sha256(b"model-text\\n").hexdigest()',
+              ),
+              (
+                  '        model_text="model-text",',
+                  '        model_text="model-text\\n",',
+              ),
+          )
+          for old, new in replacements:
+              if test_text.count(old) != 1:
+                  raise SystemExit(f"regression anchor mismatch: {old}")
+              test_text = test_text.replace(old, new, 1)
+          tests.write_text(test_text, encoding="utf-8")
+          PY
+          python3 -m py_compile \
+            ai_platform/wickhunter/candidate_activation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          expected=$'ai_platform/wickhunter/candidate_activation.py\ntests/ai_platform_integration/test_wickhunter_candidate_activation.py'
+          actual="$(git diff --name-only | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected product paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v7.2.1
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+          working-directory: target
+
+      - name: Install locked dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          uv pip install -r requirements-dev.txt
+          uv pip install -e ft_client/
+          uv pip install -e .
+
+      - name: Validate focused product change
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          ruff check \
+            ai_platform/wickhunter/candidate_activation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          ruff format --check \
+            ai_platform/wickhunter/candidate_activation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          pytest -q tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+
+      - name: Commit validated product change
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          expected=$'ai_platform/wickhunter/candidate_activation.py\ntests/ai_platform_integration/test_wickhunter_candidate_activation.py'
+          actual="$(git diff --name-only | sort)"
+          [[ "$actual" == "$expected" ]]
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            ai_platform/wickhunter/candidate_activation.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_activation.py
+          git commit -m "fix(wickhunter): preserve exact serialized model text"
+          git push origin "HEAD:$TARGET_BRANCH"
+          {
+            echo "## WickHunter model-text loader repair"
+            echo
+            echo "- Target branch: \`$TARGET_BRANCH\`"
+            echo "- Exact model text, including terminal newline, is preserved during reconstruction."
+            echo "- Focused Ruff, format and candidate activation tests: \`PASS\`"
+            echo "- Changed product paths: \`2\`"
+          } >> "$GITHUB_STEP_SUMMARY"

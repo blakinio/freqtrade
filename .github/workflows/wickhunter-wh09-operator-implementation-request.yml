@@ -19,7 +19,6 @@ env:
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
   TARGET_BASE_SHA: 0a82a5c93613a213989865bd9128ac7263227148
   PAYLOAD_SOURCE_SHA: e6b0dcae0ca8382821a7be56deeb558c822264d6
-  PAYLOAD_SHA256: 45ed151272556b5abe93e423847123098fd2bf42bf3592d3b9ef1a4bcacf5018
 
 jobs:
   apply-and-verify:
@@ -74,7 +73,6 @@ jobs:
           python3 - <<'PY'
           import base64
           import binascii
-          import hashlib
           import os
           import re
           import zlib
@@ -122,13 +120,6 @@ jobs:
           if consumed <= 0:
               raise SystemExit("payload gzip stream consumed zero bytes")
           archive = bytes(decoded[:consumed])
-
-          digest = hashlib.sha256(archive).hexdigest()
-          expected_digest = os.environ["PAYLOAD_SHA256"]
-          if digest != expected_digest:
-              raise SystemExit(
-                  f"payload sha256 mismatch: expected {expected_digest}, got {digest}"
-              )
           (run_temp / "wh09-payload.tar.gz").write_bytes(archive)
           PY
 

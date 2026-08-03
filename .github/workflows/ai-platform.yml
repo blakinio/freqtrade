@@ -5,6 +5,8 @@ on:
     paths:
       - "AGENTS.md"
       - "ai_platform/**"
+      - "deploy/synology/portal-oidc/Dockerfile.control-plane"
+      - "deploy/synology/portal-oidc/requirements.txt"
       - "docs/ai_platform/**"
       - "tests/ai_platform/**"
       - ".github/workflows/ai-platform.yml"
@@ -14,6 +16,8 @@ on:
     paths:
       - "AGENTS.md"
       - "ai_platform/**"
+      - "deploy/synology/portal-oidc/Dockerfile.control-plane"
+      - "deploy/synology/portal-oidc/requirements.txt"
       - "docs/ai_platform/**"
       - "tests/ai_platform/**"
       - ".github/workflows/ai-platform.yml"
@@ -75,3 +79,90 @@ jobs:
 
       - name: Validate experiment schema JSON
         run: python -m json.tool ai_platform/experiments/schema-v1.json > /dev/null
+
+      - name: Scan committed Portal artifacts and persisted fixtures
+        run: |
+          mkdir -p artifacts
+          python -m ai_platform.portal.security.sensitive_scan \
+            ai_platform/portal tests/ai_platform/portal \
+            --report artifacts/sensitive-data-scan.json
+
+      - name: Upload value-free sensitive-data scan report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: portal-sensitive-data-scan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/sensitive-data-scan.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  exact-image-sensitive-data:
+    name: Exact control-plane image sensitive-data probes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build exact control-plane image
+        run: >-
+          docker build
+          --file deploy/synology/portal-oidc/Dockerfile.control-plane
+          --tag portal-control-plane-sensitive:${{ github.sha }}
+          .
+
+      - name: Run clean and synthetic-negative scanner probes
+        env:
+          IMAGE: portal-control-plane-sensitive:${{ github.sha }}
+        run: |
+          mkdir -p artifacts/image-sensitive-scan
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path("artifacts/image-sensitive-scan")
+          (root / "clean.json").write_text(
+              json.dumps({"event": "ready", "authorization_status": "denied"}),
+              encoding="utf-8",
+          )
+          canary = "SYNTHETIC" + "-IMAGE-CANARY"
+          (root / "negative.json").write_text(
+              json.dumps({"metadata": {"credential_ref": canary}}),
+              encoding="utf-8",
+          )
+          PY
+
+          docker run --rm \
+            --volume "$PWD/artifacts/image-sensitive-scan:/scan:ro" \
+            "$IMAGE" \
+            python -m ai_platform.portal.security.sensitive_scan \
+            /scan/clean.json \
+            > artifacts/image-sensitive-scan/clean-report.json
+
+          set +e
+          docker run --rm \
+            --volume "$PWD/artifacts/image-sensitive-scan:/scan:ro" \
+            "$IMAGE" \
+            python -m ai_platform.portal.security.sensitive_scan \
+            /scan/negative.json \
+            > artifacts/image-sensitive-scan/negative-report.json
+          negative_status=$?
+          set -e
+
+          test "$negative_status" -eq 1
+          grep -q 'credential_reference' artifacts/image-sensitive-scan/negative-report.json
+          if grep -q 'SYNTHETIC-IMAGE-CANARY' artifacts/image-sensitive-scan/negative-report.json; then
+            echo "scanner report exposed the synthetic value" >&2
+            exit 1
+          fi
+
+      - name: Upload exact-image scanner evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.2
+        with:
+          name: portal-sensitive-data-image-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/image-sensitive-scan
+          if-no-files-found: warn
+          retention-days: 14

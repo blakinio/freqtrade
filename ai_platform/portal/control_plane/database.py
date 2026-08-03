@@ -57,23 +57,12 @@ def build_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 
 def create_schema(engine: Engine) -> None:
-    # Import every portal module that contributes SQLAlchemy tables to the shared
-    # metadata before creating the development/test schema. Production continues
-    # to use the versioned migrations owned by each module.
-    from ai_platform.portal.bot_operations import models as bot_operation_models  # noqa: F401
-    from ai_platform.portal.control_plane import models as control_plane_models  # noqa: F401
-    from ai_platform.portal.execution_submission import (  # noqa: F401
-        models as execution_submission_models,
-    )
-    from ai_platform.portal.identity import models as identity_models  # noqa: F401
-    from ai_platform.portal.intelligence import models as intelligence_models  # noqa: F401
-    from ai_platform.portal.learning import models as learning_models  # noqa: F401
-    from ai_platform.portal.model_control import models as model_control_models  # noqa: F401
-    from ai_platform.portal.operations import models as operations_models  # noqa: F401
-    from ai_platform.portal.product import models as product_models  # noqa: F401
-    from ai_platform.portal.risk import models as risk_models  # noqa: F401
-    from ai_platform.portal.signal_wizard import models as signal_wizard_models  # noqa: F401
-    from ai_platform.portal.strategy_lab import models as strategy_lab_models  # noqa: F401
-    from ai_platform.portal.telemetry import models as telemetry_models  # noqa: F401
+    """Compatibility entry point for tests and local tools.
 
-    Base.metadata.create_all(engine)
+    Schema construction is always delegated to the authoritative revision runner;
+    no runtime path may construct a parallel schema with ``metadata.create_all``.
+    """
+
+    from ai_platform.portal.database.schema import migrate_database
+
+    migrate_database(engine)

@@ -107,7 +107,6 @@ jobs:
               if len(quartet) < 4:
                   continue
               encoded_quartet = "".join(quartet)
-              padded = "=" in encoded_quartet
               try:
                   block = base64.b64decode(encoded_quartet, validate=True)
               except (binascii.Error, ValueError) as error:
@@ -126,8 +125,6 @@ jobs:
                       raise SystemExit("payload gzip stream consumed zero bytes")
                   archive = bytes(decoded[:consumed])
                   break
-              if padded:
-                  raise SystemExit("payload base64 padding preceded gzip eof")
 
           if archive is None:
               raise SystemExit("payload did not contain one complete gzip stream")

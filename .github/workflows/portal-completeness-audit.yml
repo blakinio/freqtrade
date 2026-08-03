@@ -19,6 +19,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: read
 
 jobs:
   static-completeness-audit:
@@ -41,9 +42,17 @@ jobs:
           tools/portal_audit/deep_inventory.py
           tools/portal_audit/classified_matrices.py
           tools/portal_audit/navigation_matrix.py
+          tools/portal_audit/validate_issue_states.py
 
       - name: Run audit-tool regression tests
         run: python -m unittest discover -s tools/portal_audit/tests -v
+
+      - name: Reject closed Issue mappings
+        env:
+          GITHUB_TOKEN: "${{ github.token }}"
+        run: >-
+          python tools/portal_audit/validate_issue_states.py
+          --repository "${{ github.repository }}"
 
       - name: Generate exact-head portal completeness reports
         run: |

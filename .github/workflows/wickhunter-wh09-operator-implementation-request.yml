@@ -18,15 +18,16 @@ env:
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
   TARGET_BASE_SHA: 0a82a5c93613a213989865bd9128ac7263227148
   TARGET_HEAD_SHA: 234ae6b13c7069df4f2ad0851373372df3eded0e
+  TASK_PATH: docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md
 
 jobs:
-  validate:
-    name: Validate resolved persistent PAPER operator
+  diagnose:
+    name: Persist post-repair WH09 Ruff report
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
 
     steps:
       - name: Check out exact helper request
@@ -52,20 +53,12 @@ jobs:
           ref: ${{ env.TARGET_BRANCH }}
           path: target
 
-      - name: Validate exact product scope
+      - name: Validate product and apply exact repairs
         shell: bash
         run: |
           set -euo pipefail
           [[ "$(git -C target rev-parse HEAD)" == "$TARGET_HEAD_SHA" ]]
           [[ "$(git -C target merge-base "$TARGET_BASE_SHA" HEAD)" == "$TARGET_BASE_SHA" ]]
-          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/README.md\ndeploy/synology/wickhunter-paper-runtime/compose.yaml\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          [[ "$(git -C target diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)" == "$expected" ]]
-          [[ -z "$(git -C target status --porcelain)" ]]
-
-      - name: Apply exact Ruff finding repairs
-        shell: bash
-        run: |
-          set -euo pipefail
           cd target
           python3 - <<'PY'
           from pathlib import Path
@@ -98,12 +91,8 @@ jobs:
               "test RUF043",
           )
           PY
-          python3 -m py_compile \
-            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/healthcheck.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
 
-      - name: Install uv and Python
+      - name: Install uv and Ruff
         uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
         with:
           activate-environment: true
@@ -111,17 +100,14 @@ jobs:
           enable-cache: false
           working-directory: target
 
-      - name: Install locked dependencies
+      - name: Install lint dependencies
         shell: bash
         run: |
           set -euo pipefail
           cd target
           uv pip install -r requirements-dev.txt
-          uv pip install lightgbm==4.6.0
-          uv pip install -e ft_client/
-          uv pip install -e .
 
-      - name: Validate Ruff format and lint
+      - name: Publish repairs and exact report
         shell: bash
         run: |
           set -euo pipefail
@@ -132,74 +118,49 @@ jobs:
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
           )
           ruff format "${paths[@]}"
-          ruff check "${paths[@]}"
-          ruff format --check "${paths[@]}"
+          ruff check --fix --exit-zero "${paths[@]}"
+          ruff format "${paths[@]}"
+          {
+            for path in "${paths[@]}"; do
+              echo "[$path]"
+              ruff check --output-format=concise "$path" || true
+              echo
+            done
+          } > "$RUNNER_TEMP/ruff-report.txt" 2>&1
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
 
-      - name: Type-check operator
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          mypy ai_platform/wickhunter/candidate_paper_runtime_operator.py
-
-      - name: Run focused operator and runtime tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          pytest -q \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
-            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
-
-      - name: Validate hardened Compose package
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          OPERATOR_COMMIT="$TARGET_HEAD_SHA" \
-          CANDIDATE_ROOT_HOST=/tmp/candidate \
-          ACTIVATION_ROOT_HOST=/tmp/activation \
-          JOURNAL_ROOT_HOST=/tmp/journal \
-          OPERATOR_STATE_HOST=/tmp/operator \
-          LIQUID20_LIVE_HOST=/tmp/liquid20 \
-          WICKHUNTER_PAPER_RUNTIME_IMAGE=wickhunter-paper-runtime:"$TARGET_HEAD_SHA" \
-            docker compose \
-              -f deploy/synology/wickhunter-paper-runtime/compose.yaml \
-              config --quiet
-
-      - name: Commit, build and push validated product
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd target
-          repairs="$(git diff --name-only | sort)"
-          expected_repairs=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
-          [[ "$repairs" == "$expected_repairs" ]] || {
-            printf 'Expected repairs:\n%s\nActual:\n%s\n' "$expected_repairs" "$repairs" >&2
-            exit 1
-          }
+          task = Path(os.environ["TASK_PATH"])
+          report = (Path(os.environ["RUNNER_TEMP"]) / "ruff-report.txt").read_text(
+              encoding="utf-8"
+          )
+          text = task.read_text(encoding="utf-8")
+          start = "<!-- WH09_RUFF_DIAGNOSTIC_BEGIN -->"
+          end = "<!-- WH09_RUFF_DIAGNOSTIC_END -->"
+          if start in text or end in text:
+              raise SystemExit("diagnostic markers already present")
+          task.write_text(
+              text.rstrip()
+              + "\n\n"
+              + start
+              + "\n```text\n"
+              + report.rstrip()
+              + "\n```\n"
+              + end
+              + "\n",
+              encoding="utf-8",
+          )
+          PY
+          changed="$(git diff --name-only | sort)"
+          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          [[ "$changed" == "$expected" ]]
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/healthcheck.py \
+            "$TASK_PATH" \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          git commit -m "fix(wickhunter): resolve persistent operator validation findings"
-          product_sha="$(git rev-parse HEAD)"
-          docker build \
-            --build-arg OPERATOR_COMMIT="$product_sha" \
-            --tag "wickhunter-paper-runtime:$product_sha" \
-            --file deploy/synology/wickhunter-paper-runtime/Dockerfile \
-            .
-          image_revision="$(docker image inspect "wickhunter-paper-runtime:$product_sha" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')"
-          [[ "$image_revision" == "$product_sha" ]]
+          git commit -m "fix(wickhunter): apply exact Ruff repairs and diagnostics"
           git push origin "HEAD:$TARGET_BRANCH"
-          {
-            echo "## WickHunter WH09 PAPER operator validation"
-            echo
-            echo "- Product head: \`$product_sha\`"
-            echo "- Exact product paths: \`7\`"
-            echo "- Compile, Ruff, mypy, focused pytest, Compose and image build: \`PASS\`"
-            echo "- Protected holdout/credentials/order adapter/execution/orders/live capital: \`absent\`"
-          } >> "$GITHUB_STEP_SUMMARY"

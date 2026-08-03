@@ -44,8 +44,27 @@ jobs:
         run: |
           set -euo pipefail
           merge_base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
-          expected=$'.github/wh09-payload/README.md.zlib.b64\n.github/wh09-payload/compose.yaml.zlib.b64\n.github/wh09-payload/healthcheck.py.zlib.b64\n.github/wh09-payload/operator.py.zlib.b64\n.github/wh09-payload/task.md.zlib.b64\n.github/wh09-payload/tests.py.zlib.b64\n.github/workflows/wickhunter-wh09-operator-implementation-request.yml'
-          [[ "$(git diff --name-only "$merge_base" "$HEAD_SHA" | sort)" == "$expected" ]]
+          expected=(
+            ".github/wh09-payload/README.md.zlib.b64"
+            ".github/wh09-payload/compose.yaml.zlib.b64"
+            ".github/wh09-payload/healthcheck.py.zlib.b64"
+            ".github/wh09-payload/operator.py.zlib.b64"
+            ".github/wh09-payload/task.md.zlib.b64"
+            ".github/wh09-payload/tests.py.zlib.b64"
+            ".github/workflows/wickhunter-wh09-operator-implementation-request.yml"
+          )
+          mapfile -t actual < <(git diff --name-only "$merge_base" "$HEAD_SHA" | sort)
+          printf 'expected helper paths:\n'
+          printf '  %s\n' "${expected[@]}"
+          printf 'actual helper paths:\n'
+          printf '  %s\n' "${actual[@]}"
+          [[ "${#actual[@]}" -eq "${#expected[@]}" ]]
+          for path in "${expected[@]}"; do
+            [[ -f "$path" ]]
+          done
+          for index in "${!expected[@]}"; do
+            [[ "${actual[$index]}" == "${expected[$index]}" ]]
+          done
 
       - name: Check out exact product branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

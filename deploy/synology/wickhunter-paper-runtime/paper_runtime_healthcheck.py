@@ -31,9 +31,12 @@ def _fail(message: str) -> int:
 
 
 def _integer(value: object, *, field: str) -> int:
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise ValueError(f"{field} must be an integer")
-    parsed = int(value)
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field} must be an integer") from exc
     if parsed <= 0:
         raise ValueError(f"{field} must be positive")
     return parsed

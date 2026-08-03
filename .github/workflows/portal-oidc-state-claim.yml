@@ -49,9 +49,10 @@ jobs:
         env:
           IMAGE: portal-identity-claim:${{ github.sha }}
         run: |
+          set -euo pipefail
           mkdir -p artifacts
-          docker run --rm --interactive --entrypoint python "$IMAGE" - <<'PY' \
-            | tee artifacts/oidc-state-claim.json
+          docker run --rm --interactive --entrypoint python "$IMAGE" - \
+            > artifacts/oidc-state-claim.json <<'PY'
           from concurrent.futures import ThreadPoolExecutor
           from datetime import UTC, datetime
           from json import dumps
@@ -64,13 +65,12 @@ jobs:
 
           from ai_platform.portal.contracts.identity import RoleName
           from ai_platform.portal.control_plane.database import (
+              Base,
               build_engine,
               build_session_factory,
-              create_schema,
           )
           from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
           from ai_platform.portal.identity.models import PortalSessionRow
-          from ai_platform.portal.identity.oidc import OidcLogoutIdentity
           from ai_platform.portal.identity.schema import OidcIdentity
           from ai_platform.portal.identity.service import (
               IdentityAuthenticationError,
@@ -123,7 +123,7 @@ jobs:
 
           with TemporaryDirectory() as directory:
               engine = build_engine(f"sqlite+pysqlite:///{Path(directory) / 'identity.db'}")
-              create_schema(engine)
+              Base.metadata.create_all(engine)
               session_factory = build_session_factory(engine)
               oidc = OidcClient()
               crypto = IdentityCrypto(
@@ -183,11 +183,24 @@ jobs:
               engine.dispose()
           PY
 
+          test -s artifacts/oidc-state-claim.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("artifacts/oidc-state-claim.json").read_text())
+          assert payload == {
+              "loser_rejected": True,
+              "portal_session_count": 1,
+              "provider_exchange_count": 1,
+          }
+          PY
+
       - name: Upload value-free exact-image evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: portal-oidc-state-claim-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/oidc-state-claim.json
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14

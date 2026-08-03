@@ -260,9 +260,12 @@ def test_expired_state_cannot_be_claimed(tmp_path: Path) -> None:
         session.commit()
 
     try:
-        with session_factory() as session, pytest.raises(
-            IdentityNotFoundError,
-            match="invalid or expired",
+        with (
+            session_factory() as session,
+            pytest.raises(
+                IdentityNotFoundError,
+                match="invalid or expired",
+            ),
         ):
             IdentityRepository(session).consume_login_flow("state-hash", now)
     finally:

@@ -19,6 +19,7 @@ from audit_ledger import (  # noqa: E402
     validate_ledger,
     validate_report_metadata,
 )
+from validate_issue_states import validate_open_issue_mappings  # noqa: E402
 
 
 HEAD = "a" * 40
@@ -123,6 +124,19 @@ class AuditLedgerTests(unittest.TestCase):
             with mock.patch("audit_ledger.subprocess.check_output", return_value="b" * 40 + "\n"):
                 with self.assertRaisesRegex(AuditLedgerError, "head mismatch"):
                     resolve_exact_head(HEAD, root)
+
+    def test_closed_github_issue_mapping_is_rejected(self) -> None:
+        ledger, _data = minimal_fixture()
+        with self.assertRaisesRegex(AuditLedgerError, "closed GitHub Issues"):
+            validate_open_issue_mappings(
+                ledger, lambda path: {"number": int(path.rsplit("/", 1)[1]), "state": "closed"}
+            )
+
+    def test_open_github_issue_mapping_is_accepted(self) -> None:
+        ledger, _data = minimal_fixture()
+        validate_open_issue_mappings(
+            ledger, lambda path: {"number": int(path.rsplit("/", 1)[1]), "state": "open"}
+        )
 
     def test_digest_is_order_independent_for_mapping_keys(self) -> None:
         left = {"a": 1, "b": {"c": 2}}

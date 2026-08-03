@@ -113,28 +113,34 @@ jobs:
               operator = Path('target/ai_platform/wickhunter/candidate_paper_runtime_operator.py')
               operator_text = operator.read_text(encoding='utf-8')
 
-          broken = '''        with path.open("rb") as handle:
-  offset = max(0, size - MAX_INPUT_BYTES)
-  handle.seek(offset)
-  if offset:
-      handle.readline()
-  for raw in handle:
-      if not raw.strip():
-continue
-      payload = json.loads(raw.decode("utf-8"))
-      rows.append(_require_object(payload, field=field))
-'''
-          fixed = '''        with path.open("rb") as handle:
-            offset = max(0, size - MAX_INPUT_BYTES)
-            handle.seek(offset)
-            if offset:
-                handle.readline()
-            for raw in handle:
-                if not raw.strip():
-                    continue
-                payload = json.loads(raw.decode("utf-8"))
-                rows.append(_require_object(payload, field=field))
-'''
+          broken = '\n'.join(
+              [
+                  '        with path.open("rb") as handle:',
+                  '  offset = max(0, size - MAX_INPUT_BYTES)',
+                  '  handle.seek(offset)',
+                  '  if offset:',
+                  '      handle.readline()',
+                  '  for raw in handle:',
+                  '      if not raw.strip():',
+                  'continue',
+                  '      payload = json.loads(raw.decode("utf-8"))',
+                  '      rows.append(_require_object(payload, field=field))',
+              ]
+          ) + '\n'
+          fixed = '\n'.join(
+              [
+                  '        with path.open("rb") as handle:',
+                  '            offset = max(0, size - MAX_INPUT_BYTES)',
+                  '            handle.seek(offset)',
+                  '            if offset:',
+                  '                handle.readline()',
+                  '            for raw in handle:',
+                  '                if not raw.strip():',
+                  '                    continue',
+                  '                payload = json.loads(raw.decode("utf-8"))',
+                  '                rows.append(_require_object(payload, field=field))',
+              ]
+          ) + '\n'
           if broken in operator_text:
               if operator_text.count(broken) != 1:
                   raise SystemExit('damaged JSONL reader block is not unique')

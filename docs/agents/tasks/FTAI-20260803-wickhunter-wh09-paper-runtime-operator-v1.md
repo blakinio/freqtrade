@@ -23,12 +23,15 @@ context_growth: stable
 decomposition_decision: phased
 execution_mode: github
 validation_level: full
-repair_cycles_for_current_gate: 1
+repair_cycles_for_current_gate: 2
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
 stall_warnings: 0
-next_action: verify focused and repository CI on the exact final product head, perform the fresh audit, and merge PR 1160 only if every gate passes
+validated_product_head: efebcc0ef3dd8e1b888bee239f4c87140fc3dd4f
+audit_repair_workflow: 30845278691
+audit_repair_job: 91791946662
+next_action: verify repository CI on the exact checkpoint head, complete final PR hygiene, and merge PR 1160 only if every gate passes
 ```
 
 ## Goal
@@ -75,13 +78,15 @@ The product change:
 
 1. verifies a canonical self-hashed Liquid20 snapshot from a regular read-only file;
 2. rejects stale, future, malformed, duplicated, unsorted or decision-time-unavailable evidence;
-3. calls only allowlisted Binance USD-M public GET endpoints using no proxy and no redirects;
-4. constructs canonical universe, history, market, decision request and runtime tick values;
-5. delegates activation binding, restart recovery and immutable journal commits to the existing verified runtime service;
-6. emits bounded, atomic, self-hashed health state;
-7. runs with a cadence no slower than 900 seconds;
-8. provides a non-root, read-only, capability-free container with no ports or Docker socket;
-9. keeps only the exact journal and health roots writable.
+3. calls only the production Binance USD-M public HTTPS host using no proxy and no redirects;
+4. requires the immutable runtime binding to be exactly PAPER;
+5. authorizes candidate-model evaluation only inside that bounded PAPER binding;
+6. constructs canonical universe, history, market, decision request and runtime tick values;
+7. delegates activation binding, restart recovery and immutable journal commits to the existing verified runtime service;
+8. emits bounded, atomic, self-hashed health state;
+9. runs with a cadence no slower than 900 seconds;
+10. provides a non-root, read-only, capability-free container with no ports or Docker socket;
+11. keeps only the exact journal and health roots writable.
 
 ## Safety invariants
 
@@ -97,7 +102,7 @@ orders_submitted=0
 live_capital_authorized=false
 ```
 
-Recognized exchange credentials or proxy environment variables are startup failures. Private/account/order endpoints are absent. No profitability claim, production promotion or live-trading authority is introduced.
+Recognized exchange credentials or proxy environment variables are startup failures. Private/account/order endpoints are absent. Candidate PAPER evaluation authority is not order or execution authority. No profitability claim, production promotion or live-trading authority is introduced.
 
 ## Validation and repair evidence
 
@@ -106,11 +111,27 @@ Initial exact-head CI on `8d6f491412fcdbe6eb6bc6cd8c1337eebb023d40` established 
 - Portal Completeness Audit could not find current `tools/portal_audit/audit_ledger.py` because the product branch had not incorporated the latest `develop` state.
 - Repository pre-commit mypy mapped two deployment files named `healthcheck.py` to the same top-level module.
 
-Targeted repair:
+Targeted integration and module repair:
 
 - integration PR #1161 merged current `develop@1c7044e9699727732928dcdf71e0fe4e1a159108` into the product branch as merge commit `9d49baeb7f431068a6604e16769beb6c2600f0f3`;
 - the WH-09 healthcheck was renamed to the unique module path `paper_runtime_healthcheck.py` and Docker, Compose, documentation and task references were updated;
 - no product authority or runtime behavior was broadened.
+
+Fresh independent audit then found four material gaps:
+
+1. candidate PAPER validation was disabled in every risk context, making an allowed supervised candidate decision impossible;
+2. the operator did not independently reject a non-PAPER runtime binding;
+3. Liquid20 source receipt timestamps were not checked against source and snapshot observation time;
+4. the public market host allowlist also admitted the Binance futures testnet rather than the required real production source.
+
+The bounded audit repair on workflow run `30845278691`, job `91791946662`, completed successfully and published product head `efebcc0ef3dd8e1b888bee239f4c87140fc3dd4f`. It:
+
+- enables candidate evaluation only for the exact immutable PAPER binding;
+- adds an explicit PAPER-mode binding guard;
+- rejects source receipts unavailable at decision time;
+- restricts the public market host to `fapi.binance.com`;
+- adds focused regression tests for every finding;
+- passes Python compilation, Ruff format/lint, mypy, focused operator/runtime/binding tests, Compose validation, exact-revision Docker build, OCI revision-label verification and exact seven-path diff verification.
 
 Run on the exact final product head:
 
@@ -124,6 +145,10 @@ Run on the exact final product head:
 - changed-path verification proving exactly the seven owned product paths;
 - independent diff, review-thread and exact-head CI inspection before merge.
 
+## Applicable implementation E2E boundary
+
+This PR is the partial producer and intentionally cannot create the prospective activation before its exact merged SHA exists. The applicable pre-merge system boundary is the reviewed Compose package plus exact-revision image build and focused runtime-service integration. The real trusted-runner deployment, persistent restart path, live public inputs and 24-hour consumer journey are mandatory post-merge E2E and remain part of Issue #1144 rather than being represented by mocks.
+
 ## Post-merge continuation
 
 After implementation merge:
@@ -133,7 +158,7 @@ After implementation merge:
 3. build the image and record its digest and OCI revision label;
 4. publish a fresh immutable PAPER activation because the previous window began before the operator existed;
 5. bind the exact verified candidate, activation, runtime policy and empty journal;
-6. deploy only on the trusted `freqtrade-synology-staging` runner when separately authorized by the applicable trusted-base deployment contract;
+6. deploy only on the trusted `freqtrade-synology-staging` runner under the `synology-staging` environment;
 7. prove container hardening, public-only egress and zero authority;
 8. collect at least 86,400,000 ms, at least 96 snapshots, maximum 1,800,000 ms gap and fresh-source ratio at least 0.99;
 9. collect decision, allowed-decision, risk-rejection, parity and truthful safety-exercise evidence;
@@ -141,4 +166,4 @@ After implementation merge:
 
 ## Completion rule
 
-This implementation task may be merged only when focused validation, fresh audit, applicable real-system E2E, every required exact-head check and PR hygiene pass with zero open material findings. Issue #1144 remains open until the post-merge deployment and prospective acceptance package are independently verified.
+This implementation task may be merged only when focused validation, fresh audit, applicable pre-merge integration evidence, every required exact-head check and PR hygiene pass with zero open material findings. Issue #1144 remains open until the post-merge deployment and prospective acceptance package are independently verified.

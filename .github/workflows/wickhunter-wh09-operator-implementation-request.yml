@@ -77,26 +77,32 @@ jobs:
           }
           cd target
           python3 - <<'PY'
+          import re
           from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label} anchor count={count}")
+              return text.replace(old, new, 1)
 
           operator_path = Path(
               "ai_platform/wickhunter/candidate_paper_runtime_operator.py"
           )
           operator = operator_path.read_text(encoding="utf-8")
-          operator_replacements = (
-              (
-                  "import time\nfrom dataclasses import dataclass\n",
-                  "import time\nfrom collections.abc import Mapping\nfrom dataclasses import dataclass\n",
-              ),
-              (
-                  "environment: dict[str, str] | os._Environ[str] | None = None",
-                  "environment: Mapping[str, str] | None = None",
-              ),
+          if "from collections.abc import Mapping\n" not in operator:
+              operator = replace_once(
+                  operator,
+                  "import time\n",
+                  "import time\nfrom collections.abc import Mapping\n",
+                  "operator Mapping import",
+              )
+          operator = replace_once(
+              operator,
+              "environment: dict[str, str] | os._Environ[str] | None = None",
+              "environment: Mapping[str, str] | None = None",
+              "operator environment type",
           )
-          for old, new in operator_replacements:
-              if operator.count(old) != 1:
-                  raise SystemExit(f"operator repair anchor mismatch: {old!r}")
-              operator = operator.replace(old, new, 1)
           operator_path.write_text(operator, encoding="utf-8")
 
           test_path = Path(
@@ -104,10 +110,13 @@ jobs:
               "test_wickhunter_candidate_paper_runtime_operator.py"
           )
           tests = test_path.read_text(encoding="utf-8")
-          helper_anchor = '''def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:
-          '''
-          helpers = '''def _rehash_payload(payload: dict[str, object]) -> None:
-              body = {key: value for key, value in payload.items() if key != "snapshot_sha256"}
+          if "def _rehash_payload(" not in tests:
+              helpers = '''def _rehash_payload(payload: dict[str, object]) -> None:
+              body = {
+                  key: value
+                  for key, value in payload.items()
+                  if key != "snapshot_sha256"
+              }
               payload["snapshot_sha256"] = canonical_sha256(body)
 
 
@@ -122,60 +131,76 @@ jobs:
               _rehash_payload(payload)
 
 
-          def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:
           '''
-          if tests.count(helper_anchor) != 1:
-              raise SystemExit("test helper insertion anchor mismatch")
-          tests = tests.replace(helper_anchor, helpers, 1)
-          old_parameters = '''        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),
-              (
-                  lambda payload: cast(list[dict[str, object]], payload["events"])[0].update(
-                      {"received_at_ms": NOW_MS + 1}
-                  ),
-                  "unavailable",
-              ),
-          '''
-          new_parameters = '''        (_stale_payload, "stale"),
-              (_future_event_payload, "unavailable"),
-          '''
-          if tests.count(old_parameters) != 1:
-              raise SystemExit("test parameter repair anchor mismatch")
-          tests = tests.replace(old_parameters, new_parameters, 1)
-          if tests.count('request.method == "GET"') != 1:
-              raise SystemExit("request method repair anchor mismatch")
-          tests = tests.replace(
+              tests = replace_once(
+                  tests,
+                  "def _write_snapshot(",
+                  helpers + "def _write_snapshot(",
+                  "test helper insertion",
+              )
+          tests = replace_once(
+              tests,
+              '        (lambda payload: payload.update({"observed_at_ms": NOW_MS - 400_000}), "stale"),',
+              '        (_stale_payload, "stale"),',
+              "stale parameter",
+          )
+          future_pattern = re.compile(
+              r'''        \(
+                  \s*lambda payload: cast\(list\[dict\[str, object\]\], payload\["events"\]\)\[0\]\.update\(
+                  \s*\{"received_at_ms": NOW_MS \+ 1\}
+                  \s*\),
+                  \s*"unavailable",
+                  \s*\),''',
+              re.VERBOSE,
+          )
+          tests, future_count = future_pattern.subn(
+              '        (_future_event_payload, "unavailable"),', tests, count=1
+          )
+          if future_count != 1:
+              raise SystemExit(f"future parameter anchor count={future_count}")
+          tests = replace_once(
+              tests,
               'request.method == "GET"',
               'request.get_method() == "GET"',
-              1,
+              "request method",
           )
-          old_patch = '''    monkeypatch.setattr(runtime_operator, "_compose_tick", lambda **_kwargs: cast(ShadowRuntimeTick, SimpleNamespace(observed_at_ms=NOW_MS)))
-          '''
-          new_patch = '''    monkeypatch.setattr(
+          patch_pattern = re.compile(
+              r'''    monkeypatch\.setattr\(
+                  runtime_operator,
+                  \s*"_compose_tick",
+                  \s*lambda \*\*_kwargs: cast\(
+                  ShadowRuntimeTick, SimpleNamespace\(observed_at_ms=NOW_MS\)
+                  \),
+                  \)''',
+              re.VERBOSE,
+          )
+          patch_replacement = '''    monkeypatch.setattr(
               CandidatePaperRuntimeOperator,
               "_compose_tick",
               lambda self, **_kwargs: cast(
                   ShadowRuntimeTick,
                   SimpleNamespace(observed_at_ms=NOW_MS),
               ),
+          )'''
+          tests, patch_count = patch_pattern.subn(
+              patch_replacement, tests, count=1
           )
-          '''
-          if tests.count(old_patch) != 1:
-              raise SystemExit("compose tick monkeypatch anchor mismatch")
-          tests = tests.replace(old_patch, new_patch, 1)
+          if patch_count != 1:
+              raise SystemExit(f"compose tick monkeypatch anchor count={patch_count}")
           test_path.write_text(tests, encoding="utf-8")
 
           dockerfile_path = Path(
               "deploy/synology/wickhunter-paper-runtime/Dockerfile"
           )
           dockerfile = dockerfile_path.read_text(encoding="utf-8")
-          old_docker = '    && python - <<\'PY\'\n'
-          new_docker = '    && OPERATOR_COMMIT="$OPERATOR_COMMIT" python - <<\'PY\'\n'
-          if dockerfile.count(old_docker) != 1:
-              raise SystemExit("Dockerfile commit validation anchor mismatch")
-          dockerfile_path.write_text(
-              dockerfile.replace(old_docker, new_docker, 1),
-              encoding="utf-8",
+          dockerfile = replace_once(
+              dockerfile,
+              "    && python - <<'PY'\n",
+              "    && OPERATOR_COMMIT=\"$OPERATOR_COMMIT\" python - <<'PY'\n",
+              "Dockerfile commit environment",
           )
+          dockerfile_path.write_text(dockerfile, encoding="utf-8")
+          print("deterministic product repairs applied")
           PY
           python3 -m py_compile \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
@@ -242,7 +267,7 @@ jobs:
           actual="$(git diff --name-only "$TARGET_BASE_SHA"...HEAD | sort)"
           [[ "$actual" == "$expected" ]]
           repair_paths="$(git diff --name-only | sort)"
-          allowed_repairs=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ndeploy/synology/wickhunter-paper-runtime/healthcheck.py\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          allowed_repairs=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndeploy/synology/wickhunter-paper-runtime/Dockerfile\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
           while IFS= read -r path; do
             [[ -z "$path" ]] && continue
             grep -Fxq "$path" <<< "$allowed_repairs" || {
@@ -256,7 +281,6 @@ jobs:
             git add \
               ai_platform/wickhunter/candidate_paper_runtime_operator.py \
               deploy/synology/wickhunter-paper-runtime/Dockerfile \
-              deploy/synology/wickhunter-paper-runtime/healthcheck.py \
               tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
             git commit -m "fix(wickhunter): validate persistent PAPER operator"
           fi

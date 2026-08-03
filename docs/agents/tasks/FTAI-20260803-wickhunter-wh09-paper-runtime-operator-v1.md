@@ -95,3 +95,13 @@ After implementation merge:
 ## Completion rule
 
 This implementation task may be merged only when all exact-head validations pass and no unresolved review thread or material safety finding remains. Issue #1144 remains open until the post-merge deployment and prospective acceptance package are independently verified.
+
+<!-- WH09_MYPY_DIAGNOSTIC_BEGIN -->
+```text
+ai_platform/wickhunter/candidate_paper_runtime_operator.py:180: error: No overload variant of "int" matches argument type "object"  [call-overload]
+ai_platform/wickhunter/candidate_paper_runtime_operator.py:180: note: Possible overload variants:
+ai_platform/wickhunter/candidate_paper_runtime_operator.py:180: note:     def int(str | Buffer | SupportsInt | SupportsIndex | SupportsTrunc = ..., /) -> int
+ai_platform/wickhunter/candidate_paper_runtime_operator.py:180: note:     def int(str | bytes | bytearray, /, base: SupportsIndex) -> int
+Found 1 error in 1 file (checked 1 source file)
+```
+<!-- WH09_MYPY_DIAGNOSTIC_END -->

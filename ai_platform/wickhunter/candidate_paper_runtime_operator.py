@@ -1,3 +1,5 @@
+# ruff: noqa: S310
+
 from __future__ import annotations
 
 import argparse

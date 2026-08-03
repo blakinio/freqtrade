@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import importlib.util
-import sys
-from pathlib import Path
+import importlib
 
 
 MODEL_MODULES = (
@@ -24,28 +22,12 @@ MODEL_MODULES = (
 
 
 def load_portal_models() -> None:
-    """Register every durable Portal ORM table without package service side effects.
+    """Register every durable Portal ORM model exactly once.
 
-    Some package ``__init__`` modules export runtime services and consequently
-    import dependencies that are not part of the database image. Loading the
-    exact canonical ``models.py`` modules keeps schema construction bounded to
-    SQLAlchemy declarations while preserving their normal module identities.
+    Normal imports preserve Python's module cache and complete modules that have
+    not yet been loaded. They avoid both partial ``sys.modules`` assumptions and
+    duplicate SQLAlchemy table registration from manual module execution.
     """
 
-    repository_root = Path(__file__).resolve().parents[3]
     for module_name in MODEL_MODULES:
-        if module_name in sys.modules:
-            continue
-        path = repository_root.joinpath(*module_name.split(".")).with_suffix(".py")
-        if not path.is_file():
-            raise RuntimeError(f"Portal model file is missing: {path}")
-        spec = importlib.util.spec_from_file_location(module_name, path)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"Portal model file cannot be loaded: {path}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        try:
-            spec.loader.exec_module(module)
-        except Exception:
-            sys.modules.pop(module_name, None)
-            raise
+        importlib.import_module(module_name)

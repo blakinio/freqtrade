@@ -10,15 +10,15 @@ from ai_platform.portal.identity.repository import (
 )
 from ai_platform.portal.identity.schema import CompletedLogin, PrincipalStatus
 from ai_platform.portal.identity.service_base import (
+    AuthenticatedSession,
     CSRF_COOKIE_NAME,
     CSRF_HEADER_NAME,
-    SESSION_COOKIE_NAME,
-    AuthenticatedSession,
     IdentityAuthenticationError,
     IdentityAuthorizationError,
     IdentityPolicy,
     IdentityProviderError,
     IdentityService as _IdentityService,
+    SESSION_COOKIE_NAME,
 )
 from ai_platform.portal.security.authorization import permissions_for_roles
 

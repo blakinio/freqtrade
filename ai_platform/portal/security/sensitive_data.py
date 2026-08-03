@@ -235,21 +235,21 @@ def classify_sensitive_key(key: str) -> SensitiveFieldMatch | None:
         return None
     normalized = "_".join(tokens)
 
-    for compound, kind in _REFERENCE_COMPOUND_KINDS:
+    for compound, reference_kind in _REFERENCE_COMPOUND_KINDS:
         if _contains_subsequence(tokens, compound):
-            return SensitiveFieldMatch(kind=kind, normalized_key=normalized)
+            return SensitiveFieldMatch(kind=reference_kind, normalized_key=normalized)
 
     if len(tokens) > 1 and tokens[-1] in _METADATA_ONLY_SUFFIXES:
         return None
 
-    for compound, kind in _COMPOUND_KINDS:
+    for compound, compound_kind in _COMPOUND_KINDS:
         if _contains_subsequence(tokens, compound):
-            return SensitiveFieldMatch(kind=kind, normalized_key=normalized)
+            return SensitiveFieldMatch(kind=compound_kind, normalized_key=normalized)
 
     for token in tokens:
-        kind = _SINGLE_TOKEN_KINDS.get(token) or _COMPACT_KINDS.get(token)
-        if kind is not None:
-            return SensitiveFieldMatch(kind=kind, normalized_key=normalized)
+        token_kind = _SINGLE_TOKEN_KINDS.get(token) or _COMPACT_KINDS.get(token)
+        if token_kind is not None:
+            return SensitiveFieldMatch(kind=token_kind, normalized_key=normalized)
         for suffix, suffix_kind in _COMPACT_SUFFIX_KINDS:
             if len(token) > len(suffix) and token.endswith(suffix):
                 return SensitiveFieldMatch(kind=suffix_kind, normalized_key=normalized)
@@ -486,9 +486,9 @@ def _reject(
                     raise UnsupportedSensitiveDataTypeError(path=path, value=key)
                 child_path = f"{path}.{key}"
                 _consume(path=child_path, budget=budget, max_items=max_items)
-                match = classify_sensitive_key(key)
-                if match is not None:
-                    raise SensitiveFieldError(path=child_path, match=match)
+                field_match = classify_sensitive_key(key)
+                if field_match is not None:
+                    raise SensitiveFieldError(path=child_path, match=field_match)
                 _reject(
                     child,
                     path=child_path,
@@ -530,9 +530,9 @@ def _reject(
     if isinstance(value, str):
         if len(value.encode("utf-8")) > max_string_bytes:
             raise SensitiveDataLimitError(f"sensitive-data string byte limit exceeded at {path}")
-        match = classify_sensitive_text(value)
-        if match is not None:
-            raise SensitiveValueError(path=path, match=match)
+        value_match = classify_sensitive_text(value)
+        if value_match is not None:
+            raise SensitiveValueError(path=path, match=value_match)
         if serialized_depth < max_serialized_layers:
             decoded = decode_serialized_structure(value, max_items=max_items)
             if decoded is not None:

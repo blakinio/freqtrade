@@ -176,9 +176,7 @@ def test_read_only_portal_data_routes_fail_closed_through_trusted_context(
 def test_operational_routes_return_truthful_empty_state_and_protect_audit_reads(
     session_factory: SessionFactory,
 ) -> None:
-    holder = {
-        "context": _context("tenant-a", Permission.BOT_READ, Permission.MODEL_READ)
-    }
+    holder = {"context": _context("tenant-a", Permission.BOT_READ, Permission.MODEL_READ)}
     client = TestClient(create_app(session_factory, lambda: holder["context"]))
 
     for path in (

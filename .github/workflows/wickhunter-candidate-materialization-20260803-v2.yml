@@ -146,14 +146,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          PYTHONPATH=. python3 - <<'PY' | tee "$RUNNER_TEMP/candidate-input-verification.json"
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - <<'PY' | tee "$RUNNER_TEMP/candidate-input-verification.json"
           import json
           import os
           from pathlib import Path
 
+          from ai_platform.wickhunter.deterministic_replay import verify_deterministic_replay_package
           from ai_platform.wickhunter.production_dataset_materialization import verify_production_materialization
           from ai_platform.wickhunter.replay_price_path import verify_replay_price_path_package
-          from ai_platform.wickhunter.deterministic_replay import verify_deterministic_replay_package
 
           dataset_root = Path(os.environ["DATASET_ROOT"])
           price_root = Path(os.environ["PRICE_PATH_ROOT"])
@@ -230,7 +230,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          python3 "$RUNNER_TEMP/candidate-materializer.py"
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 "$RUNNER_TEMP/candidate-materializer.py"
 
       - name: Independently verify terminal candidate package
         shell: bash
@@ -243,7 +243,7 @@ jobs:
           EXPECTED_MODEL_HASH: ${{ steps.candidate.outputs.model_hash }}
         run: |
           set -euo pipefail
-          python3 - <<'PY' | tee "$RUNNER_TEMP/candidate-independent-verification.json"
+          PYTHONPATH="$GITHUB_WORKSPACE" python3 - <<'PY' | tee "$RUNNER_TEMP/candidate-independent-verification.json"
           import json
           import os
           from pathlib import Path
@@ -270,12 +270,8 @@ jobs:
           }
           if observed != expected:
               raise SystemExit("independent candidate identity mismatch")
-          for key in (
-              "candidate_only",
-              "owner_decision_required",
-          ):
-              if manifest.get(key) is not True:
-                  raise SystemExit(f"candidate terminal flag mismatch: {key}")
+          if manifest.get("candidate_only") is not True or manifest.get("owner_decision_required") is not True:
+              raise SystemExit("candidate terminal flags mismatch")
           for key in (
               "automatic_promotion_enabled",
               "protected_holdout_accessed",
@@ -342,7 +338,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: wickhunter-candidate-materialization-v2-${{ github.event.pull_request.number }}
+          name: wickhunter-candidate-materialization-v2-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/candidate-program-sha256.txt
             ${{ runner.temp }}/candidate-input-verification.json

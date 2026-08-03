@@ -151,10 +151,11 @@ jobs:
               json.loads(Path("artifacts/migrate-b.json").read_text()),
           ]
           status = json.loads(Path("artifacts/schema-status.json").read_text())
-          assert sorted(result["applied_now"] for result in results) == [0, 17]
+          expected_count = status["expected_migration_count"]
+          assert sorted(result["applied_now"] for result in results) == [0, expected_count]
           assert all(result["ready"] is True for result in results)
           assert status["ready"] is True
-          assert status["migration_count"] == 17
+          assert status["migration_count"] == expected_count
           assert status["current_revision"] == status["expected_revision"]
           print(json.dumps({"migrations": results, "status": status}, indent=2, sort_keys=True))
           PY

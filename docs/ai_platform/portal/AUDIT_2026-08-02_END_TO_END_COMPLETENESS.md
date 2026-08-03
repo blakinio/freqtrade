@@ -3,32 +3,33 @@
 ## Audit identity
 
 - Repository: `blakinio/freqtrade`
-- Audited `develop_sha`: `626087ca45d67eb908d6c1f1f419f13cbd49f596`
+- Audited Portal product base: `626087ca45d67eb908d6c1f1f419f13cbd49f596`
 - Canonical audit PR: #1082
-- Exact final `audit_head_sha`: recorded in PR #1082 metadata and the exact-head Portal Completeness Audit artifact because a Git commit cannot contain its own resulting SHA.
-- Scope: AI Trading Portal only; no other repository and no product implementation changes.
+- Scope: AI Trading Portal only; audit documentation, deterministic inventory tooling and audit-only CI evidence.
+- Product code, deployment, credentials, trading state and live-capital authority changed: **no**.
+
+Later `develop` changes were reviewed. They affect governance, task records and WickHunter implementation/tests, not the audited `ai_platform/portal/**` product behavior.
 
 ## Conclusion
 
 **The AI Trading Portal is not complete end to end.**
 
-The repository contains substantial contracts, durable domain services, security boundaries and focused tests, but the product runtime and deployment do not compose several implemented adapters/providers. The deployed portal is fixture-backed, critical bot-management modules use process-memory stores or permanently unavailable providers, Strategy Catalog has no backend producer, and browser closure is fixture-only.
+The repository contains substantial contracts, durable services, security boundaries and focused tests. However, the production-labelled deployment remains fixture-backed and identity-only, multiple adapters/providers are not composed into the canonical runtime, several user workflows terminate in in-memory or unavailable implementations, and browser closure does not exercise the real composed control plane.
 
-## Inventory totals
+No canonical left-navigation item is fully end-to-end `COMPLETE` while the global deployment and API-mode E2E blockers remain open.
+
+## Exact inventory
 
 - Backend modules: **30**
 - FastAPI route declarations: **92**
-- Frontend pages: **33**
+- Next.js pages: **33**
 - Same-origin BFF handlers: **28**
-- Canonical navigation items: **28**
-- Test files: **225**
-  - unit/component: 73
-  - contract: 9
-  - integration/API: 98
-  - persistence/recovery: 15
-  - browser E2E: 30
+- Canonical left-navigation items: **28**
+- Focused test files: **225**
+- Broken detected navigation destinations: **0**
+- Direct browser references to private Freqtrade or Vault authority: **0**
 
-## Backend module completeness totals
+## Backend module completeness
 
 - `COMPLETE`: 6
 - `PARTIAL`: 8
@@ -39,116 +40,147 @@ The repository contains substantial contracts, durable domain services, security
 - `BLOCKED`: 0
 - `NOT_APPLICABLE`: 0
 
-## Finding totals
-
-- `CRITICAL`: 0
-- `HIGH`: 14
-- `MEDIUM`: 5
-- `LOW`: 0
-
-## Confirmed findings
-
-| Issue | Severity | Module | Status |
-|---|---|---|---|
-| #1085 | `HIGH` | Strategy Catalog | `DISCONNECTED` |
-| #1086 | `HIGH` | PI-08 submission | `DISCONNECTED` |
-| #1087 | `MEDIUM` | Localization | `MISSING` |
-| #1089 | `HIGH` | Deployment composition | `FIXTURE_ONLY` |
-| #1090 | `HIGH` | Create Bot | `DISCONNECTED` |
-| #1091 | `HIGH` | BM-07 activation | `DISCONNECTED` |
-| #1092 | `HIGH` | PI-01 runtime reads | `DISCONNECTED` |
-| #1093 | `HIGH` | PI-02 valuation | `DISCONNECTED` |
-| #1094 | `HIGH` | PI-04 observability | `DISCONNECTED` |
-| #1095 | `HIGH` | BM-04 signals | `DISCONNECTED` |
-| #1096 | `HIGH` | BM-05 grid | `DISCONNECTED` |
-| #1097 | `HIGH` | BM-06 exchanges | `DISCONNECTED` |
-| #1098 | `MEDIUM` | API-mode browser E2E | `FIXTURE_ONLY` |
-| #1099 | `HIGH` | Runtime lifecycle/outbox | `DISCONNECTED` |
-| #1100 | `HIGH` | PI-07 credential broker | `DISCONNECTED` |
-| #1101 | `MEDIUM` | Status documentation | `PARTIAL` |
-| #1102 | `HIGH` | AI intelligence/learning/model lifecycle | `DISCONNECTED` |
-| #1103 | `MEDIUM` | Administration workflows | `PARTIAL` |
-| #1104 | `MEDIUM` | Notification delivery/rules | `PARTIAL` |
-
-
 ## Left-navigation completeness
-
-A dedicated 1:1 audit covers all 28 items rendered by `ai_platform/portal/web/components/app-shell.tsx` against the documented product capabilities, frontend implementation, API/BFF boundary, backend producer, persistence/provider composition and test evidence.
 
 - `COMPLETE`: 0
 - `PARTIAL`: 9
 - `MISSING`: 1
 - `DISCONNECTED`: 15
+- `FIXTURE_ONLY`: 0
 - `EXTERNAL_ACCEPTANCE_REQUIRED`: 3
+- `BLOCKED`: 0
+- `NOT_APPLICABLE`: 0
 
-No left-navigation item is fully end-to-end `COMPLETE` on the audited production-labelled deployment while #1089 and #1098 remain open. The complete row-level evidence is generated as `portal-navigation-completeness-matrix.json` and `.md`; the durable summary is `AUDIT_2026-08-03_LEFT_NAVIGATION_COMPLETENESS.md`.
+The complete 28-row evidence remains in `AUDIT_2026-08-03_LEFT_NAVIGATION_COMPLETENESS.md` and the generated navigation matrices.
 
-## Evidence classification
+## Finding totals
 
-- Static analysis: every portal Python module, FastAPI route, Next.js page, BFF handler, migration, workflow and status-bearing document in the exact source snapshot.
-- Unit/component tests: prove isolated contract and service behavior.
-- Integration/API tests: prove injected FastAPI/database paths, not necessarily canonical product composition.
-- Browser E2E: fixture identity/data unless explicitly documented otherwise; not API-mode product proof.
-- Simulator/emulator: deterministic non-live evidence only.
-- Deployment-package validation: proves repository packaging, not owner-managed Synology/Auth/Cloudflare/Vault acceptance.
-- Real protected target acceptance: not performed and not claimed.
+The audit produced **50 open, non-duplicate implementation Issues**:
 
-## Security boundary audit
+- `CRITICAL`: **0**
+- `HIGH`: **25**
+- `MEDIUM`: **25**
+- `LOW`: **0**
 
-| Boundary | Result | Evidence / qualification |
+Open remediation Issues are the expected result of an audit-only task. They prove product incompleteness; PR #1082 does not implement them.
+
+## Confirmed findings
+
+### Product runtime, module and workflow findings
+
+| Issue | Severity | Finding |
 |---|---|---|
-| same-origin browser boundary | `COMPLETE` repository-side | BFF/session/CSRF helpers and no browser-to-Freqtrade/Vault path found |
-| tenant isolation / capabilities | `COMPLETE` in audited durable services and routers | negative tests and RequestContext enforcement; disconnected runtime providers must preserve it |
-| secret handling | `COMPLETE` component contracts; runtime `DISCONNECTED` | opaque refs/withdrawal-disabled checks exist; PI-07 composition missing #1100 |
-| deterministic risk | `PARTIAL` | risk decisions fail closed; PI-08 submission unavailable #1086 |
-| immutable attribution/audit | `PARTIAL` | durable audit/outbox exist; publisher/runtime reconciliation missing #1099 |
-| dry-run/live-capital boundary | `COMPLETE` for repository audit | no live operation or authorization performed; P14 remains blocked |
-| deployment privacy | `PARTIAL` | intended private topology documented; full product control plane not deployed #1089 |
+| #1085 | `HIGH` | Strategy Catalog has no backend producer/API-mode vertical slice. |
+| #1086 | `HIGH` | PI-08 private dry-run submission is not composed; dry-run verification has a TOCTOU boundary. |
+| #1087 | `MEDIUM` | No explicit testable localization/product-language boundary. |
+| #1089 | `HIGH` | Production-labelled package runs fixture web data and identity-only control plane. |
+| #1090 | `HIGH` | Create Bot does not materialize a durable canonical bot. |
+| #1091 | `HIGH` | BM-07 activation is not composed; alternative routes accept caller-supplied authoritative state and lose partial-effect detail. |
+| #1092 | `HIGH` | PI-01 private runtime collection/reconciliation is not scheduled or composed. |
+| #1093 | `HIGH` | PI-02 authoritative valuation source is not composed. |
+| #1094 | `HIGH` | PI-04 runtime observability source is not composed. |
+| #1095 | `HIGH` | Signed Signal control is in-memory/unavailable and lacks an operable canonical UI/trusted state boundary. |
+| #1096 | `HIGH` | Canonical Grid policy is in-memory/unavailable and lacks an operable trusted capability workflow. |
+| #1097 | `HIGH` | Exchange Connection lifecycle lacks durable storage, trusted verification worker and management UI. |
+| #1098 | `MEDIUM` | Browser E2E is fixture-only; local API-mode cookie contracts are inconsistent. |
+| #1099 | `HIGH` | Desired-state outbox is not published/consumed into the private dry-run runtime. |
+| #1100 | `HIGH` | PI-07 Vault broker is not composed and credential lease TTL is not enforced at every use. |
+| #1101 | `MEDIUM` | Active status documents make conflicting completion claims. |
+| #1102 | `HIGH` | AI intelligence, learning and model lifecycle producers/actions are simulator/test-only or absent. |
+| #1103 | `MEDIUM` | Administration is read-only and lacks true step-up and last-admin protection. |
+| #1104 | `MEDIUM` | Notifications lack complete channels, worker, retry/dead-letter and rule policy. |
 
-## Areas checked without a product finding
+### Shared transport, data, security, reliability and usability findings
 
-- Versioned contract definitions and extra-field rejection.
-- Immutable built-in bot catalog and compatibility decisions.
-- Core durable bot CRUD/revision/audit/outbox transaction semantics.
-- Feature Registry read-only registry and replay resolution.
-- Deterministic simulator and quality-agent boundaries.
-- Core permission/tenant helper behavior.
-- Local market-evidence, liquidation and WickHunter readers enforce bounded same-origin file/package integrity; live-source acceptance remains external.
+| Issue | Severity | Finding |
+|---|---|---|
+| #1107 | `HIGH` | Growing reads use unbounded materialization; pagination, indexed filters, retention and bounded local-file parsing are incomplete. |
+| #1108 | `MEDIUM` | Trusted request/correlation/causation identity is not propagated across BFF, backend, events and runtime. |
+| #1109 | `MEDIUM` | Contracts are manually duplicated, upstream JSON is unchecked and error envelopes are inconsistent. |
+| #1110 | `MEDIUM` | BFF/control-plane calls lack shared timeout, cancellation, redirect, content-type and response-size limits. |
+| #1111 | `HIGH` | Audit Events is not a complete append-only privileged-action/outcome record and lacks integrity-chain evidence. |
+| #1112 | `HIGH` | Transactional outbox/domain-event coverage and publisher/inbox/poison handling are incomplete. |
+| #1113 | `HIGH` | Mutations lack uniform durable idempotency and optimistic concurrency/CAS. |
+| #1114 | `MEDIUM` | No repository-verifiable browser security-header and authenticated cache policy. |
+| #1115 | `MEDIUM` | Inbound body, depth, cardinality, query/form and content-type limits are missing before parsing. |
+| #1116 | `MEDIUM` | Exact Portal images lack SBOM, vulnerability/license policy and provenance. |
+| #1117 | `MEDIUM` | Navigation/actions are not capability-aware; local Market Evidence uses a separate role-name policy. |
+| #1118 | `MEDIUM` | Multi-membership principals cannot select or switch tenants through the product. |
+| #1119 | `HIGH` | Operational views have no bounded freshness-aware update/stale transition mechanism. |
+| #1120 | `HIGH` | Hierarchical emergency kill switch is not exposed, composed or visibly enforced. |
+| #1121 | `MEDIUM` | Profile & Security lacks active-session inventory/targeted revoke; identity variants differ in cookie clearing. |
+| #1122 | `HIGH` | ORM/create-all and migrations diverge, SQLite FKs are not enabled, three tables lack migrations and production dialect parity is unproven. |
+| #1123 | `MEDIUM` | Multi-source pages discard available evidence when one optional source fails. |
+| #1124 | `HIGH` | Liquid20 trusts cookie presence instead of current backend session/tenant/permission authorization. |
+| #1126 | `HIGH` | AI Intelligence/Learning reads and producers enforce tenant scope but no explicit permission. |
+| #1127 | `HIGH` | Secret detection/redaction is inconsistent and accepts common raw credential/session aliases. |
+| #1128 | `MEDIUM` | Public OIDC login starts create unbounded durable flow rows without quota/cleanup. |
+| #1129 | `MEDIUM` | Public fields/collections lack semantic maximums aligned with storage/providers. |
+| #1130 | `MEDIUM` | OIDC provider responses are unbounded; algorithm policy and same-`kid` rotation recovery are incomplete. |
+| #1132 | `MEDIUM` | OIDC back-channel logout does not require/replay-protect `jti`. |
+| #1134 | `MEDIUM` | Protected APIs lack per-tenant/actor rate, concurrency and workload budgets. |
+| #1135 | `MEDIUM` | Identity HMAC/encryption keys lack versioned staged rotation. |
+| #1136 | `MEDIUM` | Runtime/valuation/telemetry timestamps lack one skew/monotonicity policy. |
+| #1137 | `MEDIUM` | OIDC login-state consumption is not atomic under concurrent callbacks. |
+| #1139 | `HIGH` | Portal application state lacks encrypted backup, isolated restore and measured RPO/RTO. |
+| #1140 | `MEDIUM` | Accessibility/responsive acceptance is incomplete: keyboard, focus, field errors, reduced motion and standards-based scanning. |
+| #1142 | `MEDIUM` | Every authenticated read commits a session activity/idle-expiry write, amplifying SQLite contention. |
 
-## External blockers and acceptance gates
+## Quantitative cross-cutting evidence
 
-- Real Authentik users, MFA enrollment, recovery and backup/restore.
-- Real Vault initialization, unseal, AppRole rotation and restore.
-- Real Cloudflare protected ingress/DNS.
-- Real Synology candidate deployment after #1089.
-- Real private dry-run Freqtrade acceptance after #1092, #1099, #1100, #1086 and #1091.
-- P14 live-small/live capital remains `BLOCKED` and unauthorised.
+- **35** collection-like GET routes have no cursor/page/limit argument.
+- At least **31** repository queries use unbounded `.all()` materialization.
+- At least **5** independent generic web API clients and **34** unchecked upstream JSON assertions/casts exist.
+- **17** control-plane-oriented `fetch()` call sites lacked explicit timeout/abort and response-size limits.
+- Shared `NonEmptyStr` appears approximately **829** times without a maximum length; no Portal production `Field(max_length=...)` declaration was found.
+- ORM metadata defines **41** Portal tables while migrations define **38**.
+- Only one production repository query uses `with_for_update()`; no SQLAlchemy optimistic-version mapper was found.
+- Accessibility acceptance covers **5 of 33** pages and responsive acceptance covers two journeys.
+- The Portal renders approximately **44** tables without a complete semantic/keyboard/overflow acceptance inventory.
+- Every protected FastAPI request currently writes session activity by default.
 
-## Exact-head audit artifacts
+## Positive controls and reviewed non-findings
 
-The `Portal Completeness Audit` workflow on the final PR head generates and uploads:
+- Same-origin browser architecture; no direct browser authority over Vault, Freqtrade or exchanges detected.
+- Random opaque sessions stored as HMAC digests and constant-time CSRF validation.
+- OIDC state, nonce, PKCE, issuer, audience, expiry and signature validation.
+- Credential lease non-serialization, hidden representation and zeroization.
+- Vault/private-runtime path/origin confinement, TLS/private trust, redirect/proxy disablement and response bounds.
+- Runtime acknowledgement remains distinct from execution proof.
+- Market Evidence file confinement, symlink and integrity checks.
+- Non-root containers plus read-only filesystem, tmpfs, dropped capabilities, no-new-privileges and resource limits.
+- Public request models generally reject unknown fields.
+- Dry-run/live-capital authority remained blocked and was never exercised.
 
-- `portal-backend-matrix.md` — all 30 backend modules and all 92 FastAPI route declarations with status and linked Issue/boundary;
-- `portal-frontend-bff-matrix.md` — all 33 pages and all 28 same-origin BFF handlers with status and linked Issue/boundary;
-- `portal-runtime-test-deployment-matrix.md` — runtime composition roots, fixture/mock/provider boundaries, test inventory, workflow map and deployment/external acceptance classification;
-- `portal-navigation-completeness-matrix.json` and `.md` — all 28 canonical left-navigation items with frontend, API/BFF, backend, persistence/provider, test and overall status;
-- `portal-deep-inventory.json` and `.md` — exact file-level inventory;
-- `portal-completeness-audit.json` and `.md` — bounded drift/finding checks;
-- `portal-audit-source.tar.gz` plus SHA-256 — secret-excluding exact-head source snapshot.
+## Evidence classification and external gates
 
-The generators are versioned in the PR:
+Static/component/integration/fixture/simulator evidence remains distinct from canonical runtime composition, deployment-package validation and real protected-target acceptance. Real Authentik, Vault, Cloudflare, Synology and private Freqtrade acceptance was not performed or claimed. Live-small/live-capital operations remain blocked and unauthorized.
 
-- `tools/portal_audit/completeness_audit.py`;
-- `tools/portal_audit/deep_inventory.py`;
-- `tools/portal_audit/classified_matrices.py`;
-- `tools/portal_audit/navigation_matrix.py`.
+## Durable outputs
 
-## Product-behavior statement
+- this terminal report;
+- `AUDIT_2026-08-03_LEFT_NAVIGATION_COMPLETENESS.md`;
+- terminal task checkpoint;
+- four deterministic audit generators;
+- audit-only GitHub Actions workflow and exact-head evidence artifact;
+- 50 implementation Issues with evidence, impact, required work, acceptance criteria and safety boundaries.
 
-`secret_values_recorded=false`
+The exact final head, workflow run IDs and artifact ID/name/digest are recorded in live PR #1082 metadata after exact-head validation because a commit cannot contain its own resulting SHA.
 
-`live_capital_authorized=false`
+## Final disposition
 
-`product_code_changed=false`
-
-The audit PR contains documentation, inventory tooling and audit-only workflow changes only. It does not implement any finding.
+```yaml
+audit_result: FAIL_PRODUCT_COMPLETENESS
+audit_work_complete: true
+portal_end_to_end_complete: false
+findings_open: 50
+critical: 0
+high: 25
+medium: 25
+low: 0
+implementation_delegated_to_linked_issues: true
+protected_target_acceptance_performed: false
+secret_values_recorded: false
+live_capital_authorized: false
+product_code_changed: false
+```

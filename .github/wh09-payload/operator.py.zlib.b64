@@ -120,6 +120,7 @@ class Liquid20Snapshot:
 
 @dataclass(frozen=True, slots=True)
 
+
 class PublicMarketSnapshot:
     symbol: str
     observed_at_ms: int
@@ -475,6 +476,7 @@ def _load_liquid20_live_root(
         raise CandidatePaperRuntimeOperatorError("Liquid20 live run root is invalid")
 
 
+
     source_states: list[LiquidationSourceState] = []
     events: list[LiquidationEvent] = []
     history_start_ms = observed_at_ms - LIVE_HISTORY_WINDOW_MS
@@ -528,6 +530,7 @@ def _load_liquid20_live_root(
         raise CandidatePaperRuntimeOperatorError(
   "Liquid20 live event identities are duplicated"
         )
+
 
 
     by_symbol: dict[str, list[LiquidationEvent]] = {}
@@ -817,6 +820,53 @@ def _read_public_json(opener: OpenerDirector, *, url: str, field: str) -> object
         return json.loads(body.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CandidatePaperRuntimeOperatorError(f"{field} returned malformed JSON") from exc
+
+
+
+def _market_wide_liquidation_intensity(
+    events: tuple[LiquidationEvent, ...],
+    *,
+    decision_timestamp_ms: int,
+    burst_window_ms: int,
+) -> Decimal:
+    if burst_window_ms <= 0:
+        raise CandidatePaperRuntimeOperatorError(
+            "market-wide liquidation burst window must be positive"
+        )
+    history_start_ms = decision_timestamp_ms - LIVE_HISTORY_WINDOW_MS
+    current_start_ms = decision_timestamp_ms - burst_window_ms
+    complete_bucket_count = (
+        current_start_ms - history_start_ms
+    ) // burst_window_ms
+    if complete_bucket_count < 1:
+        raise CandidatePaperRuntimeOperatorError(
+            "market-wide liquidation intensity lacks a complete history bucket"
+        )
+    aligned_history_start_ms = (
+        current_start_ms - complete_bucket_count * burst_window_ms
+    )
+    current_notional = Decimal("0")
+    history_buckets = [Decimal("0") for _ in range(complete_bucket_count)]
+    for event in events:
+        available_at_ms = event.received_at_ms
+        if available_at_ms > decision_timestamp_ms:
+            continue
+        if current_start_ms <= available_at_ms <= decision_timestamp_ms:
+            current_notional += event.notional_usd
+        elif aligned_history_start_ms <= available_at_ms < current_start_ms:
+            bucket_index = (
+                available_at_ms - aligned_history_start_ms
+            ) // burst_window_ms
+            if 0 <= bucket_index < complete_bucket_count:
+                history_buckets[bucket_index] += event.notional_usd
+    baseline = sum(history_buckets, Decimal("0")) / Decimal(
+        complete_bucket_count
+    )
+    if baseline <= 0:
+        raise CandidatePaperRuntimeOperatorError(
+            "market-wide liquidation intensity lacks positive history"
+        )
+    return current_notional / baseline
 
 
 
@@ -1209,6 +1259,7 @@ class CandidatePaperRuntimeOperator:
             raise CandidatePaperRuntimeOperatorError(
                 "public market symbols do not match the selected Liquid20 universe"
             )
+
 
         latest_state = self.service.runtime.state
         market_wide_liquidation_intensity = _market_wide_liquidation_intensity(

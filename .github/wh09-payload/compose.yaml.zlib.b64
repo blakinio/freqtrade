@@ -1,1 +1,93 @@
-eNqtVm1z4jYQ/p5fobm5jxEQ0iQznrnpeIAWt4BTcO6unzzC3oAusqVKMgnXuf/eNX5BgVBurmUY21rty6NHuysZ0BuegPEuCHnmydO6yC1oqpjCp8YBz6CcI4RnbAUeef/3p2Dw+/hhFo3m8b1/j885DoLpKA6m/q8j72cDlsALS2xlQixbEalJyldg7Ledr2XBRVq5JSSRGPLFeqTT6e7+tTyVyRPoRy4wagpKyG3XbHMp5GrbPQW1O2yNai9Mr0wTiZAQ8fpROI8H4XQaROVyDkUO/gz0ClJchhKQQW6Z5TJHvFnG64WU3yxvl0IJpQmOecosUC2lbSe6DcJ23rHBYHyz837CaK/gWH2Rhc6ZOGFSzzr6gv9V8LTfO2HQTDsWa2DCrk/oS+SdWakd/UZEK47amf/IcuVcFUvBE5ox/QSWLpkBWuj9+tbWKuN1u49M8c6S5yxPoINeXA9SCGoAEy41Drb7cDKJF6NBOBsuPHrb67lRM/bCsyKjBulMgGJC08w1nvqfg+nDNF6ED/PBKMYKiKfo5bpX/l45kikImmr+6PIyDYejSTycB79EXk331rXCRGFHRkM/8t+0gXzDtcxLFpuU/L8znpDxyJ9EY6z9aOwdZ0O3AtT5YtpcrQ2QqR09DdOI5MQMvervuRtH0X18Pw8//+mRd+8c4eJI6uM+HsrKtIiVli/bA6E5kjIhjmSzsPF4Iq9y2di8qbCRosjA7BuE3SrsZ6iWtk2pSq2Sj4E/Gwa4u6N4HoZRPA4X9e5sAFOA48603YOURfmt9WGxz4H1TrcZQjSwNJa5QKhWF/B9iPxBFHz0oyCcHULiWVZYthRA9s3pHKijNvaDqCbBHw/BsN+LJ8HHkYOpdEZLZ2RSNzMi+OYsVwed7wdB/YYdYOZPDnmqCqvuxueQHDbtfw3Y1vEiKlPmMGRTkaSqyHOhX7XztwiwmXp0ErmLY08/X+YSXiDBl0EO8ZXC5tLwr/Dh9qfssmx6H67u7u52ZoUBjbV1e3Nz3fd2z6rMEqbiVEu1d46VvPvGZl1obrexVHY/m0uawzNVmm/woMdrhdeCbGVpWZDCVFKec+usRONFhGmUFLkAY6ixUimoKC6/45VmCcRICJfo57pXNXzFUxMLnpW++je3O1kGWStaVYtRhcFBp8qmivtkDclTg99i9P2NhJLBdOiM1NaunfJAnplS3e++/zjxOmpbu+Gl4oYJj9z2mrOr1JYFwr5qRRqs5kgmua4FO5ZaGrApV5o52Gepn5xccOG8OqVhhVybiwvX5Ixy5RWPvE2ZLEvN01WziWiSl6uoNvYf1+Y1fg==
+services:
+  wickhunter-paper-runtime:
+    image: ${WICKHUNTER_PAPER_RUNTIME_IMAGE:?set exact image tag or digest}
+    build:
+      context: ../../..
+      dockerfile: deploy/synology/wickhunter-paper-runtime/Dockerfile
+      args:
+        OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
+    command:
+      - --candidate-root
+      - /runtime/candidate
+      - --activation-root
+      - /runtime/activation
+      - --journal-root
+      - /runtime/journal
+      - --liquid20-root
+      - /runtime/liquid20
+      - --health-root
+      - /runtime/operator
+      - --operator-commit
+      - ${OPERATOR_COMMIT:?set exact merged implementation commit}
+      - --public-market-base-url
+      - https://fapi.binance.com
+      - --poll-seconds
+      - ${POLL_SECONDS:-600}
+      - --maximum-source-age-ms
+      - ${MAXIMUM_SOURCE_AGE_MS:-300000}
+      - --model-drift
+      - ${MODEL_DRIFT:-healthy}
+      - --data-drift
+      - ${DATA_DRIFT:-healthy}
+    environment:
+      OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
+      HEALTH_PATH: /runtime/operator/health.json
+      HEALTH_MAX_AGE_SECONDS: ${HEALTH_MAX_AGE_SECONDS:-1200}
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
+      NO_PROXY: fapi.binance.com
+      no_proxy: fapi.binance.com
+    volumes:
+      - type: bind
+        source: ${CANDIDATE_ROOT_HOST:?set verified candidate root}
+        target: /runtime/candidate
+        read_only: true
+      - type: bind
+        source: ${ACTIVATION_ROOT_HOST:?set immutable activation root}
+        target: /runtime/activation
+        read_only: true
+      - type: bind
+        source: ${LIQUID20_LIVE_HOST:?set read-only Liquid20 live root}
+        target: /runtime/liquid20
+        read_only: true
+      - type: bind
+        source: ${JOURNAL_ROOT_HOST:?set exact journal root}
+        target: /runtime/journal
+      - type: bind
+        source: ${OPERATOR_STATE_HOST:?set exact operator health root}
+        target: /runtime/operator
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    privileged: false
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - /app/deploy/synology/wickhunter-paper-runtime/healthcheck.py
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - wickhunter-public-market-egress
+
+networks:
+  wickhunter-public-market-egress:
+    driver: bridge
+    internal: false

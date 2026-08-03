@@ -141,7 +141,7 @@ def test_reconnect_budget_is_normalized_by_collector_uptime() -> None:
         healthy_pointer(reconnects=445, uptime_hours=20),
         now_ms=NOW_MS,
         event_stale_ms=300_000,
-        reconnects_per_hour_max=100,
+        reconnect_max=100,
     )
 
     assert "LIQUID20_SOURCE_RECONNECTS_UNCONTROLLED" not in alert_codes(alerts)
@@ -152,7 +152,7 @@ def test_reconnect_burst_still_fails_closed() -> None:
         healthy_pointer(reconnects=150, uptime_hours=1),
         now_ms=NOW_MS,
         event_stale_ms=300_000,
-        reconnects_per_hour_max=100,
+        reconnect_max=100,
     )
 
     assert "LIQUID20_SOURCE_RECONNECTS_UNCONTROLLED" in alert_codes(alerts)

@@ -1,5 +1,9 @@
 extend = "../../../pyproject.toml"
-line-length = 120
+
+[format]
+exclude = [
+  "sensitive_data.py",  # Preserve the reviewed security classifier layout; lint remains enabled.
+]
 
 [lint.per-file-ignores]
 "http_validation.py" = [

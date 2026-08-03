@@ -40,6 +40,7 @@ MIGRATION_PATHS: tuple[str, ...] = (
     "signal_wizard/migrations/0002_semantic_hardening.sql",
     "strategy_lab/migrations/0001_strategy_lab.sql",
     "telemetry/migrations/0001_inference_drift_telemetry.sql",
+    "control_plane/migrations/0002_orm_type_alignment.sql",
 )
 
 _SCHEMA_LOCK_ID = 1122

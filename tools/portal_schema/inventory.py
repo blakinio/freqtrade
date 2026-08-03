@@ -1,61 +1,24 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import CheckConstraint, ForeignKeyConstraint, Index, UniqueConstraint
 
 from ai_platform.portal.control_plane.database import Base
+from ai_platform.portal.database.model_registry import load_portal_models
 
 
 ROOT = Path(__file__).resolve().parents[2]
 PORTAL_ROOT = ROOT / "ai_platform" / "portal"
-MODEL_MODULES = (
-    "ai_platform.portal.bot_operations.models",
-    "ai_platform.portal.control_plane.models",
-    "ai_platform.portal.execution_submission.models",
-    "ai_platform.portal.identity.models",
-    "ai_platform.portal.intelligence.models",
-    "ai_platform.portal.learning.models",
-    "ai_platform.portal.model_control.models",
-    "ai_platform.portal.operations.models",
-    "ai_platform.portal.product.models",
-    "ai_platform.portal.risk.models",
-    "ai_platform.portal.signal_wizard.models",
-    "ai_platform.portal.strategy_lab.models",
-    "ai_platform.portal.telemetry.models",
-)
 CREATE_TABLE_RE = re.compile(
     r"\bCREATE\s+TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+[\"`\[]?([A-Za-z_][A-Za-z0-9_]*)",
     re.IGNORECASE,
 )
 CREATE_ALL_RE = re.compile(r"\b(?:Base\.)?metadata\.create_all\s*\(")
-
-
-def _load_models() -> None:
-    """Register exact model files without importing unrelated package services."""
-
-    for module_name in MODEL_MODULES:
-        if module_name in sys.modules:
-            continue
-        path = ROOT.joinpath(*module_name.split(".")).with_suffix(".py")
-        if not path.is_file():
-            raise RuntimeError(f"Portal model file is missing: {path.relative_to(ROOT)}")
-        spec = importlib.util.spec_from_file_location(module_name, path)
-        if spec is None or spec.loader is None:
-            raise RuntimeError(f"cannot load Portal model file: {path.relative_to(ROOT)}")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
-        try:
-            spec.loader.exec_module(module)
-        except Exception:
-            sys.modules.pop(module_name, None)
-            raise
 
 
 def _column_payload(column: Any) -> dict[str, Any]:
@@ -107,7 +70,7 @@ def _index_payload(index: Index) -> dict[str, Any]:
 
 
 def _orm_inventory() -> dict[str, Any]:
-    _load_models()
+    load_portal_models()
     tables: dict[str, Any] = {}
     for table_name, table in sorted(Base.metadata.tables.items()):
         tables[table_name] = {

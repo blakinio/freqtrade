@@ -36,7 +36,7 @@ from ai_platform.wickhunter.parameters import INITIAL_COMPATIBILITY_PRIOR
 
 CODE_SHA = "a" * 40
 EVALUATION_SHA = "b" * 64
-MODEL_HASH = hashlib.sha256(b"model-text").hexdigest()
+MODEL_HASH = hashlib.sha256(b"model-text\n").hexdigest()
 OPTIMIZER_ID = "c" * 64
 COMPARISON_ID = "d" * 64
 ROLLBACK_HASH = "e" * 64
@@ -67,7 +67,7 @@ def _package(root: Path) -> Path:
         model_kind=MODEL_KIND,
         model_version="wickhunter-lightgbm-test",
         model_hash=MODEL_HASH,
-        model_text="model-text",
+        model_text="model-text\n",
         feature_schema_version=FEATURE_SCHEMA_VERSION,
         feature_schema_sha256=canonical_sha256(
             {"version": FEATURE_SCHEMA_VERSION, "names": FEATURE_NAMES}

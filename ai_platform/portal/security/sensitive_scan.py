@@ -25,6 +25,11 @@ _SUPPORTED_SUFFIXES = frozenset({".db", ".json", ".jsonl", ".ndjson", ".sqlite",
 _EXCLUDED_DIRECTORIES = frozenset(
     {".git", ".mypy_cache", ".pytest_cache", "node_modules", "__pycache__"}
 )
+_EXCLUDED_FILENAMES = frozenset(
+    {
+        "package-lock.json",  # Generated dependency graph, not persisted Portal metadata.
+    }
+)
 _DEFAULT_MAX_FILE_BYTES = 32 * 1024 * 1024
 
 
@@ -119,7 +124,11 @@ def _iter_supported_files(paths: Sequence[Path]) -> Iterator[Path]:
         else:
             continue
         for candidate in candidates:
-            if not candidate.is_file() or candidate.suffix.casefold() not in _SUPPORTED_SUFFIXES:
+            if (
+                not candidate.is_file()
+                or candidate.name in _EXCLUDED_FILENAMES
+                or candidate.suffix.casefold() not in _SUPPORTED_SUFFIXES
+            ):
                 continue
             resolved = candidate.resolve()
             if resolved in seen:

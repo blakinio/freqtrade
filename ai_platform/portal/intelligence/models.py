@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, Text
+from sqlalchemy import DateTime, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ai_platform.portal.control_plane.database import Base
@@ -14,9 +14,17 @@ class DecisionSnapshotRow(Base):
     tenant_id: Mapped[str] = mapped_column(String(255), primary_key=True)
     snapshot_id: Mapped[str] = mapped_column(String(36), primary_key=True)
     bot_id: Mapped[str] = mapped_column(String(255), index=True)
-    trade_intent_id: Mapped[str] = mapped_column(String(36), unique=True)
+    trade_intent_id: Mapped[str] = mapped_column(String(36), nullable=False)
     decision_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     snapshot_json: Mapped[str] = mapped_column(Text)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "trade_intent_id",
+            name="uq_portal_decision_snapshot_tenant_intent",
+        ),
+    )
 
 
 class TradeOutcomeRow(Base):

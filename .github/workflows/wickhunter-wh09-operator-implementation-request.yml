@@ -1,0 +1,73 @@
+name: WickHunter WH09 PAPER operator implementation request
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-operator-implementation-request.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-operator-implementation-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-operator-implementation-request.yml
+  TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
+  TARGET_BASE_SHA: 2f9792455fcd5e5b398b8f8bd88036e1bde62010
+  PAYLOAD_SHA256: 45ed151272556b5abe93e423847123098fd2bf42bf3592d3b9ef1a4bcacf5018
+
+jobs:
+  apply-and-verify:
+    name: Apply and validate persistent PAPER operator
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact helper scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$TARGET_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-operator-implementation-request.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Check out target feature branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ env.TARGET_BRANCH }}
+          path: target
+
+      - name: Materialize exact implementation payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd target
+          [[ "$(git rev-parse HEAD)" == "$TARGET_BASE_SHA" ]]
+          [[ -z "$(git status --porcelain)" ]]
+          cat > "$RUNNER_TEMP/wh09-payload.b64" <<'PAYLOAD'
+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"],"encoding":"base64"}

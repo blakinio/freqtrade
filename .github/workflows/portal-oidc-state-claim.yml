@@ -1,0 +1,193 @@
+name: Portal OIDC State Claim
+
+on:
+  pull_request:
+    paths:
+      - "ai_platform/portal/identity/**"
+      - "tests/ai_platform/portal/identity/**"
+      - "docs/ai_platform/portal/OIDC_STATE_CLAIM.md"
+      - "deploy/synology/portal-oidc/Dockerfile.control-plane"
+      - "deploy/synology/portal-oidc/requirements.txt"
+      - ".github/workflows/portal-oidc-state-claim.yml"
+  push:
+    branches:
+      - develop
+    paths:
+      - "ai_platform/portal/identity/**"
+      - "tests/ai_platform/portal/identity/**"
+      - "docs/ai_platform/portal/OIDC_STATE_CLAIM.md"
+      - "deploy/synology/portal-oidc/Dockerfile.control-plane"
+      - "deploy/synology/portal-oidc/requirements.txt"
+      - ".github/workflows/portal-oidc-state-claim.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "portal-oidc-state-claim-${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  exact-image:
+    name: Exact identity image concurrent callback probe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Build exact identity image
+        run: >-
+          docker build
+          --file deploy/synology/portal-oidc/Dockerfile.control-plane
+          --tag portal-identity-claim:${{ github.sha }}
+          .
+
+      - name: Prove one provider owner and one Portal session
+        env:
+          IMAGE: portal-identity-claim:${{ github.sha }}
+        run: |
+          mkdir -p artifacts
+          docker run --rm --interactive --entrypoint python "$IMAGE" - <<'PY' \
+            | tee artifacts/oidc-state-claim.json
+          from concurrent.futures import ThreadPoolExecutor
+          from datetime import UTC, datetime
+          from json import dumps
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from threading import Event, Lock
+          from urllib.parse import parse_qs, urlencode, urlparse
+
+          from sqlalchemy import func, select
+
+          from ai_platform.portal.contracts.identity import RoleName
+          from ai_platform.portal.control_plane.database import (
+              build_engine,
+              build_session_factory,
+              create_schema,
+          )
+          from ai_platform.portal.identity.crypto import IdentityCrypto, IdentitySecrets
+          from ai_platform.portal.identity.models import PortalSessionRow
+          from ai_platform.portal.identity.oidc import OidcLogoutIdentity
+          from ai_platform.portal.identity.schema import OidcIdentity
+          from ai_platform.portal.identity.service import (
+              IdentityAuthenticationError,
+              IdentityService,
+          )
+
+
+          class OidcClient:
+              issuer = "https://identity.invalid/application/o/portal"
+
+              def __init__(self) -> None:
+                  self.exchange_count = 0
+                  self.exchange_started = Event()
+                  self.release_exchange = Event()
+                  self.lock = Lock()
+                  self.nonce = ""
+
+              def authorization_url(self, *, state, nonce, code_challenge):
+                  self.nonce = nonce
+                  return "https://identity.invalid/authorize?" + urlencode(
+                      {
+                          "state": state,
+                          "nonce": nonce,
+                          "code_challenge": code_challenge,
+                      }
+                  )
+
+              def exchange_code(self, *, code, code_verifier, expected_nonce):
+                  assert code in {"code-a", "code-b"}
+                  assert len(code_verifier) >= 43
+                  assert expected_nonce == self.nonce
+                  with self.lock:
+                      self.exchange_count += 1
+                  self.exchange_started.set()
+                  assert self.release_exchange.wait(timeout=5)
+                  return OidcIdentity(
+                      issuer=self.issuer,
+                      subject="synthetic-user",
+                      display_name="Synthetic User",
+                      email=None,
+                      idp_session_id="synthetic-idp-session",
+                      authentication_time=datetime(2026, 8, 3, 12, 0, tzinfo=UTC),
+                      mfa_satisfied=True,
+                      authentication_methods=("webauthn",),
+                  )
+
+              def validate_backchannel_logout(self, logout_token):
+                  raise AssertionError(logout_token)
+
+
+          with TemporaryDirectory() as directory:
+              engine = build_engine(f"sqlite+pysqlite:///{Path(directory) / 'identity.db'}")
+              create_schema(engine)
+              session_factory = build_session_factory(engine)
+              oidc = OidcClient()
+              crypto = IdentityCrypto(
+                  IdentitySecrets(
+                      session_hmac_key=b"s" * 32,
+                      flow_encryption_key=b"f" * 32,
+                  )
+              )
+              clock = lambda: datetime(2026, 8, 3, 12, 0, tzinfo=UTC)
+              service = IdentityService(session_factory, oidc, crypto, clock=clock)
+              principal = service.bootstrap_principal(
+                  issuer=oidc.issuer,
+                  subject="synthetic-user",
+                  display_name="Synthetic User",
+                  email=None,
+              )
+              service.bootstrap_membership(
+                  principal_id=principal.principal_id,
+                  tenant_id="synthetic-tenant",
+                  roles=(RoleName.ADMIN,),
+              )
+              login = service.begin_login(
+                  requested_tenant_id="synthetic-tenant",
+                  return_to="/bots",
+              )
+              state = parse_qs(urlparse(login.authorization_url).query)["state"][0]
+
+              with ThreadPoolExecutor(max_workers=2) as executor:
+                  winner = executor.submit(service.complete_login, code="code-a", state=state)
+                  assert oidc.exchange_started.wait(timeout=5)
+                  loser = executor.submit(service.complete_login, code="code-b", state=state)
+                  loser_rejected = False
+                  try:
+                      loser.result(timeout=5)
+                  except IdentityAuthenticationError:
+                      loser_rejected = True
+                  oidc.release_exchange.set()
+                  winner.result(timeout=5)
+
+              with session_factory() as session:
+                  session_count = session.scalar(
+                      select(func.count()).select_from(PortalSessionRow)
+                  )
+              assert loser_rejected
+              assert oidc.exchange_count == 1
+              assert session_count == 1
+              print(
+                  dumps(
+                      {
+                          "loser_rejected": loser_rejected,
+                          "provider_exchange_count": oidc.exchange_count,
+                          "portal_session_count": session_count,
+                      },
+                      sort_keys=True,
+                  )
+              )
+              engine.dispose()
+          PY
+
+      - name: Upload value-free exact-image evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: portal-oidc-state-claim-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/oidc-state-claim.json
+          if-no-files-found: warn
+          retention-days: 14

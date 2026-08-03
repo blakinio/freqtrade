@@ -217,16 +217,25 @@ jobs:
 
       - name: Publish terminal summary
         shell: bash
+        env:
+          TERMINAL_PACKAGE_ID: ${{ steps.terminal.outputs.package_id }}
+          TERMINAL_MANIFEST_SHA256: ${{ steps.terminal.outputs.manifest_sha256 }}
+          TERMINAL_EVALUATION_SHA256: ${{ steps.terminal.outputs.evaluation_sha256 }}
+          TERMINAL_PARAMETER_VERSION: ${{ steps.terminal.outputs.parameter_version }}
+          TERMINAL_PARAMETER_HASH: ${{ steps.terminal.outputs.parameter_hash }}
+          TERMINAL_MODEL_VERSION: ${{ steps.terminal.outputs.model_version }}
+          TERMINAL_MODEL_HASH: ${{ steps.terminal.outputs.model_hash }}
+          TERMINAL_MODEL_ARTIFACT_SHA256: ${{ steps.terminal.outputs.model_artifact_sha256 }}
         run: |
           {
             echo "## WickHunter corrected candidate verification"
             echo
-            echo "- Package: \`${{ steps.terminal.outputs.package_id }}\`"
-            echo "- Manifest: \`${{ steps.terminal.outputs.manifest_sha256 }}\`"
-            echo "- Evaluation: \`${{ steps.terminal.outputs.evaluation_sha256 }}\`"
-            echo "- Parameter: \`${{ steps.terminal.outputs.parameter_version }} / ${{ steps.terminal.outputs.parameter_hash }}\`"
-            echo "- Model: \`${{ steps.terminal.outputs.model_version }} / ${{ steps.terminal.outputs.model_hash }}\`"
-            echo "- Model artifact: \`${{ steps.terminal.outputs.model_artifact_sha256 }}\`"
+            echo "- Package: \`$TERMINAL_PACKAGE_ID\`"
+            echo "- Manifest: \`$TERMINAL_MANIFEST_SHA256\`"
+            echo "- Evaluation: \`$TERMINAL_EVALUATION_SHA256\`"
+            echo "- Parameter: \`$TERMINAL_PARAMETER_VERSION / $TERMINAL_PARAMETER_HASH\`"
+            echo "- Model: \`$TERMINAL_MODEL_VERSION / $TERMINAL_MODEL_HASH\`"
+            echo "- Model artifact: \`$TERMINAL_MODEL_ARTIFACT_SHA256\`"
             echo "- Exact terminal newline preserved: \`true\`"
             echo "- Advisory scorer loaded: \`true\`"
             echo "- Holdout/promotion/credentials/order adapter/execution/live capital: \`absent\`"

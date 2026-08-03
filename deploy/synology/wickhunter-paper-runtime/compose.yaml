@@ -75,7 +75,7 @@ services:
       test:
         - CMD
         - python
-        - /app/deploy/synology/wickhunter-paper-runtime/healthcheck.py
+        - /app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
       interval: 60s
       timeout: 10s
       retries: 3

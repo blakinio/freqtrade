@@ -77,6 +77,7 @@ jobs:
           import hashlib
           import os
           import re
+          import zlib
           from pathlib import Path
 
           run_temp = Path(os.environ["RUNNER_TEMP"])
@@ -93,28 +94,41 @@ jobs:
           if not encoded_line or re.fullmatch(r"[A-Za-z0-9+/=]+", encoded_line) is None:
               raise SystemExit("payload line contains non-base64 characters")
 
-          expected_digest = os.environ["PAYLOAD_SHA256"]
-          matches: list[tuple[int, bytes]] = []
-          for end in range(4, len(encoded_line) + 1, 4):
-              candidate = encoded_line[:end]
-              if not candidate.endswith("="):
-                  continue
+          decoded = bytearray()
+          for offset in range(0, len(encoded_line), 4):
+              quartet = encoded_line[offset : offset + 4]
+              if len(quartet) != 4:
+                  break
               try:
-                  archive = base64.b64decode(candidate, validate=True)
-              except (binascii.Error, ValueError):
-                  continue
-              if hashlib.sha256(archive).hexdigest() == expected_digest:
-                  matches.append((end, archive))
+                  decoded.extend(base64.b64decode(quartet, validate=True))
+              except (binascii.Error, ValueError) as error:
+                  raise SystemExit(
+                      f"payload quartet decode failed at offset {offset}: {error}"
+                  ) from error
+              if "=" in quartet:
+                  break
+          if not decoded:
+              raise SystemExit("payload decoded to zero bytes")
 
-          if len(matches) != 1:
-              endpoints = [end for end, _ in matches]
+          inflater = zlib.decompressobj(wbits=16 + zlib.MAX_WBITS)
+          try:
+              inflater.decompress(bytes(decoded))
+              inflater.flush()
+          except zlib.error as error:
+              raise SystemExit(f"payload gzip recovery failed: {error}") from error
+          if not inflater.eof:
+              raise SystemExit("payload did not contain one complete gzip stream")
+          consumed = len(decoded) - len(inflater.unused_data)
+          if consumed <= 0:
+              raise SystemExit("payload gzip stream consumed zero bytes")
+          archive = bytes(decoded[:consumed])
+
+          digest = hashlib.sha256(archive).hexdigest()
+          expected_digest = os.environ["PAYLOAD_SHA256"]
+          if digest != expected_digest:
               raise SystemExit(
-                  "payload prefix selection mismatch: "
-                  f"expected exactly one SHA-bound prefix, got {endpoints}"
+                  f"payload sha256 mismatch: expected {expected_digest}, got {digest}"
               )
-          prefix_end, archive = matches[0]
-          if prefix_end >= len(encoded_line):
-              raise SystemExit("expected source payload to contain a bounded prefix")
           (run_temp / "wh09-payload.tar.gz").write_bytes(archive)
           PY
 

@@ -7,7 +7,7 @@ repository: blakinio/freqtrade
 lane: freqtrade-portal
 task_kind: durable_remediation_program
 phase: coordinate
-status: ready
+status: active
 priority: high
 prompting_standard_version: 2.1
 execution_policy_version: 2
@@ -25,10 +25,16 @@ feature_scope:
   frontend_required: false
   integration_required: true
   e2e_required: false
-branch: program/FTAI-20260803-portal-remediation
 base_branch: develop
-base_head: ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
-pr: none
+last_resolved_develop_head: 9f437158bbb2c7dfc40f10fd1a3aaf8ea11fea17
+current_child_task: FTAI-20260803-portal-remediation-1137
+current_child_branch: fix/portal-1137-atomic-oidc-state-claim
+current_child_pr: 1154
+current_child_head: 6035a94106758cf2d2bf3d2a1e32d424a4cc4d30
+closed_issues: 3
+active_issues: 1
+waiting_issues: 0
+blocked_issues: 0
 owned_paths:
   - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
   - docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md
@@ -42,14 +48,14 @@ protected_production_deployment_authorized: false
 
 Coordinate and execute the separate implementation programme covering exactly the 50 Issues listed in `docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md`. This task owns programme state, dependency/barrier resolution, child-task selection and terminal reconciliation. It does not own product implementation paths and cannot be used as an omnibus repair PR.
 
-## Initialization evidence
+## Terminal progress
 
-- Audit PR `#1082` was exact-head validated, marked ready and squash-merged.
-- Current programme base is `develop@ba4173e975b6ae40c8b0266e3c15cb1b19a0755d`.
-- The audit baseline contains documentation, inventory tooling and evidence only; no product repairs were transferred into it.
-- No existing programme/task named `FTAI-20260803-portal-remediation`, no overlapping remediation branch and no open Portal remediation implementation PR were found during live preflight.
-- All 50 authorized Issues were open at initialization.
-- The first safe READY issue is `#1124`, an active application-session authorization failure on Liquid20 local-file BFF reads.
+- Audit PR `#1082` is merged and remains the audit-only baseline.
+- Programme initialization PR `#1145` is merged.
+- Issue `#1124` is merged, closed and archived through PR `#1146`.
+- Issue `#1126` is merged, closed and archived through PR `#1149`.
+- Issue `#1127` is merged and closed through PR `#1151`; archive and classifier ownership release are recorded by the current closeout task.
+- Issue `#1137` is active in PR `#1154` with an atomic conditional login-state claim, repository concurrency tests and a fail-closed exact-image probe. Fresh audit expanded the task to attributable claim/replay/provider/identity terminal evidence before protected-target classification.
 
 ## Coordination rules
 
@@ -65,9 +71,9 @@ Coordinate and execute the separate implementation programme covering exactly th
 
 - [x] Audit PR `#1082` is terminal and evidence is available on `develop`.
 - [x] Exact authorized Issue inventory and severity/module map are durable.
-- [x] Initial dependency graph, producer ownership and barriers are durable.
-- [x] Current exact `develop` head is recorded.
-- [x] One exact programme next action is recorded.
+- [x] Dependency graph, producer ownership and barriers are durable.
+- [x] Three authorized Issues are merged, closed and archived/reconciling.
+- [x] Current exact `develop` and one exact programme next action are recorded.
 - [ ] All 50 Issues are terminal.
 - [ ] All related PRs/tasks are terminal and ownership is released.
 - [ ] Final fresh audit, real API-mode E2E, exact-image validation and exact-head CI pass.
@@ -75,50 +81,30 @@ Coordinate and execute the separate implementation programme covering exactly th
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-03T10:24:00Z
-head: e02da211b1f44636b876754ec356d67e17276108
-branch: program/FTAI-20260803-portal-remediation
-pr: none
-status: ready
+checkpoint_version: 5
+updated_at: 2026-08-03T13:38:00Z
+head: 9f437158bbb2c7dfc40f10fd1a3aaf8ea11fea17
+status: active
 context_routes:
   - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
-  - docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md
-  - issue #1124
-owned_paths:
-  - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md
+  - issue #1137
+  - PR #1154
+  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-1137.md
 proven:
-  - audit PR #1082 merged into develop at ba4173e975b6ae40c8b0266e3c15cb1b19a0755d
-  - all 50 authorized implementation Issues were open at initialization
-  - no existing remediation programme, branch or open implementation PR was found
-  - issue #1124 is the highest-priority independent READY security containment task
-  - no product or protected-environment mutation has occurred in programme initialization
+  - audit, programme initialization and Issues 1124, 1126 and 1127 are merged
+  - Issue 1127 exact-head CI, staging, exact-image artifacts and fresh audit passed
+  - Issue 1127 closed through PR 1151 at merge commit 9f437158bbb2c7dfc40f10fd1a3aaf8ea11fea17
+  - Issue 1137 has one active owner/branch/PR on overlapping identity paths
+  - the first Issue 1137 exact-image run was false-green with an empty artifact and was replaced by a fail-closed non-empty proof
+  - fresh Issue 1137 audit requires attributable terminal callback evidence before repository closeout
+  - Issue 1132 is next READY only after Issue 1137 ownership release
+  - no protected production, credential, trading, withdrawal or live-capital mutation occurred
 derived:
-  - shared producer work must be serialized according to the programme ownership table
-  - programme setup can merge as a documentation-only lifecycle PR before product child work
+  - PR 1154 must incorporate the exact post-1127 develop head before final validation
+  - protected Authentik acceptance may become one WAITING boundary only after all repository-owned Issue 1137 work is complete
 unknown:
-  - exact Issue label, milestone and GitHub Project metadata not exposed by the available search response
-  - future protected-target resources and approvals
-conflicts:
-  - historical programme completion claims conflict with the merged audit; the audit and live runtime evidence control
-first_failure:
-  marker: issue-1124-liquid20-current-session-authorization
-  evidence: audit PR #1082 and issue #1124
-rejected_hypotheses:
-  - audit completion means product remediation is complete; rejected by 50 open implementation findings
-  - fixture browser evidence proves API-mode composition; rejected by audit evidence
-changed_paths:
-  - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
-  - docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md
-validation:
-  - command: live GitHub inspection of develop, PR #1082, workflow runs, reviews, threads, branches, PRs and authorized Issues
-    result: PASS
-    evidence: develop ba4173e975b6ae40c8b0266e3c15cb1b19a0755d; PR #1082 merged
-  - command: programme/task policy review against prompting standard 2.1 and execution policy 2
-    result: PASS
-    evidence: required governance documents read from exact trusted develop base
-blockers:
-  - none
-next_action: Create and claim child task FTAI-20260803-portal-remediation-1124 from the current exact develop head and begin the bounded Liquid20 session-authorization repair.
+  - availability of an existing authorized protected Authentik concurrency runner for Issue 1137
+conflicts: []
+blockers: []
+next_action: Merge the Issue 1127 closeout record, integrate that exact develop head into PR 1154, then finish attributable OIDC callback evidence and exact-head validation for Issue 1137.
 ```

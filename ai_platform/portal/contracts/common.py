@@ -23,7 +23,12 @@ UtcDateTime = Annotated[datetime, AfterValidator(_normalize_utc)]
 
 
 class ContractModel(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        str_strip_whitespace=True,
+        hide_input_in_errors=True,
+    )
 
     contract_version: ContractVersion = "v1"
 

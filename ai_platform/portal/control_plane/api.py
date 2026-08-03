@@ -13,6 +13,7 @@ from ai_platform.portal.feature_registry.router import (
     build_router as build_feature_registry_router,
 )
 from ai_platform.portal.feature_registry.service import FeatureRegistryService
+from ai_platform.portal.security.http_validation import install_safe_request_validation_handler
 from ai_platform.portal.signal_wizard.router import build_router as build_signal_wizard_router
 from ai_platform.portal.signal_wizard.service import SignalWizardService
 from ai_platform.portal.strategy_lab.router import build_router as build_strategy_lab_router
@@ -35,6 +36,7 @@ def create_app(
         *args,
         **kwargs,
     )
+    install_safe_request_validation_handler(app)
     feature_registry = feature_registry_service or FeatureRegistryService()
     strategy_lab = strategy_lab_service or StrategyLabService(session_factory)
     signal_wizard = signal_wizard_service or SignalWizardService(

@@ -61,20 +61,24 @@ if (( probe_timeout_seconds < 5 || probe_timeout_seconds > 60 )); then
 fi
 command -v timeout >/dev/null
 
-probe_stage="production_container_preflight"
-docker version >/dev/null
-test -S /var/run/docker.sock
-test "$(docker inspect --format '{{.State.Running}}' "$portal_container")" = "true"
+docker_bounded() {
+  timeout 10s docker "$@"
+}
 
-portal_image="$(docker inspect --format '{{.Config.Image}}' "$portal_container")"
-portal_image_id="$(docker inspect --format '{{.Image}}' "$portal_container")"
-portal_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$portal_container")"
-mount_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.Source}}{{end}}{{end}}' "$portal_container")"
-mount_rw="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$portal_container")"
-docker_socket_mount="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$portal_container")"
-portal_restart="$(docker inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$portal_container")"
-portal_uid="$(timeout 10s docker exec "$portal_container" id -u)"
-portal_groups="$(timeout 10s docker exec "$portal_container" id -G)"
+probe_stage="production_container_preflight"
+docker_bounded version >/dev/null
+test -S /var/run/docker.sock
+test "$(docker_bounded inspect --format '{{.State.Running}}' "$portal_container")" = "true"
+
+portal_image="$(docker_bounded inspect --format '{{.Config.Image}}' "$portal_container")"
+portal_image_id="$(docker_bounded inspect --format '{{.Image}}' "$portal_container")"
+portal_health="$(docker_bounded inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$portal_container")"
+mount_source="$(docker_bounded inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.Source}}{{end}}{{end}}' "$portal_container")"
+mount_rw="$(docker_bounded inspect --format '{{range .Mounts}}{{if eq .Destination "/liquid20-data"}}{{.RW}}{{end}}{{end}}' "$portal_container")"
+docker_socket_mount="$(docker_bounded inspect --format '{{range .Mounts}}{{if eq .Destination "/var/run/docker.sock"}}{{.Source}}{{end}}{{end}}' "$portal_container")"
+portal_restart="$(docker_bounded inspect --format '{{.HostConfig.RestartPolicy.Name}}' "$portal_container")"
+portal_uid="$(docker_bounded exec "$portal_container" id -u)"
+portal_groups="$(docker_bounded exec "$portal_container" id -G)"
 
 test -n "$portal_image"
 test -n "$portal_image_id"

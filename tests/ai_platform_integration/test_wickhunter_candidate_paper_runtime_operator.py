@@ -98,6 +98,12 @@ def _future_event_payload(payload: dict[str, object]) -> None:
     _rehash_payload(payload)
 
 
+def _future_source_state_payload(payload: dict[str, object]) -> None:
+    states = cast(list[dict[str, object]], payload["source_states"])
+    states[0]["last_received_at_ms"] = NOW_MS + 1
+    _rehash_payload(payload)
+
+
 def _write_snapshot(path: Path, payload: dict[str, object] | None = None) -> Path:
     path.write_text(canonical_json(payload or _liquid20_payload()) + "\n", encoding="utf-8")
     return path
@@ -191,6 +197,7 @@ def test_load_liquid20_snapshot_verifies_hash_and_decision_time(tmp_path: Path) 
     (
         (_stale_payload, "stale"),
         (_future_event_payload, "unavailable"),
+        (_future_source_state_payload, "source receipt"),
         (lambda payload: payload.update({"snapshot_sha256": "0" * 64}), "self-hash"),
     ),
 )
@@ -281,6 +288,20 @@ def test_public_market_fetch_is_network_free_and_uses_only_public_gets(
     assert all("Authorization" not in request.headers for request in opener.requests)
 
 
+def test_non_production_public_market_host_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in operator_module.FORBIDDEN_ENVIRONMENT_NAMES:
+        monkeypatch.delenv(name, raising=False)
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="allowlisted"):
+        fetch_public_market_snapshot(
+            symbol="BTCUSDT",
+            observed_at_ms=NOW_MS,
+            base_url="https://testnet.binancefuture.com",
+            opener=cast(Any, _Opener()),
+        )
+
+
 def test_public_market_redirect_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in operator_module.FORBIDDEN_ENVIRONMENT_NAMES:
         monkeypatch.delenv(name, raising=False)
@@ -289,6 +310,18 @@ def test_public_market_redirect_fails_closed(monkeypatch: pytest.MonkeyPatch) ->
             symbol="BTCUSDT",
             observed_at_ms=NOW_MS,
             opener=cast(Any, _Opener(redirect=True)),
+        )
+
+
+def test_operator_rejects_non_paper_binding(tmp_path: Path) -> None:
+    service = _service()
+    service.binding.request.mode = BotMode.SHADOW
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="mode must be PAPER"):
+        CandidatePaperRuntimeOperator(
+            service=cast(Any, service),
+            liquid20_snapshot_path=_write_snapshot(tmp_path / "liquid20.json").resolve(),
+            health_path=(tmp_path / "health" / "health.json").resolve(),
+            operator_commit=CODE_SHA,
         )
 
 
@@ -312,7 +345,7 @@ def test_operator_composes_paper_tick_without_authority(
     assert len(tick.decision_requests) == 1
     request = tick.decision_requests[0]
     assert request.mode is BotMode.PAPER
-    assert request.risk_context.candidate_paper_validation_authorized is False
+    assert request.risk_context.candidate_paper_validation_authorized is True
     assert request.dataset_hash == "e" * 64
     assert request.code_sha == CODE_SHA
 

@@ -25,6 +25,7 @@ from ai_platform.wickhunter.candidate_runtime_binding import build_candidate_pap
 from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
 from ai_platform.wickhunter.contracts import (
     AvailableMetric,
+    BotMode,
     DriftState,
     LiquidationHistorySnapshot,
     LiquidationSourceState,
@@ -342,6 +343,17 @@ def load_liquid20_snapshot(  # noqa: C901
         raise CandidatePaperRuntimeOperatorError("Liquid20 source states must be unique and sorted")
     if not source_tuple:
         raise CandidatePaperRuntimeOperatorError("Liquid20 source states are empty")
+    if any(
+        item.last_received_at_ms is not None
+        and (
+            item.last_received_at_ms > observed_at_ms
+            or item.last_received_at_ms > item.observed_at_ms
+        )
+        for item in source_tuple
+    ):
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 source receipt was unavailable at source observation time"
+        )
     if any(item.observed_at_ms > observed_at_ms for item in source_tuple):
         raise CandidatePaperRuntimeOperatorError(
             "Liquid20 source state was unavailable at snapshot observation time"
@@ -405,7 +417,7 @@ def _public_url(base_url: str, path: str, parameters: dict[str, object]) -> str:
         or not parsed.hostname
     ):
         raise CandidatePaperRuntimeOperatorError("public market base URL is not allowed")
-    if parsed.hostname.lower() not in {"fapi.binance.com", "testnet.binancefuture.com"}:
+    if parsed.hostname.lower() != "fapi.binance.com":
         raise CandidatePaperRuntimeOperatorError("public market host is not allowlisted")
     return f"{base_url.rstrip('/')}{path}?{urlencode(parameters)}"
 
@@ -616,6 +628,8 @@ class CandidatePaperRuntimeOperator:
             raise CandidatePaperRuntimeOperatorError(
                 "operator commit must be an exact lowercase Git SHA"
             )
+        if self.service.binding.request.mode is not BotMode.PAPER:
+            raise CandidatePaperRuntimeOperatorError("runtime binding mode must be PAPER")
         _assert_regular_absolute(self.liquid20_snapshot_path, field="Liquid20 snapshot")
         if not self.health_path.is_absolute():
             raise CandidatePaperRuntimeOperatorError("health path must be absolute")
@@ -679,7 +693,7 @@ class CandidatePaperRuntimeOperator:
                         dca_timing_condition_met=True,
                         spread_bps=market.spread_bps,
                         quote_volume_usd=market.quote_volume_24h_usd,
-                        candidate_paper_validation_authorized=False,
+                        candidate_paper_validation_authorized=True,
                     ),
                     dataset_hash=self.service.binding.request.dataset_hash,
                     code_sha=self.service.binding.request.code_sha,

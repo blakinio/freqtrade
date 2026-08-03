@@ -16,10 +16,10 @@ from ai_platform.portal.control_plane.migration_authority import (
 def test_manifest_is_complete_ordered_and_checksum_bound() -> None:
     manifest = migration_manifest()
 
-    assert len(manifest) == len(MIGRATION_PATHS) == 17
-    assert [migration.position for migration in manifest] == list(range(1, 18))
+    assert len(manifest) == len(MIGRATION_PATHS) == 18
+    assert [migration.position for migration in manifest] == list(range(1, 19))
     assert all(len(migration.sha256) == 64 for migration in manifest)
-    assert expected_revision().startswith("17:")
+    assert expected_revision().startswith("18:")
 
 
 def test_sql_splitter_preserves_postgresql_dollar_quoted_block() -> None:

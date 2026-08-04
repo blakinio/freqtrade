@@ -14,11 +14,13 @@ from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
 from ai_platform.scripts.liquidation_alert_notifications import (
-    GitHubApiClient,
     HEALTH_WORKFLOW,
-    main as notification_main,
     OPERATIONAL_TITLE,
     STALE_MONITOR_MS,
+    GitHubApiClient,
+)
+from ai_platform.scripts.liquidation_alert_notifications import (
+    main as notification_main,
 )
 
 

@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  HELPER_BRANCH: ops/wickhunter-wh09-operator-implementation-20260803-v1
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
   EXPECTED_TARGET_HEAD: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
 
@@ -36,7 +37,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Validate helper scope and corrected payload
+      - name: Validate exact helper scope
         shell: bash
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
@@ -60,35 +61,110 @@ jobs:
             [[ "${actual[$index]}" == "${expected[$index]}" ]]
           done
 
+      - name: Normalize audited payload once
+        id: normalize
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/wh09-payload/operator.py.zlib.b64")
+          text = path.read_text(encoding="utf-8")
+          changed = False
+
+          legacy_start = text.find("\ndef _source_health(value: object) -> SourceHealth:")
+          public_start = text.find("\ndef _public_url(")
+          if legacy_start >= 0:
+              if public_start <= legacy_start:
+                  raise SystemExit("legacy snapshot boundary mismatch")
+              loader = '''
+
+def load_liquid20_snapshot(
+    path: Path,
+    *,
+    now_ms: int,
+    maximum_age_ms: int = DEFAULT_MAX_SOURCE_AGE_MS,
+) -> Liquid20Snapshot:
+    if maximum_age_ms < 1:
+        raise CandidatePaperRuntimeOperatorError(
+            "maximum Liquid20 age must be positive"
+        )
+    return _load_liquid20_live_root(
+        path,
+        now_ms=now_ms,
+        maximum_age_ms=maximum_age_ms,
+    )
+
+'''
+              text = text[:legacy_start] + loader + text[public_start:]
+              changed = True
+
+          marker = "\ndef _market_wide_liquidation_intensity("
+          starts = []
+          offset = 0
+          while True:
+              index = text.find(marker, offset)
+              if index < 0:
+                  break
+              starts.append(index)
+              offset = index + len(marker)
+          if len(starts) == 2:
+              fetch_start = text.find("\ndef fetch_public_market_snapshot(", starts[1])
+              if fetch_start <= starts[1]:
+                  raise SystemExit("duplicate metric function boundary mismatch")
+              text = text[:starts[1]] + "\n" + text[fetch_start:]
+              changed = True
+          elif len(starts) != 1:
+              raise SystemExit(
+                  f"unexpected market-wide intensity definition count: {len(starts)}"
+              )
+
+          compile(text, str(path), "exec")
+          required = (
+              'LIVE_POINTER_NAME = "live-state-v1.json"',
+              '"/fapi/v1/ticker/bookTicker"',
+              '"atr_ratio"',
+              '"market_wide_liquidation_intensity"',
+              '"--liquid20-root"',
+              'limit": 1441',
+          )
+          forbidden = (
+              "def _source_health(",
+              "def _history_from_payload(",
+              "if path.is_dir():",
+              '"/fapi/v1/ticker/24hr"',
+              '"--liquid20-snapshot"',
+          )
+          if not all(value in text for value in required):
+              raise SystemExit("required root-only operator contract is incomplete")
+          if any(value in text for value in forbidden):
+              raise SystemExit("legacy operator contract remains")
+          if text.count("def _market_wide_liquidation_intensity(") != 1:
+              raise SystemExit("market-wide intensity definition is not unique")
+          if changed:
+              path.write_text(text, encoding="utf-8")
+          PY
+
           python3 -m py_compile \
             .github/wh09-payload/operator.py.zlib.b64 \
             .github/wh09-payload/healthcheck.py.zlib.b64 \
             .github/wh09-payload/tests.py.zlib.b64
-
-          operator=.github/wh09-payload/operator.py.zlib.b64
-          required=(
-            'LIVE_POINTER_NAME = "live-state-v1.json"'
-            '"/fapi/v1/ticker/bookTicker"'
-            '"atr_ratio"'
-            '"market_wide_liquidation_intensity"'
-            '"--liquid20-root"'
-            'limit": 1441'
-          )
-          forbidden=(
-            '"/fapi/v1/ticker/24hr"'
-            '"--liquid20-snapshot"'
-            'if path.is_dir():'
-          )
-          for marker in "${required[@]}"; do
-            grep -Fq -- "$marker" "$operator"
-          done
-          for marker in "${forbidden[@]}"; do
-            ! grep -Fq -- "$marker" "$operator"
-          done
-          [[ "$(grep -Fc 'def _market_wide_liquidation_intensity(' "$operator")" -eq 1 ]]
           git diff --check
 
+          if git diff --quiet -- .github/wh09-payload/operator.py.zlib.b64; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add .github/wh09-payload/operator.py.zlib.b64
+            git commit -m "fix(wickhunter): normalize audited operator payload"
+            git push origin "HEAD:$HELPER_BRANCH"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Materialize and push corrected product branch
+        if: steps.normalize.outputs.changed == 'false'
         shell: bash
         run: |
           set -euo pipefail

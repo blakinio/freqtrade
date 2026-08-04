@@ -45,11 +45,8 @@ jobs:
           from pathlib import Path
 
           parts = tuple(sorted(Path(".github/wh09-final-audit").glob("part-*.b64part")))
-          if tuple(path.name for path in parts) != (
-              "part-00.b64part",
-              "part-01.b64part",
-              "part-02.b64part",
-          ):
+          expected_names = tuple(f"part-{index:02d}.b64part" for index in range(12))
+          if tuple(path.name for path in parts) != expected_names:
               raise SystemExit("repair payload part set mismatch")
           encoded = "".join(path.read_text(encoding="ascii").strip() for path in parts)
           payload = zlib.decompress(base64.b64decode(encoded, validate=True))

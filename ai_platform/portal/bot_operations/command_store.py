@@ -75,6 +75,7 @@ class BotCommandStore:
                 created_at=command.submitted_at,
             )
         )
+        session.flush()
         self.append_history(session, scope_tenant_id, history_entry)
 
     def append_history(

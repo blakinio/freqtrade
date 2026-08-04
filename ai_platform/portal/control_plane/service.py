@@ -86,6 +86,7 @@ class ControlPlaneService:
                 if self._repository.get_bot(session, context.tenant_id, bot_id) is not None:
                     raise ControlPlaneConflictError("bot already exists")
                 self._repository.add_bot(session, bot)
+                session.flush()
                 self._repository.add_revision(session, revision)
                 self._repository.add_audit_event(session, audit)
                 self._repository.add_outbox_event(session, event)

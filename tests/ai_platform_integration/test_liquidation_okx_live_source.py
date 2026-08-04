@@ -276,3 +276,38 @@ def test_portal_has_no_direct_okx_or_collector_network_connection() -> None:
     assert "api/v5/public/instruments" not in contents
     assert "WebSocket(" not in contents
     assert "/api/market/liquidations" in contents
+
+
+def test_daily_rotation_resets_reconnect_counter_with_new_epoch(tmp_path: Path) -> None:
+    now = [1_785_801_599_000]
+    manager = OkxLiveRunManager(
+        data_root=tmp_path,
+        collector_commit="2" * 40,
+        host_id="synology-test",
+        now_ms=lambda: now[0],
+        flush_interval_seconds=0.01,
+    )
+
+    async def scenario() -> None:
+        await manager.start()
+        await manager.connected(BYBIT_SOURCE)
+        await manager.connected(BINANCE_SOURCE)
+        await manager.connected(OKX_SOURCE)
+        for _ in range(3):
+            await manager.disconnected(OKX_SOURCE, "transient network failure")
+            await manager.connected(OKX_SOURCE)
+
+        before = _read(tmp_path / "live" / LIVE_STATE_FILE)["state"]
+        assert before["sources"][OKX_SOURCE]["reconnect_count"] == 3
+
+        now[0] = 1_785_801_601_000
+        await manager.heartbeat()
+
+        after = _read(tmp_path / "live" / LIVE_STATE_FILE)["state"]
+        assert after["run_id"].startswith("liquid20-20260804T000000Z-")
+        assert after["collector_started_at_ms"] == now[0]
+        assert after["sources"][OKX_SOURCE]["connected"] is True
+        assert after["sources"][OKX_SOURCE]["reconnect_count"] == 0
+        await manager.stop()
+
+    asyncio.run(scenario())

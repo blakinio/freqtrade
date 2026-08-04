@@ -1,4 +1,5 @@
 name: WickHunter WH09 deployed live-contract repair
+# Registered follow-up trigger for the bounded executor.
 
 on:
   push:

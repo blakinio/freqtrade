@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-The audit inventories all **83** workflow files under `.github/workflows/`. The machine-readable inventory is `workflow-inventory.json`; representative routing simulations are in `routing-matrix.json`. Historical timings are bounded observations, not a statistically valid flake study.
+The final target inventories all **82** workflow files under `.github/workflows/`. The machine-readable inventory is `workflow-inventory.json`; representative routing simulations are in `routing-matrix.json`. Historical timings are bounded observations, not a statistically valid flake study.
 
 ## Before
 
@@ -14,6 +14,7 @@ The previous model allowed specialist Portal workflows to trigger independently 
 - `.github/actions/classify-changes` is the shared workflow adapter.
 - `ci.yml` always supplies a lightweight required gate; ordinary Core changes use one focused Python 3.13 lane, while critical/dependency/full changes retain the compatibility matrix, online tests and distribution build.
 - `ci-components.yml` invokes reusable specialist workflows exactly once and provides an aggregate component gate.
+- Reusable specialist workflows use component-specific concurrency groups, so parallel calls from the central workflow cannot cancel unrelated validation.
 - Documentation-only changes select governance/docs validation and skip Docker, PostgreSQL and browser E2E unless explicitly promoted to full CI.
 - Schema, migration, OIDC, security, deployment, trading/live-capital and CI architecture paths fail closed into their required high-risk tiers.
 - Portal exact-image validation is selected only when Portal image contents, dependencies, startup, migrations, runtime composition or identity callbacks can change.
@@ -21,7 +22,7 @@ The previous model allowed specialist Portal workflows to trigger independently 
 
 ## Retained coverage
 
-The final inventory still contains 5 Docker-aware, 6 Playwright-aware, 7 PostgreSQL-aware and 9 matrix workflows. Specialist implementations were converted to reusable calls rather than deleted. Security analysis, backup/restore, exact-image, identity callback, closure E2E, full browser, compatibility and reproducibility tiers remain reachable and contract-tested.
+Specialist implementations were converted to reusable calls rather than deleted. Security analysis, backup/restore, exact-image, identity callback, closure E2E, full browser, compatibility and reproducibility tiers remain reachable and contract-tested. The final inventory and exact-head runs are the source of truth for feature counts.
 
 ## Derived cost change
 
@@ -44,4 +45,4 @@ Revert the implementation commit. Restore direct PR/push triggers in the convert
 
 ## Independent audit checklist
 
-The final audit must verify YAML parsing, pinned external actions, local reusable references, positive/negative/cross-cutting classifier cases, exact-head lightweight and full-risk runs, stable aggregate gates, review-thread resolution and mergeability.
+The final audit must verify YAML parsing, pinned external actions, local reusable references, positive/negative/cross-cutting classifier cases, exact-head lightweight and full-risk runs, component-specific concurrency isolation, stable aggregate gates, review-thread resolution and mergeability.

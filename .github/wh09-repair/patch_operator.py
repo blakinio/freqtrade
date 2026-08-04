@@ -48,7 +48,7 @@ def _normalized_final_patch_source() -> str:
         ('"    def run_forever(\\n"', '"    def run_forever("', 2),
         (
             "'action=\"store_true\"',",
-            "'parser.add_argument(\"--circuit-breaker-active\", action=\"store_true\")',",
+            '\'parser.add_argument("--circuit-breaker-active", action="store_true")\',',
             1,
         ),
     )

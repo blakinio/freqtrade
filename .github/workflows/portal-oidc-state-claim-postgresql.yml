@@ -1,18 +1,8 @@
 name: Portal OIDC State Claim PostgreSQL
 
 on:
-  pull_request:
-    paths:
-      - "ai_platform/portal/identity/**"
-      - "deploy/synology/portal-oidc/requirements.txt"
-      - ".github/workflows/portal-oidc-state-claim-postgresql.yml"
-  push:
-    branches:
-      - develop
-    paths:
-      - "ai_platform/portal/identity/**"
-      - "deploy/synology/portal-oidc/requirements.txt"
-      - ".github/workflows/portal-oidc-state-claim-postgresql.yml"
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read

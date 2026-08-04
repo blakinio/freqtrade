@@ -1,48 +1,7 @@
 name: AI Strategy Engine
 
 on:
-  push:
-    branches:
-      - agent/ase-00-ai-strategy-engine-foundation
-      - agent/ase-01-tradingview-strategy-lab
-      - agent/ase-fr-01-feature-registry-service
-    paths:
-      - ai_strategy_engine/**
-      - ai_platform/research/strategy_engine/**
-      - ai_platform/research/strategy_lab/**
-      - ai_platform/portal/feature_registry/**
-      - ai_platform/portal/strategy_lab/**
-      - ai_platform/portal/control_plane/api.py
-      - ai_platform/portal/control_plane/api_core.py
-      - ai_platform/portal/control_plane/database.py
-      - ai_platform/portal/web/app/ai/experiments/**
-      - ai_platform/portal/web/lib/strategy-lab-*.ts
-      - ai_platform/portal/web/e2e/strategy-lab.spec.ts
-      - tests/ai_platform/portal/feature_registry/**
-      - tests/ai_platform/portal/strategy_lab/**
-      - tests/ai_platform_integration/test_ase0*_*.py
-      - tests/ai_platform_integration/test_ase_fr_01_feature_registry_e2e.py
-      - .github/workflows/ai-strategy-engine.yml
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - ai_strategy_engine/**
-      - ai_platform/research/strategy_engine/**
-      - ai_platform/research/strategy_lab/**
-      - ai_platform/portal/feature_registry/**
-      - ai_platform/portal/strategy_lab/**
-      - ai_platform/portal/control_plane/api.py
-      - ai_platform/portal/control_plane/api_core.py
-      - ai_platform/portal/control_plane/database.py
-      - ai_platform/portal/web/app/ai/experiments/**
-      - ai_platform/portal/web/lib/strategy-lab-*.ts
-      - ai_platform/portal/web/e2e/strategy-lab.spec.ts
-      - tests/ai_platform/portal/feature_registry/**
-      - tests/ai_platform/portal/strategy_lab/**
-      - tests/ai_platform_integration/test_ase0*_*.py
-      - tests/ai_platform_integration/test_ase_fr_01_feature_registry_e2e.py
-      - .github/workflows/ai-strategy-engine.yml
+  workflow_call:
   workflow_dispatch:
 
 permissions:

@@ -1,24 +1,7 @@
 name: AI Program Closure E2E
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - ".github/workflows/ai-program-closure-e2e.yml"
-      - "tests/ai_platform_integration/test_program_closure_e2e.py"
-      - "ai_platform/portal/web/e2e/program-closure.spec.ts"
-      - "docs/ai_platform/PROGRAM_CLOSURE_E2E_EVIDENCE.md"
-      - "docs/agents/tasks/FTAI-20260730-closure-integration-e2e.md"
-      - "ai_platform/portal/contracts/**"
-      - "ai_platform/portal/control_plane/**"
-      - "ai_platform/portal/risk/**"
-      - "ai_platform/portal/simulator/**"
-      - "ai_platform/portal/operations/**"
-      - "ai_platform/portal/signal_wizard/**"
-      - "ai_platform/research/strategy_engine/**"
-      - "ai_strategy_engine/**"
-      - "ai_platform/portal/web/**"
+  workflow_call:
   workflow_dispatch:
 
 permissions:

@@ -1,20 +1,7 @@
 name: Portal Universal E2E
 
 on:
-  pull_request:
-    paths:
-      - "ai_platform/portal/simulator/**"
-      - "tests/ai_platform/portal/simulator/**"
-      - "ai_platform/portal/e2e/**"
-      - "tests/ai_platform/portal/e2e/**"
-      - "ai_platform/portal/intelligence/**"
-      - "ai_platform/portal/learning/**"
-      - "ai_platform/portal/web/**"
-      - ".github/workflows/portal-universal-e2e.yml"
-      - "docs/ai_platform/portal/E2E_TEST_ARCHITECTURE.md"
-      - "docs/ai_platform/portal/BM09_BOT_MANAGEMENT_E2E_CLOSURE.md"
-      - "docs/agents/tasks/FTAI-20260727-portal-e2e-architecture.md"
-      - "docs/agents/tasks/FTAI-20260729-portal-bm09-bot-management-e2e-closure.md"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

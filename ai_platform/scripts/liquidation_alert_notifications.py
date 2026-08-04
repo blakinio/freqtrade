@@ -24,7 +24,7 @@ HEALTH_STATUS_CONTEXT = "liquidations-live-health"
 NOTIFICATION_STATUS_CONTEXT = "liquidations-live-notification"
 WARSAW = ZoneInfo("Europe/Warsaw")
 REMINDER_MS = 60 * 60 * 1000
-STALE_MONITOR_MS = 10 * 60 * 1000
+STALE_MONITOR_MS = 60 * 60 * 1000
 QUEUED_LIMIT_MS = 2 * 60 * 1000
 
 
@@ -303,10 +303,10 @@ def _components(report: dict[str, Any], codes: tuple[str, ...]) -> dict[str, str
         in {
             "LIQUIDATIONS_HEALTH_RUNNER_UNAVAILABLE",
             "LIQUIDATIONS_HEALTH_RUN_QUEUED",
-            "LIQUIDATIONS_HEALTH_MONITOR_STALE",
         }
         for code in codes
     )
+    monitor_stale = "LIQUIDATIONS_HEALTH_MONITOR_STALE" in codes
     collector_ok = container.get("healthy") is True and state.get("healthy") is True
     binance = sources.get("binance-usdm")
     bybit = sources.get("bybit-linear")
@@ -326,13 +326,20 @@ def _components(report: dict[str, Any], codes: tuple[str, ...]) -> dict[str, str
             "rozłączony lub niezweryfikowany",
         ),
         "Dysk": _health_word(disk.get("healthy"), "w normie", "poza limitem lub niezweryfikowany"),
-        "Runner Synology": "niedostępny" if runner_bad else "online",
+        "Runner Synology": (
+            "niedostępny" if runner_bad else "niezweryfikowany" if monitor_stale else "online"
+        ),
     }
 
 
 def _first_action(codes: tuple[str, ...]) -> str:
     joined = " ".join(codes)
-    if "RUNNER" in joined or "QUEUED" in joined or "MONITOR_STALE" in joined:
+    if "MONITOR_STALE" in joined:
+        return (
+            "Sprawdź harmonogram `Liquidations Live Health` i jego najnowszy run; "
+            "brak świeżego wyniku nie dowodzi niedostępności runnera."
+        )
+    if "RUNNER" in joined or "QUEUED" in joined:
         return (
             "Sprawdź kontener runnera `freqtrade-synology-staging-runner` "
             "i jego rejestrację w GitHub Actions."
@@ -347,7 +354,7 @@ def _first_action(codes: tuple[str, ...]) -> str:
     if "DISK" in joined:
         return "Sprawdź pojemność wolumenu `/volume1/docker/freqtrade-liquidations/data`."
     if "SOURCE" in joined:
-        return "Sprawdź połączenia WebSocket Binance USDM i Bybit Linear."
+        return "Sprawdź połączenia WebSocket Binance USDM, Bybit Linear i OKX Swap."
     return "Otwórz wskazany run GitHub Actions i sprawdź pierwszy czerwony krok."
 
 
@@ -569,6 +576,12 @@ def discover_incident(
             issues, OPERATIONAL_TITLE
         )
 
+    open_issue_report = (
+        _extract_json_report(str(issue.get("body") or ""))
+        if issue is not None and issue.get("state") == "open"
+        else {}
+    )
+
     runs = client.list_workflow_runs(repository, HEALTH_WORKFLOW)
     latest = runs[0] if runs else {}
     run_url = str(latest.get("html_url") or "")
@@ -579,10 +592,17 @@ def discover_incident(
 
     synthetic_code = None
     synthetic_description = None
-    if not latest or created_at_ms is None or now_ms - created_at_ms > STALE_MONITOR_MS:
+    latest_is_stale = not latest or created_at_ms is None
+    if created_at_ms is not None and now_ms - created_at_ms > STALE_MONITOR_MS:
+        latest_is_stale = True
+    if latest_is_stale and not open_issue_report:
         synthetic_code = "LIQUIDATIONS_HEALTH_MONITOR_STALE"
-        synthetic_description = "Brak prawidłowego uruchomienia monitoringu przez ponad 10 minut."
-    elif status == "queued" and now_ms - created_at_ms > QUEUED_LIMIT_MS:
+        synthetic_description = "Brak prawidłowego uruchomienia monitoringu przez ponad 60 minut."
+    elif (
+        status == "queued"
+        and created_at_ms is not None
+        and now_ms - created_at_ms > QUEUED_LIMIT_MS
+    ):
         synthetic_code = "LIQUIDATIONS_HEALTH_RUN_QUEUED"
         synthetic_description = (
             "Run health pozostaje w kolejce dłużej niż zakontraktowane 120 sekund."
@@ -621,7 +641,7 @@ def discover_incident(
         healthy = False
         description = synthetic_description or synthetic_code
     elif issue is not None and issue.get("state") == "open":
-        report = _extract_json_report(str(issue.get("body") or ""))
+        report = open_issue_report
         codes = _codes_from_issue(issue, report)
         healthy = False
         description = (

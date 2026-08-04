@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/portal-1122-migration-schema-integrity
+  pull_request:
+    branches:
+      - develop
   workflow_dispatch:
 
 permissions:

@@ -54,7 +54,6 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
-    environment: synology-staging
     timeout-minutes: 5
     steps:
       - name: Confirm trusted runner
@@ -78,7 +77,6 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
-    environment: synology-staging
     timeout-minutes: 60
 
     steps:

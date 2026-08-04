@@ -63,7 +63,10 @@ def patch_healthcheck(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
     text = _replace_once(
         text,
-        "        if any(value > now_ms for value in (checked_at_ms, last_success_at_ms, last_observed_at_ms)):\n",
+        (
+            "        if any(value > now_ms for value in "
+            "(checked_at_ms, last_success_at_ms, last_observed_at_ms)):\n"
+        ),
         "        if any(\n"
         "            value > now_ms\n"
         "            for value in (checked_at_ms, last_success_at_ms, last_observed_at_ms)\n"

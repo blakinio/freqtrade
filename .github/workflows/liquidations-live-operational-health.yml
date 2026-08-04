@@ -10,7 +10,7 @@ name: Liquidations Live Health
       - ai_platform/scripts/liquidation_operational_health.py
       - ai_platform/scripts/liquidation_portal_health.py
       - deploy/synology/liquid20/LIVE_STREAM.md
-      - deploy/synology/portal/prove-liquidations-live.sh
+      - deploy/synology/portal/probe-liquidations-live-operational.sh
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
@@ -61,7 +61,7 @@ jobs:
     name: Check Synology collector and portal
     needs: control_plane
     runs-on: freqtrade-staging
-    timeout-minutes: 5
+    timeout-minutes: 3
     permissions:
       contents: read
       issues: write
@@ -90,10 +90,12 @@ jobs:
           LIQUID20_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-health.json
           LIQUID20_HEARTBEAT_STALE_SECONDS: "60"
           LIQUID20_PORTAL_HEALTH_REPORT: ${{ runner.temp }}/liquidations-live-portal-health.json
-          LIQUID20_PORTAL_PROOF_SCRIPT: deploy/synology/portal/prove-liquidations-live.sh
+          LIQUID20_PORTAL_PROOF_SCRIPT: deploy/synology/portal/probe-liquidations-live-operational.sh
+          LIQUID20_RECONNECTS_PER_HOUR_MAX: "100"
           LIQUID20_REQUIRE_PORTAL_HEALTH: "true"
           LIQUID20_SOURCE_STALE_SECONDS: "60"
           PORTAL_LIVE_PROOF_DELAY_SECONDS: "12"
+          PORTAL_OPERATIONAL_PROBE_TIMEOUT_SECONDS: "15"
         run: |
           set +e
           python -m ai_platform.scripts.liquidation_operational_health
@@ -129,7 +131,7 @@ jobs:
               f"- Healthy: `{report.get('healthy')}`",
               f"- Checked at: `{report.get('checked_at_ms')}`",
               f"- Portal mode: `{portal.get('mode')}`",
-              f"- Portal proof exit: `{portal.get('proof_exit_code')}`",
+              f"- Portal probe exit: `{portal.get('proof_exit_code')}`",
               f"- Production page: `{production.get('page_status')}`",
               (
                   "- Production protected health: "

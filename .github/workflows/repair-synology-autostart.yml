@@ -9,6 +9,7 @@ name: Repair Synology Autostart
       - deploy/synology/freqtrade-runner/compose.yml
       - deploy/synology/liquid20/compose.yaml
       - deploy/synology/portal/deploy-preview.sh
+      - deploy/synology/portal/probe-liquidations-live-operational.sh
       - deploy/synology/portal/prove-liquidations-live.sh
   workflow_dispatch:
 
@@ -20,11 +21,18 @@ concurrency:
 
 jobs:
   repair:
-    name: Enforce Docker restart policies
+    name: Enforce Docker restart policies and portal health
     runs-on: freqtrade-staging
     timeout-minutes: 10
+    permissions:
+      contents: read
 
     steps:
+      - name: Check out exact source
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+
       - name: Set persistent services to always restart
         shell: bash
         run: |
@@ -70,3 +78,34 @@ jobs:
             esac
             printf '%s policy=%s state=%s\n' "$name" "$policy" "$state"
           done
+
+      - name: Recover an unresponsive portal once
+        shell: bash
+        env:
+          PORTAL_LIVE_PROOF_REPORT_PATH: ${{ runner.temp }}/liquidations-portal-operational-repair.json
+          PORTAL_OPERATIONAL_PROBE_TIMEOUT_SECONDS: "10"
+        run: |
+          set -Eeuo pipefail
+          probe_script=deploy/synology/portal/probe-liquidations-live-operational.sh
+
+          if bash "$probe_script"; then
+            echo "Portal operational boundary is already healthy."
+            exit 0
+          fi
+
+          echo "Portal operational boundary failed; restarting the existing portal container once."
+          docker restart --time 20 freqtrade-portal-staging >/dev/null
+
+          for _ in $(seq 1 12); do
+            state="$(docker inspect --format '{{.State.Status}}' freqtrade-portal-staging 2>/dev/null || true)"
+            if [[ "$state" == "running" ]] && bash "$probe_script"; then
+              echo "Portal recovered after the bounded restart."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          docker inspect freqtrade-portal-staging >&2 || true
+          docker logs --tail 160 freqtrade-portal-staging >&2 || true
+          echo "Portal remained unhealthy after one bounded restart." >&2
+          exit 1

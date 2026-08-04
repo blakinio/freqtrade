@@ -26,7 +26,7 @@ def patch(path: Path) -> None:
     public_start = text.find("\ndef _public_url(")
     if legacy_start < 0 or public_start <= legacy_start:
         raise SystemExit("legacy snapshot boundary mismatch")
-    loader = '''
+    loader = """
 
 def load_liquid20_snapshot(
     path: Path,
@@ -44,7 +44,7 @@ def load_liquid20_snapshot(
         maximum_age_ms=maximum_age_ms,
     )
 
-'''
+"""
     text = text[:legacy_start] + loader + text[public_start:]
 
     marker = "\ndef _market_wide_liquidation_intensity("
@@ -95,7 +95,7 @@ def load_liquid20_snapshot(
         label="bounded per-symbol history",
     )
 
-    risk_helpers = '''
+    risk_helpers = """
 
 def _current_equity(state: Any, policy: ShadowRuntimePolicy) -> Decimal:
     unrealized = sum(
@@ -209,28 +209,28 @@ def _runtime_risk_context(
         candidate_paper_validation_authorized=True,
     )
 
-'''
+"""
     atomic_marker = "\ndef _atomic_health(path: Path, payload: dict[str, object]) -> None:\n"
     if text.count(atomic_marker) != 1:
         raise SystemExit("risk helper insertion marker mismatch")
     text = text.replace(atomic_marker, risk_helpers + atomic_marker, 1)
 
-    fields_old = '''    public_market_base_url: str = DEFAULT_PUBLIC_MARKET_BASE_URL
+    fields_old = """    public_market_base_url: str = DEFAULT_PUBLIC_MARKET_BASE_URL
     maximum_source_age_ms: int = DEFAULT_MAX_SOURCE_AGE_MS
     opener: OpenerDirector | None = None
     last_success_at_ms: int | None = None
-'''
-    fields_new = '''    public_market_base_url: str = DEFAULT_PUBLIC_MARKET_BASE_URL
+"""
+    fields_new = """    public_market_base_url: str = DEFAULT_PUBLIC_MARKET_BASE_URL
     maximum_source_age_ms: int = DEFAULT_MAX_SOURCE_AGE_MS
     model_drift: DriftState = DriftState.HEALTHY
     data_drift: DriftState = DriftState.HEALTHY
     circuit_breaker_active: bool = False
     opener: OpenerDirector | None = None
     last_success_at_ms: int | None = None
-'''
+"""
     text = _replace_once(text, fields_old, fields_new, label="operator control fields")
 
-    compose = '''    def _compose_tick(
+    compose = """    def _compose_tick(
         self,
         *,
         liquid20: Liquid20Snapshot,
@@ -305,7 +305,7 @@ def _runtime_risk_context(
             retraining_state="disabled",
         )
 
-'''
+"""
     text = _replace_between(
         text,
         "    def _compose_tick(\n",
@@ -314,18 +314,18 @@ def _runtime_risk_context(
         label="compose tick replacement",
     )
 
-    health_old = '''            "liquid20_snapshot_id": liquid20_snapshot_id,
+    health_old = """            "liquid20_snapshot_id": liquid20_snapshot_id,
             "error_code": error_code,
-'''
-    health_new = '''            "liquid20_snapshot_id": liquid20_snapshot_id,
+"""
+    health_new = """            "liquid20_snapshot_id": liquid20_snapshot_id,
             "model_drift": self.model_drift.value,
             "data_drift": self.data_drift.value,
             "circuit_breaker_active": self.circuit_breaker_active,
             "error_code": error_code,
-'''
+"""
     text = _replace_once(text, health_old, health_new, label="truthful health controls")
 
-    parser_and_main = '''def _parser() -> argparse.ArgumentParser:
+    parser_and_main = """def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Persistent fail-closed WickHunter candidate PAPER operator"
     )
@@ -401,7 +401,7 @@ def main() -> int:
     return 0
 
 
-'''
+"""
     text = _replace_between(
         text,
         "def _parser() -> argparse.ArgumentParser:\n",

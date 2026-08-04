@@ -1,0 +1,36 @@
+name: Final CI audit evidence refresh (temporary)
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: final-ci-audit-evidence-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    if: github.event.pull_request.head.ref == 'audit/ci-architecture-optimizer-20260804'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: audit/ci-architecture-optimizer-20260804
+          persist-credentials: false
+      - name: Generate evidence from target workflow tree
+        run: |
+          rm .github/workflows/ci-evidence-refresh-final.yml
+          python tools/ci/generate_ci_audit_evidence.py
+      - name: Upload refreshed evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: final-ci-audit-evidence-${{ github.sha }}
+          path: docs/agents/evidence/FTAI-20260804-ci-architecture-optimizer
+          if-no-files-found: error
+          retention-days: 7

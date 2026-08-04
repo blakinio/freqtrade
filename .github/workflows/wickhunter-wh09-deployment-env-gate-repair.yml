@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: wickhunter-wh09-deployment-env-gate-repair
+  group: wickhunter-wh09-deployment-env-gate-repair-v2
   cancel-in-progress: false
 
 env:

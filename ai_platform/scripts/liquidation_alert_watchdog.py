@@ -10,14 +10,14 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
 from ai_platform.scripts.liquidation_alert_notifications import (
+    GitHubApiClient,
     HEALTH_WORKFLOW,
     OPERATIONAL_TITLE,
     STALE_MONITOR_MS,
-    _epoch_ms,
-    _extract_json_report,
     main as notification_main,
 )
 
@@ -47,9 +47,30 @@ class ScheduleDecision:
     issue_number: int | None = None
 
 
-def _open_operational_issue(
-    client: WatchdogClient, repository: str
-) -> dict[str, Any] | None:
+def _epoch_ms(value: str | None) -> int | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return int(parsed.timestamp() * 1000)
+
+
+def _extract_json_report(body: str) -> dict[str, Any]:
+    for match in re.finditer(r"```json\s*(\{.*?\})\s*```", body, flags=re.DOTALL):
+        try:
+            payload = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return {}
+
+
+def _open_operational_issue(client: WatchdogClient, repository: str) -> dict[str, Any] | None:
     return next(
         (
             issue
@@ -161,8 +182,6 @@ def main(argv: list[str] | None = None) -> int:
         print("GitHub repository and token are required", file=sys.stderr)
         return 2
 
-    from ai_platform.scripts.liquidation_alert_notifications import GitHubApiClient
-
     client = GitHubApiClient(
         token, api_url=os.environ.get("GITHUB_API_URL", "https://api.github.com")
     )
@@ -185,9 +204,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Liquidations health self-heal action: {decision.action}")
         return 0
     if decision.action == "recovered" and decision.issue_number is not None:
-        return notification_main(
-            ["--mode", "auto", "--issue-number", str(decision.issue_number)]
-        )
+        return notification_main(["--mode", "auto", "--issue-number", str(decision.issue_number)])
     return notification_main(argv)
 
 

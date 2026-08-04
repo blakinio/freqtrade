@@ -10,11 +10,11 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: validating
+status: validating_repair
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
+base_sha: c236117f2efe6326d24f6cb58c0dabfd96469370
 branch: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
 product_pr: 1160
 helper_pr: 1147
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: run fresh exact-head repository CI against cleaned develop, recheck the seven-path diff and PR hygiene, then merge PR 1160 only if every required gate passes
+next_action: validate the deployed Liquid20 contract repair, rerun a fresh independent audit and exact-head repository CI, then merge PR 1160 only if every required gate passes
 ```
 
 ## Goal and completion boundary
@@ -54,7 +54,7 @@ No shared dependency, package lock, protected-holdout artifact, strategy paramet
 
 The operator:
 
-1. accepts only an absolute regular Liquid20 live directory containing exact contract `liquid20-live-state-v1`, `live-state-v1.json` and `runs/<active_run_id>/<source>.ndjson`;
+1. accepts only an absolute regular Liquid20 live directory containing exact contract `liquidation-live-state-v1`, `live-state-v1.json` and `runs/<active_run_id>/<source>.ndjson`;
 2. rejects the removed legacy single-file snapshot fallback and every contract, run, path, source or authority substitution;
 3. validates collector/source heartbeats, source identity, event receipt time, decision-time availability, history bounds and canonical snapshot identity;
 4. restricts public market access to HTTPS `fapi.binance.com` on port 443, without credentials, proxies or redirects;
@@ -182,3 +182,14 @@ After PR #1160 merges:
 ## Merge rule
 
 PR #1160 may merge only after fresh exact-head CI for this checkpoint commit, exact seven-path verification and final PR hygiene all pass. Issue #1144 remains open until the separate deployment and prospective 24-hour acceptance package are complete and independently verified.
+
+
+## Deployed-contract repair
+
+Independent comparison against the retained Liquid20 producer proved that the deployed
+pointer and state contract is `liquidation-live-state-v1`, not the earlier operator-only
+spelling. The repair binds the operator to that exact producer contract, validates pointer
+and state schema, contract, active-run and run identity, and permits a configured source
+with a regular empty NDJSON file and `events_written=0` to remain truthfully stale without
+blocking healthy-source processing. A source claiming events still requires a non-empty,
+parseable file, and an empty source file must be exactly empty.

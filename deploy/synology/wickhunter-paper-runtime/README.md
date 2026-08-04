@@ -20,7 +20,7 @@ The activation created before this operator existed is not eligible for the pros
 
 ## Liquid20 live boundary
 
-The operator accepts only the exact `liquid20-live-state-v1` deployed directory contract. It validates the active-run pointer, state/run identity, collector and source heartbeats, configured-source state, event/source identity, availability time, path safety, and zero-authority fields. Legacy single-file snapshot input and contract substitution are not accepted.
+The operator accepts only the exact `liquidation-live-state-v1` deployed directory contract. It validates the active-run pointer, state/run identity, collector and source heartbeats, configured-source state, event/source identity, availability time, path safety, and zero-authority fields. Legacy single-file snapshot input and contract substitution are not accepted.
 
 For each cadence it derives deterministic 24-hour event histories, complete burst buckets, a canonical `DynamicUniverseSnapshot`, and one market-wide liquidation intensity value. It may journal an empty decision set when no eligible current burst exists.
 

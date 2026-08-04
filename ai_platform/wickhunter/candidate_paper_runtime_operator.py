@@ -54,7 +54,7 @@ MAX_EVENTS_PER_SYMBOL = 500
 MAX_LIQUID20_SYMBOLS = 20
 LIVE_HISTORY_WINDOW_MS = 86_400_000
 LIVE_POINTER_NAME = "live-state-v1.json"
-LIQUID20_LIVE_CONTRACT = "liquid20-live-state-v1"
+LIQUID20_LIVE_CONTRACT = "liquidation-live-state-v1"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
@@ -423,6 +423,8 @@ def _load_liquid20_live_root(  # noqa: C901
             "Liquid20 live root must be an absolute regular directory"
         )
     pointer = _read_bounded_json(root / LIVE_POINTER_NAME, field="Liquid20 live pointer")
+    if pointer.get("schema_version") != 1:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 live pointer schema mismatch")
     contract = str(pointer.get("contract", "")).strip()
     run_id = str(pointer.get("active_run_id", ""))
     if contract != LIQUID20_LIVE_CONTRACT:
@@ -430,6 +432,10 @@ def _load_liquid20_live_root(  # noqa: C901
     if not run_id or Path(run_id).name != run_id:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live run identity is invalid")
     state = _require_object(pointer.get("state"), field="Liquid20 live state")
+    if state.get("schema_version") != 1 or state.get("contract") != contract:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 live state contract mismatch")
+    if state.get("run_state") != "active":
+        raise CandidatePaperRuntimeOperatorError("Liquid20 live run is not active")
     if state.get("run_id") != run_id:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live run identity mismatch")
     if (
@@ -479,8 +485,23 @@ def _load_liquid20_live_root(  # noqa: C901
                 maximum_age_ms=maximum_age_ms,
             )
         )
+        event_path = run_root / f"{source}.ndjson"
+        events_written = _non_negative_integer(
+            source_row.get("events_written", 0),
+            field=f"{source} events_written",
+        )
+        if events_written == 0:
+            if event_path.is_symlink() or not event_path.is_file():
+                raise CandidatePaperRuntimeOperatorError(
+                    f"Liquid20 source events {source} must be a regular file"
+                )
+            if event_path.stat().st_size != 0:
+                raise CandidatePaperRuntimeOperatorError(
+                    f"Liquid20 source events {source} contradict events_written"
+                )
+            continue
         event_rows = _read_bounded_jsonl_tail(
-            run_root / f"{source}.ndjson",
+            event_path,
             field=f"Liquid20 source events {source}",
         )
         for row in event_rows:

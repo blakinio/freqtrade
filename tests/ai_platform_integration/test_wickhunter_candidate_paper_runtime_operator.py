@@ -85,7 +85,7 @@ def _write_live_root(
     heartbeat_ms: int = NOW_MS,
     events: list[dict[str, object]] | None = None,
     execution_enabled: bool = False,
-    contract: str = "liquid20-live-state-v1",
+    contract: str = "liquidation-live-state-v1",
 ) -> Path:
     source_events = events or [
         _event("event-history", received_at_ms=NOW_MS - 120_000),
@@ -101,7 +101,10 @@ def _write_live_root(
     )
     last_received = max(int(cast(int | str, item["received_at_ms"])) for item in source_events)
     state = {
+        "schema_version": 1,
+        "contract": contract,
         "run_id": run_id,
+        "run_state": "active",
         "collector_heartbeat_at_ms": heartbeat_ms,
         "trading_credentials_present": False,
         "execution_enabled": execution_enabled,
@@ -118,6 +121,7 @@ def _write_live_root(
         },
     }
     pointer = {
+        "schema_version": 1,
         "contract": contract,
         "active_run_id": run_id,
         "collector_heartbeat_at_ms": heartbeat_ms,
@@ -182,6 +186,36 @@ def test_live_root_caps_per_symbol_history(tmp_path: Path) -> None:
     assert len(snapshot.history_for("BTCUSDT").event_notionals_usd) == 500
 
 
+def test_live_root_allows_configured_source_with_zero_events(tmp_path: Path) -> None:
+    root = _write_live_root(tmp_path / "liquid20")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    empty_source_path = root / "runs" / run_id / "bybit-linear.ndjson"
+    empty_source_path.write_text("", encoding="utf-8")
+    sources = cast(dict[str, object], state["sources"])
+    sources["bybit-linear"] = {
+        "configured": True,
+        "connected": True,
+        "events_written": 0,
+        "last_event_received_at_ms": None,
+        "last_heartbeat_at_ms": NOW_MS,
+    }
+    pointer_path.write_text(
+        json.dumps(pointer, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+    source_states = {item.source: item for item in snapshot.source_states}
+
+    assert snapshot.universe.selected_symbols == ("BTCUSDT",)
+    assert source_states["binance-usdm"].health is SourceHealth.HEALTHY
+    assert source_states["bybit-linear"].health is SourceHealth.STALE
+    assert source_states["bybit-linear"].coverage_available is False
+
+
 @pytest.mark.parametrize(
     ("mutation", "message"),
     (
@@ -202,7 +236,7 @@ def test_live_root_tamper_and_staleness_fail_closed(
     elif mutation == "authority":
         _write_live_root(root, execution_enabled=True)
     elif mutation == "contract":
-        _write_live_root(root, contract="liquid20-live-state-v0")
+        _write_live_root(root, contract="liquidation-live-state-v0")
     else:
         _write_live_root(
             root,

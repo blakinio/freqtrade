@@ -1,0 +1,77 @@
+name: Classify CI changes
+description: Apply the repository-wide changed-path and risk routing contract.
+inputs:
+  event_name:
+    description: GitHub event name.
+    required: true
+  event_action:
+    description: GitHub event action.
+    required: false
+    default: ""
+  base_sha:
+    description: Diff base SHA for pull requests or pushes.
+    required: false
+    default: ""
+  head_sha:
+    description: Diff head SHA for pull requests or pushes.
+    required: false
+    default: ""
+  labels_json:
+    description: JSON array of pull request labels.
+    required: false
+    default: "[]"
+  ref_name:
+    description: Git ref name.
+    required: false
+    default: ""
+outputs:
+  lightweight: {value: "${{ steps.classify.outputs.lightweight }}"}
+  docs: {value: "${{ steps.classify.outputs.docs }}"}
+  docs_only: {value: "${{ steps.classify.outputs.docs_only }}"}
+  core: {value: "${{ steps.classify.outputs.core }}"}
+  core_light: {value: "${{ steps.classify.outputs.core_light }}"}
+  core_matrix: {value: "${{ steps.classify.outputs.core_matrix }}"}
+  compatibility_sweep: {value: "${{ steps.classify.outputs.compatibility_sweep }}"}
+  online: {value: "${{ steps.classify.outputs.online }}"}
+  build_distribution: {value: "${{ steps.classify.outputs.build_distribution }}"}
+  ai_platform: {value: "${{ steps.classify.outputs.ai_platform }}"}
+  portal_backend_tests: {value: "${{ steps.classify.outputs.portal_backend_tests }}"}
+  portal_web_validation: {value: "${{ steps.classify.outputs.portal_web_validation }}"}
+  portal_browser_e2e: {value: "${{ steps.classify.outputs.portal_browser_e2e }}"}
+  portal_full_browser_e2e: {value: "${{ steps.classify.outputs.portal_full_browser_e2e }}"}
+  portal_schema_light: {value: "${{ steps.classify.outputs.portal_schema_light }}"}
+  postgres_recovery: {value: "${{ steps.classify.outputs.postgres_recovery }}"}
+  identity_oidc: {value: "${{ steps.classify.outputs.identity_oidc }}"}
+  strategy_engine: {value: "${{ steps.classify.outputs.strategy_engine }}"}
+  exact_image: {value: "${{ steps.classify.outputs.exact_image }}"}
+  closure_e2e: {value: "${{ steps.classify.outputs.closure_e2e }}"}
+  portal_completeness_audit: {value: "${{ steps.classify.outputs.portal_completeness_audit }}"}
+  security_analysis: {value: "${{ steps.classify.outputs.security_analysis }}"}
+  high_risk: {value: "${{ steps.classify.outputs.high_risk }}"}
+  full: {value: "${{ steps.classify.outputs.full }}"}
+  routing_json: {value: "${{ steps.classify.outputs.routing_json }}"}
+runs:
+  using: composite
+  steps:
+    - id: classify
+      shell: bash
+      env:
+        INPUT_EVENT_NAME: ${{ inputs.event_name }}
+        INPUT_EVENT_ACTION: ${{ inputs.event_action }}
+        INPUT_BASE_SHA: ${{ inputs.base_sha }}
+        INPUT_HEAD_SHA: ${{ inputs.head_sha }}
+        INPUT_LABELS_JSON: ${{ inputs.labels_json }}
+        INPUT_REF_NAME: ${{ inputs.ref_name }}
+      run: |
+        set -euo pipefail
+        args=(
+          --event "$INPUT_EVENT_NAME"
+          --action "$INPUT_EVENT_ACTION"
+          --labels "$INPUT_LABELS_JSON"
+          --ref-name "$INPUT_REF_NAME"
+          --output-json artifacts/ci-routing.json
+        )
+        if [[ -n "$INPUT_BASE_SHA" && -n "$INPUT_HEAD_SHA" ]]; then
+          args+=(--base "$INPUT_BASE_SHA" --head "$INPUT_HEAD_SHA")
+        fi
+        python tools/ci/change_classifier.py "${args[@]}"

@@ -1,24 +1,8 @@
 name: Portal OIDC State Claim
 
 on:
-  pull_request:
-    paths:
-      - "ai_platform/portal/identity/**"
-      - "tests/ai_platform/portal/identity/**"
-      - "docs/ai_platform/portal/OIDC_STATE_CLAIM.md"
-      - "deploy/synology/portal-oidc/Dockerfile.control-plane"
-      - "deploy/synology/portal-oidc/requirements.txt"
-      - ".github/workflows/portal-oidc-state-claim.yml"
-  push:
-    branches:
-      - develop
-    paths:
-      - "ai_platform/portal/identity/**"
-      - "tests/ai_platform/portal/identity/**"
-      - "docs/ai_platform/portal/OIDC_STATE_CLAIM.md"
-      - "deploy/synology/portal-oidc/Dockerfile.control-plane"
-      - "deploy/synology/portal-oidc/requirements.txt"
-      - ".github/workflows/portal-oidc-state-claim.yml"
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read

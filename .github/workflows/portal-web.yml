@@ -1,16 +1,20 @@
 name: Portal Web CI
 
 on:
-  pull_request:
-    paths:
-      - "ai_platform/portal/web/**"
-      - ".github/workflows/portal-web.yml"
-      - ".github/workflows/portal-e2e-scheduled.yml"
-      - "docs/ai_platform/portal/E2E_TEST_ARCHITECTURE.md"
-      - "docs/ai_platform/portal/WEB_SHELL_FOUNDATION.md"
-      - "docs/agents/tasks/FTAI-20260722-portal-p6-web-shell.md"
-      - "docs/agents/tasks/FTAI-20260727-portal-e2e-architecture.md"
+  workflow_call:
+    inputs:
+      full_browser_e2e:
+        description: Run the complete browser suite instead of the critical subset.
+        type: boolean
+        required: false
+        default: false
   workflow_dispatch:
+    inputs:
+      full_browser_e2e:
+        description: Run the complete browser suite.
+        type: boolean
+        required: false
+        default: true
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -61,16 +65,42 @@ jobs:
           npm run test:market-evidence-auth
           npm run test:liquid20-auth
 
+
+  chromium-regression:
+    name: Portal Chromium regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ai_platform/portal/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "22"
+          package-manager-cache: false
+      - name: Install dependencies
+        run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-
-      - name: Chromium regression
+      - name: Critical Chromium regression
+        if: github.event_name != 'workflow_dispatch' && inputs.full_browser_e2e != true
+        env:
+          PORTAL_WEB_DATA_MODE: fixture
+          PORTAL_ENVIRONMENT: test
+          PORTAL_IDENTITY_FIXTURE_MODE: enabled
+        run: npm run test:e2e:critical
+      - name: Complete Chromium regression
+        if: github.event_name == 'workflow_dispatch' || inputs.full_browser_e2e == true
         env:
           PORTAL_WEB_DATA_MODE: fixture
           PORTAL_ENVIRONMENT: test
           PORTAL_IDENTITY_FIXTURE_MODE: enabled
         run: npm run test:e2e
-
       - name: Upload failed Playwright evidence
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

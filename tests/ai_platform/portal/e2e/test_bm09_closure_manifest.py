@@ -63,9 +63,15 @@ def test_bm09_repository_acceptance_preserves_external_and_capital_gates() -> No
 
 
 def test_universal_e2e_workflow_runs_bm09_backend_and_browser_closure() -> None:
+    routing = json.loads(Path("tools/ci/change-routing.json").read_text(encoding="utf-8"))
+    closure_paths = routing["categories"]["closure_surface"]["include"]
+    components = Path(".github/workflows/ci-components.yml").read_text(encoding="utf-8")
     workflow = Path(".github/workflows/portal-universal-e2e.yml").read_text(encoding="utf-8")
 
-    assert '"ai_platform/portal/e2e/**"' in workflow
-    assert '"tests/ai_platform/portal/e2e/**"' in workflow
+    assert "ai_platform/portal/e2e/**" in closure_paths
+    assert "tests/ai_platform/portal/e2e/**" in closure_paths
+    assert "if: needs.classify.outputs.closure_e2e == 'true'" in components
+    assert "uses: ./.github/workflows/portal-universal-e2e.yml" in components
+    assert "workflow_call:" in workflow
     assert "tests/ai_platform/portal/e2e" in workflow
     assert "npm run test:e2e:critical" in workflow

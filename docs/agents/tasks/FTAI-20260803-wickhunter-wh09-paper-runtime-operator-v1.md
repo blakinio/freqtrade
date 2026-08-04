@@ -10,21 +10,24 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: validating_closeout
+status: validating
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
+base_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
 branch: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
 product_pr: 1160
 helper_pr: 1147
+cleanup_pr: 1182
+cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
 validated_implementation_head: 5d02cf6350126438cd9c7217dbf24bcab05828e8
+previous_closeout_head: 18e3ab57094d3e1359514a09cf64018162d8f685
 final_executor_run: 30914088955
 final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: run exact-head repository CI on the closeout commit, recheck the seven-path diff and PR hygiene, then merge PR 1160 only if every required gate passes
+next_action: run fresh exact-head repository CI against cleaned develop, recheck the seven-path diff and PR hygiene, then merge PR 1160 only if every required gate passes
 ```
 
 ## Goal and completion boundary
@@ -127,14 +130,45 @@ Focused regressions cover:
 - cadence and activation-window boundaries;
 - zero-authority Compose hardening and bounded CLI controls.
 
-The final independent source review confirmed the repaired contract and found zero additional material findings. PR #1160 has zero review threads and zero submitted reviews at this checkpoint. Workflow runs created directly by the executor bot were marked `action_required`, so this closeout commit intentionally triggers fresh normal exact-head repository CI before merge.
+The final independent source review confirmed the repaired contract and found zero additional material findings. PR #1160 had zero review threads and zero submitted reviews at the implementation checkpoint.
+
+The first normal closeout CI generation on head `18e3ab57094d3e1359514a09cf64018162d8f685` passed the implementation-relevant suites and failed repository-wide Ruff only on the obsolete temporary executor payload `.github/wh09-repair/operator_tests_payload.py`, which was not part of the seven-path product diff. Cleanup PR #1182 removed the complete temporary executor and merged to `develop` as `db0daa1e0edf145b71f166a6fea8cff9acc4c820`. This checkpoint creates a materially new exact-head CI generation against that cleaned trusted base.
+
+## Applicable implementation E2E boundary
+
+This PR is the partial producer and intentionally cannot create the prospective activation before its exact merged SHA exists. The applicable pre-merge system boundary is the reviewed Compose package plus exact-revision image build and focused runtime-service integration, which passed in executor run `30914088955`. The real trusted-runner deployment, persistent restart path, live public inputs and 24-hour consumer journey are mandatory post-merge E2E and remain part of Issue #1144 rather than being represented by mocks.
+
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 4
+  session_id: wickhunter-wh09-20260804T1613+0200
+  session_started_at: 2026-08-04T16:13:00+02:00
+  checkpointed_at: 2026-08-04T16:30:00+02:00
+  last_progress_at: 2026-08-04T16:30:00+02:00
+  phase: exact-head closeout validation
+  exact_head: pending-current-commit
+  pull_request: 1160
+  active_operation: fresh repository CI against cleaned develop
+  external_run_ids: []
+  operation_started_at: 2026-08-04T16:30:00+02:00
+  wait_deadline_at: 2026-08-04T17:15:00+02:00
+  check_generation: closeout-after-cleanup-db0daa1
+  checks_used: 0
+  status: active
+  safe_to_resume: true
+  resume_condition: all required exact-head checks reach a terminal result
+  next_action: Inspect one aggregate exact-head CI snapshot, repair only a newly proven product failure, or merge PR 1160 when every gate passes.
+```
 
 ## Post-merge continuation
 
 After PR #1160 merges:
 
 1. close request-only helper PR #1147 without merge;
-2. remove the temporary WH-09 repair executor from `develop` through a separately validated cleanup PR;
+2. confirm temporary-executor cleanup PR #1182 remains terminal and no temporary executor path is present;
 3. create one separate request-only deployment PR pinned to the exact merged implementation SHA;
 4. build and inspect the exact image, recording its digest and OCI revision label;
 5. publish a fresh immutable PAPER activation and unique empty journal because the previous activation began before the operator existed;
@@ -147,4 +181,4 @@ After PR #1160 merges:
 
 ## Merge rule
 
-PR #1160 may merge only after fresh exact-head CI for the closeout commit, exact seven-path verification and final PR hygiene all pass. Issue #1144 remains open until the separate deployment and prospective 24-hour acceptance package are complete and independently verified.
+PR #1160 may merge only after fresh exact-head CI for this checkpoint commit, exact seven-path verification and final PR hygiene all pass. Issue #1144 remains open until the separate deployment and prospective 24-hour acceptance package are complete and independently verified.

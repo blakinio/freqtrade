@@ -422,7 +422,7 @@ def _assert_live_zero_authority(payload: Mapping[str, object], *, field: str) ->
         payload.get("trading_credentials_present") is not False
         or payload.get("execution_enabled") is not False
         or payload.get("trading_authorized") is not False
-        or payload.get("orders_submitted") != 0
+        or payload.get("orders_submitted", 0) != 0
     ):
         raise CandidatePaperRuntimeOperatorError(f"{field} contains forbidden authority")
 
@@ -482,7 +482,7 @@ def _relevant_live_run_ids(
     return relevant
 
 
-def _read_live_source_events(
+def _read_live_source_events(  # noqa: C901
     run_root: Path,
     *,
     source: str,
@@ -496,13 +496,19 @@ def _read_live_source_events(
         field=f"{source} events_written",
     )
     if events_written == 0:
-        if event_path.is_symlink() or not event_path.is_file():
+        configured = source_row.get("configured") is True
+        if event_path.exists():
+            if event_path.is_symlink() or not event_path.is_file():
+                raise CandidatePaperRuntimeOperatorError(
+                    f"Liquid20 source events {source} must be a regular file"
+                )
+            if event_path.stat().st_size != 0:
+                raise CandidatePaperRuntimeOperatorError(
+                    f"Liquid20 source events {source} contradict events_written"
+                )
+        elif configured:
             raise CandidatePaperRuntimeOperatorError(
-                f"Liquid20 source events {source} must be a regular file"
-            )
-        if event_path.stat().st_size != 0:
-            raise CandidatePaperRuntimeOperatorError(
-                f"Liquid20 source events {source} contradict events_written"
+                f"Liquid20 configured source events {source} must be a regular file"
             )
         if source_row.get("last_event_received_at_ms") is not None:
             raise CandidatePaperRuntimeOperatorError(

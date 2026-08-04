@@ -216,3 +216,15 @@ the selected universe and persisted open positions. The repair executor is based
 `develop@8b361cd0316f605114969627edcb1ea744afe8d4` and must pass focused tests, Ruff, mypy, Compose validation,
 exact-revision image build and exact seven-path verification before publishing the product
 head.
+
+## Exact producer-shape parity repair
+
+A final comparison against `ai_platform/scripts/liquidation_live_stream.py` on
+`develop@131ef5729deec4180e81cd03dca5f7de53f1c425` proved two remaining contract-shape differences. The producer
+does not emit `orders_submitted` in its zero-authority run-state and does not create an
+`okx-swap.ndjson` file while OKX is explicitly unconfigured. The operator now treats an
+absent `orders_submitted` field as the producer's canonical zero while still rejecting any
+non-zero value, and permits a missing event file only for an unconfigured source with zero
+events and no receipt. Configured zero-event sources still require an empty regular file.
+A focused regression materializes this exact producer shape and verifies fail-closed source
+health without rejecting the valid live root.

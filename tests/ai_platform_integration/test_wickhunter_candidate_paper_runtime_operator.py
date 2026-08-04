@@ -249,6 +249,36 @@ def test_live_root_allows_configured_source_with_zero_events(tmp_path: Path) -> 
     assert source_states["okx-swap"].health is SourceHealth.STALE
 
 
+def test_live_root_accepts_exact_producer_shape_for_unconfigured_source(
+    tmp_path: Path,
+) -> None:
+    root = _write_live_root(tmp_path / "producer-shape")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    state.pop("orders_submitted")
+    sources = cast(dict[str, object], state["sources"])
+    okx = cast(dict[str, object], sources["okx-swap"])
+    okx["configured"] = False
+    okx["connected"] = False
+    okx["last_heartbeat_at_ms"] = None
+    run_id = str(state["run_id"])
+    run_root = root / "runs" / run_id
+    (run_root / "okx-swap.ndjson").unlink()
+    (run_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    pointer_path.write_text(json.dumps(pointer, sort_keys=True) + "\n", encoding="utf-8")
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+    source_states = {item.source: item for item in snapshot.source_states}
+
+    assert snapshot.universe.selected_symbols == ("BTCUSDT",)
+    assert source_states["okx-swap"].health is SourceHealth.OFFLINE
+    assert source_states["okx-swap"].coverage_available is False
+
+
 def test_live_root_reads_previous_completed_run_across_rotation(tmp_path: Path) -> None:
     snapshot = load_liquid20_snapshot(
         _write_live_root(

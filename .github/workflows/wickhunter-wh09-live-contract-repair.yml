@@ -1,26 +1,25 @@
-name: WickHunter WH09 temporary repair executor
+name: WickHunter WH09 deployed live-contract repair
+# Registered follow-up trigger for the bounded executor.
 
-# Trigger generation 6: fix the exact OCI label inspection template.
 on:
   push:
     branches: [develop]
     paths:
-      - ".github/workflows/wickhunter-wh09-repair-executor.yml"
-      - ".github/wh09-repair/**"
+      - ".github/workflows/wickhunter-wh09-live-contract-repair.yml"
+      - ".github/wh09-live-contract-repair/**"
 
 permissions:
   contents: write
   issues: write
 
 concurrency:
-  group: wickhunter-wh09-temporary-repair-executor
+  group: wickhunter-wh09-deployed-live-contract-repair
   cancel-in-progress: false
 
 env:
-  HELPER_BRANCH: ops/wickhunter-wh09-operator-implementation-20260803-v1
-  HELPER_SHA: d0bf6fe17eedb610481e717032700624beebc449
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-  EXPECTED_TARGET_HEAD: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
+  EXPECTED_TARGET_HEAD: 67a43fbcca06cc72730d295aa2d456a149daf43d
+  PATCH_SHA256: 5d09bad9d282f41d69ebf3d5eba31f9042ad323d22ccee7b54062b9ccf15d3ee
 
 jobs:
   repair-product-branch:
@@ -33,47 +32,42 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Materialize audited payload
+      - name: Decode and verify bounded repair
         shell: bash
         run: |
           set -euo pipefail
           [[ "$(git rev-parse HEAD)" == "${{ github.sha }}" ]]
-          git fetch origin "$HELPER_BRANCH" "$TARGET_BRANCH" develop
-          [[ "$(git rev-parse "origin/$HELPER_BRANCH")" == "$HELPER_SHA" ]]
+          python - <<'PY'
+          import base64
+          import hashlib
+          import os
+          import zlib
+          from pathlib import Path
 
-          staging="$(mktemp -d)"
-          echo "STAGING=$staging" >> "$GITHUB_ENV"
-          git show "$HELPER_SHA:.github/wh09-payload/operator.py.zlib.b64" > "$staging/operator.py"
-          git show "$HELPER_SHA:.github/wh09-payload/README.md.zlib.b64" > "$staging/README.md"
-          git show "$HELPER_SHA:.github/wh09-payload/compose.yaml.zlib.b64" > "$staging/compose.yaml"
-          git show "$HELPER_SHA:.github/wh09-payload/healthcheck.py.zlib.b64" > "$staging/paper_runtime_healthcheck.py"
-          cp .github/wh09-repair/operator_tests_payload.py "$staging/tests.py"
-          python .github/wh09-repair/patch_operator.py "$staging/operator.py"
-          python .github/wh09-repair/patch_ruff.py \
-            "$staging/operator.py" \
-            "$staging/paper_runtime_healthcheck.py"
-          python -m py_compile \
-            "$staging/operator.py" \
-            "$staging/paper_runtime_healthcheck.py" \
-            "$staging/tests.py"
+          encoded = Path(
+              ".github/wh09-live-contract-repair/patch.py.zlib.b64"
+          ).read_text(encoding="utf-8").strip()
+          payload = zlib.decompress(base64.b64decode(encoded, validate=True))
+          digest = hashlib.sha256(payload).hexdigest()
+          if digest != os.environ["PATCH_SHA256"]:
+              raise SystemExit("repair payload digest mismatch")
+          Path("/tmp/patch_wh09.py").write_bytes(payload)
+          PY
+          python -m py_compile /tmp/patch_wh09.py
 
       - name: Apply and validate exact product repair
         shell: bash
         run: |
           set -euo pipefail
+          develop_sha="$(git rev-parse HEAD)"
+          git fetch origin "$TARGET_BRANCH" develop
           git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git merge --no-ff --no-edit origin/develop
 
-          cp "$STAGING/operator.py" ai_platform/wickhunter/candidate_paper_runtime_operator.py
-          cp "$STAGING/README.md" deploy/synology/wickhunter-paper-runtime/README.md
-          cp "$STAGING/compose.yaml" deploy/synology/wickhunter-paper-runtime/compose.yaml
-          cp "$STAGING/paper_runtime_healthcheck.py" \
-            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
-          cp "$STAGING/tests.py" \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python /tmp/patch_wh09.py "$develop_sha"
 
           python -m pip install --disable-pip-version-check \
             pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
@@ -105,7 +99,9 @@ jobs:
             deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
           python -m pytest -q -o addopts='' \
             --confcutdir=tests/ai_platform_integration \
-            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
 
           OPERATOR_COMMIT="$(git rev-parse HEAD)" \
           WICKHUNTER_PAPER_RUNTIME_IMAGE="wickhunter-paper-runtime:precommit" \
@@ -122,11 +118,10 @@ jobs:
           git add \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/README.md \
-            deploy/synology/wickhunter-paper-runtime/compose.yaml \
-            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
           ! git diff --cached --quiet
-          git commit -m "fix(wickhunter): apply audited Liquid20 runtime contract"
+          git commit -m "fix(wickhunter): bind WH09 to deployed Liquid20 contract"
 
           product_head="$(git rev-parse HEAD)"
           docker build \
@@ -154,7 +149,7 @@ jobs:
           done
           git push origin "HEAD:$TARGET_BRANCH"
 
-      - name: Publish terminal executor checkpoint
+      - name: Publish terminal repair checkpoint
         if: always()
         shell: bash
         env:
@@ -167,7 +162,7 @@ jobs:
           set -euo pipefail
           product_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
           body="$(printf '%s\n' \
-            '## WH09 executor terminal checkpoint' \
+            '## WH09 deployed-contract repair checkpoint' \
             '' \
             '\`\`\`yaml' \
             "run_id: $RUN_ID" \

@@ -81,7 +81,7 @@ jobs:
           ruff check tools/ci tests/ci
           ruff format --check tools/ci tests/ci
       - name: Run routing contract tests
-        run: python -m pytest -q -o addopts='' tests/ci
+        run: python -m pytest -q -o addopts='' --confcutdir=tests/ci tests/ci
       - name: Validate workflow syntax, routing and action security
         run: python tools/ci/validate_workflows.py
 

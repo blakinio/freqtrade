@@ -60,6 +60,16 @@ def test_contract_change_crosses_backend_and_browser_boundaries() -> None:
     assert result["closure_e2e"]
 
 
+def test_portal_e2e_scenarios_and_tests_select_closure_validation() -> None:
+    for path in (
+        "ai_platform/portal/e2e/scenarios/bot_management_closure.json",
+        "tests/ai_platform/portal/e2e/test_bm09_closure_manifest.py",
+    ):
+        result = route(path)
+        assert result["portal_backend_tests"], path
+        assert result["closure_e2e"], path
+
+
 def test_migration_selects_schema_postgresql_and_exact_image() -> None:
     result = route("ai_platform/portal/risk/migrations/0002_limits.py")
     assert result["schema_database"]

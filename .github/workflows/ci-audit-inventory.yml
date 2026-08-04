@@ -1,0 +1,99 @@
+name: CI audit inventory (temporary)
+
+on:
+  push:
+    branches:
+      - audit/ci-architecture-optimizer-20260804
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-audit-inventory-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Build repository CI inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('.')
+          workflow_dir = root / '.github' / 'workflows'
+          workflow_paths = sorted(
+              p for p in workflow_dir.iterdir()
+              if p.is_file() and p.suffix.lower() in {'.yml', '.yaml'}
+          )
+          agent_paths = sorted(
+              p for p in root.rglob('*')
+              if p.is_file() and p.name in {'AGENTS.md', 'AGENTS.override.md'}
+          )
+          active_tasks = sorted(
+              str(p) for p in (root / 'docs' / 'agents' / 'tasks' / 'active').glob('*.md')
+          )
+          action_paths = sorted(
+              str(p) for p in (root / '.github' / 'actions').rglob('*') if p.is_file()
+          ) if (root / '.github' / 'actions').exists() else []
+          relevant_tree = []
+          for base in [root / '.github', root / 'tools' / 'ci', root / 'tests', root / 'ai_platform']:
+              if not base.exists():
+                  continue
+              for path in base.rglob('*'):
+                  if path.is_file():
+                      relevant_tree.append(str(path))
+
+          inventory = {
+              'head': '${{ github.sha }}',
+              'workflow_count': len(workflow_paths),
+              'workflows': [
+                  {
+                      'path': str(path),
+                      'bytes': path.stat().st_size,
+                      'content': path.read_text(encoding='utf-8'),
+                  }
+                  for path in workflow_paths
+              ],
+              'agent_files': [
+                  {
+                      'path': str(path),
+                      'content': path.read_text(encoding='utf-8'),
+                  }
+                  for path in agent_paths
+              ],
+              'active_tasks': active_tasks,
+              'custom_actions': action_paths,
+              'relevant_tree': sorted(relevant_tree),
+          }
+          Path('ci-audit-inventory.json').write_text(
+              json.dumps(inventory, indent=2, sort_keys=True), encoding='utf-8'
+          )
+          print(json.dumps({
+              'head': inventory['head'],
+              'workflow_count': inventory['workflow_count'],
+              'workflow_paths': [item['path'] for item in inventory['workflows']],
+              'agent_files': [item['path'] for item in inventory['agent_files']],
+              'active_task_count': len(active_tasks),
+              'custom_action_file_count': len(action_paths),
+          }, indent=2))
+          PY
+
+      - name: Upload immutable inventory
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ci-audit-inventory-${{ github.sha }}
+          path: ci-audit-inventory.json
+          if-no-files-found: error
+          retention-days: 7

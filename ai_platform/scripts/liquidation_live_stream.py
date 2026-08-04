@@ -330,7 +330,6 @@ class LiveRunManager:
                 state.connected,
                 state.last_heartbeat_at_ms,
                 state.subscription_symbol_count,
-                state.reconnect_count,
             )
             for source, state in self.sources.items()
         }
@@ -341,13 +340,14 @@ class LiveRunManager:
             writer.close()
         self._write_state()
         self._start_new_run(now_ms)
+        # Reconnect and error counters are scoped to the new run epoch created above.
+        # Carrying them across rotation would divide an old cumulative count by a new uptime.
         for source, values in connection_state.items():
-            connected, heartbeat_at_ms, subscription_count, reconnect_count = values
+            connected, heartbeat_at_ms, subscription_count = values
             state = self.sources[source]
             state.connected = connected
             state.last_heartbeat_at_ms = heartbeat_at_ms
             state.subscription_symbol_count = subscription_count
-            state.reconnect_count = reconnect_count
         self._write_state()
 
     def _state_payload(self) -> dict[str, object]:

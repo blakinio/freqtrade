@@ -362,3 +362,56 @@ def test_pending_commit_status_is_not_final() -> None:
     assert current.healthy is False
     assert current.codes == ("LIQUIDATIONS_HEALTH_STATUS_MISSING",)
     assert client.created_issues[-1]["title"] == ("[liquidations-live] operational health alert")
+
+
+def test_open_operational_issue_remains_authoritative_when_schedule_is_stale() -> None:
+    client = FakeClient()
+    client.list_workflow_runs = lambda repository, workflow: [
+        {
+            "status": "completed",
+            "conclusion": "failure",
+            "created_at": "2027-01-15T06:00:00Z",
+            "head_sha": "d" * 40,
+            "html_url": "https://github.com/blakinio/freqtrade/actions/runs/4",
+        }
+    ]
+
+    current, _ = discover_incident(
+        client,
+        "blakinio/freqtrade",
+        now_ms=NOW_MS,
+        issue_number=751,
+    )
+
+    assert current.healthy is False
+    assert current.codes == ("LIQUID20_CONTAINER_UNHEALTHY",)
+    assert current.components["Runner Synology"] == "online"
+    assert client.created_issues == []
+
+
+def test_stale_monitor_does_not_claim_synology_runner_is_unavailable() -> None:
+    client = FakeClient()
+    client.issues[0]["state"] = "closed"
+    client.list_workflow_runs = lambda repository, workflow: [
+        {
+            "status": "completed",
+            "conclusion": "success",
+            "created_at": "2027-01-15T06:00:00Z",
+            "head_sha": "e" * 40,
+            "html_url": "https://github.com/blakinio/freqtrade/actions/runs/5",
+        }
+    ]
+
+    current, _ = discover_incident(
+        client,
+        "blakinio/freqtrade",
+        now_ms=NOW_MS,
+        issue_number=None,
+    )
+
+    assert current.codes == ("LIQUIDATIONS_HEALTH_MONITOR_STALE",)
+    assert current.components["Runner Synology"] == "niezweryfikowany"
+    decision = decide_notification(None, current, now_ms=NOW_MS)
+    message = render_failure_message(current, decision, now_ms=NOW_MS)
+    assert "Runner Synology: niedostępny" not in message
+    assert "brak świeżego wyniku nie dowodzi niedostępności runnera" in message

@@ -101,9 +101,6 @@ def reconcile_schedule(
     dispatch: Callable[[], None],
 ) -> ScheduleDecision:
     issue = _open_operational_issue(client, repository)
-    issue_body = str((issue or {}).get("body") or "")
-    issue_has_real_report = bool(_extract_json_report(issue_body))
-
     runs = client.list_workflow_runs(repository, HEALTH_WORKFLOW)
     latest = runs[0] if runs else {}
     created_at_ms = _epoch_ms(str(latest.get("created_at") or ""))
@@ -116,6 +113,9 @@ def reconcile_schedule(
     synthetic_stale_issue = _is_synthetic_stale_issue(issue)
     issue_number = int(issue["number"]) if issue and issue.get("number") else None
 
+    if issue is not None and not synthetic_stale_issue:
+        return ScheduleDecision("continue", issue_number)
+
     if synthetic_stale_issue and not stale:
         if status in ACTIVE_RUN_STATUSES:
             return ScheduleDecision("waiting", issue_number)
@@ -123,7 +123,7 @@ def reconcile_schedule(
             client.update_issue(repository, issue_number, state="closed")
             return ScheduleDecision("recovered", issue_number)
 
-    if not stale or issue_has_real_report:
+    if not stale:
         return ScheduleDecision("continue", issue_number)
 
     if status in ACTIVE_RUN_STATUSES:

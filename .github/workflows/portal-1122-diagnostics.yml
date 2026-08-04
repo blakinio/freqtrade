@@ -59,6 +59,51 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  ai-platform-tests:
+    name: Exact AI platform tests (Python 3.12)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Capture exact AI platform tests
+        shell: bash
+        run: |
+          set +e
+          python -m pip install --disable-pip-version-check \
+            pytest jsonschema "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
+            "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0" \
+            > ai-platform-install.log 2>&1
+          install_rc=$?
+          if [[ $install_rc -eq 0 ]]; then
+            python -m pytest -vv -x --tb=long -o addopts='' \
+              --confcutdir=tests/ai_platform \
+              --ignore=tests/ai_platform/portal/feature_registry \
+              --ignore=tests/ai_platform/portal/strategy_lab \
+              tests/ai_platform > ai-platform-tests.log 2>&1
+            echo $? > ai-platform-tests.exit
+          else
+            echo "$install_rc" > ai-platform-tests.exit
+            printf 'Tests not started because dependency installation failed.\n' > ai-platform-tests.log
+          fi
+          tail -n 300 ai-platform-install.log > ai-platform-install-tail.log
+          tail -n 700 ai-platform-tests.log > ai-platform-tests-tail.log
+          exit 0
+      - name: Upload AI platform diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: portal-1122-ai-platform
+          path: |
+            ai-platform-install-tail.log
+            ai-platform-tests-tail.log
+            ai-platform-tests.exit
+          if-no-files-found: error
+          retention-days: 1
+
   python-314-install:
     name: Dependency installation (Python 3.14)
     runs-on: ubuntu-24.04

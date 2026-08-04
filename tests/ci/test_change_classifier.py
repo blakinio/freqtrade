@@ -15,9 +15,7 @@ def route(
     action: str = "synchronize",
     labels=(),
 ):
-    return classify(
-        paths, event=event, action=action, labels=labels, config=CONFIG
-    )["outputs"]
+    return classify(paths, event=event, action=action, labels=labels, config=CONFIG)["outputs"]
 
 
 def test_documentation_only_skips_heavy_runtime_gates() -> None:

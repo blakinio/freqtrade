@@ -1,5 +1,6 @@
 name: WickHunter WH09 temporary repair executor
 
+# Trigger generation 2: the workflow now exists on develop before this push.
 on:
   push:
     branches: [develop]

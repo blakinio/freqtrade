@@ -1,0 +1,58 @@
+name: Normalize WH09 final audit payload
+
+on:
+  push:
+    branches:
+      - fix/wickhunter-wh09-final-runtime-audit-20260804-v1
+    paths:
+      - .github/workflows/wh09-normalize-final-audit-payload.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wh09-normalize-final-audit-payload
+  cancel-in-progress: false
+
+jobs:
+  normalize:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact helper head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Verify, normalize and remove one-shot workflow
+        shell: bash
+        env:
+          EXPECTED_PAYLOAD_SHA256: ee861cf115c7f70fdd35bf4c251896327cc9d993bd9756add67ec23edaca7739
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${{ github.sha }}" ]]
+          python - <<'PY'
+          import base64
+          import hashlib
+          import os
+          import zlib
+          from pathlib import Path
+
+          path = Path('.github/wh09-live-contract-repair/patch.py.zlib.b64')
+          raw = path.read_bytes()
+          encoded = raw.strip()
+          payload = zlib.decompress(base64.b64decode(encoded, validate=True))
+          if hashlib.sha256(payload).hexdigest() != os.environ['EXPECTED_PAYLOAD_SHA256']:
+              raise SystemExit('payload digest mismatch')
+          if not raw.endswith(b'\n'):
+              path.write_bytes(encoded + b'\n')
+          PY
+          rm .github/workflows/wh09-normalize-final-audit-payload.yml
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add .github/wh09-live-contract-repair/patch.py.zlib.b64 \
+            .github/workflows/wh09-normalize-final-audit-payload.yml
+          git commit -m "style(wickhunter): normalize final audit payload newline"
+          git push origin HEAD:fix/wickhunter-wh09-final-runtime-audit-20260804-v1

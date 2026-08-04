@@ -14,6 +14,8 @@ from ai_platform.wickhunter.canonical import canonical_sha256
 HEALTH_SCHEMA_VERSION = "wickhunter-paper-runtime-operator-health-v1"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+DRIFT_STATES = {"healthy", "drifted", "unknown"}
+RUNTIME_HEALTH_STATES = {"healthy", "degraded", "fail_closed"}
 ZERO_AUTHORITY = {
     "protected_holdout_accessed": False,
     "automatic_promotion_enabled": False,
@@ -33,10 +35,7 @@ def _fail(message: str) -> int:
 def _integer(value: object, *, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise ValueError(f"{field} must be an integer")
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{field} must be an integer") from exc
+    parsed = int(value)
     if parsed <= 0:
         raise ValueError(f"{field} must be positive")
     return parsed
@@ -75,14 +74,43 @@ def main() -> int:  # noqa: C901
             return _fail("operator commit mismatch")
         if any(payload.get(name) != expected for name, expected in ZERO_AUTHORITY.items()):
             return _fail("health claims forbidden authority")
+        if payload.get("runtime_health") not in RUNTIME_HEALTH_STATES:
+            return _fail("runtime health is invalid")
+        if payload.get("model_drift") not in DRIFT_STATES:
+            return _fail("model drift state is invalid")
+        if payload.get("data_drift") not in DRIFT_STATES:
+            return _fail("data drift state is invalid")
+        breaker_reasons = payload.get("circuit_breaker_reasons")
+        if not isinstance(breaker_reasons, list):
+            return _fail("circuit breaker reasons are invalid")
+        if breaker_reasons != sorted(set(str(item) for item in breaker_reasons)):
+            return _fail("circuit breaker reasons are not canonical")
+        if payload.get("circuit_breaker_active") is not bool(breaker_reasons):
+            return _fail("circuit breaker state is inconsistent")
+        snapshot_id = payload.get("liquid20_snapshot_id")
+        if not isinstance(snapshot_id, str) or not SHA256_RE.fullmatch(snapshot_id):
+            return _fail("Liquid20 snapshot identity is invalid")
         checked_at_ms = _integer(payload.get("checked_at_ms"), field="checked_at_ms")
         last_success_at_ms = _integer(payload.get("last_success_at_ms"), field="last_success_at_ms")
+        last_observed_at_ms = _integer(
+            payload.get("last_observed_at_ms"), field="last_observed_at_ms"
+        )
         now_ms = time.time_ns() // 1_000_000
-        maximum_age_ms = int(os.environ.get("HEALTH_MAX_AGE_SECONDS", "1200")) * 1000
+        maximum_age_ms = (
+            _integer(
+                os.environ.get("HEALTH_MAX_AGE_SECONDS", "1200"),
+                field="HEALTH_MAX_AGE_SECONDS",
+            )
+            * 1000
+        )
         if maximum_age_ms < 60_000:
             return _fail("health maximum age is too small")
-        if checked_at_ms > now_ms or last_success_at_ms > now_ms:
+        if any(
+            value > now_ms for value in (checked_at_ms, last_success_at_ms, last_observed_at_ms)
+        ):
             return _fail("health timestamp is from the future")
+        if last_success_at_ms != last_observed_at_ms:
+            return _fail("last success and journal observation differ")
         if now_ms - checked_at_ms > maximum_age_ms:
             return _fail("health observation is stale")
         if now_ms - last_success_at_ms > maximum_age_ms:

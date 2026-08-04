@@ -13,8 +13,8 @@ services:
       - /runtime/activation
       - --journal-root
       - /runtime/journal
-      - --liquid20-snapshot
-      - /runtime/liquid20/latest.json
+      - --liquid20-root
+      - /runtime/liquid20
       - --health-root
       - /runtime/operator
       - --operator-commit
@@ -25,6 +25,10 @@ services:
       - ${POLL_SECONDS:-600}
       - --maximum-source-age-ms
       - ${MAXIMUM_SOURCE_AGE_MS:-300000}
+      - --model-drift
+      - ${MODEL_DRIFT:-healthy}
+      - --data-drift
+      - ${DATA_DRIFT:-healthy}
     environment:
       OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
       HEALTH_PATH: /runtime/operator/health.json
@@ -47,7 +51,7 @@ services:
         target: /runtime/activation
         read_only: true
       - type: bind
-        source: ${LIQUID20_LIVE_HOST:?set read-only Liquid20 snapshot root}
+        source: ${LIQUID20_LIVE_HOST:?set read-only Liquid20 live root}
         target: /runtime/liquid20
         read_only: true
       - type: bind

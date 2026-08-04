@@ -1,6 +1,6 @@
 name: WickHunter WH09 temporary repair executor
 
-# Trigger generation 2: the workflow now exists on develop before this push.
+# Trigger generation 3: publish a durable terminal run checkpoint.
 on:
   push:
     branches: [develop]
@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: wickhunter-wh09-temporary-repair-executor
@@ -149,3 +150,32 @@ jobs:
             [[ "${actual[$index]}" == "${expected[$index]}" ]]
           done
           git push origin "HEAD:$TARGET_BRANCH"
+
+      - name: Publish terminal executor checkpoint
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          product_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
+          body="$(printf '%s\n' \
+            '## WH09 executor terminal checkpoint' \
+            '' \
+            '\`\`\`yaml' \
+            "run_id: $RUN_ID" \
+            "run_attempt: $RUN_ATTEMPT" \
+            "status: $JOB_STATUS" \
+            "executor_sha: $RUN_SHA" \
+            "product_head: $product_head" \
+            "expected_product_head: $EXPECTED_TARGET_HEAD" \
+            "run_url: https://github.com/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" \
+            '\`\`\`')"
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/issues/1144/comments" \
+            -f "body=$body"

@@ -6,7 +6,7 @@ on:
     branches: [develop]
     paths:
       - ".github/workflows/wickhunter-wh09-live-contract-repair.yml"
-      - ".github/wh09-live-contract-repair/**"
+      - ".github/wh09-final-audit/**"
 
 permissions:
   contents: write
@@ -44,9 +44,14 @@ jobs:
           import zlib
           from pathlib import Path
 
-          encoded = Path(
-              ".github/wh09-live-contract-repair/patch.py.zlib.b64"
-          ).read_text(encoding="utf-8").strip()
+          parts = tuple(sorted(Path(".github/wh09-final-audit").glob("part-*.b64part")))
+          if tuple(path.name for path in parts) != (
+              "part-00.b64part",
+              "part-01.b64part",
+              "part-02.b64part",
+          ):
+              raise SystemExit("repair payload part set mismatch")
+          encoded = "".join(path.read_text(encoding="ascii").strip() for path in parts)
           payload = zlib.decompress(base64.b64decode(encoded, validate=True))
           digest = hashlib.sha256(payload).hexdigest()
           if digest != os.environ["PATCH_SHA256"]:

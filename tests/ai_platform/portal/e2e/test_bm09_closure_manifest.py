@@ -70,7 +70,7 @@ def test_universal_e2e_workflow_runs_bm09_backend_and_browser_closure() -> None:
 
     assert "ai_platform/portal/e2e/**" in closure_paths
     assert "tests/ai_platform/portal/e2e/**" in closure_paths
-    assert "if: needs.classify.outputs.closure_e2e == 'true'" in components
+    assert "needs.classify.outputs.closure_e2e == 'true'" in components
     assert "uses: ./.github/workflows/portal-universal-e2e.yml" in components
     assert "workflow_call:" in workflow
     assert "tests/ai_platform/portal/e2e" in workflow

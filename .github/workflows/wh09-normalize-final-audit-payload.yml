@@ -1,4 +1,5 @@
 name: Normalize WH09 final audit payload
+# Trigger generation 2 after workflow registration.
 
 on:
   push:

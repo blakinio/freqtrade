@@ -1,0 +1,172 @@
+name: WickHunter WH09 temporary repair executor
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-repair-executor.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-temporary-repair-executor
+  cancel-in-progress: false
+
+env:
+  HELPER_BRANCH: ops/wickhunter-wh09-operator-implementation-20260803-v1
+  HELPER_SHA: d0bf6fe17eedb610481e717032700624beebc449
+  TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
+  EXPECTED_TARGET_HEAD: 2cbbfef2dd2fd7361b083b409872049a9ae665f8
+
+jobs:
+  repair-product-branch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out exact develop push
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Materialize and normalize audited helper payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "${{ github.sha }}" ]]
+          git fetch origin "$HELPER_BRANCH" "$TARGET_BRANCH" develop
+          [[ "$(git rev-parse "origin/$HELPER_BRANCH")" == "$HELPER_SHA" ]]
+
+          staging="$(mktemp -d)"
+          echo "STAGING=$staging" >> "$GITHUB_ENV"
+          git show "$HELPER_SHA:.github/wh09-payload/operator.py.zlib.b64" > "$staging/operator.py"
+          git show "$HELPER_SHA:.github/wh09-payload/README.md.zlib.b64" > "$staging/README.md"
+          git show "$HELPER_SHA:.github/wh09-payload/compose.yaml.zlib.b64" > "$staging/compose.yaml"
+          git show "$HELPER_SHA:.github/wh09-payload/healthcheck.py.zlib.b64" > "$staging/paper_runtime_healthcheck.py"
+          git show "$HELPER_SHA:.github/wh09-payload/tests.py.zlib.b64" > "$staging/tests.py"
+
+          OPERATOR="$staging/operator.py" python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ["OPERATOR"])
+          text = path.read_text(encoding="utf-8")
+          legacy_start = text.find("\ndef _source_health(value: object) -> SourceHealth:")
+          public_start = text.find("\ndef _public_url(")
+          if legacy_start < 0 or public_start <= legacy_start:
+              raise SystemExit("legacy snapshot boundary mismatch")
+          loader = '''
+
+def load_liquid20_snapshot(
+    path: Path,
+    *,
+    now_ms: int,
+    maximum_age_ms: int = DEFAULT_MAX_SOURCE_AGE_MS,
+) -> Liquid20Snapshot:
+    if maximum_age_ms < 1:
+        raise CandidatePaperRuntimeOperatorError(
+            "maximum Liquid20 age must be positive"
+        )
+    return _load_liquid20_live_root(
+        path,
+        now_ms=now_ms,
+        maximum_age_ms=maximum_age_ms,
+    )
+
+'''
+          text = text[:legacy_start] + loader + text[public_start:]
+
+          marker = "\ndef _market_wide_liquidation_intensity("
+          starts = []
+          offset = 0
+          while True:
+              index = text.find(marker, offset)
+              if index < 0:
+                  break
+              starts.append(index)
+              offset = index + len(marker)
+          if len(starts) != 2:
+              raise SystemExit(f"unexpected intensity definition count: {len(starts)}")
+          fetch_start = text.find("\ndef fetch_public_market_snapshot(", starts[1])
+          if fetch_start <= starts[1]:
+              raise SystemExit("duplicate intensity boundary mismatch")
+          text = text[:starts[1]] + "\n" + text[fetch_start:]
+
+          required = (
+              'LIVE_POINTER_NAME = "live-state-v1.json"',
+              '"/fapi/v1/ticker/bookTicker"',
+              '"atr_ratio"',
+              '"market_wide_liquidation_intensity"',
+              '"--liquid20-root"',
+              'limit": 1441',
+          )
+          forbidden = (
+              "def _source_health(",
+              "def _history_from_payload(",
+              "if path.is_dir():",
+              '"/fapi/v1/ticker/24hr"',
+              '"--liquid20-snapshot"',
+          )
+          if not all(value in text for value in required):
+              raise SystemExit("required root-only contract is incomplete")
+          if any(value in text for value in forbidden):
+              raise SystemExit("legacy contract remains")
+          if text.count("def _market_wide_liquidation_intensity(") != 1:
+              raise SystemExit("market-wide intensity definition is not unique")
+          compile(text, str(path), "exec")
+          path.write_text(text, encoding="utf-8")
+          PY
+
+          python3 -m py_compile \
+            "$staging/operator.py" \
+            "$staging/paper_runtime_healthcheck.py" \
+            "$staging/tests.py"
+
+      - name: Apply corrected payload to exact product branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git merge --no-ff --no-edit origin/develop
+
+          cp "$STAGING/operator.py" ai_platform/wickhunter/candidate_paper_runtime_operator.py
+          cp "$STAGING/README.md" deploy/synology/wickhunter-paper-runtime/README.md
+          cp "$STAGING/compose.yaml" deploy/synology/wickhunter-paper-runtime/compose.yaml
+          cp "$STAGING/paper_runtime_healthcheck.py" deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
+          cp "$STAGING/tests.py" tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+
+          python3 -m py_compile \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          docker compose -f deploy/synology/wickhunter-paper-runtime/compose.yaml config >/dev/null
+          git diff --check
+
+          git add \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/README.md \
+            deploy/synology/wickhunter-paper-runtime/compose.yaml \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          ! git diff --cached --quiet
+          git commit -m "fix(wickhunter): apply audited Liquid20 runtime contract"
+
+          expected=(
+            "ai_platform/wickhunter/candidate_paper_runtime_operator.py"
+            "deploy/synology/wickhunter-paper-runtime/Dockerfile"
+            "deploy/synology/wickhunter-paper-runtime/README.md"
+            "deploy/synology/wickhunter-paper-runtime/compose.yaml"
+            "deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py"
+            "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md"
+            "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py"
+          )
+          mapfile -t actual < <(git diff --name-only origin/develop HEAD | sort)
+          [[ "${#actual[@]}" -eq "${#expected[@]}" ]]
+          for index in "${!expected[@]}"; do
+            [[ "${actual[$index]}" == "${expected[$index]}" ]]
+          done
+          git push origin "HEAD:$TARGET_BRANCH"

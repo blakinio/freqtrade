@@ -11,6 +11,7 @@ from typing import Any
 
 import yaml
 
+
 PINNED_ACTION = re.compile(r"^[^\s@]+@[0-9a-f]{40}$")
 USES_PATTERN = re.compile(r"\buses:\s*[\"']?([^\s#\"']+)")
 EXPRESSION_OPEN = "${{"
@@ -64,9 +65,7 @@ def _validate_action_refs(root: Path, path: Path, text: str) -> list[str]:
         if reference.startswith("./"):
             local = root / reference.removeprefix("./")
             if not local.exists():
-                failures.append(
-                    f"{path}:{line_number}: missing local action/workflow {reference}"
-                )
+                failures.append(f"{path}:{line_number}: missing local action/workflow {reference}")
         elif not PINNED_ACTION.fullmatch(reference):
             failures.append(
                 f"{path}:{line_number}: action is not pinned to a 40-hex commit: {reference}"

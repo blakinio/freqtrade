@@ -5,6 +5,7 @@ on:
     branches: [develop]
     paths:
       - ".github/workflows/wickhunter-wh09-repair-executor.yml"
+      - ".github/wh09-repair/**"
 
 permissions:
   contents: write
@@ -22,7 +23,7 @@ env:
 jobs:
   repair-product-branch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Check out exact develop push
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -30,7 +31,7 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Materialize and normalize audited helper payload
+      - name: Materialize and normalize audited payload
         shell: bash
         run: |
           set -euo pipefail
@@ -44,81 +45,9 @@ jobs:
           git show "$HELPER_SHA:.github/wh09-payload/README.md.zlib.b64" > "$staging/README.md"
           git show "$HELPER_SHA:.github/wh09-payload/compose.yaml.zlib.b64" > "$staging/compose.yaml"
           git show "$HELPER_SHA:.github/wh09-payload/healthcheck.py.zlib.b64" > "$staging/paper_runtime_healthcheck.py"
-          git show "$HELPER_SHA:.github/wh09-payload/tests.py.zlib.b64" > "$staging/tests.py"
-
-          OPERATOR="$staging/operator.py" python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          path = Path(os.environ["OPERATOR"])
-          text = path.read_text(encoding="utf-8")
-          legacy_start = text.find("\ndef _source_health(value: object) -> SourceHealth:")
-          public_start = text.find("\ndef _public_url(")
-          if legacy_start < 0 or public_start <= legacy_start:
-              raise SystemExit("legacy snapshot boundary mismatch")
-          loader = '''
-
-def load_liquid20_snapshot(
-    path: Path,
-    *,
-    now_ms: int,
-    maximum_age_ms: int = DEFAULT_MAX_SOURCE_AGE_MS,
-) -> Liquid20Snapshot:
-    if maximum_age_ms < 1:
-        raise CandidatePaperRuntimeOperatorError(
-            "maximum Liquid20 age must be positive"
-        )
-    return _load_liquid20_live_root(
-        path,
-        now_ms=now_ms,
-        maximum_age_ms=maximum_age_ms,
-    )
-
-'''
-          text = text[:legacy_start] + loader + text[public_start:]
-
-          marker = "\ndef _market_wide_liquidation_intensity("
-          starts = []
-          offset = 0
-          while True:
-              index = text.find(marker, offset)
-              if index < 0:
-                  break
-              starts.append(index)
-              offset = index + len(marker)
-          if len(starts) != 2:
-              raise SystemExit(f"unexpected intensity definition count: {len(starts)}")
-          fetch_start = text.find("\ndef fetch_public_market_snapshot(", starts[1])
-          if fetch_start <= starts[1]:
-              raise SystemExit("duplicate intensity boundary mismatch")
-          text = text[:starts[1]] + "\n" + text[fetch_start:]
-
-          required = (
-              'LIVE_POINTER_NAME = "live-state-v1.json"',
-              '"/fapi/v1/ticker/bookTicker"',
-              '"atr_ratio"',
-              '"market_wide_liquidation_intensity"',
-              '"--liquid20-root"',
-              'limit": 1441',
-          )
-          forbidden = (
-              "def _source_health(",
-              "def _history_from_payload(",
-              "if path.is_dir():",
-              '"/fapi/v1/ticker/24hr"',
-              '"--liquid20-snapshot"',
-          )
-          if not all(value in text for value in required):
-              raise SystemExit("required root-only contract is incomplete")
-          if any(value in text for value in forbidden):
-              raise SystemExit("legacy contract remains")
-          if text.count("def _market_wide_liquidation_intensity(") != 1:
-              raise SystemExit("market-wide intensity definition is not unique")
-          compile(text, str(path), "exec")
-          path.write_text(text, encoding="utf-8")
-          PY
-
-          python3 -m py_compile \
+          cp .github/wh09-repair/test_operator.py "$staging/tests.py"
+          python .github/wh09-repair/patch_operator.py "$staging/operator.py"
+          python -m py_compile \
             "$staging/operator.py" \
             "$staging/paper_runtime_healthcheck.py" \
             "$staging/tests.py"
@@ -136,14 +65,115 @@ def load_liquid20_snapshot(
           cp "$STAGING/operator.py" ai_platform/wickhunter/candidate_paper_runtime_operator.py
           cp "$STAGING/README.md" deploy/synology/wickhunter-paper-runtime/README.md
           cp "$STAGING/compose.yaml" deploy/synology/wickhunter-paper-runtime/compose.yaml
-          cp "$STAGING/paper_runtime_healthcheck.py" deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
-          cp "$STAGING/tests.py" tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          cp "$STAGING/paper_runtime_healthcheck.py" \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
+          cp "$STAGING/tests.py" \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
 
-          python3 -m py_compile \
+          cat > docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md <<EOF
+          # FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1
+
+          \`\`\`yaml
+          task_id: FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1
+          repository: blakinio/freqtrade
+          project_lane: freqtrade-wickhunter
+          programme: WickHunter
+          phase: WH-09
+          issue: 1144
+          mode: implementation
+          status: validating
+          base_branch: develop
+          branch: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
+          helper_pr: 1147
+          integration_pr: 1161
+          repair_executor_pr: 1169
+          product_pr: 1160
+          execution_mode: github
+          validation_level: full
+          repair_cycles_for_current_gate: 3
+          repair_executor_run: ${GITHUB_RUN_ID}
+          repair_executor_sha: ${GITHUB_SHA}
+          next_action: complete exact-head CI and independent final audit, then merge PR 1160 only if every gate passes
+          \`\`\`
+
+          ## Goal
+
+          Deliver a persistent, restart-safe and fail-closed candidate PAPER operator that consumes the real read-only Liquid20 live root, derives credential-free production public market context, constructs canonical runtime ticks and persists them through \`CandidatePaperRuntimeService.step()\`.
+
+          Implementation merge is not WH-09 terminal closure. A separately reviewed deployment must bind the exact merged commit, publish a fresh immutable activation and complete the prospective 24-hour acceptance window before an explicit owner decision.
+
+          ## Owned product paths
+
+          - \`ai_platform/wickhunter/candidate_paper_runtime_operator.py\`
+          - \`deploy/synology/wickhunter-paper-runtime/Dockerfile\`
+          - \`deploy/synology/wickhunter-paper-runtime/README.md\`
+          - \`deploy/synology/wickhunter-paper-runtime/compose.yaml\`
+          - \`deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py\`
+          - \`docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\`
+          - \`tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py\`
+
+          ## Current repaired contract
+
+          - root-only \`live-state-v1.json\` plus immutable \`runs/<active_run_id>/<source>.ndjson\` input;
+          - active-run, heartbeat, source, timestamp, bounded history and zero-authority validation;
+          - production-only \`fapi.binance.com\` GET inputs with redirects, proxies, credentials and private endpoints refused;
+          - 1,440 contiguous completed one-minute candles and the full canonical market metric contract;
+          - truthful open-position exposure, daily loss, drawdown, consecutive-loss, cooldown, circuit-breaker and drift risk context;
+          - exact PAPER binding, persistent contiguous journal recovery and bounded self-hashed health;
+          - non-root, read-only, capability-free Synology container with no ports or Docker socket.
+
+          ## Safety invariants
+
+          \`protected_holdout_accessed=false\`, \`automatic_promotion_enabled=false\`, \`trading_credentials_present=false\`, \`order_adapter_present=false\`, \`execution_enabled=false\`, \`orders_submitted=0\`, \`live_capital_authorized=false\`.
+
+          ## Validation gate
+
+          Repair executor run \`${GITHUB_RUN_ID}\` compiles and formats the three Python product paths, runs Ruff, focused network-free operator tests, Compose validation, exact seven-path diff validation and an exact-revision Docker image build before pushing the repaired product head. Repository CI, security checks, review-thread inspection and a fresh independent audit remain mandatory on the exact pushed head.
+
+          ## Post-merge continuation
+
+          Close helper PR #1147 without merge, remove the temporary repair executor, create one request-only deployment pinned to the exact merged implementation SHA, publish a fresh activation, deploy only on trusted Synology staging and collect the complete prospective WH-09 acceptance package required by Issue #1144.
+          EOF
+
+          python -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
+            "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0" \
+            ruff==0.15.21
+
+          python -m ruff check --fix \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
             deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
-          docker compose -f deploy/synology/wickhunter-paper-runtime/compose.yaml config >/dev/null
+          python -m ruff format \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m ruff check \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m ruff format --check \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m py_compile \
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py \
+            deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+
+          OPERATOR_COMMIT="$(git rev-parse HEAD)" \
+          WICKHUNTER_PAPER_RUNTIME_IMAGE="wickhunter-paper-runtime:precommit" \
+          CANDIDATE_ROOT_HOST=/tmp/candidate \
+          ACTIVATION_ROOT_HOST=/tmp/activation \
+          LIQUID20_LIVE_HOST=/tmp/liquid20 \
+          JOURNAL_ROOT_HOST=/tmp/journal \
+          OPERATOR_STATE_HOST=/tmp/operator \
+            docker compose \
+              -f deploy/synology/wickhunter-paper-runtime/compose.yaml \
+              config >/dev/null
           git diff --check
 
           git add \
@@ -151,9 +181,20 @@ def load_liquid20_snapshot(
             deploy/synology/wickhunter-paper-runtime/README.md \
             deploy/synology/wickhunter-paper-runtime/compose.yaml \
             deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py \
+            docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
           ! git diff --cached --quiet
           git commit -m "fix(wickhunter): apply audited Liquid20 runtime contract"
+
+          product_head="$(git rev-parse HEAD)"
+          docker build \
+            --file deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            --build-arg "OPERATOR_COMMIT=$product_head" \
+            --tag "wickhunter-paper-runtime:$product_head" \
+            .
+          [[ "$(docker image inspect \
+            --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' \
+            "wickhunter-paper-runtime:$product_head")" == "$product_head" ]]
 
           expected=(
             "ai_platform/wickhunter/candidate_paper_runtime_operator.py"

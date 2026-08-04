@@ -1,16 +1,7 @@
 name: Portal Completeness Audit
 
 on:
-  pull_request:
-    paths:
-      - "ai_platform/portal/**"
-      - "deploy/**"
-      - "tests/ai_platform/portal/**"
-      - "tests/ai_platform_integration/**"
-      - "docs/ai_platform/portal/**"
-      - "docs/agents/tasks/FTAI-*-portal-*-audit.md"
-      - "tools/portal_audit/**"
-      - ".github/workflows/portal-completeness-audit.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:

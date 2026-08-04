@@ -1,0 +1,188 @@
+name: Risk-aware component CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  push:
+    branches: [develop, stable]
+  release:
+    types: [published]
+  schedule:
+    - cron: "30 3 * * 4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}"
+  cancel-in-progress: true
+
+jobs:
+  classify:
+    name: Component routing
+    runs-on: ubuntu-24.04
+    outputs:
+      ai_platform: ${{ steps.scope.outputs.ai_platform }}
+      portal_backend_tests: ${{ steps.scope.outputs.portal_backend_tests }}
+      portal_web_validation: ${{ steps.scope.outputs.portal_web_validation }}
+      portal_browser_e2e: ${{ steps.scope.outputs.portal_browser_e2e }}
+      portal_full_browser_e2e: ${{ steps.scope.outputs.portal_full_browser_e2e }}
+      portal_schema_light: ${{ steps.scope.outputs.portal_schema_light }}
+      postgres_recovery: ${{ steps.scope.outputs.postgres_recovery }}
+      identity_oidc: ${{ steps.scope.outputs.identity_oidc }}
+      strategy_engine: ${{ steps.scope.outputs.strategy_engine }}
+      exact_image: ${{ steps.scope.outputs.exact_image }}
+      closure_e2e: ${{ steps.scope.outputs.closure_e2e }}
+      portal_completeness_audit: ${{ steps.scope.outputs.portal_completeness_audit }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Apply central routing contract
+        id: scope
+        uses: ./.github/actions/classify-changes
+        with:
+          event_name: ${{ github.event_name }}
+          event_action: ${{ github.event.action }}
+          base_sha: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          labels_json: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          ref_name: ${{ github.ref_name }}
+      - name: Upload component routing decision
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: component-routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ci-routing.json
+          if-no-files-found: error
+          retention-days: 14
+
+  ai-platform:
+    name: AI Platform component
+    needs: classify
+    if: needs.classify.outputs.ai_platform == 'true'
+    uses: ./.github/workflows/ai-platform.yml
+
+  portal-web:
+    name: Portal Web component
+    needs: classify
+    if: needs.classify.outputs.portal_web_validation == 'true' || needs.classify.outputs.portal_browser_e2e == 'true'
+    uses: ./.github/workflows/portal-web.yml
+    with:
+      full_browser_e2e: ${{ needs.classify.outputs.portal_full_browser_e2e == 'true' }}
+
+  portal-schema:
+    name: Portal schema component
+    needs: classify
+    if: needs.classify.outputs.portal_schema_light == 'true' || needs.classify.outputs.postgres_recovery == 'true'
+    uses: ./.github/workflows/portal-schema-integrity.yml
+
+  exact-image:
+    name: Exact Portal image component
+    needs: classify
+    if: needs.classify.outputs.exact_image == 'true'
+    uses: ./.github/workflows/portal-schema-exact-image.yml
+
+  oidc-state-claim:
+    name: OIDC state-claim image component
+    needs: classify
+    if: needs.classify.outputs.identity_oidc == 'true'
+    uses: ./.github/workflows/portal-oidc-state-claim.yml
+
+  oidc-postgresql:
+    name: OIDC PostgreSQL component
+    needs: classify
+    if: needs.classify.outputs.identity_oidc == 'true' && needs.classify.outputs.postgres_recovery == 'true'
+    uses: ./.github/workflows/portal-oidc-state-claim-postgresql.yml
+
+  closure-e2e:
+    name: Program closure E2E component
+    needs: [classify, portal-web]
+    if: always() && needs.classify.outputs.closure_e2e == 'true' && (needs.portal-web.result == 'success' || needs.portal-web.result == 'skipped')
+    uses: ./.github/workflows/ai-program-closure-e2e.yml
+
+  strategy-engine:
+    name: Strategy Engine component
+    needs: [classify, closure-e2e]
+    if: always() && needs.classify.outputs.strategy_engine == 'true' && (needs.closure-e2e.result == 'success' || needs.closure-e2e.result == 'skipped')
+    uses: ./.github/workflows/ai-strategy-engine.yml
+
+  completeness-audit:
+    name: Portal completeness audit component
+    needs: [classify, strategy-engine]
+    if: always() && needs.classify.outputs.portal_completeness_audit == 'true' && (needs.strategy-engine.result == 'success' || needs.strategy-engine.result == 'skipped')
+    uses: ./.github/workflows/portal-completeness-audit.yml
+
+  universal-e2e:
+    name: Universal Portal E2E component
+    needs: [classify, completeness-audit]
+    if: always() && needs.classify.outputs.closure_e2e == 'true' && (needs.completeness-audit.result == 'success' || needs.completeness-audit.result == 'skipped')
+    uses: ./.github/workflows/portal-universal-e2e.yml
+
+  component-gate:
+    name: Component CI Gate
+    needs:
+      - classify
+      - ai-platform
+      - strategy-engine
+      - portal-web
+      - portal-schema
+      - exact-image
+      - oidc-state-claim
+      - oidc-postgresql
+      - universal-e2e
+      - closure-e2e
+      - completeness-audit
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enforce central component selection
+        shell: bash
+        env:
+          CLASSIFY_RESULT: ${{ needs.classify.result }}
+          AI_PLATFORM_SELECTED: ${{ needs.classify.outputs.ai_platform }}
+          AI_PLATFORM_RESULT: ${{ needs.ai-platform.result }}
+          STRATEGY_SELECTED: ${{ needs.classify.outputs.strategy_engine }}
+          STRATEGY_RESULT: ${{ needs.strategy-engine.result }}
+          WEB_SELECTED: ${{ needs.classify.outputs.portal_web_validation == 'true' || needs.classify.outputs.portal_browser_e2e == 'true' }}
+          WEB_RESULT: ${{ needs.portal-web.result }}
+          SCHEMA_SELECTED: ${{ needs.classify.outputs.portal_schema_light == 'true' || needs.classify.outputs.postgres_recovery == 'true' }}
+          SCHEMA_RESULT: ${{ needs.portal-schema.result }}
+          IMAGE_SELECTED: ${{ needs.classify.outputs.exact_image }}
+          IMAGE_RESULT: ${{ needs.exact-image.result }}
+          OIDC_SELECTED: ${{ needs.classify.outputs.identity_oidc }}
+          OIDC_RESULT: ${{ needs.oidc-state-claim.result }}
+          OIDC_PG_SELECTED: ${{ needs.classify.outputs.identity_oidc == 'true' && needs.classify.outputs.postgres_recovery == 'true' }}
+          OIDC_PG_RESULT: ${{ needs.oidc-postgresql.result }}
+          CLOSURE_SELECTED: ${{ needs.classify.outputs.closure_e2e }}
+          UNIVERSAL_RESULT: ${{ needs.universal-e2e.result }}
+          CLOSURE_RESULT: ${{ needs.closure-e2e.result }}
+          AUDIT_SELECTED: ${{ needs.classify.outputs.portal_completeness_audit }}
+          AUDIT_RESULT: ${{ needs.completeness-audit.result }}
+        run: |
+          set -euo pipefail
+          require() {
+            local selected="$1" result="$2" name="$3"
+            if [[ "$selected" == "true" && "$result" != "success" ]]; then
+              echo "$name selected but result=$result" >&2
+              exit 1
+            fi
+            if [[ "$selected" != "true" && "$result" != "skipped" ]]; then
+              echo "$name unselected but result=$result" >&2
+              exit 1
+            fi
+          }
+          [[ "$CLASSIFY_RESULT" == "success" ]]
+          require "$AI_PLATFORM_SELECTED" "$AI_PLATFORM_RESULT" "AI Platform"
+          require "$STRATEGY_SELECTED" "$STRATEGY_RESULT" "Strategy Engine"
+          require "$WEB_SELECTED" "$WEB_RESULT" "Portal Web"
+          require "$SCHEMA_SELECTED" "$SCHEMA_RESULT" "Portal schema"
+          require "$IMAGE_SELECTED" "$IMAGE_RESULT" "Exact image"
+          require "$OIDC_SELECTED" "$OIDC_RESULT" "OIDC image claim"
+          require "$OIDC_PG_SELECTED" "$OIDC_PG_RESULT" "OIDC PostgreSQL"
+          require "$CLOSURE_SELECTED" "$UNIVERSAL_RESULT" "Universal E2E"
+          require "$CLOSURE_SELECTED" "$CLOSURE_RESULT" "Closure E2E"
+          require "$AUDIT_SELECTED" "$AUDIT_RESULT" "Completeness audit"

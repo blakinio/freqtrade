@@ -1,0 +1,270 @@
+{
+  "categories": {
+    "ai_platform": {
+      "exclude": [
+        "ai_platform/portal/web/**",
+        "ai_strategy_engine/**",
+        "ai_platform/research/strategy_engine/**",
+        "ai_platform/research/strategy_lab/**",
+        "ai_platform/portal/feature_registry/**",
+        "ai_platform/portal/strategy_lab/**",
+        "tests/ai_platform/portal/feature_registry/**",
+        "tests/ai_platform/portal/strategy_lab/**",
+        "tests/ai_platform_integration/test_ase*.py"
+      ],
+      "include": [
+        "ai_platform/**",
+        "ai_strategy_engine/**",
+        "tests/ai_platform/**",
+        "tests/ai_platform_integration/**"
+      ]
+    },
+    "browser_surface": {
+      "include": [
+        "ai_platform/portal/web/app/**",
+        "ai_platform/portal/web/components/**",
+        "ai_platform/portal/web/lib/**",
+        "ai_platform/portal/web/e2e/**",
+        "ai_platform/portal/web/package.json",
+        "ai_platform/portal/web/package-lock.json",
+        "ai_platform/portal/contracts/**",
+        "ai_platform/portal/identity/**"
+      ]
+    },
+    "ci_architecture": {
+      "include": [
+        ".github/workflows/**",
+        ".github/actions/**",
+        ".github/dependabot.yml",
+        "tools/ci/**",
+        "tests/ci/**"
+      ]
+    },
+    "closure_surface": {
+      "include": [
+        "ai_platform/portal/contracts/**",
+        "ai_platform/portal/control_plane/**",
+        "ai_platform/portal/e2e/**",
+        "ai_platform/portal/risk/**",
+        "ai_platform/portal/simulator/**",
+        "ai_platform/portal/operations/**",
+        "ai_platform/portal/signal_wizard/**",
+        "ai_platform/research/strategy_engine/**",
+        "ai_strategy_engine/**",
+        "tests/ai_platform/portal/e2e/**",
+        "tests/ai_platform_integration/test_program_closure_e2e.py",
+        "ai_platform/portal/web/e2e/program-closure.spec.ts"
+      ]
+    },
+    "core": {
+      "exclude": [
+        "tests/ai_platform/**",
+        "tests/ai_platform_integration/**",
+        "tests/ci/**"
+      ],
+      "include": [
+        "freqtrade/**",
+        "ft_client/**",
+        "build_helpers/**",
+        "scripts/**",
+        "tests/**",
+        "user_data/**",
+        "config_examples/**"
+      ]
+    },
+    "core_critical": {
+      "include": [
+        "freqtrade/exchange/**",
+        "freqtrade/freqai/**",
+        "freqtrade/optimize/**",
+        "freqtrade/data/**",
+        "freqtrade/persistence/**",
+        "freqtrade/rpc/**",
+        "freqtrade/strategy/**",
+        "tests/exchange/**",
+        "tests/freqai/**",
+        "tests/optimize/**",
+        "tests/persistence/**",
+        "tests/rpc/**",
+        "tests/strategy/**"
+      ]
+    },
+    "dependencies_packaging": {
+      "include": [
+        "requirements*.txt",
+        "**/requirements*.txt",
+        "pyproject.toml",
+        "uv.lock",
+        "setup.py",
+        "setup.cfg",
+        "MANIFEST.in",
+        "ft_client/pyproject.toml",
+        "ai_platform/portal/web/package.json",
+        "ai_platform/portal/web/package-lock.json"
+      ]
+    },
+    "deployment": {
+      "include": [
+        "deploy/**",
+        "docker/**",
+        "Dockerfile*",
+        "docker-compose*.yml",
+        ".dockerignore",
+        ".github/workflows/docker-*.yml",
+        ".github/workflows/*deploy*.yml",
+        ".github/workflows/*synology*.yml"
+      ]
+    },
+    "docker_runtime": {
+      "include": [
+        "Dockerfile*",
+        "docker/**",
+        "docker-compose*.yml",
+        ".dockerignore",
+        "deploy/**/Dockerfile*",
+        "deploy/**/compose*.yml",
+        "deploy/**/docker-compose*.yml",
+        "deploy/synology/portal-oidc/requirements.txt",
+        "deploy/synology/portal-oidc/**/entrypoint*",
+        "deploy/synology/portal-oidc/**/start*",
+        "deploy/synology/portal-oidc/**/readiness*"
+      ]
+    },
+    "documentation": {
+      "include": [
+        "docs/**",
+        "*.md",
+        "README*",
+        "CONTRIBUTING*",
+        "SECURITY*",
+        "mkdocs.yml",
+        "mkdocs.insiders.yml"
+      ]
+    },
+    "governance": {
+      "include": [
+        "AGENTS.md",
+        "AGENTS.override.md",
+        "**/AGENTS.md",
+        "docs/agents/**"
+      ]
+    },
+    "identity_oidc": {
+      "include": [
+        "ai_platform/portal/identity/**",
+        "tests/ai_platform/portal/identity/**",
+        "deploy/synology/portal-oidc/**",
+        "docs/ai_platform/portal/OIDC_*.md",
+        ".github/workflows/portal-oidc-*.yml",
+        ".github/workflows/portal-authentik-*.yml"
+      ]
+    },
+    "portal_audit": {
+      "include": [
+        "tools/portal_audit/**",
+        "ai_platform/portal/AUDIT_*.md",
+        "ai_platform/portal/AUDIT_EVIDENCE_INTEGRITY.md",
+        ".github/workflows/portal-completeness-audit.yml"
+      ]
+    },
+    "portal_backend": {
+      "exclude": [
+        "ai_platform/portal/web/**"
+      ],
+      "include": [
+        "ai_platform/portal/**",
+        "tests/ai_platform/portal/**"
+      ]
+    },
+    "portal_contract": {
+      "include": [
+        "ai_platform/portal/contracts/**",
+        "tests/ai_platform/portal/contracts/**",
+        "ai_platform/portal/control_plane/api.py",
+        "ai_platform/portal/control_plane/api_core.py",
+        "ai_platform/portal/web/lib/contracts/**",
+        "ai_platform/portal/web/app/api/**"
+      ]
+    },
+    "portal_image_content": {
+      "exclude": [
+        "ai_platform/portal/web/**"
+      ],
+      "include": [
+        "ai_platform/portal/**/*.py",
+        "ai_platform/portal/**/*.json",
+        "ai_platform/portal/**/*.yaml",
+        "ai_platform/portal/**/*.yml"
+      ]
+    },
+    "portal_runtime_deployment": {
+      "include": [
+        "deploy/synology/portal-oidc/**",
+        "deploy/synology/portal/**"
+      ]
+    },
+    "portal_web": {
+      "include": [
+        "ai_platform/portal/web/**"
+      ]
+    },
+    "schema_database": {
+      "include": [
+        "ai_platform/portal/**/migrations/**",
+        "ai_platform/portal/database/**",
+        "ai_platform/portal/control_plane/database.py",
+        "ai_platform/portal/**/models.py",
+        "ai_platform/portal/**/repository.py",
+        "tests/ai_platform/portal/database/**",
+        "tests/ai_platform/portal/control_plane/test_database_integrity.py",
+        "tools/portal_schema/**",
+        ".github/workflows/portal-schema-*.yml"
+      ]
+    },
+    "security": {
+      "include": [
+        "ai_platform/portal/security/**",
+        "tests/ai_platform/portal/security/**",
+        "ai_platform/portal/credentials/**",
+        "tests/ai_platform/portal/credentials/**",
+        "SECURITY.md",
+        ".github/workflows/zizmor_action.yml"
+      ]
+    },
+    "strategy_engine": {
+      "include": [
+        "ai_strategy_engine/**",
+        "ai_platform/research/strategy_engine/**",
+        "ai_platform/research/strategy_lab/**",
+        "ai_platform/portal/feature_registry/**",
+        "ai_platform/portal/strategy_lab/**",
+        "tests/ai_platform/portal/feature_registry/**",
+        "tests/ai_platform/portal/strategy_lab/**",
+        "tests/ai_platform_integration/test_ase*.py",
+        ".github/workflows/ai-strategy-engine.yml"
+      ]
+    },
+    "trading_live_capital": {
+      "include": [
+        "freqtrade/freqtradebot.py",
+        "freqtrade/wallets.py",
+        "freqtrade/exchange/**",
+        "freqtrade/persistence/**",
+        "ai_platform/portal/execution/**",
+        "ai_platform/portal/execution_submission/**",
+        "ai_platform/portal/risk/**",
+        "ai_platform/portal/model_control/**",
+        "ai_platform/portal/operations/**"
+      ]
+    }
+  },
+  "full_ci_labels": [
+    "ci:full",
+    "ci:merge-ready"
+  ],
+  "protected_branches": [
+    "develop",
+    "stable"
+  ],
+  "schema_version": 1
+}

@@ -1,27 +1,8 @@
 name: Portal Schema Integrity
 
 on:
-  pull_request:
-    paths:
-      - "ai_platform/portal/**"
-      - "deploy/**"
-      - "tests/ai_platform/portal/**"
-      - "tests/ai_platform_integration/**"
-      - "tools/portal_schema/**"
-      - "docs/ai_platform/portal/**"
-      - "docs/agents/tasks/active/FTAI-20260803-portal-remediation-1122.md"
-      - ".github/workflows/portal-schema-integrity.yml"
-  push:
-    branches:
-      - develop
-    paths:
-      - "ai_platform/portal/**"
-      - "deploy/**"
-      - "tests/ai_platform/portal/**"
-      - "tests/ai_platform_integration/**"
-      - "tools/portal_schema/**"
-      - "docs/ai_platform/portal/**"
-      - ".github/workflows/portal-schema-integrity.yml"
+  workflow_call:
+  workflow_dispatch:
 
 permissions:
   contents: read

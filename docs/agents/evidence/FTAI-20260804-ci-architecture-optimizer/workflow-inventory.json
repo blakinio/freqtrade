@@ -1,0 +1,2329 @@
+{
+  "event_counts": {
+    "issues": 6,
+    "pull_request": 50,
+    "push": 24,
+    "release": 3,
+    "schedule": 11,
+    "workflow_call": 12,
+    "workflow_dispatch": 42
+  },
+  "feature_counts": {
+    "custom_runner": 36,
+    "docker": 6,
+    "matrix": 9,
+    "playwright": 6,
+    "postgresql": 7,
+    "reusable": 12,
+    "scheduled": 11
+  },
+  "generated_from_repository": true,
+  "observed_execution_evidence": {
+    "docs_only_pr_1171": {
+      "docs_job_elapsed_seconds": 22.8,
+      "head": "f11a1dd54c7070b73650f312963f34e9454d6da9",
+      "heavy_core_jobs_selected": false,
+      "run_id": 30883964398
+    },
+    "flake_rate": null,
+    "flake_rate_reason": "The bounded sample is insufficient for a defensible flake rate.",
+    "portal_schema_pr_1159": {
+      "core_python_313_elapsed_seconds": 335.5,
+      "core_tests_passed": 6234,
+      "core_tests_skipped": 27,
+      "head": "4c6b390082ccc2be491f685434c1b2da1c7138c0",
+      "observed_failed_workflows": 0,
+      "top_level_workflows": 11
+    }
+  },
+  "schema_version": 1,
+  "workflow_count": 83,
+  "workflows": [
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "deploy"
+      ],
+      "path": ".github/workflows/ai-platform-binance-spot-instrument-persistent-sampler-deploy.yml",
+      "timeout_minutes": [
+        20
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request",
+        "schedule"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "initialize",
+        "sample"
+      ],
+      "path": ".github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance-v3.yml",
+      "timeout_minutes": [
+        5,
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "acceptance"
+      ],
+      "path": ".github/workflows/ai-platform-binance-spot-instrument-shadow-acceptance.yml",
+      "timeout_minutes": [
+        1500
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "smoke"
+      ],
+      "path": ".github/workflows/ai-platform-binance-spot-instrument-smoke-selfhosted.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "smoke"
+      ],
+      "path": ".github/workflows/ai-platform-binance-spot-instrument-smoke.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "build-candle-artifact"
+      ],
+      "path": ".github/workflows/ai-platform-liquidation-candle-artifact.yml",
+      "timeout_minutes": [
+        45
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "preflight"
+      ],
+      "path": ".github/workflows/ai-platform-okx-liquidation-shadow-acceptance-staging-preflight.yml",
+      "timeout_minutes": [
+        15
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "acceptance"
+      ],
+      "path": ".github/workflows/ai-platform-okx-liquidation-shadow-acceptance.yml",
+      "timeout_minutes": [
+        1500
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "smoke"
+      ],
+      "path": ".github/workflows/ai-platform-okx-liquidation-shadow-smoke.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch",
+        "schedule"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "refresh-kraken-history"
+      ],
+      "path": ".github/workflows/ai-platform-phase5-data-cache.yml",
+      "timeout_minutes": [
+        240
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "exit-threshold-tuning"
+      ],
+      "path": ".github/workflows/ai-platform-phase5-exit-tuning.yml",
+      "timeout_minutes": [
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "final-holdout-validation-v2"
+      ],
+      "path": ".github/workflows/ai-platform-phase5-final-validation-v2.yml",
+      "timeout_minutes": [
+        240
+      ]
+    },
+    {
+      "action_refs": [],
+      "events": [
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "retired-final-holdout-v1"
+      ],
+      "path": ".github/workflows/ai-platform-phase5-final-validation.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "signal-threshold-tuning"
+      ],
+      "path": ".github/workflows/ai-platform-phase5-tuning.yml",
+      "timeout_minutes": [
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "historical-model-comparison"
+      ],
+      "path": ".github/workflows/ai-platform-phase6-historical-comparison.yml",
+      "timeout_minutes": [
+        480
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "historical-model-comparison"
+      ],
+      "path": ".github/workflows/ai-platform-phase6-model-comparison.yml",
+      "timeout_minutes": [
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-request",
+        "data",
+        "seed-backtest",
+        "aggregate"
+      ],
+      "path": ".github/workflows/ai-platform-rl-v2-action-observability-execution.yml",
+      "timeout_minutes": [
+        20,
+        30,
+        240,
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
+      ],
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "execution-preflight"
+      ],
+      "path": ".github/workflows/ai-platform-rl-v2-execution-preflight.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-request",
+        "data",
+        "backtest"
+      ],
+      "path": ".github/workflows/ai-platform-rl-v2-historical-training-execution.yml",
+      "timeout_minutes": [
+        20,
+        240,
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-request",
+        "data",
+        "seed-backtest",
+        "aggregate"
+      ],
+      "path": ".github/workflows/ai-platform-rl-v2-lifecycle-seed-robustness.yml",
+      "timeout_minutes": [
+        20,
+        30,
+        240,
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-request",
+        "data",
+        "backtest"
+      ],
+      "path": ".github/workflows/ai-platform-rl-v2-roi-lifecycle-paired-attribution.yml",
+      "timeout_minutes": [
+        20,
+        240,
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "archive-guard"
+      ],
+      "path": ".github/workflows/ai-platform-tradingview-futures-historical-benchmark.yml",
+      "timeout_minutes": [
+        20
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "contract",
+        "execute"
+      ],
+      "path": ".github/workflows/ai-platform-tradingview-futures-lookahead-repair.yml",
+      "timeout_minutes": [
+        20,
+        180
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "contract",
+        "data-preflight"
+      ],
+      "path": ".github/workflows/ai-platform-tradingview-futures-preflight.yml",
+      "timeout_minutes": [
+        15,
+        240
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": true,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "backend",
+        "portal",
+        "deployment"
+      ],
+      "path": ".github/workflows/ai-platform-wickhunter-market-evidence-ci.yml",
+      "timeout_minutes": [
+        10,
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "initialize"
+      ],
+      "path": ".github/workflows/ai-platform-wickhunter-production-market-evidence-v2.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      ],
+      "events": [
+        "pull_request",
+        "schedule"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "initialize",
+        "sample"
+      ],
+      "path": ".github/workflows/ai-platform-wickhunter-production-market-evidence.yml",
+      "timeout_minutes": [
+        10,
+        20
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate"
+      ],
+      "path": ".github/workflows/ai-platform.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": true,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "backend-integration",
+        "chromium-journeys",
+        "closure-gate"
+      ],
+      "path": ".github/workflows/ai-program-closure-e2e.yml",
+      "timeout_minutes": [
+        30,
+        35
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate"
+      ],
+      "path": ".github/workflows/ai-strategy-engine.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3",
+        "peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "schedule"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "auto-update"
+      ],
+      "path": ".github/workflows/binance-lev-tier-update.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "./.github/actions/classify-changes",
+        "./.github/workflows/ai-platform.yml",
+        "./.github/workflows/ai-program-closure-e2e.yml",
+        "./.github/workflows/ai-strategy-engine.yml",
+        "./.github/workflows/portal-completeness-audit.yml",
+        "./.github/workflows/portal-oidc-state-claim-postgresql.yml",
+        "./.github/workflows/portal-oidc-state-claim.yml",
+        "./.github/workflows/portal-schema-exact-image.yml",
+        "./.github/workflows/portal-schema-integrity.yml",
+        "./.github/workflows/portal-universal-e2e.yml",
+        "./.github/workflows/portal-web.yml",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch",
+        "schedule",
+        "release",
+        "issues"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": true,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "classify",
+        "ai-platform",
+        "portal-web",
+        "portal-schema",
+        "exact-image",
+        "oidc-state-claim",
+        "oidc-postgresql",
+        "closure-e2e",
+        "strategy-engine",
+        "completeness-audit",
+        "universal-e2e",
+        "component-gate"
+      ],
+      "path": ".github/workflows/ci-components.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "./.github/actions/classify-changes",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3",
+        "pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd"
+      ],
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch",
+        "schedule",
+        "release"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "classify",
+        "routing-contract",
+        "core-light",
+        "pre-commit",
+        "docs-check",
+        "core-tests",
+        "exhaustive-tests",
+        "online-tests",
+        "build",
+        "ci-gate"
+      ],
+      "path": ".github/workflows/ci.yml",
+      "timeout_minutes": [
+        10,
+        20
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "push",
+        "release"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "build-docs"
+      ],
+      "path": ".github/workflows/deploy-docs.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "./.github/workflows/packages-cleanup.yml",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "devcontainers/ci@513af61f4de4f75d37e4438f184ba4358f0fc1ca",
+        "docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch",
+        "schedule"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "build-and-push",
+        "packages-cleanup"
+      ],
+      "path": ".github/workflows/devcontainer-build.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "./.github/actions/docker-tags",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0",
+        "docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c",
+        "docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8",
+        "sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": true,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "deploy-docker",
+        "deploy-arm"
+      ],
+      "path": ".github/workflows/docker-build.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "dockerHubDescription"
+      ],
+      "path": ".github/workflows/docker-update-readme.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-request",
+        "data",
+        "backtest"
+      ],
+      "path": ".github/workflows/experimental-model-historical-backtest-execution.yml",
+      "timeout_minutes": [
+        20,
+        240,
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "contract",
+        "data"
+      ],
+      "path": ".github/workflows/experimental-model-historical-execution-preflight.yml",
+      "timeout_minutes": [
+        30,
+        240
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
+      ],
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "runtime-smoke"
+      ],
+      "path": ".github/workflows/experimental-model-runtime-smoke.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "preflight"
+      ],
+      "path": ".github/workflows/freqtrade-synology-runner-cutover-preflight.yml",
+      "timeout_minutes": [
+        15
+      ]
+    },
+    {
+      "action_refs": [
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "launch-cutover",
+        "stabilization-delay",
+        "verify-live-cutover",
+        "cutover-watchdog"
+      ],
+      "path": ".github/workflows/freqtrade-synology-runner-dedicated-cutover-retry.yml",
+      "timeout_minutes": [
+        5,
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "launch-cutover",
+        "stabilization-delay",
+        "verify-live-cutover",
+        "cutover-watchdog"
+      ],
+      "path": ".github/workflows/freqtrade-synology-runner-dedicated-cutover.yml",
+      "timeout_minutes": [
+        5,
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      ],
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": true,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate",
+        "build"
+      ],
+      "path": ".github/workflows/freqtrade-synology-runner-image.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "launch-cutover",
+        "stabilization-delay",
+        "verify-live-cutover",
+        "cutover-watchdog"
+      ],
+      "path": ".github/workflows/freqtrade-synology-runner-state-path-cutover.yml",
+      "timeout_minutes": [
+        5,
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch",
+        "schedule",
+        "issues"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "control_plane",
+        "health",
+        "runner_watchdog"
+      ],
+      "path": ".github/workflows/liquidations-live-operational-health.yml",
+      "timeout_minutes": [
+        1,
+        3
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "prove"
+      ],
+      "path": ".github/workflows/liquidations-live-portal-synology-proof.yml",
+      "timeout_minutes": [
+        20
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "deploy"
+      ],
+      "path": ".github/workflows/liquidations-live-synology.yml",
+      "timeout_minutes": [
+        45
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1",
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch",
+        "schedule",
+        "issues"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "notify"
+      ],
+      "path": ".github/workflows/liquidations-live-telegram-notifications.yml",
+      "timeout_minutes": [
+        5
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/delete-package-versions@e5bc658cc4c965c472efe991f8beea3981499c55"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "deploy-docker"
+      ],
+      "path": ".github/workflows/packages-cleanup.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
+      ],
+      "events": [
+        "pull_request",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": true,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-deployment"
+      ],
+      "path": ".github/workflows/portal-authentik-deployment.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "deploy"
+      ],
+      "path": ".github/workflows/portal-authentik-local-test-deploy.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": true,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "preflight"
+      ],
+      "path": ".github/workflows/portal-authentik-synology-target-preflight.yml",
+      "timeout_minutes": [
+        15
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call",
+        "issues"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "static-completeness-audit"
+      ],
+      "path": ".github/workflows/portal-completeness-audit.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "schedule"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": true,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "nightly-regression",
+        "weekly-stability",
+        "manual-soak"
+      ],
+      "path": ".github/workflows/portal-e2e-scheduled.yml",
+      "timeout_minutes": [
+        45,
+        60
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "diagnose"
+      ],
+      "path": ".github/workflows/portal-oidc-callback-diagnostic.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "diagnose"
+      ],
+      "path": ".github/workflows/portal-oidc-login-diagnostic.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "bootstrap"
+      ],
+      "path": ".github/workflows/portal-oidc-owner-bootstrap.yml",
+      "timeout_minutes": [
+        15
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "deploy"
+      ],
+      "path": ".github/workflows/portal-oidc-public-deploy.yml",
+      "timeout_minutes": [
+        45
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": true,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "independent-connections"
+      ],
+      "path": ".github/workflows/portal-oidc-state-claim-postgresql.yml",
+      "timeout_minutes": [
+        20
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": true,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "exact-image"
+      ],
+      "path": ".github/workflows/portal-oidc-state-claim.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate"
+      ],
+      "path": ".github/workflows/portal-p12-simulation-first.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": true,
+        "postgresql": true,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "emulated-authentik-runtime",
+        "emulated-portal-identity"
+      ],
+      "path": ".github/workflows/portal-pi06-emulated-target-acceptance.yml",
+      "timeout_minutes": [
+        30,
+        40
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "preflight"
+      ],
+      "path": ".github/workflows/portal-real-target-readonly-preflight.yml",
+      "timeout_minutes": [
+        15
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": true,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": true,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "exact-image"
+      ],
+      "path": ".github/workflows/portal-schema-exact-image.yml",
+      "timeout_minutes": [
+        25
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": true,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "inventory",
+        "sqlite-integrity",
+        "postgresql-integrity"
+      ],
+      "path": ".github/workflows/portal-schema-integrity.yml",
+      "timeout_minutes": [
+        15,
+        20,
+        25
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
+      ],
+      "events": [
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "protected-ingress"
+      ],
+      "path": ".github/workflows/portal-staging-external-e2e.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate"
+      ],
+      "path": ".github/workflows/portal-staging-policy.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": true,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "backend-scenario",
+        "chromium-journey"
+      ],
+      "path": ".github/workflows/portal-universal-e2e.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "workflow_call"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": true,
+        "postgresql": false,
+        "reusable": true,
+        "scheduled": false
+      },
+      "jobs": [
+        "web-validation",
+        "chromium-regression"
+      ],
+      "path": ".github/workflows/portal-web.yml",
+      "timeout_minutes": [
+        30,
+        40
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3",
+        "stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "mypy-version-update"
+      ],
+      "path": ".github/workflows/pre-commit-types-update.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3",
+        "peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1"
+      ],
+      "events": [
+        "workflow_dispatch",
+        "schedule"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": true
+      },
+      "jobs": [
+        "auto-update"
+      ],
+      "path": ".github/workflows/pre-commit-update.yml",
+      "timeout_minutes": []
+    },
+    {
+      "action_refs": [
+        "write"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "repair"
+      ],
+      "path": ".github/workflows/repair-freqtrade-synology-runner-orphan.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      ],
+      "events": [
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "repair"
+      ],
+      "path": ".github/workflows/repair-synology-autostart.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-request",
+        "data",
+        "execute"
+      ],
+      "path": ".github/workflows/residual-pytorch-bounded-m1-execution.yml",
+      "timeout_minutes": [
+        20,
+        240,
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae",
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": true,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "validate-request",
+        "data",
+        "execute"
+      ],
+      "path": ".github/workflows/residual-pytorch-bounded-m1-v3-generalization.yml",
+      "timeout_minutes": [
+        20,
+        240,
+        360
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "generate"
+      ],
+      "path": ".github/workflows/residual-pytorch-bounded-m1-v3-request-generator.yml",
+      "timeout_minutes": [
+        20
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "data-target-audit"
+      ],
+      "path": ".github/workflows/residual-pytorch-data-target-audit.yml",
+      "timeout_minutes": [
+        10
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request",
+        "push",
+        "workflow_dispatch"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "runtime-smoke"
+      ],
+      "path": ".github/workflows/residual-pytorch-runtime-smoke.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+      ],
+      "events": [
+        "pull_request"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "convert"
+      ],
+      "path": ".github/workflows/wickhunter-production-live-archive-conversion.yml",
+      "timeout_minutes": [
+        30
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      ],
+      "events": [
+        "push",
+        "issues"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": true,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "repair-product-branch"
+      ],
+      "path": ".github/workflows/wickhunter-wh09-live-contract-repair.yml",
+      "timeout_minutes": [
+        60
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      ],
+      "events": [
+        "push",
+        "issues"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": true,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "repair-product-branch"
+      ],
+      "path": ".github/workflows/wickhunter-wh09-producer-parity-repair.yml",
+      "timeout_minutes": [
+        60
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0",
+        "zizmorcore/zizmor-action@192e21d79ab29983730a13d1382995c2307fbcaa"
+      ],
+      "events": [
+        "pull_request",
+        "push"
+      ],
+      "features": {
+        "custom_runner": false,
+        "docker": false,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "zizmor"
+      ],
+      "path": ".github/workflows/zizmor_action.yml",
+      "timeout_minutes": []
+    }
+  ]
+}

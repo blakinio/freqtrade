@@ -9,6 +9,7 @@ on:
   release:
     types: [published]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
   schedule:
     - cron: "0 3 * * 4"
   workflow_dispatch:
@@ -25,113 +26,103 @@ jobs:
     name: "CI scope"
     runs-on: ubuntu-24.04
     outputs:
-      core: ${{ steps.scope.outputs.core }}
-      exhaustive: ${{ steps.scope.outputs.exhaustive }}
       docs: ${{ steps.scope.outputs.docs }}
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+      core_light: ${{ steps.scope.outputs.core_light }}
+      core_matrix: ${{ steps.scope.outputs.core_matrix }}
+      compatibility_sweep: ${{ steps.scope.outputs.compatibility_sweep }}
       online: ${{ steps.scope.outputs.online }}
+      build_distribution: ${{ steps.scope.outputs.build_distribution }}
+      full: ${{ steps.scope.outputs.full }}
+      routing_json: ${{ steps.scope.outputs.routing_json }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
           fetch-depth: 0
-
-      - name: Classify changed files
+      - name: Classify changed files and risk
         id: scope
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PUSH_BEFORE_SHA: ${{ github.event.before }}
-          CURRENT_SHA: ${{ github.sha }}
+        uses: ./.github/actions/classify-changes
+        with:
+          event_name: ${{ github.event_name }}
+          event_action: ${{ github.event.action }}
+          base_sha: ${{ github.event.pull_request.base.sha || github.event.before }}
+          head_sha: ${{ github.event.pull_request.head.sha || github.sha }}
+          labels_json: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          ref_name: ${{ github.ref_name }}
+      - name: Upload routing decision
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-routing-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/ci-routing.json
+          if-no-files-found: error
+          retention-days: 14
+
+  routing-contract:
+    name: "Lightweight required PR gate"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - name: Install bounded validation tools
+        run: python -m pip install --disable-pip-version-check pytest==9.1.1 PyYAML==6.0.3 ruff==0.15.20 mypy==2.1.0
+      - name: Compile and type-check classifier
         run: |
-          set -euo pipefail
-          core=false
-          exhaustive=false
-          docs=false
-          online=false
-          changed_files=()
+          python -m compileall -q tools/ci tests/ci
+          mypy --config-file=/dev/null --ignore-missing-imports tools/ci/*.py
+      - name: Lint classifier and routing tests
+        run: |
+          ruff check tools/ci tests/ci
+          ruff format --check tools/ci tests/ci
+      - name: Run routing contract tests
+        run: python -m pytest -q -o addopts='' --confcutdir=tests/ci tests/ci
+      - name: Validate workflow syntax, routing and action security
+        run: python tools/ci/validate_workflows.py
 
-          case "$EVENT_NAME" in
-            schedule|release|workflow_dispatch)
-              core=true
-              exhaustive=true
-              docs=true
-              online=true
-              ;;
-            pull_request)
-              mapfile -t changed_files < <(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")
-              ;;
-            push)
-              if [[ -z "$PUSH_BEFORE_SHA" || "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
-                core=true
-                exhaustive=true
-                docs=true
-                online=true
-              else
-                mapfile -t changed_files < <(git diff --name-only "$PUSH_BEFORE_SHA" "$CURRENT_SHA")
-              fi
-              ;;
-            *)
-              core=true
-              exhaustive=true
-              docs=true
-              online=true
-              ;;
-          esac
-
-          if [[ ${#changed_files[@]} -gt 0 ]]; then
-            printf 'Changed files:\n'
-            printf '  %s\n' "${changed_files[@]}"
-            for file in "${changed_files[@]}"; do
-              case "$file" in
-                docs/*|*.md|README*|CONTRIBUTING*|SECURITY*) docs=true ;;
-              esac
-
-              case "$file" in
-                ai_platform/provenance/rl_v2_model_state_manifest.py|ai_platform/provenance/rl_v2_torch.py|ai_platform/provenance/rl_v2_torch_state_dict.py|tests/ai_platform/test_rl_v2_model_state_manifest.py|tests/ai_platform/test_rl_v2_torch_adapter.py|tests/ai_platform/test_rl_v2_torch_state_dict_adapter.py)
-                  core=true
-                  ;;
-              esac
-
-              case "$file" in
-                ai_platform/*|docs/*|*.md|README*|CONTRIBUTING*|SECURITY*|.github/workflows/*|.github/dependabot.yml|.gitignore|.editorconfig)
-                  ;;
-                *)
-                  core=true
-                  ;;
-              esac
-
-              case "$file" in
-                requirements*.txt|pyproject.toml|uv.lock|setup.py|setup.cfg|MANIFEST.in|freqtrade/exchange/*|freqtrade/freqai/*|freqtrade/optimize/*|freqtrade/data/*|Dockerfile*|docker/*|.github/workflows/ci.yml)
-                  exhaustive=true
-                  ;;
-              esac
-
-              case "$file" in
-                freqtrade/exchange/*|requirements*.txt|pyproject.toml|uv.lock)
-                  online=true
-                  ;;
-              esac
-            done
-          fi
-
-          if [[ "$exhaustive" == "true" ]]; then
-            core=true
-          fi
-
-          if [[ "$core" == "false" && "$docs" == "false" && ${#changed_files[@]} -eq 0 && "$EVENT_NAME" != "schedule" && "$EVENT_NAME" != "release" && "$EVENT_NAME" != "workflow_dispatch" ]]; then
-            core=true
-            exhaustive=true
-          fi
-
-          {
-            echo "core=$core"
-            echo "exhaustive=$exhaustive"
-            echo "docs=$docs"
-            echo "online=$online"
-          } >> "$GITHUB_OUTPUT"
-          echo "core=$core exhaustive=$exhaustive docs=$docs online=$online"
+  core-light:
+    name: "Focused core compile, typing and unit validation"
+    needs: classify
+    if: needs.classify.outputs.core_light == 'true' && needs.classify.outputs.core_matrix != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: true # zizmor: ignore[cache-poisoning] - test-only cache
+          python-version: "3.13"
+          cache-dependency-glob: "requirements.txt"
+          cache-suffix: "core-light-3.13"
+      - name: Install bounded core dependencies
+        run: |
+          uv pip install -r requirements.txt
+          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0
+          uv pip install --no-deps -e ft_client/
+          uv pip install --no-deps -e .
+      - name: Compile and lint core
+        run: |
+          python -m compileall -q freqtrade ft_client
+          ruff check freqtrade ft_client
+          ruff format --check freqtrade ft_client
+      - name: Focused typing
+        run: mypy --ignore-missing-imports --follow-imports=skip freqtrade ft_client
+      - name: Core unit validation without optional ML and optimization suites
+        run: >-
+          pytest -q --durations 20 -n auto
+          --ignore=tests/ai_platform
+          --ignore=tests/ai_platform_integration
+          --ignore=tests/freqai
+          --ignore=tests/optimize
 
   pre-commit:
     name: "Pre-commit checks"
@@ -149,7 +140,7 @@ jobs:
   docs-check:
     name: "Documentation build"
     needs: classify
-    if: needs.classify.outputs.docs == 'true' || needs.classify.outputs.exhaustive == 'true'
+    if: needs.classify.outputs.docs == 'true' || needs.classify.outputs.full == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -171,7 +162,7 @@ jobs:
   core-tests:
     name: "Core tests (${{ matrix.os }}, ${{ matrix.python-version }})"
     needs: classify
-    if: needs.classify.outputs.core == 'true'
+    if: needs.classify.outputs.core_matrix == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -262,7 +253,7 @@ jobs:
   exhaustive-tests:
     name: "Compatibility sweep (${{ matrix.os }}, ${{ matrix.python-version }})"
     needs: classify
-    if: needs.classify.outputs.exhaustive == 'true'
+    if: needs.classify.outputs.compatibility_sweep == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -342,7 +333,7 @@ jobs:
   build:
     name: "Build distributions"
     needs: [classify, core-tests]
-    if: always() && needs.classify.outputs.core == 'true' && needs.core-tests.result == 'success'
+    if: always() && needs.classify.outputs.build_distribution == 'true' && needs.core-tests.result == 'success'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -364,8 +355,10 @@ jobs:
     name: "CI Gate"
     needs:
       - classify
+      - routing-contract
       - pre-commit
       - docs-check
+      - core-light
       - core-tests
       - exhaustive-tests
       - online-tests
@@ -373,31 +366,49 @@ jobs:
     if: always()
     runs-on: ubuntu-24.04
     steps:
-      - name: Validate required job outcomes
+      - name: Validate selected and skipped job outcomes
         shell: bash
         env:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
+          ROUTING_RESULT: ${{ needs.routing-contract.result }}
           PRECOMMIT_RESULT: ${{ needs.pre-commit.result }}
           DOCS_RESULT: ${{ needs.docs-check.result }}
-          CORE_RESULT: ${{ needs.core-tests.result }}
+          CORE_LIGHT_RESULT: ${{ needs.core-light.result }}
+          CORE_MATRIX_RESULT: ${{ needs.core-tests.result }}
           EXHAUSTIVE_RESULT: ${{ needs.exhaustive-tests.result }}
           ONLINE_RESULT: ${{ needs.online-tests.result }}
           BUILD_RESULT: ${{ needs.build.result }}
-          CORE_SCOPE: ${{ needs.classify.outputs.core }}
-          EXHAUSTIVE_SCOPE: ${{ needs.classify.outputs.exhaustive }}
           DOCS_SCOPE: ${{ needs.classify.outputs.docs }}
+          CORE_LIGHT_SCOPE: ${{ needs.classify.outputs.core_light }}
+          CORE_MATRIX_SCOPE: ${{ needs.classify.outputs.core_matrix }}
+          FULL_SCOPE: ${{ needs.classify.outputs.full }}
+          COMPATIBILITY_SCOPE: ${{ needs.classify.outputs.compatibility_sweep }}
           ONLINE_SCOPE: ${{ needs.classify.outputs.online }}
+          BUILD_SCOPE: ${{ needs.classify.outputs.build_distribution }}
         run: |
           set -euo pipefail
-          failed=false
-          for result in "$CLASSIFY_RESULT" "$PRECOMMIT_RESULT" "$DOCS_RESULT" "$CORE_RESULT" "$EXHAUSTIVE_RESULT" "$ONLINE_RESULT" "$BUILD_RESULT"; do
-            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
-              failed=true
+          require_success() {
+            local selected="$1" result="$2" name="$3"
+            if [[ "$selected" == "true" && "$result" != "success" ]]; then
+              echo "$name was selected but finished as $result" >&2
+              exit 1
             fi
-          done
-          echo "CI scope: core=$CORE_SCOPE exhaustive=$EXHAUSTIVE_SCOPE docs=$DOCS_SCOPE online=$ONLINE_SCOPE"
-          if [[ "$failed" == "true" ]]; then
-            echo "One or more required CI jobs failed or were cancelled."
-            exit 1
+            if [[ "$selected" != "true" && "$result" != "skipped" ]]; then
+              echo "$name was not selected but finished as $result" >&2
+              exit 1
+            fi
+          }
+          [[ "$CLASSIFY_RESULT" == "success" ]]
+          [[ "$ROUTING_RESULT" == "success" ]]
+          [[ "$PRECOMMIT_RESULT" == "success" ]]
+          require_success "$DOCS_SCOPE" "$DOCS_RESULT" "Documentation build"
+          if [[ "$CORE_MATRIX_SCOPE" == "true" ]]; then
+            require_success false "$CORE_LIGHT_RESULT" "Focused core validation"
+          else
+            require_success "$CORE_LIGHT_SCOPE" "$CORE_LIGHT_RESULT" "Focused core validation"
           fi
-          echo "All required checks for this change scope passed."
+          require_success "$CORE_MATRIX_SCOPE" "$CORE_MATRIX_RESULT" "Core compatibility matrix"
+          require_success "$COMPATIBILITY_SCOPE" "$EXHAUSTIVE_RESULT" "Exhaustive compatibility sweep"
+          require_success "$ONLINE_SCOPE" "$ONLINE_RESULT" "Online compatibility"
+          require_success "$BUILD_SCOPE" "$BUILD_RESULT" "Distribution build"
+          echo "Routing: docs=$DOCS_SCOPE core_light=$CORE_LIGHT_SCOPE core_matrix=$CORE_MATRIX_SCOPE full=$FULL_SCOPE compatibility=$COMPATIBILITY_SCOPE online=$ONLINE_SCOPE build=$BUILD_SCOPE"

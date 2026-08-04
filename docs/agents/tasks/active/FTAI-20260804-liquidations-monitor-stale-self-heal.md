@@ -5,8 +5,8 @@ policy_version: 2
 prompting_standard_version: 2.1
 task_id: FTAI-20260804-liquidations-monitor-stale-self-heal
 project_lane: freqtrade-operations
-phase: implement
-status: implementing
+phase: validate
+status: validating
 execution_mode: github
 run_scope: single_task
 continuation_policy: continue_until_real_stop
@@ -22,10 +22,11 @@ feature_scope:
   completion_claim: internal_only
 branch: fix/liquidations-monitor-stale-self-heal-20260804
 base: develop@2cd22f389060683919fa373c34e73fd2a9ca1dba
+pull_request: 1200
 incident_issue: 1198
 previous_repairs: [1170, 1187]
 invocation_started_at: 2026-08-04T22:41:00+02:00
-last_progress_at: 2026-08-04T23:00:00+02:00
+last_progress_at: 2026-08-04T23:04:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
@@ -65,6 +66,31 @@ GitHub scheduled workflows are not a reliable five-minute timer. The notificatio
 
 No exchange credential, collector data, trading configuration, model state, order authority, execution authority, production secret or live-capital setting may be changed. The self-heal action may only dispatch the existing bounded read-only health workflow on `develop`.
 
+## Recovery checkpoint
+
+```yaml
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: liquidations-monitor-self-heal-20260804T2241+0200
+  session_started_at: 2026-08-04T22:41:00+02:00
+  checkpointed_at: 2026-08-04T23:04:00+02:00
+  last_progress_at: 2026-08-04T23:04:00+02:00
+  phase: exact-head validation and audit
+  exact_head: pending-after-checkpoint
+  pull_request: 1200
+  active_operation: GitHub Actions exact-head validation
+  external_run_ids: [30949862938, 30949863273]
+  operation_started_at: 2026-08-04T22:52:41+02:00
+  wait_deadline_at: 2026-08-04T23:37:41+02:00
+  check_generation: pr-1200-initial
+  checks_used: 0
+  status: active
+  safe_to_resume: true
+  resume_condition: required checks for PR #1200 reach a terminal state
+  next_action: Inspect aggregate exact-head CI, repair only the first proven failure, or audit and merge if all gates pass.
+```
+
 ## Context checkpoint
 
 - PROVEN: the previous watchdog payload transport repair remains valid; run `30942268319` completed all three jobs successfully.
@@ -73,4 +99,4 @@ No exchange credential, collector data, trading configuration, model state, orde
 - IMPLEMENTED: focused regression tests cover dispatch, in-progress suppression, successful recovery and real-incident authority.
 - IMPLEMENTED: Telegram workflow uses the self-heal wrapper and grants bounded `actions: write`.
 - owned_paths: `.github/workflows/liquidations-live-telegram-notifications.yml`, `ai_platform/scripts/liquidation_alert_watchdog.py`, `tests/ai_platform_integration/test_liquidation_alert_watchdog.py`, this task record.
-- next_action: open the implementation PR, run exact-head CI and security validation, then merge and verify real scheduled self-heal against Issue #1198.
+- next_action: inspect exact-head CI for PR #1200 and repair only the first proven failure, or audit and merge if all gates pass.

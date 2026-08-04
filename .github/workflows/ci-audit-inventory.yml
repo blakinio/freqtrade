@@ -93,10 +93,44 @@ jobs:
           }, indent=2))
           PY
 
+      - name: Build bounded source snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import tarfile
+
+          candidates = [
+              Path('.github'),
+              Path('pyproject.toml'),
+              Path('setup.cfg'),
+              Path('pytest.ini'),
+              Path('requirements.txt'),
+              Path('requirements-dev.txt'),
+              Path('requirements-common.txt'),
+              Path('requirements-hyperopt.txt'),
+              Path('requirements-freqai.txt'),
+              Path('requirements-freqai-rl.txt'),
+              Path('tools/ci'),
+              Path('tests/ai_platform/portal'),
+              Path('ai_platform/portal'),
+              Path('deploy'),
+              Path('docker-compose.yml'),
+              Path('docker-compose-freqai.yml'),
+          ]
+          with tarfile.open('ci-audit-source.tar.gz', 'w:gz') as archive:
+              for path in candidates:
+                  if path.exists():
+                      archive.add(path, arcname=str(path))
+          PY
+
       - name: Upload immutable inventory
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ci-audit-inventory-${{ github.sha }}
-          path: ci-audit-inventory.json
+          path: |
+            ci-audit-inventory.json
+            ci-audit-source.tar.gz
           if-no-files-found: error
           retention-days: 7

@@ -1,0 +1,49 @@
+name: CI confcutdir tree probe (temporary)
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-confcutdir-tree-probe
+  cancel-in-progress: false
+
+jobs:
+  prepare-tree:
+    if: github.event.pull_request.head.ref == 'audit/ci-architecture-optimizer-20260804'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact branch head
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: audit/ci-architecture-optimizer-20260804
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Build reviewed target tree
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/workflows/ci.yml')
+          text = path.read_text(encoding='utf-8')
+          old = "run: python -m pytest -q -o addopts='' tests/ci"
+          new = "run: python -m pytest -q -o addopts='' --confcutdir=tests/ci tests/ci"
+          if text.count(old) != 1:
+              raise SystemExit('unexpected routing test command')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          git show HEAD^:.github/workflows/ci-confcutdir-tree-probe.yml > .github/workflows/ci-confcutdir-tree-probe.yml 2>/dev/null || rm .github/workflows/ci-confcutdir-tree-probe.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git diff --cached --check
+          git commit -m "fix(ci): isolate routing contract tests"
+          echo "BASE_COMMIT=$(git rev-parse HEAD^)"
+          echo "TARGET_COMMIT=$(git rev-parse HEAD)"
+          echo "TARGET_TREE=$(git rev-parse 'HEAD^{tree}')"

@@ -8,7 +8,8 @@ phase: investigate
 base_branch: develop
 base_head_at_start: c236117f2efe6326d24f6cb58c0dabfd96469370
 branch: audit/ci-architecture-optimizer-20260804
-pull_request: none
+pull_request: 1191
+current_head: 83f8663666de80b693856dd359926d986a61cd5f
 policy_version: 2
 task_kind: implementation
 implementation_authorized: true
@@ -74,14 +75,15 @@ acceptance_inventory:
   - id: CI-009
     criterion: before/after selection, retained coverage, cost reduction, residual risks and rollback are documented
     status: pending
-related_prs: []
+related_prs:
+  - blakinio/freqtrade#1191 (draft, discovery)
 related_branches:
   - ci/smart-freqtrade-test-routing (stale, 0 commits ahead of develop, 1943 commits behind; not reused)
 blockers: []
-next_action: run the temporary branch-only repository inventory workflow and inspect its immutable artifact/log output
+next_action: inspect the first PR-triggered inventory run and download its immutable repository inventory artifact
 invocation_started_at: 2026-08-04T18:33:00+02:00
-last_progress_at: 2026-08-04T18:33:00+02:00
-ci_checks_for_current_head: 0
+last_progress_at: 2026-08-04T18:38:45+02:00
+ci_checks_for_current_head: 1
 unchanged_state_checks: 0
 identical_failure_retries: 0
 repair_cycles_for_current_gate: 0
@@ -91,7 +93,7 @@ stall_warnings: 0
 
 ## Context checkpoint
 
-The owner authorized one phased AUDIT, IMPLEMENTATION AND VALIDATION task for CI routing optimization in `blakinio/freqtrade`, based on `develop`. Required root and agent governance contracts were read from trusted base `c236117f2efe6326d24f6cb58c0dabfd96469370`. No matching open PR or issue was found. The stale branch `ci/smart-freqtrade-test-routing` has no commits ahead of current `develop` and is not active work.
+The owner authorized one phased AUDIT, IMPLEMENTATION AND VALIDATION task for CI routing optimization in `blakinio/freqtrade`, based on `develop`. Required root and agent governance contracts were read from trusted base `c236117f2efe6326d24f6cb58c0dabfd96469370`. No matching open PR or issue was found. The stale branch `ci/smart-freqtrade-test-routing` has no commits ahead of current `develop` and is not active work. Draft PR #1191 now owns the task. A temporary read-only, pinned-action inventory workflow is present only to enumerate repository workflow files and governing paths because the GitHub connector cannot list directories; it must be deleted before final merge.
 
 ## Recovery checkpoint
 
@@ -101,19 +103,19 @@ recovery:
   generation: 1
   session_id: ci-audit-20260804T1833+0200
   session_started_at: 2026-08-04T18:33:00+02:00
-  checkpointed_at: 2026-08-04T18:33:00+02:00
-  last_progress_at: 2026-08-04T18:33:00+02:00
+  checkpointed_at: 2026-08-04T18:38:45+02:00
+  last_progress_at: 2026-08-04T18:38:45+02:00
   phase: investigate
-  exact_head: pending first branch commit
-  pull_request: none
-  active_operation: prepare temporary branch-only repository inventory workflow
+  exact_head: 83f8663666de80b693856dd359926d986a61cd5f
+  pull_request: 1191
+  active_operation: wait for first PR-triggered inventory workflow generation
   external_run_ids: []
-  operation_started_at: null
+  operation_started_at: 2026-08-04T18:38:45+02:00
   wait_deadline_at: 2026-08-04T19:18:00+02:00
   check_generation: inventory-v1
-  checks_used: 0
-  status: active
+  checks_used: 1
+  status: waiting
   safe_to_resume: true
-  resume_condition: branch exists and temporary workflow can be committed
-  next_action: create the temporary branch-only inventory workflow, then inspect the resulting run once
+  resume_condition: PR-triggered workflow runs exist for exact head 83f8663666de80b693856dd359926d986a61cd5f
+  next_action: fetch the aggregate workflow-run snapshot once, then download the inventory artifact from the inventory run
 ```

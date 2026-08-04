@@ -10,6 +10,7 @@ import tempfile
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from itertools import pairwise
 from pathlib import Path
@@ -54,10 +55,14 @@ MAX_EVENTS_PER_SYMBOL = 500
 MAX_LIQUID20_SYMBOLS = 20
 LIVE_HISTORY_WINDOW_MS = 86_400_000
 LIVE_POINTER_NAME = "live-state-v1.json"
+RUN_STATE_NAME = "run-state-v1.json"
 LIQUID20_LIVE_CONTRACT = "liquidation-live-state-v1"
+EXPECTED_LIVE_SOURCES = ("binance-usdm", "bybit-linear", "okx-swap")
+MAX_LIVE_RUNS_PER_WINDOW = 64
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
+LIVE_RUN_ID_RE = re.compile(r"^liquid20-(?P<day>\d{8})T\d{6}Z-\d+$")
 FORBIDDEN_ENVIRONMENT_NAMES = (
     "OKX_API_KEY",
     "OKX_API_SECRET",
@@ -412,6 +417,137 @@ def _live_history(
     )
 
 
+def _assert_live_zero_authority(payload: Mapping[str, object], *, field: str) -> None:
+    if (
+        payload.get("trading_credentials_present") is not False
+        or payload.get("execution_enabled") is not False
+        or payload.get("trading_authorized") is not False
+        or payload.get("orders_submitted") != 0
+    ):
+        raise CandidatePaperRuntimeOperatorError(f"{field} contains forbidden authority")
+
+
+def _validate_live_run_state(
+    payload: dict[str, Any],
+    *,
+    run_id: str,
+    expected_run_state: str,
+) -> dict[str, Any]:
+    if payload.get("schema_version") != 1:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 run-state schema mismatch")
+    if payload.get("contract") != LIQUID20_LIVE_CONTRACT:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 run-state contract mismatch")
+    if payload.get("run_id") != run_id:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 run-state identity mismatch")
+    if payload.get("run_state") != expected_run_state:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 run-state lifecycle mismatch")
+    _assert_live_zero_authority(payload, field="Liquid20 run state")
+    source_payloads = _require_object(
+        payload.get("sources"),
+        field=f"Liquid20 source states for {run_id}",
+    )
+    if tuple(sorted(source_payloads)) != EXPECTED_LIVE_SOURCES:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 source set mismatch")
+    return source_payloads
+
+
+def _relevant_live_run_ids(
+    runs_root: Path,
+    *,
+    active_run_id: str,
+    history_start_ms: int,
+) -> tuple[str, ...]:
+    if runs_root.is_symlink() or not runs_root.is_dir():
+        raise CandidatePaperRuntimeOperatorError("Liquid20 live runs root is invalid")
+    run_ids = tuple(
+        sorted(
+            entry.name
+            for entry in runs_root.iterdir()
+            if entry.is_dir() and not entry.is_symlink() and LIVE_RUN_ID_RE.fullmatch(entry.name)
+        )
+    )
+    if not run_ids or run_ids[-1] != active_run_id:
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 live pointer does not select the newest regular run"
+        )
+    history_start_day = datetime.fromtimestamp(
+        history_start_ms / 1000,
+        tz=UTC,
+    ).strftime("%Y%m%d")
+    relevant = tuple(run_id for run_id in run_ids if run_id[9:17] >= history_start_day)
+    if not relevant or active_run_id not in relevant:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 history run set is empty")
+    if len(relevant) > MAX_LIVE_RUNS_PER_WINDOW:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 history contains too many run epochs")
+    return relevant
+
+
+def _read_live_source_events(
+    run_root: Path,
+    *,
+    source: str,
+    source_row: dict[str, Any],
+    observed_at_ms: int,
+    history_start_ms: int,
+) -> tuple[LiquidationEvent, ...]:
+    event_path = run_root / f"{source}.ndjson"
+    events_written = _non_negative_integer(
+        source_row.get("events_written", 0),
+        field=f"{source} events_written",
+    )
+    if events_written == 0:
+        if event_path.is_symlink() or not event_path.is_file():
+            raise CandidatePaperRuntimeOperatorError(
+                f"Liquid20 source events {source} must be a regular file"
+            )
+        if event_path.stat().st_size != 0:
+            raise CandidatePaperRuntimeOperatorError(
+                f"Liquid20 source events {source} contradict events_written"
+            )
+        if source_row.get("last_event_received_at_ms") is not None:
+            raise CandidatePaperRuntimeOperatorError(
+                f"Liquid20 source state {source} has a receipt without events"
+            )
+        return ()
+
+    event_rows = _read_bounded_jsonl_tail(
+        event_path,
+        field=f"Liquid20 source events {source}",
+    )
+    if event_path.stat().st_size <= MAX_INPUT_BYTES and len(event_rows) != events_written:
+        raise CandidatePaperRuntimeOperatorError(
+            f"Liquid20 source events {source} contradict events_written"
+        )
+
+    parsed_events: list[LiquidationEvent] = []
+    for row in event_rows:
+        try:
+            event = event_from_json_dict(row)
+        except ValueError as exc:
+            raise CandidatePaperRuntimeOperatorError(
+                f"Liquid20 source event is invalid: {source}"
+            ) from exc
+        if event.source != source:
+            raise CandidatePaperRuntimeOperatorError(
+                "Liquid20 event source does not match its immutable source file"
+            )
+        if event.received_at_ms > observed_at_ms:
+            raise CandidatePaperRuntimeOperatorError(
+                "Liquid20 event was unavailable at live observation time"
+            )
+        parsed_events.append(event)
+
+    claimed_last_received = _integer(
+        source_row.get("last_event_received_at_ms"),
+        field=f"{source} last event receipt",
+    )
+    if max(event.received_at_ms for event in parsed_events) != claimed_last_received:
+        raise CandidatePaperRuntimeOperatorError(
+            f"Liquid20 source events {source} do not match the state receipt"
+        )
+    return tuple(event for event in parsed_events if event.received_at_ms >= history_start_ms)
+
+
 def _load_liquid20_live_root(  # noqa: C901
     root: Path,
     *,
@@ -429,28 +565,21 @@ def _load_liquid20_live_root(  # noqa: C901
     run_id = str(pointer.get("active_run_id", ""))
     if contract != LIQUID20_LIVE_CONTRACT:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live contract mismatch")
-    if not run_id or Path(run_id).name != run_id:
+    if LIVE_RUN_ID_RE.fullmatch(run_id) is None:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live run identity is invalid")
-    state = _require_object(pointer.get("state"), field="Liquid20 live state")
-    if state.get("schema_version") != 1 or state.get("contract") != contract:
-        raise CandidatePaperRuntimeOperatorError("Liquid20 live state contract mismatch")
-    if state.get("run_state") != "active":
-        raise CandidatePaperRuntimeOperatorError("Liquid20 live run is not active")
-    if state.get("run_id") != run_id:
-        raise CandidatePaperRuntimeOperatorError("Liquid20 live run identity mismatch")
-    if (
-        state.get("trading_credentials_present") is not False
-        or state.get("execution_enabled") is not False
-        or state.get("trading_authorized") is not False
-        or state.get("orders_submitted") != 0
-    ):
-        raise CandidatePaperRuntimeOperatorError("Liquid20 live state contains forbidden authority")
+
+    active_state = _require_object(pointer.get("state"), field="Liquid20 live state")
+    active_source_payloads = _validate_live_run_state(
+        active_state,
+        run_id=run_id,
+        expected_run_state="active",
+    )
     observed_at_ms = _integer(
         pointer.get("collector_heartbeat_at_ms"),
         field="Liquid20 collector heartbeat",
     )
     state_heartbeat = _integer(
-        state.get("collector_heartbeat_at_ms"),
+        active_state.get("collector_heartbeat_at_ms"),
         field="Liquid20 state heartbeat",
     )
     if state_heartbeat != observed_at_ms:
@@ -461,66 +590,55 @@ def _load_liquid20_live_root(  # noqa: C901
     if age_ms > maximum_age_ms:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live pointer is stale")
 
-    source_payloads = _require_object(state.get("sources"), field="Liquid20 live source states")
-    if not source_payloads:
-        raise CandidatePaperRuntimeOperatorError("Liquid20 live source states are empty")
-    run_root = root / "runs" / run_id
-    if run_root.is_symlink() or not run_root.is_dir():
-        raise CandidatePaperRuntimeOperatorError("Liquid20 live run root is invalid")
+    source_states = tuple(
+        _live_source_state(
+            source,
+            _require_object(
+                active_source_payloads[source],
+                field=f"Liquid20 source state {source}",
+            ),
+            observed_at_ms=observed_at_ms,
+            maximum_age_ms=maximum_age_ms,
+        )
+        for source in EXPECTED_LIVE_SOURCES
+    )
 
-    source_states: list[LiquidationSourceState] = []
-    events: list[LiquidationEvent] = []
     history_start_ms = observed_at_ms - LIVE_HISTORY_WINDOW_MS
-    for source in sorted(source_payloads):
-        if not re.fullmatch(r"[a-z0-9-]{2,40}", source):
-            raise CandidatePaperRuntimeOperatorError("Liquid20 live source identity is invalid")
-        source_row = _require_object(
-            source_payloads[source], field=f"Liquid20 source state {source}"
+    runs_root = root / "runs"
+    relevant_run_ids = _relevant_live_run_ids(
+        runs_root,
+        active_run_id=run_id,
+        history_start_ms=history_start_ms,
+    )
+    events: list[LiquidationEvent] = []
+    for historical_run_id in relevant_run_ids:
+        run_root = runs_root / historical_run_id
+        run_state = _read_bounded_json(
+            run_root / RUN_STATE_NAME,
+            field=f"Liquid20 run state {historical_run_id}",
         )
-        source_states.append(
-            _live_source_state(
-                source,
-                source_row,
-                observed_at_ms=observed_at_ms,
-                maximum_age_ms=maximum_age_ms,
+        expected_state = "active" if historical_run_id == run_id else "completed"
+        run_source_payloads = _validate_live_run_state(
+            run_state,
+            run_id=historical_run_id,
+            expected_run_state=expected_state,
+        )
+        if historical_run_id == run_id and run_state != active_state:
+            raise CandidatePaperRuntimeOperatorError("Liquid20 active pointer and run state differ")
+        for source in EXPECTED_LIVE_SOURCES:
+            source_row = _require_object(
+                run_source_payloads[source],
+                field=f"Liquid20 source state {source}",
             )
-        )
-        event_path = run_root / f"{source}.ndjson"
-        events_written = _non_negative_integer(
-            source_row.get("events_written", 0),
-            field=f"{source} events_written",
-        )
-        if events_written == 0:
-            if event_path.is_symlink() or not event_path.is_file():
-                raise CandidatePaperRuntimeOperatorError(
-                    f"Liquid20 source events {source} must be a regular file"
+            events.extend(
+                _read_live_source_events(
+                    run_root,
+                    source=source,
+                    source_row=source_row,
+                    observed_at_ms=observed_at_ms,
+                    history_start_ms=history_start_ms,
                 )
-            if event_path.stat().st_size != 0:
-                raise CandidatePaperRuntimeOperatorError(
-                    f"Liquid20 source events {source} contradict events_written"
-                )
-            continue
-        event_rows = _read_bounded_jsonl_tail(
-            event_path,
-            field=f"Liquid20 source events {source}",
-        )
-        for row in event_rows:
-            try:
-                event = event_from_json_dict(row)
-            except ValueError as exc:
-                raise CandidatePaperRuntimeOperatorError(
-                    f"Liquid20 source event is invalid: {source}"
-                ) from exc
-            if event.source != source:
-                raise CandidatePaperRuntimeOperatorError(
-                    "Liquid20 event source does not match its immutable source file"
-                )
-            if event.received_at_ms > observed_at_ms:
-                raise CandidatePaperRuntimeOperatorError(
-                    "Liquid20 event was unavailable at live observation time"
-                )
-            if event.received_at_ms >= history_start_ms:
-                events.append(event)
+            )
 
     ordered_events = tuple(
         sorted(events, key=lambda item: (item.source_event_id, item.received_at_ms))
@@ -560,7 +678,6 @@ def _load_liquid20_live_root(  # noqa: C901
         )
         for symbol in selected_symbols
     )
-    selected_events = ordered_events
 
     universe = DynamicUniverseSnapshot(
         schema_version="wickhunter-dynamic-universe-v1",
@@ -576,12 +693,12 @@ def _load_liquid20_live_root(  # noqa: C901
             for symbol in selected_symbols
         ),
     )
-    source_tuple = tuple(source_states)
     snapshot_body = {
         "contract": contract,
-        "run_id": run_id,
+        "active_run_id": run_id,
+        "source_run_ids": list(relevant_run_ids),
         "observed_at_ms": observed_at_ms,
-        "event_ids": [item.source_event_id for item in selected_events],
+        "event_ids": event_ids,
         "history_hashes": [item.history_sha256 for item in histories],
         "source_states": [
             {
@@ -591,16 +708,16 @@ def _load_liquid20_live_root(  # noqa: C901
                 "last_received_at_ms": item.last_received_at_ms,
                 "observed_at_ms": item.observed_at_ms,
             }
-            for item in source_tuple
+            for item in source_states
         ],
         "selected_symbols": list(selected_symbols),
     }
     return Liquid20Snapshot(
         canonical_sha256(snapshot_body),
         observed_at_ms,
-        selected_events,
+        ordered_events,
         histories,
-        source_tuple,
+        source_states,
         universe,
     )
 
@@ -1101,21 +1218,35 @@ class CandidatePaperRuntimeOperator:
         markets: tuple[PublicMarketSnapshot, ...],
         observed_at_ms: int,
     ) -> ShadowRuntimeTick:
+        latest_state = self.service.runtime.state
         market_by_symbol = {item.symbol: item for item in markets}
-        if set(market_by_symbol) != set(liquid20.universe.selected_symbols):
+        if len(market_by_symbol) != len(markets):
             raise CandidatePaperRuntimeOperatorError(
-                "public market symbols do not match the selected Liquid20 universe"
+                "public market snapshots contain duplicate symbols"
+            )
+        required_market_symbols = {
+            *liquid20.universe.selected_symbols,
+            *(position.symbol.upper() for position in latest_state.positions),
+        }
+        if set(market_by_symbol) != required_market_symbols:
+            raise CandidatePaperRuntimeOperatorError(
+                "public market symbols do not cover the universe and open positions"
             )
 
-        latest_state = self.service.runtime.state
         market_wide_liquidation_intensity = _market_wide_liquidation_intensity(
             liquid20.events,
             decision_timestamp_ms=observed_at_ms,
             burst_window_ms=self.service.binding.parameters.burst_window_ms,
         )
+        burst_start_ms = observed_at_ms - self.service.binding.parameters.burst_window_ms
         requests: list[ShadowDecisionRequest] = []
         for symbol in liquid20.universe.selected_symbols:
-            events = tuple(item for item in liquid20.events if item.symbol.upper() == symbol)
+            events = tuple(
+                item
+                for item in liquid20.events
+                if item.symbol.upper() == symbol
+                and burst_start_ms <= item.received_at_ms <= observed_at_ms
+            )
             if not events:
                 continue
             market = market_by_symbol[symbol]
@@ -1216,6 +1347,14 @@ class CandidatePaperRuntimeOperator:
             now_ms=now_ms,
             maximum_age_ms=self.maximum_source_age_ms,
         )
+        market_symbols = tuple(
+            sorted(
+                {
+                    *liquid20.universe.selected_symbols,
+                    *(position.symbol.upper() for position in self.service.runtime.state.positions),
+                }
+            )
+        )
         markets = tuple(
             fetch_public_market_snapshot(
                 symbol=symbol,
@@ -1223,7 +1362,7 @@ class CandidatePaperRuntimeOperator:
                 base_url=self.public_market_base_url,
                 opener=self.opener,
             )
-            for symbol in liquid20.universe.selected_symbols
+            for symbol in market_symbols
         )
         tick = self._compose_tick(
             liquid20=liquid20,

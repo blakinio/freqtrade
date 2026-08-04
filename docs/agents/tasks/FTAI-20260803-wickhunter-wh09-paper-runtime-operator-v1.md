@@ -10,7 +10,7 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: validating_repair
+status: validating_final_audit
 execution_mode: github
 validation_level: full
 base_branch: develop
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate the deployed Liquid20 contract repair, rerun a fresh independent audit and exact-head repository CI, then merge PR 1160 only if every required gate passes
+next_action: validate the final runtime audit repair, remove the temporary executor, run fresh exact-head repository CI and merge PR 1160 only if every required gate passes
 ```
 
 ## Goal and completion boundary
@@ -193,3 +193,26 @@ and state schema, contract, active-run and run identity, and permits a configure
 with a regular empty NDJSON file and `events_written=0` to remain truthfully stale without
 blocking healthy-source processing. A source claiming events still requires a non-empty,
 parseable file, and an empty source file must be exactly empty.
+
+
+## Final runtime audit repair
+
+A fresh source-to-consumer audit after the deployed-contract correction identified and
+repaired four additional material boundaries:
+
+- decision requests previously included historical events outside the configured current
+  burst, causing ordinary no-signal ticks to raise instead of journaling an empty decision set;
+- public marks covered only the current Liquid20 universe, so a persisted open position that
+  later left the top-20 universe could retain a stale mark indefinitely;
+- the loader read only the active daily run and therefore discarded the preceding part of the
+  required 24-hour history at each UTC rotation;
+- run IDs, newest-run selection, run-state/source-set identity and source-file last-receipt
+  consistency were not bound tightly enough to the deployed producer contract.
+
+The bounded repair reads all regular producer run epochs overlapping the preceding 24-hour
+window, with a 64-epoch safety bound, validates exact active/completed lifecycle and zero
+authority, filters decision evidence to the current burst, and fetches public marks for both
+the selected universe and persisted open positions. The repair executor is based on
+`develop@8b361cd0316f605114969627edcb1ea744afe8d4` and must pass focused tests, Ruff, mypy, Compose validation,
+exact-revision image build and exact seven-path verification before publishing the product
+head.

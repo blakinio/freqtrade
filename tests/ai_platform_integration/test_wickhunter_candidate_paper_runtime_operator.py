@@ -79,47 +79,96 @@ def _event(
     }
 
 
-def _write_live_root(
+def _run_state(
     root: Path,
     *,
-    heartbeat_ms: int = NOW_MS,
-    events: list[dict[str, object]] | None = None,
-    execution_enabled: bool = False,
-    contract: str = "liquidation-live-state-v1",
-) -> Path:
-    source_events = events or [
-        _event("event-history", received_at_ms=NOW_MS - 120_000),
-        _event("event-current", received_at_ms=NOW_MS - 1_000),
-    ]
-    run_id = "run-20260804"
+    run_id: str,
+    run_state: str,
+    heartbeat_ms: int,
+    events: list[dict[str, object]],
+    execution_enabled: bool,
+    contract: str,
+) -> dict[str, object]:
     run_root = root / "runs" / run_id
     run_root.mkdir(parents=True)
-    event_path = run_root / "binance-usdm.ndjson"
-    event_path.write_text(
-        "".join(json.dumps(item, sort_keys=True) + "\n" for item in source_events),
-        encoding="utf-8",
-    )
-    last_received = max(int(cast(int | str, item["received_at_ms"])) for item in source_events)
+    sources: dict[str, object] = {}
+    for source in operator_module.EXPECTED_LIVE_SOURCES:
+        source_events = events if source == "binance-usdm" else []
+        event_path = run_root / f"{source}.ndjson"
+        event_path.write_text(
+            "".join(json.dumps(item, sort_keys=True) + "\n" for item in source_events),
+            encoding="utf-8",
+        )
+        last_received = (
+            max(int(cast(int | str, item["received_at_ms"])) for item in source_events)
+            if source_events
+            else None
+        )
+        sources[source] = {
+            "configured": True,
+            "connected": run_state == "active",
+            "events_written": len(source_events),
+            "last_event_received_at_ms": last_received,
+            "last_heartbeat_at_ms": heartbeat_ms,
+        }
     state = {
         "schema_version": 1,
         "contract": contract,
         "run_id": run_id,
-        "run_state": "active",
+        "run_state": run_state,
+        "data_mode": "live" if run_state == "active" else "historical",
+        "collector_started_at_ms": heartbeat_ms - 60_000,
         "collector_heartbeat_at_ms": heartbeat_ms,
         "trading_credentials_present": False,
         "execution_enabled": execution_enabled,
         "trading_authorized": False,
         "orders_submitted": 0,
-        "sources": {
-            "binance-usdm": {
-                "configured": True,
-                "connected": True,
-                "events_written": len(source_events),
-                "last_event_received_at_ms": last_received,
-                "last_heartbeat_at_ms": heartbeat_ms,
-            }
-        },
+        "sources": sources,
     }
+    (run_root / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return state
+
+
+def _write_live_root(
+    root: Path,
+    *,
+    heartbeat_ms: int = NOW_MS,
+    events: list[dict[str, object]] | None = None,
+    previous_events: list[dict[str, object]] | None = None,
+    execution_enabled: bool = False,
+    contract: str = "liquidation-live-state-v1",
+) -> Path:
+    source_events = (
+        events
+        if events is not None
+        else [
+            _event("event-history", received_at_ms=NOW_MS - 120_000),
+            _event("event-current", received_at_ms=NOW_MS - 1_000),
+        ]
+    )
+    if previous_events is not None:
+        _run_state(
+            root,
+            run_id="liquid20-20270114T000000Z-0",
+            run_state="completed",
+            heartbeat_ms=NOW_MS - 60_000,
+            events=previous_events,
+            execution_enabled=execution_enabled,
+            contract=contract,
+        )
+    run_id = "liquid20-20270115T000000Z-0"
+    state = _run_state(
+        root,
+        run_id=run_id,
+        run_state="active",
+        heartbeat_ms=heartbeat_ms,
+        events=source_events,
+        execution_enabled=execution_enabled,
+        contract=contract,
+    )
     pointer = {
         "schema_version": 1,
         "contract": contract,
@@ -134,9 +183,9 @@ def _write_live_root(
     return root
 
 
-def _market(*, observed_at_ms: int = NOW_MS) -> PublicMarketSnapshot:
+def _market(*, symbol: str = "BTCUSDT", observed_at_ms: int = NOW_MS) -> PublicMarketSnapshot:
     return PublicMarketSnapshot(
-        symbol="BTCUSDT",
+        symbol=symbol,
         observed_at_ms=observed_at_ms,
         decision_price=Decimal("100"),
         completed_candle_close_ms=observed_at_ms - 1_000,
@@ -187,33 +236,80 @@ def test_live_root_caps_per_symbol_history(tmp_path: Path) -> None:
 
 
 def test_live_root_allows_configured_source_with_zero_events(tmp_path: Path) -> None:
-    root = _write_live_root(tmp_path / "liquid20")
-    pointer_path = root / "live-state-v1.json"
-    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
-    state = cast(dict[str, object], pointer["state"])
-    run_id = str(state["run_id"])
-    empty_source_path = root / "runs" / run_id / "bybit-linear.ndjson"
-    empty_source_path.write_text("", encoding="utf-8")
-    sources = cast(dict[str, object], state["sources"])
-    sources["bybit-linear"] = {
-        "configured": True,
-        "connected": True,
-        "events_written": 0,
-        "last_event_received_at_ms": None,
-        "last_heartbeat_at_ms": NOW_MS,
-    }
-    pointer_path.write_text(
-        json.dumps(pointer, sort_keys=True) + "\n",
-        encoding="utf-8",
+    snapshot = load_liquid20_snapshot(
+        _write_live_root(tmp_path / "liquid20"),
+        now_ms=NOW_MS,
     )
-
-    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
     source_states = {item.source: item for item in snapshot.source_states}
 
     assert snapshot.universe.selected_symbols == ("BTCUSDT",)
     assert source_states["binance-usdm"].health is SourceHealth.HEALTHY
     assert source_states["bybit-linear"].health is SourceHealth.STALE
     assert source_states["bybit-linear"].coverage_available is False
+    assert source_states["okx-swap"].health is SourceHealth.STALE
+
+
+def test_live_root_reads_previous_completed_run_across_rotation(tmp_path: Path) -> None:
+    snapshot = load_liquid20_snapshot(
+        _write_live_root(
+            tmp_path / "liquid20",
+            events=[_event("event-current", received_at_ms=NOW_MS - 1_000)],
+            previous_events=[_event("event-previous-run", received_at_ms=NOW_MS - 3_600_000)],
+        ),
+        now_ms=NOW_MS,
+    )
+
+    assert {event.source_event_id for event in snapshot.events} == {
+        "event-current",
+        "event-previous-run",
+    }
+    assert len(snapshot.history_for("BTCUSDT").event_notionals_usd) == 2
+
+
+def test_live_root_rejects_run_source_and_receipt_substitution(tmp_path: Path) -> None:
+    invalid_run_root = _write_live_root(tmp_path / "invalid-run")
+    pointer_path = invalid_run_root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    old_run_id = str(state["run_id"])
+    invalid_run_id = "run-20270115"
+    (invalid_run_root / "runs" / old_run_id).rename(invalid_run_root / "runs" / invalid_run_id)
+    state["run_id"] = invalid_run_id
+    pointer["active_run_id"] = invalid_run_id
+    pointer_path.write_text(json.dumps(pointer, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="run identity"):
+        load_liquid20_snapshot(invalid_run_root, now_ms=NOW_MS)
+
+    missing_source_root = _write_live_root(tmp_path / "missing-source")
+    pointer_path = missing_source_root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    sources = cast(dict[str, object], state["sources"])
+    del sources["okx-swap"]
+    run_id = str(state["run_id"])
+    (missing_source_root / "runs" / run_id / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    pointer_path.write_text(json.dumps(pointer, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="source set"):
+        load_liquid20_snapshot(missing_source_root, now_ms=NOW_MS)
+
+    receipt_root = _write_live_root(tmp_path / "receipt")
+    pointer_path = receipt_root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    sources = cast(dict[str, object], state["sources"])
+    binance = cast(dict[str, object], sources["binance-usdm"])
+    binance["last_event_received_at_ms"] = NOW_MS - 2_000
+    run_id = str(state["run_id"])
+    (receipt_root / "runs" / run_id / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    pointer_path.write_text(json.dumps(pointer, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="state receipt"):
+        load_liquid20_snapshot(receipt_root, now_ms=NOW_MS)
 
 
 @pytest.mark.parametrize(
@@ -496,7 +592,11 @@ def test_consecutive_loss_cooldown_is_anchored_to_latest_loss() -> None:
     assert expected_until <= expired.evaluated_at_ms
 
 
-def _service(*, mode: BotMode = BotMode.PAPER) -> Any:
+def _service(
+    *,
+    mode: BotMode = BotMode.PAPER,
+    positions: tuple[SimpleNamespace, ...] = (),
+) -> Any:
     request = SimpleNamespace(
         bot_instance="wickhunter-paper-v1",
         mode=mode,
@@ -515,7 +615,7 @@ def _service(*, mode: BotMode = BotMode.PAPER) -> Any:
     state = SimpleNamespace(
         generation=0,
         last_observed_at_ms=None,
-        positions=(),
+        positions=positions,
         closed_positions=(),
         cumulative_realized_pnl_quote=Decimal("0"),
         drawdown_ratio=Decimal("0"),
@@ -538,6 +638,107 @@ def _operator(tmp_path: Path, *, mode: BotMode = BotMode.PAPER) -> CandidatePape
         data_drift=DriftState.UNKNOWN,
         circuit_breaker_active=True,
     )
+
+
+def test_tick_uses_only_current_burst_and_keeps_open_position_marks(
+    tmp_path: Path,
+) -> None:
+    old_only = load_liquid20_snapshot(
+        _write_live_root(
+            tmp_path / "old-only",
+            events=[_event("event-old", received_at_ms=NOW_MS - 120_000)],
+        ),
+        now_ms=NOW_MS,
+    )
+    operator = CandidatePaperRuntimeOperator(
+        service=cast(Any, _service()),
+        liquid20_root_path=(tmp_path / "old-only").resolve(),
+        health_path=(tmp_path / "old-health.json").resolve(),
+        operator_commit=CODE_SHA,
+    )
+    old_tick = operator._compose_tick(
+        liquid20=old_only,
+        markets=(_market(),),
+        observed_at_ms=NOW_MS,
+    )
+    assert old_tick.decision_requests == ()
+
+    open_position = SimpleNamespace(
+        unrealized_pnl_quote=Decimal("0"),
+        mark_price=Decimal("200"),
+        quantity=Decimal("1"),
+        symbol="ETHUSDT",
+        side=TradeDirection.LONG,
+    )
+    current = load_liquid20_snapshot(
+        _write_live_root(tmp_path / "current"),
+        now_ms=NOW_MS,
+    )
+    operator = CandidatePaperRuntimeOperator(
+        service=cast(Any, _service(positions=(open_position,))),
+        liquid20_root_path=(tmp_path / "current").resolve(),
+        health_path=(tmp_path / "current-health.json").resolve(),
+        operator_commit=CODE_SHA,
+    )
+    tick = operator._compose_tick(
+        liquid20=current,
+        markets=(_market(), _market(symbol="ETHUSDT")),
+        observed_at_ms=NOW_MS,
+    )
+
+    assert len(tick.decision_requests) == 1
+    assert {symbol for symbol, _price in tick.mark_prices} == {"BTCUSDT", "ETHUSDT"}
+
+
+def test_run_once_fetches_mark_for_open_position_outside_universe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StopAfterCompose(RuntimeError):
+        pass
+
+    open_position = SimpleNamespace(
+        unrealized_pnl_quote=Decimal("0"),
+        mark_price=Decimal("200"),
+        quantity=Decimal("1"),
+        symbol="ETHUSDT",
+        side=TradeDirection.LONG,
+    )
+    service = _service(positions=(open_position,))
+
+    def stop_after_compose(_tick: object) -> None:
+        raise StopAfterCompose
+
+    service.step = stop_after_compose
+    root = _write_live_root(tmp_path / "liquid20")
+    operator = CandidatePaperRuntimeOperator(
+        service=cast(Any, service),
+        liquid20_root_path=root.resolve(),
+        health_path=(tmp_path / "health.json").resolve(),
+        operator_commit=CODE_SHA,
+    )
+    fetched: list[str] = []
+
+    def fake_market_snapshot(
+        *,
+        symbol: str,
+        observed_at_ms: int,
+        base_url: str,
+        opener: object,
+    ) -> PublicMarketSnapshot:
+        del base_url, opener
+        fetched.append(symbol)
+        return _market(symbol=symbol, observed_at_ms=observed_at_ms)
+
+    monkeypatch.setattr(
+        operator_module,
+        "fetch_public_market_snapshot",
+        fake_market_snapshot,
+    )
+    with pytest.raises(StopAfterCompose):
+        operator.run_once(observed_at_ms=NOW_MS)
+
+    assert fetched == ["BTCUSDT", "ETHUSDT"]
 
 
 def test_operator_refuses_non_paper_binding(tmp_path: Path) -> None:

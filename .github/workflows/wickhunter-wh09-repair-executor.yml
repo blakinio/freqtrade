@@ -1,6 +1,6 @@
 name: WickHunter WH09 temporary repair executor
 
-# Trigger generation 3: publish a durable terminal run checkpoint.
+# Trigger generation 4: apply the exact proven Ruff repair.
 on:
   push:
     branches: [develop]
@@ -49,6 +49,9 @@ jobs:
           git show "$HELPER_SHA:.github/wh09-payload/healthcheck.py.zlib.b64" > "$staging/paper_runtime_healthcheck.py"
           cp .github/wh09-repair/operator_tests_payload.py "$staging/tests.py"
           python .github/wh09-repair/patch_operator.py "$staging/operator.py"
+          python .github/wh09-repair/patch_ruff.py \
+            "$staging/operator.py" \
+            "$staging/paper_runtime_healthcheck.py"
           python -m py_compile \
             "$staging/operator.py" \
             "$staging/paper_runtime_healthcheck.py" \

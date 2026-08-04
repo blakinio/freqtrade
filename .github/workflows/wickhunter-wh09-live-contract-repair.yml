@@ -44,9 +44,16 @@ jobs:
           import zlib
           from pathlib import Path
 
-          encoded = Path(
-              ".github/wh09-live-contract-repair/patch.py.zlib.b64"
-          ).read_text(encoding="utf-8").strip()
+          repair_root = Path(".github/wh09-live-contract-repair")
+          parts = sorted(repair_root.glob("patch.py.zlib.b64.part-*"))
+          if [part.name for part in parts] != [
+              "patch.py.zlib.b64.part-00",
+              "patch.py.zlib.b64.part-01",
+          ]:
+              raise SystemExit("repair payload parts mismatch")
+          encoded = "".join(
+              part.read_text(encoding="utf-8").strip() for part in parts
+          )
           payload = zlib.decompress(base64.b64decode(encoded, validate=True))
           digest = hashlib.sha256(payload).hexdigest()
           if digest != os.environ["PATCH_SHA256"]:

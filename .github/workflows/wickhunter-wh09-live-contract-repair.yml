@@ -18,7 +18,7 @@ concurrency:
 env:
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
   EXPECTED_TARGET_HEAD: 67a43fbcca06cc72730d295aa2d456a149daf43d
-  PATCH_SHA256: 99238e57ce4089af55068895539156cad6bff3db91d8850ce1b0ca678d080d19
+  PATCH_SHA256: e5629fe2e446327eb340b2a59d991353945ecfff1d822a203173c1e7842afd37
 
 jobs:
   repair-product-branch:

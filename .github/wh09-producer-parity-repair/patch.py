@@ -48,7 +48,7 @@ def main() -> None:
     section = f"""\n\n## Exact producer-shape parity repair\n\nA final comparison against `ai_platform/scripts/liquidation_live_stream.py` on\n`develop@{sys.argv[1]}` proved two remaining contract-shape differences. The producer\ndoes not emit `orders_submitted` in its zero-authority run-state and does not create an\n`okx-swap.ndjson` file while OKX is explicitly unconfigured. The operator now treats an\nabsent `orders_submitted` field as the producer's canonical zero while still rejecting any\nnon-zero value, and permits a missing event file only for an unconfigured source with zero\nevents and no receipt. Configured zero-event sources still require an empty regular file.\nA focused regression materializes this exact producer shape and verifies fail-closed source\nhealth without rejecting the valid live root.\n"""
     if "## Exact producer-shape parity repair" in task_text:
         raise SystemExit("task record already contains producer-shape repair")
-    TASK.write_text(task_text.rstrip() + section + "\n", encoding="utf-8")
+    TASK.write_text(task_text.rstrip() + section.rstrip() + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

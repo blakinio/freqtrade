@@ -302,6 +302,7 @@ class RiskService:
                     event_type = EventType.RISK_REJECTED
 
                 self._repository.add_trade_intent(session, intent)
+                session.flush()
                 self._repository.add_risk_decision(session, decision)
                 self._repository.add_audit_event(
                     session,

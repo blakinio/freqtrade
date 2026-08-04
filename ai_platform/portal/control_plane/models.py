@@ -2,7 +2,16 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ai_platform.portal.control_plane.database import Base
@@ -19,7 +28,13 @@ class BotRow(Base):
     observed_state: Mapped[str] = mapped_column(String(32), nullable=False)
     current_revision: Mapped[int] = mapped_column(Integer, nullable=False)
 
-    __table_args__ = (Index("ix_portal_bots_tenant", "tenant_id"),)
+    __table_args__ = (
+        CheckConstraint(
+            "current_revision > 0",
+            name="ck_portal_bots_current_revision_positive",
+        ),
+        Index("ix_portal_bots_tenant", "tenant_id"),
+    )
 
 
 class BotConfigRevisionRow(Base):
@@ -34,6 +49,16 @@ class BotConfigRevisionRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
+        CheckConstraint(
+            "revision > 0",
+            name="ck_portal_bot_config_revision_positive",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "bot_id"],
+            ["portal_bots.tenant_id", "portal_bots.bot_id"],
+            name="fk_portal_revision_bot",
+            ondelete="RESTRICT",
+        ),
         UniqueConstraint("tenant_id", "revision_id", name="uq_portal_revision_identity"),
         Index("ix_portal_revisions_tenant_bot", "tenant_id", "bot_id"),
     )

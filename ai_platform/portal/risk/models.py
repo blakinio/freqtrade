@@ -59,6 +59,7 @@ class RiskDecisionRow(Base):
         ForeignKeyConstraint(
             ["tenant_id", "trade_intent_id"],
             ["portal_trade_intents.tenant_id", "portal_trade_intents.trade_intent_id"],
+            name="fk_portal_risk_decision_intent",
             ondelete="RESTRICT",
         ),
         Index(

@@ -1,0 +1,95 @@
+services:
+  wickhunter-paper-runtime:
+    image: ${WICKHUNTER_PAPER_RUNTIME_IMAGE:?set exact image tag or digest}
+    build:
+      context: ../../..
+      dockerfile: deploy/synology/wickhunter-paper-runtime/Dockerfile
+      args:
+        OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
+    command:
+      - --candidate-root
+      - /runtime/candidate
+      - --activation-root
+      - /runtime/activation
+      - --journal-root
+      - /runtime/journal
+      - --liquid20-root
+      - /runtime/liquid20
+      - --health-root
+      - /runtime/operator
+      - --operator-commit
+      - ${OPERATOR_COMMIT:?set exact merged implementation commit}
+      - --public-market-base-url
+      - https://fapi.binance.com
+      - --poll-seconds
+      - ${POLL_SECONDS:-600}
+      - --maximum-source-age-ms
+      - ${MAXIMUM_SOURCE_AGE_MS:-300000}
+      - --model-drift
+      - ${MODEL_DRIFT:-healthy}
+      - --data-drift
+      - ${DATA_DRIFT:-healthy}
+      - --circuit-breaker-active
+      - ${CIRCUIT_BREAKER_ACTIVE:-false}
+    environment:
+      OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
+      HEALTH_PATH: /runtime/operator/health.json
+      HEALTH_MAX_AGE_SECONDS: ${HEALTH_MAX_AGE_SECONDS:-1200}
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
+      NO_PROXY: fapi.binance.com
+      no_proxy: fapi.binance.com
+    volumes:
+      - type: bind
+        source: ${CANDIDATE_ROOT_HOST:?set verified candidate root}
+        target: /runtime/candidate
+        read_only: true
+      - type: bind
+        source: ${ACTIVATION_ROOT_HOST:?set immutable activation root}
+        target: /runtime/activation
+        read_only: true
+      - type: bind
+        source: ${LIQUID20_LIVE_HOST:?set read-only Liquid20 live root}
+        target: /runtime/liquid20
+        read_only: true
+      - type: bind
+        source: ${JOURNAL_ROOT_HOST:?set exact journal root}
+        target: /runtime/journal
+      - type: bind
+        source: ${OPERATOR_STATE_HOST:?set exact operator health root}
+        target: /runtime/operator
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777
+    user: "65532:65532"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    privileged: false
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    pids_limit: 256
+    mem_limit: 2g
+    cpus: 2.0
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - /app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    networks:
+      - wickhunter-public-market-egress
+
+networks:
+  wickhunter-public-market-egress:
+    driver: bridge
+    internal: false

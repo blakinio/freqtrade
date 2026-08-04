@@ -1,80 +1,88 @@
-name: CI reusable-concurrency tree probe (temporary)
+name: Residual PyTorch Bounded M1 V3 Request Generator
 
 on:
   pull_request:
+    types: [opened]
     branches:
       - develop
-    types: [synchronize, reopened]
+    paths:
+      - "ai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v3.txt"
 
 permissions:
   contents: write
 
 concurrency:
-  group: ci-reusable-concurrency-tree-probe
+  group: residual-pytorch-bounded-m1-v3-request-generator
   cancel-in-progress: false
 
-jobs:
-  prepare-tree:
-    if: github.event.pull_request.head.ref == 'audit/ci-architecture-optimizer-20260804'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - name: Check out exact branch head
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
-        with:
-          ref: audit/ci-architecture-optimizer-20260804
-          fetch-depth: 0
-          persist-credentials: true
+env:
+  MARKER_PATH: ai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v3.txt
+  REQUEST_PATH: ai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-generalization-v3.json
+  REQUEST_BRANCH: run/residual-pytorch-bounded-m1-v3-generalization
+  TASK_PATH: docs/agents/tasks/FTAI-20260728-residual-pytorch-bounded-m1-v3-generalization.md
 
-      - name: Build reviewed target tree
+jobs:
+  generate:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact marker commit
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact marker scope and active task
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          expected=$'A\tai_platform/experimental_model_research/run-requests/generate-residual-pytorch-bounded-m1-v3.txt'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "Generator PR must add exactly the canonical v3 marker" >&2
+            printf 'Expected:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          fi
+          test "$(cat "$MARKER_PATH")" = "generate residual-pytorch-bounded-m1-generalization-v3"
+          python tools/agents/checkpoint.py "$TASK_PATH" --require-checkpoint
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.12"
+
+      - name: Install numeric request dependencies
+        run: uv pip install numpy pandas
+
+      - name: Generate canonical request bytes
+        run: |
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v3_run_request \
+            --print-canonical > /tmp/residual-pytorch-bounded-m1-generalization-v3.json
+
+      - name: Commit exactly the request to the prepared branch
         shell: bash
         run: |
-          set -uo pipefail
-          status=0
-          (
-            set -euxo pipefail
-            python - <<'PY'
-          from pathlib import Path
-
-          replacements = {
-              ".github/workflows/ai-program-closure-e2e.yml": (
-                  'group: "${{ github.workflow }}-${{ github.ref }}"',
-                  'group: "ai-program-closure-e2e-${{ github.ref }}"',
-              ),
-              ".github/workflows/ai-strategy-engine.yml": (
-                  'group: "${{ github.workflow }}-${{ github.ref }}"',
-                  'group: "ai-strategy-engine-${{ github.ref }}"',
-              ),
-              ".github/workflows/portal-completeness-audit.yml": (
-                  'group: "${{ github.workflow }}-${{ github.ref }}"',
-                  'group: "portal-completeness-audit-${{ github.ref }}"',
-              ),
-              ".github/workflows/portal-universal-e2e.yml": (
-                  'group: "${{ github.workflow }}-${{ github.ref }}"',
-                  'group: "portal-universal-e2e-${{ github.ref }}"',
-              ),
-              ".github/workflows/portal-web.yml": (
-                  'group: "${{ github.workflow }}-${{ github.ref }}"',
-                  'group: "portal-web-${{ github.ref }}"',
-              ),
-          }
-          for name, (old, new) in replacements.items():
-              path = Path(name)
-              text = path.read_text(encoding="utf-8")
-              if text.count(old) != 1:
-                  raise SystemExit(f"unexpected concurrency contract in {name}")
-              path.write_text(text.replace(old, new), encoding="utf-8")
-          PY
-            git show HEAD^:.github/workflows/residual-pytorch-bounded-m1-v3-request-generator.yml > .github/workflows/residual-pytorch-bounded-m1-v3-request-generator.yml
-            python -m py_compile tools/ci/*.py tests/ci/*.py
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add --all
-            git diff --cached --check
-            git commit -m "fix(ci): isolate reusable workflow concurrency"
-            echo "BASE_COMMIT=$(git rev-parse HEAD^)"
-            echo "TARGET_COMMIT=$(git rev-parse HEAD)"
-            echo "TARGET_TREE=$(git rev-parse 'HEAD^{tree}')"
-            git push origin HEAD:audit/ci-architecture-optimizer-20260804
-          ) 2>&1 | tee /tmp/ci-concurrency-tree.log || status=${PIPESTATUS[0]}
-          exit "$status"
+          set -euo pipefail
+          git fetch origin "$REQUEST_BRANCH"
+          git checkout -B "$REQUEST_BRANCH" "origin/$REQUEST_BRANCH"
+          test ! -e "$REQUEST_PATH"
+          mkdir -p "$(dirname "$REQUEST_PATH")"
+          cp /tmp/residual-pytorch-bounded-m1-generalization-v3.json "$REQUEST_PATH"
+          python -m ai_platform.scripts.residual_pytorch_bounded_m1_v3_run_request "$REQUEST_PATH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$REQUEST_PATH"
+          expected=$'A\tai_platform/experimental_model_research/run-requests/residual-pytorch-bounded-m1-generalization-v3.json'
+          actual="$(git diff --cached --name-status)"
+          test "$actual" = "$expected"
+          git commit -m "run(ai-platform): execute bounded M1 v3 generalization"
+          git push origin HEAD:"$REQUEST_BRANCH"

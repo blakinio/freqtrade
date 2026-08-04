@@ -1,0 +1,27 @@
+name: Temporary Liquidations Watchdog Formatter
+
+on:
+  push:
+    branches:
+      - fix/liquidations-monitor-stale-self-heal-20260804
+    paths:
+      - .github/workflows/tmp-format-liquidations-watchdog.yml
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.13"
+      - run: python -m pip install ruff
+      - run: |
+          ruff check --select I001 --fix ai_platform/scripts/liquidation_alert_watchdog.py
+          cat ai_platform/scripts/liquidation_alert_watchdog.py

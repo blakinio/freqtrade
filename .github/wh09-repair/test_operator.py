@@ -1,3 +1,4 @@
+# ruff: noqa: I001, S101
 from __future__ import annotations
 
 import json
@@ -93,11 +94,14 @@ def _write_live_root(
     run_id = "run-20260804"
     run_root = root / "runs" / run_id
     run_root.mkdir(parents=True)
-    (run_root / "binance-usdm.ndjson").write_text(
+    event_path = run_root / "binance-usdm.ndjson"
+    event_path.write_text(
         "".join(json.dumps(item, sort_keys=True) + "\n" for item in source_events),
         encoding="utf-8",
     )
-    last_received = max(int(item["received_at_ms"]) for item in source_events)
+    last_received = max(
+        int(cast(int | str, item["received_at_ms"])) for item in source_events
+    )
     state = {
         "run_id": run_id,
         "collector_heartbeat_at_ms": heartbeat_ms,
@@ -306,9 +310,7 @@ def test_public_market_contract_uses_complete_contiguous_public_inputs() -> None
         observed_at_ms=NOW_MS,
         opener=cast(Any, opener),
     )
-    context = snapshot.market_context(
-        market_wide_liquidation_intensity=Decimal("1.5")
-    )
+    context = snapshot.market_context(market_wide_liquidation_intensity=Decimal("1.5"))
     metrics = {metric.name: metric for metric in context.metrics}
 
     assert snapshot.symbol == "BTCUSDT"
@@ -515,12 +517,12 @@ def test_cli_and_source_expose_only_root_contract_and_bounded_controls() -> None
 
 
 def test_synology_compose_keeps_zero_authority_container_boundary() -> None:
-    compose = Path(
-        "deploy/synology/wickhunter-paper-runtime/compose.yaml"
-    ).read_text(encoding="utf-8")
-    dockerfile = Path(
-        "deploy/synology/wickhunter-paper-runtime/Dockerfile"
-    ).read_text(encoding="utf-8")
+    compose = Path("deploy/synology/wickhunter-paper-runtime/compose.yaml").read_text(
+        encoding="utf-8"
+    )
+    dockerfile = Path("deploy/synology/wickhunter-paper-runtime/Dockerfile").read_text(
+        encoding="utf-8"
+    )
 
     assert "--liquid20-root" in compose
     assert "read_only: true" in compose
@@ -528,8 +530,5 @@ def test_synology_compose_keeps_zero_authority_container_boundary() -> None:
     assert "no-new-privileges:true" in compose
     assert "docker.sock" not in compose
     assert "ports:" not in compose
-    assert (
-        "/app/deploy/synology/wickhunter-paper-runtime/"
-        "paper_runtime_healthcheck.py"
-    ) in compose
+    assert ("/app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py") in compose
     assert "candidate_paper_runtime_operator" in dockerfile

@@ -1,0 +1,38 @@
+name: WickHunter WH09 trusted runner probe v1
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-runner-probe-20260804-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-runner-probe-v1
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe freqtrade staging runner without environment gate
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 5
+    steps:
+      - name: Confirm runner identity and Docker
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock

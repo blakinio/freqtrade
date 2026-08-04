@@ -75,10 +75,3 @@ runs:
           args+=(--base "$INPUT_BASE_SHA" --head "$INPUT_HEAD_SHA")
         fi
         python tools/ci/change_classifier.py "${args[@]}"
-    - name: Print exact Ruff import repair
-      shell: bash
-      run: |
-        set -euo pipefail
-        python -m pip install --disable-pip-version-check ruff==0.15.21
-        ruff check --select I001 --fix ai_platform/scripts/liquidation_alert_watchdog.py
-        git diff -- ai_platform/scripts/liquidation_alert_watchdog.py

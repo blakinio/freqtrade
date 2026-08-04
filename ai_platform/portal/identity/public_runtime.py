@@ -7,10 +7,10 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, ConfigDict
 
-from ai_platform.portal.control_plane.database import (
-    Base,
-    build_engine,
-    build_session_factory,
+from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+from ai_platform.portal.database.schema import (
+    EXPECTED_SCHEMA_REVISION,
+    assert_schema_ready,
 )
 from ai_platform.portal.identity.oidc import OidcProviderUnavailable
 from ai_platform.portal.identity.runtime import IdentityRuntimeConfig, build_identity_service
@@ -182,13 +182,17 @@ def build_public_app() -> FastAPI:
         raise RuntimeError("public identity runtime requires production or staging")
     database_url = _required("PORTAL_DATABASE_URL")
     engine = build_engine(database_url)
-    Base.metadata.create_all(engine)
+    if environment == "production" and engine.dialect.name != "postgresql":
+        engine.dispose()
+        raise RuntimeError("public production runtime requires PostgreSQL")
+    schema_report = assert_schema_ready(engine)
     session_factory = build_session_factory(engine)
     config = IdentityRuntimeConfig.from_environment()
     if config.transport_mode != "secure_https":
         raise RuntimeError("public identity runtime requires HTTPS transport")
     identity_service = build_identity_service(session_factory, config)
     app = FastAPI(title="Freqtrade Portal Public Identity Session API")
+    app.state.schema_report = schema_report
     _register_identity_routes(app, identity_service)
 
     @app.get("/healthz", include_in_schema=False)
@@ -198,6 +202,8 @@ def build_public_app() -> FastAPI:
             "identity_transport": config.transport_mode,
             "identity_fixture": False,
             "membership_bootstrap": "explicit_only",
+            "schema_revision": EXPECTED_SCHEMA_REVISION,
+            "database_dialect": engine.dialect.name,
             "live_capital_authorized": False,
         }
 

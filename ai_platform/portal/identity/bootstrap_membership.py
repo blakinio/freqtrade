@@ -8,11 +8,8 @@ from datetime import UTC, datetime
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from ai_platform.portal.contracts.identity import RoleName
-from ai_platform.portal.control_plane.database import (
-    Base,
-    build_engine,
-    build_session_factory,
-)
+from ai_platform.portal.control_plane.database import build_engine, build_session_factory
+from ai_platform.portal.database.schema import assert_schema_ready
 from ai_platform.portal.identity.repository import IdentityRepository
 from ai_platform.portal.identity.schema import IdentityAuditEvent, MembershipStatus, PrincipalStatus
 
@@ -36,7 +33,7 @@ def bootstrap(args: argparse.Namespace) -> dict[str, object]:
         raise RuntimeError("subject, display name and tenant ID must be non-empty")
 
     engine = build_engine(database_url)
-    Base.metadata.create_all(engine)
+    assert_schema_ready(engine)
     session_factory = build_session_factory(engine)
     now = datetime.now(UTC)
     principal_id = str(uuid5(NAMESPACE_URL, f"{issuer}|{subject}"))

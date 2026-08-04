@@ -6,7 +6,7 @@ on:
     types: [synchronize, reopened]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-audit-evidence-refresh
@@ -22,11 +22,20 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           ref: audit/ci-architecture-optimizer-20260804
-          persist-credentials: false
-      - name: Generate evidence from target workflow tree
+          persist-credentials: true
+      - name: Generate and commit evidence from target workflow tree
         run: |
           rm .github/workflows/ci-evidence-refresh.yml
           python tools/ci/generate_ci_audit_evidence.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/agents/evidence/FTAI-20260804-ci-architecture-optimizer
+          if git diff --cached --quiet; then
+            echo "Evidence is already current."
+          else
+            git commit -m "docs(ci): refresh final audit evidence"
+            git push origin HEAD:audit/ci-architecture-optimizer-20260804
+          fi
       - name: Upload refreshed evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:

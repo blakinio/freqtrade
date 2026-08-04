@@ -13,8 +13,9 @@ import json
 import os
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 DEFAULT_CONFIG = Path(__file__).with_name("change-routing.json")
@@ -76,13 +77,7 @@ def git_changed_paths(base: str, head: str) -> list[str]:
 
 
 def normalize_paths(paths: Iterable[str]) -> list[str]:
-    return sorted(
-        {
-            path.strip().replace("\\", "/").lstrip("./")
-            for path in paths
-            if path.strip()
-        }
-    )
+    return sorted({path.strip().replace("\\", "/").lstrip("./") for path in paths if path.strip()})
 
 
 def _labels(value: str | None) -> set[str]:
@@ -122,16 +117,10 @@ def classify(
         for name, rule in category_rules.items()
     }
     matched_by_path = {
-        path: sorted(
-            name
-            for name, rule in category_rules.items()
-            if matches_category(path, rule)
-        )
+        path: sorted(name for name, rule in category_rules.items() if matches_category(path, rule))
         for path in changed_paths
     }
-    unknown_paths = sorted(
-        path for path, matched in matched_by_path.items() if not matched
-    )
+    unknown_paths = sorted(path for path, matched in matched_by_path.items() if not matched)
 
     labels_set = {label.strip().lower() for label in labels if label.strip()}
     full_labels = {label.lower() for label in config.get("full_ci_labels", [])}
@@ -155,15 +144,11 @@ def classify(
         for path in changed_paths
     )
 
-    core = categories["core"] or categories["dependencies_packaging"] or bool(
-        unknown_paths
-    )
+    core = categories["core"] or categories["dependencies_packaging"] or bool(unknown_paths)
     portal_backend = any(categories[name] for name in PORTAL_BACKEND_CATEGORIES)
     ai_platform = categories["ai_platform"] or portal_backend
     portal_web = categories["portal_web"]
-    dependency_or_critical = (
-        categories["core_critical"] or categories["dependencies_packaging"]
-    )
+    dependency_or_critical = categories["core_critical"] or categories["dependencies_packaging"]
 
     outputs: dict[str, bool] = {
         "lightweight": True,
@@ -189,17 +174,12 @@ def classify(
         "compatibility_sweep": full or dependency_or_critical,
         "online": full or dependency_or_critical,
         "build_distribution": full or categories["dependencies_packaging"],
-        "portal_backend_tests": (portal_backend or full) and (
-            not docs_only or full
-        ),
+        "portal_backend_tests": (portal_backend or full) and (not docs_only or full),
         "portal_web_validation": (portal_web or full) and (not docs_only or full),
-        "portal_browser_e2e": (categories["browser_surface"] or full)
-        and (not docs_only or full),
+        "portal_browser_e2e": (categories["browser_surface"] or full) and (not docs_only or full),
         "portal_full_browser_e2e": full,
         "portal_schema_light": categories["schema_database"] or full,
-        "postgres_recovery": categories["schema_database"]
-        or categories["identity_oidc"]
-        or full,
+        "postgres_recovery": categories["schema_database"] or categories["identity_oidc"] or full,
         "exact_image": (
             categories["portal_image_content"]
             or categories["portal_runtime_deployment"]
@@ -223,9 +203,7 @@ def classify(
         "ref_name": ref_name,
         "labels": sorted(labels_set),
         "changed_paths": changed_paths,
-        "matched_categories": sorted(
-            name for name, value in categories.items() if value
-        ),
+        "matched_categories": sorted(name for name, value in categories.items() if value),
         "unknown_paths": unknown_paths,
         "selected_gates": selected,
         "outputs": outputs,
@@ -247,9 +225,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--path", action="append", default=[])
     parser.add_argument("--base")
     parser.add_argument("--head")
-    parser.add_argument(
-        "--event", default=os.getenv("GITHUB_EVENT_NAME", "pull_request")
-    )
+    parser.add_argument("--event", default=os.getenv("GITHUB_EVENT_NAME", "pull_request"))
     parser.add_argument("--action", default=os.getenv("GITHUB_EVENT_ACTION", ""))
     parser.add_argument("--labels", default=os.getenv("CI_PR_LABELS", ""))
     parser.add_argument("--ref-name", default=os.getenv("GITHUB_REF_NAME", ""))

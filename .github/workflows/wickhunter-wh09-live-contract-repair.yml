@@ -1,5 +1,6 @@
 name: WickHunter WH09 final runtime audit repair
 # Registered follow-up trigger for the bounded executor.
+# Exact-head refresh after develop advanced; payload and authority are unchanged.
 
 on:
   push:

@@ -39,9 +39,28 @@ def _load_base_patch() -> Any:
     return patch
 
 
+def _normalized_final_patch_source() -> str:
+    source = FINAL_PATCH_PATH.read_text(encoding="utf-8")
+    replacements = (
+        ('"    def _health_payload(\\n"', '"    def _health_payload("', 1),
+        ('"    def run_once(\\n"', '"    def run_once("', 2),
+        ('"    def publish_failure(\\n"', '"    def publish_failure("', 2),
+        ('"    def run_forever(\\n"', '"    def run_forever("', 2),
+    )
+    for old, new, expected_count in replacements:
+        count = source.count(old)
+        if count != expected_count:
+            raise SystemExit(
+                f"final audit boundary normalization mismatch for {old!r}: "
+                f"expected {expected_count}, found {count}"
+            )
+        source = source.replace(old, new)
+    return source
+
+
 def _load_final_patch() -> tuple[str, Any]:
     namespace = _execute_source(
-        FINAL_PATCH_PATH.read_text(encoding="utf-8"),
+        _normalized_final_patch_source(),
         source_name=str(FINAL_PATCH_PATH),
     )
     expected_head = namespace.get("CURRENT_PRODUCT_HEAD")

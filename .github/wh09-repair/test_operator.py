@@ -99,9 +99,7 @@ def _write_live_root(
         "".join(json.dumps(item, sort_keys=True) + "\n" for item in source_events),
         encoding="utf-8",
     )
-    last_received = max(
-        int(cast(int | str, item["received_at_ms"])) for item in source_events
-    )
+    last_received = max(int(cast(int | str, item["received_at_ms"])) for item in source_events)
     state = {
         "run_id": run_id,
         "collector_heartbeat_at_ms": heartbeat_ms,

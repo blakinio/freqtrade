@@ -75,7 +75,7 @@ jobs:
       - name: Compile and type-check classifier
         run: |
           python -m compileall -q tools/ci tests/ci
-          mypy --ignore-missing-imports tools/ci/change_classifier.py
+          mypy --config-file=/dev/null --ignore-missing-imports tools/ci/*.py
       - name: Lint classifier and routing tests
         run: |
           ruff check tools/ci tests/ci

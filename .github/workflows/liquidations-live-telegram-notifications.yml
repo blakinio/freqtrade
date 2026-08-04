@@ -41,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      # actions: read cannot dispatch the bounded self-heal health probe.
       actions: write
       contents: read
       issues: write

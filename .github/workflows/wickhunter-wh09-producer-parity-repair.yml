@@ -1,26 +1,23 @@
-name: WickHunter WH09 final runtime audit repair
-# Registered follow-up trigger for the bounded executor.
-# Exact-head refresh after develop advanced; payload and authority are unchanged.
+name: WickHunter WH09 producer contract parity repair
 
 on:
   push:
     branches: [develop]
     paths:
-      - ".github/workflows/wickhunter-wh09-live-contract-repair.yml"
-      - ".github/wh09-final-audit/**"
+      - ".github/workflows/wickhunter-wh09-producer-parity-repair.yml"
+      - ".github/wh09-producer-parity-repair/**"
 
 permissions:
   contents: write
   issues: write
 
 concurrency:
-  group: wickhunter-wh09-final-runtime-audit-repair
+  group: wickhunter-wh09-producer-contract-parity-repair
   cancel-in-progress: false
 
 env:
   TARGET_BRANCH: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-  EXPECTED_TARGET_HEAD: 08d17e1298568c2fa23b446d485491982aea0149
-  PATCH_SHA256: ee861cf115c7f70fdd35bf4c251896327cc9d993bd9756add67ec23edaca7739
+  EXPECTED_TARGET_HEAD: 3c645c6d6869ae1f263444d69070d360cbc72443
 
 jobs:
   repair-product-branch:
@@ -33,44 +30,20 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Decode and verify bounded repair
-        shell: bash
-        run: |
-          set -euo pipefail
-          [[ "$(git rev-parse HEAD)" == "${{ github.sha }}" ]]
-          python - <<'PY'
-          import base64
-          import hashlib
-          import os
-          import zlib
-          from pathlib import Path
-
-          parts = tuple(sorted(Path(".github/wh09-final-audit").glob("part-*.b64part")))
-          expected_names = tuple(f"part-{index:02d}.b64part" for index in range(12))
-          if tuple(path.name for path in parts) != expected_names:
-              raise SystemExit("repair payload part set mismatch")
-          encoded = "".join(path.read_text(encoding="ascii").strip() for path in parts)
-          payload = zlib.decompress(base64.b64decode(encoded, validate=True))
-          digest = hashlib.sha256(payload).hexdigest()
-          if digest != os.environ["PATCH_SHA256"]:
-              raise SystemExit("repair payload digest mismatch")
-          Path("/tmp/patch_wh09.py").write_bytes(payload)
-          PY
-          python -m py_compile /tmp/patch_wh09.py
-
-      - name: Apply and validate exact product repair
+      - name: Apply exact producer-shape repair
         shell: bash
         run: |
           set -euo pipefail
           develop_sha="$(git rev-parse HEAD)"
+          [[ "$develop_sha" == "${{ github.sha }}" ]]
+          python -m py_compile .github/wh09-producer-parity-repair/patch.py
           git fetch origin "$TARGET_BRANCH" develop
           git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git merge --no-ff --no-edit origin/develop
-
-          python /tmp/patch_wh09.py "$develop_sha"
+          python .github/wh09-producer-parity-repair/patch.py "$develop_sha"
 
           python -m pip install --disable-pip-version-check \
             pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
@@ -120,11 +93,10 @@ jobs:
 
           git add \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \
-            deploy/synology/wickhunter-paper-runtime/README.md \
             docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md \
             tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
           ! git diff --cached --quiet
-          git commit -m "fix(wickhunter): apply final WH09 runtime audit repair"
+          git commit -m "fix(wickhunter): match exact Liquid20 producer shape"
 
           product_head="$(git rev-parse HEAD)"
           docker build \
@@ -152,7 +124,7 @@ jobs:
           done
           git push origin "HEAD:$TARGET_BRANCH"
 
-      - name: Publish terminal repair checkpoint
+      - name: Publish terminal producer-parity checkpoint
         if: always()
         shell: bash
         env:
@@ -165,7 +137,7 @@ jobs:
           set -euo pipefail
           product_head="$(git ls-remote origin "refs/heads/$TARGET_BRANCH" | awk '{print $1}')"
           body="$(printf '%s\n' \
-            '## WH09 final runtime audit repair checkpoint' \
+            '## WH09 producer contract parity checkpoint' \
             '' \
             '\`\`\`yaml' \
             "run_id: $RUN_ID" \

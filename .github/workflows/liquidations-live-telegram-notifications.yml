@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      actions: read
+      actions: write
       contents: read
       issues: write
       statuses: write
@@ -71,7 +71,7 @@ jobs:
           if [[ -n "${ISSUE_NUMBER:-}" ]]; then
             args+=(--issue-number "$ISSUE_NUMBER")
           fi
-          python -m ai_platform.scripts.liquidation_alert_notifications "${args[@]}"
+          python -m ai_platform.scripts.liquidation_alert_watchdog "${args[@]}"
 
       - name: Verify Telegram channel after deployment
         if: github.event_name == 'push'

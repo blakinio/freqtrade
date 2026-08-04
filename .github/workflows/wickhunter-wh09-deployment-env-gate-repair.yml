@@ -1,0 +1,72 @@
+name: WickHunter WH09 deployment environment gate repair
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-deployment-env-gate-repair.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-deployment-env-gate-repair
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: ops/wickhunter-wh09-deploy-paper-20260804-v2
+  EXPECTED_TARGET_HEAD: 243283bc644567320b33d0686d3c86e7d9c122cb
+  TARGET_PATH: .github/workflows/wickhunter-wh09-deploy-20260804-v2.yml
+
+jobs:
+  repair:
+    name: Remove rejected environment admission gate
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Validate exact repair request
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "b417d07424136a480785a2ae06e868cfefc96390" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+      - name: Check out deployment branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ env.TARGET_BRANCH }}
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Remove exact environment gates and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml")
+          text = path.read_text(encoding="utf-8")
+          marker = "    environment: synology-staging\n"
+          if text.count(marker) != 2:
+              raise SystemExit(f"expected exactly two environment gates, found {text.count(marker)}")
+          updated = text.replace(marker, "")
+          if "environment: synology-staging" in updated:
+              raise SystemExit("environment gate remains")
+          path.write_text(updated, encoding="utf-8")
+          PY
+          git diff --check
+          [[ "$(git diff --numstat -- "$TARGET_PATH" | awk '{print $1 ":" $2}')" == "0:2" ]]
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "$TARGET_PATH"
+          git commit -m "fix(wickhunter): remove rejected deployment environment gate"
+          git push origin "HEAD:$TARGET_BRANCH"

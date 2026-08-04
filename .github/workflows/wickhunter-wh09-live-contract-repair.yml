@@ -1,8 +1,10 @@
 name: WickHunter WH09 deployed live-contract repair
 
+# Trigger generation 2: execute only from the isolated repair branch.
 on:
   push:
-    branches: [develop]
+    branches:
+      - fix/wickhunter-wh09-deployed-live-contract-20260804-v1
     paths:
       - ".github/workflows/wickhunter-wh09-live-contract-repair.yml"
       - ".github/wh09-live-contract-repair/**"
@@ -25,7 +27,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - name: Check out exact develop push
+      - name: Check out exact repair-branch push
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: true
@@ -58,8 +60,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          develop_sha="$(git rev-parse HEAD)"
+          develop_sha="$(git rev-parse origin/develop 2>/dev/null || true)"
           git fetch origin "$TARGET_BRANCH" develop
+          develop_sha="$(git rev-parse origin/develop)"
           git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
           [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
           git config user.name github-actions[bot]

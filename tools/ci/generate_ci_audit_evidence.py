@@ -11,6 +11,7 @@ from typing import cast
 
 from change_classifier import classify, load_config
 
+
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / ".github" / "workflows"
 EVIDENCE = ROOT / "docs" / "agents" / "evidence" / "FTAI-20260804-ci-architecture-optimizer"
@@ -238,9 +239,7 @@ def main() -> None:
     (EVIDENCE / "routing-matrix.json").write_text(
         json.dumps(matrix, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-    (EVIDENCE / "CI_ARCHITECTURE_AUDIT.md").write_text(
-        report(inv, matrix), encoding="utf-8"
-    )
+    (EVIDENCE / "CI_ARCHITECTURE_AUDIT.md").write_text(report(inv, matrix), encoding="utf-8")
 
 
 if __name__ == "__main__":

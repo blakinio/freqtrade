@@ -1,0 +1,88 @@
+name: Portal 1122 Diagnostics
+
+on:
+  push:
+    branches:
+      - fix/portal-1122-migration-schema-integrity
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: portal-1122-diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portal-tests:
+    name: Portal tests (Python 3.11)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.11"
+      - name: Install dependencies and run focused tests
+        shell: bash
+        run: |
+          set +e
+          uv pip install -r requirements-dev.txt > portal-install.log 2>&1
+          install_rc=$?
+          if [[ $install_rc -eq 0 ]]; then
+            uv pip install -e ft_client/ >> portal-install.log 2>&1
+            uv pip install -e . >> portal-install.log 2>&1
+            pytest tests/ai_platform/portal -x -vv --tb=long > portal-tests.log 2>&1
+            echo $? > portal-tests.exit
+          else
+            echo "$install_rc" > portal-tests.exit
+            printf 'Tests not started because dependency installation failed.\n' > portal-tests.log
+          fi
+          tail -n 300 portal-install.log > portal-install-tail.log
+          tail -n 500 portal-tests.log > portal-tests-tail.log
+          exit 0
+      - name: Upload portal diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: portal-1122-tests
+          path: |
+            portal-install-tail.log
+            portal-tests-tail.log
+            portal-tests.exit
+          if-no-files-found: error
+          retention-days: 1
+
+  python-314-install:
+    name: Dependency installation (Python 3.14)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          enable-cache: false
+          python-version: "3.14"
+      - name: Capture dependency installation
+        shell: bash
+        run: |
+          set +e
+          uv pip install -r requirements-dev.txt > python-314-install.log 2>&1
+          echo $? > python-314-install.exit
+          tail -n 500 python-314-install.log > python-314-install-tail.log
+          exit 0
+      - name: Upload Python 3.14 diagnostics
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: portal-1122-python-314
+          path: |
+            python-314-install-tail.log
+            python-314-install.exit
+          if-no-files-found: error
+          retention-days: 1

@@ -5,8 +5,8 @@ policy_version: 2
 prompting_standard_version: 2.1
 task_id: FTAI-20260804-liquidations-reconnect-counter-rotation-repair
 project_lane: freqtrade-operations
-phase: validate
-status: validating
+phase: implement
+status: implementing
 execution_mode: github
 run_scope: single_task
 continuation_policy: continue_until_real_stop
@@ -20,59 +20,77 @@ feature_scope:
   integration_required: true
   e2e_required: true
   completion_claim: internal_only
-branch: fix/liquidations-reconnect-counter-rotation-20260804
-base: develop@c4db1297ccc2f9664b755be983b1ef790ab968ff
+branch: fix/liquidations-health-watchdog-payload-20260804
+base: develop@fcc5091a3ff9b9dae5a1a2b953170ca9baa8e4bf
 tracking_issue: 1168
 incident_issue: 1167
-pull_request: 1170
-invocation_started_at: 2026-08-04T07:52:00+02:00
-last_progress_at: 2026-08-04T08:36:00+02:00
+followup_incident_issue: 1179
+previous_pull_request: 1170
+pull_request: null
+invocation_started_at: 2026-08-04T17:43:00+02:00
+last_progress_at: 2026-08-04T17:48:00+02:00
+ci_checks_for_current_head: 0
+unchanged_state_checks: 0
+identical_failure_retries: 0
+repair_cycles_for_current_gate: 0
+context_reconstruction_attempts: 1
+stall_warnings: 0
 ```
 
 ## Objective
 
-Repair the active Liquidations Live incident without suppressing a real outage: align reconnect counters with their measurement epoch across daily rotation, preserve the authoritative health diagnosis in Telegram, and verify recovery on the real Synology runner.
+Complete the Liquidations Live recovery without suppressing real outages: keep reconnect counters aligned with their measurement epoch, preserve truthful Telegram diagnosis, and make the runner-assignment watchdog reliable for large GitHub API responses.
 
-## Proven root cause
+## Proven state
 
-- The live manager starts a new daily run and resets `collector_started_at_ms`.
-- It then restores the previous run's cumulative `reconnect_count` into the new run.
-- Operational health divides that carried count by the new run's short uptime.
-- Issue #1167 therefore reported `105.1/h` even though the source, collector, portal and disk were healthy.
-- Telegram replaces the open issue's concrete diagnosis with `LIQUIDATIONS_HEALTH_MONITOR_STALE` whenever the latest scheduled run is older than ten minutes, and incorrectly labels that condition as an unavailable Synology runner.
+- PR #1170 merged the reconnect-counter and Telegram-diagnosis repair as `416223a803c6eb803e09429b3368488276a112e9`.
+- Synology deployment run `30897664385` completed successfully.
+- In run `30898065128`, the real `Check Synology collector and portal` job passed and reported the live collector and portal healthy.
+- The parallel `Watch freqtrade-staging assignment` job failed after 128 seconds with `/usr/bin/python: Argument list too long`.
+- The watchdog passes the full jobs API response through `JOBS_JSON` and the full open-Issues response through `ISSUES_JSON`; either response can exceed the operating-system environment/argument limit.
+- The secondary synthetic incident #1179 recovered and is closed, but the workflow defect can generate another false failure and Telegram alert.
 
 ## Acceptance inventory
 
 - Reconnect counters reset when their daily measurement epoch resets.
-- A regression test proves daily rotation cannot inflate reconnect rate.
-- An open operational issue remains the authoritative Telegram diagnosis; scheduler staleness does not erase it.
-- `MONITOR_STALE` no longer claims the Synology runner is unavailable without runner-specific evidence.
-- Focused tests and exact-head CI pass.
-- Post-merge Synology health check reports zero alerts and closes Issue #1167 automatically.
-- Telegram persisted state becomes healthy after verified recovery.
+- An open operational issue remains the authoritative Telegram diagnosis.
+- Monitor staleness does not claim a Synology runner outage without runner-specific evidence.
+- The runner watchdog never transports unbounded GitHub jobs or Issues JSON through environment variables or command-line arguments.
+- Regression coverage prevents reintroduction of unbounded environment transport.
+- Focused tests, workflow/security validation and required exact-head CI pass.
+- Post-merge `Liquidations Live Health` runs on the real Synology runner with both the health job and runner watchdog successful.
+- No new open `[liquidations-live] operational health alert` remains after recovery.
+- The active task is archived and ownership is released.
 
 ## Safety
 
-No exchange credentials, collector data, trading configuration, model state, orders, execution authority or live-capital setting may be changed. Do not close Issue #1167 manually before a fresh healthy operational run.
+No exchange credentials, collector data, trading configuration, model state, orders, execution authority or live-capital setting may be changed. The watchdog must continue to fail closed when the trusted Synology health job genuinely does not start.
 
-## Implementation checkpoint
+## Recovery checkpoint
 
-- Reset run-scoped reconnect counters when daily rotation creates a new measurement epoch.
-- Preserve open operational issue evidence ahead of synthetic scheduler-staleness diagnosis.
-- Widen scheduler freshness tolerance from 10 to 60 minutes.
-- Stop mapping monitor staleness to a proven Synology runner outage.
-- Add focused regression coverage for rotation and notification diagnosis.
-
-## Validation checkpoint
-
-- PASS: AI platform test suite on the implementation heads — `1188 passed, 71 skipped`.
-- PASS: Ruff lint and Ruff format on the repaired implementation.
-- REPAIRED: exact formatter layouts were committed for the notification module and focused tests.
-- REPAIRED: full pre-commit mypy required explicit timestamp narrowing for both stale-run and queued-run age comparisons.
-- PASS: all temporary repair workflows self-deleted and are absent from the final PR diff.
-- PENDING: exact final-head AI Platform CI, Freqtrade CI, security analysis and Portal Completeness Audit.
-- PENDING: post-merge Synology deployment and operational health recovery for Issue #1167.
+```yaml
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: liquidations-watchdog-20260804T1743+0200
+  session_started_at: 2026-08-04T17:43:00+02:00
+  checkpointed_at: 2026-08-04T17:48:00+02:00
+  last_progress_at: 2026-08-04T17:48:00+02:00
+  phase: implement file-backed watchdog API parsing
+  exact_head: fcc5091a3ff9b9dae5a1a2b953170ca9baa8e4bf
+  pull_request: none
+  active_operation: none
+  external_run_ids: [30897664385, 30898065128]
+  operation_started_at: null
+  wait_deadline_at: null
+  check_generation: null
+  checks_used: 0
+  status: active
+  safe_to_resume: true
+  resume_condition: branch exists and no conflicting PR owns the workflow path
+  next_action: Replace unbounded environment JSON transport with runner-temp files and add regression coverage.
+```
 
 ## Next action
 
-Wait for exact final-head CI, audit the final diff and review state, merge only after all required gates pass, then verify Issue #1167 recovery on the real Synology runner.
+Replace unbounded environment JSON transport with runner-temp files and add regression coverage.

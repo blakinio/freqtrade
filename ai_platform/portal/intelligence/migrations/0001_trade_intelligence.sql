@@ -2,10 +2,12 @@ CREATE TABLE IF NOT EXISTS portal_decision_snapshots (
     tenant_id VARCHAR(255) NOT NULL,
     snapshot_id VARCHAR(36) NOT NULL,
     bot_id VARCHAR(255) NOT NULL,
-    trade_intent_id VARCHAR(36) NOT NULL UNIQUE,
+    trade_intent_id VARCHAR(36) NOT NULL,
     decision_at TIMESTAMP WITH TIME ZONE NOT NULL,
     snapshot_json TEXT NOT NULL,
-    PRIMARY KEY (tenant_id, snapshot_id)
+    PRIMARY KEY (tenant_id, snapshot_id),
+    CONSTRAINT uq_portal_decision_snapshot_tenant_intent
+        UNIQUE (tenant_id, trade_intent_id)
 );
 
 CREATE INDEX IF NOT EXISTS ix_portal_decision_snapshots_bot_id

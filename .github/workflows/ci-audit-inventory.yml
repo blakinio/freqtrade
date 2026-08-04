@@ -1,12 +1,6 @@
 name: Apply CI optimizer payload (temporary)
 
 on:
-  push:
-    branches:
-      - audit/ci-architecture-optimizer-20260804
-    paths:
-      - .github/workflows/ci-audit-inventory.yml
-      - .ci-bootstrap/**
   pull_request:
     branches:
       - develop
@@ -14,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  issues: write
 
 concurrency:
   group: ci-optimizer-bootstrap
@@ -25,20 +18,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out bootstrap head
+      - name: Check out exact branch head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: audit/ci-architecture-optimizer-20260804
           fetch-depth: 0
           persist-credentials: true
 
       - name: Verify, apply and commit reviewed payload
-        id: apply
         shell: bash
         run: |
-          set +e
-          {
-            set -euo pipefail
-            [[ "$(git rev-parse HEAD)" == "${{ github.sha }}" ]]
+          set -uo pipefail
+          status=0
+          (
+            set -euxo pipefail
+            [[ "$(git rev-parse HEAD)" == "${{ github.event.pull_request.head.sha }}" ]]
             cat .ci-bootstrap/part* | base64 --decode > /tmp/ci-bootstrap.tar.gz
             echo "ddde1339a5f1e8b07efd63a9663096fa74a7bf4deed66ef2a42faf14cb9fb822  /tmp/ci-bootstrap.tar.gz" | sha256sum --check --strict
             tar --extract --gzip --file /tmp/ci-bootstrap.tar.gz --directory .
@@ -51,41 +45,5 @@ jobs:
             git diff --cached --check
             git commit -m "ci: add risk-aware validation routing"
             git push origin HEAD:audit/ci-architecture-optimizer-20260804
-          } > /tmp/ci-bootstrap.log 2>&1
-          status=$?
-          cat /tmp/ci-bootstrap.log
-          echo "status=$status" >> "$GITHUB_OUTPUT"
+          ) 2>&1 | tee /tmp/ci-bootstrap.log || status=${PIPESTATUS[0]}
           exit "$status"
-
-      - name: Publish terminal bootstrap checkpoint
-        if: always()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          JOB_STATUS: ${{ job.status }}
-          STEP_STATUS: ${{ steps.apply.outputs.status }}
-          RUN_ID: ${{ github.run_id }}
-          RUN_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          tail -c 12000 /tmp/ci-bootstrap.log > /tmp/ci-bootstrap-tail.log || true
-          python - <<'PY' > /tmp/comment.md
-          import os
-          from pathlib import Path
-          log = Path('/tmp/ci-bootstrap-tail.log').read_text(encoding='utf-8', errors='replace')
-          print('## CI optimizer bootstrap checkpoint')
-          print()
-          print('```yaml')
-          print(f"run_id: {os.environ['RUN_ID']}")
-          print(f"run_sha: {os.environ['RUN_SHA']}")
-          print(f"job_status: {os.environ['JOB_STATUS']}")
-          print(f"step_status: {os.environ.get('STEP_STATUS', '')}")
-          print('```')
-          print()
-          print('```text')
-          print(log)
-          print('```')
-          PY
-          gh api --method POST \
-            "repos/$GITHUB_REPOSITORY/issues/1191/comments" \
-            -F body=@/tmp/comment.md

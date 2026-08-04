@@ -32,6 +32,8 @@ jobs:
           status=0
           (
             set -euxo pipefail
+            echo "BASE_COMMIT=$(git rev-parse HEAD)"
+            echo "BASE_TREE=$(git rev-parse 'HEAD^{tree}')"
             [[ "$(git rev-parse HEAD)" == "${{ github.event.pull_request.head.sha }}" ]]
             cat .ci-bootstrap/part* | base64 --decode > /tmp/ci-bootstrap.tar.gz
             echo "ddde1339a5f1e8b07efd63a9663096fa74a7bf4deed66ef2a42faf14cb9fb822  /tmp/ci-bootstrap.tar.gz" | sha256sum --check --strict
@@ -44,6 +46,8 @@ jobs:
             git add --all
             git diff --cached --check
             git commit -m "ci: add risk-aware validation routing"
+            echo "TARGET_COMMIT=$(git rev-parse HEAD)"
+            echo "TARGET_TREE=$(git rev-parse 'HEAD^{tree}')"
             git push origin HEAD:audit/ci-architecture-optimizer-20260804
           ) 2>&1 | tee /tmp/ci-bootstrap.log || status=${PIPESTATUS[0]}
           exit "$status"

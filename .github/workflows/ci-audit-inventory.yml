@@ -1,49 +1,13 @@
-name: Apply CI optimizer payload (temporary)
+name: CI optimizer bootstrap disabled
 
 on:
-  push:
-    branches:
-      - audit/ci-architecture-optimizer-20260804
-  pull_request:
-    branches:
-      - develop
+  workflow_dispatch:
 
 permissions:
-  contents: write
-
-concurrency:
-  group: ci-optimizer-bootstrap-${{ github.ref }}
-  cancel-in-progress: false
+  contents: read
 
 jobs:
-  apply:
+  disabled:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Check out bootstrap head
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Verify and apply reviewed payload
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat .ci-bootstrap/part* | base64 --decode > /tmp/ci-bootstrap.tar.gz
-          echo "ddde1339a5f1e8b07efd63a9663096fa74a7bf4deed66ef2a42faf14cb9fb822  /tmp/ci-bootstrap.tar.gz" | sha256sum --check --strict
-          tar --extract --gzip --file /tmp/ci-bootstrap.tar.gz --directory .
-          python tools/ci/generate_ci_audit_evidence.py
-          python -m py_compile tools/ci/*.py tests/ci/*.py
-
-      - name: Commit target architecture and remove bootstrap
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf .ci-bootstrap .github/workflows/ci-audit-inventory.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add --all
-          git diff --cached --check
-          git commit -m "ci: add risk-aware validation routing"
-          git push origin HEAD:audit/ci-architecture-optimizer-20260804
+      - run: echo "Bootstrap disabled; target files are applied through the GitHub contents API."

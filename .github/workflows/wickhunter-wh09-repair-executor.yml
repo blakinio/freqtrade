@@ -1,6 +1,6 @@
 name: WickHunter WH09 temporary repair executor
 
-# Trigger generation 4: apply the exact proven Ruff repair.
+# Trigger generation 5: install the exact proven LightGBM test dependency.
 on:
   push:
     branches: [develop]
@@ -78,7 +78,7 @@ jobs:
           python -m pip install --disable-pip-version-check \
             pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
             "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0" \
-            mypy ruff==0.15.20
+            lightgbm mypy ruff==0.15.20
 
           python -m ruff check --fix \
             ai_platform/wickhunter/candidate_paper_runtime_operator.py \

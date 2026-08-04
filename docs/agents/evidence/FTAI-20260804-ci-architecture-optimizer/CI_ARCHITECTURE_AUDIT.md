@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-The audit inventories all **82** workflow files under `.github/workflows/`.
+The audit inventories all **83** workflow files under `.github/workflows/`.
 The machine-readable inventory is `workflow-inventory.json`; representative routing
 simulations are in `routing-matrix.json`. Historical timings are bounded observations,
 not a statistically valid flake study.
@@ -35,7 +35,7 @@ installed the full development/ML stack despite a Portal-only change.
 
 ## Retained coverage
 
-The final inventory still contains 5 Docker-aware,
+The final inventory still contains 6 Docker-aware,
 6 Playwright-aware,
 7 PostgreSQL-aware and 9 matrix
 workflows. Specialist implementations were converted to reusable calls rather than

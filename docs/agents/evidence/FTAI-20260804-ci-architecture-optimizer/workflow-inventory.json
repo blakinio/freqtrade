@@ -1,16 +1,16 @@
 {
   "event_counts": {
-    "issues": 5,
+    "issues": 6,
     "pull_request": 50,
-    "push": 23,
+    "push": 24,
     "release": 3,
     "schedule": 11,
     "workflow_call": 12,
     "workflow_dispatch": 42
   },
   "feature_counts": {
-    "custom_runner": 35,
-    "docker": 5,
+    "custom_runner": 36,
+    "docker": 6,
     "matrix": 9,
     "playwright": 6,
     "postgresql": 7,
@@ -37,7 +37,7 @@
     }
   },
   "schema_version": 1,
-  "workflow_count": 82,
+  "workflow_count": 83,
   "workflows": [
     {
       "action_refs": [
@@ -2272,6 +2272,31 @@
         "repair-product-branch"
       ],
       "path": ".github/workflows/wickhunter-wh09-live-contract-repair.yml",
+      "timeout_minutes": [
+        60
+      ]
+    },
+    {
+      "action_refs": [
+        "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      ],
+      "events": [
+        "push",
+        "issues"
+      ],
+      "features": {
+        "custom_runner": true,
+        "docker": true,
+        "matrix": false,
+        "playwright": false,
+        "postgresql": false,
+        "reusable": false,
+        "scheduled": false
+      },
+      "jobs": [
+        "repair-product-branch"
+      ],
+      "path": ".github/workflows/wickhunter-wh09-producer-parity-repair.yml",
       "timeout_minutes": [
         60
       ]

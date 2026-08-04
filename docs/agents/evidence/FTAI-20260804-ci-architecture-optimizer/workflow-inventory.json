@@ -1,7 +1,7 @@
 {
   "event_counts": {
     "issues": 5,
-    "pull_request": 51,
+    "pull_request": 50,
     "push": 23,
     "release": 3,
     "schedule": 11,
@@ -37,7 +37,7 @@
     }
   },
   "schema_version": 1,
-  "workflow_count": 83,
+  "workflow_count": 82,
   "workflows": [
     {
       "action_refs": [
@@ -894,30 +894,6 @@
     },
     {
       "action_refs": [
-        "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
-      ],
-      "events": [
-        "pull_request"
-      ],
-      "features": {
-        "custom_runner": false,
-        "docker": false,
-        "matrix": false,
-        "playwright": false,
-        "postgresql": false,
-        "reusable": false,
-        "scheduled": false
-      },
-      "jobs": [
-        "apply"
-      ],
-      "path": ".github/workflows/ci-audit-inventory.yml",
-      "timeout_minutes": [
-        10
-      ]
-    },
-    {
-      "action_refs": [
         "./.github/actions/classify-changes",
         "./.github/workflows/ai-platform.yml",
         "./.github/workflows/ai-program-closure-e2e.yml",
@@ -952,15 +928,15 @@
       "jobs": [
         "classify",
         "ai-platform",
-        "strategy-engine",
         "portal-web",
         "portal-schema",
         "exact-image",
         "oidc-state-claim",
         "oidc-postgresql",
-        "universal-e2e",
         "closure-e2e",
+        "strategy-engine",
         "completeness-audit",
+        "universal-e2e",
         "component-gate"
       ],
       "path": ".github/workflows/ci-components.yml",

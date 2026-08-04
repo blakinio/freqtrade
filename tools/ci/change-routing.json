@@ -44,12 +44,14 @@
       "include": [
         "ai_platform/portal/contracts/**",
         "ai_platform/portal/control_plane/**",
+        "ai_platform/portal/e2e/**",
         "ai_platform/portal/risk/**",
         "ai_platform/portal/simulator/**",
         "ai_platform/portal/operations/**",
         "ai_platform/portal/signal_wizard/**",
         "ai_platform/research/strategy_engine/**",
         "ai_strategy_engine/**",
+        "tests/ai_platform/portal/e2e/**",
         "tests/ai_platform_integration/test_program_closure_e2e.py",
         "ai_platform/portal/web/e2e/program-closure.spec.ts"
       ]

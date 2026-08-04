@@ -1,6 +1,8 @@
 # FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1
 
 ```yaml
+policy_version: 2
+prompting_standard_version: 2.1
 task_id: FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1
 repository: blakinio/freqtrade
 project_lane: freqtrade-wickhunter
@@ -8,59 +10,32 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: validating
-base_branch: develop
-base_sha: 1c7044e9699727732928dcdf71e0fe4e1a159108
-branch: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-helper_pr: 1147
-integration_pr: 1161
-product_pr: 1160
-owner: sole WH-09 persistent PAPER runtime operator producer
-policy_version: 2
-task_kind: implementation
-context_pressure: medium
-context_growth: stable
-decomposition_decision: phased
+status: validating_closeout
 execution_mode: github
 validation_level: full
-repair_cycles_for_current_gate: 2
-ci_checks_for_current_head: 0
-unchanged_state_checks: 0
-identical_failure_retries: 0
-stall_warnings: 0
-validated_product_head: efebcc0ef3dd8e1b888bee239f4c87140fc3dd4f
-audit_repair_workflow: 30845278691
-audit_repair_job: 91791946662
-next_action: verify repository CI on the exact checkpoint head, complete final PR hygiene, and merge PR 1160 only if every gate passes
+base_branch: develop
+base_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
+branch: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
+product_pr: 1160
+helper_pr: 1147
+validated_implementation_head: 5d02cf6350126438cd9c7217dbf24bcab05828e8
+final_executor_run: 30914088955
+final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
+owner: sole WH-09 persistent PAPER runtime operator producer
+task_kind: implementation
+completion_claim: partial_producer
+next_action: run exact-head repository CI on the closeout commit, recheck the seven-path diff and PR hygiene, then merge PR 1160 only if every required gate passes
 ```
 
-## Goal
+## Goal and completion boundary
 
-Implement the missing persistent, restart-safe and fail-closed candidate PAPER operator. The operator must consume real read-only Liquid20 evidence and credential-free public market context, construct canonical runtime ticks, call `CandidatePaperRuntimeService.step()` and preserve the exact immutable candidate, activation, policy and contiguous journal identities.
+Implement the missing persistent, restart-safe and fail-closed candidate PAPER operator. The operator consumes the deployed Liquid20 live root read-only, obtains credential-free public market evidence, constructs canonical runtime ticks, calls `CandidatePaperRuntimeService.step()`, resumes only the exact contiguous journal and publishes bounded truthful health state.
 
-Implementation merge is not WH-09 terminal closure. A separately reviewed request-only deployment must bind the exact merged commit, publish a fresh activation and complete the prospective observation window before an explicit owner decision.
+Merging PR #1160 completes only the implementation producer. It does not complete Issue #1144 or WH-09. A separately reviewed request-only deployment must bind the exact merged SHA, publish a fresh immutable PAPER activation and complete the full prospective observation window before independent verification and an explicit owner decision.
 
-## Feature scope
+## Exact owned scope
 
-```yaml
-feature_scope:
-  type: infrastructure
-  user_facing: false
-  backend_required: true
-  frontend_required: false
-  integration_required: true
-  e2e_required: true
-  completion_claim: partial_producer
-feature_delivery:
-  complete_user_facing_feature: false
-  missing_consumers:
-    - trusted Synology staging deployment
-    - prospective 24-hour acceptance collector and immutable evidence package
-  follow_up:
-    - request-only deployment after PR 1160 merges
-```
-
-## Exclusive paths
+PR #1160 contains exactly these seven paths:
 
 - `ai_platform/wickhunter/candidate_paper_runtime_operator.py`
 - `deploy/synology/wickhunter-paper-runtime/Dockerfile`
@@ -70,27 +45,35 @@ feature_delivery:
 - `docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md`
 - `tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py`
 
-No shared dependency, lock, package manifest, protected-holdout, strategy parameter, activation evidence or existing journal path is owned by this task.
+No shared dependency, package lock, protected-holdout artifact, strategy parameter, activation evidence or pre-existing journal path is owned by this implementation.
 
-## Implementation boundary
+## Final implementation contract
 
-The product change:
+The operator:
 
-1. verifies a canonical self-hashed Liquid20 snapshot from a regular read-only file;
-2. rejects stale, future, malformed, duplicated, unsorted or decision-time-unavailable evidence;
-3. calls only the production Binance USD-M public HTTPS host using no proxy and no redirects;
-4. requires the immutable runtime binding to be exactly PAPER;
-5. authorizes candidate-model evaluation only inside that bounded PAPER binding;
-6. constructs canonical universe, history, market, decision request and runtime tick values;
-7. delegates activation binding, restart recovery and immutable journal commits to the existing verified runtime service;
-8. emits bounded, atomic, self-hashed health state;
-9. runs with a cadence no slower than 900 seconds;
-10. provides a non-root, read-only, capability-free container with no ports or Docker socket;
-11. keeps only the exact journal and health roots writable.
+1. accepts only an absolute regular Liquid20 live directory containing exact contract `liquid20-live-state-v1`, `live-state-v1.json` and `runs/<active_run_id>/<source>.ndjson`;
+2. rejects the removed legacy single-file snapshot fallback and every contract, run, path, source or authority substitution;
+3. validates collector/source heartbeats, source identity, event receipt time, decision-time availability, history bounds and canonical snapshot identity;
+4. restricts public market access to HTTPS `fapi.binance.com` on port 443, without credentials, proxies or redirects;
+5. consumes public premium index, book ticker, open interest and 1441 one-minute klines, requiring the latest 1440 completed candles to be contiguous;
+6. derives the complete canonical metric contract including funding, open interest, quote volume, spread, trend, volatility, VWAP, VWMA, wick ratio, ATR ratio and market-wide liquidation intensity;
+7. requires the immutable runtime binding mode to be exactly `PAPER`;
+8. derives projected exposure, daily loss, drawdown and consecutive-loss state from the persisted simulated runtime journal;
+9. anchors consecutive-loss cooldown to the latest closed loss so it can expire;
+10. exposes bounded model-drift, data-drift and explicit circuit-breaker controls for separately reviewed acceptance exercises;
+11. delegates restart recovery and immutable journal commits to `CandidatePaperRuntimeService`;
+12. catches unexpected loop failures, remains alive and atomically publishes self-hashed fail-closed health metadata;
+13. runs only at a cadence within 60–900 seconds, with the default 600-second cadence capable of 144 observations per day.
+
+## Container and health contract
+
+The Synology package uses an exact-revision image, UID/GID `65532`, read-only root filesystem, all capabilities dropped, `no-new-privileges`, no privileged mode, no inbound ports, no Docker socket and read-only candidate, activation and Liquid20 mounts. Only the exact journal and operator-health roots are writable.
+
+The health payload includes exact operator, binding, run, window, generation, Liquid20 snapshot, runtime-health, canonical circuit-breaker reasons, drift state and zero-authority values. The container healthcheck rejects stale, tampered, failed or identity-mismatched state. It intentionally accepts truthful fail-closed runtime breaker evidence produced by a successful journal step so the acceptance exercise is observable without falsely claiming the operator process failed.
 
 ## Safety invariants
 
-The operator, health state, container and documentation must keep these values exact:
+These values remain exact in code, container and health evidence:
 
 ```text
 protected_holdout_accessed=false
@@ -102,68 +85,66 @@ orders_submitted=0
 live_capital_authorized=false
 ```
 
-Recognized exchange credentials or proxy environment variables are startup failures. Private/account/order endpoints are absent. Candidate PAPER evaluation authority is not order or execution authority. No profitability claim, production promotion or live-trading authority is introduced.
+Recognized exchange credential or proxy environment variables fail startup. Private, account and order endpoints are absent. Candidate PAPER validation authority is not order, execution, promotion or live-capital authority. No profitability claim is made.
 
-## Validation and repair evidence
+## Independent audit and bounded repairs
 
-Initial exact-head CI on `8d6f491412fcdbe6eb6bc6cd8c1337eebb023d40` established two actionable failures:
+The initial implementation was challenged rather than accepted from its existing task claims. The independent audit found and repaired the following material gaps:
 
-- Portal Completeness Audit could not find current `tools/portal_audit/audit_ledger.py` because the product branch had not incorporated the latest `develop` state.
-- Repository pre-commit mypy mapped two deployment files named `healthcheck.py` to the same top-level module.
+- synthetic/single-file Liquid20 input instead of the deployed live-root contract;
+- incomplete public market history and derived metric set;
+- hard-coded risk state rather than persisted simulated journal state;
+- missing exact Liquid20 contract and standard TLS-port checks;
+- health fields required by the container check were not emitted;
+- consecutive-loss cooldown slid forward on every tick and could never expire;
+- unexpected loop exceptions could terminate the daemon without fail-closed publication;
+- bounded circuit-breaker exercise controls and truthful reasons were incomplete.
 
-Targeted integration and module repair:
+The final audit repair was reviewed and merged through PR #1178. Two evidence-driven executor transport corrections were then reviewed and merged through PRs #1180 and #1181. They changed only deterministic materialization boundaries and a falsely broad superseded-contract marker; they did not broaden product authority.
 
-- integration PR #1161 merged current `develop@1c7044e9699727732928dcdf71e0fe4e1a159108` into the product branch as merge commit `9d49baeb7f431068a6604e16769beb6c2600f0f3`;
-- the WH-09 healthcheck was renamed to the unique module path `paper_runtime_healthcheck.py` and Docker, Compose, documentation and task references were updated;
-- no product authority or runtime behavior was broadened.
+Final executor run `30914088955` on executor SHA `93137630cfdf6b6198a68f69ea47b2753652a08b` successfully validated and published implementation head `5d02cf6350126438cd9c7217dbf24bcab05828e8`, starting from expected product head `b8dad79ac650839e4eb77820f3cf7ae7657f6450`.
 
-Fresh independent audit then found four material gaps:
+## Validation evidence
 
-1. candidate PAPER validation was disabled in every risk context, making an allowed supervised candidate decision impossible;
-2. the operator did not independently reject a non-PAPER runtime binding;
-3. Liquid20 source receipt timestamps were not checked against source and snapshot observation time;
-4. the public market host allowlist also admitted the Binance futures testnet rather than the required real production source.
+The successful final executor performed, before pushing the product head:
 
-The bounded audit repair on workflow run `30845278691`, job `91791946662`, completed successfully and published product head `efebcc0ef3dd8e1b888bee239f4c87140fc3dd4f`. It:
-
-- enables candidate evaluation only for the exact immutable PAPER binding;
-- adds an explicit PAPER-mode binding guard;
-- rejects source receipts unavailable at decision time;
-- restricts the public market host to `fapi.binance.com`;
-- adds focused regression tests for every finding;
-- passes Python compilation, Ruff format/lint, mypy, focused operator/runtime/binding tests, Compose validation, exact-revision Docker build, OCI revision-label verification and exact seven-path diff verification.
-
-Run on the exact final product head:
-
-- `python -m py_compile` for the operator, uniquely named healthcheck and focused test;
-- Ruff format/check for the three Python paths;
-- mypy for the operator and repository pre-commit module discovery;
-- focused pytest for the operator, candidate PAPER runtime service and candidate runtime binding;
-- Docker Compose configuration validation with all required exact identity variables;
+- Python compilation of the operator, healthcheck and focused test;
+- Ruff lint and format checks;
+- mypy validation;
+- focused network-free tests for the operator, runtime service and candidate binding;
+- Docker Compose configuration validation with exact required identities;
 - exact-revision image build and OCI revision-label verification;
-- standard repository CI, Portal Completeness Audit and security workflow;
-- changed-path verification proving exactly the seven owned product paths;
-- independent diff, review-thread and exact-head CI inspection before merge.
+- exact seven-path diff verification.
 
-## Applicable implementation E2E boundary
+Focused regressions cover:
 
-This PR is the partial producer and intentionally cannot create the prospective activation before its exact merged SHA exists. The applicable pre-merge system boundary is the reviewed Compose package plus exact-revision image build and focused runtime-service integration. The real trusted-runner deployment, persistent restart path, live public inputs and 24-hour consumer journey are mandatory post-merge E2E and remain part of Issue #1144 rather than being represented by mocks.
+- live-root binding, contract substitution, staleness, authority tamper and source mismatch;
+- removal of the single-file fallback and per-symbol history bounds;
+- complete public metrics, 1440 contiguous completed candles, redirects, testnet host, non-standard port and proxy refusal;
+- PAPER-only binding and candidate-validation authorization;
+- persisted risk state and non-sliding cooldown;
+- health self-hash, bounded errors, drift and canonical circuit-breaker reasons;
+- cadence and activation-window boundaries;
+- zero-authority Compose hardening and bounded CLI controls.
+
+The final independent source review confirmed the repaired contract and found zero additional material findings. PR #1160 has zero review threads and zero submitted reviews at this checkpoint. Workflow runs created directly by the executor bot were marked `action_required`, so this closeout commit intentionally triggers fresh normal exact-head repository CI before merge.
 
 ## Post-merge continuation
 
-After implementation merge:
+After PR #1160 merges:
 
-1. close helper PR #1147 without merge;
-2. create one separate request-only deployment PR pinned to the exact merged implementation SHA;
-3. build the image and record its digest and OCI revision label;
-4. publish a fresh immutable PAPER activation because the previous window began before the operator existed;
-5. bind the exact verified candidate, activation, runtime policy and empty journal;
+1. close request-only helper PR #1147 without merge;
+2. remove the temporary WH-09 repair executor from `develop` through a separately validated cleanup PR;
+3. create one separate request-only deployment PR pinned to the exact merged implementation SHA;
+4. build and inspect the exact image, recording its digest and OCI revision label;
+5. publish a fresh immutable PAPER activation and unique empty journal because the previous activation began before the operator existed;
 6. deploy only on the trusted `freqtrade-synology-staging` runner under the `synology-staging` environment;
-7. prove container hardening, public-only egress and zero authority;
+7. prove host-level public-only egress, container hardening, restart behavior and zero authority;
 8. collect at least 86,400,000 ms, at least 96 snapshots, maximum 1,800,000 ms gap and fresh-source ratio at least 0.99;
-9. collect decision, allowed-decision, risk-rejection, parity and truthful safety-exercise evidence;
-10. publish immutable final evidence and leave the explicit owner decision separate.
+9. collect at least one decision, one allowed decision, one risk rejection, replay/shadow parity and truthful circuit-breaker, drift, restart and stale-source exercises;
+10. verify maximum drawdown no greater than 0.20;
+11. publish an immutable final evidence package, complete independent verification and leave the explicit owner decision separate.
 
-## Completion rule
+## Merge rule
 
-This implementation task may be merged only when focused validation, fresh audit, applicable pre-merge integration evidence, every required exact-head check and PR hygiene pass with zero open material findings. Issue #1144 remains open until the post-merge deployment and prospective acceptance package are independently verified.
+PR #1160 may merge only after fresh exact-head CI for the closeout commit, exact seven-path verification and final PR hygiene all pass. Issue #1144 remains open until the separate deployment and prospective 24-hour acceptance package are complete and independently verified.

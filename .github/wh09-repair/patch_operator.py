@@ -46,6 +46,11 @@ def _normalized_final_patch_source() -> str:
         ('"    def run_once(\\n"', '"    def run_once("', 2),
         ('"    def publish_failure(\\n"', '"    def publish_failure("', 2),
         ('"    def run_forever(\\n"', '"    def run_forever("', 2),
+        (
+            "'action=\"store_true\"',",
+            '\'parser.add_argument("--circuit-breaker-active", action="store_true")\',',
+            1,
+        ),
     )
     for old, new, expected_count in replacements:
         count = source.count(old)

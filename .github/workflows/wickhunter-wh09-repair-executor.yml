@@ -1,6 +1,6 @@
 name: WickHunter WH09 temporary repair executor
 
-# Trigger generation 5: install the exact proven LightGBM test dependency.
+# Trigger generation 6: fix the exact OCI label inspection template.
 on:
   push:
     branches: [develop]
@@ -135,7 +135,7 @@ jobs:
             --tag "wickhunter-paper-runtime:$product_head" \
             .
           [[ "$(docker image inspect \
-            --format '{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' \
+            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
             "wickhunter-paper-runtime:$product_head")" == "$product_head" ]]
 
           expected=(

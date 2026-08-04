@@ -48,7 +48,31 @@ env:
   GATEWAY_IMAGE: local/wickhunter-paper-egress:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
 
 jobs:
+  runner_probe:
+    name: Prove trusted deployment runner eligibility
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    environment: synology-staging
+    timeout-minutes: 5
+    steps:
+      - name: Confirm trusted runner
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+
   deploy:
+    needs: runner_probe
     name: Deploy fresh hardened WH09 PAPER runtime
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&

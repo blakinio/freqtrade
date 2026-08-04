@@ -85,6 +85,7 @@ def _write_live_root(
     heartbeat_ms: int = NOW_MS,
     events: list[dict[str, object]] | None = None,
     execution_enabled: bool = False,
+    contract: str = "liquid20-live-state-v1",
 ) -> Path:
     source_events = events or [
         _event("event-history", received_at_ms=NOW_MS - 120_000),
@@ -117,7 +118,7 @@ def _write_live_root(
         },
     }
     pointer = {
-        "contract": "liquid20-live-state-v1",
+        "contract": contract,
         "active_run_id": run_id,
         "collector_heartbeat_at_ms": heartbeat_ms,
         "state": state,
@@ -186,6 +187,7 @@ def test_live_root_caps_per_symbol_history(tmp_path: Path) -> None:
     (
         ("stale", "stale"),
         ("authority", "forbidden authority"),
+        ("contract", "contract mismatch"),
         ("source", "source does not match"),
     ),
 )
@@ -199,6 +201,8 @@ def test_live_root_tamper_and_staleness_fail_closed(
         _write_live_root(root, heartbeat_ms=NOW_MS - 400_000)
     elif mutation == "authority":
         _write_live_root(root, execution_enabled=True)
+    elif mutation == "contract":
+        _write_live_root(root, contract="liquid20-live-state-v0")
     else:
         _write_live_root(
             root,
@@ -340,6 +344,13 @@ def test_public_market_gap_redirect_host_and_proxy_fail_closed() -> None:
             base_url="https://testnet.binancefuture.com",
             opener=cast(Any, _Opener()),
         )
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="allowed"):
+        fetch_public_market_snapshot(
+            symbol="BTCUSDT",
+            observed_at_ms=NOW_MS,
+            base_url="https://fapi.binance.com:8443",
+            opener=cast(Any, _Opener()),
+        )
     with pytest.raises(CandidatePaperRuntimeOperatorError, match="forbidden"):
         assert_closed_authority_environment({"HTTPS_PROXY": "https://proxy.invalid"})
 
@@ -401,6 +412,56 @@ def test_runtime_risk_context_uses_open_and_closed_simulated_state() -> None:
     assert _risk_limits().maximum_leverage >= INITIAL_COMPATIBILITY_PRIOR.leverage
 
 
+def test_consecutive_loss_cooldown_is_anchored_to_latest_loss() -> None:
+    latest_loss_closed_at_ms = NOW_MS - 100_000
+    closed_positions = tuple(
+        SimpleNamespace(
+            closed_at_ms=latest_loss_closed_at_ms - index * 1_000,
+            closed_position_id=f"{index + 1:064x}",
+            symbol="BTCUSDT",
+            realized_pnl_quote=Decimal("-10"),
+        )
+        for index in range(5)
+    )
+    state = SimpleNamespace(
+        positions=(),
+        closed_positions=closed_positions,
+        cumulative_realized_pnl_quote=Decimal("-50"),
+        drawdown_ratio=Decimal("0.01"),
+    )
+    policy = SimpleNamespace(simulated_initial_equity_quote=Decimal("10000"))
+    expected_until = latest_loss_closed_at_ms + INITIAL_COMPATIBILITY_PRIOR.cooldown_ms
+
+    active = _runtime_risk_context(
+        state=state,
+        policy=cast(Any, policy),
+        parameters=INITIAL_COMPATIBILITY_PRIOR,
+        symbol="BTCUSDT",
+        observed_at_ms=NOW_MS,
+        market=_market(),
+        model_drift=DriftState.HEALTHY,
+        data_drift=DriftState.HEALTHY,
+        circuit_breaker_active=False,
+    )
+    expired = _runtime_risk_context(
+        state=state,
+        policy=cast(Any, policy),
+        parameters=INITIAL_COMPATIBILITY_PRIOR,
+        symbol="BTCUSDT",
+        observed_at_ms=NOW_MS + 300_000,
+        market=_market(observed_at_ms=NOW_MS + 300_000),
+        model_drift=DriftState.HEALTHY,
+        data_drift=DriftState.HEALTHY,
+        circuit_breaker_active=False,
+    )
+
+    assert active.consecutive_losses == 5
+    assert active.consecutive_loss_cooldown_until_ms == expected_until
+    assert expired.consecutive_loss_cooldown_until_ms == expected_until
+    assert expected_until > active.evaluated_at_ms
+    assert expected_until <= expired.evaluated_at_ms
+
+
 def _service(*, mode: BotMode = BotMode.PAPER) -> Any:
     request = SimpleNamespace(
         bot_instance="wickhunter-paper-v1",
@@ -456,6 +517,8 @@ def test_health_is_bounded_self_hashed_and_truthful(tmp_path: Path) -> None:
         status="fail_closed",
         checked_at_ms=NOW_MS,
         liquid20_snapshot_id=None,
+        runtime_health="fail_closed",
+        circuit_breaker_reasons=("operator_circuit_breaker_active",),
         error_code="SyntheticError",
         error_message="x" * 1000,
     )
@@ -463,7 +526,9 @@ def test_health_is_bounded_self_hashed_and_truthful(tmp_path: Path) -> None:
 
     assert payload["model_drift"] == "drifted"
     assert payload["data_drift"] == "unknown"
+    assert payload["runtime_health"] == "fail_closed"
     assert payload["circuit_breaker_active"] is True
+    assert payload["circuit_breaker_reasons"] == ["operator_circuit_breaker_active"]
     assert len(cast(str, payload["error_message"])) == 240
     assert all(payload[key] == value for key, value in ZERO_AUTHORITY.items())
     assert claimed == canonical_sha256(payload)
@@ -500,6 +565,7 @@ def test_cli_and_source_expose_only_root_contract_and_bounded_controls() -> None
             "--data-drift",
             "unknown",
             "--circuit-breaker-active",
+            "true",
         ]
     )
     source = Path(operator_module.__file__).read_text(encoding="utf-8")
@@ -511,6 +577,8 @@ def test_cli_and_source_expose_only_root_contract_and_bounded_controls() -> None
     assert "--liquid20-snapshot" not in source
     assert "if path.is_dir():" not in source
     assert source.count("def _market_wide_liquidation_intensity(") == 1
+    assert "except Exception as exc" in source
+    assert args.circuit_breaker_active is True
 
 
 def test_synology_compose_keeps_zero_authority_container_boundary() -> None:
@@ -522,6 +590,7 @@ def test_synology_compose_keeps_zero_authority_container_boundary() -> None:
     )
 
     assert "--liquid20-root" in compose
+    assert "CIRCUIT_BREAKER_ACTIVE" in compose
     assert "read_only: true" in compose
     assert "cap_drop:" in compose and "- ALL" in compose
     assert "no-new-privileges:true" in compose

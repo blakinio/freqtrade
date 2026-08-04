@@ -29,6 +29,8 @@ services:
       - ${MODEL_DRIFT:-healthy}
       - --data-drift
       - ${DATA_DRIFT:-healthy}
+      - --circuit-breaker-active
+      - ${CIRCUIT_BREAKER_ACTIVE:-false}
     environment:
       OPERATOR_COMMIT: ${OPERATOR_COMMIT:?set exact merged implementation commit}
       HEALTH_PATH: /runtime/operator/health.json

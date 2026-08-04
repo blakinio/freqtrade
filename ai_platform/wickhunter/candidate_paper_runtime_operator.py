@@ -20,7 +20,6 @@ from urllib.request import HTTPRedirectHandler, OpenerDirector, ProxyHandler, Re
 from ai_platform.research.liquidations.contracts import LiquidationEvent, event_from_json_dict
 from ai_platform.wickhunter.candidate_paper_runtime_service import (
     CandidatePaperRuntimeService,
-    CandidatePaperRuntimeServiceError,
 )
 from ai_platform.wickhunter.candidate_runtime_binding import build_candidate_paper_runtime_binding
 from ai_platform.wickhunter.canonical import canonical_json, canonical_sha256
@@ -55,6 +54,7 @@ MAX_EVENTS_PER_SYMBOL = 500
 MAX_LIQUID20_SYMBOLS = 20
 LIVE_HISTORY_WINDOW_MS = 86_400_000
 LIVE_POINTER_NAME = "live-state-v1.json"
+LIQUID20_LIVE_CONTRACT = "liquid20-live-state-v1"
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
@@ -425,8 +425,8 @@ def _load_liquid20_live_root(  # noqa: C901
     pointer = _read_bounded_json(root / LIVE_POINTER_NAME, field="Liquid20 live pointer")
     contract = str(pointer.get("contract", "")).strip()
     run_id = str(pointer.get("active_run_id", ""))
-    if not contract:
-        raise CandidatePaperRuntimeOperatorError("Liquid20 live contract is empty")
+    if contract != LIQUID20_LIVE_CONTRACT:
+        raise CandidatePaperRuntimeOperatorError("Liquid20 live contract mismatch")
     if not run_id or Path(run_id).name != run_id:
         raise CandidatePaperRuntimeOperatorError("Liquid20 live run identity is invalid")
     state = _require_object(pointer.get("state"), field="Liquid20 live state")
@@ -543,7 +543,7 @@ def _load_liquid20_live_root(  # noqa: C901
 
     universe = DynamicUniverseSnapshot(
         schema_version="wickhunter-dynamic-universe-v1",
-        policy_version="liquid20-live-state-v1",
+        policy_version=LIQUID20_LIVE_CONTRACT,
         selected_at_ms=observed_at_ms,
         decisions=tuple(
             UniverseInstrumentDecision(
@@ -601,6 +601,10 @@ def load_liquid20_snapshot(
 
 def _public_url(base_url: str, path: str, parameters: dict[str, object]) -> str:
     parsed = urlparse(base_url)
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise CandidatePaperRuntimeOperatorError("public market base URL is not allowed") from exc
     if (
         parsed.scheme != "https"
         or parsed.username is not None
@@ -609,6 +613,7 @@ def _public_url(base_url: str, path: str, parameters: dict[str, object]) -> str:
         or parsed.fragment
         or parsed.path not in {"", "/"}
         or not parsed.hostname
+        or port not in {None, 443}
     ):
         raise CandidatePaperRuntimeOperatorError("public market base URL is not allowed")
     if parsed.hostname.lower() != "fapi.binance.com":
@@ -978,11 +983,10 @@ def _runtime_risk_context(
         Decimal("0"),
     )
     streak = _consecutive_losses(state)
-    loss_cooldown = (
-        observed_at_ms + parameters.cooldown_ms
-        if streak >= _risk_limits().maximum_consecutive_losses
-        else None
-    )
+    loss_cooldown = None
+    if streak >= _risk_limits().maximum_consecutive_losses:
+        latest_loss_closed_at_ms = max(position.closed_at_ms for position in state.closed_positions)
+        loss_cooldown = latest_loss_closed_at_ms + parameters.cooldown_ms
     symbol_closes = [
         position.closed_at_ms
         for position in state.closed_positions
@@ -1144,9 +1148,14 @@ class CandidatePaperRuntimeOperator:
         status: str,
         checked_at_ms: int,
         liquid20_snapshot_id: str | None,
+        runtime_health: str,
+        circuit_breaker_reasons: tuple[str, ...],
         error_code: str | None,
         error_message: str | None,
     ) -> dict[str, object]:
+        if runtime_health not in {"healthy", "degraded", "fail_closed"}:
+            raise CandidatePaperRuntimeOperatorError("runtime health is invalid")
+        canonical_breaker_reasons = tuple(sorted(set(circuit_breaker_reasons)))
         state = self.service.runtime.state
         request = self.service.binding.request
         payload: dict[str, object] = {
@@ -1162,9 +1171,11 @@ class CandidatePaperRuntimeOperator:
             "generation": state.generation,
             "last_observed_at_ms": state.last_observed_at_ms,
             "liquid20_snapshot_id": liquid20_snapshot_id,
+            "runtime_health": runtime_health,
             "model_drift": self.model_drift.value,
             "data_drift": self.data_drift.value,
-            "circuit_breaker_active": self.circuit_breaker_active,
+            "circuit_breaker_active": bool(canonical_breaker_reasons),
+            "circuit_breaker_reasons": list(canonical_breaker_reasons),
             "error_code": error_code,
             "error_message": None if error_message is None else error_message[:240],
             **ZERO_AUTHORITY,
@@ -1180,7 +1191,9 @@ class CandidatePaperRuntimeOperator:
                 "current time is outside the immutable activation window"
             )
         liquid20 = load_liquid20_snapshot(
-            self.liquid20_root_path, now_ms=now_ms, maximum_age_ms=self.maximum_source_age_ms
+            self.liquid20_root_path,
+            now_ms=now_ms,
+            maximum_age_ms=self.maximum_source_age_ms,
         )
         markets = tuple(
             fetch_public_market_snapshot(
@@ -1191,8 +1204,19 @@ class CandidatePaperRuntimeOperator:
             )
             for symbol in liquid20.universe.selected_symbols
         )
-        tick = self._compose_tick(liquid20=liquid20, markets=markets, observed_at_ms=now_ms)
+        tick = self._compose_tick(
+            liquid20=liquid20,
+            markets=markets,
+            observed_at_ms=now_ms,
+        )
         result = self.service.step(tick)
+        breaker_reasons = set(result.snapshot.circuit_breaker_reasons)
+        if self.circuit_breaker_active:
+            breaker_reasons.add("operator_circuit_breaker_active")
+        canonical_breaker_reasons = tuple(sorted(breaker_reasons))
+        runtime_health = (
+            "fail_closed" if canonical_breaker_reasons else result.snapshot.health.value
+        )
         self.last_success_at_ms = now_ms
         _atomic_health(
             self.health_path,
@@ -1200,6 +1224,8 @@ class CandidatePaperRuntimeOperator:
                 status="healthy",
                 checked_at_ms=now_ms,
                 liquid20_snapshot_id=liquid20.snapshot_id,
+                runtime_health=runtime_health,
+                circuit_breaker_reasons=canonical_breaker_reasons,
                 error_code=None,
                 error_message=None,
             ),
@@ -1213,6 +1239,8 @@ class CandidatePaperRuntimeOperator:
                 status="fail_closed",
                 checked_at_ms=checked_at_ms,
                 liquid20_snapshot_id=None,
+                runtime_health="fail_closed",
+                circuit_breaker_reasons=(),
                 error_code=type(error).__name__,
                 error_message=str(error),
             ),
@@ -1225,14 +1253,18 @@ class CandidatePaperRuntimeOperator:
             checked_at_ms = time.time_ns() // 1_000_000
             try:
                 self.run_once(observed_at_ms=checked_at_ms)
-            except (
-                CandidatePaperRuntimeOperatorError,
-                CandidatePaperRuntimeServiceError,
-                OSError,
-                ValueError,
-            ) as exc:
+            except Exception as exc:
                 self.publish_failure(exc, checked_at_ms=checked_at_ms)
             time.sleep(poll_seconds)
+
+
+def _boolean(value: str) -> bool:
+    normalized = value.strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    raise argparse.ArgumentTypeError("boolean value must be true or false")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -1258,7 +1290,11 @@ def _parser() -> argparse.ArgumentParser:
         choices=tuple(item.value for item in DriftState),
         default=DriftState.HEALTHY.value,
     )
-    parser.add_argument("--circuit-breaker-active", action="store_true")
+    parser.add_argument(
+        "--circuit-breaker-active",
+        type=_boolean,
+        default=False,
+    )
     parser.add_argument("--once", action="store_true")
     return parser
 

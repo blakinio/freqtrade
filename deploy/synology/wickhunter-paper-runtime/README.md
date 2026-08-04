@@ -20,13 +20,13 @@ The activation created before this operator existed is not eligible for the pros
 
 ## Liquid20 live boundary
 
-The operator accepts only the deployed directory contract. It validates the active-run pointer, state/run identity, collector and source heartbeats, configured-source state, event/source identity, availability time, path safety, and zero-authority fields. Legacy single-file snapshot input is not accepted.
+The operator accepts only the exact `liquid20-live-state-v1` deployed directory contract. It validates the active-run pointer, state/run identity, collector and source heartbeats, configured-source state, event/source identity, availability time, path safety, and zero-authority fields. Legacy single-file snapshot input and contract substitution are not accepted.
 
 For each cadence it derives deterministic 24-hour event histories, complete burst buckets, a canonical `DynamicUniverseSnapshot`, and one market-wide liquidation intensity value. It may journal an empty decision set when no eligible current burst exists.
 
 ## Public market boundary and canonical metrics
 
-HTTPS GET is restricted in process to `https://fapi.binance.com`. Proxies, recognized exchange credentials, redirects, non-JSON responses, oversized responses, symbol mismatches, stale timestamps, and incomplete or gapped candle history fail closed.
+HTTPS GET is restricted in process to `https://fapi.binance.com` on the standard TLS port 443. Proxies, recognized exchange credentials, redirects, non-JSON responses, oversized responses, symbol mismatches, stale timestamps, and incomplete or gapped candle history fail closed.
 
 The operator calls only:
 
@@ -51,11 +51,11 @@ The context additionally includes `funding_rate` and `open_interest_usd` for fre
 
 ## PAPER risk and exercises
 
-The immutable activation authorizes candidate validation only. It never authorizes execution. The risk context derives projected exposure, daily loss, drawdown, and consecutive losses from the simulated journal. `MODEL_DRIFT` and `DATA_DRIFT` default to `healthy`; a separately reviewed deployment request may set an explicit enum value for bounded acceptance exercises.
+The immutable activation authorizes candidate validation only. It never authorizes execution. The risk context derives projected exposure, daily loss, drawdown, and consecutive losses from the simulated journal. Consecutive-loss cooldown is anchored to the latest closed loss and therefore expires instead of sliding on every tick. `MODEL_DRIFT` and `DATA_DRIFT` default to `healthy`; `CIRCUIT_BREAKER_ACTIVE` defaults to `false`. A separately reviewed deployment request may set these bounded controls for acceptance exercises.
 
 ## Runtime and health behavior
 
-The default cadence is 600 seconds, yielding up to 144 snapshots per 24 hours. Every successful tick has a strictly increasing observation time. `/runtime/operator/health.json` is atomically replaced and self-hashed. It reports exact operator, binding, run, window, generation, source, drift, breaker, and zero-authority state.
+The default cadence is 600 seconds, yielding up to 144 snapshots per 24 hours. Every successful tick has a strictly increasing observation time. `/runtime/operator/health.json` is atomically replaced and self-hashed. It reports exact operator, binding, run, window, generation, runtime health, canonical circuit-breaker reasons, drift, and zero-authority state.
 
 The container healthcheck is `/app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py`. It rejects stale, tampered, failed, or identity-mismatched state while accepting truthful fail-closed runtime breaker evidence produced by a successful journal step.
 

@@ -6,9 +6,11 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from ai_platform.portal.identity import service_base
-from ai_platform.portal.identity.oidc import OidcLogoutIdentity
+from ai_platform.portal.identity.oidc import OidcLogoutIdentity, OidcProtocolError
 from ai_platform.portal.identity.repository import (
     IdentityNotFoundError,
+    IdentityReplayConflictError,
+    IdentityReplayStateError,
     IdentityRepository,
     session_view,
 )
@@ -184,21 +186,69 @@ class IdentityService(service_base.IdentityService):
                 raise
 
     def handle_backchannel_logout(self, logout_token: str) -> BackchannelLogoutResult:
-        identity = self._oidc.validate_backchannel_logout(logout_token)
+        now = self._now()
+        try:
+            identity = self._oidc.validate_backchannel_logout(logout_token)
+            _validate_logout_identity(identity)
+        except OidcProtocolError as exc:
+            self._record_logout_event(
+                action="identity.backchannel_logout_rejected",
+                result="denied",
+                reason=_logout_rejection_reason(exc),
+                now=now,
+                correlation_id=None,
+            )
+            raise
+
         replay_key_hash = _logout_replay_key(identity)
         request_fingerprint = _logout_request_fingerprint(identity)
-        now = self._now()
 
         with self._session_factory() as session:
             repository = IdentityRepository(session)
-            claim = repository.claim_logout_replay(
-                replay_key_hash=replay_key_hash,
-                issuer=identity.issuer,
-                client_id=identity.client_id,
-                jti=identity.jti,
-                request_fingerprint=request_fingerprint,
-                now=now,
-            )
+            purged = repository.purge_expired_logout_replays(now)
+            if purged:
+                self._audit(
+                    repository,
+                    action="identity.backchannel_logout_replay_expired",
+                    actor_id="system:oidc_logout",
+                    principal_id=None,
+                    result="success",
+                    reason=f"purged:{purged}",
+                    now=now,
+                )
+            try:
+                claim = repository.claim_logout_replay(
+                    replay_key_hash=replay_key_hash,
+                    issuer=identity.issuer,
+                    client_id=identity.client_id,
+                    jti=identity.jti,
+                    request_fingerprint=request_fingerprint,
+                    token_type=identity.token_type,
+                    signing_key_id=identity.signing_key_id,
+                    signing_algorithm=identity.signing_algorithm,
+                    issued_at=identity.issued_at,
+                    token_expires_at=identity.expires_at,
+                    retention_until=identity.retention_until,
+                    now=now,
+                )
+            except (IdentityReplayConflictError, IdentityReplayStateError) as exc:
+                self._audit(
+                    repository,
+                    action="identity.backchannel_logout_conflict",
+                    actor_id="system:oidc_logout",
+                    principal_id=None,
+                    result="denied",
+                    reason=(
+                        "semantic_conflict"
+                        if isinstance(exc, IdentityReplayConflictError)
+                        else "nonterminal_state"
+                    ),
+                    now=now,
+                    correlation_id=replay_key_hash[:36],
+                )
+                session.commit()
+                raise
+
             if not claim.owner:
                 row = claim.row
                 if row.revoked_sessions is None:
@@ -255,6 +305,29 @@ class IdentityService(service_base.IdentityService):
             )
             session.commit()
 
+    def _record_logout_event(
+        self,
+        *,
+        action: str,
+        result: str,
+        reason: str,
+        now: datetime,
+        correlation_id: str | None,
+    ) -> None:
+        with self._session_factory() as session:
+            repository = IdentityRepository(session)
+            self._audit(
+                repository,
+                action=action,
+                actor_id="system:oidc_logout",
+                principal_id=None,
+                result=result,
+                reason=reason,
+                now=now,
+                correlation_id=correlation_id,
+            )
+            session.commit()
+
     @staticmethod
     def _login_denial_reason(exc: service_base.IdentityAuthenticationError) -> str:
         message = str(exc)
@@ -293,10 +366,51 @@ def _logout_request_fingerprint(identity: OidcLogoutIdentity) -> str:
             "issuer": identity.issuer,
             "client_id": identity.client_id,
             "jti": identity.jti,
+            "issued_at": _utc(identity.issued_at).isoformat(),
+            "expires_at": _utc(identity.expires_at).isoformat(),
+            "retention_until": _utc(identity.retention_until).isoformat(),
+            "token_type": identity.token_type,
+            "signing_key_id": identity.signing_key_id,
+            "signing_algorithm": identity.signing_algorithm,
             "subject": identity.subject,
             "idp_session_id": identity.idp_session_id,
         }
     )
+
+
+def _validate_logout_identity(identity: OidcLogoutIdentity) -> None:
+    for label, value, maximum in (
+        ("issuer", identity.issuer, 1024),
+        ("client_id", identity.client_id, 255),
+        ("jti", identity.jti, 255),
+        ("token_type", identity.token_type, 32),
+        ("signing_key_id", identity.signing_key_id, 255),
+        ("signing_algorithm", identity.signing_algorithm, 32),
+    ):
+        if not value or len(value) > maximum:
+            raise OidcProtocolError(f"logout identity {label} is invalid")
+    if identity.subject is None and identity.idp_session_id is None:
+        raise OidcProtocolError("logout identity requires subject or sid")
+    issued_at = _utc(identity.issued_at)
+    expires_at = _utc(identity.expires_at)
+    retention_until = _utc(identity.retention_until)
+    if expires_at <= issued_at or retention_until <= expires_at:
+        raise OidcProtocolError("logout identity time window is invalid")
+
+
+def _logout_rejection_reason(exc: OidcProtocolError) -> str:
+    message = str(exc).lower()
+    if "expired" in message or "older than" in message:
+        return "expired_or_stale"
+    if "future" in message or "lifetime" in message or "time window" in message:
+        return "invalid_time_window"
+    if "typ" in message:
+        return "invalid_token_type"
+    if "jti" in message:
+        return "invalid_jti"
+    if "signature" in message or "signing" in message or "jwt validation" in message:
+        return "invalid_signature"
+    return "invalid_protocol"
 
 
 def _logout_actor_id(issuer: str) -> str:

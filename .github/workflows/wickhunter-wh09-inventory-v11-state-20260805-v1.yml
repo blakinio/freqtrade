@@ -1,0 +1,222 @@
+name: WickHunter WH09 v11 preserved state inventory
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-inventory-v11-state-20260805-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v11-state-inventory
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-inventory-v11-state-20260805-v1.yml
+  EXPECTED_BASE_SHA: 5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4
+  IMPLEMENTATION_SHA: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
+  ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v11-cbf9f57e
+  EXPECTED_RUN_ID: c62c0d1b4d0721e11be7908bad96c4b4a192323497b5dff28adff9f0d2f6d7f5
+  EXPECTED_BINDING_ID: dc2126165359b2a11b2a7f9141e024d59dba6a8c61a34ef1a78802be1a34d8c3
+  EXPECTED_JOURNAL_IDENTITY: 7bea9c23c5af4c807f11f27fc4767ba12194db49a5c1d9155331b331cb17d15a
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+
+jobs:
+  inventory:
+    name: Inventory preserved v11 journal and health
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact inventory request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and inventory preserved state
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-inventory-v11-state-20260805-v1.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]]
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]]
+          done
+
+          state_root="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v11"
+          activation_root="$state_root/activations/$ACTIVATION_NAME"
+          journal_root="$state_root/journals/$ACTIVATION_NAME"
+          operator_root="$state_root/operator/$ACTIVATION_NAME"
+          report_path="$RUNNER_TEMP/wickhunter-wh09-v11-state-inventory.json"
+          listing_path="$RUNNER_TEMP/wickhunter-wh09-v11-state-inventory-files.txt"
+          [[ -d "$activation_root" && ! -L "$activation_root" ]]
+          [[ -d "$journal_root" && ! -L "$journal_root" ]]
+          [[ ! -L "$operator_root" ]]
+          roots=("$activation_root" "$journal_root")
+          if [[ -d "$operator_root" ]]; then
+            roots+=("$operator_root")
+          fi
+          find "${roots[@]}" -mindepth 0 -maxdepth 7 -printf '%p\t%y\t%s\t%T@\n' | sort > "$listing_path"
+
+          python3 - "$activation_root" "$journal_root" "$operator_root" "$listing_path" "$report_path" <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+          from typing import Any
+
+          activation_root = Path(sys.argv[1])
+          journal_root = Path(sys.argv[2])
+          operator_root = Path(sys.argv[3])
+          listing_path = Path(sys.argv[4])
+          report_path = Path(sys.argv[5])
+
+          expected_implementation_sha = "cbf9f57ea8d5783f85d19fe0f8557dfe3178705a"
+          expected_activation_name = "wickhunter-wh09-activation-20260805-v11-cbf9f57e"
+          expected_run_id = "c62c0d1b4d0721e11be7908bad96c4b4a192323497b5dff28adff9f0d2f6d7f5"
+          expected_binding_id = "dc2126165359b2a11b2a7f9141e024d59dba6a8c61a34ef1a78802be1a34d8c3"
+          expected_journal_identity = "7bea9c23c5af4c807f11f27fc4767ba12194db49a5c1d9155331b331cb17d15a"
+
+          def read_json(path: Path) -> dict[str, Any] | None:
+              if not path.is_file() or path.is_symlink():
+                  return None
+              value = json.loads(path.read_text(encoding="utf-8"))
+              if not isinstance(value, dict):
+                  raise SystemExit(f"expected object: {path}")
+              return value
+
+          def authority(payload: dict[str, Any] | None) -> dict[str, object] | None:
+              if payload is None:
+                  return None
+              return {
+                  "protected_holdout_accessed": payload.get("protected_holdout_accessed"),
+                  "automatic_promotion_enabled": payload.get("automatic_promotion_enabled"),
+                  "trading_credentials_present": payload.get("trading_credentials_present"),
+                  "order_adapter_present": payload.get("order_adapter_present"),
+                  "execution_enabled": payload.get("execution_enabled"),
+                  "orders_submitted": payload.get("orders_submitted"),
+                  "live_capital_authorized": payload.get("live_capital_authorized"),
+              }
+
+          request = read_json(activation_root / "request.json")
+          activation_manifest = read_json(activation_root / "activation-manifest.json")
+          identity = read_json(journal_root / "identity.json")
+          pointer = read_json(journal_root / "active-generation.json")
+          health = read_json(operator_root / "health.json")
+          generations_root = journal_root / "generations"
+          generation_dirs = []
+          if generations_root.is_dir() and not generations_root.is_symlink():
+              generation_dirs = sorted(
+                  (item for item in generations_root.iterdir() if item.is_dir() and not item.is_symlink()),
+                  key=lambda item: item.name,
+              )
+          generation_summaries = []
+          for root in generation_dirs:
+              manifest = read_json(root / "manifest.json")
+              observation = read_json(root / "paper-observation.json")
+              generation_summaries.append(
+                  {
+                      "name": root.name,
+                      "manifest": None if manifest is None else {
+                          "generation": manifest.get("generation"),
+                          "manifest_sha256": manifest.get("manifest_sha256"),
+                          "previous_manifest_sha256": manifest.get("previous_manifest_sha256"),
+                          "snapshot_id": manifest.get("snapshot_id"),
+                          "runtime_state_sha256": manifest.get("runtime_state_sha256"),
+                          "authority": authority(manifest),
+                      },
+                      "observation": None if observation is None else {
+                          "observed_at_ms": observation.get("observed_at_ms"),
+                          "persistence_generation": observation.get("persistence_generation"),
+                          "snapshot_id": observation.get("snapshot_id"),
+                          "health": observation.get("health"),
+                          "source_count": observation.get("source_count"),
+                          "fresh_source_count": observation.get("fresh_source_count"),
+                          "decision_count": observation.get("decision_count"),
+                          "allowed_decision_count": observation.get("allowed_decision_count"),
+                          "risk_rejection_count": observation.get("risk_rejection_count"),
+                          "ignored_decision_count": observation.get("ignored_decision_count"),
+                          "authority": authority(observation),
+                      },
+                  }
+              )
+
+          identity_matches = {
+              "request_code_sha": None if request is None else request.get("code_sha") == expected_implementation_sha,
+              "request_run_id": None if request is None else request.get("run_id") == expected_run_id,
+              "journal_run_id": None if identity is None else identity.get("run_id") == expected_run_id,
+              "journal_binding_id": None if identity is None else identity.get("binding_id") == expected_binding_id,
+              "journal_identity_sha256": None if identity is None else identity.get("identity_sha256") == expected_journal_identity,
+          }
+
+          report = {
+              "schema_version": "wickhunter-wh09-v11-preserved-state-inventory-v1",
+              "implementation_sha": expected_implementation_sha,
+              "activation_name": expected_activation_name,
+              "expected_run_id": expected_run_id,
+              "expected_binding_id": expected_binding_id,
+              "expected_journal_identity": expected_journal_identity,
+              "identity_matches": identity_matches,
+              "request": None if request is None else {
+                  "run_id": request.get("run_id"),
+                  "created_at_ms": request.get("created_at_ms"),
+                  "window_start_ms": request.get("window_start_ms"),
+                  "window_end_ms": request.get("window_end_ms"),
+                  "code_sha": request.get("code_sha"),
+                  "authority": authority(request),
+              },
+              "activation_manifest_authority": authority(activation_manifest),
+              "journal_identity": None if identity is None else {
+                  "identity_sha256": identity.get("identity_sha256"),
+                  "binding_id": identity.get("binding_id"),
+                  "run_id": identity.get("run_id"),
+                  "authority": authority(identity),
+              },
+              "pointer": pointer,
+              "health": health,
+              "health_authority": authority(health),
+              "generation_count": len(generation_dirs),
+              "generations": generation_summaries,
+              "operator_root_exists": operator_root.is_dir(),
+              "listing_sha256": hashlib.sha256(listing_path.read_bytes()).hexdigest(),
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload bounded state inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wickhunter-wh09-v11-state-inventory-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/wickhunter-wh09-v11-state-inventory.json
+            ${{ runner.temp }}/wickhunter-wh09-v11-state-inventory-files.txt
+          if-no-files-found: error
+          retention-days: 14

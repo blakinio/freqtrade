@@ -1,0 +1,111 @@
+name: WickHunter WH09 Liquid20 snapshot race audit
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-liquid20-snapshot-race-audit.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-liquid20-snapshot-race-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Measure producer state and file convergence
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 5
+    steps:
+      - name: Validate trusted runner
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          [[ "$(docker inspect --format '{{.Config.User}}' liquid20-live)" == "1026:0" ]]
+
+      - name: Sample active producer contract three times
+        shell: bash
+        run: |
+          set -euo pipefail
+          for sample in 1 2 3; do
+            echo "sample=$sample"
+            docker exec --user 0:0 liquid20-live python -c '
+          import hashlib
+          import json
+          import time
+          from pathlib import Path
+
+          root = Path("/data/live")
+          pointer_path = root / "live-state-v1.json"
+          pointer_bytes = pointer_path.read_bytes()
+          pointer = json.loads(pointer_bytes)
+          state = pointer.get("state")
+          if not isinstance(state, dict):
+              raise SystemExit("pointer state missing")
+          run_id = state.get("run_id")
+          if not isinstance(run_id, str) or not run_id:
+              raise SystemExit("run_id missing")
+          run_root = root / "runs" / run_id
+          run_state_path = run_root / "run-state-v1.json"
+          run_state_bytes = run_state_path.read_bytes()
+          run_state = json.loads(run_state_bytes)
+          print(json.dumps({
+              "observed_at_ms": time.time_ns() // 1_000_000,
+              "run_id": run_id,
+              "pointer_sha256": hashlib.sha256(pointer_bytes).hexdigest(),
+              "run_state_sha256": hashlib.sha256(run_state_bytes).hexdigest(),
+              "pointer_matches_run_state": state == run_state,
+              "collector_heartbeat_at_ms": state.get("collector_heartbeat_at_ms"),
+              "run_state": state.get("run_state"),
+          }, sort_keys=True))
+          sources = state.get("sources")
+          if not isinstance(sources, dict):
+              raise SystemExit("sources missing")
+          for source in ("bybit-linear", "binance-usdm"):
+              source_state = sources.get(source)
+              if not isinstance(source_state, dict):
+                  raise SystemExit(f"source state missing: {source}")
+              event_path = run_root / f"{source}.ndjson"
+              raw = event_path.read_bytes()
+              line_count = raw.count(b"\n")
+              complete = not raw or raw.endswith(b"\n")
+              last_event = None
+              if raw:
+                  last_line = raw.rstrip(b"\n").splitlines()[-1]
+                  payload = json.loads(last_line)
+                  last_event = {
+                      "source_event_id": payload.get("source_event_id"),
+                      "occurred_at_ms": payload.get("occurred_at_ms"),
+                      "received_at_ms": payload.get("received_at_ms"),
+                  }
+              print(json.dumps({
+                  "source": source,
+                  "events_written": source_state.get("events_written"),
+                  "file_line_count": line_count,
+                  "file_minus_state": line_count - int(source_state.get("events_written", -1)),
+                  "file_size": len(raw),
+                  "file_complete": complete,
+                  "file_sha256": hashlib.sha256(raw).hexdigest(),
+                  "last_event": last_event,
+                  "last_event_at_ms": source_state.get("last_event_at_ms"),
+                  "last_event_received_at_ms": source_state.get("last_event_received_at_ms"),
+              }, sort_keys=True))
+          '
+            if [[ "$sample" != 3 ]]; then
+              sleep 5
+            fi
+          done

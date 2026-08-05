@@ -17,6 +17,7 @@ def test_parallel_focused_core_validation_installs_required_dependencies() -> No
         "optuna==4.9.0",
         "datasieve==0.1.9",
         "pip-audit==2.10.1",
+        "lightgbm==4.6.0",
     )
     for package in required_packages:
         assert package in block

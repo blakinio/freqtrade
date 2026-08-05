@@ -92,6 +92,8 @@ class FakeOidcClient:
         assert logout_token == "valid-logout-token"
         return OidcLogoutIdentity(
             issuer=self.issuer,
+            client_id="portal-client",
+            jti="lifecycle-logout-1",
             subject=self.subject,
             idp_session_id=self.sid,
         )

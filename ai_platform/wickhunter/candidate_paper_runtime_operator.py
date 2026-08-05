@@ -8,6 +8,7 @@ import os
 import re
 import tempfile
 import time
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -59,6 +60,11 @@ RUN_STATE_NAME = "run-state-v1.json"
 LIQUID20_LIVE_CONTRACT = "liquidation-live-state-v1"
 EXPECTED_LIVE_SOURCES = ("binance-usdm", "bybit-linear", "okx-swap")
 MAX_LIVE_RUNS_PER_WINDOW = 64
+MAX_LIVE_SOURCE_BYTES = 128 * 1024 * 1024
+MAX_LIVE_SOURCE_EVENTS = 250_000
+MAX_UNCOMMITTED_LIVE_EVENTS = 10_000
+LIVE_SNAPSHOT_READ_ATTEMPTS = 10
+LIVE_SNAPSHOT_RETRY_SECONDS = 0.1
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,30}$")
@@ -96,6 +102,10 @@ ZERO_AUTHORITY = {
 
 class CandidatePaperRuntimeOperatorError(RuntimeError):
     """Raised when the persistent PAPER operator must fail closed."""
+
+
+class _TransientLiquid20SnapshotError(CandidatePaperRuntimeOperatorError):
+    """Raised when an atomic producer publication is observed mid-commit."""
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -299,29 +309,93 @@ def _read_bounded_json(path: Path, *, field: str) -> dict[str, Any]:
     return _require_object(payload, field=field)
 
 
-def _read_bounded_jsonl_tail(path: Path, *, field: str) -> tuple[dict[str, Any], ...]:
+def _parse_live_source_event(
+    row: dict[str, Any],
+    *,
+    source: str,
+    observed_at_ms: int,
+) -> LiquidationEvent:
+    try:
+        event = event_from_json_dict(row)
+    except ValueError as exc:
+        raise CandidatePaperRuntimeOperatorError(
+            f"Liquid20 source event is invalid: {source}"
+        ) from exc
+    if event.source != source:
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 event source does not match its immutable source file"
+        )
+    if event.received_at_ms > observed_at_ms:
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 event was unavailable at live observation time"
+        )
+    return event
+
+
+def _read_committed_jsonl_tail(  # noqa: C901
+    path: Path,
+    *,
+    field: str,
+    committed_rows: int,
+    allow_uncommitted_suffix: bool,
+    source: str,
+    observed_at_ms: int,
+    suffix_available_at_ms: int,
+) -> tuple[dict[str, Any], ...]:
     if path.is_symlink() or not path.is_file():
         raise CandidatePaperRuntimeOperatorError(f"{field} must be a regular file")
+    if committed_rows > MAX_LIVE_SOURCE_EVENTS:
+        raise CandidatePaperRuntimeOperatorError(f"{field} committed event count is too large")
     size = path.stat().st_size
-    if size <= 0:
-        raise CandidatePaperRuntimeOperatorError(f"{field} is empty")
-    rows: list[dict[str, Any]] = []
+    if size < 0 or size > MAX_LIVE_SOURCE_BYTES:
+        raise CandidatePaperRuntimeOperatorError(f"{field} size is outside the accepted bound")
+    if size == 0:
+        if committed_rows != 0:
+            raise CandidatePaperRuntimeOperatorError(f"{field} contradicts events_written")
+        return ()
+
+    rows: deque[dict[str, Any]] = deque(maxlen=MAX_LIVE_EVENTS)
+    committed_seen = 0
+    suffix_seen = 0
+    bytes_seen = 0
     try:
         with path.open("rb") as handle:
-            offset = max(0, size - MAX_INPUT_BYTES)
-            handle.seek(offset)
-            if offset:
-                handle.readline()
             for raw in handle:
-                if not raw.strip():
-                    continue
+                bytes_seen += len(raw)
+                if bytes_seen > MAX_LIVE_SOURCE_BYTES:
+                    raise CandidatePaperRuntimeOperatorError(
+                        f"{field} size is outside the accepted bound"
+                    )
+                if not raw.endswith(b"\n") or not raw.strip():
+                    raise CandidatePaperRuntimeOperatorError(
+                        f"{field} contains an incomplete event"
+                    )
                 payload = json.loads(raw.decode("utf-8"))
-                rows.append(_require_object(payload, field=field))
+                row = _require_object(payload, field=field)
+                if committed_seen < committed_rows:
+                    rows.append(row)
+                    committed_seen += 1
+                    continue
+                suffix_seen += 1
+                if not allow_uncommitted_suffix:
+                    raise CandidatePaperRuntimeOperatorError(f"{field} contradicts events_written")
+                if suffix_seen > MAX_UNCOMMITTED_LIVE_EVENTS:
+                    raise CandidatePaperRuntimeOperatorError(
+                        f"{field} contains too many uncommitted events"
+                    )
+                _parse_live_source_event(
+                    row,
+                    source=source,
+                    observed_at_ms=suffix_available_at_ms,
+                )
+    except CandidatePaperRuntimeOperatorError:
+        raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise CandidatePaperRuntimeOperatorError(f"unable to read {field}") from exc
-    if not rows:
-        raise CandidatePaperRuntimeOperatorError(f"{field} contains no events")
-    return tuple(rows[-MAX_LIVE_EVENTS:])
+
+    if committed_seen != committed_rows:
+        raise CandidatePaperRuntimeOperatorError(f"{field} contradicts events_written")
+    return tuple(rows)
 
 
 def _live_source_state(
@@ -482,66 +556,61 @@ def _relevant_live_run_ids(
     return relevant
 
 
-def _read_live_source_events(  # noqa: C901
+def _read_live_source_events(
     run_root: Path,
     *,
     source: str,
     source_row: dict[str, Any],
     observed_at_ms: int,
+    snapshot_read_at_ms: int,
     history_start_ms: int,
+    allow_uncommitted_suffix: bool,
 ) -> tuple[LiquidationEvent, ...]:
     event_path = run_root / f"{source}.ndjson"
     events_written = _non_negative_integer(
         source_row.get("events_written", 0),
         field=f"{source} events_written",
     )
+    configured = source_row.get("configured") is True
+    if not event_path.exists():
+        if (
+            events_written == 0
+            and not configured
+            and source_row.get("last_event_received_at_ms") is None
+        ):
+            return ()
+        raise CandidatePaperRuntimeOperatorError(
+            f"Liquid20 source events {source} must be a regular file"
+        )
+    if events_written == 0 and not configured and event_path.stat().st_size != 0:
+        raise CandidatePaperRuntimeOperatorError(
+            f"Liquid20 source events {source} contradict events_written"
+        )
+
+    event_rows = _read_committed_jsonl_tail(
+        event_path,
+        field=f"Liquid20 source events {source}",
+        committed_rows=events_written,
+        allow_uncommitted_suffix=allow_uncommitted_suffix and configured,
+        source=source,
+        observed_at_ms=observed_at_ms,
+        suffix_available_at_ms=snapshot_read_at_ms,
+    )
     if events_written == 0:
-        configured = source_row.get("configured") is True
-        if event_path.exists():
-            if event_path.is_symlink() or not event_path.is_file():
-                raise CandidatePaperRuntimeOperatorError(
-                    f"Liquid20 source events {source} must be a regular file"
-                )
-            if event_path.stat().st_size != 0:
-                raise CandidatePaperRuntimeOperatorError(
-                    f"Liquid20 source events {source} contradict events_written"
-                )
-        elif configured:
-            raise CandidatePaperRuntimeOperatorError(
-                f"Liquid20 configured source events {source} must be a regular file"
-            )
         if source_row.get("last_event_received_at_ms") is not None:
             raise CandidatePaperRuntimeOperatorError(
                 f"Liquid20 source state {source} has a receipt without events"
             )
         return ()
 
-    event_rows = _read_bounded_jsonl_tail(
-        event_path,
-        field=f"Liquid20 source events {source}",
-    )
-    if event_path.stat().st_size <= MAX_INPUT_BYTES and len(event_rows) != events_written:
-        raise CandidatePaperRuntimeOperatorError(
-            f"Liquid20 source events {source} contradict events_written"
+    parsed_events = [
+        _parse_live_source_event(
+            row,
+            source=source,
+            observed_at_ms=observed_at_ms,
         )
-
-    parsed_events: list[LiquidationEvent] = []
-    for row in event_rows:
-        try:
-            event = event_from_json_dict(row)
-        except ValueError as exc:
-            raise CandidatePaperRuntimeOperatorError(
-                f"Liquid20 source event is invalid: {source}"
-            ) from exc
-        if event.source != source:
-            raise CandidatePaperRuntimeOperatorError(
-                "Liquid20 event source does not match its immutable source file"
-            )
-        if event.received_at_ms > observed_at_ms:
-            raise CandidatePaperRuntimeOperatorError(
-                "Liquid20 event was unavailable at live observation time"
-            )
-        parsed_events.append(event)
+        for row in event_rows
+    ]
 
     claimed_last_received = _integer(
         source_row.get("last_event_received_at_ms"),
@@ -554,7 +623,7 @@ def _read_live_source_events(  # noqa: C901
     return tuple(event for event in parsed_events if event.received_at_ms >= history_start_ms)
 
 
-def _load_liquid20_live_root(  # noqa: C901
+def _load_liquid20_live_root_once(  # noqa: C901
     root: Path,
     *,
     now_ms: int,
@@ -630,7 +699,7 @@ def _load_liquid20_live_root(  # noqa: C901
             expected_run_state=expected_state,
         )
         if historical_run_id == run_id and run_state != active_state:
-            raise CandidatePaperRuntimeOperatorError("Liquid20 active pointer and run state differ")
+            raise _TransientLiquid20SnapshotError("Liquid20 active pointer and run state differ")
         for source in EXPECTED_LIVE_SOURCES:
             source_row = _require_object(
                 run_source_payloads[source],
@@ -642,7 +711,9 @@ def _load_liquid20_live_root(  # noqa: C901
                     source=source,
                     source_row=source_row,
                     observed_at_ms=observed_at_ms,
+                    snapshot_read_at_ms=now_ms,
                     history_start_ms=history_start_ms,
+                    allow_uncommitted_suffix=historical_run_id == run_id,
                 )
             )
 
@@ -718,6 +789,8 @@ def _load_liquid20_live_root(  # noqa: C901
         ],
         "selected_symbols": list(selected_symbols),
     }
+    if _read_bounded_json(root / LIVE_POINTER_NAME, field="Liquid20 live pointer") != pointer:
+        raise _TransientLiquid20SnapshotError("Liquid20 live pointer changed during snapshot read")
     return Liquid20Snapshot(
         canonical_sha256(snapshot_body),
         observed_at_ms,
@@ -726,6 +799,29 @@ def _load_liquid20_live_root(  # noqa: C901
         source_states,
         universe,
     )
+
+
+def _load_liquid20_live_root(
+    root: Path,
+    *,
+    now_ms: int,
+    maximum_age_ms: int,
+) -> Liquid20Snapshot:
+    last_error: _TransientLiquid20SnapshotError | None = None
+    for attempt in range(LIVE_SNAPSHOT_READ_ATTEMPTS):
+        try:
+            return _load_liquid20_live_root_once(
+                root,
+                now_ms=now_ms,
+                maximum_age_ms=maximum_age_ms,
+            )
+        except _TransientLiquid20SnapshotError as exc:
+            last_error = exc
+            if attempt + 1 < LIVE_SNAPSHOT_READ_ATTEMPTS:
+                time.sleep(LIVE_SNAPSHOT_RETRY_SECONDS)
+    raise CandidatePaperRuntimeOperatorError(
+        "unable to obtain a stable Liquid20 live snapshot"
+    ) from last_error
 
 
 def load_liquid20_snapshot(

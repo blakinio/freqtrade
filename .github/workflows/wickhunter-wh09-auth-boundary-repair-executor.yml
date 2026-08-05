@@ -1,0 +1,165 @@
+name: WickHunter WH09 candidate authorization boundary repair executor
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-auth-boundary-repair-executor.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-auth-boundary-repair-executor
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: 5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4
+  TARGET_BRANCH: fix/wickhunter-wh09-candidate-authorization-boundary-20260805-v1
+  OPERATOR_PATH: ai_platform/wickhunter/candidate_paper_runtime_operator.py
+  TEST_PATH: tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+  TASK_PATH: docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md
+
+jobs:
+  repair:
+    name: Apply exact authorization-boundary repair
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact executor request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate request scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-auth-boundary-repair-executor.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected executor scope:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+
+      - name: Apply exact product repair on target branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin develop "$TARGET_BRANCH"
+          [[ "$(git rev-parse origin/develop)" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$(git rev-parse origin/$TARGET_BRANCH)" == "$EXPECTED_BASE_SHA" ]]
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          operator_path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
+          test_path = Path("tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py")
+          task_path = Path("docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md")
+
+          operator = operator_path.read_text(encoding="utf-8")
+          old_operator = "        candidate_paper_validation_authorized=True,\n"
+          new_operator = "        candidate_paper_validation_authorized=False,\n"
+          if operator.count(old_operator) != 1:
+              raise SystemExit("operator authorization producer boundary is not unique")
+          operator = operator.replace(old_operator, new_operator)
+          operator_path.write_text(operator, encoding="utf-8")
+
+          tests = test_path.read_text(encoding="utf-8")
+          old_test = "    assert context.candidate_paper_validation_authorized is True\n"
+          new_test = "    assert context.candidate_paper_validation_authorized is False\n"
+          if tests.count(old_test) != 1:
+              raise SystemExit("operator authorization regression assertion is not unique")
+          tests = tests.replace(old_test, new_test)
+          test_path.write_text(tests, encoding="utf-8")
+
+          task = task_path.read_text(encoding="utf-8")
+          branch_old = "branch: fix/wickhunter-wh09-kline-completion-margin-20260805-v2"
+          branch_new = "branch: fix/wickhunter-wh09-candidate-authorization-boundary-20260805-v1"
+          if task.count(branch_old) != 1:
+              raise SystemExit("durable task branch checkpoint is unexpected")
+          task = task.replace(branch_old, branch_new)
+          action_old = (
+              "next_action: validate the bounded completed-kline margin, merge the repair, "
+              "then deploy a fresh v11 PAPER activation and begin the prospective acceptance window"
+          )
+          action_new = (
+              "next_action: validate and merge the candidate-authorization producer-boundary repair, "
+              "then deploy a fresh v12 PAPER activation and begin the prospective acceptance window"
+          )
+          if task.count(action_old) != 1:
+              raise SystemExit("durable task next action checkpoint is unexpected")
+          task = task.replace(action_old, action_new)
+          heading = "## Candidate authorization producer-boundary repair"
+          if heading in task:
+              raise SystemExit("candidate authorization repair section already exists")
+          task += """
+
+## Candidate authorization producer-boundary repair
+
+Trusted Synology deployment v11, run `31015386475`, built and started the exact merged
+operator `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a` but failed closed before generation 1.
+Read-only inventory run `31020069546` proved the exact terminal error was
+`CandidateRuntimeBindingError: shadow request arrived with candidate authorization already enabled`.
+The operator-created `WickHunterRiskContext` incorrectly set
+`candidate_paper_validation_authorized=true` before calling the verified candidate runtime binding.
+That binding intentionally accepts only an unprivileged request and is the sole boundary that may
+replace the field with `true` after candidate, activation, policy, model, parameter, dataset, code,
+time-window and frozen-bound checks pass.
+
+This repair changes only the producer-side default to `false` and updates the focused regression to
+require that unbound state. The existing candidate-runtime-binding regression continues to prove
+that the verified binding promotes the field to `true` and rejects pre-authorized requests. No
+trading credential, order adapter, execution, automatic promotion, protected holdout or live-capital
+authority is introduced; `orders_submitted` remains zero. After exact-head CI and merge, v11 remains
+terminal evidence and a new immutable v12 activation is required.
+"""
+          task_path.write_text(task, encoding="utf-8")
+          PY
+
+      - name: Validate exact repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile "$OPERATOR_PATH" "$TEST_PATH"
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+
+          operator = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py").read_text(encoding="utf-8")
+          tests = Path("tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py").read_text(encoding="utf-8")
+          ast.parse(operator)
+          ast.parse(tests)
+          if operator.count("candidate_paper_validation_authorized=False,") != 1:
+              raise SystemExit("operator must produce exactly one unbound candidate authorization field")
+          if "assert context.candidate_paper_validation_authorized is False" not in tests:
+              raise SystemExit("focused producer regression is missing")
+          PY
+          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          actual="$(git diff --name-only origin/develop | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected product paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          git diff --check
+
+      - name: Commit and publish product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "$OPERATOR_PATH" "$TEST_PATH" "$TASK_PATH"
+          ! git diff --cached --quiet
+          git commit -m "fix(wickhunter): bind candidate authorization at verified boundary"
+          git push origin "HEAD:$TARGET_BRANCH"

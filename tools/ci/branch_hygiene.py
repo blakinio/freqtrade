@@ -28,9 +28,11 @@ class BranchFacts:
     """Facts required to decide whether a branch may be deleted safely."""
 
     name: str
+    head_sha: str
     age_days: int
     protected: bool
     has_open_pull_request: bool
+    has_merged_pull_request_at_head: bool
     unique_commits: int
 
 
@@ -60,8 +62,8 @@ def evaluate_branch(
         reasons.append("open_pull_request")
     if facts.age_days < stale_days:
         reasons.append("younger_than_retention")
-    if facts.unique_commits != 0:
-        reasons.append("contains_unique_commits")
+    if facts.unique_commits != 0 and not facts.has_merged_pull_request_at_head:
+        reasons.append("contains_unmerged_unique_commits")
     if any(fnmatch.fnmatchcase(facts.name, pattern) for pattern in keep_patterns):
         reasons.append("keep_pattern")
 
@@ -137,8 +139,32 @@ class GitHubApi:
                 heads.add(head["ref"])
         return heads
 
+    def merged_pull_request_heads(self) -> set[tuple[str, str]]:
+        """Return same-repository branch refs and exact heads merged by PR."""
+        items = self._paginate(
+            f"{self.base_url}/pulls?state=closed&sort=updated&direction=desc&per_page=100"
+        )
+        merged_heads: set[tuple[str, str]] = set()
+        for item in items:
+            if not isinstance(item.get("merged_at"), str):
+                continue
+            head = item.get("head")
+            if not isinstance(head, dict):
+                continue
+            repository = head.get("repo")
+            branch = head.get("ref")
+            sha = head.get("sha")
+            if (
+                isinstance(repository, dict)
+                and repository.get("full_name") == self.repository
+                and isinstance(branch, str)
+                and isinstance(sha, str)
+            ):
+                merged_heads.add((branch, sha))
+        return merged_heads
+
     def delete_branch(self, branch: str) -> None:
-        encoded = urllib.parse.quote(branch, safe="")
+        encoded = urllib.parse.quote(branch, safe="/")
         self._request(f"{self.base_url}/git/refs/heads/{encoded}", method="DELETE")
 
 
@@ -181,6 +207,10 @@ def _remote_branches(remote: str) -> list[str]:
     return sorted(branches)
 
 
+def _branch_head_sha(remote: str, branch: str) -> str:
+    return _git("rev-parse", f"{remote}/{branch}")
+
+
 def _branch_age_days(remote: str, branch: str, now: dt.datetime) -> int:
     timestamp = int(_git("log", "-1", "--format=%ct", f"{remote}/{branch}"))
     committed = dt.datetime.fromtimestamp(timestamp, tz=dt.UTC)
@@ -202,17 +232,25 @@ def collect_branch_facts(
     default_branch: str,
     protected_branches: set[str],
     open_pull_request_heads: set[str],
+    merged_pull_request_heads: set[tuple[str, str]],
     now: dt.datetime,
 ) -> list[BranchFacts]:
     """Collect local Git and GitHub facts for every remote branch."""
     facts: list[BranchFacts] = []
     for branch in _remote_branches(remote):
+        head_sha = _branch_head_sha(remote, branch)
         facts.append(
             BranchFacts(
                 name=branch,
+                head_sha=head_sha,
                 age_days=_branch_age_days(remote, branch, now),
                 protected=branch in protected_branches,
                 has_open_pull_request=branch in open_pull_request_heads,
+                has_merged_pull_request_at_head=(
+                    branch,
+                    head_sha,
+                )
+                in merged_pull_request_heads,
                 unique_commits=_unique_commit_count(remote, default_branch, branch),
             )
         )
@@ -230,8 +268,8 @@ def _write_report(path: Path, report: dict[str, Any]) -> None:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Inventory remote branches and optionally delete only old, fully "
-            "merged, unprotected branches without open pull requests."
+            "Inventory remote branches and optionally delete only old, reviewed, "
+            "merged and otherwise unprotected branches without open pull requests."
         )
     )
     parser.add_argument(
@@ -293,6 +331,7 @@ def main(argv: list[str] | None = None) -> int:
         default_branch=default_branch,
         protected_branches=api.protected_branches(),
         open_pull_request_heads=api.open_pull_request_heads(),
+        merged_pull_request_heads=api.merged_pull_request_heads(),
         now=dt.datetime.now(tz=dt.UTC),
     )
 

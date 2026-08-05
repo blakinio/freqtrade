@@ -70,11 +70,30 @@ def evaluate_branch(
     return BranchDecision(eligible=not reasons, reasons=tuple(reasons))
 
 
+def evaluate_live_revalidation(
+    facts: BranchFacts,
+    *,
+    live_head_sha: str,
+    live_protected: bool,
+    live_has_open_pull_request: bool,
+) -> BranchDecision:
+    """Fail closed when branch state changed after the inventory snapshot."""
+    reasons: list[str] = []
+    if live_head_sha != facts.head_sha:
+        reasons.append("head_moved_after_inventory")
+    if live_protected:
+        reasons.append("became_protected_after_inventory")
+    if live_has_open_pull_request:
+        reasons.append("open_pull_request_after_inventory")
+    return BranchDecision(eligible=not reasons, reasons=tuple(reasons))
+
+
 class GitHubApi:
     """Minimal GitHub REST client used by the bounded hygiene command."""
 
     def __init__(self, repository: str, token: str) -> None:
         self.repository = repository
+        self.owner = repository.split("/", maxsplit=1)[0]
         self.base_url = f"https://api.github.com/repos/{repository}"
         self.headers = {
             "Accept": "application/vnd.github+json",
@@ -162,6 +181,34 @@ class GitHubApi:
             ):
                 merged_heads.add((branch, sha))
         return merged_heads
+
+    def live_branch_state(self, branch: str) -> tuple[str, bool]:
+        encoded = urllib.parse.quote(branch, safe="")
+        payload, _ = self._request(f"{self.base_url}/branches/{encoded}")
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"branch response for {branch} was not an object")
+        commit = payload.get("commit")
+        protected = payload.get("protected")
+        if (
+            not isinstance(commit, dict)
+            or not isinstance(commit.get("sha"), str)
+            or not isinstance(protected, bool)
+        ):
+            raise RuntimeError(f"branch response for {branch} lacked required state")
+        return commit["sha"], protected
+
+    def has_open_pull_request(self, branch: str) -> bool:
+        query = urllib.parse.urlencode(
+            {
+                "state": "open",
+                "head": f"{self.owner}:{branch}",
+                "per_page": 1,
+            }
+        )
+        payload, _ = self._request(f"{self.base_url}/pulls?{query}")
+        if not isinstance(payload, list):
+            raise RuntimeError(f"open PR response for {branch} was not a list")
+        return bool(payload)
 
     def delete_branch(self, branch: str) -> None:
         encoded = urllib.parse.quote(branch, safe="/")
@@ -335,6 +382,7 @@ def main(argv: list[str] | None = None) -> int:
     keep_patterns = (*DEFAULT_KEEP_PATTERNS, *args.keep_pattern)
     records: list[dict[str, Any]] = []
     deleted: list[str] = []
+    revalidation_failures: list[dict[str, Any]] = []
     for branch in facts:
         decision = evaluate_branch(
             branch,
@@ -343,15 +391,34 @@ def main(argv: list[str] | None = None) -> int:
             keep_patterns=keep_patterns,
         )
         status = "candidate" if decision.eligible else "retained"
+        live_revalidation_reasons: list[str] = []
         if args.apply and decision.eligible:
-            api.delete_branch(branch.name)
-            deleted.append(branch.name)
-            status = "deleted"
+            live_head_sha, live_protected = api.live_branch_state(branch.name)
+            live_decision = evaluate_live_revalidation(
+                branch,
+                live_head_sha=live_head_sha,
+                live_protected=live_protected,
+                live_has_open_pull_request=api.has_open_pull_request(branch.name),
+            )
+            live_revalidation_reasons = list(live_decision.reasons)
+            if live_decision.eligible:
+                api.delete_branch(branch.name)
+                deleted.append(branch.name)
+                status = "deleted"
+            else:
+                status = "revalidation_failed"
+                revalidation_failures.append(
+                    {
+                        "branch": branch.name,
+                        "reasons": live_revalidation_reasons,
+                    }
+                )
         records.append(
             {
                 **dataclasses.asdict(branch),
                 "eligible": decision.eligible,
                 "reasons": list(decision.reasons),
+                "live_revalidation_reasons": live_revalidation_reasons,
                 "status": status,
             }
         )
@@ -364,13 +431,15 @@ def main(argv: list[str] | None = None) -> int:
         "branch_count": len(records),
         "candidate_count": sum(1 for record in records if record["eligible"]),
         "deleted_count": len(deleted),
+        "revalidation_failure_count": len(revalidation_failures),
         "deleted": deleted,
+        "revalidation_failures": revalidation_failures,
         "branches": records,
     }
     if args.report_json:
         _write_report(args.report_json, report)
     print(json.dumps({key: value for key, value in report.items() if key != "branches"}))
-    return 0
+    return 1 if revalidation_failures else 0
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-name: WickHunter WH09 Liquid20 reader-group deployment repair
+name: WickHunter WH09 Liquid20 permission metadata probe
 
 "on":
   pull_request:
@@ -8,182 +8,81 @@ name: WickHunter WH09 Liquid20 reader-group deployment repair
       - ".github/workflows/wickhunter-wh09-deployment-env-gate-repair.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: wickhunter-wh09-deployment-reader-group-repair-v4
+  group: wickhunter-wh09-liquid20-permission-probe-v5
   cancel-in-progress: false
 
-env:
-  TARGET_BRANCH: ops/wickhunter-wh09-deploy-paper-20260804-v2
-  EXPECTED_TARGET_HEAD: 83187943a119634e689d8e4cc2852b4bd7abed64
-  TARGET_PATH: .github/workflows/wickhunter-wh09-deploy-20260804-v2.yml
-  STAGING_BRANCH: ops/wickhunter-wh09-deploy-payload-20260805-v2
-  STAGING_PATH: docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/wickhunter-wh09-deploy-20260805-v3.patched.yml
-
 jobs:
-  repair:
-    name: Stage exact Liquid20 reader-group repair
+  probe:
+    name: Inspect bounded Liquid20 permission metadata
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
-    timeout-minutes: 10
+    timeout-minutes: 5
+    env:
+      LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+      OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
     steps:
-      - name: Validate bounded repair request
-        shell: bash
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
-
-      - name: Check out exact deployment branch
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
-        with:
-          ref: ${{ env.TARGET_BRANCH }}
-          fetch-depth: 0
-          persist-credentials: true
-
-      - name: Stage deterministic patched workflow payload
+      - name: Record identities and path metadata only
         shell: bash
         run: |
           set -euo pipefail
-          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
-          python3 - <<'PY'
+          echo "runner_identity=$(id)"
+          docker inspect --format 'collector_user={{.Config.User}}' liquid20-live || true
+          for path in \
+            /volume1 \
+            /volume1/docker \
+            /volume1/docker/freqtrade-liquidations \
+            /volume1/docker/freqtrade-liquidations/data \
+            "$LIQUID20_LIVE_HOST" \
+            "$LIQUID20_LIVE_HOST/runs" \
+            "$LIQUID20_LIVE_HOST/live-state-v1.json"
+          do
+            if [[ -e "$path" || -L "$path" ]]; then
+              stat -c 'path=%n type=%F uid=%u gid=%g mode=%a' "$path"
+            else
+              echo "missing=$path"
+            fi
+          done
+          active_run_id="$(python3 - "$LIQUID20_LIVE_HOST/live-state-v1.json" <<'PY'
+          import json
+          import sys
           from pathlib import Path
-
-          source = Path(".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml")
-          destination = Path(
-              "docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/"
-              "wickhunter-wh09-deploy-20260805-v3.patched.yml"
-          )
-          text = source.read_text(encoding="utf-8")
-
-          def replace_once(old: str, new: str) -> None:
-              global text
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"expected one marker, found {count}: {old[:120]!r}")
-              text = text.replace(old, new, 1)
-
-          replace_once(
-              "name: WickHunter WH09 fresh PAPER deployment v2\n",
-              "name: WickHunter WH09 fresh PAPER deployment v3\n",
-          )
-          replace_once(
-              "  group: wickhunter-wh09-deploy-v2\n",
-              "  group: wickhunter-wh09-deploy-v3\n",
-          )
-          replace_once(
-              "  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live\n",
-              "  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live\n"
-              "  LIQUID20_READER_GID: \"100\"\n",
-          )
-          replace_once(
-              "  ACTIVATION_NAME: wickhunter-wh09-activation-20260804-v2-9a9972a8\n",
-              "  ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v3-9a9972a8\n",
-          )
-          replace_once("  BOT_INSTANCE: wickhunter-paper-v2\n", "  BOT_INSTANCE: wickhunter-paper-v3\n")
-          replace_once(
-              "  OPERATOR_CONTAINER: wickhunter-paper-runtime-v2\n",
-              "  OPERATOR_CONTAINER: wickhunter-paper-runtime-v3\n",
-          )
-          replace_once(
-              "  GATEWAY_CONTAINER: wickhunter-wh09-egress-v2\n",
-              "  GATEWAY_CONTAINER: wickhunter-wh09-egress-v3\n",
-          )
-          replace_once(
-              "  INTERNAL_NETWORK: wickhunter-wh09-internal-v2\n",
-              "  INTERNAL_NETWORK: wickhunter-wh09-internal-v3\n",
-          )
-          replace_once(
-              "          [[ -d \"$LIQUID20_LIVE_HOST\" || ! -e \"$LIQUID20_LIVE_HOST\" ]]\n",
-              "          [[ -d \"$LIQUID20_LIVE_HOST\" && ! -L \"$LIQUID20_LIVE_HOST\" ]]\n"
-              "          [[ -f \"$LIQUID20_LIVE_HOST/live-state-v1.json\" && ! -L \"$LIQUID20_LIVE_HOST/live-state-v1.json\" ]]\n"
-              "          [[ \"$(stat -c '%g' \"$LIQUID20_LIVE_HOST/live-state-v1.json\")\" == \"$LIQUID20_READER_GID\" ]]\n"
-              "          [[ \"$(stat -c '%a' \"$LIQUID20_LIVE_HOST/live-state-v1.json\")\" =~ ^[0-7][0-7][0-7]$ ]]\n",
-          )
-          replace_once(
-              "          state_runner=\"$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v2\"\n"
-              "          state_host=\"$HOST_STATE_ROOT/wickhunter-paper-runtime/v2\"\n",
-              "          state_runner=\"$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v3\"\n"
-              "          state_host=\"$HOST_STATE_ROOT/wickhunter-paper-runtime/v3\"\n",
-          )
-          replace_once(
-              "          docker run --rm --interactive \\\n"
-              "            --user 65532:65532 \\\n"
-              "            --read-only \\\n"
-              "            --network none \\\n"
-              "            --cap-drop ALL \\\n"
-              "            --security-opt no-new-privileges:true \\\n"
-              "            --mount \"type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly\" \\\n",
-              "          docker run --rm --interactive \\\n"
-              "            --user 65532:65532 \\\n"
-              "            --group-add \"$LIQUID20_READER_GID\" \\\n"
-              "            --read-only \\\n"
-              "            --network none \\\n"
-              "            --cap-drop ALL \\\n"
-              "            --security-opt no-new-privileges:true \\\n"
-              "            --mount \"type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly\" \\\n",
-          )
-          replace_once(
-              "          docker run -d \\\n"
-              "            --name \"$OPERATOR_CONTAINER\" \\\n"
-              "            --restart always \\\n"
-              "            --init \\\n"
-              "            --user 65532:65532 \\\n"
-              "            --read-only \\\n",
-              "          docker run -d \\\n"
-              "            --name \"$OPERATOR_CONTAINER\" \\\n"
-              "            --restart always \\\n"
-              "            --init \\\n"
-              "            --user 65532:65532 \\\n"
-              "            --group-add \"$LIQUID20_READER_GID\" \\\n"
-              "            --read-only \\\n",
-          )
-          replace_once(
-              "          operator = by_name[\"wickhunter-paper-runtime-v2\"]\n"
-              "          gateway = by_name[\"wickhunter-wh09-egress-v2\"]\n",
-              "          operator = by_name[\"wickhunter-paper-runtime-v3\"]\n"
-              "          gateway = by_name[\"wickhunter-wh09-egress-v3\"]\n",
-          )
-          replace_once(
-              "          if operator[\"Config\"][\"User\"] != \"65532:65532\":\n"
-              "              raise SystemExit(\"operator user mismatch\")\n",
-              "          if operator[\"Config\"][\"User\"] != \"65532:65532\":\n"
-              "              raise SystemExit(\"operator user mismatch\")\n"
-              "          if \"100\" not in (operator[\"HostConfig\"].get(\"GroupAdd\") or []):\n"
-              "              raise SystemExit(\"operator lacks Liquid20 reader group\")\n",
-          )
-          replace_once(
-              "              \"operator_container\": \"wickhunter-paper-runtime-v2\",\n"
-              "              \"gateway_container\": \"wickhunter-wh09-egress-v2\",\n",
-              "              \"operator_container\": \"wickhunter-paper-runtime-v3\",\n"
-              "              \"gateway_container\": \"wickhunter-wh09-egress-v3\",\n"
-              "              \"liquid20_reader_gid\": 100,\n",
-          )
-          replace_once(
-              "            echo \"- Status: \\`deployed_waiting_prospective_acceptance\\`\"\n",
-              "            echo \"- Liquid20 reader group: \\`100\\`\"\n"
-              "            echo \"- Status: \\`deployed_waiting_prospective_acceptance\\`\"\n",
-          )
-
-          if "wickhunter-paper-runtime-v2" in text or "wickhunter-wh09-egress-v2" in text:
-              raise SystemExit("stale v2 container identity remains")
-          if "wickhunter-paper-runtime/v2" in text:
-              raise SystemExit("stale v2 state root remains")
-          if text.count("--group-add \"$LIQUID20_READER_GID\"") != 2:
-              raise SystemExit("expected exactly two Liquid20 reader-group bindings")
-          destination.parent.mkdir(parents=True, exist_ok=True)
-          destination.write_text(text, encoding="utf-8")
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          state = payload.get("state")
+          if not isinstance(state, dict):
+              raise SystemExit("pointer state missing")
+          run_id = state.get("run_id")
+          if not isinstance(run_id, str) or not run_id:
+              raise SystemExit("pointer run_id missing")
+          print(run_id)
           PY
-          git diff --check -- "$STAGING_PATH"
-          [[ "$(grep -c -- '--group-add \"$LIQUID20_READER_GID\"' "$STAGING_PATH")" == "2" ]]
-          [[ "$(grep -c 'wickhunter-wh09-activation-20260805-v3-9a9972a8' "$STAGING_PATH")" == "1" ]]
-          [[ "$(grep -c 'runs-on: \[freqtrade-staging\]' "$STAGING_PATH")" == "2" ]]
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add "$STAGING_PATH"
-          git commit -m "chore(wickhunter): stage Liquid20 reader-group deployment payload"
-          git push origin "HEAD:$STAGING_BRANCH"
+          )"
+          stat -c 'path=%n type=%F uid=%u gid=%g mode=%a' "$LIQUID20_LIVE_HOST/runs/$active_run_id"
+          find "$LIQUID20_LIVE_HOST/runs/$active_run_id" -maxdepth 1 -type f -printf 'path=%p type=file uid=%U gid=%G mode=%m\n' | sort
+
+      - name: Prove candidate reader groups without reading payload content
+        shell: bash
+        run: |
+          set -euo pipefail
+          pointer_gid="$(stat -c '%g' "$LIQUID20_LIVE_HOST/live-state-v1.json")"
+          echo "pointer_gid=$pointer_gid"
+          docker run --rm \
+            --user 65532:65532 \
+            --group-add "$pointer_gid" \
+            --read-only \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --entrypoint python \
+            "$OPERATOR_IMAGE" - <<'PY'
+          import os
+          from pathlib import Path
+          pointer = Path("/runtime/liquid20/live-state-v1.json")
+          print(f"container_groups={os.getgroups()}")
+          print(f"pointer_regular={pointer.is_file()} pointer_size={pointer.stat().st_size}")
+          PY

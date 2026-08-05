@@ -1,0 +1,970 @@
+name: WickHunter WH09 fresh PAPER deployment v4
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-deploy-v4
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-deploy-20260804-v2.yml
+  EXPECTED_BASE_SHA: b417d07424136a480785a2ae06e868cfefc96390
+  IMPLEMENTATION_SHA: 9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
+  CANDIDATE_PACKAGE_NAME: wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  CANDIDATE_PACKAGE_ID: wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  CANDIDATE_MANIFEST_SHA256: 4c8cd77294f0142aefcd0895f654d1c78260d9f77a44e6caf134d161e742c5eb
+  EVALUATION_SHA256: 87d9a859168cabab6d35e764fdc719e111f498b9fbff6cbc825f87c2db15b5cb
+  PARAMETER_VERSION: wickhunter-production-h180s-01
+  PARAMETER_SHA256: 59b0ca8572c53b8c2bcd7ad2f609f045004bf3299c19359d0b6ce8e76b34cd07
+  MODEL_VERSION: wickhunter-lightgbm-a9ca9a91087e34e2
+  MODEL_HASH: a9ca9a91087e34e269e5eee171e70e8979c7940d8789e93f7069b57dd2753cd9
+  MODEL_ARTIFACT_SHA256: c69ab40dbfc0bd92ca599618f07a844269ce0acada13cd7ece4ed295808dbe48
+  ROLLBACK_MODEL_VERSION: wickhunter-deterministic-baseline-v1
+  ROLLBACK_MODEL_HASH: 43572f6f7bb614240b56b7dd4b2f473a4a50f84aa743da58fe1d28ab40e0ca91
+  ROLLBACK_PARAMETER_VERSION: wickhunter-production-h180s-01
+  ROLLBACK_PARAMETER_HASH: 59b0ca8572c53b8c2bcd7ad2f609f045004bf3299c19359d0b6ce8e76b34cd07
+  SOURCE_COMMIT_SHA: 626087ca45d67eb908d6c1f1f419f13cbd49f596
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+  HOST_STATE_ROOT: /volume1/docker/freqtrade/state
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  LIQUID20_READER_GID: "0"
+  ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v4-9a9972a8
+  BOT_INSTANCE: wickhunter-paper-v4
+  WH08_CONSUMER_VERSION: wickhunter-portal-consumer-v1
+  WINDOW_DURATION_MS: "90000000"
+  POLL_SECONDS: "300"
+  MAXIMUM_SOURCE_AGE_MS: "300000"
+  OPERATOR_CONTAINER: wickhunter-paper-runtime-v4
+  GATEWAY_CONTAINER: wickhunter-wh09-egress-v4
+  INTERNAL_NETWORK: wickhunter-wh09-internal-v4
+  OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
+  GATEWAY_IMAGE: local/wickhunter-paper-egress:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
+
+jobs:
+  runner_probe:
+    name: Prove trusted deployment runner eligibility
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 5
+    steps:
+      - name: Confirm trusted runner
+        shell: bash
+        env:
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+
+  deploy:
+    needs: runner_probe
+    name: Deploy fresh hardened WH09 PAPER runtime
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out exact deployment request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and closed authority
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-deploy-20260804-v2.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "$HEAD_SHA" ]]
+          git merge-base --is-ancestor "$IMPLEMENTATION_SHA" "$HEAD_SHA"
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          [[ -d "$RUNNER_STATE_ROOT" && ! -L "$RUNNER_STATE_ROOT" ]]
+          collector_data_source="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination \"/data\"}}{{.Source}}{{end}}{{end}}' liquid20-live)"
+          [[ "$collector_data_source" == "/volume1/docker/freqtrade-liquidations/data" ]]
+          [[ "$(docker inspect --format '{{.Config.User}}' liquid20-live)" == "1026:0" ]]
+          [[ "$LIQUID20_LIVE_HOST" == "$collector_data_source/live" ]]
+          for path in \
+            "ai_platform/wickhunter/candidate_paper_runtime_operator.py" \
+            "deploy/synology/wickhunter-paper-runtime/Dockerfile" \
+            "deploy/synology/wickhunter-paper-runtime/README.md" \
+            "deploy/synology/wickhunter-paper-runtime/compose.yaml" \
+            "deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py" \
+            "docs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md" \
+            "tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py"
+          do
+            git diff --quiet "$IMPLEMENTATION_SHA" "$HEAD_SHA" -- "$path"
+          done
+
+      - name: Build exact operator and constrained gateway images
+        shell: bash
+        run: |
+          set -euo pipefail
+          implementation_root="$RUNNER_TEMP/wickhunter-wh09-implementation"
+          gateway_root="$RUNNER_TEMP/wickhunter-wh09-gateway"
+          rm -rf "$implementation_root" "$gateway_root"
+          git worktree add --detach "$implementation_root" "$IMPLEMENTATION_SHA"
+          trap 'git worktree remove --force "$implementation_root" >/dev/null 2>&1 || true' EXIT
+          docker build \
+            --pull \
+            --file "$implementation_root/deploy/synology/wickhunter-paper-runtime/Dockerfile" \
+            --build-arg "OPERATOR_COMMIT=$IMPLEMENTATION_SHA" \
+            --label "org.opencontainers.image.revision=$IMPLEMENTATION_SHA" \
+            --tag "$OPERATOR_IMAGE" \
+            "$implementation_root"
+          mkdir -p "$gateway_root"
+          cat > "$gateway_root/gateway.py" <<'PY'
+          from __future__ import annotations
+
+          import ipaddress
+          import os
+          import signal
+          import socket
+          import socketserver
+          import struct
+          import threading
+
+          TARGET_HOST = "fapi.binance.com"
+          TARGET_PORT = 443
+          INTERNAL_IP = ipaddress.ip_address(os.environ["INTERNAL_IP"])
+          if INTERNAL_IP.version != 4:
+              raise SystemExit("gateway requires an IPv4 internal address")
+
+          def parse_question(packet: bytes) -> tuple[str, int, int, int]:
+              if len(packet) < 17:
+                  raise ValueError("short DNS packet")
+              qdcount = struct.unpack("!H", packet[4:6])[0]
+              if qdcount != 1:
+                  raise ValueError("DNS query must contain exactly one question")
+              labels: list[str] = []
+              offset = 12
+              while True:
+                  if offset >= len(packet):
+                      raise ValueError("truncated DNS name")
+                  size = packet[offset]
+                  offset += 1
+                  if size == 0:
+                      break
+                  if size & 0xC0 or offset + size > len(packet):
+                      raise ValueError("unsupported DNS name")
+                  labels.append(packet[offset : offset + size].decode("ascii"))
+                  offset += size
+              if offset + 4 > len(packet):
+                  raise ValueError("truncated DNS question")
+              qtype, qclass = struct.unpack("!HH", packet[offset : offset + 4])
+              return ".".join(labels).lower(), qtype, qclass, offset + 4
+
+          def dns_response(packet: bytes) -> bytes:
+              query_id = packet[:2] if len(packet) >= 2 else b"\x00\x00"
+              try:
+                  name, qtype, qclass, question_end = parse_question(packet)
+              except (UnicodeDecodeError, ValueError):
+                  return query_id + struct.pack("!HHHHH", 0x8181, 0, 0, 0, 0)
+              question = packet[12:question_end]
+              allowed = name == TARGET_HOST and qclass == 1
+              if not allowed:
+                  return query_id + struct.pack("!HHHHH", 0x8183, 1, 0, 0, 0) + question
+              if qtype == 1:
+                  answer = (
+                      b"\xc0\x0c"
+                      + struct.pack("!HHIH", 1, 1, 30, 4)
+                      + socket.inet_aton(str(INTERNAL_IP))
+                  )
+                  return (
+                      query_id
+                      + struct.pack("!HHHHH", 0x8180, 1, 1, 0, 0)
+                      + question
+                      + answer
+                  )
+              return query_id + struct.pack("!HHHHH", 0x8180, 1, 0, 0, 0) + question
+
+          class ThreadedUDPServer(socketserver.ThreadingMixIn, socketserver.UDPServer):
+              daemon_threads = True
+              allow_reuse_address = True
+
+          class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+              daemon_threads = True
+              allow_reuse_address = True
+
+          class DNSUDPHandler(socketserver.BaseRequestHandler):
+              def handle(self) -> None:
+                  payload, transport = self.request
+                  transport.sendto(dns_response(payload), self.client_address)
+
+          class DNSTCPHandler(socketserver.BaseRequestHandler):
+              def handle(self) -> None:
+                  header = self.request.recv(2)
+                  if len(header) != 2:
+                      return
+                  expected = struct.unpack("!H", header)[0]
+                  payload = bytearray()
+                  while len(payload) < expected:
+                      chunk = self.request.recv(expected - len(payload))
+                      if not chunk:
+                          return
+                      payload.extend(chunk)
+                  response = dns_response(bytes(payload))
+                  self.request.sendall(struct.pack("!H", len(response)) + response)
+
+          class TLSProxyHandler(socketserver.BaseRequestHandler):
+              @staticmethod
+              def pump(source: socket.socket, destination: socket.socket) -> None:
+                  try:
+                      while True:
+                          chunk = source.recv(65536)
+                          if not chunk:
+                              return
+                          destination.sendall(chunk)
+                  except OSError:
+                      return
+                  finally:
+                      try:
+                          destination.shutdown(socket.SHUT_WR)
+                      except OSError:
+                          pass
+
+              def handle(self) -> None:
+                  remote = socket.create_connection((TARGET_HOST, TARGET_PORT), timeout=15)
+                  try:
+                      upstream = threading.Thread(
+                          target=self.pump,
+                          args=(self.request, remote),
+                          daemon=True,
+                      )
+                      upstream.start()
+                      self.pump(remote, self.request)
+                      upstream.join(timeout=5)
+                  finally:
+                      remote.close()
+
+          servers = (
+              ThreadedUDPServer((str(INTERNAL_IP), 53), DNSUDPHandler),
+              ThreadedTCPServer((str(INTERNAL_IP), 53), DNSTCPHandler),
+              ThreadedTCPServer((str(INTERNAL_IP), 443), TLSProxyHandler),
+          )
+          for server in servers:
+              threading.Thread(target=server.serve_forever, daemon=True).start()
+
+          def stop(_signum: int, _frame: object) -> None:
+              for server in servers:
+                  server.shutdown()
+                  server.server_close()
+              raise SystemExit(0)
+
+          signal.signal(signal.SIGTERM, stop)
+          signal.signal(signal.SIGINT, stop)
+          signal.pause()
+          PY
+          cat > "$gateway_root/Dockerfile" <<EOF
+          FROM $OPERATOR_IMAGE
+          USER 0:0
+          COPY gateway.py /gateway.py
+          RUN chown root:root /gateway.py && chmod 0555 /gateway.py
+          ENTRYPOINT ["python", "/gateway.py"]
+          EOF
+          docker build \
+            --file "$gateway_root/Dockerfile" \
+            --label "org.opencontainers.image.revision=$IMPLEMENTATION_SHA" \
+            --label "io.freqtrade.wickhunter.egress=fapi-binance-only-v1" \
+            --tag "$GATEWAY_IMAGE" \
+            "$gateway_root"
+          operator_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$OPERATOR_IMAGE")"
+          gateway_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$GATEWAY_IMAGE")"
+          [[ "$operator_revision" == "$IMPLEMENTATION_SHA" ]]
+          [[ "$gateway_revision" == "$IMPLEMENTATION_SHA" ]]
+          git worktree remove --force "$implementation_root"
+          trap - EXIT
+
+      - name: Deploy fresh activation and persistent runtime
+        id: terminal
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 027
+
+          candidate_runner="$RUNNER_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v4"
+          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v4"
+          activation_runner="$state_runner/activations/$ACTIVATION_NAME"
+          activation_host="$state_host/activations/$ACTIVATION_NAME"
+          activation_binding_runner="$state_runner/activations/${ACTIVATION_NAME}-candidate-binding.json"
+          journal_runner="$state_runner/journals/$ACTIVATION_NAME"
+          journal_host="$state_host/journals/$ACTIVATION_NAME"
+          operator_state_runner="$state_runner/operator/$ACTIVATION_NAME"
+          operator_state_host="$state_host/operator/$ACTIVATION_NAME"
+          report_path="$RUNNER_TEMP/wickhunter-wh09-deployment-terminal.json"
+          deployment_succeeded=false
+          gateway_started=false
+          operator_started=false
+          network_created=false
+
+          cleanup_failure() {
+            if [[ "$deployment_succeeded" != true ]]; then
+              if [[ "$operator_started" == true ]]; then
+                docker rm -f "$OPERATOR_CONTAINER" >/dev/null 2>&1 || true
+              fi
+              if [[ "$gateway_started" == true ]]; then
+                docker rm -f "$GATEWAY_CONTAINER" >/dev/null 2>&1 || true
+              fi
+              if [[ "$network_created" == true ]]; then
+                docker network rm "$INTERNAL_NETWORK" >/dev/null 2>&1 || true
+              fi
+            fi
+          }
+          trap cleanup_failure EXIT
+
+          [[ -d "$candidate_runner" && ! -L "$candidate_runner" ]]
+          [[ ! -e "$activation_runner" && ! -L "$activation_runner" ]]
+          [[ ! -e "$journal_runner" && ! -L "$journal_runner" ]]
+          [[ ! -e "$operator_state_runner" && ! -L "$operator_state_runner" ]]
+          ! docker container inspect "$OPERATOR_CONTAINER" >/dev/null 2>&1
+          ! docker container inspect "$GATEWAY_CONTAINER" >/dev/null 2>&1
+          ! docker network inspect "$INTERNAL_NETWORK" >/dev/null 2>&1
+
+          install -d -m 0750 -o 65532 -g 65532 \
+            "$state_runner" \
+            "$state_runner/activations" \
+            "$state_runner/journals" \
+            "$state_runner/operator"
+          install -d -m 0750 -o 65532 -g 65532 "$operator_state_runner"
+
+          docker run --rm --interactive \
+            --user 65532:65532 \
+            --read-only \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --env CANDIDATE_PACKAGE_ID \
+            --env CANDIDATE_MANIFEST_SHA256 \
+            --env EVALUATION_SHA256 \
+            --env PARAMETER_VERSION \
+            --env PARAMETER_SHA256 \
+            --env MODEL_VERSION \
+            --env MODEL_HASH \
+            --env MODEL_ARTIFACT_SHA256 \
+            --env ROLLBACK_MODEL_VERSION \
+            --env ROLLBACK_MODEL_HASH \
+            --env ROLLBACK_PARAMETER_VERSION \
+            --env ROLLBACK_PARAMETER_HASH \
+            --env SOURCE_COMMIT_SHA \
+            --entrypoint python \
+            "$OPERATOR_IMAGE" - <<'PY'
+          from pathlib import Path
+          from ai_platform.wickhunter.candidate_activation import load_verified_candidate_package
+
+          package = load_verified_candidate_package(Path("/runtime/candidate"))
+          identity = package.identity
+          expected = {
+              "package_id": __import__("os").environ["CANDIDATE_PACKAGE_ID"],
+              "manifest_sha256": __import__("os").environ["CANDIDATE_MANIFEST_SHA256"],
+              "evaluation_sha256": __import__("os").environ["EVALUATION_SHA256"],
+              "parameter_version": __import__("os").environ["PARAMETER_VERSION"],
+              "parameter_hash": __import__("os").environ["PARAMETER_SHA256"],
+              "model_version": __import__("os").environ["MODEL_VERSION"],
+              "model_hash": __import__("os").environ["MODEL_HASH"],
+              "model_artifact_sha256": __import__("os").environ["MODEL_ARTIFACT_SHA256"],
+              "rollback_model_version": __import__("os").environ["ROLLBACK_MODEL_VERSION"],
+              "rollback_model_hash": __import__("os").environ["ROLLBACK_MODEL_HASH"],
+              "rollback_parameter_version": __import__("os").environ["ROLLBACK_PARAMETER_VERSION"],
+              "rollback_parameter_hash": __import__("os").environ["ROLLBACK_PARAMETER_HASH"],
+              "source_commit_sha": __import__("os").environ["SOURCE_COMMIT_SHA"],
+          }
+          actual = {
+              "package_id": identity.package_id,
+              "manifest_sha256": identity.manifest_sha256,
+              "evaluation_sha256": identity.evaluation_sha256,
+              "parameter_version": identity.parameter_version,
+              "parameter_hash": identity.parameter_hash,
+              "model_version": identity.model_version,
+              "model_hash": identity.model_hash,
+              "model_artifact_sha256": identity.model_artifact_sha256,
+              "rollback_model_version": identity.rollback_model_version,
+              "rollback_model_hash": identity.rollback_model_hash,
+              "rollback_parameter_version": identity.rollback_parameter_version,
+              "rollback_parameter_hash": identity.rollback_parameter_hash,
+              "source_commit_sha": identity.source_commit_sha,
+          }
+          if actual != expected:
+              raise SystemExit(f"candidate identity mismatch: {actual!r}")
+          PY
+
+          docker run --rm --interactive \
+            --user 65532:65532 \
+            --group-add "$LIQUID20_READER_GID" \
+            --read-only \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --entrypoint python \
+            "$OPERATOR_IMAGE" - <<'PY'
+          import time
+          from pathlib import Path
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import load_liquid20_snapshot
+
+          snapshot = load_liquid20_snapshot(
+              Path("/runtime/liquid20"),
+              now_ms=time.time_ns() // 1_000_000,
+              maximum_age_ms=300000,
+          )
+          if not snapshot.universe.selected_symbols:
+              raise SystemExit("Liquid20 universe is empty")
+          if not any(item.coverage_available for item in snapshot.source_states):
+              raise SystemExit("Liquid20 has no fresh configured source")
+          PY
+
+          docker network create --internal "$INTERNAL_NETWORK" >/dev/null
+          network_created=true
+          subnet="$(docker network inspect --format '{{ (index .IPAM.Config 0).Subnet }}' "$INTERNAL_NETWORK")"
+          read -r gateway_ip operator_ip probe_ip < <(
+            python3 - "$subnet" <<'PY'
+          import ipaddress
+          import sys
+          network = ipaddress.ip_network(sys.argv[1], strict=True)
+          hosts = list(network.hosts())
+          if len(hosts) < 5:
+              raise SystemExit("internal Docker subnet is too small")
+          print(hosts[1], hosts[2], hosts[3])
+          PY
+          )
+
+          gateway_pids_args=()
+          if docker run --rm --pids-limit 32 --entrypoint /bin/true "$GATEWAY_IMAGE" >/dev/null 2>&1; then
+            gateway_pids_args=(--pids-limit 128)
+          fi
+          docker create \
+            --name "$GATEWAY_CONTAINER" \
+            --restart always \
+            --init \
+            --user 0:0 \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
+            --cap-drop ALL \
+            --cap-add NET_BIND_SERVICE \
+            --security-opt no-new-privileges:true \
+            --memory 256m \
+            "${gateway_pids_args[@]}" \
+            --network bridge \
+            --env "INTERNAL_IP=$gateway_ip" \
+            --label "io.freqtrade.wickhunter.role=public-market-egress" \
+            --label "io.freqtrade.wickhunter.target=fapi.binance.com:443" \
+            --label "org.opencontainers.image.revision=$IMPLEMENTATION_SHA" \
+            "$GATEWAY_IMAGE" >/dev/null
+          gateway_started=true
+          docker network connect --ip "$gateway_ip" "$INTERNAL_NETWORK" "$GATEWAY_CONTAINER"
+          docker start "$GATEWAY_CONTAINER" >/dev/null
+
+          for _ in $(seq 1 30); do
+            if docker exec --interactive "$GATEWAY_CONTAINER" python - <<'PY'
+          import socket
+          values = socket.getaddrinfo("fapi.binance.com", 443, socket.AF_INET)
+          if not values:
+              raise SystemExit(1)
+          PY
+            then
+              break
+            fi
+            sleep 2
+          done
+
+          docker run --rm --interactive \
+            --user 65532:65532 \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --network "$INTERNAL_NETWORK" \
+            --ip "$probe_ip" \
+            --dns "$gateway_ip" \
+            --entrypoint python \
+            "$OPERATOR_IMAGE" - "$gateway_ip" <<'PY'
+          import socket
+          import ssl
+          import sys
+
+          expected_gateway = sys.argv[1]
+          resolved = {item[4][0] for item in socket.getaddrinfo("fapi.binance.com", 443)}
+          if resolved != {expected_gateway}:
+              raise SystemExit(f"unexpected allowlisted resolution: {resolved!r}")
+          try:
+              socket.getaddrinfo("example.com", 443)
+          except socket.gaierror:
+              pass
+          else:
+              raise SystemExit("non-allowlisted DNS unexpectedly resolved")
+          try:
+              socket.create_connection(("1.1.1.1", 443), timeout=2)
+          except OSError:
+              pass
+          else:
+              raise SystemExit("direct external egress unexpectedly succeeded")
+          context = ssl.create_default_context()
+          with socket.create_connection(("fapi.binance.com", 443), timeout=15) as raw:
+              with context.wrap_socket(raw, server_hostname="fapi.binance.com") as secure:
+                  if secure.version() is None:
+                      raise SystemExit("TLS handshake did not complete")
+          PY
+
+          docker run --rm --interactive \
+            --user 65532:65532 \
+            --read-only \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --mount "type=bind,src=$state_host,dst=/runtime/state" \
+            --env CANDIDATE_PACKAGE_ID \
+            --env CANDIDATE_MANIFEST_SHA256 \
+            --env EVALUATION_SHA256 \
+            --env PARAMETER_VERSION \
+            --env PARAMETER_SHA256 \
+            --env MODEL_VERSION \
+            --env MODEL_HASH \
+            --env MODEL_ARTIFACT_SHA256 \
+            --env ROLLBACK_MODEL_VERSION \
+            --env ROLLBACK_MODEL_HASH \
+            --env ROLLBACK_PARAMETER_VERSION \
+            --env ROLLBACK_PARAMETER_HASH \
+            --env SOURCE_COMMIT_SHA \
+            --env ACTIVATION_NAME \
+            --env BOT_INSTANCE \
+            --env WH08_CONSUMER_VERSION \
+            --env WINDOW_DURATION_MS \
+            --entrypoint /bin/sh \
+            "$OPERATOR_IMAGE" -c 'umask 027; exec python -' <<'PY' | tee "$RUNNER_TEMP/wickhunter-wh09-activation.json"
+          import json
+          import os
+          import time
+          from dataclasses import asdict
+          from decimal import Decimal
+          from pathlib import Path
+
+          from ai_platform.wickhunter.candidate_activation import (
+              activate_verified_candidate,
+              load_verified_candidate_package,
+          )
+          from ai_platform.wickhunter.candidate_paper_runtime_service import (
+              CandidatePaperRuntimeService,
+          )
+          from ai_platform.wickhunter.candidate_runtime_binding import (
+              build_candidate_paper_runtime_binding,
+          )
+          from ai_platform.wickhunter.paper_validation import (
+              load_verified_paper_run_request,
+          )
+          from ai_platform.wickhunter.shadow_runtime import ShadowRuntimePolicy
+
+          candidate_root = Path("/runtime/candidate")
+          state_root = Path("/runtime/state")
+          activation_name = os.environ["ACTIVATION_NAME"]
+          activation_root = state_root / "activations" / activation_name
+          journal_root = state_root / "journals" / activation_name
+          if activation_root.exists() or journal_root.exists():
+              raise SystemExit("fresh activation or journal root already exists")
+
+          package = load_verified_candidate_package(candidate_root)
+          result = activate_verified_candidate(
+              candidate_root=candidate_root,
+              activation_root=activation_root,
+              created_at_ms=time.time_ns() // 1_000_000,
+              bot_instance=os.environ["BOT_INSTANCE"],
+              wh08_consumer_version=os.environ["WH08_CONSUMER_VERSION"],
+              window_duration_ms=int(os.environ["WINDOW_DURATION_MS"]),
+          )
+          request, policy = load_verified_paper_run_request(activation_root)
+          identity = package.identity
+          if (
+              request.model_hash != identity.model_hash
+              or request.parameter_hash != identity.parameter_hash
+              or request.dataset_hash != identity.evaluation_sha256
+              or request.code_sha != identity.source_commit_sha
+          ):
+              raise SystemExit("activation identity mismatch")
+          binding = build_candidate_paper_runtime_binding(
+              candidate_root=candidate_root,
+              activation_root=activation_root,
+          )
+          runtime_policy = ShadowRuntimePolicy(
+              policy_version="wickhunter-paper-runtime-v1",
+              simulated_initial_equity_quote=Decimal("10000"),
+              maximum_universe_age_ms=300000,
+              maximum_source_age_ms=300000,
+              minimum_healthy_sources=1,
+              maximum_open_positions=4,
+              maximum_drawdown_ratio=Decimal("0.20"),
+              decision_history_limit=1000,
+          )
+          service = CandidatePaperRuntimeService(
+              binding=binding,
+              runtime_policy=runtime_policy,
+              journal_root=journal_root,
+          )
+          if service.journal.latest_state() is not None:
+              raise SystemExit("fresh journal is not empty")
+          journal_identity = json.loads(
+              (journal_root / "identity.json").read_text(encoding="utf-8")
+          )
+          terminal = {
+              "status": "fresh_activation_published",
+              "run_id": request.run_id,
+              "binding_id": binding.binding_id,
+              "journal_identity_sha256": journal_identity["identity_sha256"],
+              "paper_policy_sha256": policy.policy_sha256,
+              "runtime_policy": asdict(runtime_policy),
+              "runtime_policy_sha256": runtime_policy.policy_sha256,
+              "window_start_ms": request.window_start_ms,
+              "window_end_ms": request.window_end_ms,
+              "window_duration_ms": request.window_end_ms - request.window_start_ms,
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          print(json.dumps(terminal, indent=2, sort_keys=True, default=str))
+          PY
+
+          find "$activation_runner" -type d -exec chmod 0550 {} +
+          find "$activation_runner" -type f -exec chmod 0440 {} +
+          chmod 0440 "$activation_binding_runner"
+          find "$journal_runner" -type d -exec chmod 0750 {} +
+          find "$journal_runner" -type f -exec chmod 0640 {} +
+          chown -R 65532:65532 "$journal_runner" "$operator_state_runner"
+
+          cpu_args=()
+          pids_args=()
+          if docker run --rm --cpus 0.1 --entrypoint /bin/true "$OPERATOR_IMAGE" >/dev/null 2>&1; then
+            cpu_args=(--cpus 2.0)
+          fi
+          if docker run --rm --pids-limit 32 --entrypoint /bin/true "$OPERATOR_IMAGE" >/dev/null 2>&1; then
+            pids_args=(--pids-limit 256)
+          fi
+
+          docker run -d \
+            --name "$OPERATOR_CONTAINER" \
+            --restart always \
+            --init \
+            --user 65532:65532 \
+            --group-add "$LIQUID20_READER_GID" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --memory 2g \
+            "${cpu_args[@]}" \
+            "${pids_args[@]}" \
+            --stop-timeout 30 \
+            --network "$INTERNAL_NETWORK" \
+            --ip "$operator_ip" \
+            --dns "$gateway_ip" \
+            --env "OPERATOR_COMMIT=$IMPLEMENTATION_SHA" \
+            --env HEALTH_PATH=/runtime/operator/health.json \
+            --env HEALTH_MAX_AGE_SECONDS=600 \
+            --env HTTP_PROXY= \
+            --env HTTPS_PROXY= \
+            --env ALL_PROXY= \
+            --env http_proxy= \
+            --env https_proxy= \
+            --env all_proxy= \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --mount "type=bind,src=$activation_host,dst=/runtime/activation,readonly" \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --mount "type=bind,src=$journal_host,dst=/runtime/journal" \
+            --mount "type=bind,src=$operator_state_host,dst=/runtime/operator" \
+            --health-cmd "python /app/deploy/synology/wickhunter-paper-runtime/paper_runtime_healthcheck.py" \
+            --health-interval 60s \
+            --health-timeout 10s \
+            --health-retries 3 \
+            --health-start-period 180s \
+            --label "io.freqtrade.wickhunter.role=paper-runtime" \
+            --label "io.freqtrade.wickhunter.activation=$ACTIVATION_NAME" \
+            --label "org.opencontainers.image.revision=$IMPLEMENTATION_SHA" \
+            "$OPERATOR_IMAGE" \
+            --candidate-root /runtime/candidate \
+            --activation-root /runtime/activation \
+            --journal-root /runtime/journal \
+            --liquid20-root /runtime/liquid20 \
+            --health-root /runtime/operator \
+            --operator-commit "$IMPLEMENTATION_SHA" \
+            --public-market-base-url https://fapi.binance.com \
+            --poll-seconds "$POLL_SECONDS" \
+            --maximum-source-age-ms "$MAXIMUM_SOURCE_AGE_MS" \
+            --model-drift healthy \
+            --data-drift healthy \
+            --circuit-breaker-active false >/dev/null
+          operator_started=true
+
+          terminal_health=""
+          for _ in $(seq 1 120); do
+            state="$(docker inspect --format '{{.State.Status}}' "$OPERATOR_CONTAINER" 2>/dev/null || true)"
+            if [[ "$state" == "exited" || "$state" == "dead" ]]; then
+              docker logs --tail 200 "$OPERATOR_CONTAINER" >&2 2>&1 || true
+              echo "operator exited before first healthy generation" >&2
+              exit 1
+            fi
+            if [[ -f "$operator_state_runner/health.json" && ! -L "$operator_state_runner/health.json" ]]; then
+              if terminal_health="$(python3 - "$operator_state_runner/health.json" "$IMPLEMENTATION_SHA" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          from hashlib import sha256
+
+          path = Path(sys.argv[1])
+          expected_commit = sys.argv[2]
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          claimed = payload.pop("health_sha256", None)
+          canonical = json.dumps(
+              payload,
+              ensure_ascii=False,
+              separators=(",", ":"),
+              sort_keys=True,
+          )
+          expected = sha256(canonical.encode("utf-8")).hexdigest()
+          payload["health_sha256"] = claimed
+          if claimed != expected:
+              raise SystemExit(1)
+          if (
+              payload.get("status") != "healthy"
+              or payload.get("operator_commit") != expected_commit
+              or not isinstance(payload.get("generation"), int)
+              or payload["generation"] < 1
+              or payload.get("trading_credentials_present") is not False
+              or payload.get("order_adapter_present") is not False
+              or payload.get("execution_enabled") is not False
+              or payload.get("orders_submitted") != 0
+              or payload.get("live_capital_authorized") is not False
+          ):
+              raise SystemExit(1)
+          print(json.dumps(payload, sort_keys=True))
+          PY
+              )"; then
+                break
+              fi
+            fi
+            sleep 10
+          done
+          [[ -n "$terminal_health" ]] || {
+            docker logs --tail 200 "$OPERATOR_CONTAINER" >&2 2>&1 || true
+            echo "operator did not publish a healthy first generation" >&2
+            exit 1
+          }
+
+          docker exec --interactive "$OPERATOR_CONTAINER" python - <<'PY'
+          import socket
+          import ssl
+
+          try:
+              socket.getaddrinfo("example.com", 443)
+          except socket.gaierror:
+              pass
+          else:
+              raise SystemExit("operator resolved a non-allowlisted hostname")
+          try:
+              socket.create_connection(("1.1.1.1", 443), timeout=2)
+          except OSError:
+              pass
+          else:
+              raise SystemExit("operator reached a direct external address")
+          context = ssl.create_default_context()
+          with socket.create_connection(("fapi.binance.com", 443), timeout=15) as raw:
+              with context.wrap_socket(raw, server_hostname="fapi.binance.com") as secure:
+                  if secure.version() is None:
+                      raise SystemExit("operator TLS allowlist path failed")
+          PY
+
+          docker inspect "$OPERATOR_CONTAINER" "$GATEWAY_CONTAINER" > "$RUNNER_TEMP/wickhunter-wh09-container-inspect.json"
+          python3 - \
+            "$RUNNER_TEMP/wickhunter-wh09-container-inspect.json" \
+            "$INTERNAL_NETWORK" \
+            "$IMPLEMENTATION_SHA" \
+            "$terminal_health" \
+            "$RUNNER_TEMP/wickhunter-wh09-activation.json" \
+            "$report_path" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          inspections = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          internal_network = sys.argv[2]
+          implementation_sha = sys.argv[3]
+          health = json.loads(sys.argv[4])
+          activation = json.loads(Path(sys.argv[5]).read_text(encoding="utf-8"))
+          destination = Path(sys.argv[6])
+          by_name = {item["Name"].lstrip("/"): item for item in inspections}
+          operator = by_name["wickhunter-paper-runtime-v4"]
+          gateway = by_name["wickhunter-wh09-egress-v4"]
+
+          if operator["Config"]["User"] != "65532:65532":
+              raise SystemExit("operator user mismatch")
+          if "0" not in (operator["HostConfig"].get("GroupAdd") or []):
+              raise SystemExit("operator lacks exact Liquid20 reader group")
+          if operator["HostConfig"]["ReadonlyRootfs"] is not True:
+              raise SystemExit("operator root filesystem is writable")
+          if operator["HostConfig"]["Privileged"] is not False:
+              raise SystemExit("operator is privileged")
+          if "ALL" not in (operator["HostConfig"].get("CapDrop") or []):
+              raise SystemExit("operator did not drop all capabilities")
+          if operator["HostConfig"]["RestartPolicy"]["Name"] != "always":
+              raise SystemExit("operator restart policy mismatch")
+          if set(operator["NetworkSettings"]["Networks"]) != {internal_network}:
+              raise SystemExit("operator has unexpected network attachment")
+          if operator["HostConfig"].get("PortBindings"):
+              raise SystemExit("operator publishes ports")
+          mount_targets = {item["Destination"]: item for item in operator["Mounts"]}
+          expected_mounts = {
+              "/runtime/candidate": False,
+              "/runtime/activation": False,
+              "/runtime/liquid20": False,
+              "/runtime/journal": True,
+              "/runtime/operator": True,
+          }
+          for target, writable in expected_mounts.items():
+              item = mount_targets.get(target)
+              if item is None or item["RW"] is not writable:
+                  raise SystemExit(f"operator mount mismatch: {target}")
+          if any(item["Source"] == "/var/run/docker.sock" for item in operator["Mounts"]):
+              raise SystemExit("operator contains Docker socket")
+          if set(gateway["NetworkSettings"]["Networks"]) != {internal_network, "bridge"}:
+              raise SystemExit("gateway network boundary mismatch")
+          if gateway["HostConfig"]["Privileged"] is not False:
+              raise SystemExit("gateway is privileged")
+          if gateway["HostConfig"].get("PortBindings"):
+              raise SystemExit("gateway publishes ports")
+          if gateway["Mounts"]:
+              raise SystemExit("gateway has unexpected mounts")
+          if gateway["HostConfig"]["RestartPolicy"]["Name"] != "always":
+              raise SystemExit("gateway restart policy mismatch")
+          terminal = {
+              "status": "deployed_waiting_prospective_acceptance",
+              "implementation_sha": implementation_sha,
+              "operator_image_id": operator["Image"],
+              "gateway_image_id": gateway["Image"],
+              "operator_container": "wickhunter-paper-runtime-v4",
+              "gateway_container": "wickhunter-wh09-egress-v4",
+              "liquid20_reader_gid": 0,
+              "internal_network": internal_network,
+              "host_enforced_egress": {
+                  "operator_internal_network_only": True,
+                  "allowlisted_dns_only": True,
+                  "allowlisted_tls_tunnel_only": True,
+                  "direct_external_egress_blocked": True,
+                  "target": "fapi.binance.com:443",
+              },
+              "activation": activation,
+              "health": health,
+              "prospective_window_complete": False,
+              "owner_decision_required": True,
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          destination.write_text(
+              json.dumps(terminal, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(terminal, indent=2, sort_keys=True))
+          PY
+
+          deployment_succeeded=true
+          trap - EXIT
+          run_id="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["activation"]["run_id"])' "$report_path")"
+          window_end_ms="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["activation"]["window_end_ms"])' "$report_path")"
+          generation="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["health"]["generation"])' "$report_path")"
+          {
+            echo "run_id=$run_id"
+            echo "window_end_ms=$window_end_ms"
+            echo "generation=$generation"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish deployment summary
+        shell: bash
+        env:
+          RUN_ID_VALUE: ${{ steps.terminal.outputs.run_id }}
+          WINDOW_END_VALUE: ${{ steps.terminal.outputs.window_end_ms }}
+          GENERATION_VALUE: ${{ steps.terminal.outputs.generation }}
+        run: |
+          {
+            echo "## WickHunter WH09 fresh PAPER deployment"
+            echo
+            echo "- Implementation: \`$IMPLEMENTATION_SHA\`"
+            echo "- Run: \`$RUN_ID_VALUE\`"
+            echo "- First generation: \`$GENERATION_VALUE\`"
+            echo "- Window end ms: \`$WINDOW_END_VALUE\`"
+            echo "- Operator: \`$OPERATOR_CONTAINER\`"
+            echo "- Egress gateway: \`$GATEWAY_CONTAINER\`"
+            echo "- Network: internal-only operator plus exact Binance TLS gateway"
+            echo "- Liquid20 reader group: \`0\`"
+            echo "- Status: \`deployed_waiting_prospective_acceptance\`"
+            echo "- Credentials/order adapter/execution/orders/live capital: \`absent\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload bounded deployment evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: wickhunter-wh09-deployment-${{ github.event.pull_request.number }}
+          path: |
+            ${{ runner.temp }}/wickhunter-wh09-deployment-terminal.json
+            ${{ runner.temp }}/wickhunter-wh09-activation.json
+          if-no-files-found: error
+          retention-days: 30

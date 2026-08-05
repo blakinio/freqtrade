@@ -1,0 +1,122 @@
+name: WickHunter WH09 deployment v9 generator
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-deployment-v9-generator.yml"
+      - ".github/wh09-deployment-v9-generator/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-deployment-v9-generator
+  cancel-in-progress: false
+
+env:
+  EXPECTED_BASE_SHA: 7e191cebc71118a2dee32dceeec49a47153dd8f8
+  SOURCE_BRANCH: ops/wickhunter-wh09-deploy-paper-20260805-v8
+  EXPECTED_SOURCE_HEAD: 97d722615097c6893def3c0846e0c4951897a10b
+  SOURCE_WORKFLOW: .github/workflows/wickhunter-wh09-deploy-20260805-v8.yml
+  OUTPUT_BRANCH: ops/wickhunter-wh09-deployment-v9-generated-20260805-v1
+  EXPECTED_OUTPUT_HEAD: 7e191cebc71118a2dee32dceeec49a47153dd8f8
+  GENERATED_PATH: .github/wh09-deployment-v9-generator/generated-workflow.yml
+
+jobs:
+  generate:
+    name: Generate exact fresh v9 PAPER deployment workflow blob
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate helper scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          expected=$'.github/wh09-deployment-v9-generator/generate.py\n.github/workflows/wickhunter-wh09-deployment-v9-generator.yml'
+          actual="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected helper paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          python -m py_compile .github/wh09-deployment-v9-generator/generate.py
+
+      - name: Generate and validate exact v9 workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$SOURCE_BRANCH" "$OUTPUT_BRANCH"
+          [[ "$(git rev-parse origin/$SOURCE_BRANCH)" == "$EXPECTED_SOURCE_HEAD" ]]
+          [[ "$(git rev-parse origin/$OUTPUT_BRANCH)" == "$EXPECTED_OUTPUT_HEAD" ]]
+          git show "origin/$SOURCE_BRANCH:$SOURCE_WORKFLOW" > "$RUNNER_TEMP/source-v8.yml"
+          python .github/wh09-deployment-v9-generator/generate.py \
+            "$RUNNER_TEMP/source-v8.yml" \
+            "$RUNNER_TEMP/generated-v9.yml"
+          python -m pip install --disable-pip-version-check "PyYAML>=6.0"
+          python - "$RUNNER_TEMP/generated-v9.yml" <<'PY'
+          from pathlib import Path
+          import sys
+          import yaml
+
+          path = Path(sys.argv[1])
+          text = path.read_text(encoding="utf-8")
+          payload = yaml.safe_load(text)
+          if not isinstance(payload, dict):
+              raise SystemExit("generated workflow is not a mapping")
+          if set(payload.get("jobs", {})) != {"runner_probe", "deploy"}:
+              raise SystemExit("generated workflow job set changed")
+          required = (
+              'docker network create --internal --subnet "$subnet" "$INTERNAL_NETWORK"',
+              'pool = ipaddress.ip_network("172.31.240.0/20")',
+              'if any(candidate.overlaps(existing) for existing in occupied):',
+              '[[ "$actual_subnet" == "$subnet" ]]',
+              'ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v9-7e191ceb',
+              'state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v9"',
+              'IMPLEMENTATION_SHA: 7e191cebc71118a2dee32dceeec49a47153dd8f8',
+          )
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f"generated workflow missing v9 safety markers: {missing!r}")
+          if "v8" in text or "c1d1f9f3db5e95e245c297f3d29be079533db301" in text:
+              raise SystemExit("generated workflow retains stale v8 identity")
+          PY
+
+      - name: Publish generated workflow as non-workflow blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_root="$RUNNER_TEMP/wickhunter-wh09-v9-output"
+          rm -rf "$output_root"
+          git worktree add -B "$OUTPUT_BRANCH" "$output_root" "origin/$OUTPUT_BRANCH"
+          trap 'git worktree remove --force "$output_root" >/dev/null 2>&1 || true' EXIT
+          install -D -m 0644 "$RUNNER_TEMP/generated-v9.yml" "$output_root/$GENERATED_PATH"
+          (
+            cd "$output_root"
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add "$GENERATED_PATH"
+            ! git diff --cached --quiet
+            git diff --cached --check
+            git commit -m "ops(wickhunter): stage exact v9 deployment workflow blob"
+            actual="$(git diff --name-only "$EXPECTED_OUTPUT_HEAD" HEAD)"
+            [[ "$actual" == "$GENERATED_PATH" ]]
+            git push origin "HEAD:$OUTPUT_BRANCH"
+          )
+          git worktree remove --force "$output_root"
+          trap - EXIT

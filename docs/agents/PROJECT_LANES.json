@@ -122,6 +122,18 @@
   ],
   "lanes": [
     {
+      "id": "freqtrade-assurance",
+      "label": "Platform continuous assurance, audit and repair",
+      "match_keywords": [
+        "continuous-assurance",
+        "continuous assurance",
+        "audit-repair",
+        "audit repair",
+        "assurance_work_item",
+        "architecture and ci"
+      ]
+    },
+    {
       "id": "freqtrade-wickhunter",
       "label": "WickHunter and market evidence",
       "match_keywords": [

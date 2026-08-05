@@ -10,24 +10,34 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: implementing
+status: waiting
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: c33648acfd86a0352836498103857b601b5f486f
-branch: fix/wickhunter-wh09-candidate-authorization-boundary-20260805-v1
-product_pr: pending
+base_sha: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+branch: docs/wickhunter-wh09-v12-deployment-checkpoint-20260805
+product_pr: 1263
+checkpoint_pr: 1276
+repair_merge_sha: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+deployment_pr: 1274
+deployment_run: 31024416013
+deployment_artifact: 8939021431
+activation_name: wickhunter-wh09-activation-20260805-v12-108eff81
+runtime_run_id: b895197c49550bd57a50fed93dda4ebbc5938839c17302ad086cce5fa4fedf14
+runtime_binding_id: 79ed4f7a3d211704d95b0304b633ba96512e44f4dedaa6ebaf37732397160702
+prospective_window_start_ms: 1785948307561
+prospective_window_end_ms: 1786038307561
 helper_pr: 1147
 cleanup_pr: 1182
 cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
-validated_implementation_head: 5d02cf6350126438cd9c7217dbf24bcab05828e8
+validated_implementation_head: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
 previous_closeout_head: 18e3ab57094d3e1359514a09cf64018162d8f685
 final_executor_run: 30914088955
 final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
-completion_claim: partial_producer
-next_action: validate and merge the candidate-authorization producer-boundary repair, then deploy a fresh v12 PAPER activation and begin the prospective acceptance window
+completion_claim: deployed_waiting_prospective_acceptance
+next_action: keep v12 PAPER runtime active through 2026-08-06T17:45:07.561Z, then collect and independently verify the complete WH-09 acceptance package
 ```
 
 ## Goal and completion boundary
@@ -143,24 +153,24 @@ This PR is the partial producer and intentionally cannot create the prospective 
 ```yaml
 recovery:
   policy_version: 1
-  generation: 4
-  session_id: wickhunter-wh09-20260804T1613+0200
-  session_started_at: 2026-08-04T16:13:00+02:00
-  checkpointed_at: 2026-08-04T16:30:00+02:00
-  last_progress_at: 2026-08-04T16:30:00+02:00
-  phase: exact-head closeout validation
-  exact_head: pending-current-commit
-  pull_request: 1160
-  active_operation: fresh repository CI against cleaned develop
-  external_run_ids: []
-  operation_started_at: 2026-08-04T16:30:00+02:00
-  wait_deadline_at: 2026-08-04T17:15:00+02:00
-  check_generation: closeout-after-cleanup-db0daa1
+  generation: 5
+  session_id: wickhunter-wh09-20260805T1852+0200
+  session_started_at: 2026-08-05T18:52:00+02:00
+  checkpointed_at: 2026-08-05T18:52:00+02:00
+  last_progress_at: 2026-08-05T18:52:00+02:00
+  phase: prospective PAPER acceptance observation
+  exact_head: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+  pull_request: 1276
+  active_operation: persistent v12 PAPER observation window
+  external_run_ids: [31024416013]
+  operation_started_at: 2026-08-05T16:45:07.561Z
+  wait_deadline_at: 2026-08-06T17:45:07.561Z
+  check_generation: wh09-v12-b895197c-prospective-window
   checks_used: 0
-  status: active
+  status: waiting
   safe_to_resume: true
-  resume_condition: all required exact-head checks reach a terminal result
-  next_action: Inspect one aggregate exact-head CI snapshot, repair only a newly proven product failure, or merge PR 1160 when every gate passes.
+  resume_condition: window end has passed and the exact v12 runtime remains available for immutable acceptance collection
+  next_action: Collect and independently verify every WH-09 terminal criterion; keep the explicit owner decision separate.
 ```
 
 ## Post-merge continuation
@@ -318,3 +328,27 @@ that the verified binding promotes the field to `true` and rejects pre-authorize
 trading credential, order adapter, execution, automatic promotion, protected holdout or live-capital
 authority is introduced; `orders_submitted` remains zero. After exact-head CI and merge, v11 remains
 terminal evidence and a new immutable v12 activation is required.
+
+## v12 trusted deployment and restart checkpoint
+
+The candidate-authorization producer-boundary repair passed exact-head CI and merged
+through PR #1263 as `108eff8149f3c5dba77bfcdeaea0c63c8a22b551`. Trusted Synology
+deployment run `31024416013` from request-only PR #1274 then published fresh activation
+`wickhunter-wh09-activation-20260805-v12-108eff81`, run
+`b895197c49550bd57a50fed93dda4ebbc5938839c17302ad086cce5fa4fedf14` and binding
+`79ed4f7a3d211704d95b0304b633ba96512e44f4dedaa6ebaf37732397160702`.
+
+Evidence artifact `8939021431` (`wickhunter-wh09-deployment-1274`, digest
+`sha256:9172054434130e924727c1cacdcf6faa0f1968a4043976b1470a7fb6369131d9`)
+proves healthy self-hashed generation 1, a real operator restart, healthy generation 2
+with unchanged identities and exact implementation, and successful post-restart egress
+revalidation. Only the exact Binance Futures TLS path was reachable; nonallowlisted DNS
+and direct external egress remained blocked. Model/data drift were healthy and the circuit
+breaker was inactive at this checkpoint.
+
+The prospective window is `2026-08-05T16:45:07.561Z..2026-08-06T17:45:07.561Z`.
+Protected holdout, automatic promotion, credentials, order adapter, execution and live
+capital remain disabled, with `orders_submitted=0`. WH-09 and Issue #1144 remain open until
+all duration, snapshot/gap/freshness, decision/risk/parity, exercise, drawdown, consumer,
+immutable-evidence and independent-verification criteria pass and a separate owner decision
+is recorded.

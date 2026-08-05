@@ -32,9 +32,7 @@ EXPECTED_SCHEMA_REVISION = "20260805_02_oidc_logout_replay"
 MIGRATION_TABLE_NAME = "portal_schema_migrations"
 OIDC_LOGOUT_REPLAY_TABLE_NAME = "portal_oidc_logout_replays"
 _POSTGRES_MIGRATION_LOCK_ID = 1_122_202_608_03
-_POSTGRES_STRING_CAST_RE = re.compile(
-    r"::(?:character varying|varchar|text)(?:\[\])?"
-)
+_POSTGRES_STRING_CAST_RE = re.compile(r"::(?:character varying|varchar|text)(?:\[\])?")
 _POSTGRES_ANY_ARRAY_RE = re.compile(
     r"\b(?P<column>[a-z_][a-z0-9_]*)\s*=\s*any\s*"
     r"\(\s*array\[(?P<values>[^\]]+)\]\s*\)"

@@ -153,6 +153,43 @@ jobs:
           -r deploy/synology/portal-oidc/requirements.txt
           pytest==8.4.1 jsonschema
 
+      - name: Verify fresh PostgreSQL readiness with structural diagnostics
+        env:
+          PYTHONPATH: .:ai_platform
+          PORTAL_TEST_POSTGRES_URL: postgresql+psycopg://portal_schema:ci-only-synthetic-schema-password@127.0.0.1:5432/portal_schema
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+
+          from ai_platform.portal.control_plane.database import build_engine
+          from ai_platform.portal.database.schema import SchemaMigrationError, migrate_database
+
+          engine = build_engine(os.environ["PORTAL_TEST_POSTGRES_URL"])
+          try:
+              report = migrate_database(engine)
+          except SchemaMigrationError as exc:
+              print(json.dumps(exc.report, sort_keys=True, default=str))
+              raise
+          else:
+              print(
+                  json.dumps(
+                      {
+                          "status": report["status"],
+                          "differences": report["differences"],
+                          "applied_revisions": [
+                              revision["revision_id"]
+                              for revision in report["applied_revisions"]
+                          ],
+                      },
+                      sort_keys=True,
+                  )
+              )
+          finally:
+              engine.dispose()
+          PY
+
       - name: Prove PostgreSQL migration, replay and recovery boundaries
         env:
           PYTHONPATH: .:ai_platform

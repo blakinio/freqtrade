@@ -1,4 +1,4 @@
-name: WickHunter WH09 Liquid20 permission metadata probe
+name: WickHunter WH09 Liquid20 Docker-boundary permission probe
 
 "on":
   pull_request:
@@ -11,78 +11,83 @@ permissions:
   contents: read
 
 concurrency:
-  group: wickhunter-wh09-liquid20-permission-probe-v5
+  group: wickhunter-wh09-liquid20-docker-permission-probe-v6
   cancel-in-progress: false
 
 jobs:
   probe:
-    name: Inspect bounded Liquid20 permission metadata
+    name: Inspect Liquid20 metadata inside collector mount
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     timeout-minutes: 5
     env:
-      LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
       OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
     steps:
-      - name: Record identities and path metadata only
+      - name: Record collector identity, mount and file metadata
         shell: bash
         run: |
           set -euo pipefail
-          echo "runner_identity=$(id)"
-          docker inspect --format 'collector_user={{.Config.User}}' liquid20-live || true
-          for path in \
-            /volume1 \
-            /volume1/docker \
-            /volume1/docker/freqtrade-liquidations \
-            /volume1/docker/freqtrade-liquidations/data \
-            "$LIQUID20_LIVE_HOST" \
-            "$LIQUID20_LIVE_HOST/runs" \
-            "$LIQUID20_LIVE_HOST/live-state-v1.json"
-          do
-            if [[ -e "$path" || -L "$path" ]]; then
-              stat -c 'path=%n type=%F uid=%u gid=%g mode=%a' "$path"
-            else
-              echo "missing=$path"
-            fi
-          done
-          active_run_id="$(python3 - "$LIQUID20_LIVE_HOST/live-state-v1.json" <<'PY'
+          docker inspect --format 'collector_user={{.Config.User}} mounts={{json .Mounts}}' liquid20-live
+          docker exec --user 0:0 liquid20-live python - <<'PY'
           import json
-          import sys
+          import os
+          import stat
           from pathlib import Path
-          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+
+          root = Path("/data/live")
+          pointer = root / "live-state-v1.json"
+          payload = json.loads(pointer.read_text(encoding="utf-8"))
           state = payload.get("state")
           if not isinstance(state, dict):
               raise SystemExit("pointer state missing")
           run_id = state.get("run_id")
           if not isinstance(run_id, str) or not run_id:
               raise SystemExit("pointer run_id missing")
-          print(run_id)
+          paths = [
+              Path("/data"),
+              root,
+              root / "runs",
+              pointer,
+              root / "runs" / run_id,
+          ]
+          paths.extend(sorted((root / "runs" / run_id).glob("*")))
+          for path in paths:
+              row = path.stat()
+              print(
+                  f"path={path} type={'dir' if stat.S_ISDIR(row.st_mode) else 'file'} "
+                  f"uid={row.st_uid} gid={row.st_gid} mode={stat.S_IMODE(row.st_mode):03o}"
+              )
+          print(f"active_run_id={run_id}")
+          print(f"collector_process_uid={os.getuid()} gid={os.getgid()} groups={os.getgroups()}")
           PY
-          )"
-          stat -c 'path=%n type=%F uid=%u gid=%g mode=%a' "$LIQUID20_LIVE_HOST/runs/$active_run_id"
-          find "$LIQUID20_LIVE_HOST/runs/$active_run_id" -maxdepth 1 -type f -printf 'path=%p type=file uid=%U gid=%G mode=%m\n' | sort
 
-      - name: Prove candidate reader groups without reading payload content
+      - name: Test exact candidate identities against read-only collector volume
         shell: bash
         run: |
           set -euo pipefail
-          pointer_gid="$(stat -c '%g' "$LIQUID20_LIVE_HOST/live-state-v1.json")"
-          echo "pointer_gid=$pointer_gid"
-          docker run --rm \
-            --user 65532:65532 \
-            --group-add "$pointer_gid" \
-            --read-only \
-            --network none \
-            --cap-drop ALL \
-            --security-opt no-new-privileges:true \
-            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
-            --entrypoint python \
-            "$OPERATOR_IMAGE" - <<'PY'
+          for identity in 65532:65532 65532:0; do
+            echo "testing_identity=$identity"
+            if docker run --rm \
+              --user "$identity" \
+              --read-only \
+              --network none \
+              --cap-drop ALL \
+              --security-opt no-new-privileges:true \
+              --volumes-from liquid20-live:ro \
+              --entrypoint python \
+              "$OPERATOR_IMAGE" - <<'PY'
           import os
           from pathlib import Path
-          pointer = Path("/runtime/liquid20/live-state-v1.json")
-          print(f"container_groups={os.getgroups()}")
-          print(f"pointer_regular={pointer.is_file()} pointer_size={pointer.stat().st_size}")
+          pointer = Path("/data/live/live-state-v1.json")
+          with pointer.open("rb") as handle:
+              first = handle.read(1)
+          print(f"uid={os.getuid()} gid={os.getgid()} groups={os.getgroups()} readable={len(first) == 1}")
           PY
+            then
+              echo "identity_result=$identity:readable"
+            else
+              echo "identity_result=$identity:denied"
+            fi
+          done

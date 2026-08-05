@@ -11,8 +11,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: wickhunter-wh09-v12-task-checkpoint-executor
-  cancel-in-progress: false
+  group: wickhunter-wh09-v12-task-checkpoint-executor-selfhosted
+  cancel-in-progress: true
 
 env:
   EXPECTED_BASE_SHA: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
@@ -24,7 +24,7 @@ jobs:
   checkpoint:
     name: Publish canonical v12 checkpoint
     if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.base.ref == 'develop'
-    runs-on: ubuntu-latest
+    runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0

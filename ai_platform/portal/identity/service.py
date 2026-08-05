@@ -201,6 +201,8 @@ class IdentityService(service_base.IdentityService):
             )
             if not claim.owner:
                 row = claim.row
+                if row.revoked_sessions is None:
+                    raise RuntimeError("terminal logout replay result is incomplete")
                 result = BackchannelLogoutResult(
                     revoked_sessions=row.revoked_sessions,
                     processed_at=_utc(row.processed_at),

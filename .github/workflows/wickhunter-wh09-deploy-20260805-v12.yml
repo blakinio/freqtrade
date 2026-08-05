@@ -132,7 +132,7 @@ jobs:
                   if line and not line.startswith("          "):
                       raise SystemExit(f"unexpected indentation in reviewed step {name}")
                   body.append(line[10:] if line else "")
-              if not body or body[0] != "set -euo pipefail":
+              if not body or body[0] not in {"set -euo pipefail", "set -Eeuo pipefail"}:
                   raise SystemExit(f"reviewed step shape changed: {name}")
               path = destination / f"{index:02d}.sh"
               path.write_text("\n".join(body) + "\n", encoding="utf-8")

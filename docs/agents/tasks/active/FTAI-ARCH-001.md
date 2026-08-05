@@ -1,13 +1,14 @@
 ---
 task_id: FTAI-ARCH-001
-status: active
+status: review_ready
 branch: review/FTAI-ARCH-001-architecture-ci-20260805
 base_branch: develop
 base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
+synchronized_base_sha: 37e12c1e7b118196543f23c5626959d870012748
 created: 2026-08-05
 updated: 2026-08-05
 related_issue: "1251"
-related_pr: null
+related_pr: "1255"
 review_role: A3-architecture-ci-reviewer
 owned_paths:
   - ARCHITECTURE_REGISTRY.yaml
@@ -29,6 +30,7 @@ search_first:
   - active architecture and CI task records
   - open pull requests touching owned paths
 optional_reads:
+  - docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_COVERAGE.md
   - docs/ai_platform/portal/SYSTEM_ARCHITECTURE.md
   - docs/ai_platform/portal/ARCHITECTURE_DECISIONS.md
   - tools/ci/change_classifier.py
@@ -45,15 +47,17 @@ Create the missing canonical architecture registry, reconcile document authority
 ## Audited state
 
 - repository: `blakinio/freqtrade`
-- branch: `develop`
-- exact base SHA: `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`
+- audited branch: `develop`
+- exact audited SHA: `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a`
+- review branch synchronized with: `develop@37e12c1e7b118196543f23c5626959d870012748`
 - review issue: #1251
+- review PR: #1255
 - CI remediation issue: #1252
 
 ## Verified findings
 
 1. Architecture truth is fragmented between a historical research MVP document, a broader Portal target architecture and an accepted Portal decision log.
-2. The required root `ARCHITECTURE_REGISTRY.yaml` is absent on the audited base.
+2. The required root `ARCHITECTURE_REGISTRY.yaml` is absent on the audited base and on synchronized `develop` before this review PR.
 3. GitHub Actions reports 589 workflow catalog records, including historical temporary/agent workflow paths reported active but absent from the current `develop` workflow directory.
 4. Current workflow validation covers checked-in workflow files and central routing contracts, but not historical Actions-catalog lifecycle or temporary-workflow expiry.
 
@@ -63,7 +67,8 @@ Create the missing canonical architecture registry, reconcile document authority
 - ADR-019 in the existing accepted decision log;
 - explicit historical-scope banner on the original architecture document;
 - dated review report;
-- separate bounded remediation Issue #1252.
+- separate bounded remediation Issue #1252;
+- draft PR #1255 synchronized with the latest observed `develop` head.
 
 ## Safety and ownership
 
@@ -73,25 +78,30 @@ Create the missing canonical architecture registry, reconcile document authority
 - no delivery-lane implementation;
 - no claim that target architecture is implemented without exact evidence.
 
-## Validation plan
+## Validation performed
 
-- parse `ARCHITECTURE_REGISTRY.yaml` as YAML;
-- verify every registered path exists on the review branch;
-- verify ADR numbering remains unique and ordered;
-- verify documentation links and issue references;
-- require exact-head repository CI before merge if branch policy selects it.
+- `ARCHITECTURE_REGISTRY.yaml` parsed successfully as YAML;
+- registered architecture paths were verified from repository state or files added by PR #1255;
+- ADR numbering remains unique and ordered through ADR-019;
+- documentation and Issue/PR references were checked;
+- branch was synchronized with `develop@37e12c1e7b118196543f23c5626959d870012748` after concurrent assurance Wave 001 merged.
+
+## Remaining closeout gate
+
+Exact-head GitHub CI and review must complete before merge. The task remains `review_ready`; ownership is not released.
 
 ## Closeout state
 
 ```yaml
-implementation_complete: false
+implementation_complete: true
 outcome_verified: false
 audit:
-  result: IN_PROGRESS
-  material_findings_open: 2
+  result: MATERIAL_FINDINGS_RECORDED
+  material_findings_open: 1
 follow_up_issues:
-  - 1251
   - 1252
+pull_requests:
+  active_review_pr: 1255
 production_operations: none
 live_capital_operations: none
 ownership_released: false

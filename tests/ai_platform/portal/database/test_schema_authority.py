@@ -16,10 +16,38 @@ from ai_platform.portal.database.schema import (
     OIDC_LOGOUT_REPLAY_TABLE_NAME,
     SchemaReadinessError,
     UnversionedSchemaError,
+    _canonical_check_sql,
     assert_schema_ready,
     migrate_database,
     scan_database_integrity,
 )
+
+
+def test_postgresql_string_array_check_matches_declared_in_expression() -> None:
+    declared = "status IN ('processing', 'completed')"
+    reflected = (
+        "status::text = ANY (ARRAY['processing'::character varying, "
+        "'completed'::character varying]::text[])"
+    )
+
+    assert _canonical_check_sql(reflected) == _canonical_check_sql(declared)
+
+
+def test_postgresql_boolean_check_matches_declared_grouping() -> None:
+    declared = (
+        "(status = 'processing' AND revoked_sessions IS NULL "
+        "AND processed_at IS NULL AND completed_at IS NULL) OR "
+        "(status = 'completed' AND revoked_sessions IS NOT NULL "
+        "AND processed_at IS NOT NULL AND completed_at IS NOT NULL)"
+    )
+    reflected = (
+        "status::text = 'processing'::text AND revoked_sessions IS NULL "
+        "AND processed_at IS NULL AND completed_at IS NULL OR "
+        "status::text = 'completed'::text AND revoked_sessions IS NOT NULL "
+        "AND processed_at IS NOT NULL AND completed_at IS NOT NULL"
+    )
+
+    assert _canonical_check_sql(reflected) == _canonical_check_sql(declared)
 
 
 def test_model_registry_preserves_canonical_module_identity() -> None:

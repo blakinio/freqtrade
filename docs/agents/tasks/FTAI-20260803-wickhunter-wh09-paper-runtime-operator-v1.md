@@ -14,9 +14,9 @@ status: validating
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: 188b7fe879987387b70fa5d051dcc3c6a8ab8682
-branch: fix/wickhunter-wh09-live-snapshot-consistency-20260805-v1
-product_pr: 1208
+base_sha: 47b917812b96c0f03a18ff7d9d50cddeb8700a72
+branch: fix/wickhunter-wh09-snapshot-read-clock-20260805-v1
+product_pr: 1220
 helper_pr: 1147
 cleanup_pr: 1182
 cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate the suffix availability-time audit repair on exact head, then merge PR 1208 and redeploy a fresh PAPER activation
+next_action: validate the bounded snapshot read-clock repair on exact head, merge PR 1220, then deploy a fresh v6 PAPER activation
 ```
 
 ## Goal and completion boundary
@@ -268,3 +268,9 @@ validated against the actual bounded snapshot-read time and remain excluded from
 until state commits them. A focused regression proves a valid suffix later than the pointer
 but earlier than the read time is accepted and excluded; the existing future-receipt
 regression continues to fail closed.
+
+## Bounded snapshot read-clock repair
+
+Trusted Synology deployment run `30990749793` proved a second active-suffix timing boundary. The complete Liquid20 multi-run scan took about 66 seconds, and a valid file-ahead row was appended after snapshot start but before the reader consumed it. Comparing that row with the caller's snapshot-start `now_ms` therefore failed before activation even though the row was genuinely available at read time and remained excluded from decisions.
+
+PR #1220 derives the discarded active-suffix availability boundary from the immutable snapshot-start wall time plus monotonic elapsed read time. Committed rows remain bound to the atomically published collector heartbeat, completed runs retain exact count equality, every suffix row remains schema/value/source validated and excluded until committed, and a receipt still later than its bounded read point fails closed. Deterministic regressions cover both sides of that boundary. Failed v5 state identities are retired; the next deployment must use fresh v6 identities.

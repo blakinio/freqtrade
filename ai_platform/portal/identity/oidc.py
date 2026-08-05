@@ -61,10 +61,10 @@ class OidcClientConfig:
 @dataclass(frozen=True)
 class OidcLogoutIdentity:
     issuer: str
+    client_id: str
+    jti: str
     subject: str | None
     idp_session_id: str | None
-    client_id: str = ""
-    jti: str = ""
 
 
 class OidcClientProtocol(Protocol):
@@ -200,10 +200,10 @@ class PyJwtOidcClient:
             raise OidcProtocolError("logout token must contain sub or sid")
         return OidcLogoutIdentity(
             issuer=self.issuer,
-            subject=subject,
-            idp_session_id=sid,
             client_id=self.config.client_id,
             jti=jti,
+            subject=subject,
+            idp_session_id=sid,
         )
 
     def _get_discovery(self) -> dict[str, Any]:

@@ -1274,7 +1274,7 @@ def _runtime_risk_context(
         dca_timing_condition_met=True,
         spread_bps=market.spread_bps,
         quote_volume_usd=market.quote_volume_24h_usd,
-        candidate_paper_validation_authorized=True,
+        candidate_paper_validation_authorized=False,
     )
 
 

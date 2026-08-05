@@ -1,0 +1,310 @@
+name: FTAI-CI-004 apply bounded core-light
+
+on:
+  push:
+    branches:
+      - fix/FTAI-CI-004-bounded-core-light-1285
+    paths:
+      - .github/workflows/ftai-ci-004-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/FTAI-CI-004-bounded-core-light-1285
+          fetch-depth: 0
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+        with:
+          activate-environment: true
+          python-version: "3.13"
+          enable-cache: false
+      - name: Apply bounded core-light contract
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          workflow_path = Path('.github/workflows/ci.yml')
+          workflow = workflow_path.read_text(encoding='utf-8')
+          workflow = workflow.replace(
+              "    if: needs.classify.outputs.core_light == 'true' && needs.classify.outputs.core_matrix != 'true'",
+              "    if: needs.classify.outputs.core_light == 'true'",
+              1,
+          )
+          workflow = workflow.replace(
+              '          cache-suffix: "core-light-3.13"',
+              '          cache-suffix: "core-light-v2-3.13"',
+              1,
+          )
+          workflow, install_count = re.subn(
+              r"          uv pip install pytest==9\.1\.1[^\n]*",
+              "          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0",
+              workflow,
+              count=1,
+          )
+          if install_count != 1:
+              raise SystemExit('core-light dependency line was not replaced exactly once')
+          workflow, run_count = re.subn(
+              r"      - name: Core unit validation without optional ML and optimization suites\n.*?(?=\n  pre-commit:)",
+              "      - name: Bounded core smoke validation\n        run: python tools/ci/run_core_light.py\n",
+              workflow,
+              count=1,
+              flags=re.S,
+          )
+          if run_count != 1:
+              raise SystemExit('core-light test block was not replaced exactly once')
+          workflow_path.write_text(workflow, encoding='utf-8')
+
+          classifier_path = Path('tools/ci/change_classifier.py')
+          classifier = classifier_path.read_text(encoding='utf-8')
+          old = '        "core_light": core and not docs_only,'
+          new = '        "core_light": (core or full) and not docs_only,'
+          if classifier.count(old) != 1:
+              raise SystemExit('core_light classifier expression did not match exactly once')
+          classifier_path.write_text(classifier.replace(old, new, 1), encoding='utf-8')
+
+          Path('tools/ci/core-light-tests.txt').write_text(
+              """# Deterministic smoke targets for non-critical core changes.
+          # Critical exchange, data, persistence, RPC, strategy, FreqAI and optimize paths
+          # are routed to the complete core matrix instead.
+          tests/test_arguments.py
+          tests/test_configuration.py
+          tests/test_directory_operations.py
+          tests/test_log_setup.py
+          tests/test_main.py
+          tests/test_misc.py
+          tests/test_strategy_updater.py
+          tests/test_timerange.py
+          tests/commands/test_build_config.py
+          tests/commands/test_startup_time.py
+          tests/plugins/test_pairinformationfilter.py
+          tests/plugins/test_pairlocks.py
+          tests/plugins/test_percentchangepairlist.py
+          tests/plugins/test_remotepairlist.py
+          tests/util
+          """.replace('          ', ''),
+              encoding='utf-8',
+          )
+
+          Path('tools/ci/run_core_light.py').write_text(
+              '''#!/usr/bin/env python3
+          """Run the deterministic, dependency-light core smoke suite."""
+
+          from __future__ import annotations
+
+          import argparse
+          import re
+          import subprocess
+          import sys
+          from pathlib import Path
+
+
+          MANIFEST_PATH = Path(__file__).with_name("core-light-tests.txt")
+          MIN_TESTS = 200
+          MAX_TESTS = 800
+
+
+          def load_targets(path: Path = MANIFEST_PATH) -> list[str]:
+              targets: list[str] = []
+              for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                  target = raw_line.split("#", 1)[0].strip()
+                  if not target:
+                      continue
+                  candidate = Path(target)
+                  if candidate.is_absolute() or ".." in candidate.parts:
+                      raise ValueError(f"unsafe target on line {line_number}: {target}")
+                  if not candidate.exists():
+                      raise ValueError(f"missing target on line {line_number}: {target}")
+                  if not candidate.parts or candidate.parts[0] != "tests":
+                      raise ValueError(f"target must remain under tests/: {target}")
+                  targets.append(target)
+              if not targets:
+                  raise ValueError("core-light target manifest is empty")
+              if len(targets) != len(set(targets)):
+                  raise ValueError("core-light target manifest contains duplicates")
+              return targets
+
+
+          def parse_collection_count(output: str) -> int:
+              matches = re.findall(r"(?m)^(\d+) tests? collected(?: in .*)?$", output)
+              if not matches:
+                  raise ValueError("pytest collection summary was not found")
+              return int(matches[-1])
+
+
+          def collect_test_count(targets: list[str]) -> int:
+              command = [sys.executable, "-m", "pytest", "--collect-only", "-q", *targets]
+              completed = subprocess.run(command, check=False, capture_output=True, text=True)
+              sys.stdout.write(completed.stdout)
+              sys.stderr.write(completed.stderr)
+              if completed.returncode != 0:
+                  raise subprocess.CalledProcessError(completed.returncode, command)
+              count = parse_collection_count(completed.stdout + completed.stderr)
+              if not MIN_TESTS <= count <= MAX_TESTS:
+                  raise RuntimeError(
+                      f"core-light collected {count} tests; expected {MIN_TESTS}..{MAX_TESTS}"
+                  )
+              print(f"core-light collection accepted: {count} tests")
+              return count
+
+
+          def main(argv: list[str] | None = None) -> int:
+              parser = argparse.ArgumentParser()
+              parser.add_argument("--collect-only", action="store_true")
+              args = parser.parse_args(argv)
+              targets = load_targets()
+              collect_test_count(targets)
+              if args.collect_only:
+                  return 0
+              subprocess.run(
+                  [
+                      sys.executable,
+                      "-m",
+                      "pytest",
+                      "-q",
+                      "--durations",
+                      "20",
+                      "-n",
+                      "auto",
+                      *targets,
+                  ],
+                  check=True,
+              )
+              return 0
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          '''.replace('          ', ''),
+              encoding='utf-8',
+          )
+
+          Path('tests/ci/test_core_light_dependency_contract.py').write_text(
+              '''from pathlib import Path
+
+          import pytest
+
+          from tools.ci.run_core_light import MAX_TESTS, MIN_TESTS, load_targets, parse_collection_count
+
+
+          OPTIONAL_PACKAGES = (
+              "pyyaml==",
+              "plotly==",
+              "optuna==",
+              "datasieve==",
+              "pip-audit==",
+              "lightgbm==",
+              "xgboost==",
+          )
+          CRITICAL_TEST_PREFIXES = (
+              "tests/data",
+              "tests/exchange",
+              "tests/freqai",
+              "tests/optimize",
+              "tests/persistence",
+              "tests/rpc",
+              "tests/strategy",
+          )
+
+
+          def _workflow() -> str:
+              return Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+
+
+          def _core_light_block() -> str:
+              workflow = _workflow()
+              start = workflow.index("  core-light:\n")
+              end = workflow.index("\n  pre-commit:\n", start)
+              return workflow[start:end]
+
+
+          def test_core_light_uses_bounded_runner_and_ordinary_dependencies() -> None:
+              block = _core_light_block()
+              assert "pytest-xdist==3.8.0" in block
+              assert "python tools/ci/run_core_light.py" in block
+              assert "if: needs.classify.outputs.core_light == 'true'" in block
+              assert "core_matrix != 'true'" not in block
+              assert "pytest -q --durations 20 -n auto" not in block
+              for package in OPTIONAL_PACKAGES:
+                  assert package not in block
+
+
+          def test_core_light_manifest_is_explicit_safe_and_noncritical() -> None:
+              targets = load_targets()
+              assert 10 <= len(targets) <= 25
+              for target in targets:
+                  assert not target.startswith(CRITICAL_TEST_PREFIXES)
+              assert MIN_TESTS == 200
+              assert MAX_TESTS == 800
+
+
+          def test_collection_summary_parser_is_fail_closed() -> None:
+              assert parse_collection_count("321 tests collected in 1.23s\n") == 321
+              with pytest.raises(ValueError, match="summary"):
+                  parse_collection_count("collection completed")
+
+
+          def test_complete_core_suite_remains_in_matrix_jobs() -> None:
+              workflow = _workflow()
+              assert "run: pytest --random-order --durations 20 -n auto" in workflow
+              assert (
+                  "run: pytest --random-order --cov=freqtrade --cov=freqtrade_client "
+                  "--cov-config=.coveragerc"
+              ) in workflow
+          '''.replace('          ', ''),
+              encoding='utf-8',
+          )
+
+          tests_path = Path('tests/ci/test_change_classifier.py')
+          tests = tests_path.read_text(encoding='utf-8')
+          replacements = {
+              '    assert result["full"]\n    assert result["core_matrix"]\n    assert result["closure_e2e"]':
+                  '    assert result["full"]\n    assert result["core_light"]\n    assert result["core_matrix"]\n    assert result["closure_e2e"]',
+              '    assert result["full"]\n    assert result["core_matrix"]\n\n\ndef test_protected_branch_push_and_release_are_full()':
+                  '    assert result["full"]\n    assert result["core_light"]\n    assert result["core_matrix"]\n\n\ndef test_protected_branch_push_and_release_are_full()',
+              '    assert push["full"] and release["full"]':
+                  '    assert push["full"] and release["full"]\n    assert push["core_light"] and release["core_light"]',
+              '    assert result["full"]\n    assert result["core_matrix"]\n    assert result["exact_image"]':
+                  '    assert result["full"]\n    assert result["core_light"]\n    assert result["core_matrix"]\n    assert result["exact_image"]',
+              '    assert result["full"] and result["core_matrix"] and result["closure_e2e"]':
+                  '    assert result["full"] and result["core_light"]\n    assert result["core_matrix"] and result["closure_e2e"]',
+          }
+          for old, new in replacements.items():
+              if old not in tests:
+                  raise SystemExit(f'classifier test insertion point missing: {old!r}')
+              tests = tests.replace(old, new, 1)
+          tests_path.write_text(tests, encoding='utf-8')
+          PY
+      - name: Install bounded validation environment
+        run: |
+          uv pip install -r requirements.txt
+          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0 PyYAML==6.0.3
+          uv pip install --no-deps -e ft_client/
+          uv pip install --no-deps -e .
+      - name: Validate implementation
+        run: |
+          python -m compileall -q tools/ci tests/ci
+          ruff check tools/ci tests/ci
+          ruff format --check tools/ci tests/ci
+          mypy --config-file=/dev/null --ignore-missing-imports tools/ci/run_core_light.py tools/ci/change_classifier.py
+          python -m pytest -q -o addopts='' --confcutdir=tests/ci tests/ci
+          python tools/ci/validate_workflows.py
+          python tools/ci/run_core_light.py
+          git diff --check
+      - name: Commit validated implementation
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/ftai-ci-004-apply.yml
+          git add .github/workflows/ci.yml tools/ci/change_classifier.py tools/ci/core-light-tests.txt tools/ci/run_core_light.py tests/ci/test_change_classifier.py tests/ci/test_core_light_dependency_contract.py
+          git commit -m "fix(ci): bound the core-light smoke suite"
+          git push origin HEAD:fix/FTAI-CI-004-bounded-core-light-1285

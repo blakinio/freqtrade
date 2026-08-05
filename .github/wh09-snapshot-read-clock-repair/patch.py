@@ -96,12 +96,18 @@ def main() -> None:
         "                    history_start_ms=history_start_ms,\n",
     )
 
-    replace_once(
-        TESTS,
-        "def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:\n",
-        "def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:\n",
-    )
-    insertion_marker = "\n\n@pytest.mark.parametrize(\n    (\"mutation\", \"message\"),\n"
+    insertion_marker = """
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("invalid", "source event is invalid"),
+        ("wrong-source", "source does not match"),
+        ("future", "unavailable at live observation time"),
+    ),
+)
+def test_live_root_rejects_invalid_uncommitted_active_suffix(
+"""
     new_tests = """
 
 
@@ -146,7 +152,7 @@ def test_live_root_rejects_suffix_later_than_bounded_snapshot_read(
 """
     text = TESTS.read_text(encoding="utf-8")
     if text.count(insertion_marker) != 1:
-        raise SystemExit("tests: parametrization insertion marker mismatch")
+        raise SystemExit(f"tests: precise insertion marker count was {text.count(insertion_marker)}")
     TESTS.write_text(text.replace(insertion_marker, new_tests + insertion_marker, 1), encoding="utf-8")
     replace_once(
         TESTS,

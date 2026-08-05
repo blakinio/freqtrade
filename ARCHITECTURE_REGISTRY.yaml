@@ -6,10 +6,12 @@ default_branch: develop
 review:
   last_reviewed_at: "2026-08-05"
   audited_base_sha: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
+  synchronized_base_sha: 37e12c1e7b118196543f23c5626959d870012748
   review_issue: 1251
   review_task: FTAI-ARCH-001
+  review_pr: 1255
   review_report: docs/ai_platform/reviews/2026-08-05-architecture-ci-review.md
-  status: active
+  status: review_ready
 
 classification_values:
   - canonical_registry
@@ -176,6 +178,16 @@ documents:
     implementation_status: implemented
     owner_role: programme-owner
     last_reviewed_at: "2026-08-05"
+
+  - path: docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_COVERAGE.md
+    title: Platform continuous assurance coverage ledger
+    classification: governance_program
+    scope: point-in-time domain coverage, waves and open assurance findings
+    authority: programme_coverage_ledger
+    implementation_status: implemented
+    owner_role: whole-platform-assurance-owner
+    last_reviewed_at: "2026-08-05"
+    evidence_rule: Coverage status is bounded to the exact head and wave recorded in the ledger.
 
   - path: docs/ai_platform/portal/AUDIT_2026-08-02_END_TO_END_COMPLETENESS.md
     title: Portal end-to-end completeness audit

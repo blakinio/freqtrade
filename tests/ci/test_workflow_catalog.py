@@ -11,9 +11,7 @@ from tools.ci.workflow_catalog import (
 
 def test_current_workflow_classification() -> None:
     assert (
-        _classification_for_current(
-            ".github/workflows/ci.yml", {"on": {"pull_request": {}}}
-        )
+        _classification_for_current(".github/workflows/ci.yml", {"on": {"pull_request": {}}})
         == "canonical"
     )
     assert (
@@ -29,9 +27,7 @@ def test_current_workflow_classification() -> None:
         == "operational_schedule"
     )
     assert (
-        _classification_for_current(
-            ".github/workflows/agent-bootstrap.yml", {"on": {"push": {}}}
-        )
+        _classification_for_current(".github/workflows/agent-bootstrap.yml", {"on": {"push": {}}})
         == "temporary_helper"
     )
 

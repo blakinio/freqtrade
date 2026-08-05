@@ -40,9 +40,10 @@ def test_fresh_sqlite_migration_is_exact_and_idempotent() -> None:
         assert first["status"] == "ready"
         assert second["status"] == "ready"
         assert first["expected_revision"]["revision_id"] == EXPECTED_SCHEMA_REVISION
-        assert [
-            revision["revision_id"] for revision in first["applied_revisions"]
-        ] == [INITIAL_SCHEMA_REVISION, EXPECTED_SCHEMA_REVISION]
+        assert [revision["revision_id"] for revision in first["applied_revisions"]] == [
+            INITIAL_SCHEMA_REVISION,
+            EXPECTED_SCHEMA_REVISION,
+        ]
         assert first["sqlite_foreign_keys"] is True
         assert scan_database_integrity(engine)["status"] == "clean"
     finally:
@@ -55,16 +56,15 @@ def test_exact_revision_one_upgrades_atomically_to_revision_two(tmp_path: Path) 
         migrate_database(engine)
         with engine.begin() as connection:
             connection.exec_driver_sql(f"DROP TABLE {OIDC_LOGOUT_REPLAY_TABLE_NAME}")
-            connection.execute(
-                text(f"DELETE FROM {MIGRATION_TABLE_NAME} WHERE sequence = 2")
-            )
+            connection.execute(text(f"DELETE FROM {MIGRATION_TABLE_NAME} WHERE sequence = 2"))
 
         upgraded = migrate_database(engine)
 
         assert upgraded["status"] == "ready"
-        assert [
-            revision["revision_id"] for revision in upgraded["applied_revisions"]
-        ] == [INITIAL_SCHEMA_REVISION, EXPECTED_SCHEMA_REVISION]
+        assert [revision["revision_id"] for revision in upgraded["applied_revisions"]] == [
+            INITIAL_SCHEMA_REVISION,
+            EXPECTED_SCHEMA_REVISION,
+        ]
         assert OIDC_LOGOUT_REPLAY_TABLE_NAME not in upgraded["differences"]["missing_tables"]
     finally:
         engine.dispose()

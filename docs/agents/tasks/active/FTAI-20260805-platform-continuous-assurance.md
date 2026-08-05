@@ -23,7 +23,7 @@ base_head: 37e12c1e7b118196543f23c5626959d870012748
 branch: audit/platform-continuous-assurance-wave-002-20260805
 current_wave: wave-002-pr-terminality-and-operational-blockers
 current_findings: [1250, 1254]
-current_pr: pending
+current_pr: 1256
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260805-platform-continuous-assurance.md
   - docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_COVERAGE.md
@@ -95,11 +95,12 @@ No exchange credential, collector data, trading configuration, model state, orde
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 3
-updated_at: 2026-08-05T14:50:00Z
+checkpoint_version: 4
+updated_at: 2026-08-05T14:54:00Z
 status: active
-head: 37e12c1e7b118196543f23c5626959d870012748
+head: pending_exact_head_ci_for_pr_1256
 branch: audit/platform-continuous-assurance-wave-002-20260805
+pr: 1256
 wave: wave-002-pr-terminality-and-operational-blockers
 proven:
   - PR 1253 passed exact-head CI and merged as develop commit 37e12c1e7b118196543f23c5626959d870012748
@@ -108,13 +109,15 @@ proven:
   - PR 1215 governance-specific checks pass but focused typing fails on the baseline repaired by PR 1217
   - Issue 1254 is a real unavailable-runner condition; component health is unverified rather than proven failed
   - the active liquidations self-heal task record is stale after merged PR 1200
+  - wave 002 checkpoint and coverage update are published in PR 1256
 unknown:
   - terminal result of PR 1217 full exact-head matrix
+  - terminal exact-head result of PR 1256
   - when a trusted freqtrade-staging runner will become available
   - structured collector and Portal health after runner recovery
 conflicts:
   - liquidations self-heal task path remains owned by its active operations task
 external_blockers:
   - trusted self-hosted runner freqtrade-staging is unavailable for Issue 1254
-next_action: When PR 1217 exact-head CI becomes terminal, merge only if every required check succeeds; then merge current develop into PR 1215 without force-push and rerun exact-head CI. Independently, preserve Issue 1254 until a trusted runner starts and returns a structured health result.
+next_action: Validate and merge PR 1256 when its required exact-head checks pass. When PR 1217 exact-head CI becomes terminal, merge only if every required check succeeds; then merge current develop into PR 1215 without force-push and rerun exact-head CI. Independently, preserve Issue 1254 until a trusted runner starts and returns a structured health result.
 ```

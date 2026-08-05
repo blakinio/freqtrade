@@ -6,7 +6,7 @@ from pathlib import Path
 
 SOURCE_BRANCH = "ops/wickhunter-wh09-deploy-paper-20260805-v9"
 SOURCE_PATH = ".github/workflows/wickhunter-wh09-deploy-20260805-v9.yml"
-TARGET_PATH = Path(".github/workflows/wickhunter-wh09-deploy-20260805-v10.yml")
+TARGET_PATH = Path(".github/wh09-deployment-v10-output/wickhunter-wh09-deploy-20260805-v10.yml")
 OLD_IMPLEMENTATION_SHA = "7e191cebc71118a2dee32dceeec49a47153dd8f8"
 NEW_IMPLEMENTATION_SHA = "e9c04506f8dce9df26ae63006229e0d48f1f4209"
 OLD_SHORT_SHA = "7e191ceb"
@@ -51,7 +51,7 @@ def main() -> None:
 
     TARGET_PATH.parent.mkdir(parents=True, exist_ok=True)
     if TARGET_PATH.exists():
-        raise SystemExit("fresh v10 workflow path already exists")
+        raise SystemExit("fresh v10 output blob already exists")
     TARGET_PATH.write_text(generated, encoding="utf-8")
 
 

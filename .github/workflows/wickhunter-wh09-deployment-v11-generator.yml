@@ -1,0 +1,116 @@
+name: WickHunter WH09 deployment v11 generator
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-deployment-v11-generator.yml"
+      - ".github/wh09-deployment-v11/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-deployment-v11-generator
+  cancel-in-progress: false
+
+env:
+  SOURCE_BRANCH: ops/wickhunter-wh09-deploy-paper-20260805-v10
+  TARGET_BRANCH: ops/wickhunter-wh09-deployment-v11-generated-20260805-v1
+  EXPECTED_DEVELOP_HEAD: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
+  OUTPUT_PATH: .github/wh09-deployment-v11-output/wickhunter-wh09-deploy-20260805-v11.yml
+
+jobs:
+  generate:
+    name: Generate and validate fresh v11 workflow blob
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out exact generator request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate generator scope and preserve source
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_DEVELOP_HEAD" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          expected=$'.github/wh09-deployment-v11/generate.py\n.github/workflows/wickhunter-wh09-deployment-v11-generator.yml'
+          actual="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected generator paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          cp .github/wh09-deployment-v11/generate.py "$RUNNER_TEMP/generate-v11.py"
+          python -m py_compile "$RUNNER_TEMP/generate-v11.py"
+
+      - name: Generate exact workflow blob on staging branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin develop "$SOURCE_BRANCH" "$TARGET_BRANCH"
+          [[ "$(git rev-parse origin/develop)" == "$EXPECTED_DEVELOP_HEAD" ]]
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_DEVELOP_HEAD" ]]
+          python "$RUNNER_TEMP/generate-v11.py"
+
+      - name: Validate generated v11 workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check PyYAML
+          python - "$OUTPUT_PATH" <<'PY'
+          import sys
+          from pathlib import Path
+          import yaml
+
+          path = Path(sys.argv[1])
+          text = path.read_text(encoding="utf-8")
+          payload = yaml.safe_load(text)
+          if not isinstance(payload, dict):
+              raise SystemExit("generated workflow must be a mapping")
+          if payload.get("permissions") != {"contents": "read"}:
+              raise SystemExit("generated deployment permissions are not read-only")
+          if "runs-on: [freqtrade-staging]" not in text:
+              raise SystemExit("trusted runner binding is missing")
+          if text.count("IMPLEMENTATION_SHA: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a") != 1:
+              raise SystemExit("implementation SHA binding mismatch")
+          for required in (
+              "protected_holdout_accessed\": False",
+              "automatic_promotion_enabled\": False",
+              "trading_credentials_present\": False",
+              "order_adapter_present\": False",
+              "execution_enabled\": False",
+              "orders_submitted\": 0",
+              "live_capital_authorized\": False",
+          ):
+              if required not in text:
+                  raise SystemExit(f"missing closed-authority evidence: {required}")
+          PY
+          git add -N "$OUTPUT_PATH"
+          expected="$OUTPUT_PATH"
+          actual="$(git diff --name-only origin/develop | sort)"
+          [[ "$actual" == "$expected" ]]
+          git diff --check
+
+      - name: Commit and publish generated blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "$OUTPUT_PATH"
+          ! git diff --cached --quiet
+          git commit -m "chore(wickhunter): stage fresh v11 deployment workflow"
+          git push origin "HEAD:$TARGET_BRANCH"

@@ -8,23 +8,21 @@ name: WickHunter WH09 v12 deployment materializer
       - ".github/workflows/wickhunter-wh09-v12-materializer-20260805.yml"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: wickhunter-wh09-v12-materializer
   cancel-in-progress: false
 
 env:
-  REQUEST_PATH: .github/workflows/wickhunter-wh09-v12-materializer-20260805.yml
   EXPECTED_BASE_SHA: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
   SOURCE_REQUEST_SHA: 53b5216001fbc2fa453dc82e41035f9a4137b7ae
   SOURCE_WORKFLOW_PATH: .github/workflows/wickhunter-wh09-deploy-20260805-v11.yml
-  PRODUCT_BRANCH: ops/wickhunter-wh09-deploy-paper-20260805-v12
   PRODUCT_WORKFLOW_PATH: .github/workflows/wickhunter-wh09-deploy-20260805-v12.yml
 
 jobs:
   materialize:
-    name: Materialize exact v12 request branch
+    name: Materialize exact v12 request artifact
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
@@ -34,6 +32,7 @@ jobs:
       - name: Check out exact materializer request
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v11.0.0
         with:
+          persist-credentials: false
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
@@ -54,25 +53,18 @@ jobs:
             exit 1
           }
 
-      - name: Publish exact v12 deployment branch
-        id: publish
+      - name: Materialize exact v12 deployment workflow
+        id: materialize
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch --no-tags origin "$EXPECTED_BASE_SHA" "$SOURCE_REQUEST_SHA"
+          git fetch --no-tags origin "$SOURCE_REQUEST_SHA"
           git cat-file -e "$SOURCE_REQUEST_SHA:$SOURCE_WORKFLOW_PATH"
-          if git ls-remote --exit-code --heads origin "$PRODUCT_BRANCH" >/dev/null 2>&1; then
-            echo "product branch already exists: $PRODUCT_BRANCH" >&2
-            exit 1
-          fi
-          git switch --detach "$EXPECTED_BASE_SHA"
-          git switch -c "$PRODUCT_BRANCH"
           mkdir -p "$(dirname "$PRODUCT_WORKFLOW_PATH")"
           git show "$SOURCE_REQUEST_SHA:$SOURCE_WORKFLOW_PATH" > "$PRODUCT_WORKFLOW_PATH"
           python3 - "$PRODUCT_WORKFLOW_PATH" <<'PY'
           from pathlib import Path
+          import hashlib
           import sys
 
           path = Path(sys.argv[1])
@@ -119,25 +111,29 @@ jobs:
           if missing:
               raise SystemExit(f"v12 materialization incomplete: {missing}")
           path.write_text(text, encoding="utf-8")
+          print(hashlib.sha256(text.encode("utf-8")).hexdigest())
           PY
-          git add "$PRODUCT_WORKFLOW_PATH"
-          [[ "$(git diff --cached --name-only)" == "$PRODUCT_WORKFLOW_PATH" ]]
-          git commit -m "ops(wickhunter): deploy fresh WH09 PAPER runtime v12"
-          product_sha="$(git rev-parse HEAD)"
-          git push origin "HEAD:refs/heads/$PRODUCT_BRANCH"
-          echo "product_sha=$product_sha" >> "$GITHUB_OUTPUT"
+          workflow_sha256="$(sha256sum "$PRODUCT_WORKFLOW_PATH" | awk '{print $1}')"
+          echo "workflow_sha256=$workflow_sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload exact v12 deployment workflow
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v11.0.1
+        with:
+          name: wickhunter-wh09-v12-deployment-workflow
+          path: .github/workflows/wickhunter-wh09-deploy-20260805-v12.yml
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Publish summary
         shell: bash
         env:
-          PRODUCT_SHA: ${{ steps.publish.outputs.product_sha }}
+          WORKFLOW_SHA256: ${{ steps.materialize.outputs.workflow_sha256 }}
         run: |
           {
             echo "## WickHunter WH09 v12 request materialized"
             echo
             echo "- Base and implementation: \`$EXPECTED_BASE_SHA\`"
-            echo "- Product branch: \`$PRODUCT_BRANCH\`"
-            echo "- Product SHA: \`$PRODUCT_SHA\`"
             echo "- Product workflow: \`$PRODUCT_WORKFLOW_PATH\`"
+            echo "- Workflow SHA-256: \`$WORKFLOW_SHA256\`"
             echo "- Source request: \`$SOURCE_REQUEST_SHA\`"
           } >> "$GITHUB_STEP_SUMMARY"

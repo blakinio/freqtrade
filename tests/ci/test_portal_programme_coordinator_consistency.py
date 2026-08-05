@@ -3,9 +3,7 @@ from pathlib import Path
 
 
 PROGRAMME_PATH = Path("docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md")
-COORDINATOR_PATH = Path(
-    "docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md"
-)
+COORDINATOR_PATH = Path("docs/agents/tasks/active/FTAI-20260803-portal-remediation-program.md")
 
 
 def _issue_states() -> dict[int, str]:

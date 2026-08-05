@@ -9,9 +9,9 @@ status: active
 prompting_standard_version: 2.1
 execution_policy_version: 2
 task_kind: durable_remediation_program
-context_pressure: medium
+context_pressure: high
 decomposition_decision: split
-coordinator_execution_mode: github_only
+coordinator_execution_mode: chat
 implementation_worker_mode: codex_or_github_actions
 run_scope: autonomous_program
 continuation_policy: continue_until_real_stop

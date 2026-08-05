@@ -21,7 +21,7 @@ def facts(**overrides: object) -> BranchFacts:
         "unique_commits": 0,
     }
     values.update(overrides)
-    return BranchFacts(**values)  # type: ignore[arg-type]
+    return BranchFacts(**values)
 
 
 def test_old_branch_without_unique_commits_is_eligible() -> None:

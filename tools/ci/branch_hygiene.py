@@ -119,9 +119,7 @@ class GitHubApi:
                 return payload, dict(response.headers.items())
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(
-                f"GitHub API {method} {url} failed with {exc.code}: {body}"
-            ) from exc
+            raise RuntimeError(f"GitHub API {method} {url} failed with {exc.code}: {body}") from exc
         except urllib.error.URLError as exc:
             raise RuntimeError(f"GitHub API request failed: {exc}") from exc
 
@@ -138,19 +136,13 @@ class GitHubApi:
 
     def default_branch(self) -> str:
         payload, _ = self._request(self.base_url)
-        if not isinstance(payload, dict) or not isinstance(
-            payload.get("default_branch"), str
-        ):
+        if not isinstance(payload, dict) or not isinstance(payload.get("default_branch"), str):
             raise RuntimeError("repository response did not contain default_branch")
         return payload["default_branch"]
 
     def protected_branches(self) -> set[str]:
         items = self._paginate(f"{self.base_url}/branches?protected=true&per_page=100")
-        return {
-            str(item["name"])
-            for item in items
-            if isinstance(item.get("name"), str)
-        }
+        return {str(item["name"]) for item in items if isinstance(item.get("name"), str)}
 
     def open_pull_request_heads(self) -> set[str]:
         items = self._paginate(f"{self.base_url}/pulls?state=open&per_page=100")
@@ -364,8 +356,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if args.apply and args.confirm_repository != args.repository:
         print(
-            "branch hygiene failed: --apply requires an exact "
-            "--confirm-repository value",
+            "branch hygiene failed: --apply requires an exact --confirm-repository value",
             file=sys.stderr,
         )
         return 2

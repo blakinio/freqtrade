@@ -40,16 +40,13 @@ def validate_title(title: str) -> None:
     if title != title.strip():
         raise TitlePolicyError("title must not have leading or trailing whitespace")
     if len(title) > MAX_TITLE_LENGTH:
-        raise TitlePolicyError(
-            f"title is {len(title)} characters; maximum is {MAX_TITLE_LENGTH}"
-        )
+        raise TitlePolicyError(f"title is {len(title)} characters; maximum is {MAX_TITLE_LENGTH}")
 
     match = TITLE_RE.fullmatch(title)
     if match is None:
         allowed = ", ".join(ALLOWED_TYPES)
         raise TitlePolicyError(
-            "expected `type(scope): summary` or `type: summary`; "
-            f"allowed types: {allowed}"
+            f"expected `type(scope): summary` or `type: summary`; allowed types: {allowed}"
         )
 
     title_type = match.group("type")
@@ -101,8 +98,7 @@ def main(argv: list[str] | None = None) -> int:
             raw_event_path = os.environ.get("GITHUB_EVENT_PATH")
             if not raw_event_path:
                 print(
-                    "PR title validation failed: provide --title, --event, "
-                    "or GITHUB_EVENT_PATH",
+                    "PR title validation failed: provide --title, --event, or GITHUB_EVENT_PATH",
                     file=sys.stderr,
                 )
                 return 2

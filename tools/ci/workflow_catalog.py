@@ -88,14 +88,18 @@ class GitHubClient:
                 payload = response.read()
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise GitHubApiError(f"GitHub API {method} {path} failed: {exc.code} {detail}") from exc
+            raise GitHubApiError(
+                f"GitHub API {method} {path} failed: {exc.code} {detail}"
+            ) from exc
         if status not in expected:
             raise GitHubApiError(f"GitHub API {method} {path} returned {status}")
         if not payload:
             return {}
         decoded = json.loads(payload.decode("utf-8"))
         if not isinstance(decoded, (dict, list)):
-            raise GitHubApiError(f"GitHub API {method} {path} returned a non-container payload")
+            raise GitHubApiError(
+                f"GitHub API {method} {path} returned a non-container payload"
+            )
         return decoded
 
     def paginated_list(
@@ -169,7 +173,10 @@ def _classification_for_current(path: str, payload: dict[str, Any]) -> str:
         return "operational_schedule"
     if "migration" in lowered or "cutover" in lowered:
         return "migration_cutover"
-    if any(marker in lowered for marker in ("acceptance", "audit", "diagnostic", "smoke")):
+    if any(
+        marker in lowered
+        for marker in ("acceptance", "audit", "diagnostic", "smoke")
+    ):
         return "bounded_diagnostic"
     return "canonical"
 
@@ -225,7 +232,9 @@ def _current_workflow_metadata(
             "owner": _owner_for(relative, risk_class),
             "triggers": _trigger_names(payload),
             "permissions": _permission_summary(payload),
-            "lifecycle": "temporary" if classification == "temporary_helper" else "active",
+            "lifecycle": (
+                "temporary" if classification == "temporary_helper" else "active"
+            ),
             "review_date": (now + timedelta(days=180)).date().isoformat(),
         }
         if classification == "temporary_helper":
@@ -234,8 +243,9 @@ def _current_workflow_metadata(
                     "expiry": (now + timedelta(days=7)).date().isoformat(),
                     "tracking_issue": 1252,
                     "retirement": (
-                        "Remove the workflow file, disable its workflow ID, and append evidence "
-                        "to docs/agents/evidence/FTAI-CI-001/workflow-catalog.json."
+                        "Remove the workflow file, disable its workflow ID, and append "
+                        "evidence to docs/agents/evidence/FTAI-CI-001/"
+                        "workflow-catalog.json."
                     ),
                     "origin": "legacy_untracked_or_bounded_bootstrap",
                 }
@@ -246,8 +256,12 @@ def _current_workflow_metadata(
     return metadata, registry_entries
 
 
-def _open_pull_requests(client: GitHubClient, repository: str) -> dict[str, PullRequestHead]:
-    rows = client.paginated_list(f"/repos/{repository}/pulls", query={"state": "open"})
+def _open_pull_requests(
+    client: GitHubClient, repository: str
+) -> dict[str, PullRequestHead]:
+    rows = client.paginated_list(
+        f"/repos/{repository}/pulls", query={"state": "open"}
+    )
     result: dict[str, PullRequestHead] = {}
     for row in rows:
         head = row.get("head")
@@ -255,15 +269,13 @@ def _open_pull_requests(client: GitHubClient, repository: str) -> dict[str, Pull
             continue
         branch = head.get("ref")
         number = row.get("number")
-        updated_at = row.get("updated_at")
-        html_url = row.get("html_url")
         if not isinstance(branch, str) or not isinstance(number, int):
             continue
         result[branch] = PullRequestHead(
             number=number,
             branch=branch,
-            updated_at=str(updated_at or ""),
-            html_url=str(html_url or ""),
+            updated_at=str(row.get("updated_at") or ""),
+            html_url=str(row.get("html_url") or ""),
         )
     return result
 
@@ -330,7 +342,9 @@ def _classify_catalog_record(
     workflow_id = row.get("id")
     state = str(row.get("state") or "unknown")
     current_row = current.get(path)
-    latest_branch = latest_run.get("head_branch") if isinstance(latest_run, dict) else None
+    latest_branch = (
+        latest_run.get("head_branch") if isinstance(latest_run, dict) else None
+    )
     active_pr = open_prs.get(latest_branch) if isinstance(latest_branch, str) else None
     if current_row is not None:
         classification = str(current_row["classification"])
@@ -415,6 +429,14 @@ def _summary(records: list[dict[str, Any]]) -> dict[str, Any]:
             retired += 1
         if isinstance(retirement, dict) and retirement.get("error"):
             failed += 1
+    known_active = {
+        "canonical",
+        "reusable_component",
+        "operational_schedule",
+        "bounded_diagnostic",
+        "migration_cutover",
+        "temporary_helper",
+    }
     return {
         "total": len(records),
         "by_classification": dict(sorted(by_classification.items())),
@@ -425,21 +447,16 @@ def _summary(records: list[dict[str, Any]]) -> dict[str, Any]:
             1
             for record in records
             if record.get("state_after") == "active"
-            and record.get("classification") not in {
-                "canonical",
-                "reusable_component",
-                "operational_schedule",
-                "bounded_diagnostic",
-                "migration_cutover",
-                "temporary_helper",
-            }
+            and record.get("classification") not in known_active
         ),
     }
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
 def build_catalog(
@@ -464,44 +481,57 @@ def build_catalog(
         key="workflows",
     )
     open_prs = _open_pull_requests(client, repository)
-    latest_runs = _collect_latest_runs(client, repository, workflow_rows, workers=workers)
-    records = [
-        _classify_catalog_record(
-            row,
-            current=current,
-            latest_run=latest_runs.get(row.get("id")),
-            open_prs=open_prs,
+    latest_runs = _collect_latest_runs(
+        client, repository, workflow_rows, workers=workers
+    )
+    records: list[dict[str, Any]] = []
+    for row in workflow_rows:
+        workflow_id = row.get("id")
+        latest_run = (
+            latest_runs.get(workflow_id) if isinstance(workflow_id, int) else None
         )
-        for row in workflow_rows
-    ]
+        records.append(
+            _classify_catalog_record(
+                row,
+                current=current,
+                latest_run=latest_run,
+                open_prs=open_prs,
+            )
+        )
 
     if retire:
         for record in records:
             workflow_id = record.get("id")
             if not isinstance(workflow_id, int) or not _safe_to_disable(record):
                 continue
-            record["retirement"]["attempted"] = True
+            retirement = record["retirement"]
+            retirement["attempted"] = True
             success, error = _disable_workflow(client, repository, workflow_id)
-            record["retirement"]["success"] = success
-            record["retirement"]["error"] = error
+            retirement["success"] = success
+            retirement["error"] = error
             if success:
                 record["state_after"] = "disabled_manually"
 
     if self_workflow_path:
         normalized_self = self_workflow_path.lstrip("/")
         for record in records:
-            if record.get("path") != normalized_self or record.get("state_after") != "active":
+            if record.get("path") != normalized_self:
+                continue
+            if record.get("state_after") != "active":
                 continue
             workflow_id = record.get("id")
             if not isinstance(workflow_id, int):
                 continue
             record["classification"] = "temporary_helper"
             record["desired_state"] = "disabled"
-            record["classification_reason"] = "bounded bootstrap completed and self-retired"
-            record["retirement"]["attempted"] = True
+            record["classification_reason"] = (
+                "bounded bootstrap completed and self-retired"
+            )
+            retirement = record["retirement"]
+            retirement["attempted"] = True
             success, error = _disable_workflow(client, repository, workflow_id)
-            record["retirement"]["success"] = success
-            record["retirement"]["error"] = error
+            retirement["success"] = success
+            retirement["error"] = error
             if success:
                 record["state_after"] = "disabled_manually"
 
@@ -514,9 +544,12 @@ def build_catalog(
         "classification_rules": {
             "current_file": "classified from checked-out workflow metadata and retained",
             "open_pr_branch": "retained as bounded diagnostic until PR terminality",
-            "absent_without_open_pr": "classified historical/deleted and disabled when safe",
+            "absent_without_open_pr": (
+                "classified historical/deleted and disabled when safe"
+            ),
             "safety": (
-                "no name-pattern-only retirement; active runs and open PR branches are retained"
+                "no name-pattern-only retirement; active runs and open PR branches "
+                "are retained"
             ),
         },
         "summary": _summary(records),
@@ -552,7 +585,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--token-env", default="GH_TOKEN")
     parser.add_argument(
-        "--api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com")
+        "--api-url",
+        default=os.environ.get("GITHUB_API_URL", "https://api.github.com"),
     )
     parser.add_argument("--retire", action="store_true")
     parser.add_argument("--self-workflow-path")
@@ -566,7 +600,9 @@ def main(argv: list[str] | None = None) -> int:
     root = args.root.resolve()
     output = (root / args.output).resolve() if not args.output.is_absolute() else args.output
     registry = (
-        (root / args.registry).resolve() if not args.registry.is_absolute() else args.registry
+        (root / args.registry).resolve()
+        if not args.registry.is_absolute()
+        else args.registry
     )
     catalog = build_catalog(
         client=GitHubClient(api_url=args.api_url, token=token),

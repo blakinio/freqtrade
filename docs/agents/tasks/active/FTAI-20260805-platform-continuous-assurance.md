@@ -23,7 +23,7 @@ base_head: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
 branch: audit/platform-continuous-assurance-20260805
 current_wave: wave-001-governance-durable-state
 current_finding: 1250
-current_pr: pending
+current_pr: 1253
 owned_paths:
   - docs/agents/tasks/active/FTAI-20260805-platform-continuous-assurance.md
   - docs/agents/programs/FTAI_PLATFORM_CONTINUOUS_ASSURANCE_COVERAGE.md
@@ -70,6 +70,7 @@ The affected Portal remediation coordinator files remain owned by their active p
 - Active task inventory at baseline: four files under `docs/agents/tasks/active/`.
 - Open PR inventory at baseline: `#1249`, `#1215`, `#1217`.
 - Finding: Issue `#1250` (`programme:audit-repair`).
+- Initialization PR: `#1253`.
 - Duplicate search: no existing open Issue, branch or PR for the continuous-assurance programme or the exact stale-coordinator finding was found before creation.
 
 ## Acceptance and continuation
@@ -77,19 +78,21 @@ The affected Portal remediation coordinator files remain owned by their active p
 - [x] Canonical programme invocation and governance documents read from current `develop`.
 - [x] Live GitHub Issue, PR, branch and active-task state inspected.
 - [x] First bounded audit wave completed with a material deduplicated finding.
+- [x] Durable task and coverage ledger created on a dedicated branch and bound to PR `#1253`.
 - [x] Safety boundaries preserved; no trading, deployment, credential or protected-target mutation occurred.
-- [ ] Initial assurance task and coverage ledger PR passes exact-head CI and merges.
+- [ ] PR `#1253` passes exact-head CI and merges.
 - [ ] Issue `#1250` is routed to the owning coordinator lane and resolved without duplicate programme state.
 - [ ] Next bounded domain wave is selected from the coverage ledger after the initialization PR becomes terminal.
 
 ## Context checkpoint
 
 ```yaml
-checkpoint_version: 1
-updated_at: 2026-08-05T14:35:00Z
+checkpoint_version: 2
+updated_at: 2026-08-05T14:36:00Z
 status: active
-head: cbf9f57ea8d5783f85d19fe0f8557dfe3178705a
+head: pending_ci_for_pr_1253
 branch: audit/platform-continuous-assurance-20260805
+pr: 1253
 wave: wave-001-governance-durable-state
 finding: 1250
 proven:
@@ -97,12 +100,14 @@ proven:
   - active Portal remediation programme records still select Issue 1122 as READY/current
   - Issue 1132 remains open with no active task or PR found
   - no duplicate continuous-assurance branch or exact finding existed before creation
+  - assurance task and coverage ledger are published in PR 1253
 derived:
   - Portal remediation autonomous continuation is stalled by stale durable state
 unknown:
+  - exact-head CI result for PR 1253
   - whether another agent is currently preparing an unpushed reconciliation outside GitHub durable state
 conflicts:
   - affected Portal programme/task paths are owned by the active Portal remediation coordinator
 blocker: null
-next_action: Complete exact-head CI and merge this initialization PR, then select the next non-overlapping overdue or high-risk audit domain while Issue 1250 is handled by the owning coordinator lane.
+next_action: Validate PR 1253 exact-head CI and merge when all required checks pass, then select the next non-overlapping overdue or high-risk audit domain while Issue 1250 is handled by the owning coordinator lane.
 ```

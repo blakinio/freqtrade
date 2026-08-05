@@ -1,4 +1,4 @@
-name: WickHunter WH09 deployment v5 repin
+name: WickHunter WH09 deployment v5 generator
 
 "on":
   pull_request:
@@ -6,24 +6,28 @@ name: WickHunter WH09 deployment v5 repin
     branches: [develop]
     paths:
       - ".github/workflows/wickhunter-wh09-deployment-v5-repin-executor.yml"
-      - ".github/wh09-deployment-v5-repin/**"
+      - ".github/wh09-deployment-v5-repin/patch.py"
 
 permissions:
   contents: write
 
 concurrency:
-  group: wickhunter-wh09-deployment-v5-repin
+  group: wickhunter-wh09-deployment-v5-generator
   cancel-in-progress: false
 
 env:
   TARGET_BRANCH: ops/wickhunter-wh09-deploy-paper-20260804-v2
   EXPECTED_TARGET_HEAD: 0f1b6efac0e7c380320ceeda62b51731334aeb2a
   EXPECTED_DEVELOP_HEAD: 47b917812b96c0f03a18ff7d9d50cddeb8700a72
-  DEPLOYMENT_WORKFLOW: .github/workflows/wickhunter-wh09-deploy-20260804-v2.yml
+  OUTPUT_BRANCH: ops/wickhunter-wh09-deployment-v5-generated-20260805-v1
+  EXPECTED_OUTPUT_HEAD: 47b917812b96c0f03a18ff7d9d50cddeb8700a72
+  OLD_DEPLOYMENT_WORKFLOW: .github/workflows/wickhunter-wh09-deploy-20260804-v2.yml
+  NEW_DEPLOYMENT_WORKFLOW: .github/workflows/wickhunter-wh09-deploy-20260805-v5.yml
+  GENERATED_PATH: .github/wh09-deployment-v5-repin/generated-workflow.yml
 
 jobs:
-  repin:
-    name: Repin fresh v5 PAPER deployment
+  generate:
+    name: Generate exact fresh v5 PAPER deployment workflow blob
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
@@ -55,56 +59,96 @@ jobs:
           cp .github/wh09-deployment-v5-repin/patch.py "$RUNNER_TEMP/wh09-deployment-v5-repin.py"
           python -m py_compile "$RUNNER_TEMP/wh09-deployment-v5-repin.py"
 
-      - name: Merge exact implementation and apply v5 repin
+      - name: Generate and validate exact v5 workflow
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git fetch origin "$TARGET_BRANCH" develop
+          target_root="$RUNNER_TEMP/wickhunter-wh09-target"
+          rm -rf "$target_root"
+          git fetch origin "$TARGET_BRANCH" develop "$OUTPUT_BRANCH"
           [[ "$(git rev-parse origin/develop)" == "$EXPECTED_DEVELOP_HEAD" ]]
-          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
-          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
-          git merge --no-edit origin/develop
-          python "$RUNNER_TEMP/wh09-deployment-v5-repin.py"
-
-      - name: Validate exact deployment request
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m pip install --disable-pip-version-check "PyYAML>=6.0"
-          python - <<'PY'
+          [[ "$(git rev-parse origin/$TARGET_BRANCH)" == "$EXPECTED_TARGET_HEAD" ]]
+          [[ "$(git rev-parse origin/$OUTPUT_BRANCH)" == "$EXPECTED_OUTPUT_HEAD" ]]
+          git worktree add --detach "$target_root" "origin/$TARGET_BRANCH"
+          trap 'git worktree remove --force "$target_root" >/dev/null 2>&1 || true' EXIT
+          (
+            cd "$target_root"
+            python "$RUNNER_TEMP/wh09-deployment-v5-repin.py"
+            python - "$OLD_DEPLOYMENT_WORKFLOW" "$NEW_DEPLOYMENT_WORKFLOW" <<'PY'
           from pathlib import Path
+          import sys
+
+          path = Path(sys.argv[1])
+          old = sys.argv[1]
+          new = sys.argv[2]
+          text = path.read_text(encoding="utf-8")
+          count = text.count(old)
+          if count != 3:
+              raise SystemExit(f"expected three old workflow path references, found {count}")
+          text = text.replace(old, new)
+          path.write_text(text, encoding="utf-8")
+          PY
+          )
+          cp "$target_root/$OLD_DEPLOYMENT_WORKFLOW" "$RUNNER_TEMP/generated-workflow.yml"
+          python -m pip install --disable-pip-version-check "PyYAML>=6.0"
+          python - "$RUNNER_TEMP/generated-workflow.yml" <<'PY'
+          from pathlib import Path
+          import sys
           import yaml
 
-          path = Path(".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml")
-          payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-          if not isinstance(payload, dict) or "jobs" not in payload:
-              raise SystemExit("deployment workflow YAML is invalid")
-          if set(payload["jobs"]) != {"runner_probe", "deploy"}:
-              raise SystemExit("deployment workflow job set changed")
+          path = Path(sys.argv[1])
+          text = path.read_text(encoding="utf-8")
+          payload = yaml.safe_load(text)
+          if not isinstance(payload, dict) or set(payload.get("jobs", {})) != {"runner_probe", "deploy"}:
+              raise SystemExit("generated deployment workflow YAML is invalid")
+          required = (
+              "name: WickHunter WH09 fresh PAPER deployment v5",
+              "group: wickhunter-wh09-deploy-v5",
+              "EXPECTED_BASE_SHA: 47b917812b96c0f03a18ff7d9d50cddeb8700a72",
+              "IMPLEMENTATION_SHA: 47b917812b96c0f03a18ff7d9d50cddeb8700a72",
+              ".github/workflows/wickhunter-wh09-deploy-20260805-v5.yml",
+              "ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v5-47b91781",
+              "BOT_INSTANCE: wickhunter-paper-v5",
+              "OPERATOR_CONTAINER: wickhunter-paper-runtime-v5",
+              "GATEWAY_CONTAINER: wickhunter-wh09-egress-v5",
+              "INTERNAL_NETWORK: wickhunter-wh09-internal-v5",
+          )
+          missing = [item for item in required if item not in text]
+          if missing:
+              raise SystemExit(f"generated workflow missing markers: {missing!r}")
+          forbidden = (
+              ".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml",
+              "b417d07424136a480785a2ae06e868cfefc96390",
+              "9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7",
+              "v4",
+          )
+          present = [item for item in forbidden if item in text]
+          if present:
+              raise SystemExit(f"generated workflow retains stale markers: {present!r}")
           PY
-          git diff --check
-          changed="$(git diff --name-only)"
-          [[ "$changed" == "$DEPLOYMENT_WORKFLOW" ]]
-          grep -F "EXPECTED_BASE_SHA: $EXPECTED_DEVELOP_HEAD" "$DEPLOYMENT_WORKFLOW"
-          grep -F "IMPLEMENTATION_SHA: $EXPECTED_DEVELOP_HEAD" "$DEPLOYMENT_WORKFLOW"
-          grep -F 'ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v5-47b91781' "$DEPLOYMENT_WORKFLOW"
-          ! grep -F 'v4' "$DEPLOYMENT_WORKFLOW"
-          ! grep -F '9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7' "$DEPLOYMENT_WORKFLOW"
+          git worktree remove --force "$target_root"
+          trap - EXIT
 
-      - name: Commit and push exact deployment branch
+      - name: Publish generated workflow as a non-workflow blob
         shell: bash
         run: |
           set -euo pipefail
-          git add "$DEPLOYMENT_WORKFLOW"
-          ! git diff --cached --quiet
-          git commit -m "ops(wickhunter): repin fresh PAPER deployment v5"
-          expected=$'A\t.github/workflows/wickhunter-wh09-deploy-20260804-v2.yml'
-          actual="$(git diff --name-status origin/develop HEAD)"
-          [[ "$actual" == "$expected" ]] || {
-            printf 'Expected deployment request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
-            exit 1
-          }
-          git merge-base --is-ancestor "$EXPECTED_DEVELOP_HEAD" HEAD
-          git push origin "HEAD:$TARGET_BRANCH"
+          output_root="$RUNNER_TEMP/wickhunter-wh09-output"
+          rm -rf "$output_root"
+          git worktree add -B "$OUTPUT_BRANCH" "$output_root" "origin/$OUTPUT_BRANCH"
+          trap 'git worktree remove --force "$output_root" >/dev/null 2>&1 || true' EXIT
+          install -D -m 0644 "$RUNNER_TEMP/generated-workflow.yml" "$output_root/$GENERATED_PATH"
+          (
+            cd "$output_root"
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git add "$GENERATED_PATH"
+            ! git diff --cached --quiet
+            git diff --cached --check
+            git commit -m "ops(wickhunter): stage exact v5 deployment workflow blob"
+            actual="$(git diff --name-only "$EXPECTED_OUTPUT_HEAD" HEAD)"
+            [[ "$actual" == "$GENERATED_PATH" ]]
+            git push origin "HEAD:$OUTPUT_BRANCH"
+          )
+          git worktree remove --force "$output_root"
+          trap - EXIT

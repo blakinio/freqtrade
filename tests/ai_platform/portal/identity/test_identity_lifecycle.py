@@ -90,10 +90,17 @@ class FakeOidcClient:
 
     def validate_backchannel_logout(self, logout_token: str) -> OidcLogoutIdentity:
         assert logout_token == "valid-logout-token"
+        now = self.clock()
         return OidcLogoutIdentity(
             issuer=self.issuer,
             client_id="portal-client",
             jti="lifecycle-logout-1",
+            issued_at=now,
+            expires_at=now + timedelta(minutes=2),
+            retention_until=now + timedelta(minutes=17),
+            token_type="logout+jwt",
+            signing_key_id="key-1",
+            signing_algorithm="RS256",
             subject=self.subject,
             idp_session_id=self.sid,
         )

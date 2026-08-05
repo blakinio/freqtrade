@@ -1,0 +1,129 @@
+name: WickHunter WH09 bounded pointer availability repair
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-pointer-availability-clock-repair-executor.yml"
+      - ".github/wh09-pointer-availability-clock-repair/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-pointer-availability-clock-repair
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: fix/wickhunter-wh09-pointer-availability-clock-20260805-v1
+  EXPECTED_TARGET_HEAD: 46ec53d37579c397790583cccedd6f0e27a752f7
+  EXPECTED_DEVELOP_HEAD: c1d1f9f3db5e95e245c297f3d29be079533db301
+
+jobs:
+  repair:
+    name: Validate pointer at bounded snapshot read time
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate helper scope and preserve patch
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_DEVELOP_HEAD" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          expected=$'.github/wh09-pointer-availability-clock-repair/patch.py\n.github/workflows/wickhunter-wh09-pointer-availability-clock-repair-executor.yml'
+          actual="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected helper paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          cp .github/wh09-pointer-availability-clock-repair/patch.py "$RUNNER_TEMP/wh09-pointer-availability-clock-patch.py"
+          python -m py_compile "$RUNNER_TEMP/wh09-pointer-availability-clock-patch.py"
+
+      - name: Apply exact product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin "$TARGET_BRANCH" develop
+          [[ "$(git rev-parse origin/develop)" == "$EXPECTED_DEVELOP_HEAD" ]]
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
+          python "$RUNNER_TEMP/wh09-pointer-availability-clock-patch.py"
+
+      - name: Install focused validation dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check \
+            pytest "pydantic>=2.2" "SQLAlchemy>=2.0.6" \
+            "httpx>=0.24.1" fastapi pyjwt cryptography "PyYAML>=6.0" \
+            lightgbm mypy ruff==0.15.20
+
+      - name: Validate exact repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            ai_platform/wickhunter/candidate_paper_runtime_operator.py
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py
+          )
+          python -m ruff check --fix "${paths[@]}"
+          python -m ruff format "${paths[@]}"
+          python -m ruff check "${paths[@]}"
+          python -m ruff format --check "${paths[@]}"
+          python -m py_compile "${paths[@]}"
+          python -m mypy ai_platform/wickhunter/candidate_paper_runtime_operator.py
+          python -m pytest -q -o addopts='' \
+            --confcutdir=tests/ai_platform_integration \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_service.py \
+            tests/ai_platform_integration/test_wickhunter_candidate_runtime_binding.py
+          OPERATOR_COMMIT="$(git rev-parse HEAD)" \
+          WICKHUNTER_PAPER_RUNTIME_IMAGE="wickhunter-paper-runtime:precommit" \
+          CANDIDATE_ROOT_HOST=/tmp/candidate \
+          ACTIVATION_ROOT_HOST=/tmp/activation \
+          LIQUID20_LIVE_HOST=/tmp/liquid20 \
+          JOURNAL_ROOT_HOST=/tmp/journal \
+          OPERATOR_STATE_HOST=/tmp/operator \
+            docker compose -f deploy/synology/wickhunter-paper-runtime/compose.yaml config >/dev/null
+          git diff --check
+
+      - name: Commit, build and push exact product repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          ! git diff --cached --quiet
+          git commit -m "fix(wickhunter): validate pointer at bounded read time"
+          product_head="$(git rev-parse HEAD)"
+          docker build \
+            --file deploy/synology/wickhunter-paper-runtime/Dockerfile \
+            --build-arg "OPERATOR_COMMIT=$product_head" \
+            --tag "wickhunter-paper-runtime:$product_head" \
+            .
+          [[ "$(docker image inspect \
+            --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' \
+            "wickhunter-paper-runtime:$product_head")" == "$product_head" ]]
+          expected=$'ai_platform/wickhunter/candidate_paper_runtime_operator.py\ndocs/agents/tasks/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1.md\ntests/ai_platform_integration/test_wickhunter_candidate_paper_runtime_operator.py'
+          actual="$(git diff --name-only origin/develop HEAD | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected product paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          git push origin "HEAD:$TARGET_BRANCH"

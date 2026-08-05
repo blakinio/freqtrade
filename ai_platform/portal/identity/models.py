@@ -137,6 +137,12 @@ class OidcLogoutReplayRow(Base):
     client_id: Mapped[str] = mapped_column(String(255), nullable=False)
     jti: Mapped[str] = mapped_column(String(255), nullable=False)
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    token_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    signing_key_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    signing_algorithm: Mapped[str] = mapped_column(String(32), nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    retention_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     revoked_sessions: Mapped[int | None] = mapped_column(Integer, nullable=True)
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -153,6 +159,14 @@ class OidcLogoutReplayRow(Base):
             name="ck_portal_oidc_logout_replay_revoked_sessions",
         ),
         CheckConstraint(
+            "token_expires_at > issued_at",
+            name="ck_portal_oidc_logout_replay_token_window",
+        ),
+        CheckConstraint(
+            "retention_until > token_expires_at",
+            name="ck_portal_oidc_logout_replay_retention_window",
+        ),
+        CheckConstraint(
             "(status = 'processing' AND revoked_sessions IS NULL "
             "AND processed_at IS NULL AND completed_at IS NULL) OR "
             "(status = 'completed' AND revoked_sessions IS NOT NULL "
@@ -160,6 +174,7 @@ class OidcLogoutReplayRow(Base):
             name="ck_portal_oidc_logout_replay_terminal_result",
         ),
         Index("ix_portal_oidc_logout_replay_created", "created_at"),
+        Index("ix_portal_oidc_logout_replay_retention", "retention_until", "status"),
     )
 
 

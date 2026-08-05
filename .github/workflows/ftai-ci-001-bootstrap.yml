@@ -1,0 +1,92 @@
+name: FTAI-CI-001 bounded workflow catalog bootstrap
+
+on:
+  push:
+    branches:
+      - feat/FTAI-CI-001-workflow-lifecycle-20260805
+    paths:
+      - .github/workflows/ftai-ci-001-bootstrap.yml
+
+concurrency:
+  group: ftai-ci-001-workflow-catalog-bootstrap
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+
+jobs:
+  inventory-and-retire:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true # bounded branch commit; bootstrap self-disables and is removed
+          fetch-depth: 0
+      - name: Finalize catalog implementation before execution
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          catalog = Path("tools/ci/workflow_catalog.py")
+          text = catalog.read_text(encoding="utf-8")
+          text = text.replace(
+              '".github/workflows/zizmor.yml",',
+              '".github/workflows/zizmor_action.yml",',
+          )
+          text = text.replace(
+              '            "safety": "no name-pattern-only retirement; active runs and open PR branches are retained",',
+              '            "safety": (\n'
+              '                "no name-pattern-only retirement; active runs and open PR branches are retained"\n'
+              '            ),',
+          )
+          text = text.replace(
+              '    parser.add_argument("--api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com"))',
+              '    parser.add_argument(\n'
+              '        "--api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com")\n'
+              '    )',
+          )
+          text = text.replace(
+              '    registry = (root / args.registry).resolve() if not args.registry.is_absolute() else args.registry',
+              '    registry = (\n'
+              '        (root / args.registry).resolve() if not args.registry.is_absolute() else args.registry\n'
+              '    )',
+          )
+          catalog.write_text(text, encoding="utf-8")
+
+          tests = Path("tests/ci/test_workflow_catalog.py")
+          test_text = tests.read_text(encoding="utf-8")
+          test_text = test_text.replace(
+              '        "name: Temporary\\non: workflow_dispatch\\njobs:\\n  test:\\n    runs-on: ubuntu-latest\\n    steps: []\\n",',
+              '        "name: Temporary\\non: workflow_dispatch\\njobs:\\n"\n'
+              '        "  test:\\n    runs-on: ubuntu-latest\\n    steps: []\\n",',
+          )
+          tests.write_text(test_text, encoding="utf-8")
+          PY
+      - name: Install inventory parser
+        run: python -m pip install --disable-pip-version-check PyYAML==6.0.3
+      - name: Inventory, classify and safely retire historical records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/ci/workflow_catalog.py \
+            --repository "${{ github.repository }}" \
+            --root . \
+            --output docs/agents/evidence/FTAI-CI-001/workflow-catalog.json \
+            --registry .github/workflow-registry.yaml \
+            --retire \
+            --self-workflow-path .github/workflows/ftai-ci-001-bootstrap.yml
+      - name: Commit durable inventory evidence
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            tools/ci/workflow_catalog.py \
+            tests/ci/test_workflow_catalog.py \
+            .github/workflow-registry.yaml \
+            docs/agents/evidence/FTAI-CI-001/workflow-catalog.json
+          git diff --cached --quiet && exit 0
+          git commit -m "ci(governance): persist workflow catalog retirement evidence"
+          git push origin HEAD:${{ github.ref_name }}

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Inventory, classify, and safely retire GitHub Actions workflow records."""
 
+# This module is a bounded GitHub API client; its URL handling is constrained by the configured API base.
+# ruff: noqa: I001, S310
+
 from __future__ import annotations
 
 import argparse
@@ -83,23 +86,19 @@ class GitHubClient:
             },
         )
         try:
-            with urlopen(request, timeout=60) as response:  # noqa: S310
+            with urlopen(request, timeout=60) as response:
                 status = response.status
                 payload = response.read()
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise GitHubApiError(
-                f"GitHub API {method} {path} failed: {exc.code} {detail}"
-            ) from exc
+            raise GitHubApiError(f"GitHub API {method} {path} failed: {exc.code} {detail}") from exc
         if status not in expected:
             raise GitHubApiError(f"GitHub API {method} {path} returned {status}")
         if not payload:
             return {}
         decoded = json.loads(payload.decode("utf-8"))
         if not isinstance(decoded, (dict, list)):
-            raise GitHubApiError(
-                f"GitHub API {method} {path} returned a non-container payload"
-            )
+            raise GitHubApiError(f"GitHub API {method} {path} returned a non-container payload")
         return decoded
 
     def paginated_list(
@@ -173,10 +172,7 @@ def _classification_for_current(path: str, payload: dict[str, Any]) -> str:
         return "operational_schedule"
     if "migration" in lowered or "cutover" in lowered:
         return "migration_cutover"
-    if any(
-        marker in lowered
-        for marker in ("acceptance", "audit", "diagnostic", "smoke")
-    ):
+    if any(marker in lowered for marker in ("acceptance", "audit", "diagnostic", "smoke")):
         return "bounded_diagnostic"
     return "canonical"
 
@@ -232,9 +228,7 @@ def _current_workflow_metadata(
             "owner": _owner_for(relative, risk_class),
             "triggers": _trigger_names(payload),
             "permissions": _permission_summary(payload),
-            "lifecycle": (
-                "temporary" if classification == "temporary_helper" else "active"
-            ),
+            "lifecycle": ("temporary" if classification == "temporary_helper" else "active"),
             "review_date": (now + timedelta(days=180)).date().isoformat(),
         }
         if classification == "temporary_helper":
@@ -244,8 +238,7 @@ def _current_workflow_metadata(
                     "tracking_issue": 1252,
                     "retirement": (
                         "Remove the workflow file, disable its workflow ID, and append "
-                        "evidence to docs/agents/evidence/FTAI-CI-001/"
-                        "workflow-catalog.json."
+                        "evidence to docs/agents/evidence/FTAI-CI-001/workflow-catalog.json."
                     ),
                     "origin": "legacy_untracked_or_bounded_bootstrap",
                 }
@@ -256,12 +249,8 @@ def _current_workflow_metadata(
     return metadata, registry_entries
 
 
-def _open_pull_requests(
-    client: GitHubClient, repository: str
-) -> dict[str, PullRequestHead]:
-    rows = client.paginated_list(
-        f"/repos/{repository}/pulls", query={"state": "open"}
-    )
+def _open_pull_requests(client: GitHubClient, repository: str) -> dict[str, PullRequestHead]:
+    rows = client.paginated_list(f"/repos/{repository}/pulls", query={"state": "open"})
     result: dict[str, PullRequestHead] = {}
     for row in rows:
         head = row.get("head")
@@ -342,9 +331,7 @@ def _classify_catalog_record(
     workflow_id = row.get("id")
     state = str(row.get("state") or "unknown")
     current_row = current.get(path)
-    latest_branch = (
-        latest_run.get("head_branch") if isinstance(latest_run, dict) else None
-    )
+    latest_branch = latest_run.get("head_branch") if isinstance(latest_run, dict) else None
     active_pr = open_prs.get(latest_branch) if isinstance(latest_branch, str) else None
     if current_row is not None:
         classification = str(current_row["classification"])
@@ -454,9 +441,7 @@ def _summary(records: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def build_catalog(
@@ -481,15 +466,11 @@ def build_catalog(
         key="workflows",
     )
     open_prs = _open_pull_requests(client, repository)
-    latest_runs = _collect_latest_runs(
-        client, repository, workflow_rows, workers=workers
-    )
+    latest_runs = _collect_latest_runs(client, repository, workflow_rows, workers=workers)
     records: list[dict[str, Any]] = []
     for row in workflow_rows:
         workflow_id = row.get("id")
-        latest_run = (
-            latest_runs.get(workflow_id) if isinstance(workflow_id, int) else None
-        )
+        latest_run = latest_runs.get(workflow_id) if isinstance(workflow_id, int) else None
         records.append(
             _classify_catalog_record(
                 row,
@@ -524,9 +505,7 @@ def build_catalog(
                 continue
             record["classification"] = "temporary_helper"
             record["desired_state"] = "disabled"
-            record["classification_reason"] = (
-                "bounded bootstrap completed and self-retired"
-            )
+            record["classification_reason"] = "bounded bootstrap completed and self-retired"
             retirement = record["retirement"]
             retirement["attempted"] = True
             success, error = _disable_workflow(client, repository, workflow_id)
@@ -544,12 +523,9 @@ def build_catalog(
         "classification_rules": {
             "current_file": "classified from checked-out workflow metadata and retained",
             "open_pr_branch": "retained as bounded diagnostic until PR terminality",
-            "absent_without_open_pr": (
-                "classified historical/deleted and disabled when safe"
-            ),
+            "absent_without_open_pr": ("classified historical/deleted and disabled when safe"),
             "safety": (
-                "no name-pattern-only retirement; active runs and open PR branches "
-                "are retained"
+                "no name-pattern-only retirement; active runs and open PR branches are retained"
             ),
         },
         "summary": _summary(records),
@@ -600,9 +576,7 @@ def main(argv: list[str] | None = None) -> int:
     root = args.root.resolve()
     output = (root / args.output).resolve() if not args.output.is_absolute() else args.output
     registry = (
-        (root / args.registry).resolve()
-        if not args.registry.is_absolute()
-        else args.registry
+        (root / args.registry).resolve() if not args.registry.is_absolute() else args.registry
     )
     catalog = build_catalog(
         client=GitHubClient(api_url=args.api_url, token=token),

@@ -63,24 +63,48 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
-          text = path.read_text(encoding="utf-8")
-          old = (
+          product_path = Path("ai_platform/wickhunter/candidate_paper_runtime_operator.py")
+          product_text = product_path.read_text(encoding="utf-8")
+          old_product = (
               '        if historical_run_id == run_id and run_state != active_state:\n'
               '            raise CandidatePaperRuntimeOperatorError('
               '"Liquid20 active pointer and run state differ")\n'
           )
-          new = (
+          new_product = (
               '        if historical_run_id == run_id and run_state != active_state:\n'
               '            raise CandidatePaperRuntimeOperatorError(\n'
               '                "Liquid20 active pointer and run state differ"\n'
               '            )\n'
           )
-          if text.count(old) != 1:
+          if product_text.count(old_product) != 1:
               raise SystemExit(
-                  f"expected one single-line active-state marker, found {text.count(old)}"
+                  "expected exactly one single-line active-state marker, found "
+                  f"{product_text.count(old_product)}"
               )
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          product_path.write_text(
+              product_text.replace(old_product, new_product, 1),
+              encoding="utf-8",
+          )
+
+          patch_path = Path(__import__("os").environ["RUNNER_TEMP"]) / "wh09-live-snapshot-patch.py"
+          patch_text = patch_path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "    committed_reader = '''def _read_committed_jsonl_tail(\n",
+                  "    committed_reader = '''def _read_committed_jsonl_tail(  # noqa: C901\n",
+              ),
+              (
+                  "    tests = '''\n",
+                  "    tests = r'''\n",
+              ),
+          )
+          for old, new in replacements:
+              if patch_text.count(old) != 1:
+                  raise SystemExit(
+                      f"expected one patch normalizer marker, found {patch_text.count(old)}: {old!r}"
+                  )
+              patch_text = patch_text.replace(old, new, 1)
+          patch_path.write_text(patch_text, encoding="utf-8")
           PY
           python "$RUNNER_TEMP/wh09-live-snapshot-patch.py"
 

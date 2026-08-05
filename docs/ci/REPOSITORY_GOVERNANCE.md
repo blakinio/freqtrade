@@ -72,11 +72,11 @@ For residual branches, `tools/ci/branch_hygiene.py` is dry-run by default. Even 
 - it is not protected;
 - no open pull request uses it;
 - its latest commit is older than the retention threshold;
-- it contains no commit absent from `develop`;
+- it has no commit absent from `develop`, or its exact current head is the reviewed head of a merged same-repository pull request;
 - it does not match a configured keep pattern;
 - the explicit repository confirmation exactly matches the target.
 
-Branches with unique commits are report-only and require a case-by-case decision.
+A branch with unmerged unique commits is report-only and requires a case-by-case decision. A branch moved after its pull request merged is not treated as the merged head.
 
 A scheduled workflow should be added only after the canonical workflow registry and lifecycle enforcement are merged, so the automation itself is registered, owned and review-bounded.
 

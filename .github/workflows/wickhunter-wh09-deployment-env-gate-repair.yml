@@ -1,4 +1,4 @@
-name: WickHunter WH09 Liquid20 Docker-boundary permission probe
+name: WickHunter WH09 Liquid20 bounded Docker exec probe
 
 "on":
   pull_request:
@@ -11,80 +11,58 @@ permissions:
   contents: read
 
 concurrency:
-  group: wickhunter-wh09-liquid20-docker-permission-probe-v6
+  group: wickhunter-wh09-liquid20-docker-exec-probe-v7
   cancel-in-progress: false
 
 jobs:
   probe:
-    name: Inspect Liquid20 metadata inside collector mount
+    name: Inspect Liquid20 identities through bounded exec
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     timeout-minutes: 5
-    env:
-      OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
     steps:
-      - name: Record collector identity, mount and file metadata
+      - name: Record exact collector mount and permissions
         shell: bash
         run: |
           set -euo pipefail
           docker inspect --format 'collector_user={{.Config.User}} mounts={{json .Mounts}}' liquid20-live
-          docker exec --user 0:0 liquid20-live python - <<'PY'
-          import json
-          import os
-          import stat
+          docker exec --user 0:0 liquid20-live python -c '
+          import json, os, stat
           from pathlib import Path
-
           root = Path("/data/live")
           pointer = root / "live-state-v1.json"
           payload = json.loads(pointer.read_text(encoding="utf-8"))
           state = payload.get("state")
-          if not isinstance(state, dict):
-              raise SystemExit("pointer state missing")
+          assert isinstance(state, dict)
           run_id = state.get("run_id")
-          if not isinstance(run_id, str) or not run_id:
-              raise SystemExit("pointer run_id missing")
-          paths = [
-              Path("/data"),
-              root,
-              root / "runs",
-              pointer,
-              root / "runs" / run_id,
-          ]
+          assert isinstance(run_id, str) and run_id
+          paths = [Path("/data"), root, root / "runs", pointer, root / "runs" / run_id]
           paths.extend(sorted((root / "runs" / run_id).glob("*")))
           for path in paths:
               row = path.stat()
-              print(
-                  f"path={path} type={'dir' if stat.S_ISDIR(row.st_mode) else 'file'} "
-                  f"uid={row.st_uid} gid={row.st_gid} mode={stat.S_IMODE(row.st_mode):03o}"
-              )
+              kind = "dir" if stat.S_ISDIR(row.st_mode) else "file"
+              print(f"path={path} type={kind} uid={row.st_uid} gid={row.st_gid} mode={stat.S_IMODE(row.st_mode):03o}")
           print(f"active_run_id={run_id}")
-          print(f"collector_process_uid={os.getuid()} gid={os.getgid()} groups={os.getgroups()}")
-          PY
+          print(f"probe_uid={os.getuid()} gid={os.getgid()} groups={os.getgroups()}")
+          '
 
-      - name: Test exact candidate identities against read-only collector volume
+      - name: Test exact non-root identities
         shell: bash
         run: |
           set -euo pipefail
           for identity in 65532:65532 65532:0; do
             echo "testing_identity=$identity"
-            if docker run --rm \
-              --user "$identity" \
-              --read-only \
-              --network none \
-              --cap-drop ALL \
-              --security-opt no-new-privileges:true \
-              --volumes-from liquid20-live:ro \
-              --entrypoint python \
-              "$OPERATOR_IMAGE" - <<'PY'
+            if docker exec --user "$identity" liquid20-live python -c '
           import os
           from pathlib import Path
           pointer = Path("/data/live/live-state-v1.json")
           with pointer.open("rb") as handle:
               first = handle.read(1)
-          print(f"uid={os.getuid()} gid={os.getgid()} groups={os.getgroups()} readable={len(first) == 1}")
-          PY
+          assert len(first) == 1
+          print(f"uid={os.getuid()} gid={os.getgid()} groups={os.getgroups()} readable=true")
+          '
             then
               echo "identity_result=$identity:readable"
             else

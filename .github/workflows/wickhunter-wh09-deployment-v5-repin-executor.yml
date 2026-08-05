@@ -1,0 +1,110 @@
+name: WickHunter WH09 deployment v5 repin
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-deployment-v5-repin-executor.yml"
+      - ".github/wh09-deployment-v5-repin/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: wickhunter-wh09-deployment-v5-repin
+  cancel-in-progress: false
+
+env:
+  TARGET_BRANCH: ops/wickhunter-wh09-deploy-paper-20260804-v2
+  EXPECTED_TARGET_HEAD: 0f1b6efac0e7c380320ceeda62b51731334aeb2a
+  EXPECTED_DEVELOP_HEAD: 47b917812b96c0f03a18ff7d9d50cddeb8700a72
+  DEPLOYMENT_WORKFLOW: .github/workflows/wickhunter-wh09-deploy-20260804-v2.yml
+
+jobs:
+  repin:
+    name: Repin fresh v5 PAPER deployment
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'develop'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact helper request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate helper scope and preserve patch
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_DEVELOP_HEAD" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          expected=$'.github/wh09-deployment-v5-repin/patch.py\n.github/workflows/wickhunter-wh09-deployment-v5-repin-executor.yml'
+          actual="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA" | sort)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected helper paths:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          cp .github/wh09-deployment-v5-repin/patch.py "$RUNNER_TEMP/wh09-deployment-v5-repin.py"
+          python -m py_compile "$RUNNER_TEMP/wh09-deployment-v5-repin.py"
+
+      - name: Merge exact implementation and apply v5 repin
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git fetch origin "$TARGET_BRANCH" develop
+          [[ "$(git rev-parse origin/develop)" == "$EXPECTED_DEVELOP_HEAD" ]]
+          git checkout -B "$TARGET_BRANCH" "origin/$TARGET_BRANCH"
+          [[ "$(git rev-parse HEAD)" == "$EXPECTED_TARGET_HEAD" ]]
+          git merge --no-edit origin/develop
+          python "$RUNNER_TEMP/wh09-deployment-v5-repin.py"
+
+      - name: Validate exact deployment request
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check "PyYAML>=6.0"
+          python - <<'PY'
+          from pathlib import Path
+          import yaml
+
+          path = Path(".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml")
+          payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+          if not isinstance(payload, dict) or "jobs" not in payload:
+              raise SystemExit("deployment workflow YAML is invalid")
+          if set(payload["jobs"]) != {"runner_probe", "deploy"}:
+              raise SystemExit("deployment workflow job set changed")
+          PY
+          git diff --check
+          changed="$(git diff --name-only)"
+          [[ "$changed" == "$DEPLOYMENT_WORKFLOW" ]]
+          grep -F "EXPECTED_BASE_SHA: $EXPECTED_DEVELOP_HEAD" "$DEPLOYMENT_WORKFLOW"
+          grep -F "IMPLEMENTATION_SHA: $EXPECTED_DEVELOP_HEAD" "$DEPLOYMENT_WORKFLOW"
+          grep -F 'ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v5-47b91781' "$DEPLOYMENT_WORKFLOW"
+          ! grep -F 'v4' "$DEPLOYMENT_WORKFLOW"
+          ! grep -F '9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7' "$DEPLOYMENT_WORKFLOW"
+
+      - name: Commit and push exact deployment branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add "$DEPLOYMENT_WORKFLOW"
+          ! git diff --cached --quiet
+          git commit -m "ops(wickhunter): repin fresh PAPER deployment v5"
+          expected=$'A\t.github/workflows/wickhunter-wh09-deploy-20260804-v2.yml'
+          actual="$(git diff --name-status origin/develop HEAD)"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected deployment request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          git merge-base --is-ancestor "$EXPECTED_DEVELOP_HEAD" HEAD
+          git push origin "HEAD:$TARGET_BRANCH"

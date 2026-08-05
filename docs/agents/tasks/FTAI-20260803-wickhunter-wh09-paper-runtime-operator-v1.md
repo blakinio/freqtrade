@@ -10,13 +10,13 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: validating_final_audit
+status: validating
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: c236117f2efe6326d24f6cb58c0dabfd96469370
-branch: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-product_pr: 1160
+base_sha: 188b7fe879987387b70fa5d051dcc3c6a8ab8682
+branch: fix/wickhunter-wh09-live-snapshot-consistency-20260805-v1
+product_pr: 1208
 helper_pr: 1147
 cleanup_pr: 1182
 cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate the final runtime audit repair, remove the temporary executor, run fresh exact-head repository CI and merge PR 1160 only if every required gate passes
+next_action: validate the suffix availability-time audit repair on exact head, then merge PR 1208 and redeploy a fresh PAPER activation
 ```
 
 ## Goal and completion boundary
@@ -256,3 +256,15 @@ uncommitted suffix row before the suffix is ignored. Invalid schema, non-positiv
 source substitution and future receipt timestamps therefore fail closed immediately,
 while valid producer-ahead rows remain excluded until atomically committed by state.
 Focused parametrized regressions cover invalid payload, wrong source and future receipt.
+
+## Suffix availability-time audit repair
+
+A fresh producer-to-consumer audit found that the first suffix-validation repair compared
+uncommitted event receipts with the last atomically published collector heartbeat. That
+would reject the producer's normal file-ahead window because events appended after the last
+state publication can legitimately have later receipt timestamps. Committed rows remain
+bound to the published observation time, while complete uncommitted suffix rows are now
+validated against the actual bounded snapshot-read time and remain excluded from decisions
+until state commits them. A focused regression proves a valid suffix later than the pointer
+but earlier than the read time is accepted and excluded; the existing future-receipt
+regression continues to fail closed.

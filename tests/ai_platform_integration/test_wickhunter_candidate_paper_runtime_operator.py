@@ -223,11 +223,11 @@ def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:
     pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
     state = cast(dict[str, object], pointer["state"])
     run_id = str(state["run_id"])
-    suffix = _event("event-uncommitted", received_at_ms=NOW_MS - 500)
+    suffix = _event("event-uncommitted", received_at_ms=NOW_MS + 500)
     with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(suffix, sort_keys=True) + "\n")
 
-    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS + 1_000)
 
     assert {event.source_event_id for event in snapshot.events} == {
         "event-history",

@@ -158,11 +158,18 @@ class GitHubApi:
                 heads.add(head["ref"])
         return heads
 
-    def merged_pull_request_heads(self) -> set[tuple[str, str]]:
-        """Return same-repository branch refs and exact heads merged by PR."""
-        items = self._paginate(
-            f"{self.base_url}/pulls?state=closed&sort=updated&direction=desc&per_page=100"
+    def merged_pull_request_heads(self, base_branch: str) -> set[tuple[str, str]]:
+        """Return exact same-repository heads merged into the default branch."""
+        query = urllib.parse.urlencode(
+            {
+                "state": "closed",
+                "base": base_branch,
+                "sort": "updated",
+                "direction": "desc",
+                "per_page": 100,
+            }
         )
+        items = self._paginate(f"{self.base_url}/pulls?{query}")
         merged_heads: set[tuple[str, str]] = set()
         for item in items:
             if not isinstance(item.get("merged_at"), str):
@@ -375,7 +382,7 @@ def main(argv: list[str] | None = None) -> int:
         default_branch=default_branch,
         protected_branches=api.protected_branches(),
         open_pull_request_heads=api.open_pull_request_heads(),
-        merged_pull_request_heads=api.merged_pull_request_heads(),
+        merged_pull_request_heads=api.merged_pull_request_heads(default_branch),
         now=dt.datetime.now(tz=dt.UTC),
     )
 

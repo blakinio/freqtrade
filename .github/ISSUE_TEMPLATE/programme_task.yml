@@ -67,7 +67,7 @@ body:
     id: blocked_by
     attributes:
       label: Blocked by
-      description: Enter full GitHub Issue URLs, one per line, or `None`. Only URLs in this section become dependency relationships.
+      description: Enter full GitHub Issue URLs, one per line, or `None`. The central Projects Operations v3 reconciler converts only URLs in this section into native dependency relationships.
       placeholder: None
     validations:
       required: true

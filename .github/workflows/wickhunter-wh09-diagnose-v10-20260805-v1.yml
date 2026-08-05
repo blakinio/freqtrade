@@ -1,0 +1,524 @@
+name: WickHunter WH09 v10 stage diagnostic
+
+"on":
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches: [develop]
+    paths:
+      - ".github/workflows/wickhunter-wh09-diagnose-v10-20260805-v1.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wickhunter-wh09-v10-stage-diagnostic
+  cancel-in-progress: false
+
+env:
+  WORKFLOW_PATH: .github/workflows/wickhunter-wh09-diagnose-v10-20260805-v1.yml
+  EXPECTED_BASE_SHA: e9c04506f8dce9df26ae63006229e0d48f1f4209
+  IMPLEMENTATION_SHA: e9c04506f8dce9df26ae63006229e0d48f1f4209
+  CANDIDATE_PACKAGE_NAME: wickhunter-candidate-materialization-20260803-v2-626087ca45d6
+  ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v10-e9c04506
+  RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
+  HOST_STATE_ROOT: /volume1/docker/freqtrade/state
+  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
+  LIQUID20_READER_GID: "0"
+  OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-e9c04506f8dce9df26ae63006229e0d48f1f4209
+  GATEWAY_IMAGE: local/wickhunter-paper-egress:sha-e9c04506f8dce9df26ae63006229e0d48f1f4209
+  DIAGNOSTIC_CONTAINER: wickhunter-wh09-v10-stage-diagnostic
+  GATEWAY_CONTAINER: wickhunter-wh09-v10-diagnostic-egress
+  INTERNAL_NETWORK: wickhunter-wh09-v10-diagnostic-internal
+
+jobs:
+  diagnose:
+    name: Time exact v10 first-generation stages
+    runs-on: [freqtrade-staging]
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact diagnostic request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Validate exact request and preserved inputs
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RUNNER_NAME_VALUE: ${{ runner.name }}
+          RUNNER_OS_VALUE: ${{ runner.os }}
+          RUNNER_ARCH_VALUE: ${{ runner.arch }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" == "$EXPECTED_BASE_SHA" ]]
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" == "$BASE_SHA" ]]
+          expected=$'A\t.github/workflows/wickhunter-wh09-diagnose-v10-20260805-v1.yml'
+          actual="$(git diff --name-status "$BASE_SHA" "$HEAD_SHA")"
+          [[ "$actual" == "$expected" ]] || {
+            printf 'Expected exact request:\n%s\nActual:\n%s\n' "$expected" "$actual" >&2
+            exit 1
+          }
+          [[ "$RUNNER_NAME_VALUE" == "freqtrade-synology-staging" ]]
+          [[ "$RUNNER_OS_VALUE" == "Linux" ]]
+          [[ "$RUNNER_ARCH_VALUE" == "X64" ]]
+          for name in \
+            OKX_API_KEY OKX_API_SECRET OKX_SECRET_KEY OKX_PASSPHRASE \
+            BYBIT_API_KEY BYBIT_API_SECRET BINANCE_API_KEY BINANCE_API_SECRET \
+            FT_EXCHANGE_KEY FT_EXCHANGE_SECRET \
+            FREQTRADE__EXCHANGE__KEY FREQTRADE__EXCHANGE__SECRET
+          do
+            [[ -z "${!name:-}" ]] || {
+              echo "recognized trading credential present: $name" >&2
+              exit 1
+            }
+          done
+          for name in HTTP_PROXY HTTPS_PROXY ALL_PROXY http_proxy https_proxy all_proxy; do
+            [[ -z "${!name:-}" ]] || {
+              echo "proxy environment present: $name" >&2
+              exit 1
+            }
+          done
+          docker version >/dev/null
+          test -S /var/run/docker.sock
+          operator_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$OPERATOR_IMAGE")"
+          gateway_revision="$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$GATEWAY_IMAGE")"
+          [[ "$operator_revision" == "$IMPLEMENTATION_SHA" ]]
+          [[ "$gateway_revision" == "$IMPLEMENTATION_SHA" ]]
+          candidate_runner="$RUNNER_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v10"
+          activation_runner="$state_runner/activations/$ACTIVATION_NAME"
+          journal_runner="$state_runner/journals/$ACTIVATION_NAME"
+          operator_state_runner="$state_runner/operator/$ACTIVATION_NAME"
+          [[ -d "$candidate_runner" && ! -L "$candidate_runner" ]]
+          [[ -d "$activation_runner" && ! -L "$activation_runner" ]]
+          [[ -d "$journal_runner" && ! -L "$journal_runner" ]]
+          [[ -f "$journal_runner/identity.json" && ! -L "$journal_runner/identity.json" ]]
+          [[ "$(find "$journal_runner/generations" -mindepth 1 -maxdepth 1 -type d | wc -l)" == "0" ]]
+          [[ ! -e "$operator_state_runner/health.json" && ! -L "$operator_state_runner/health.json" ]]
+
+      - name: Run bounded stage-timed diagnostic
+        id: diagnostic
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          umask 027
+
+          candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v10"
+          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v10"
+          activation_host="$state_host/activations/$ACTIVATION_NAME"
+          preserved_journal_runner="$state_runner/journals/$ACTIVATION_NAME"
+          diagnostic_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/diagnostics/v10-stage-20260805-v1"
+          diagnostic_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/diagnostics/v10-stage-20260805-v1"
+          diagnostic_journal_runner="$diagnostic_runner/journal"
+          diagnostic_journal_host="$diagnostic_host/journal"
+          diagnostic_health_runner="$diagnostic_runner/health"
+          diagnostic_health_host="$diagnostic_host/health"
+          script_runner="$diagnostic_runner/diagnostic.py"
+          script_host="$diagnostic_host/diagnostic.py"
+          log_path="$RUNNER_TEMP/wickhunter-wh09-v10-stage-diagnostic.log"
+          listing_path="$RUNNER_TEMP/wickhunter-wh09-v10-stage-diagnostic-files.txt"
+          report_path="$RUNNER_TEMP/wickhunter-wh09-v10-stage-diagnostic.json"
+          network_created=false
+          gateway_started=false
+          diagnostic_started=false
+
+          cleanup() {
+            if [[ "$diagnostic_started" == true ]]; then
+              docker rm -f "$DIAGNOSTIC_CONTAINER" >/dev/null 2>&1 || true
+            fi
+            if [[ "$gateway_started" == true ]]; then
+              docker rm -f "$GATEWAY_CONTAINER" >/dev/null 2>&1 || true
+            fi
+            if [[ "$network_created" == true ]]; then
+              docker network rm "$INTERNAL_NETWORK" >/dev/null 2>&1 || true
+            fi
+            rm -rf "$diagnostic_runner" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          [[ ! -e "$diagnostic_runner" && ! -L "$diagnostic_runner" ]]
+          ! docker container inspect "$DIAGNOSTIC_CONTAINER" >/dev/null 2>&1
+          ! docker container inspect "$GATEWAY_CONTAINER" >/dev/null 2>&1
+          ! docker network inspect "$INTERNAL_NETWORK" >/dev/null 2>&1
+          install -d -m 0755 -o 65532 -g 65532 \
+            "$diagnostic_runner" "$diagnostic_journal_runner" "$diagnostic_health_runner"
+
+          cat > "$script_runner" <<'PY'
+          from __future__ import annotations
+
+          import faulthandler
+          import json
+          import signal
+          import threading
+          import time
+          from decimal import Decimal
+          from pathlib import Path
+          from typing import Any, Callable, TypeVar
+
+          import ai_platform.wickhunter.candidate_paper_runtime_operator as operator_module
+          from ai_platform.wickhunter.candidate_paper_runtime_operator import (
+              CandidatePaperRuntimeOperator,
+              _runtime_policy,
+              load_liquid20_snapshot,
+          )
+          from ai_platform.wickhunter.candidate_paper_runtime_service import (
+              CandidatePaperRuntimeService,
+          )
+          from ai_platform.wickhunter.candidate_runtime_binding import (
+              build_candidate_paper_runtime_binding,
+          )
+          from ai_platform.wickhunter.contracts import DriftState
+
+          T = TypeVar("T")
+          print_lock = threading.Lock()
+
+          def emit(event: str, **payload: object) -> None:
+              with print_lock:
+                  print(
+                      json.dumps(
+                          {"event": event, "wall_time_ms": time.time_ns() // 1_000_000, **payload},
+                          sort_keys=True,
+                          default=str,
+                      ),
+                      flush=True,
+                  )
+
+          def timed(stage: str, operation: Callable[[], T]) -> T:
+              started = time.monotonic_ns()
+              emit("stage_start", stage=stage)
+              try:
+                  value = operation()
+              except BaseException as exc:
+                  emit(
+                      "stage_error",
+                      stage=stage,
+                      duration_ms=(time.monotonic_ns() - started) // 1_000_000,
+                      error_type=type(exc).__name__,
+                      error_message=str(exc)[:500],
+                  )
+                  raise
+              emit(
+                  "stage_end",
+                  stage=stage,
+                  duration_ms=(time.monotonic_ns() - started) // 1_000_000,
+              )
+              return value
+
+          faulthandler.enable(all_threads=True)
+          faulthandler.register(signal.SIGUSR1, all_threads=True, chain=False)
+          faulthandler.dump_traceback_later(120, repeat=True, exit=False)
+
+          candidate_root = Path("/runtime/candidate")
+          activation_root = Path("/runtime/activation")
+          liquid20_root = Path("/runtime/liquid20")
+          journal_root = Path("/runtime/diagnostic-journal")
+          health_root = Path("/runtime/diagnostic-health")
+
+          binding = timed(
+              "build_binding",
+              lambda: build_candidate_paper_runtime_binding(
+                  candidate_root=candidate_root,
+                  activation_root=activation_root,
+              ),
+          )
+          service = timed(
+              "service_init",
+              lambda: CandidatePaperRuntimeService(
+                  binding=binding,
+                  runtime_policy=_runtime_policy(),
+                  journal_root=journal_root,
+              ),
+          )
+          operator = CandidatePaperRuntimeOperator(
+              service=service,
+              liquid20_root_path=liquid20_root,
+              health_path=health_root / "health.json",
+              operator_commit="e9c04506f8dce9df26ae63006229e0d48f1f4209",
+              public_market_base_url="https://fapi.binance.com",
+              maximum_source_age_ms=300_000,
+              model_drift=DriftState.HEALTHY,
+              data_drift=DriftState.HEALTHY,
+              circuit_breaker_active=False,
+          )
+          now_ms = time.time_ns() // 1_000_000
+          liquid20 = timed(
+              "load_liquid20",
+              lambda: load_liquid20_snapshot(
+                  liquid20_root,
+                  now_ms=now_ms,
+                  maximum_age_ms=300_000,
+              ),
+          )
+          market_symbols = tuple(
+              sorted(
+                  {
+                      *liquid20.universe.selected_symbols,
+                      *(position.symbol.upper() for position in service.runtime.state.positions),
+                  }
+              )
+          )
+          emit(
+              "universe",
+              symbol_count=len(market_symbols),
+              event_count=len(liquid20.events),
+              symbols=list(market_symbols),
+          )
+
+          original_fetch = operator_module.fetch_public_market_snapshot
+
+          def traced_fetch(**kwargs: Any) -> Any:
+              symbol = str(kwargs["symbol"])
+              started = time.monotonic_ns()
+              emit("fetch_start", symbol=symbol)
+              try:
+                  value = original_fetch(**kwargs)
+              except BaseException as exc:
+                  emit(
+                      "fetch_error",
+                      symbol=symbol,
+                      duration_ms=(time.monotonic_ns() - started) // 1_000_000,
+                      error_type=type(exc).__name__,
+                      error_message=str(exc)[:500],
+                  )
+                  raise
+              emit(
+                  "fetch_end",
+                  symbol=symbol,
+                  duration_ms=(time.monotonic_ns() - started) // 1_000_000,
+              )
+              return value
+
+          operator_module.fetch_public_market_snapshot = traced_fetch
+          markets = timed(
+              "public_markets",
+              lambda: operator._fetch_public_market_snapshots(
+                  symbols=market_symbols,
+                  observed_at_ms=now_ms,
+              ),
+          )
+          emit("market_result", market_count=len(markets))
+          tick = timed(
+              "compose_tick",
+              lambda: operator._compose_tick(
+                  liquid20=liquid20,
+                  markets=markets,
+                  observed_at_ms=now_ms,
+              ),
+          )
+          emit(
+              "tick_result",
+              decision_request_count=len(tick.decision_requests),
+              mark_price_count=len(tick.mark_prices),
+          )
+          result = timed("service_step", lambda: service.step(tick))
+          observations = timed("verify_journal", service.journal.observations)
+          emit(
+              "diagnostic_complete",
+              generation=result.state.generation,
+              observation_count=len(observations),
+              decision_count=len(result.snapshot.decisions),
+              orders_submitted=result.snapshot.orders_submitted,
+              trading_credentials_present=result.snapshot.trading_credentials_present,
+              order_adapter_present=result.snapshot.order_adapter_present,
+              live_capital_authorized=result.snapshot.live_capital_authorized,
+              simulated_equity_quote=str(result.snapshot.simulated_equity_quote),
+              zero=Decimal("0"),
+          )
+          faulthandler.cancel_dump_traceback_later()
+          PY
+          chmod 0444 "$script_runner"
+
+          existing_subnets=""
+          while IFS= read -r network_id; do
+            [[ -n "$network_id" ]] || continue
+            network_subnets="$(docker network inspect --format '{{range .IPAM.Config}}{{println .Subnet}}{{end}}' "$network_id")"
+            existing_subnets+="$network_subnets"$'\n'
+          done < <(docker network ls -q)
+          read -r subnet gateway_ip diagnostic_ip < <(
+            EXISTING_SUBNETS="$existing_subnets" python3 - <<'PY'
+          import ipaddress
+          import os
+
+          occupied = []
+          for raw in os.environ.get("EXISTING_SUBNETS", "").splitlines():
+              value = raw.strip()
+              if not value:
+                  continue
+              try:
+                  network = ipaddress.ip_network(value, strict=False)
+              except ValueError:
+                  continue
+              if isinstance(network, ipaddress.IPv4Network):
+                  occupied.append(network)
+          pool = ipaddress.ip_network("172.31.240.0/20")
+          for candidate in pool.subnets(new_prefix=29):
+              if any(candidate.overlaps(existing) for existing in occupied):
+                  continue
+              hosts = list(candidate.hosts())
+              print(candidate.with_prefixlen, hosts[1], hosts[2])
+              break
+          else:
+              raise SystemExit("no non-overlapping diagnostic subnet is available")
+          PY
+          )
+          docker network create --internal --subnet "$subnet" "$INTERNAL_NETWORK" >/dev/null
+          network_created=true
+
+          docker create \
+            --name "$GATEWAY_CONTAINER" \
+            --user 0:0 \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m,mode=1777 \
+            --cap-drop ALL \
+            --cap-add NET_BIND_SERVICE \
+            --security-opt no-new-privileges:true \
+            --memory 256m \
+            --network bridge \
+            --env "INTERNAL_IP=$gateway_ip" \
+            "$GATEWAY_IMAGE" >/dev/null
+          gateway_started=true
+          docker network connect --ip "$gateway_ip" "$INTERNAL_NETWORK" "$GATEWAY_CONTAINER"
+          docker start "$GATEWAY_CONTAINER" >/dev/null
+          for _ in $(seq 1 30); do
+            if docker exec "$GATEWAY_CONTAINER" python -c 'import socket; assert socket.getaddrinfo("fapi.binance.com", 443, socket.AF_INET)' >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+
+          docker run -d \
+            --name "$DIAGNOSTIC_CONTAINER" \
+            --user 65532:65532 \
+            --group-add "$LIQUID20_READER_GID" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --memory 2g \
+            --network "$INTERNAL_NETWORK" \
+            --ip "$diagnostic_ip" \
+            --dns "$gateway_ip" \
+            --env PYTHONUNBUFFERED=1 \
+            --env HTTP_PROXY= \
+            --env HTTPS_PROXY= \
+            --env ALL_PROXY= \
+            --env http_proxy= \
+            --env https_proxy= \
+            --env all_proxy= \
+            --mount "type=bind,src=$candidate_host,dst=/runtime/candidate,readonly" \
+            --mount "type=bind,src=$activation_host,dst=/runtime/activation,readonly" \
+            --mount "type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly" \
+            --mount "type=bind,src=$diagnostic_journal_host,dst=/runtime/diagnostic-journal" \
+            --mount "type=bind,src=$diagnostic_health_host,dst=/runtime/diagnostic-health" \
+            --mount "type=bind,src=$script_host,dst=/diagnostic.py,readonly" \
+            --entrypoint python \
+            "$OPERATOR_IMAGE" -u /diagnostic.py >/dev/null
+          diagnostic_started=true
+
+          timed_out=true
+          for _ in $(seq 1 120); do
+            state="$(docker inspect --format '{{.State.Status}}' "$DIAGNOSTIC_CONTAINER")"
+            if [[ "$state" == "exited" || "$state" == "dead" ]]; then
+              timed_out=false
+              break
+            fi
+            sleep 5
+          done
+          if [[ "$timed_out" == true ]]; then
+            docker kill --signal=USR1 "$DIAGNOSTIC_CONTAINER" >/dev/null 2>&1 || true
+            sleep 5
+            docker kill --signal=KILL "$DIAGNOSTIC_CONTAINER" >/dev/null 2>&1 || true
+          fi
+          exit_code="$(docker inspect --format '{{.State.ExitCode}}' "$DIAGNOSTIC_CONTAINER")"
+          docker logs "$DIAGNOSTIC_CONTAINER" > "$log_path" 2>&1 || true
+          find "$diagnostic_runner" -mindepth 1 -maxdepth 6 -printf '%P\t%y\t%s\n' | sort > "$listing_path"
+
+          python3 - "$log_path" "$listing_path" "$report_path" "$exit_code" "$timed_out" "$preserved_journal_runner" "$diagnostic_journal_runner" "$diagnostic_health_runner" <<'PY'
+          import hashlib
+          import json
+          import sys
+          from pathlib import Path
+
+          log_path = Path(sys.argv[1])
+          listing_path = Path(sys.argv[2])
+          report_path = Path(sys.argv[3])
+          exit_code = int(sys.argv[4])
+          timed_out = sys.argv[5] == "true"
+          preserved_journal = Path(sys.argv[6])
+          diagnostic_journal = Path(sys.argv[7])
+          diagnostic_health = Path(sys.argv[8])
+          events = []
+          for line in log_path.read_text(encoding="utf-8", errors="replace").splitlines():
+              try:
+                  value = json.loads(line)
+              except json.JSONDecodeError:
+                  continue
+              if isinstance(value, dict) and isinstance(value.get("event"), str):
+                  events.append(value)
+          stage_starts = [item for item in events if item.get("event") == "stage_start"]
+          stage_ends = [item for item in events if item.get("event") == "stage_end"]
+          ended = {str(item.get("stage")) for item in stage_ends}
+          incomplete = [str(item.get("stage")) for item in stage_starts if str(item.get("stage")) not in ended]
+          fetch_starts = [item for item in events if item.get("event") == "fetch_start"]
+          fetch_ends = [item for item in events if item.get("event") == "fetch_end"]
+          fetch_errors = [item for item in events if item.get("event") == "fetch_error"]
+          generation_dirs = []
+          generations_root = diagnostic_journal / "generations"
+          if generations_root.is_dir():
+              generation_dirs = sorted(item.name for item in generations_root.iterdir() if item.is_dir())
+          preserved_generations = sorted(
+              item.name
+              for item in (preserved_journal / "generations").iterdir()
+              if item.is_dir()
+          )
+          complete = any(item.get("event") == "diagnostic_complete" for item in events)
+          report = {
+              "schema_version": "wickhunter-wh09-v10-stage-diagnostic-v1",
+              "status": "completed" if complete else ("timed_out" if timed_out else "failed"),
+              "implementation_sha": "e9c04506f8dce9df26ae63006229e0d48f1f4209",
+              "activation_name": "wickhunter-wh09-activation-20260805-v10-e9c04506",
+              "exit_code": exit_code,
+              "timed_out": timed_out,
+              "stage_starts": stage_starts,
+              "stage_ends": stage_ends,
+              "incomplete_stages": incomplete,
+              "fetch_start_count": len(fetch_starts),
+              "fetch_end_count": len(fetch_ends),
+              "fetch_errors": fetch_errors,
+              "diagnostic_generation_dirs": generation_dirs,
+              "diagnostic_health_exists": (diagnostic_health / "health.json").is_file(),
+              "preserved_generation_dirs": preserved_generations,
+              "log_sha256": hashlib.sha256(log_path.read_bytes()).hexdigest(),
+              "listing_sha256": hashlib.sha256(listing_path.read_bytes()).hexdigest(),
+              "protected_holdout_accessed": False,
+              "automatic_promotion_enabled": False,
+              "trading_credentials_present": False,
+              "order_adapter_present": False,
+              "execution_enabled": False,
+              "orders_submitted": 0,
+              "live_capital_authorized": False,
+          }
+          report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(json.dumps(report, indent=2, sort_keys=True))
+          PY
+
+          cp "$log_path" "$RUNNER_TEMP/wh09-v10-stage-diagnostic.log"
+          cp "$listing_path" "$RUNNER_TEMP/wh09-v10-stage-diagnostic-files.txt"
+          cp "$report_path" "$RUNNER_TEMP/wh09-v10-stage-diagnostic.json"
+
+      - name: Upload bounded diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wickhunter-wh09-v10-stage-diagnostic-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/wh09-v10-stage-diagnostic.json
+            ${{ runner.temp }}/wh09-v10-stage-diagnostic.log
+            ${{ runner.temp }}/wh09-v10-stage-diagnostic-files.txt
+          if-no-files-found: error
+          retention-days: 14

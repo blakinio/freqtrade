@@ -515,7 +515,9 @@ def build_catalog(
             "current_file": "classified from checked-out workflow metadata and retained",
             "open_pr_branch": "retained as bounded diagnostic until PR terminality",
             "absent_without_open_pr": "classified historical/deleted and disabled when safe",
-            "safety": "no name-pattern-only retirement; active runs and open PR branches are retained",
+            "safety": (
+                "no name-pattern-only retirement; active runs and open PR branches are retained"
+            ),
         },
         "summary": _summary(records),
         "records": records,
@@ -528,7 +530,7 @@ def build_catalog(
         "canonical_entry_points": [
             ".github/workflows/ci.yml",
             ".github/workflows/ci-components.yml",
-            ".github/workflows/zizmor.yml",
+            ".github/workflows/zizmor_action.yml",
         ],
         "governance": {
             "catalog_evidence": output.relative_to(root).as_posix(),
@@ -549,7 +551,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--token-env", default="GH_TOKEN")
-    parser.add_argument("--api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com"))
+    parser.add_argument(
+        "--api-url", default=os.environ.get("GITHUB_API_URL", "https://api.github.com")
+    )
     parser.add_argument("--retire", action="store_true")
     parser.add_argument("--self-workflow-path")
     parser.add_argument("--workers", type=int, default=8)
@@ -561,7 +565,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     root = args.root.resolve()
     output = (root / args.output).resolve() if not args.output.is_absolute() else args.output
-    registry = (root / args.registry).resolve() if not args.registry.is_absolute() else args.registry
+    registry = (
+        (root / args.registry).resolve() if not args.registry.is_absolute() else args.registry
+    )
     catalog = build_catalog(
         client=GitHubClient(api_url=args.api_url, token=token),
         repository=args.repository,

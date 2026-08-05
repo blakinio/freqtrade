@@ -67,7 +67,8 @@ def test_temporary_registry_contract(tmp_path: Path) -> None:
     workflow_dir = tmp_path / ".github" / "workflows"
     workflow_dir.mkdir(parents=True)
     (workflow_dir / "agent-temporary.yml").write_text(
-        "name: Temporary\non: workflow_dispatch\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps: []\n",
+        "name: Temporary\non: workflow_dispatch\njobs:\n"
+        "  test:\n    runs-on: ubuntu-latest\n    steps: []\n",
         encoding="utf-8",
     )
     _, registry_entries = _current_workflow_metadata(

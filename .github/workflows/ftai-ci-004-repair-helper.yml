@@ -1,0 +1,42 @@
+name: FTAI-CI-004 repair helper
+
+on:
+  push:
+    branches:
+      - fix/FTAI-CI-004-bounded-core-light-1285
+    paths:
+      - .github/workflows/ftai-ci-004-repair-helper.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: fix/FTAI-CI-004-bounded-core-light-1285
+      - name: Remove destructive indentation rewrites
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/workflows/ftai-ci-004-apply.yml")
+          content = path.read_text(encoding="utf-8")
+          marker = "          sed -i 's/^          //'"
+          lines = content.splitlines()
+          filtered = [line for line in lines if not line.startswith(marker)]
+          removed = len(lines) - len(filtered)
+          if removed != 3:
+              raise SystemExit(f"expected to remove 3 sed lines, removed {removed}")
+          path.write_text("\n".join(filtered) + "\n", encoding="utf-8")
+          PY
+      - name: Commit repair and self-remove
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git rm .github/workflows/ftai-ci-004-repair-helper.yml
+          git add .github/workflows/ftai-ci-004-apply.yml
+          git commit -m "ci: fix helper indentation handling"
+          git push origin HEAD:fix/FTAI-CI-004-bounded-core-light-1285

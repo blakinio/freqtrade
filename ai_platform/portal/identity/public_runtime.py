@@ -93,6 +93,7 @@ def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"detail": "OIDC protocol input is invalid"},
+            headers={"cache-control": "no-store"},
         )
 
     @app.exception_handler(OidcProviderUnavailable)
@@ -103,6 +104,7 @@ def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  
         return JSONResponse(
             status_code=status.HTTP_502_BAD_GATEWAY,
             content={"detail": "OIDC provider is unavailable"},
+            headers={"cache-control": "no-store"},
         )
 
     @app.exception_handler(IdentityReplayConflictError)
@@ -112,8 +114,9 @@ def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  
         _exc: IdentityReplayConflictError | IdentityReplayStateError,
     ) -> JSONResponse:
         return JSONResponse(
-            status_code=status.HTTP_409_CONFLICT,
-            content={"detail": "OIDC logout replay conflict"},
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": "OIDC logout request is invalid"},
+            headers={"cache-control": "no-store"},
         )
 
     @app.middleware("http")
@@ -187,7 +190,10 @@ def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  
         return LogoutAllResponse(revoked_sessions=revoked_sessions)
 
     @app.post("/v1/identity/backchannel-logout", response_model=BackchannelLogoutResult)
-    async def backchannel_logout(request: Request) -> BackchannelLogoutResult:
+    async def backchannel_logout(
+        request: Request,
+        response: Response,
+    ) -> BackchannelLogoutResult:
         content_type = request.headers.get("content-type", "")
         if "application/x-www-form-urlencoded" not in content_type:
             raise OidcProtocolError("back-channel logout requires form encoding")
@@ -201,7 +207,9 @@ def _register_identity_routes(app: FastAPI, service: IdentityService) -> None:  
         tokens = values.get("logout_token", [])
         if len(tokens) != 1 or not tokens[0]:
             raise OidcProtocolError("logout_token is required")
-        return service.handle_backchannel_logout(tokens[0])
+        result = service.handle_backchannel_logout(tokens[0])
+        response.headers["cache-control"] = "no-store"
+        return result
 
 
 def build_public_app() -> FastAPI:

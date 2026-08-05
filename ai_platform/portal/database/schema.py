@@ -27,8 +27,10 @@ from ai_platform.portal.control_plane.database import Base
 from ai_platform.portal.database.model_registry import load_portal_models
 
 
-EXPECTED_SCHEMA_REVISION = "20260803_01_portal_authoritative"
+INITIAL_SCHEMA_REVISION = "20260803_01_portal_authoritative"
+EXPECTED_SCHEMA_REVISION = "20260805_02_oidc_logout_replay"
 MIGRATION_TABLE_NAME = "portal_schema_migrations"
+OIDC_LOGOUT_REPLAY_TABLE_NAME = "portal_oidc_logout_replays"
 _POSTGRES_MIGRATION_LOCK_ID = 1_122_202_608_03
 
 _migration_metadata = MetaData()
@@ -273,6 +275,36 @@ def _expected_snapshot(engine: Engine) -> dict[str, Any]:
     }
 
 
+def _initial_snapshot(engine: Engine) -> dict[str, Any]:
+    snapshot = _expected_snapshot(engine)
+    if OIDC_LOGOUT_REPLAY_TABLE_NAME not in snapshot:
+        raise RuntimeError("OIDC logout replay table is missing from the Portal model manifest")
+    return {
+        table_name: table_snapshot
+        for table_name, table_snapshot in snapshot.items()
+        if table_name != OIDC_LOGOUT_REPLAY_TABLE_NAME
+    }
+
+
+def _expected_revision_chain(engine: Engine) -> list[dict[str, Any]]:
+    initial = _initial_snapshot(engine)
+    current = _expected_snapshot(engine)
+    return [
+        {
+            "sequence": 1,
+            "revision_id": INITIAL_SCHEMA_REVISION,
+            "dialect_name": engine.dialect.name,
+            "schema_fingerprint": _fingerprint(initial),
+        },
+        {
+            "sequence": 2,
+            "revision_id": EXPECTED_SCHEMA_REVISION,
+            "dialect_name": engine.dialect.name,
+            "schema_fingerprint": _fingerprint(current),
+        },
+    ]
+
+
 def _actual_table_snapshot(connection: Any, table_name: str) -> dict[str, Any]:
     inspector = inspect(connection)
     primary_key = list(
@@ -386,6 +418,17 @@ def _snapshot_differences(expected: dict[str, Any], actual: dict[str, Any]) -> d
     }
 
 
+def _snapshot_matches(expected: dict[str, Any], actual: dict[str, Any]) -> bool:
+    differences = _snapshot_differences(expected, actual)
+    return not any(
+        (
+            differences["missing_tables"],
+            differences["unexpected_tables"],
+            differences["changed_tables"],
+        )
+    )
+
+
 def _revision_rows(connection: Any) -> list[dict[str, Any]]:
     if MIGRATION_TABLE_NAME not in inspect(connection).get_table_names():
         return []
@@ -412,6 +455,18 @@ def _revision_rows(connection: Any) -> list[dict[str, Any]]:
     ]
 
 
+def _revisions_match(
+    revisions: list[dict[str, Any]],
+    expected_revisions: list[dict[str, Any]],
+) -> bool:
+    if len(revisions) != len(expected_revisions):
+        return False
+    return all(
+        all(actual.get(key) == value for key, value in expected.items())
+        for actual, expected in zip(revisions, expected_revisions, strict=True)
+    )
+
+
 def _schema_status_connection(connection: Any, engine: Engine) -> dict[str, Any]:
     expected = _expected_snapshot(engine)
     actual = _actual_snapshot(connection)
@@ -419,29 +474,18 @@ def _schema_status_connection(connection: Any, engine: Engine) -> dict[str, Any]
     actual_fingerprint = _fingerprint(actual)
     differences = _snapshot_differences(expected, actual)
     revisions = _revision_rows(connection)
-    expected_revision = {
-        "sequence": 1,
-        "revision_id": EXPECTED_SCHEMA_REVISION,
-        "dialect_name": engine.dialect.name,
-        "schema_fingerprint": expected_fingerprint,
-    }
-    revision_matches = len(revisions) == 1 and all(
-        revisions[0].get(key) == value for key, value in expected_revision.items()
-    )
+    expected_revisions = _expected_revision_chain(engine)
+    expected_revision = expected_revisions[-1]
+    revision_matches = _revisions_match(revisions, expected_revisions)
     sqlite_foreign_keys: bool | None = None
     if engine.dialect.name == "sqlite":
         sqlite_foreign_keys = connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
-    schema_matches = not any(
-        (
-            differences["missing_tables"],
-            differences["unexpected_tables"],
-            differences["changed_tables"],
-        )
-    )
+    schema_matches = _snapshot_matches(expected, actual)
     ready = revision_matches and schema_matches and sqlite_foreign_keys is not False
     return {
         "status": "ready" if ready else "not_ready",
         "expected_revision": expected_revision,
+        "expected_revisions": expected_revisions,
         "applied_revisions": revisions,
         "expected_schema_fingerprint": expected_fingerprint,
         "actual_schema_fingerprint": actual_fingerprint,
@@ -510,12 +554,30 @@ def scan_database_integrity(engine: Engine) -> dict[str, Any]:
         return _scan_integrity_connection(connection)
 
 
+def _insert_revision(
+    connection: Any,
+    *,
+    revision: dict[str, Any],
+    applied_at: datetime,
+) -> None:
+    connection.execute(
+        _schema_migrations.insert().values(
+            sequence=revision["sequence"],
+            revision_id=revision["revision_id"],
+            dialect_name=revision["dialect_name"],
+            schema_fingerprint=revision["schema_fingerprint"],
+            applied_at=applied_at,
+        )
+    )
+
+
 def migrate_database(engine: Engine) -> dict[str, Any]:
     manifest_tables = _manifest_tables()
     expected = {
         table.name: _expected_table_snapshot(table, engine.dialect) for table in manifest_tables
     }
-    expected_fingerprint = _fingerprint(expected)
+    initial = _initial_snapshot(engine)
+    expected_revisions = _expected_revision_chain(engine)
     with engine.begin() as connection:
         _acquire_migration_lock(connection, engine)
         table_names = set(inspect(connection).get_table_names())
@@ -540,13 +602,33 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
             _schema_migrations.create(connection, checkfirst=False)
         revisions = _revision_rows(connection)
         if revisions:
-            report = _schema_status_connection(connection, engine)
-            if report["status"] != "ready":
-                raise SchemaMigrationError(
-                    "Applied Portal schema revision is divergent or unknown",
-                    report,
+            actual = _actual_snapshot(connection)
+            if _revisions_match(revisions, expected_revisions) and _snapshot_matches(
+                expected,
+                actual,
+            ):
+                return _schema_status_connection(connection, engine)
+            if _revisions_match(revisions, expected_revisions[:1]) and _snapshot_matches(
+                initial,
+                actual,
+            ):
+                replay_table = next(
+                    table
+                    for table in manifest_tables
+                    if table.name == OIDC_LOGOUT_REPLAY_TABLE_NAME
                 )
-            return report
+                replay_table.create(connection, checkfirst=False)
+                _insert_revision(
+                    connection,
+                    revision=expected_revisions[1],
+                    applied_at=datetime.now(UTC),
+                )
+                return _schema_status_connection(connection, engine)
+            report = _schema_status_connection(connection, engine)
+            raise SchemaMigrationError(
+                "Applied Portal schema revision is divergent or unknown",
+                report,
+            )
         partial_tables = sorted(
             table_name
             for table_name in inspect(connection).get_table_names()
@@ -563,13 +645,7 @@ def migrate_database(engine: Engine) -> dict[str, Any]:
             )
         for table in manifest_tables:
             table.create(connection, checkfirst=False)
-        connection.execute(
-            _schema_migrations.insert().values(
-                sequence=1,
-                revision_id=EXPECTED_SCHEMA_REVISION,
-                dialect_name=engine.dialect.name,
-                schema_fingerprint=expected_fingerprint,
-                applied_at=datetime.now(UTC),
-            )
-        )
+        applied_at = datetime.now(UTC)
+        for revision in expected_revisions:
+            _insert_revision(connection, revision=revision, applied_at=applied_at)
     return assert_schema_ready(engine)

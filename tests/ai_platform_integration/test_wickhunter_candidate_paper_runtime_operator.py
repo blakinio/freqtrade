@@ -894,7 +894,7 @@ def test_runtime_risk_context_uses_open_and_closed_simulated_state() -> None:
     assert context.model_drift is DriftState.DRIFTED
     assert context.data_drift is DriftState.UNKNOWN
     assert context.circuit_breaker_active is True
-    assert context.candidate_paper_validation_authorized is True
+    assert context.candidate_paper_validation_authorized is False
     assert _risk_limits().maximum_leverage >= INITIAL_COMPATIBILITY_PRIOR.leverage
 
 

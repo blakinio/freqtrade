@@ -15,7 +15,7 @@ execution_mode: github
 validation_level: full
 base_branch: develop
 base_sha: c33648acfd86a0352836498103857b601b5f486f
-branch: fix/wickhunter-wh09-kline-completion-margin-20260805-v2
+branch: fix/wickhunter-wh09-candidate-authorization-boundary-20260805-v1
 product_pr: pending
 helper_pr: 1147
 cleanup_pr: 1182
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate the bounded completed-kline margin, merge the repair, then deploy a fresh v11 PAPER activation and begin the prospective acceptance window
+next_action: validate and merge the candidate-authorization producer-boundary repair, then deploy a fresh v12 PAPER activation and begin the prospective acceptance window
 ```
 
 ## Goal and completion boundary
@@ -298,3 +298,23 @@ This repair keeps every request allowlisted, credential-free, redirect-free and 
 Trusted v10 run `31006885105` produced no generation, but the preserved self-hashed fail-closed health inventoried by run `31011549166` proved the exact error: `public klines must contain 1440 completed one-minute rows`. The operator binds an immutable decision timestamp before public acquisition. Binance returns its most recent rows at response time, so a request for only 1441 rows loses one completed row for every minute that elapses before a symbol response and has effectively no bounded acquisition margin.
 
 The repair requests Binance's endpoint maximum of 1500 one-minute rows and still filters every candle by the immutable decision timestamp before selecting exactly the latest 1440 contiguous completed rows. This provides a bounded margin of up to 60 advancing response rows without allowing future evidence into the decision. Focused tests prove that ten trailing post-decision rows are excluded while the exact 1440-row contract succeeds, and that 61 trailing rows still fail closed. Public host, TLS, redirect, proxy, credential, size and staleness boundaries remain unchanged. Failed v10 identities remain retired; the next deployment must use fresh v11 identities.
+
+
+## Candidate authorization producer-boundary repair
+
+Trusted Synology deployment v11, run `31015386475`, built and started the exact merged
+operator `cbf9f57ea8d5783f85d19fe0f8557dfe3178705a` but failed closed before generation 1.
+Read-only inventory run `31020069546` proved the exact terminal error was
+`CandidateRuntimeBindingError: shadow request arrived with candidate authorization already enabled`.
+The operator-created `WickHunterRiskContext` incorrectly set
+`candidate_paper_validation_authorized=true` before calling the verified candidate runtime binding.
+That binding intentionally accepts only an unprivileged request and is the sole boundary that may
+replace the field with `true` after candidate, activation, policy, model, parameter, dataset, code,
+time-window and frozen-bound checks pass.
+
+This repair changes only the producer-side default to `false` and updates the focused regression to
+require that unbound state. The existing candidate-runtime-binding regression continues to prove
+that the verified binding promotes the field to `true` and rejects pre-authorized requests. No
+trading credential, order adapter, execution, automatic promotion, protected holdout or live-capital
+authority is introduced; `orders_submitted` remains zero. After exact-head CI and merge, v11 remains
+terminal evidence and a new immutable v12 activation is required.

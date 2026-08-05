@@ -218,6 +218,64 @@ def test_load_liquid20_live_root_is_root_only_and_decision_time_safe(
     assert len(snapshot.snapshot_id) == 64
 
 
+def test_live_root_accepts_pointer_published_during_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "pointer-during-read")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    state["collector_heartbeat_at_ms"] = NOW_MS + 500
+    (root / "runs" / run_id / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    pointer["collector_heartbeat_at_ms"] = NOW_MS + 500
+    pointer["state"] = state
+    pointer_path.write_text(
+        json.dumps(pointer, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    assert snapshot.observed_at_ms == NOW_MS + 500
+
+
+def test_live_root_rejects_pointer_later_than_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "pointer-after-read")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    state["collector_heartbeat_at_ms"] = NOW_MS + 601
+    (root / "runs" / run_id / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    pointer["collector_heartbeat_at_ms"] = NOW_MS + 601
+    pointer["state"] = state
+    pointer_path.write_text(
+        json.dumps(pointer, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="live pointer is from the future",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
 def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:
     root = _write_live_root(tmp_path / "active-suffix")
     pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
@@ -246,7 +304,7 @@ def test_live_root_accepts_suffix_available_during_bounded_snapshot_read(
     suffix = _event("event-during-read", received_at_ms=NOW_MS + 500)
     with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(suffix, sort_keys=True) + "\n")
-    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monotonic_values = iter((10_000_000_000, 10_100_000_000, 10_600_000_000))
     monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
 
     snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
@@ -265,7 +323,7 @@ def test_live_root_rejects_suffix_later_than_bounded_snapshot_read(
     suffix = _event("event-after-read", received_at_ms=NOW_MS + 601)
     with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(suffix, sort_keys=True) + "\n")
-    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monotonic_values = iter((10_000_000_000, 10_100_000_000, 10_600_000_000))
     monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
 
     with pytest.raises(
@@ -413,7 +471,14 @@ def test_live_root_retry_preserves_suffix_availability_clock(
             encoding="utf-8",
         )
 
-    monotonic_values = iter((10_000_000_000, 12_000_000_000))
+    monotonic_values = iter(
+        (
+            10_000_000_000,
+            10_100_000_000,
+            10_200_000_000,
+            12_000_000_000,
+        )
+    )
     monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
     monkeypatch.setattr(operator_module.time, "sleep", publish_pointer)
 

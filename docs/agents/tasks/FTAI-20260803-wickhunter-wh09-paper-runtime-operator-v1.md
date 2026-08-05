@@ -14,9 +14,9 @@ status: validating
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: 4fde185ada8cadb97abf4e831a72204a09b63ecc
-branch: fix/wickhunter-wh09-retry-clock-20260805-v1
-product_pr: 1227
+base_sha: c1d1f9f3db5e95e245c297f3d29be079533db301
+branch: fix/wickhunter-wh09-pointer-availability-clock-20260805-v1
+product_pr: 1231
 helper_pr: 1147
 cleanup_pr: 1182
 cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate the retry-stable snapshot clock on exact head, merge PR 1227, then deploy a fresh v8 PAPER activation with the collision-safe network contract
+next_action: validate bounded pointer availability on exact head, merge PR 1231, then deploy a fresh v9 PAPER activation with retry-stable reads and collision-safe networking
 ```
 
 ## Goal and completion boundary
@@ -280,3 +280,9 @@ PR #1220 derives the discarded active-suffix availability boundary from the immu
 Trusted Synology deployment run `30996827219` validated the explicit-subnet network repair and then proved that the active-suffix availability clock still reset across transient snapshot retries. The outer loader retained the original caller `now_ms`, while every call to `_load_liquid20_live_root_once()` established a new monotonic origin. Time spent in earlier reads and retry sleeps was therefore discarded, allowing the suffix boundary to move backwards on a later attempt.
 
 PR #1227 establishes one monotonic origin for the complete bounded acquisition sequence and passes the resulting availability callback through every retry. Committed rows remain bound to the atomically published heartbeat, active file-ahead suffix rows remain fully validated and excluded until state commits them, completed runs retain exact equality, and fixed caller-time pointer freshness semantics remain unchanged. A deterministic regression forces a publication retry and proves that elapsed time from the first attempt is retained.
+
+## Bounded pointer availability repair
+
+Trusted Synology deployment run `30998850353` proved that a newly published Liquid20 pointer can become visible after snapshot acquisition starts. The producer assigns `collector_heartbeat_at_ms` while atomically writing the run state and live pointer, but the consumer compared that heartbeat with the immutable caller `now_ms` captured before the bounded read. A pointer already available at validation time could therefore be rejected as future-dated.
+
+PR #1231 validates pointer freshness against the same bounded availability clock anchored by caller wall time plus monotonic elapsed acquisition time and shared across all retries. Heartbeats genuinely later than the validation point still fail closed, maximum age is enforced at validation time, committed rows remain bound to the atomically published heartbeat, active suffix rows remain validated and excluded until committed, and completed runs retain exact equality. Deterministic regressions cover both sides of the pointer boundary. Failed v8 identities are retired; the next deployment must use fresh v9 identities.

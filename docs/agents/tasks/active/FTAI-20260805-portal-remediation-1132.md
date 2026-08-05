@@ -7,7 +7,7 @@ lane: freqtrade-portal
 status: active
 phase: implementation
 branch: fix/portal-oidc-logout-replay-1132
-pull_request: pending
+pull_request: 1284
 base_sha: 8ee4f6b2527b7bffb7d6967adb3c0f1abd1be56b
 prompting_standard_version: 2.1
 execution_mode: github_only
@@ -73,4 +73,5 @@ The implementation PR references Issue #1132 but must not auto-close it unless p
 - Issue #1250 closed;
 - no competing active Issue #1132 task, branch or PR existed at dispatch;
 - branch created from the exact merged coordinator head;
-- next action: create the single draft implementation PR, then implement the bounded durable replay contract.
+- exactly one draft implementation PR exists: #1284;
+- next action: implement the bounded durable replay contract and ordered schema revision on PR #1284.

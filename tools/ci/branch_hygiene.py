@@ -239,6 +239,7 @@ def collect_branch_facts(
     facts: list[BranchFacts] = []
     for branch in _remote_branches(remote):
         head_sha = _branch_head_sha(remote, branch)
+        merged_at_head = (branch, head_sha) in merged_pull_request_heads
         facts.append(
             BranchFacts(
                 name=branch,
@@ -246,11 +247,7 @@ def collect_branch_facts(
                 age_days=_branch_age_days(remote, branch, now),
                 protected=branch in protected_branches,
                 has_open_pull_request=branch in open_pull_request_heads,
-                has_merged_pull_request_at_head=(
-                    branch,
-                    head_sha,
-                )
-                in merged_pull_request_heads,
+                has_merged_pull_request_at_head=merged_at_head,
                 unique_commits=_unique_commit_count(remote, default_branch, branch),
             )
         )

@@ -10,13 +10,13 @@ programme: WickHunter
 phase: WH-09
 issue: 1144
 mode: implementation
-status: validating_final_audit
+status: implementing
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: c236117f2efe6326d24f6cb58c0dabfd96469370
-branch: feat/wickhunter-wh09-paper-runtime-operator-20260803-v1
-product_pr: 1160
+base_sha: c33648acfd86a0352836498103857b601b5f486f
+branch: fix/wickhunter-wh09-kline-completion-margin-20260805-v2
+product_pr: pending
 helper_pr: 1147
 cleanup_pr: 1182
 cleanup_merge_sha: db0daa1e0edf145b71f166a6fea8cff9acc4c820
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate the final runtime audit repair, remove the temporary executor, run fresh exact-head repository CI and merge PR 1160 only if every required gate passes
+next_action: validate the bounded completed-kline margin, merge the repair, then deploy a fresh v11 PAPER activation and begin the prospective acceptance window
 ```
 
 ## Goal and completion boundary
@@ -58,7 +58,7 @@ The operator:
 2. rejects the removed legacy single-file snapshot fallback and every contract, run, path, source or authority substitution;
 3. validates collector/source heartbeats, source identity, event receipt time, decision-time availability, history bounds and canonical snapshot identity;
 4. restricts public market access to HTTPS `fapi.binance.com` on port 443, without credentials, proxies or redirects;
-5. consumes public premium index, book ticker, open interest and 1441 one-minute klines, requiring the latest 1440 completed candles to be contiguous;
+5. consumes public premium index, book ticker, open interest and the Binance maximum 1500 one-minute klines, requiring the latest 1440 candles completed by immutable decision time to be contiguous;
 6. derives the complete canonical metric contract including funding, open interest, quote volume, spread, trend, volatility, VWAP, VWMA, wick ratio, ATR ratio and market-wide liquidation intensity;
 7. requires the immutable runtime binding mode to be exactly `PAPER`;
 8. derives projected exposure, daily loss, drawdown and consecutive-loss state from the persisted simulated runtime journal;
@@ -228,3 +228,73 @@ non-zero value, and permits a missing event file only for an unconfigured source
 events and no receipt. Configured zero-event sources still require an empty regular file.
 A focused regression materializes this exact producer shape and verifies fail-closed source
 health without rejecting the valid live root.
+
+## Active producer publication consistency repair
+
+Deployment run `30980891347` reached the real read-only Liquid20 root and failed before
+activation creation because an active source file contained more complete records than the
+last atomically published `events_written` count. Bounded audit run `30983119422` proved
+this is the producer's normal publication order rather than persistent corruption: source
+files were one to four complete records ahead, pointer and run-state briefly differed while
+state publication was in progress, and subsequent heartbeat publication converged the
+committed count and receipt.
+
+The operator now treats `events_written` as the committed append-only prefix for the active
+run, validates and bounds any uncommitted suffix without using it at decision time, and
+retains exact file/count equality for completed historical runs. It also retries only the
+transient pointer/run-state publication window and verifies the pointer did not change over
+the complete snapshot read. Persistent mismatch, truncated input, malformed JSON, oversized
+input, excessive suffixes, source substitution, receipt substitution and authority drift
+continue to fail closed.
+
+## Uncommitted suffix validation repair
+
+Automated review identified that active-run suffix rows were bounded and decoded as
+JSON objects but discarded before canonical event, immutable source and decision-time
+validation. The shared event parser now validates both committed rows and every complete
+uncommitted suffix row before the suffix is ignored. Invalid schema, non-positive values,
+source substitution and future receipt timestamps therefore fail closed immediately,
+while valid producer-ahead rows remain excluded until atomically committed by state.
+Focused parametrized regressions cover invalid payload, wrong source and future receipt.
+
+## Suffix availability-time audit repair
+
+A fresh producer-to-consumer audit found that the first suffix-validation repair compared
+uncommitted event receipts with the last atomically published collector heartbeat. That
+would reject the producer's normal file-ahead window because events appended after the last
+state publication can legitimately have later receipt timestamps. Committed rows remain
+bound to the published observation time, while complete uncommitted suffix rows are now
+validated against the actual bounded snapshot-read time and remain excluded from decisions
+until state commits them. A focused regression proves a valid suffix later than the pointer
+but earlier than the read time is accepted and excluded; the existing future-receipt
+regression continues to fail closed.
+
+## Bounded snapshot read-clock repair
+
+Trusted Synology deployment run `30990749793` proved a second active-suffix timing boundary. The complete Liquid20 multi-run scan took about 66 seconds, and a valid file-ahead row was appended after snapshot start but before the reader consumed it. Comparing that row with the caller's snapshot-start `now_ms` therefore failed before activation even though the row was genuinely available at read time and remained excluded from decisions.
+
+PR #1220 derives the discarded active-suffix availability boundary from the immutable snapshot-start wall time plus monotonic elapsed read time. Committed rows remain bound to the atomically published collector heartbeat, completed runs retain exact count equality, every suffix row remains schema/value/source validated and excluded until committed, and a receipt still later than its bounded read point fails closed. Deterministic regressions cover both sides of that boundary. Failed v5 state identities are retired; the next deployment must use fresh v6 identities.
+
+## Retry-stable snapshot clock repair
+
+Trusted Synology deployment run `30996827219` validated the explicit-subnet network repair and then proved that the active-suffix availability clock still reset across transient snapshot retries. The outer loader retained the original caller `now_ms`, while every call to `_load_liquid20_live_root_once()` established a new monotonic origin. Time spent in earlier reads and retry sleeps was therefore discarded, allowing the suffix boundary to move backwards on a later attempt.
+
+PR #1227 establishes one monotonic origin for the complete bounded acquisition sequence and passes the resulting availability callback through every retry. Committed rows remain bound to the atomically published heartbeat, active file-ahead suffix rows remain fully validated and excluded until state commits them, completed runs retain exact equality, and fixed caller-time pointer freshness semantics remain unchanged. A deterministic regression forces a publication retry and proves that elapsed time from the first attempt is retained.
+
+## Bounded pointer availability repair
+
+Trusted Synology deployment run `30998850353` proved that a newly published Liquid20 pointer can become visible after snapshot acquisition starts. The producer assigns `collector_heartbeat_at_ms` while atomically writing the run state and live pointer, but the consumer compared that heartbeat with the immutable caller `now_ms` captured before the bounded read. A pointer already available at validation time could therefore be rejected as future-dated.
+
+PR #1231 validates pointer freshness against the same bounded availability clock anchored by caller wall time plus monotonic elapsed acquisition time and shared across all retries. Heartbeats genuinely later than the validation point still fail closed, maximum age is enforced at validation time, committed rows remain bound to the atomically published heartbeat, active suffix rows remain validated and excluded until committed, and completed runs retain exact equality. Deterministic regressions cover both sides of the pointer boundary. Failed v8 identities are retired; the next deployment must use fresh v9 identities.
+
+## First-generation public-market concurrency repair
+
+Trusted Synology deployment v9 run `31001468857` built the exact operator and constrained gateway images, passed Liquid20 smoke validation, published a fresh zero-authority activation and started the operator. The operator stayed alive but produced neither generation 1 nor fail-closed health during the bounded 20-minute first-generation gate. The only blocking work after successful initialization is the public market acquisition path, which performed four HTTPS requests sequentially for every selected Liquid20 symbol: up to 80 serial requests for the canonical top-20 universe.
+
+This repair keeps every request allowlisted, credential-free, redirect-free and individually time-bounded, but executes independent symbol acquisitions through a bounded eight-worker pool. `executor.map` preserves the deterministic input/result order, injected test openers remain sequential, exceptions still fail closed, and no journal mutation occurs until the complete market tuple has succeeded. A focused regression proves at least four overlapping acquisitions, enforces the worker ceiling and verifies stable sorted mark output. Failed v9 identities are retired; the next deployment must use fresh v10 activation, state, journal, container and network identities.
+
+## Completed-kline acquisition margin repair
+
+Trusted v10 run `31006885105` produced no generation, but the preserved self-hashed fail-closed health inventoried by run `31011549166` proved the exact error: `public klines must contain 1440 completed one-minute rows`. The operator binds an immutable decision timestamp before public acquisition. Binance returns its most recent rows at response time, so a request for only 1441 rows loses one completed row for every minute that elapses before a symbol response and has effectively no bounded acquisition margin.
+
+The repair requests Binance's endpoint maximum of 1500 one-minute rows and still filters every candle by the immutable decision timestamp before selecting exactly the latest 1440 contiguous completed rows. This provides a bounded margin of up to 60 advancing response rows without allowing future evidence into the decision. Focused tests prove that ten trailing post-decision rows are excluded while the exact 1440-row contract succeeds, and that 61 trailing rows still fail closed. Public host, TLS, redirect, proxy, credential, size and staleness boundaries remain unchanged. Failed v10 identities remain retired; the next deployment must use fresh v11 identities.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -218,6 +219,296 @@ def test_load_liquid20_live_root_is_root_only_and_decision_time_safe(
     assert len(snapshot.snapshot_id) == 64
 
 
+def test_live_root_accepts_pointer_published_during_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "pointer-during-read")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    state["collector_heartbeat_at_ms"] = NOW_MS + 500
+    (root / "runs" / run_id / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    pointer["collector_heartbeat_at_ms"] = NOW_MS + 500
+    pointer["state"] = state
+    pointer_path.write_text(
+        json.dumps(pointer, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    assert snapshot.observed_at_ms == NOW_MS + 500
+
+
+def test_live_root_rejects_pointer_later_than_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "pointer-after-read")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    state["collector_heartbeat_at_ms"] = NOW_MS + 601
+    (root / "runs" / run_id / "run-state-v1.json").write_text(
+        json.dumps(state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    pointer["collector_heartbeat_at_ms"] = NOW_MS + 601
+    pointer["state"] = state
+    pointer_path.write_text(
+        json.dumps(pointer, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monotonic_values = iter((10_000_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="live pointer is from the future",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:
+    root = _write_live_root(tmp_path / "active-suffix")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-uncommitted", received_at_ms=NOW_MS + 500)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS + 1_000)
+
+    assert {event.source_event_id for event in snapshot.events} == {
+        "event-history",
+        "event-current",
+    }
+
+
+def test_live_root_accepts_suffix_available_during_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "active-suffix-during-read")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-during-read", received_at_ms=NOW_MS + 500)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+    monotonic_values = iter((10_000_000_000, 10_100_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    assert "event-during-read" not in {event.source_event_id for event in snapshot.events}
+
+
+def test_live_root_rejects_suffix_later_than_bounded_snapshot_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "active-suffix-after-read")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-after-read", received_at_ms=NOW_MS + 601)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+    monotonic_values = iter((10_000_000_000, 10_100_000_000, 10_600_000_000))
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="unavailable at live observation time",
+    ):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("invalid", "source event is invalid"),
+        ("wrong-source", "source does not match"),
+        ("future", "unavailable at live observation time"),
+    ),
+)
+def test_live_root_rejects_invalid_uncommitted_active_suffix(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+    message: str,
+) -> None:
+    root = _write_live_root(tmp_path / f"active-suffix-{mutation}")
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: 10_000_000_000)
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-uncommitted-invalid", received_at_ms=NOW_MS - 500)
+    if mutation == "invalid":
+        suffix["price"] = "0"
+    elif mutation == "wrong-source":
+        suffix["source"] = "bybit-linear"
+    else:
+        suffix["received_at_ms"] = NOW_MS + 1
+        suffix["occurred_at_ms"] = NOW_MS
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match=message):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_allows_uncommitted_first_event_for_configured_source(
+    tmp_path: Path,
+) -> None:
+    root = _write_live_root(tmp_path / "configured-zero")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    bybit_event = _event(
+        "bybit-uncommitted",
+        received_at_ms=NOW_MS - 500,
+        source="bybit-linear",
+    )
+    (root / "runs" / run_id / "bybit-linear.ndjson").write_text(
+        json.dumps(bybit_event, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+    source_states = {item.source: item for item in snapshot.source_states}
+
+    assert "bybit-uncommitted" not in {event.source_event_id for event in snapshot.events}
+    assert source_states["bybit-linear"].coverage_available is False
+
+
+def test_live_root_rejects_suffix_for_completed_run(tmp_path: Path) -> None:
+    root = _write_live_root(
+        tmp_path / "completed-suffix",
+        previous_events=[_event("previous-committed", received_at_ms=NOW_MS - 3_600_000)],
+    )
+    previous_root = root / "runs" / "liquid20-20270114T000000Z-0"
+    with (previous_root / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                _event("previous-extra", received_at_ms=NOW_MS - 3_500_000),
+                sort_keys=True,
+            )
+            + "\n"
+        )
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_retries_mid_publication_pointer_state_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "publication-race")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    run_state_path = root / "runs" / run_id / "run-state-v1.json"
+    newer_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+    newer_state["collector_heartbeat_at_ms"] = NOW_MS + 100
+    run_state_path.write_text(
+        json.dumps(newer_state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    def publish_pointer(_seconds: float) -> None:
+        pointer["collector_heartbeat_at_ms"] = NOW_MS + 100
+        pointer["state"] = newer_state
+        pointer_path.write_text(
+            json.dumps(pointer, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(operator_module.time, "sleep", publish_pointer)
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS + 100)
+
+    assert snapshot.observed_at_ms == NOW_MS + 100
+
+
+def test_live_root_retry_preserves_suffix_availability_clock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "retry-suffix-clock")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-after-first-attempt", received_at_ms=NOW_MS + 1_500)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+
+    run_state_path = root / "runs" / run_id / "run-state-v1.json"
+    newer_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+    newer_state["collector_heartbeat_at_ms"] = NOW_MS + 100
+    run_state_path.write_text(
+        json.dumps(newer_state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    def publish_pointer(_seconds: float) -> None:
+        pointer["collector_heartbeat_at_ms"] = NOW_MS + 100
+        pointer["state"] = newer_state
+        pointer_path.write_text(
+            json.dumps(pointer, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    monotonic_values = iter(
+        (
+            10_000_000_000,
+            10_100_000_000,
+            10_200_000_000,
+            12_000_000_000,
+        )
+    )
+    monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
+    monkeypatch.setattr(operator_module.time, "sleep", publish_pointer)
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS + 100)
+
+    assert "event-after-first-attempt" not in {event.source_event_id for event in snapshot.events}
+
+
+def test_live_root_persistent_mid_publication_mismatch_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "persistent-publication-race")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    run_state_path = root / "runs" / run_id / "run-state-v1.json"
+    newer_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+    newer_state["collector_heartbeat_at_ms"] = NOW_MS + 100
+    run_state_path.write_text(
+        json.dumps(newer_state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(operator_module.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="stable Liquid20"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS + 100)
+
+
 def test_live_root_caps_per_symbol_history(tmp_path: Path) -> None:
     events = [
         _event(
@@ -410,15 +701,28 @@ class _Response:
 
 
 class _Opener:
-    def __init__(self, *, redirect: bool = False, gap: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        redirect: bool = False,
+        gap: bool = False,
+        future_rows: int = 0,
+    ) -> None:
+        if not 0 <= future_rows < operator_module.PUBLIC_KLINE_LIMIT:
+            raise ValueError("future_rows is outside the bounded response")
         self.redirect = redirect
         self.gap = gap
+        self.future_rows = future_rows
         self.requests: list[Any] = []
 
     def _klines(self) -> list[list[object]]:
         rows: list[list[object]] = []
-        for index in range(1441):
-            close_ms = NOW_MS - (1440 - index) * 60_000 - 1_000
+        for index in range(operator_module.PUBLIC_KLINE_LIMIT):
+            close_ms = (
+                NOW_MS
+                - (operator_module.PUBLIC_KLINE_LIMIT - 1 - self.future_rows - index) * 60_000
+                - 1_000
+            )
             if self.gap and index == 700:
                 close_ms += 1
             close = Decimal("100") + Decimal(index) / Decimal("10000")
@@ -458,7 +762,7 @@ class _Opener:
             payload = {"symbol": "BTCUSDT", "openInterest": "200000"}
         else:
             assert query["interval"] == ["1m"]
-            assert query["limit"] == ["1441"]
+            assert query["limit"] == [str(operator_module.PUBLIC_KLINE_LIMIT)]
             payload = self._klines()
         response_url = "https://redirect.invalid/" if self.redirect else request.full_url
         return _Response(response_url, payload)
@@ -482,6 +786,28 @@ def test_public_market_contract_uses_complete_contiguous_public_inputs() -> None
     assert len(opener.requests) == 4
     assert all(request.get_method() == "GET" for request in opener.requests)
     assert all("Authorization" not in request.headers for request in opener.requests)
+
+
+def test_public_market_kline_margin_keeps_decision_time_completion_boundary() -> None:
+    snapshot = fetch_public_market_snapshot(
+        symbol="BTCUSDT",
+        observed_at_ms=NOW_MS,
+        opener=cast(Any, _Opener(future_rows=10)),
+    )
+
+    assert snapshot.completed_candle_close_ms == NOW_MS - 1_000
+
+
+def test_public_market_kline_margin_remains_bounded_and_fails_closed() -> None:
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="must contain 1440 completed",
+    ):
+        fetch_public_market_snapshot(
+            symbol="BTCUSDT",
+            observed_at_ms=NOW_MS,
+            opener=cast(Any, _Opener(future_rows=61)),
+        )
 
 
 def test_public_market_gap_redirect_host_and_proxy_fail_closed() -> None:
@@ -769,6 +1095,91 @@ def test_run_once_fetches_mark_for_open_position_outside_universe(
         operator.run_once(observed_at_ms=NOW_MS)
 
     assert fetched == ["BTCUSDT", "ETHUSDT"]
+
+
+def test_run_once_bounds_parallel_public_market_fetches_and_preserves_result_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StopAfterCompose(RuntimeError):
+        pass
+
+    symbols = tuple(f"ASSET{index}USDT" for index in range(10))
+    events: list[dict[str, object]] = []
+    for index, symbol in enumerate(symbols):
+        events.extend(
+            (
+                _event(
+                    f"event-history-{index}",
+                    symbol=symbol,
+                    received_at_ms=NOW_MS - 3_600_000,
+                ),
+                _event(
+                    f"event-current-{index}",
+                    symbol=symbol,
+                    received_at_ms=NOW_MS - 1_000,
+                ),
+            )
+        )
+    service = _service()
+    captured_tick: object | None = None
+
+    def stop_after_compose(tick: object) -> None:
+        nonlocal captured_tick
+        captured_tick = tick
+        raise StopAfterCompose
+
+    service.step = stop_after_compose
+    root = _write_live_root(tmp_path / "parallel-liquid20", events=events)
+    runtime_operator = CandidatePaperRuntimeOperator(
+        service=cast(Any, service),
+        liquid20_root_path=root.resolve(),
+        health_path=(tmp_path / "parallel-health.json").resolve(),
+        operator_commit=CODE_SHA,
+    )
+    lock = threading.Lock()
+    release = threading.Event()
+    started = 0
+    active = 0
+    maximum_active = 0
+    fetched: list[str] = []
+
+    def fake_market_snapshot(
+        *,
+        symbol: str,
+        observed_at_ms: int,
+        base_url: str,
+        opener: object,
+    ) -> PublicMarketSnapshot:
+        del base_url, opener
+        nonlocal started, active, maximum_active
+        with lock:
+            started += 1
+            active += 1
+            maximum_active = max(maximum_active, active)
+            fetched.append(symbol)
+            if started >= 4:
+                release.set()
+        if not release.wait(timeout=2):
+            raise AssertionError("public market fetches did not overlap")
+        with lock:
+            active -= 1
+        return _market(symbol=symbol, observed_at_ms=observed_at_ms)
+
+    monkeypatch.setattr(
+        operator_module,
+        "fetch_public_market_snapshot",
+        fake_market_snapshot,
+    )
+    with pytest.raises(StopAfterCompose):
+        runtime_operator.run_once(observed_at_ms=NOW_MS)
+
+    assert maximum_active >= 4
+    assert maximum_active <= operator_module.MAX_PUBLIC_MARKET_WORKERS
+    assert set(fetched) == set(symbols)
+    assert captured_tick is not None
+    mark_prices = cast(Any, captured_tick).mark_prices
+    assert tuple(symbol for symbol, _price in mark_prices) == tuple(sorted(symbols))
 
 
 def test_operator_refuses_non_paper_binding(tmp_path: Path) -> None:

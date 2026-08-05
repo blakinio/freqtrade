@@ -32,7 +32,7 @@ jobs:
           replacements = {
               "freqtrade/persistence/trade_model.py": [
                   (
-                      "            total_profit = sum(\n                t.close_profit_abs for t in LocalTrade.get_trades_proxy(is_open=False)\n            )\n",
+                      "            total_profit = sum(\n                t.close_profit_abs\n                for t in LocalTrade.get_trades_proxy(is_open=False)\n            )\n",
                       "            total_profit = sum(\n                (t.close_profit_abs or 0.0)\n                for t in LocalTrade.get_trades_proxy(is_open=False)\n            )\n",
                   ),
               ],

@@ -5,24 +5,30 @@ programme_id: FTAI-20260805-platform-continuous-assurance
 repository: blakinio/freqtrade
 status: active
 started_at: 2026-08-05T14:34:00Z
-baseline_develop_head: 108eff8149f3c5dba77bfcdeaea0c63c8a22b551
+baseline_develop_head: 3b1ae6271405d87dc616070ea617c63bd62c1e21
 last_completed_wave: wave-003-required-ci-bounds-and-terminal-delivery
-active_wave: wave-004-focused-core-ci-and-coordinator-contract-repair
+active_wave: wave-004-ci-governance-and-coordinator-terminality
 open_findings:
   - 1250
-  - 1257
+  - 1251
+  - 1252
+  - 1264
   - 1265
 resolved_findings:
   - 1254
+  - 1257
 active_repairs:
-  - 1258
   - 1271
   - 1275
 active_delivery:
   - 1215
+  - 1255
+  - 1261
+  - 1270
   - 1273
 completed_delivery:
   - 1217
+  - 1258
   - 1259
 terminal_duplicates:
   - 1266
@@ -36,25 +42,29 @@ protected_production_deployment_authorized: false
 ## Status vocabulary
 
 - `NOT_REVIEWED` — no fresh bounded assurance wave is recorded.
-- `ACTIVE` — a bounded wave is in progress.
-- `FINDING_OPEN` — a material finding has a durable open Issue.
-- `REPAIR_ACTIVE` — a deduplicated repair PR has exact-head validation in progress.
-- `RESOLVED_WITH_EVIDENCE` — the finding reached a verified terminal state.
-- `CLEAR_WITHIN_SCOPE` — no material gap was found inside the exact recorded scope; this is not an exhaustive platform claim.
-- `WAITING` — an explicit external or exact-head condition is pending and no worker should poll continuously.
+- `ACTIVE` — bounded work is in progress.
+- `FINDING_OPEN` — a material finding has durable ownership or an open Issue.
+- `REPAIR_ACTIVE` — a deduplicated repair is being validated.
+- `SAFETY_BLOCKED` — merge is intentionally prevented until an exact material finding is removed.
+- `RESOLVED_WITH_EVIDENCE` — a finding reached a verified terminal state.
+- `CLEAR_WITHIN_SCOPE` — no material gap was found inside the recorded scope; this is not an exhaustive platform claim.
+- `WAITING` — an explicit external/exact-head condition is pending and should not be continuously polled.
 
 ## Domain coverage
 
 | Domain | Status | Last exact head | Evidence | Next exact action |
 |---|---|---|---|---|
-| Governance and durable coordination | REPAIR_ACTIVE | `689bd511f0b34a8e0c3853eaffd04b722d43c753` | Issue #1250 / PR #1275; checkpoint PRs #1253/#1256/#1259/#1273 | finish exact-head PR #1275 and #1273 checks; dispatch #1132 only after #1275 merges |
-| Security and identity | FINDING_OPEN | `689bd511f0b34a8e0c3853eaffd04b722d43c753` | stale #1122/#1132 dependency reconciled in PR #1275; #1137 remains protected-target waiting | after #1275 merge, create exactly one #1132 child task/branch/PR |
-| Correctness and data integrity | CLEAR_WITHIN_SCOPE | `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` | PR #1217 exact-head matrix and merge | no further mypy 2.1 action in this wave |
-| Reliability, recovery and deployment | RESOLVED_WITH_EVIDENCE | `74d1ba5ca603d7b116a36f966592fac7f49cee08` | Issue #1254 closed after fresh heartbeat, connected sources and acceptable disk capacity | review on the next material operations change |
-| Performance and resource bounds | REPAIR_ACTIVE | `5a487222573d2eadd2e3746e5e15bb06128455eb` | Issue #1257 / PR #1258; prior exact-head green, current-base security green | finish current-base Freqtrade/risk-aware CI and protected merge |
-| Frontend product quality and accessibility | NOT_REVIEWED | — | active Portal ownership remains separate | inspect after active ownership releases |
-| Strategy, signal and research quality | NOT_REVIEWED | — | active WickHunter ownership remains separate | inspect reproducibility and leakage after ownership releases |
-| Dependencies, CI and documentation drift | REPAIR_ACTIVE | `3ff2b1ded28617175ab29dfa1f4b9977f6fa5fdd` | Issue #1265 / PR #1271; PR #1215 failure log | finish exact-head repair, then revalidate PR #1215 |
+| Governance and durable coordination | REPAIR_ACTIVE | `7893f7f41e81e25cd0485d8c24c1bc4839e2161d` | Issue #1250 / PR #1275; PR #1273 | finish fresh current-base #1275; dispatch #1132 only after merge |
+| Security and identity | FINDING_OPEN | `7893f7f41e81e25cd0485d8c24c1bc4839e2161d` | #1132 READY only in PR #1275; #1137 protected-target waiting | after #1275 merge, deduplicate then create exactly one #1132 task/branch/PR |
+| Correctness and data integrity | CLEAR_WITHIN_SCOPE | `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` | PR #1217 exact-head matrix and merge | review after material core changes |
+| Reliability, recovery and deployment | RESOLVED_WITH_EVIDENCE | `74d1ba5ca603d7b116a36f966592fac7f49cee08` | Issue #1254 closed after structured runner recovery | review on next material operations change |
+| Performance and resource bounds | RESOLVED_WITH_EVIDENCE | `3b1ae6271405d87dc616070ea617c63bd62c1e21` | Issue #1257 / PR #1258 exact-head CI, bounded online test and merge | retain regression contract; no further wave action |
+| Architecture authority | FINDING_OPEN | `f852092e20755b00f1cbc05c4d4df69599930859` | Issue #1251 / PR #1255 | reconcile exact base, terminal Issue mapping and task archive before merge |
+| Workflow lifecycle governance | FINDING_OPEN | `db6e81febbdaaa8ee1a0719bb2892a34bef6fb72` | Issue #1252 / draft PR #1261 | correct live-catalog, all-open-PR ownership, metadata drift and task closeout; no further bulk retirement first |
+| Repository contribution governance | FINDING_OPEN | `44ea3d5cd15c8dc6046cdd8526208bb0d1cdcdf6` | Issue #1264 / PR #1270 | add edited-title enforcement, satisfiable CODEOWNERS model and terminal task closeout |
+| Dependencies and required CI | SAFETY_BLOCKED | `bb8ff2cf3909ba8b2bea3d32b6dff4bfab41484f` | Issue #1265 / draft PR #1271; PR #1215 | remove privileged helper, re-audit clean two-path head, merge, then revalidate #1215 |
+| Frontend product quality and accessibility | NOT_REVIEWED | — | active Portal ownership remains separate | inspect after current identity/Portal ownership releases |
+| Strategy, signal and research quality | NOT_REVIEWED | — | active WickHunter ownership remains separate | inspect after active WickHunter ownership releases |
 
 ## Wave history
 
@@ -72,31 +82,23 @@ protected_production_deployment_authorized: false
 ### Wave 003 — required CI bounds and terminal delivery
 
 - PR `#1217` merged as `5dadfe32c7cc2ba7af95652b06c4e0624d2f11b4` after exact-head CI.
-- Finding `#1257` proved the online compatibility lane lacked job and item timeout bounds.
-- Checkpoint PR `#1259` merged as `74d1ba5ca603d7b116a36f966592fac7f49cee08`.
+- PR `#1259` merged as `74d1ba5ca603d7b116a36f966592fac7f49cee08`.
 - Issue `#1254` later closed after structured recovery evidence.
 
-### Wave 004 — focused-core CI and coordinator contracts
+### Wave 004 — CI, governance and coordinator terminality
 
-- PR `#1215` run `31019942269`, job `92354598878`, passed compile, Ruff and mypy but failed before collection with `ModuleNotFoundError: No module named 'xdist'`.
-- The `core-light` job ran `pytest -n auto` while omitting `pytest-xdist` from its bounded dependency installation.
-- Issue `#1265` is the canonical P1/high-risk finding.
-- Issues `#1266`, `#1267` and `#1268` are closed intentional duplicates and contain no unique work.
-- PR `#1271` is the deduplicated two-path repair on exact head `3ff2b1ded28617175ab29dfa1f4b9977f6fa5fdd` and current `develop@108eff8149f3c5dba77bfcdeaea0c63c8a22b551`.
-- Independent diff inspection found pinned `pytest-xdist==3.8.0` and a regression contract coupling it to `pytest -n auto`; no material finding or review thread remains.
-- A parallel worker already owned the repair branch. The coordinator respected live ownership and did not overwrite it.
-- Security, routing, pre-commit, documentation, online compatibility and all completed matrix jobs for PR `#1271` passed. Python 3.12 coverage remained active at the latest detailed snapshot. GitHub created replacement workflow generations on the same exact SHA after cancelling a superseded risk-aware run.
-- PR `#1258` was merged forward without force-push from exact head `4351c01fa5ae1d04773062f95ee5909c892a7b4b` to `5a487222573d2eadd2e3746e5e15bb06128455eb` on current `develop`. Prior exact-head workflows were green; current-base security is green and other required workflows remain queued.
-- The current-base merge for PR `#1258` was constructed from the verified current `develop` tree and overlaid only its two audited paths after proving intervening changes were disjoint.
-- Issue `#1250` was independently revalidated against PR `#1159`, the archived `#1122` task, open Issue `#1132`, Issue `#1137` protected-target status and live PR/branch ownership.
-- PR `#1275` reconciles `#1122` as COMPLETE and `#1132` as READY, corrects programme/coordinator counts and barriers, and adds a deterministic consistency test. Its final audited exact head is `689bd511f0b34a8e0c3853eaffd04b722d43c753`; changed paths are limited to two coordination records and one test, review threads are empty and fresh required CI is pending.
-- During independent audit, unrelated execution metadata and programme detail removed during drafting were restored before the final head.
-- Runtime E2E is `NOT_APPLICABLE`: these internal CI/governance workflows are the real system boundary and exact-head CI must execute their contracts.
-- Checkpoint PR `#1273` records the wave and recovery boundary.
+- Issue `#1257` / PR `#1258` added a 30-minute online-job bound, 300-second per-item bound and fail-closed contract. Exact head passed full Freqtrade CI, actual online validation and risk-aware suites; merged as `3b1ae6271405d87dc616070ea617c63bd62c1e21`.
+- Issue `#1265` proves `core-light` omitted `pytest-xdist` while invoking `pytest -n auto`.
+- PR `#1271` has the intended two-path xdist repair, but exact head `bb8ff2cf3909ba8b2bea3d32b6dff4bfab41484f` also contains a non-self-removing PR-specific workflow with write permissions. It is draft/safety-blocked until cleanup and fresh exact-head validation.
+- PR `#1215` form content, labels and the external Operations v3 native dependency reconciler were independently verified; it waits only for a clean xdist merge and fresh repaired-baseline CI.
+- PR `#1275` reconciles completed `#1122`, READY `#1132` and waiting `#1137`, and adds a deterministic consistency test. It was merged forward without force-push to current `develop` at exact head `7893f7f41e81e25cd0485d8c24c1bc4839e2161d`.
+- Fresh audits recorded terminality/enforcement gaps on PRs `#1255`, `#1261` and `#1270`. Existing owners retain those branches; findings were added to their PR discussions rather than duplicated.
+- No further bulk workflow retirement is authorized until PR `#1261` corrects its open-PR ownership model and live-catalog verification.
+- Runtime E2E is `NOT_APPLICABLE_WITH_REASON` for internal documentation/CI/governance contracts; exact-head workflows and durable-state outcomes are the applicable boundary.
 
 ## Selection policy
 
-After each terminal wave, select in this order:
+After each terminal bounded result, select in this order:
 
 1. unowned P0/P1 or equivalent high safety finding;
 2. unresolved operational blocker;
@@ -108,4 +110,4 @@ Before creating a task, branch, Issue or PR, search live ownership and related w
 
 ## Next exact action
 
-Observe terminal aggregate states without resetting counters or continuous polling. Prioritize protected completion of PR `#1271`; after it merges, update PR `#1215` to the resulting `develop` baseline without force-push and run fresh exact-head CI. Complete current-base PR `#1258`, coordinator repair PR `#1275` and checkpoint PR `#1273` only after their exact-head required gates pass. Dispatch exactly one Issue `#1132` child task only after PR `#1275` merges.
+Do not merge PR `#1271` while its privileged helper remains. Audit the cleaned exact head when the parallel owner removes it. Complete fresh current-base validation and protected merge for PR `#1275`; only then deduplicate and dispatch exactly one Issue `#1132` child task. After a clean `#1271` merge, merge-forward PR `#1215` without force-push and run fresh exact-head CI. Keep PRs `#1255`, `#1261` and `#1270` non-terminal until their recorded findings are repaired.

@@ -5,7 +5,7 @@ repository: blakinio/freqtrade
 issue: 1132
 lane: freqtrade-portal
 status: active
-phase: implementation
+phase: validating
 branch: fix/portal-oidc-logout-replay-1132
 pull_request: 1284
 base_sha: 8ee4f6b2527b7bffb7d6967adb3c0f1abd1be56b
@@ -24,7 +24,7 @@ ownership:
   - docs/ai_platform/portal/SCHEMA_INTEGRITY.md
   - tests/ai_platform/portal/identity/**
   - tests/ai_platform/portal/database/**
-  - .github/workflows/portal-oidc-logout-replay-postgresql.yml
+  - .github/workflows/portal-schema-integrity.yml
 live_capital_authorized: false
 protected_authentik_authorized: false
 secrets_recorded: false
@@ -58,7 +58,7 @@ Extend the existing `ai_platform.portal.database.schema` authority with an order
 - focused identity unit and HTTP tests;
 - exact replay, conflicting replay and audit-count assertions;
 - SQLite restart evidence for repository semantics;
-- independent-connection PostgreSQL concurrency evidence through a bounded workflow;
+- independent-connection PostgreSQL concurrency evidence through the canonical Portal schema workflow;
 - fresh-database and exact revision-1-to-2 migration tests;
 - full exact-head required CI, risk-aware CI and workflow security analysis;
 - independent final diff audit.
@@ -74,4 +74,6 @@ The implementation PR references Issue #1132 but must not auto-close it unless p
 - no competing active Issue #1132 task, branch or PR existed at dispatch;
 - branch created from the exact merged coordinator head;
 - exactly one draft implementation PR exists: #1284;
-- next action: implement the bounded durable replay contract and ordered schema revision on PR #1284.
+- implementation includes the replay record, bounded token contract, transactional service path, HTTP error mapping, ordered schema revision, SQLite restart tests and PostgreSQL concurrency evidence;
+- canonical `.github/workflows/portal-schema-integrity.yml` now owns the replay database evidence; no competing workflow was created;
+- next action: resolve exact-head CI findings, perform independent final diff audit and record repository-complete/external-acceptance waiting closeout.

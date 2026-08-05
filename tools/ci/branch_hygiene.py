@@ -17,6 +17,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+
 DEFAULT_STALE_DAYS = 14
 DEFAULT_KEEP_PATTERNS = (
     "release/*",

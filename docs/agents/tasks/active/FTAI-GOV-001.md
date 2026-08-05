@@ -6,15 +6,14 @@ repository: blakinio/freqtrade
 base_branch: develop
 branch: chore/FTAI-GOV-001-repository-policy-20260805
 issue: 1264
-pull_request: 1270
 project_lane: freqtrade-assurance
 phase: validate
-session_id: chat-20260805-1742
-session_role: validator
+session_id: chat-20260805-1816
+session_role: implementer
 execution_mode: chat
-execution_reason: GitHub-only exact-diff audit and required CI validation
+execution_reason: GitHub-only bounded repository policy and focused Python changes
 policy_version: 2
-task_kind: validation
+task_kind: implementation
 context_pressure: medium
 context_growth: stable
 context_score: 8
@@ -60,15 +59,37 @@ safety:
   - no workflow is added before workflow registry ownership is reconciled
   - no branch protection or required check is weakened
   - no deployment, credential, trading, withdrawal or live-capital operation
-invocation_started_at: 2026-08-05T17:37:00+02:00
-last_progress_at: 2026-08-05T18:12:00+02:00
+invocation_started_at: 2026-08-05T18:16:00+02:00
+last_progress_at: 2026-08-05T18:20:00+02:00
 ci_checks_for_current_head: 0
 unchanged_state_checks: 0
 identical_failure_retries: 0
-repair_cycles_for_current_gate: 0
+repair_cycles_for_current_gate: 1
 context_reconstruction_attempts: 0
 stall_warnings: 0
-next_action: verify exact-head focused validation and required CI for PR #1270
+recovery:
+  policy_version: 1
+  generation: 1
+  session_id: chat-20260805-1816
+  session_started_at: 2026-08-05T18:16:00+02:00
+  checkpointed_at: 2026-08-05T18:20:00+02:00
+  last_progress_at: 2026-08-05T18:20:00+02:00
+  phase: final exact-head CI repair
+  exact_head: pending repair commit
+  pull_request: 1270
+  active_operation: exact-head CI after deterministic Ruff import-spacing repair
+  external_run_ids:
+    - 31024332392
+    - 31024333860
+  operation_started_at: 2026-08-05T18:16:00+02:00
+  wait_deadline_at: 2026-08-05T19:01:00+02:00
+  check_generation: post-ruff-import-spacing-repair
+  checks_used: 0
+  status: active
+  safe_to_resume: true
+  resume_condition: fresh required checks exist for the repaired exact head
+  next_action: observe aggregate required CI for the repaired exact head and merge only after every gate passes
+next_action: persist the deterministic Ruff import-spacing repair and validate fresh exact-head CI
 ---
 
 # FTAI-GOV-001 durable task record
@@ -79,18 +100,11 @@ The live repository has one collaborator, `blakinio`. Therefore one required app
 
 Runtime E2E is not applicable because the task changes repository governance and deterministic CI policy rather than application behavior. Focused tests, the exact final diff, the required `CI Gate`, review-thread state and terminal PR lifecycle are the applicable outcome evidence.
 
-## Fresh audit
-
-A fresh exact-diff audit found and repaired two material branch-pruning hazards before final validation:
-
-- squash-merged evidence is accepted only when the exact branch head was merged directly into `develop`;
-- apply mode re-reads the live head, protection flag and open-PR state immediately before deletion and fails closed when state changed after inventory.
-
-No unresolved material audit finding remains in the owned diff.
-
 ## Focused validation
 
 - Pre-persistence Python compile validation: PASS.
 - Pre-persistence focused policy tests: 28 passed.
-- Exact branch-head focused validation and repository CI: pending through PR #1270.
+- Fresh exact-diff audit: PASS after repairing default-branch evidence and deletion-race handling.
+- Exact-head run `31024332392` isolated one deterministic formatting gate: Ruff `I001` required the repository-configured two blank lines after import blocks in `tools/ci/branch_hygiene.py` and `tools/ci/validate_pr_title.py`.
+- The repair changes only import-block spacing; runtime behavior and safety predicates are unchanged.
 - No branch deletion, workflow creation or native GitHub settings mutation was executed.

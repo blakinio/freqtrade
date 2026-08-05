@@ -1,4 +1,4 @@
-name: WickHunter WH09 deployment environment gate repair
+name: WickHunter WH09 Liquid20 reader-group deployment repair
 
 "on":
   pull_request:
@@ -11,43 +11,41 @@ permissions:
   contents: write
 
 concurrency:
-  group: wickhunter-wh09-deployment-env-gate-repair-v3
+  group: wickhunter-wh09-deployment-reader-group-repair-v4
   cancel-in-progress: false
 
 env:
   TARGET_BRANCH: ops/wickhunter-wh09-deploy-paper-20260804-v2
-  EXPECTED_TARGET_HEAD: 243283bc644567320b33d0686d3c86e7d9c122cb
+  EXPECTED_TARGET_HEAD: 83187943a119634e689d8e4cc2852b4bd7abed64
   TARGET_PATH: .github/workflows/wickhunter-wh09-deploy-20260804-v2.yml
-  STAGING_BRANCH: ops/wickhunter-wh09-deploy-payload-20260804-v1
-  STAGING_PATH: docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/wickhunter-wh09-deploy-20260804-v2.patched.yml
+  STAGING_BRANCH: ops/wickhunter-wh09-deploy-payload-20260805-v2
+  STAGING_PATH: docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/wickhunter-wh09-deploy-20260805-v3.patched.yml
 
 jobs:
   repair:
-    name: Stage deployment workflow without rejected environment gate
+    name: Stage exact Liquid20 reader-group repair
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.base.ref == 'develop'
     runs-on: [freqtrade-staging]
     timeout-minutes: 10
     steps:
-      - name: Validate exact repair request
+      - name: Validate bounded repair request
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          [[ "$BASE_SHA" == "b417d07424136a480785a2ae06e868cfefc96390" ]]
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
 
-      - name: Check out deployment branch
+      - name: Check out exact deployment branch
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ env.TARGET_BRANCH }}
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Stage exact patched payload on non-workflow branch
+      - name: Stage deterministic patched workflow payload
         shell: bash
         run: |
           set -euo pipefail
@@ -58,23 +56,134 @@ jobs:
           source = Path(".github/workflows/wickhunter-wh09-deploy-20260804-v2.yml")
           destination = Path(
               "docs/agents/evidence/FTAI-20260803-wickhunter-wh09-paper-runtime-operator-v1/"
-              "wickhunter-wh09-deploy-20260804-v2.patched.yml"
+              "wickhunter-wh09-deploy-20260805-v3.patched.yml"
           )
           text = source.read_text(encoding="utf-8")
-          marker = "    environment: synology-staging\n"
-          if text.count(marker) != 2:
-              raise SystemExit(f"expected exactly two environment gates, found {text.count(marker)}")
-          updated = text.replace(marker, "")
-          if "environment: synology-staging" in updated:
-              raise SystemExit("environment gate remains")
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one marker, found {count}: {old[:120]!r}")
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "name: WickHunter WH09 fresh PAPER deployment v2\n",
+              "name: WickHunter WH09 fresh PAPER deployment v3\n",
+          )
+          replace_once(
+              "  group: wickhunter-wh09-deploy-v2\n",
+              "  group: wickhunter-wh09-deploy-v3\n",
+          )
+          replace_once(
+              "  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live\n",
+              "  LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live\n"
+              "  LIQUID20_READER_GID: \"100\"\n",
+          )
+          replace_once(
+              "  ACTIVATION_NAME: wickhunter-wh09-activation-20260804-v2-9a9972a8\n",
+              "  ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v3-9a9972a8\n",
+          )
+          replace_once("  BOT_INSTANCE: wickhunter-paper-v2\n", "  BOT_INSTANCE: wickhunter-paper-v3\n")
+          replace_once(
+              "  OPERATOR_CONTAINER: wickhunter-paper-runtime-v2\n",
+              "  OPERATOR_CONTAINER: wickhunter-paper-runtime-v3\n",
+          )
+          replace_once(
+              "  GATEWAY_CONTAINER: wickhunter-wh09-egress-v2\n",
+              "  GATEWAY_CONTAINER: wickhunter-wh09-egress-v3\n",
+          )
+          replace_once(
+              "  INTERNAL_NETWORK: wickhunter-wh09-internal-v2\n",
+              "  INTERNAL_NETWORK: wickhunter-wh09-internal-v3\n",
+          )
+          replace_once(
+              "          [[ -d \"$LIQUID20_LIVE_HOST\" || ! -e \"$LIQUID20_LIVE_HOST\" ]]\n",
+              "          [[ -d \"$LIQUID20_LIVE_HOST\" && ! -L \"$LIQUID20_LIVE_HOST\" ]]\n"
+              "          [[ -f \"$LIQUID20_LIVE_HOST/live-state-v1.json\" && ! -L \"$LIQUID20_LIVE_HOST/live-state-v1.json\" ]]\n"
+              "          [[ \"$(stat -c '%g' \"$LIQUID20_LIVE_HOST/live-state-v1.json\")\" == \"$LIQUID20_READER_GID\" ]]\n"
+              "          [[ \"$(stat -c '%a' \"$LIQUID20_LIVE_HOST/live-state-v1.json\")\" =~ ^[0-7][0-7][0-7]$ ]]\n",
+          )
+          replace_once(
+              "          state_runner=\"$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v2\"\n"
+              "          state_host=\"$HOST_STATE_ROOT/wickhunter-paper-runtime/v2\"\n",
+              "          state_runner=\"$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v3\"\n"
+              "          state_host=\"$HOST_STATE_ROOT/wickhunter-paper-runtime/v3\"\n",
+          )
+          replace_once(
+              "          docker run --rm --interactive \\\n"
+              "            --user 65532:65532 \\\n"
+              "            --read-only \\\n"
+              "            --network none \\\n"
+              "            --cap-drop ALL \\\n"
+              "            --security-opt no-new-privileges:true \\\n"
+              "            --mount \"type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly\" \\\n",
+              "          docker run --rm --interactive \\\n"
+              "            --user 65532:65532 \\\n"
+              "            --group-add \"$LIQUID20_READER_GID\" \\\n"
+              "            --read-only \\\n"
+              "            --network none \\\n"
+              "            --cap-drop ALL \\\n"
+              "            --security-opt no-new-privileges:true \\\n"
+              "            --mount \"type=bind,src=$LIQUID20_LIVE_HOST,dst=/runtime/liquid20,readonly\" \\\n",
+          )
+          replace_once(
+              "          docker run -d \\\n"
+              "            --name \"$OPERATOR_CONTAINER\" \\\n"
+              "            --restart always \\\n"
+              "            --init \\\n"
+              "            --user 65532:65532 \\\n"
+              "            --read-only \\\n",
+              "          docker run -d \\\n"
+              "            --name \"$OPERATOR_CONTAINER\" \\\n"
+              "            --restart always \\\n"
+              "            --init \\\n"
+              "            --user 65532:65532 \\\n"
+              "            --group-add \"$LIQUID20_READER_GID\" \\\n"
+              "            --read-only \\\n",
+          )
+          replace_once(
+              "          operator = by_name[\"wickhunter-paper-runtime-v2\"]\n"
+              "          gateway = by_name[\"wickhunter-wh09-egress-v2\"]\n",
+              "          operator = by_name[\"wickhunter-paper-runtime-v3\"]\n"
+              "          gateway = by_name[\"wickhunter-wh09-egress-v3\"]\n",
+          )
+          replace_once(
+              "          if operator[\"Config\"][\"User\"] != \"65532:65532\":\n"
+              "              raise SystemExit(\"operator user mismatch\")\n",
+              "          if operator[\"Config\"][\"User\"] != \"65532:65532\":\n"
+              "              raise SystemExit(\"operator user mismatch\")\n"
+              "          if \"100\" not in (operator[\"HostConfig\"].get(\"GroupAdd\") or []):\n"
+              "              raise SystemExit(\"operator lacks Liquid20 reader group\")\n",
+          )
+          replace_once(
+              "              \"operator_container\": \"wickhunter-paper-runtime-v2\",\n"
+              "              \"gateway_container\": \"wickhunter-wh09-egress-v2\",\n",
+              "              \"operator_container\": \"wickhunter-paper-runtime-v3\",\n"
+              "              \"gateway_container\": \"wickhunter-wh09-egress-v3\",\n"
+              "              \"liquid20_reader_gid\": 100,\n",
+          )
+          replace_once(
+              "            echo \"- Status: \\`deployed_waiting_prospective_acceptance\\`\"\n",
+              "            echo \"- Liquid20 reader group: \\`100\\`\"\n"
+              "            echo \"- Status: \\`deployed_waiting_prospective_acceptance\\`\"\n",
+          )
+
+          if "wickhunter-paper-runtime-v2" in text or "wickhunter-wh09-egress-v2" in text:
+              raise SystemExit("stale v2 container identity remains")
+          if "wickhunter-paper-runtime/v2" in text:
+              raise SystemExit("stale v2 state root remains")
+          if text.count("--group-add \"$LIQUID20_READER_GID\"") != 2:
+              raise SystemExit("expected exactly two Liquid20 reader-group bindings")
           destination.parent.mkdir(parents=True, exist_ok=True)
-          destination.write_text(updated, encoding="utf-8")
+          destination.write_text(text, encoding="utf-8")
           PY
           git diff --check -- "$STAGING_PATH"
-          [[ "$(grep -c 'environment: synology-staging' "$STAGING_PATH" || true)" == "0" ]]
+          [[ "$(grep -c -- '--group-add \"$LIQUID20_READER_GID\"' "$STAGING_PATH")" == "2" ]]
+          [[ "$(grep -c 'wickhunter-wh09-activation-20260805-v3-9a9972a8' "$STAGING_PATH")" == "1" ]]
           [[ "$(grep -c 'runs-on: \[freqtrade-staging\]' "$STAGING_PATH")" == "2" ]]
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add "$STAGING_PATH"
-          git commit -m "chore(wickhunter): stage deployment workflow payload"
+          git commit -m "chore(wickhunter): stage Liquid20 reader-group deployment payload"
           git push origin "HEAD:$STAGING_BRANCH"

@@ -1,4 +1,4 @@
-name: WickHunter WH09 fresh PAPER deployment v2
+name: WickHunter WH09 fresh PAPER deployment v3
 
 "on":
   pull_request:
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: wickhunter-wh09-deploy-v2
+  group: wickhunter-wh09-deploy-v3
   cancel-in-progress: false
 
 env:
@@ -35,15 +35,16 @@ env:
   RUNNER_STATE_ROOT: /var/lib/freqtrade-staging-state
   HOST_STATE_ROOT: /volume1/docker/freqtrade/state
   LIQUID20_LIVE_HOST: /volume1/docker/freqtrade-liquidations/data/live
-  ACTIVATION_NAME: wickhunter-wh09-activation-20260804-v2-9a9972a8
-  BOT_INSTANCE: wickhunter-paper-v2
+  LIQUID20_READER_GID: "100"
+  ACTIVATION_NAME: wickhunter-wh09-activation-20260805-v3-9a9972a8
+  BOT_INSTANCE: wickhunter-paper-v3
   WH08_CONSUMER_VERSION: wickhunter-portal-consumer-v1
   WINDOW_DURATION_MS: "90000000"
   POLL_SECONDS: "300"
   MAXIMUM_SOURCE_AGE_MS: "300000"
-  OPERATOR_CONTAINER: wickhunter-paper-runtime-v2
-  GATEWAY_CONTAINER: wickhunter-wh09-egress-v2
-  INTERNAL_NETWORK: wickhunter-wh09-internal-v2
+  OPERATOR_CONTAINER: wickhunter-paper-runtime-v3
+  GATEWAY_CONTAINER: wickhunter-wh09-egress-v3
+  INTERNAL_NETWORK: wickhunter-wh09-internal-v3
   OPERATOR_IMAGE: local/wickhunter-paper-runtime:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
   GATEWAY_IMAGE: local/wickhunter-paper-egress:sha-9a9972a8db27e8dcd6672dbbf6b80a34a03b8cd7
 
@@ -131,7 +132,10 @@ jobs:
           docker version >/dev/null
           test -S /var/run/docker.sock
           [[ -d "$RUNNER_STATE_ROOT" && ! -L "$RUNNER_STATE_ROOT" ]]
-          [[ -d "$LIQUID20_LIVE_HOST" || ! -e "$LIQUID20_LIVE_HOST" ]]
+          [[ -d "$LIQUID20_LIVE_HOST" && ! -L "$LIQUID20_LIVE_HOST" ]]
+          [[ -f "$LIQUID20_LIVE_HOST/live-state-v1.json" && ! -L "$LIQUID20_LIVE_HOST/live-state-v1.json" ]]
+          [[ "$(stat -c '%g' "$LIQUID20_LIVE_HOST/live-state-v1.json")" == "$LIQUID20_READER_GID" ]]
+          [[ "$(stat -c '%a' "$LIQUID20_LIVE_HOST/live-state-v1.json")" =~ ^[0-7][0-7][0-7]$ ]]
           for path in \
             "ai_platform/wickhunter/candidate_paper_runtime_operator.py" \
             "deploy/synology/wickhunter-paper-runtime/Dockerfile" \
@@ -332,8 +336,8 @@ jobs:
 
           candidate_runner="$RUNNER_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
           candidate_host="$HOST_STATE_ROOT/wickhunter-candidate-materialization/packages/$CANDIDATE_PACKAGE_NAME"
-          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v2"
-          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v2"
+          state_runner="$RUNNER_STATE_ROOT/wickhunter-paper-runtime/v3"
+          state_host="$HOST_STATE_ROOT/wickhunter-paper-runtime/v3"
           activation_runner="$state_runner/activations/$ACTIVATION_NAME"
           activation_host="$state_host/activations/$ACTIVATION_NAME"
           activation_binding_runner="$state_runner/activations/${ACTIVATION_NAME}-candidate-binding.json"
@@ -440,6 +444,7 @@ jobs:
 
           docker run --rm --interactive \
             --user 65532:65532 \
+            --group-add "$LIQUID20_READER_GID" \
             --read-only \
             --network none \
             --cap-drop ALL \
@@ -696,6 +701,7 @@ jobs:
             --restart always \
             --init \
             --user 65532:65532 \
+            --group-add "$LIQUID20_READER_GID" \
             --read-only \
             --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
             --cap-drop ALL \
@@ -842,11 +848,13 @@ jobs:
           activation = json.loads(Path(sys.argv[5]).read_text(encoding="utf-8"))
           destination = Path(sys.argv[6])
           by_name = {item["Name"].lstrip("/"): item for item in inspections}
-          operator = by_name["wickhunter-paper-runtime-v2"]
-          gateway = by_name["wickhunter-wh09-egress-v2"]
+          operator = by_name["wickhunter-paper-runtime-v3"]
+          gateway = by_name["wickhunter-wh09-egress-v3"]
 
           if operator["Config"]["User"] != "65532:65532":
               raise SystemExit("operator user mismatch")
+          if "100" not in (operator["HostConfig"].get("GroupAdd") or []):
+              raise SystemExit("operator lacks Liquid20 reader group")
           if operator["HostConfig"]["ReadonlyRootfs"] is not True:
               raise SystemExit("operator root filesystem is writable")
           if operator["HostConfig"]["Privileged"] is not False:
@@ -888,8 +896,9 @@ jobs:
               "implementation_sha": implementation_sha,
               "operator_image_id": operator["Image"],
               "gateway_image_id": gateway["Image"],
-              "operator_container": "wickhunter-paper-runtime-v2",
-              "gateway_container": "wickhunter-wh09-egress-v2",
+              "operator_container": "wickhunter-paper-runtime-v3",
+              "gateway_container": "wickhunter-wh09-egress-v3",
+              "liquid20_reader_gid": 100,
               "internal_network": internal_network,
               "host_enforced_egress": {
                   "operator_internal_network_only": True,
@@ -945,6 +954,7 @@ jobs:
             echo "- Operator: \`$OPERATOR_CONTAINER\`"
             echo "- Egress gateway: \`$GATEWAY_CONTAINER\`"
             echo "- Network: internal-only operator plus exact Binance TLS gateway"
+            echo "- Liquid20 reader group: \`100\`"
             echo "- Status: \`deployed_waiting_prospective_acceptance\`"
             echo "- Credentials/order adapter/execution/orders/live capital: \`absent\`"
           } >> "$GITHUB_STEP_SUMMARY"

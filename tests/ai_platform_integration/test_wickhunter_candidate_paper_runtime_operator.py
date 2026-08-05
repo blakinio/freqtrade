@@ -701,15 +701,28 @@ class _Response:
 
 
 class _Opener:
-    def __init__(self, *, redirect: bool = False, gap: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        redirect: bool = False,
+        gap: bool = False,
+        future_rows: int = 0,
+    ) -> None:
+        if not 0 <= future_rows < operator_module.PUBLIC_KLINE_LIMIT:
+            raise ValueError("future_rows is outside the bounded response")
         self.redirect = redirect
         self.gap = gap
+        self.future_rows = future_rows
         self.requests: list[Any] = []
 
     def _klines(self) -> list[list[object]]:
         rows: list[list[object]] = []
-        for index in range(1441):
-            close_ms = NOW_MS - (1440 - index) * 60_000 - 1_000
+        for index in range(operator_module.PUBLIC_KLINE_LIMIT):
+            close_ms = (
+                NOW_MS
+                - (operator_module.PUBLIC_KLINE_LIMIT - 1 - self.future_rows - index) * 60_000
+                - 1_000
+            )
             if self.gap and index == 700:
                 close_ms += 1
             close = Decimal("100") + Decimal(index) / Decimal("10000")
@@ -749,7 +762,7 @@ class _Opener:
             payload = {"symbol": "BTCUSDT", "openInterest": "200000"}
         else:
             assert query["interval"] == ["1m"]
-            assert query["limit"] == ["1441"]
+            assert query["limit"] == [str(operator_module.PUBLIC_KLINE_LIMIT)]
             payload = self._klines()
         response_url = "https://redirect.invalid/" if self.redirect else request.full_url
         return _Response(response_url, payload)
@@ -773,6 +786,28 @@ def test_public_market_contract_uses_complete_contiguous_public_inputs() -> None
     assert len(opener.requests) == 4
     assert all(request.get_method() == "GET" for request in opener.requests)
     assert all("Authorization" not in request.headers for request in opener.requests)
+
+
+def test_public_market_kline_margin_keeps_decision_time_completion_boundary() -> None:
+    snapshot = fetch_public_market_snapshot(
+        symbol="BTCUSDT",
+        observed_at_ms=NOW_MS,
+        opener=cast(Any, _Opener(future_rows=10)),
+    )
+
+    assert snapshot.completed_candle_close_ms == NOW_MS - 1_000
+
+
+def test_public_market_kline_margin_remains_bounded_and_fails_closed() -> None:
+    with pytest.raises(
+        CandidatePaperRuntimeOperatorError,
+        match="must contain 1440 completed",
+    ):
+        fetch_public_market_snapshot(
+            symbol="BTCUSDT",
+            observed_at_ms=NOW_MS,
+            opener=cast(Any, _Opener(future_rows=61)),
+        )
 
 
 def test_public_market_gap_redirect_host_and_proxy_fail_closed() -> None:

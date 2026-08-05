@@ -51,6 +51,7 @@ DEFAULT_PUBLIC_MARKET_BASE_URL = "https://fapi.binance.com"
 DEFAULT_POLL_SECONDS = 600
 DEFAULT_MAX_SOURCE_AGE_MS = 300_000
 MAX_PUBLIC_MARKET_WORKERS = 8
+PUBLIC_KLINE_LIMIT = 1500
 MAX_INPUT_BYTES = 16 * 1024 * 1024
 MAX_HTTP_BYTES = 1024 * 1024
 MAX_LIVE_EVENTS = 20_000
@@ -999,7 +1000,7 @@ def fetch_public_market_snapshot(  # noqa: C901
             url=_public_url(
                 base_url,
                 "/fapi/v1/klines",
-                {"symbol": normalized, "interval": "1m", "limit": 1441},
+                {"symbol": normalized, "interval": "1m", "limit": PUBLIC_KLINE_LIMIT},
             ),
             field="public klines",
         ),

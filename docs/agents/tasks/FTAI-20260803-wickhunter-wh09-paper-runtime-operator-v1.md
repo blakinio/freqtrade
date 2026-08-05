@@ -14,8 +14,8 @@ status: implementing
 execution_mode: github
 validation_level: full
 base_branch: develop
-base_sha: 7e191cebc71118a2dee32dceeec49a47153dd8f8
-branch: fix/wickhunter-wh09-public-market-concurrency-20260805-v1
+base_sha: c33648acfd86a0352836498103857b601b5f486f
+branch: fix/wickhunter-wh09-kline-completion-margin-20260805-v2
 product_pr: pending
 helper_pr: 1147
 cleanup_pr: 1182
@@ -27,7 +27,7 @@ final_executor_sha: 93137630cfdf6b6198a68f69ea47b2753652a08b
 owner: sole WH-09 persistent PAPER runtime operator producer
 task_kind: implementation
 completion_claim: partial_producer
-next_action: validate bounded public-market concurrency, merge the repair, then deploy a fresh v10 PAPER activation and begin the prospective acceptance window
+next_action: validate the bounded completed-kline margin, merge the repair, then deploy a fresh v11 PAPER activation and begin the prospective acceptance window
 ```
 
 ## Goal and completion boundary
@@ -58,7 +58,7 @@ The operator:
 2. rejects the removed legacy single-file snapshot fallback and every contract, run, path, source or authority substitution;
 3. validates collector/source heartbeats, source identity, event receipt time, decision-time availability, history bounds and canonical snapshot identity;
 4. restricts public market access to HTTPS `fapi.binance.com` on port 443, without credentials, proxies or redirects;
-5. consumes public premium index, book ticker, open interest and 1441 one-minute klines, requiring the latest 1440 completed candles to be contiguous;
+5. consumes public premium index, book ticker, open interest and the Binance maximum 1500 one-minute klines, requiring the latest 1440 candles completed by immutable decision time to be contiguous;
 6. derives the complete canonical metric contract including funding, open interest, quote volume, spread, trend, volatility, VWAP, VWMA, wick ratio, ATR ratio and market-wide liquidation intensity;
 7. requires the immutable runtime binding mode to be exactly `PAPER`;
 8. derives projected exposure, daily loss, drawdown and consecutive-loss state from the persisted simulated runtime journal;
@@ -292,3 +292,9 @@ PR #1231 validates pointer freshness against the same bounded availability clock
 Trusted Synology deployment v9 run `31001468857` built the exact operator and constrained gateway images, passed Liquid20 smoke validation, published a fresh zero-authority activation and started the operator. The operator stayed alive but produced neither generation 1 nor fail-closed health during the bounded 20-minute first-generation gate. The only blocking work after successful initialization is the public market acquisition path, which performed four HTTPS requests sequentially for every selected Liquid20 symbol: up to 80 serial requests for the canonical top-20 universe.
 
 This repair keeps every request allowlisted, credential-free, redirect-free and individually time-bounded, but executes independent symbol acquisitions through a bounded eight-worker pool. `executor.map` preserves the deterministic input/result order, injected test openers remain sequential, exceptions still fail closed, and no journal mutation occurs until the complete market tuple has succeeded. A focused regression proves at least four overlapping acquisitions, enforces the worker ceiling and verifies stable sorted mark output. Failed v9 identities are retired; the next deployment must use fresh v10 activation, state, journal, container and network identities.
+
+## Completed-kline acquisition margin repair
+
+Trusted v10 run `31006885105` produced no generation, but the preserved self-hashed fail-closed health inventoried by run `31011549166` proved the exact error: `public klines must contain 1440 completed one-minute rows`. The operator binds an immutable decision timestamp before public acquisition. Binance returns its most recent rows at response time, so a request for only 1441 rows loses one completed row for every minute that elapses before a symbol response and has effectively no bounded acquisition margin.
+
+The repair requests Binance's endpoint maximum of 1500 one-minute rows and still filters every candle by the immutable decision timestamp before selecting exactly the latest 1440 contiguous completed rows. This provides a bounded margin of up to 60 advancing response rows without allowing future evidence into the decision. Focused tests prove that ten trailing post-decision rows are excluded while the exact 1440-row contract succeeds, and that 61 trailing rows still fail closed. Public host, TLS, redirect, proxy, credential, size and staleness boundaries remain unchanged. Failed v10 identities remain retired; the next deployment must use fresh v11 identities.

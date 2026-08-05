@@ -121,7 +121,7 @@ def test_live_root_accepts_suffix_available_during_bounded_snapshot_read(
     run_id = str(state["run_id"])
     suffix = _event("event-during-read", received_at_ms=NOW_MS + 500)
     with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+        handle.write(json.dumps(suffix, sort_keys=True) + "\\n")
     monotonic_values = iter((10_000_000_000, 10_600_000_000))
     monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
 
@@ -140,7 +140,7 @@ def test_live_root_rejects_suffix_later_than_bounded_snapshot_read(
     run_id = str(state["run_id"])
     suffix = _event("event-after-read", received_at_ms=NOW_MS + 601)
     with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+        handle.write(json.dumps(suffix, sort_keys=True) + "\\n")
     monotonic_values = iter((10_000_000_000, 10_600_000_000))
     monkeypatch.setattr(operator_module.time, "monotonic_ns", lambda: next(monotonic_values))
 

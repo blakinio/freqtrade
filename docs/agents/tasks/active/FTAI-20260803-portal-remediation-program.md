@@ -52,10 +52,12 @@ Coordinate and execute the separate implementation programme covering exactly th
 
 ## Terminal progress
 
-- Audit PR `#1082` and programme initialization PR `#1145` are merged.
+- Audit PR `#1082` is merged and remains the audit-only baseline.
+- Programme initialization PR `#1145` is merged.
 - Issues `#1124`, `#1126` and `#1127` are merged, closed and archived.
 - Issue `#1122` completed through PR `#1159`, merge commit `4cceecc6078c72f582202815adc3e1891cc0f016`; its durable task is archived at `docs/agents/tasks/archive/FTAI-20260803-portal-remediation-1122.md` and migration/schema ownership is released.
-- Issue `#1137` repository implementation merged through PR `#1154`; it remains open only for separately governed protected Authentik staging concurrency using an authorized synthetic identity.
+- Issue `#1137` repository implementation merged through PR `#1154` at `f1bf851733ecc870f61c1206b0ee0fe8755c6e67` after exact-image, independent PostgreSQL concurrency, fresh audit, workflow-security and full exact-head CI passed.
+- Issue `#1137` remains open and its task is `waiting` only for protected Authentik staging concurrency using an authorized synthetic identity. Its repository ownership and OIDC state-claim lease are released.
 - Issue `#1132` no longer waits on `#1122`. The authoritative migration chain and durable production schema now exist, so back-channel logout replay protection is the next safe READY identity task.
 
 ## Coordination rules
@@ -64,7 +66,7 @@ Coordinate and execute the separate implementation programme covering exactly th
 - A multi-Issue PR requires a recorded atomic shared-contract justification.
 - Shared producers and consumers follow the sole-owner table in the programme record.
 - Do not dispatch a child while its paths or producer lease overlap an active task.
-- A task waiting on protected acceptance is checkpointed; an independent READY producer task may continue.
+- A task waiting on protected acceptance is checkpointed; owner instruction permits continuing an independent READY producer task.
 - Product Issues close only after implementation, focused/integration validation, independent audit, applicable real API-mode/system E2E, exact-head CI, terminal PR state, task archival and ownership release.
 - Repository merge authority does not authorize protected deployment, credentials, live trading, withdrawals or capital.
 
@@ -81,13 +83,16 @@ The test runs inside the required lightweight routing contract and prevents the 
 ## Acceptance
 
 - [x] Audit PR `#1082` is terminal and evidence is available on `develop`.
-- [x] Exact authorized 50-Issue inventory and producer ownership are durable.
+- [x] Exact authorized Issue inventory and severity/module map are durable.
+- [x] Dependency graph, producer ownership and barriers are durable.
 - [x] Issues `#1124`, `#1126`, `#1127` and `#1122` are merged, closed and archived.
 - [x] Issue `#1137` repository work is merged and protected acceptance is truthfully separated.
+- [x] Current exact `develop` and one exact programme next action are recorded.
 - [x] Issue `#1132` is reclassified as the next safe READY task.
 - [x] Coordinator/programme consistency is protected by deterministic required CI.
 - [ ] Issue `#1132` durable implementation task, branch and PR are created after this reconciliation merges.
-- [ ] All 50 Issues and related PRs/tasks are terminal.
+- [ ] All 50 Issues are terminal.
+- [ ] All related PRs/tasks are terminal and ownership is released.
 - [ ] Final fresh audit, real API-mode E2E, exact-image validation and exact-head CI pass.
 
 ## Context checkpoint
@@ -105,6 +110,12 @@ identical_failure_retries: 0
 repair_cycles_for_current_gate: 0
 context_reconstruction_attempts: 1
 stall_warnings: 0
+context_routes:
+  - docs/agents/programs/FTAI_PORTAL_REMEDIATION_PROGRAM.md
+  - issue #1122
+  - issue #1132
+  - issue #1137
+  - docs/agents/tasks/archive/FTAI-20260803-portal-remediation-1122.md
 proven:
   - PR 1159 merged and closed Issue 1122
   - archived Issue 1122 task exists and ownership is released
@@ -112,9 +123,11 @@ proven:
   - Issue 1137 remains open only for protected Authentik acceptance
   - previous coordinator state was stale and selected completed Issue 1122
   - deterministic consistency validation is added in this reconciliation
+derived:
+  - Issue 1132 is the highest-priority safe READY identity task after completed Issue 1122
 unknown:
   - terminal exact-head result of the coordinator reconciliation PR
-  - protected Authentik acceptance outcome for Issue 1137
+  - protected Authentik staging concurrency outcome for Issue 1137
 conflicts: []
 blockers: []
 next_action: Merge the coordinator reconciliation only after exact-head governance and required CI pass, then create exactly one durable Issue 1132 child task, implementation branch and PR from the resulting develop head.

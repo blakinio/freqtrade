@@ -308,6 +308,7 @@ jobs:
     needs: classify
     if: needs.classify.outputs.online == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -328,7 +329,9 @@ jobs:
       - name: Tests incl. ccxt compatibility tests
         env:
           CI_WEB_PROXY: http://152.67.66.8:13128
-        run: pytest --random-order --longrun --durations 20 -n auto
+        run: >-
+          pytest --random-order --longrun --durations 20 -n auto
+          --timeout=300
 
   build:
     name: "Build distributions"

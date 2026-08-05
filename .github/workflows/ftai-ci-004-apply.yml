@@ -1,4 +1,4 @@
-name: FTAI-CI-004 apply bounded core-light
+name: FTAI-CI-004 validate bounded core-light
 
 on:
   push:
@@ -25,118 +25,25 @@ jobs:
           activate-environment: true
           python-version: "3.13"
           enable-cache: false
-      - name: Apply workflow and routing changes
-        shell: bash
+      - name: Apply bounded classifier contract
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
 
-          workflow_path = Path(".github/workflows/ci.yml")
-          workflow = workflow_path.read_text(encoding="utf-8")
-          old_condition = (
-              "    if: needs.classify.outputs.core_light == 'true' "
-              "&& needs.classify.outputs.core_matrix != 'true'"
-          )
-          if workflow.count(old_condition) != 1:
-              raise SystemExit("core-light condition did not match exactly once")
-          workflow = workflow.replace(
-              old_condition,
-              "    if: needs.classify.outputs.core_light == 'true'",
-              1,
-          )
-          old_cache = '          cache-suffix: "core-light-3.13"'
-          if workflow.count(old_cache) != 1:
-              raise SystemExit("core-light cache suffix did not match exactly once")
-          workflow = workflow.replace(
-              old_cache,
-              '          cache-suffix: "core-light-v2-3.13"',
-              1,
-          )
-          workflow, install_count = re.subn(
-              r"          uv pip install pytest==9\.1\.1[^\n]*",
-              (
-                  "          uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 "
-                  "pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 "
-                  "time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0"
-              ),
-              workflow,
-              count=1,
-          )
-          if install_count != 1:
-              raise SystemExit("core-light dependency line did not match exactly once")
-          workflow, validation_count = re.subn(
-              r"      - name: Core unit validation without optional ML and optimization suites\n.*?(?=\n  pre-commit:)",
-              "      - name: Bounded core smoke validation\n        run: python tools/ci/run_core_light.py\n",
-              workflow,
-              count=1,
-              flags=re.S,
-          )
-          if validation_count != 1:
-              raise SystemExit("core-light validation block did not match exactly once")
-          workflow_path.write_text(workflow, encoding="utf-8")
-
-          classifier_path = Path("tools/ci/change_classifier.py")
-          classifier = classifier_path.read_text(encoding="utf-8")
-          old_classifier = '        "core_light": core and not docs_only,'
-          if classifier.count(old_classifier) != 1:
+          path = Path("tools/ci/change_classifier.py")
+          content = path.read_text(encoding="utf-8")
+          old = '        "core_light": core and not docs_only,'
+          new = '        "core_light": (core or full) and not docs_only,'
+          if content.count(old) != 1:
               raise SystemExit("core-light classifier expression did not match exactly once")
-          classifier_path.write_text(
-              classifier.replace(
-                  old_classifier,
-                  '        "core_light": (core or full) and not docs_only,',
-                  1,
-              ),
-              encoding="utf-8",
-          )
-
-          tests_path = Path("tests/ci/test_change_classifier.py")
-          tests = tests_path.read_text(encoding="utf-8")
-          replacements = (
-              (
-                  '    assert result["full"]\n    assert result["core_matrix"]\n'
-                  '    assert result["closure_e2e"]',
-                  '    assert result["full"]\n    assert result["core_light"]\n'
-                  '    assert result["core_matrix"]\n    assert result["closure_e2e"]',
-              ),
-              (
-                  '    assert result["full"]\n    assert result["core_matrix"]\n\n\n'
-                  'def test_protected_branch_push_and_release_are_full()',
-                  '    assert result["full"]\n    assert result["core_light"]\n'
-                  '    assert result["core_matrix"]\n\n\n'
-                  'def test_protected_branch_push_and_release_are_full()',
-              ),
-              (
-                  '    assert push["full"] and release["full"]',
-                  '    assert push["full"] and release["full"]\n'
-                  '    assert push["core_light"] and release["core_light"]',
-              ),
-              (
-                  '    assert result["full"]\n    assert result["core_matrix"]\n'
-                  '    assert result["exact_image"]',
-                  '    assert result["full"]\n    assert result["core_light"]\n'
-                  '    assert result["core_matrix"]\n    assert result["exact_image"]',
-              ),
-              (
-                  '    assert result["full"] and result["core_matrix"] and '
-                  'result["closure_e2e"]',
-                  '    assert result["full"] and result["core_light"]\n'
-                  '    assert result["core_matrix"] and result["closure_e2e"]',
-              ),
-          )
-          for old, new in replacements:
-              if old not in tests:
-                  raise SystemExit(f"classifier test insertion point missing: {old!r}")
-              tests = tests.replace(old, new, 1)
-          tests_path.write_text(tests, encoding="utf-8")
+          path.write_text(content.replace(old, new, 1), encoding="utf-8")
           PY
-      - name: Write bounded core-light manifest and runner
-        shell: bash
+      - name: Write bounded smoke manifest
         run: |
           cat > tools/ci/core-light-tests.txt <<'EOF'
           # Deterministic smoke targets for non-critical core changes.
           # Critical exchange, data, persistence, RPC, strategy, FreqAI and optimize paths
-          # are routed to the complete core matrix instead.
+          # remain covered by the complete core matrix.
           tests/test_arguments.py
           tests/test_configuration.py
           tests/test_directory_operations.py
@@ -153,8 +60,8 @@ jobs:
           tests/plugins/test_remotepairlist.py
           tests/util
           EOF
-          sed -i 's/^          //' tools/ci/core-light-tests.txt
-
+      - name: Write bounded smoke runner
+        run: |
           cat > tools/ci/run_core_light.py <<'PYFILE'
           #!/usr/bin/env python3
           """Run the deterministic, dependency-light core smoke suite."""
@@ -247,17 +154,21 @@ jobs:
           if __name__ == "__main__":
               raise SystemExit(main())
           PYFILE
-          sed -i 's/^          //' tools/ci/run_core_light.py
           chmod +x tools/ci/run_core_light.py
       - name: Write deterministic contract tests
-        shell: bash
         run: |
           cat > tests/ci/test_core_light_dependency_contract.py <<'PYFILE'
           from pathlib import Path
 
           import pytest
 
-          from tools.ci.run_core_light import MAX_TESTS, MIN_TESTS, load_targets, parse_collection_count
+          from tools.ci.change_classifier import classify
+          from tools.ci.run_core_light import (
+              MAX_TESTS,
+              MIN_TESTS,
+              load_targets,
+              parse_collection_count,
+          )
 
 
           OPTIONAL_PACKAGES = (
@@ -317,23 +228,34 @@ jobs:
                   parse_collection_count("collection completed")
 
 
-          def test_complete_core_suite_remains_in_matrix_jobs() -> None:
+          def test_full_routes_execute_bounded_smoke_and_complete_matrix() -> None:
+              outputs = classify([".github/workflows/ci.yml"])["outputs"]
+              assert outputs["full"]
+              assert outputs["core_light"]
+              assert outputs["core_matrix"]
+
+
+          def test_complete_core_suite_and_gate_remain_enforced() -> None:
               workflow = _workflow()
               assert "run: pytest --random-order --durations 20 -n auto" in workflow
               assert (
                   "run: pytest --random-order --cov=freqtrade --cov=freqtrade_client "
                   "--cov-config=.coveragerc"
               ) in workflow
+              assert (
+                  'require_success "$CORE_LIGHT_SCOPE" "$CORE_LIGHT_RESULT" '
+                  '"Bounded core validation"'
+              ) in workflow
           PYFILE
-          sed -i 's/^          //' tests/ci/test_core_light_dependency_contract.py
       - name: Install bounded validation environment
         run: |
           uv pip install -r requirements.txt
           uv pip install pytest==9.1.1 pytest-asyncio==1.4.0 pytest-mock==3.15.1 pytest-timeout==2.4.0 pytest-xdist==3.8.0 time-machine==3.2.0 ruff==0.15.20 mypy==2.1.0 PyYAML==6.0.3
           uv pip install --no-deps -e ft_client/
           uv pip install --no-deps -e .
-      - name: Validate implementation
+      - name: Format and validate implementation
         run: |
+          ruff format tools/ci/run_core_light.py tools/ci/change_classifier.py tests/ci/test_core_light_dependency_contract.py
           python -m compileall -q tools/ci tests/ci
           ruff check tools/ci tests/ci
           ruff format --check tools/ci tests/ci
@@ -342,12 +264,10 @@ jobs:
           python tools/ci/validate_workflows.py
           python tools/ci/run_core_light.py
           git diff --check
-      - name: Commit validated implementation
-        shell: bash
+      - name: Commit validated non-workflow implementation
         run: |
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git rm .github/workflows/ftai-ci-004-apply.yml
-          git add .github/workflows/ci.yml tools/ci/change_classifier.py tools/ci/core-light-tests.txt tools/ci/run_core_light.py tests/ci/test_change_classifier.py tests/ci/test_core_light_dependency_contract.py
-          git commit -m "fix(ci): bound the core-light smoke suite"
+          git add tools/ci/change_classifier.py tools/ci/core-light-tests.txt tools/ci/run_core_light.py tests/ci/test_core_light_dependency_contract.py
+          git commit -m "fix(ci): add bounded core-light smoke contract"
           git push origin HEAD:fix/FTAI-CI-004-bounded-core-light-1285

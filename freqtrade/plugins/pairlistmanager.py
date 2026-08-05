@@ -4,6 +4,7 @@ PairList manager class
 
 import logging
 from functools import partial
+from typing import Callable, cast
 
 from cachetools import LRUCache, cached
 
@@ -151,7 +152,8 @@ class PairListManager(LoggingMixin):
         # Tickers should be cached to avoid calling the exchange on each call.
         tickers: dict = {}
         if self._tickers_needed:
-            tickers = self._get_cached_tickers()
+            cached_tickers = cast(Callable[[], Tickers], self._get_cached_tickers)
+            tickers = cached_tickers()
 
         # Generate the pairlist with first Pairlist Handler in the chain
         pairlist = self._pairlist_handlers[0].gen_pairlist(tickers)

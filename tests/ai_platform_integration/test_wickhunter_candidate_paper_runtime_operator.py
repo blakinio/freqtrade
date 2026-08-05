@@ -218,6 +218,119 @@ def test_load_liquid20_live_root_is_root_only_and_decision_time_safe(
     assert len(snapshot.snapshot_id) == 64
 
 
+def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:
+    root = _write_live_root(tmp_path / "active-suffix")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-uncommitted", received_at_ms=NOW_MS - 500)
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+    assert {event.source_event_id for event in snapshot.events} == {
+        "event-history",
+        "event-current",
+    }
+
+
+def test_live_root_allows_uncommitted_first_event_for_configured_source(
+    tmp_path: Path,
+) -> None:
+    root = _write_live_root(tmp_path / "configured-zero")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    bybit_event = _event(
+        "bybit-uncommitted",
+        received_at_ms=NOW_MS - 500,
+        source="bybit-linear",
+    )
+    (root / "runs" / run_id / "bybit-linear.ndjson").write_text(
+        json.dumps(bybit_event, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS)
+    source_states = {item.source: item for item in snapshot.source_states}
+
+    assert "bybit-uncommitted" not in {event.source_event_id for event in snapshot.events}
+    assert source_states["bybit-linear"].coverage_available is False
+
+
+def test_live_root_rejects_suffix_for_completed_run(tmp_path: Path) -> None:
+    root = _write_live_root(
+        tmp_path / "completed-suffix",
+        previous_events=[_event("previous-committed", received_at_ms=NOW_MS - 3_600_000)],
+    )
+    previous_root = root / "runs" / "liquid20-20270114T000000Z-0"
+    with (previous_root / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                _event("previous-extra", received_at_ms=NOW_MS - 3_500_000),
+                sort_keys=True,
+            )
+            + "\n"
+        )
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="contradicts events_written"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
+def test_live_root_retries_mid_publication_pointer_state_mismatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "publication-race")
+    pointer_path = root / "live-state-v1.json"
+    pointer = json.loads(pointer_path.read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    run_state_path = root / "runs" / run_id / "run-state-v1.json"
+    newer_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+    newer_state["collector_heartbeat_at_ms"] = NOW_MS + 100
+    run_state_path.write_text(
+        json.dumps(newer_state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    def publish_pointer(_seconds: float) -> None:
+        pointer["collector_heartbeat_at_ms"] = NOW_MS + 100
+        pointer["state"] = newer_state
+        pointer_path.write_text(
+            json.dumps(pointer, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+    monkeypatch.setattr(operator_module.time, "sleep", publish_pointer)
+
+    snapshot = load_liquid20_snapshot(root, now_ms=NOW_MS + 100)
+
+    assert snapshot.observed_at_ms == NOW_MS + 100
+
+
+def test_live_root_persistent_mid_publication_mismatch_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _write_live_root(tmp_path / "persistent-publication-race")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    run_state_path = root / "runs" / run_id / "run-state-v1.json"
+    newer_state = json.loads(run_state_path.read_text(encoding="utf-8"))
+    newer_state["collector_heartbeat_at_ms"] = NOW_MS + 100
+    run_state_path.write_text(
+        json.dumps(newer_state, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(operator_module.time, "sleep", lambda _seconds: None)
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match="stable Liquid20"):
+        load_liquid20_snapshot(root, now_ms=NOW_MS + 100)
+
+
 def test_live_root_caps_per_symbol_history(tmp_path: Path) -> None:
     events = [
         _event(

@@ -228,3 +228,21 @@ non-zero value, and permits a missing event file only for an unconfigured source
 events and no receipt. Configured zero-event sources still require an empty regular file.
 A focused regression materializes this exact producer shape and verifies fail-closed source
 health without rejecting the valid live root.
+
+## Active producer publication consistency repair
+
+Deployment run `30980891347` reached the real read-only Liquid20 root and failed before
+activation creation because an active source file contained more complete records than the
+last atomically published `events_written` count. Bounded audit run `30983119422` proved
+this is the producer's normal publication order rather than persistent corruption: source
+files were one to four complete records ahead, pointer and run-state briefly differed while
+state publication was in progress, and subsequent heartbeat publication converged the
+committed count and receipt.
+
+The operator now treats `events_written` as the committed append-only prefix for the active
+run, validates and bounds any uncommitted suffix without using it at decision time, and
+retains exact file/count equality for completed historical runs. It also retries only the
+transient pointer/run-state publication window and verifies the pointer did not change over
+the complete snapshot read. Persistent mismatch, truncated input, malformed JSON, oversized
+input, excessive suffixes, source substitution, receipt substitution and authority drift
+continue to fail closed.

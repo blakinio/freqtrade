@@ -1941,8 +1941,7 @@ class Trade(ModelBase, LocalTrade):
             ).scalar_one()
         else:
             total_profit = sum(
-                (t.close_profit_abs or 0.0)
-                for t in LocalTrade.get_trades_proxy(is_open=False)
+                (t.close_profit_abs or 0.0) for t in LocalTrade.get_trades_proxy(is_open=False)
             )
         return total_profit or 0
 

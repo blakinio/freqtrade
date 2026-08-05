@@ -1,0 +1,70 @@
+name: Temporary mypy repair
+
+on:
+  push:
+    branches:
+      - fix/core-mypy-2-1-compat
+
+permissions:
+  contents: write
+
+concurrency:
+  group: temporary-mypy-repair-final
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repair branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          ref: fix/core-mypy-2-1-compat
+          fetch-depth: 0
+
+      - name: Apply exact pre-commit repairs and remove this workflow
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              "freqtrade/persistence/trade_model.py": [
+                  (
+                      "            total_profit = sum(\n                t.close_profit_abs for t in LocalTrade.get_trades_proxy(is_open=False)\n            )\n",
+                      "            total_profit = sum(\n                (t.close_profit_abs or 0.0)\n                for t in LocalTrade.get_trades_proxy(is_open=False)\n            )\n",
+                  ),
+              ],
+              "freqtrade/plugins/pairlistmanager.py": [
+                  (
+                      "import logging\nfrom functools import partial\nfrom typing import Callable, cast\n",
+                      "import logging\nfrom collections.abc import Callable\nfrom functools import partial\nfrom typing import cast\n",
+                  ),
+              ],
+              "freqtrade/freqai/freqai_interface.py": [
+                  (
+                      "        do_preds: NDArray[np.int_] = np.zeros(\n            len(dataframe_backtest), dtype=np.int_\n        )\n",
+                      "        do_preds: NDArray[np.int_] = np.zeros(len(dataframe_backtest), dtype=np.int_)\n",
+                  ),
+              ],
+          }
+
+          for filename, changes in replacements.items():
+              path = Path(filename)
+              content = path.read_text(encoding="utf-8")
+              for old, new in changes:
+                  count = content.count(old)
+                  if count != 1:
+                      raise SystemExit(f"{filename}: expected one exact match, found {count}")
+                  content = content.replace(old, new)
+              path.write_text(content, encoding="utf-8")
+
+          Path(".github/workflows/temporary-mypy-repair.yml").unlink()
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(types): satisfy pre-commit typing and formatting"
+          git push origin HEAD:fix/core-mypy-2-1-compat

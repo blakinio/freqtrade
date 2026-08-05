@@ -15,6 +15,10 @@ from ai_platform.portal.identity.schema import OidcIdentity
 
 
 OIDC_HTTP_USER_AGENT = "Freqtrade-Portal-OIDC/1.0"
+_MAX_ISSUER_LENGTH = 1024
+_MAX_CLIENT_ID_LENGTH = 255
+_MAX_LOGOUT_JTI_LENGTH = 255
+_MAX_LOGOUT_IDENTITY_LENGTH = 512
 
 
 class OidcProtocolError(RuntimeError):
@@ -48,11 +52,17 @@ class OidcClientConfig:
         )
         if not self.client_id or not self.client_secret:
             raise ValueError("OIDC client credentials are required")
+        if len(self.issuer) > _MAX_ISSUER_LENGTH:
+            raise ValueError("OIDC issuer is too long")
+        if len(self.client_id) > _MAX_CLIENT_ID_LENGTH:
+            raise ValueError("OIDC client ID is too long")
 
 
 @dataclass(frozen=True)
 class OidcLogoutIdentity:
     issuer: str
+    client_id: str
+    jti: str
     subject: str | None
     idp_session_id: str | None
 
@@ -168,16 +178,30 @@ class PyJwtOidcClient:
             raise OidcProtocolError("logout token is missing the back-channel logout event")
         if "nonce" in claims:
             raise OidcProtocolError("logout token must not contain nonce")
-        subject = claims.get("sub")
-        sid = claims.get("sid")
-        if not isinstance(subject, str):
-            subject = None
-        if not isinstance(sid, str):
-            sid = None
+        jti = _required_bounded_claim(
+            claims,
+            "jti",
+            maximum_length=_MAX_LOGOUT_JTI_LENGTH,
+            label="logout token jti",
+        )
+        subject = _optional_bounded_claim(
+            claims,
+            "sub",
+            maximum_length=_MAX_LOGOUT_IDENTITY_LENGTH,
+            label="logout token subject",
+        )
+        sid = _optional_bounded_claim(
+            claims,
+            "sid",
+            maximum_length=_MAX_LOGOUT_IDENTITY_LENGTH,
+            label="logout token sid",
+        )
         if subject is None and sid is None:
             raise OidcProtocolError("logout token must contain sub or sid")
         return OidcLogoutIdentity(
             issuer=self.issuer,
+            client_id=self.config.client_id,
+            jti=jti,
             subject=subject,
             idp_session_id=sid,
         )
@@ -285,6 +309,38 @@ class PyJwtOidcClient:
         if require_nonce and claims.get("nonce") != expected_nonce:
             raise OidcProtocolError("OIDC nonce mismatch")
         return dict(claims)
+
+
+def _required_bounded_claim(
+    claims: dict[str, Any],
+    key: str,
+    *,
+    maximum_length: int,
+    label: str,
+) -> str:
+    value = claims.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise OidcProtocolError(f"{label} is required")
+    if len(value) > maximum_length:
+        raise OidcProtocolError(f"{label} is too long")
+    return value
+
+
+def _optional_bounded_claim(
+    claims: dict[str, Any],
+    key: str,
+    *,
+    maximum_length: int,
+    label: str,
+) -> str | None:
+    value = claims.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise OidcProtocolError(f"{label} is invalid")
+    if len(value) > maximum_length:
+        raise OidcProtocolError(f"{label} is too long")
+    return value
 
 
 def _json_headers() -> dict[str, str]:

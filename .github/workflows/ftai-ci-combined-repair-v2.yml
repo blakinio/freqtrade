@@ -1,0 +1,62 @@
+name: FTAI bounded combined CI repair v2
+
+on:
+  push:
+    branches:
+      - fix/ci-core-light-xdist-1265
+    paths:
+      - .github/workflows/ftai-ci-combined-repair-v2.yml
+
+concurrency:
+  group: ftai-bounded-combined-ci-repair-v2
+  cancel-in-progress: false
+
+permissions:
+  actions: write
+  contents: write
+
+jobs:
+  combine:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: true # bounded branch-only helper; self-disables and removes itself
+          fetch-depth: 0
+      - name: Combine the verified CI repairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin fix/ci-online-test-bounds-1257
+          git show origin/fix/ci-online-test-bounds-1257:.github/workflows/ci.yml > .github/workflows/ci.yml
+          python -c 'from pathlib import Path; p=Path(".github/workflows/ci.yml"); s=p.read_text(); old="pytest-timeout==2.4.0 time-machine==3.2.0"; new="pytest-timeout==2.4.0 pytest-xdist==3.8.0 time-machine==3.2.0"; assert old in s and new not in s; p.write_text(s.replace(old, new, 1))'
+          git show origin/fix/ci-online-test-bounds-1257:tests/ci/test_online_job_bounds.py > tests/ci/test_online_job_bounds.py
+          grep -Fq 'pytest-xdist==3.8.0' .github/workflows/ci.yml
+          grep -Fq 'timeout-minutes: 30' .github/workflows/ci.yml
+          grep -Fq -- '--timeout=300' .github/workflows/ci.yml
+      - name: Disable temporary workflow records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in 327970097 ftai-ci-combined-repair-v2.yml; do
+            curl --fail-with-body --silent --show-error \
+              --request PUT \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer ${GH_TOKEN}" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/disable"
+          done
+      - name: Remove helpers and commit final combined repair
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/ftai-ci-combined-repair.yml
+          rm .github/workflows/ftai-ci-combined-repair-v2.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(ci): bound online lane and install xdist"
+          git push origin HEAD:${{ github.ref_name }}

@@ -246,3 +246,13 @@ transient pointer/run-state publication window and verifies the pointer did not 
 the complete snapshot read. Persistent mismatch, truncated input, malformed JSON, oversized
 input, excessive suffixes, source substitution, receipt substitution and authority drift
 continue to fail closed.
+
+## Uncommitted suffix validation repair
+
+Automated review identified that active-run suffix rows were bounded and decoded as
+JSON objects but discarded before canonical event, immutable source and decision-time
+validation. The shared event parser now validates both committed rows and every complete
+uncommitted suffix row before the suffix is ignored. Invalid schema, non-positive values,
+source substitution and future receipt timestamps therefore fail closed immediately,
+while valid producer-ahead rows remain excluded until atomically committed by state.
+Focused parametrized regressions cover invalid payload, wrong source and future receipt.

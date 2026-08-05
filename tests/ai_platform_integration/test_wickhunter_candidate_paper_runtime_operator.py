@@ -235,6 +235,38 @@ def test_live_root_reads_only_committed_active_prefix(tmp_path: Path) -> None:
     }
 
 
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    (
+        ("invalid", "source event is invalid"),
+        ("wrong-source", "source does not match"),
+        ("future", "unavailable at live observation time"),
+    ),
+)
+def test_live_root_rejects_invalid_uncommitted_active_suffix(
+    tmp_path: Path,
+    mutation: str,
+    message: str,
+) -> None:
+    root = _write_live_root(tmp_path / f"active-suffix-{mutation}")
+    pointer = json.loads((root / "live-state-v1.json").read_text(encoding="utf-8"))
+    state = cast(dict[str, object], pointer["state"])
+    run_id = str(state["run_id"])
+    suffix = _event("event-uncommitted-invalid", received_at_ms=NOW_MS - 500)
+    if mutation == "invalid":
+        suffix["price"] = "0"
+    elif mutation == "wrong-source":
+        suffix["source"] = "bybit-linear"
+    else:
+        suffix["received_at_ms"] = NOW_MS + 1
+        suffix["occurred_at_ms"] = NOW_MS
+    with (root / "runs" / run_id / "binance-usdm.ndjson").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(suffix, sort_keys=True) + "\n")
+
+    with pytest.raises(CandidatePaperRuntimeOperatorError, match=message):
+        load_liquid20_snapshot(root, now_ms=NOW_MS)
+
+
 def test_live_root_allows_uncommitted_first_event_for_configured_source(
     tmp_path: Path,
 ) -> None:

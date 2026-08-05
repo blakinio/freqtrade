@@ -309,12 +309,37 @@ def _read_bounded_json(path: Path, *, field: str) -> dict[str, Any]:
     return _require_object(payload, field=field)
 
 
+def _parse_live_source_event(
+    row: dict[str, Any],
+    *,
+    source: str,
+    observed_at_ms: int,
+) -> LiquidationEvent:
+    try:
+        event = event_from_json_dict(row)
+    except ValueError as exc:
+        raise CandidatePaperRuntimeOperatorError(
+            f"Liquid20 source event is invalid: {source}"
+        ) from exc
+    if event.source != source:
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 event source does not match its immutable source file"
+        )
+    if event.received_at_ms > observed_at_ms:
+        raise CandidatePaperRuntimeOperatorError(
+            "Liquid20 event was unavailable at live observation time"
+        )
+    return event
+
+
 def _read_committed_jsonl_tail(  # noqa: C901
     path: Path,
     *,
     field: str,
     committed_rows: int,
     allow_uncommitted_suffix: bool,
+    source: str,
+    observed_at_ms: int,
 ) -> tuple[dict[str, Any], ...]:
     if path.is_symlink() or not path.is_file():
         raise CandidatePaperRuntimeOperatorError(f"{field} must be a regular file")
@@ -357,6 +382,11 @@ def _read_committed_jsonl_tail(  # noqa: C901
                     raise CandidatePaperRuntimeOperatorError(
                         f"{field} contains too many uncommitted events"
                     )
+                _parse_live_source_event(
+                    row,
+                    source=source,
+                    observed_at_ms=observed_at_ms,
+                )
     except CandidatePaperRuntimeOperatorError:
         raise
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -560,6 +590,8 @@ def _read_live_source_events(
         field=f"Liquid20 source events {source}",
         committed_rows=events_written,
         allow_uncommitted_suffix=allow_uncommitted_suffix and configured,
+        source=source,
+        observed_at_ms=observed_at_ms,
     )
     if events_written == 0:
         if source_row.get("last_event_received_at_ms") is not None:
@@ -568,23 +600,14 @@ def _read_live_source_events(
             )
         return ()
 
-    parsed_events: list[LiquidationEvent] = []
-    for row in event_rows:
-        try:
-            event = event_from_json_dict(row)
-        except ValueError as exc:
-            raise CandidatePaperRuntimeOperatorError(
-                f"Liquid20 source event is invalid: {source}"
-            ) from exc
-        if event.source != source:
-            raise CandidatePaperRuntimeOperatorError(
-                "Liquid20 event source does not match its immutable source file"
-            )
-        if event.received_at_ms > observed_at_ms:
-            raise CandidatePaperRuntimeOperatorError(
-                "Liquid20 event was unavailable at live observation time"
-            )
-        parsed_events.append(event)
+    parsed_events = [
+        _parse_live_source_event(
+            row,
+            source=source,
+            observed_at_ms=observed_at_ms,
+        )
+        for row in event_rows
+    ]
 
     claimed_last_received = _integer(
         source_row.get("last_event_received_at_ms"),

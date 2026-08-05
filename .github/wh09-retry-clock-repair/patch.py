@@ -34,9 +34,7 @@ def main() -> None:
         "    def suffix_available_at_ms() -> int:\n"
         "        elapsed_ns = time.monotonic_ns() - snapshot_started_ns\n"
         "        if elapsed_ns < 0:\n"
-        "            raise CandidatePaperRuntimeOperatorError(\n"
-        "                \"Liquid20 snapshot clock moved backwards\"\n"
-        "            )\n"
+        "            raise CandidatePaperRuntimeOperatorError(\"Liquid20 snapshot clock moved backwards\")\n"
         "        return now_ms + elapsed_ns // 1_000_000\n\n",
         "def _load_liquid20_live_root_once(  # noqa: C901\n"
         "    root: Path,\n"
@@ -70,9 +68,7 @@ def main() -> None:
         "    def suffix_available_at_ms() -> int:\n"
         "        elapsed_ns = time.monotonic_ns() - snapshot_started_ns\n"
         "        if elapsed_ns < 0:\n"
-        "            raise CandidatePaperRuntimeOperatorError(\n"
-        "                \"Liquid20 snapshot clock moved backwards\"\n"
-        "            )\n"
+        "            raise CandidatePaperRuntimeOperatorError(\"Liquid20 snapshot clock moved backwards\")\n"
         "        return now_ms + elapsed_ns // 1_000_000\n\n"
         "    last_error: _TransientLiquid20SnapshotError | None = None\n"
         "    for attempt in range(LIVE_SNAPSHOT_READ_ATTEMPTS):\n",
